@@ -2,7 +2,8 @@ cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
  
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
-    add_compile_options(-fPIC)
+  # emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
+  add_compile_options(-fPIC)
 endif()
 add_compile_definitions(OC_DYNAMIC_ALLOCATION)
 
