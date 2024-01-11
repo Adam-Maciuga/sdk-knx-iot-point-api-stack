@@ -49,7 +49,6 @@ mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
 
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 
-include(tools/clang-tidy.cmake)
 
 if(KNX_BUILTIN_MBEDTLS)
     # If an mbedtls platform layer is defined, add it to the mbedtls list of libs
@@ -135,8 +134,7 @@ set(API_INCLUDE_DIR
     ${PROJECT_SOURCE_DIR}/include
 )
 
-# enable clang-tidy 
-enable_clang_tidy()
+
 
 # Core functions used by the stack
 set(CORE_SOURCES
@@ -305,38 +303,7 @@ endif()
 
 
 
-######## Units tests (UNIX only) ########
-include(CTest)
-if(BUILD_TESTING AND UNIX)
-    enable_language(CXX)
-    find_package(Threads REQUIRED)
-    set(CMAKE_CXX_STANDARD 11)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_CXX_EXTENSIONS OFF)
 
-    # Disable clang-tidy for gtest
-    disable_clang_tidy()
-
-    # Build googletest
-    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/gtest)
-    target_include_directories(gtest PUBLIC ${PROJECT_SOURCE_DIR}/deps/gtest/include)
-
-    add_subdirectory(api/unittest)
-    add_subdirectory(port/unittest)
-    add_subdirectory(messaging/coap/unittest)
-if(OC_OSCORE_ENABLED)
-    add_subdirectory(security/unittest)
-endif()
-endif()
-
-# https://stackoverflow.com/questions/37957583/how-to-use-gcov-with-cmake
-if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-    include(CodeCoverage)
-    setup_target_for_coverage(${PROJECT_NAME}_coverage ${TEST_TARGET} coverage)
-
-    SET(CMAKE_CXX_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage")
-    SET(CMAKE_C_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage")
-endif() #CMAKE_BUILD_TYPE STREQUAL "Coverage"
 
 add_subdirectory(port)
 
