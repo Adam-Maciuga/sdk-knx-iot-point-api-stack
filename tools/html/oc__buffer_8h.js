@@ -1,0 +1,15 @@
+var oc__buffer_8h =
+[
+    [ "oc_allocate_message", "oc__buffer_8h.html#a39e6310f89bced3f65eaf4f75b439e14", null ],
+    [ "oc_allocate_message_from_pool", "oc__buffer_8h.html#a36ead823594392d8488a7f8b8df348f6", null ],
+    [ "oc_buffer_num_free_incoming", "oc__buffer_8h.html#a3fa8496004132d32c4e223edc3d9829a", null ],
+    [ "oc_buffer_num_free_outgoing", "oc__buffer_8h.html#a2abe47be84b67b9d7c255ac8239b8bd6", null ],
+    [ "oc_close_all_tls_sessions", "oc__buffer_8h.html#a0a876561a1a6246f5c587523cfca8017", null ],
+    [ "oc_close_all_tls_sessions_for_device", "oc__buffer_8h.html#ab3e5c67cfc74d3f96fe3993a933de28f", null ],
+    [ "oc_internal_allocate_outgoing_message", "oc__buffer_8h.html#ad13ec91958b14acfb23bcae0256ec526", null ],
+    [ "oc_message_add_ref", "oc__buffer_8h.html#a450d1cd16892e07f3d449cd69f04eb47", null ],
+    [ "oc_message_unref", "oc__buffer_8h.html#a35317137d7cca0dd2b87c0270072ee68", null ],
+    [ "oc_recv_message", "oc__buffer_8h.html#a426f39aecad17d8965a4c40bc4e8c115", null ],
+    [ "oc_send_message", "oc__buffer_8h.html#a562bd0a27e90eed697101bbc3c238bdd", null ],
+    [ "oc_set_buffers_avail_cb", "oc__buffer_8h.html#a555babb368089969d3354870b3770246", null ]
+];

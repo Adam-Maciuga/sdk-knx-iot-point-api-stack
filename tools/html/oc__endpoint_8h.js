@@ -1,0 +1,35 @@
+var oc__endpoint_8h =
+[
+    [ "oc_endpoint_t", "structoc__endpoint__t.html", "structoc__endpoint__t" ],
+    [ "oc_ipv4_addr_t", "structoc__ipv4__addr__t.html", "structoc__ipv4__addr__t" ],
+    [ "oc_ipv6_addr_t", "structoc__ipv6__addr__t.html", "structoc__ipv6__addr__t" ],
+    [ "SERIAL_NUM_SIZE", "oc__endpoint_8h.html#a076a0100c28c0dd6423c3bb8d9f3d3f6", null ],
+    [ "oc_endpoint_t", "oc__endpoint_8h.html#a0b37d95d6d4c2ae5b243e8fdba19daa1", null ],
+    [ "transport_flags", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78", [
+      [ "DISCOVERY", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78a05eb094889c0adc67ccc19ea72284315", null ],
+      [ "SECURED", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78a4233d0336b2b5b9922cc2a448052c137", null ],
+      [ "IPV4", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78acfc4c1053c60b6cc2a7776c60969f31f", null ],
+      [ "IPV6", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78aff712168361fe68b2bb6193df4977d3c", null ],
+      [ "TCP", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78aa040cd7feeb588104634cdadf35abf1c", null ],
+      [ "OSCORE", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78ab0f4a07a137af05e4eb5d3a6874cfe88", null ],
+      [ "MULTICAST", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78a607d700b2c0a01c54bdadde074a7cb12", null ],
+      [ "ACCEPTED", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78a69c37229a15f9a89e188ad210f31c647", null ],
+      [ "OSCORE_DECRYPTED", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78a9c408493a1300b98eee738385aa6859a", null ],
+      [ "OSCORE_ENCRYPTED", "oc__endpoint_8h.html#acbafbf0eebae1e60a53d50301fa1ab78a9fa9c68d72c81a94822b948e9b6385b9", null ]
+    ] ],
+    [ "oc_endpoint_compare", "oc__endpoint_8h.html#a1c6943a2da63833fffceb42845d039a8", null ],
+    [ "oc_endpoint_compare_address", "oc__endpoint_8h.html#ad601b8db3b9dbbae80f5f308a20d7e55", null ],
+    [ "oc_endpoint_copy", "oc__endpoint_8h.html#ad48737545c72bb476b7f563892063f69", null ],
+    [ "oc_endpoint_list_copy", "oc__endpoint_8h.html#a409c05a4d843f01454a5d2bd38303350", null ],
+    [ "oc_endpoint_print", "oc__endpoint_8h.html#a508abed5fae364d457008b576ae123d6", null ],
+    [ "oc_endpoint_set_auth_at_index", "oc__endpoint_8h.html#a15adc3e2da1aa579d6fb2cf4359c7025", null ],
+    [ "oc_endpoint_set_local_address", "oc__endpoint_8h.html#af055cc72d372ead0c5b58f60896c064f", null ],
+    [ "oc_endpoint_set_oscore_id", "oc__endpoint_8h.html#a3b9a85df9e779336ba56018dc4e901be", null ],
+    [ "oc_endpoint_set_oscore_id_from_str", "oc__endpoint_8h.html#abcd7ff2edf53d335ebaf3b076e2945c0", null ],
+    [ "oc_endpoint_string_parse_path", "oc__endpoint_8h.html#a4b1ba00a5e0834a3bda665259a31e609", null ],
+    [ "oc_endpoint_to_string", "oc__endpoint_8h.html#ad9e390c2515206b065b414aee3ed272d", null ],
+    [ "oc_free_endpoint", "oc__endpoint_8h.html#aef7806ac74d70ffd0e986dd08b66a3e7", null ],
+    [ "oc_ipv6_endpoint_is_link_local", "oc__endpoint_8h.html#ad62de09b6c73bc111e1cd01a712d27b0", null ],
+    [ "oc_new_endpoint", "oc__endpoint_8h.html#a4effe0d1e3b317c13a3bea66018b007e", null ],
+    [ "oc_string_to_endpoint", "oc__endpoint_8h.html#a661224b4833bd47f26857d5369937ca5", null ]
+];

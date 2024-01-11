@@ -34,7 +34,7 @@ set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast ev
 set(OC_REPLAY_PROTECTION_ENABLED OFF CACHE BOOL "Enable replay protection using the Echo option")
 
 set(KNX_BUILTIN_MBEDTLS ON CACHE BOOL "Use built-in mbedTLS, as opposed to external lib from different project")
-set(KNX_BUILTIN_TINYCBOR ON CACHE BOOL "Use built-in TinyCBOR, as opposed to external lib from different project")
+
 
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
 
@@ -115,6 +115,19 @@ set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/c-timestamp/timestamp_valid.c
 )
 
+set(CBOR_SOURCES
+     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborerrorstrings.c
+     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborencoder.c
+     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborencoder_close_container_checked.c
+     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborparser.c
+     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborpretty.c
+)
+
+
+
+
+
+
 set(API_INCLUDE_DIR
     ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/api
@@ -160,6 +173,10 @@ set(COAP_INCLUDE_DIRS
 )
 
 add_library(kis-common INTERFACE)
+
+
+
+
 
 if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_OSCORE)
@@ -242,6 +259,21 @@ add_library(kisClientServer
 )
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
+
+
+    add_library(tinycbor-master
+        ${CBOR_SOURCES}
+    )
+
+    target_include_directories(tinycbor-master PUBLIC
+        ${PROJECT_SOURCE_DIR}/tinycbor/src
+    )
+
+   
+
+
+
+
 if (OC_USE_STORAGE)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
 endif()
@@ -270,13 +302,6 @@ elseif(NOT BUILD_TESTING)
 endif()
 
 
-if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    # Add clang-format target
-    add_custom_target(format
-        COMMAND ${CMAKE_COMMAND} -P ${PROJECT_SOURCE_DIR}/tools/clang-format.cmake
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    )
-endif()
 
 
 
@@ -314,8 +339,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
 endif() #CMAKE_BUILD_TYPE STREQUAL "Coverage"
 
 add_subdirectory(port)
-add_subdirectory(apps)
-add_subdirectory(deps)
+
+
 
 if(OC_LOG_TO_FILE_ENABLED)
     target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
