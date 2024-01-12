@@ -51,28 +51,13 @@ set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 
 
 if(KNX_BUILTIN_MBEDTLS)
-    # If an mbedtls platform layer is defined, add it to the mbedtls list of libs
-    if(TARGET mbedtls-plat)
-        set(libs ${libs} mbedtls-plat)
-    endif()
+    
 
-    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/mbedtls)
 
-    target_include_directories(mbedcrypto PUBLIC
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
-        ${PROJECT_SOURCE_DIR}/security
-    )
 
-    target_compile_definitions(mbedcrypto
-        PUBLIC
-        MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\"
-    )
+    
 
-    if(TARGET mbedcrypto-plat)
-        target_link_libraries(mbedcrypto mbedcrypto-plat)
-    endif()
+    
 endif()
 
 
@@ -123,9 +108,93 @@ set(CBOR_SOURCES
 )
 
 
+set(CRYPTO_SOURCES
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aes.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aesni.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/arc4.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aria.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/asn1parse.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/asn1write.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/base64.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/blowfish.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/camellia.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ccm.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/chacha20.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/chachapoly.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cipher.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cipher_wrap.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cmac.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ctr_drbg.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/des.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/dhm.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecdh.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecdsa.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecjpake.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp_curves.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/entropy.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/entropy_poll.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/error.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/gcm.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/havege.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/hkdf.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/hmac_drbg.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md2.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md4.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md5.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md_wrap.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/memory_buffer_alloc.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/nist_kw.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/oid.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/padlock.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pem.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk_wrap.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs12.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs5.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkparse.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkwrite.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/platform.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/platform_util.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/poly1305.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ripemd160.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa_internal.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha1.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha256.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha512.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/threading.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/timing.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/version.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/version_features.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/xtea.c
+)
 
+set(X509_SOURCES
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/certs.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs11.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_create.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_crl.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_crt.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_csr.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write_crt.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write_csr.c
+)
 
-
+set(TLS_SOURCES
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/debug.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/net_sockets.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cache.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_ciphersuites.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cli.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cookie.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_srv.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_ticket.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls.c
+)
 
 set(API_INCLUDE_DIR
     ${PROJECT_SOURCE_DIR}/
@@ -250,6 +319,8 @@ set(KNX_INCLUDE_DIRS
 )
 
 add_compile_definitions(OC_CLIENT OC_SERVER)
+
+
 add_library(kisClientServer
     ${CORE_SOURCES}
     ${COAP_SOURCES}
@@ -267,10 +338,43 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
         ${PROJECT_SOURCE_DIR}/tinycbor/src
     )
 
+ set(mbedtls_static_target "mbedtls")
+ set(mbedx509_static_target "mbedx509")
+ set(mbedcrypto_static_target "mbedcrypto")
+
+ if(WIN32)
+    set(libs ${libs} ws2_32)
+endif(WIN32)
    
+ add_library(${mbedcrypto_static_target} STATIC ${CRYPTO_SOURCES})
+ set_target_properties(${mbedcrypto_static_target} PROPERTIES OUTPUT_NAME mbedcrypto)
+ target_link_libraries(${mbedcrypto_static_target} ${libs})
 
+  add_library(${mbedx509_static_target} STATIC ${X509_SOURCES})
+  set_target_properties(${mbedx509_static_target} PROPERTIES OUTPUT_NAME mbedx509)
+  target_link_libraries(${mbedx509_static_target} ${libs} ${mbedcrypto_static_target})
 
+  add_library(${mbedtls_static_target} STATIC ${TLS_SOURCES})
+  set_target_properties(${mbedtls_static_target} PROPERTIES OUTPUT_NAME mbedtls)
+  target_link_libraries(${mbedtls_static_target} ${libs} ${mbedx509_static_target})
 
+  install(TARGETS ${mbedtls_static_target} ${mbedx509_static_target} ${mbedcrypto_static_target}
+            DESTINATION ${LIB_INSTALL_DIR}
+            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
+target_compile_definitions(mbedcrypto
+        PUBLIC
+        MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\"
+    )
+
+    target_include_directories(mbedcrypto PUBLIC
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
+        ${PROJECT_SOURCE_DIR}/security
+    )
+
+add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
 if (OC_USE_STORAGE)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
@@ -282,7 +386,7 @@ endif()
 
 target_link_libraries(kisClientServer PUBLIC
     kis-common
-    mbedtls
+    
     tinycbor-master
     kis-port
 )
