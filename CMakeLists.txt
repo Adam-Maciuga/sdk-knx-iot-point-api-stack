@@ -374,6 +374,17 @@ target_compile_definitions(mbedcrypto
         ${PROJECT_SOURCE_DIR}/security
     )
 
+
+
+if(CMAKE_COMPILER_IS_GNUCC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes")
+endif(CMAKE_COMPILER_IS_GNUCC)
+
+if(CMAKE_COMPILER_IS_CLANG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes -Wdocumentation -Wno-documentation-deprecated-sync -Wunreachable-code")
+endif(CMAKE_COMPILER_IS_CLANG)
+
+
 add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
 if (OC_USE_STORAGE)
