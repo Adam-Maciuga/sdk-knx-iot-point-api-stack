@@ -366,15 +366,13 @@ target_compile_definitions(mbedcrypto
         PUBLIC
         MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\"
     )
-
-    target_include_directories(mbedcrypto PUBLIC
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
-        ${PROJECT_SOURCE_DIR}/security
-    )
-
-
+target_include_directories(mbedcrypto PUBLIC
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
+    ${PROJECT_SOURCE_DIR}/security
+)
+     
 
 if(CMAKE_COMPILER_IS_GNUCC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes")
