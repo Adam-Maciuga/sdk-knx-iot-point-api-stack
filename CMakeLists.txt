@@ -12,7 +12,7 @@ if(MSVC)
 endif()
 
 # Do not build anything except for the library
-option(ENABLE_PROGRAMS "Build mbed TLS programs." OFF)
+option(ENABLE_PROGRAMS "Build mbed TLS programs." ON)
 option(ENABLE_TESTING "Build mbed TLS tests." OFF)
 option(BUILD_TESTING "Build KNX tests" OFF)
 
@@ -33,7 +33,6 @@ set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2.")
 set(OC_REPLAY_PROTECTION_ENABLED OFF CACHE BOOL "Enable replay protection using the Echo option")
 
-set(KNX_BUILTIN_MBEDTLS ON CACHE BOOL "Use built-in mbedTLS, as opposed to external lib from different project")
 
 
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
@@ -50,15 +49,7 @@ mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 
 
-if(KNX_BUILTIN_MBEDTLS)
-    
 
-
-
-    
-
-    
-endif()
 
 
 # API
@@ -418,10 +409,66 @@ endif()
 
 
 
-add_subdirectory(port)
+
 
 
 
 if(OC_LOG_TO_FILE_ENABLED)
     target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+endif()
+
+
+if(UNIX OR WIN32)
+    project(knx-iot-stack-port)
+
+    # Detect the platform and pick the right port
+    if(UNIX)
+        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/linux)
+    elseif(WIN32)
+        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)
+    endif()
+
+    add_library(kis-port
+        ${PROJECT_SOURCE_DIR}/port/oc_log.c
+        ${PORT_DIR}/abort.c
+        ${PORT_DIR}/clock.c
+        ${PORT_DIR}/dns-sd.c
+        ${PORT_DIR}/ipadapter.c
+        ${PORT_DIR}/random.c
+        ${PORT_DIR}/storage.c
+        ${PORT_DIR}/tcpadapter.c
+    )
+
+    if(OC_LOG_TO_FILE_ENABLED)
+        target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+    endif()
+
+    if (OC_USE_STORAGE)
+        target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+    endif()
+
+    target_include_directories(kis-port PUBLIC     
+        ${PORT_DIR}/../  
+    )
+
+    target_include_directories(mbedcrypto PUBLIC
+        ${PORT_DIR}
+        ${PROJECT_SOURCE_DIR}
+    )
+    
+    if(WIN32)
+        target_sources(kis-port PRIVATE
+            ${PORT_DIR}/mutex.c
+            ${PORT_DIR}/network_addresses.c
+        )
+        #target_compile_definitions(kis-port PUBLIC OC_IPV4)
+    endif()
+
+    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
+    
+    if(UNIX)
+        target_link_libraries(kis-port PUBLIC pthread m)
+    elseif(WIN32)
+        target_link_libraries(kis-port PUBLIC bcrypt iphlpapi)
+    endif()
 endif()
