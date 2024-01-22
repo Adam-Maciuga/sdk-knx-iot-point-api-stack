@@ -5,18 +5,15 @@ if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
   # emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
   add_compile_options(-fPIC)
 endif()
+
 add_compile_definitions(OC_DYNAMIC_ALLOCATION)
 
 if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+  add_compile_options(/W1 /WX-)
 endif()
 
-# Do not build anything except for the library
-option(ENABLE_PROGRAMS "Build mbed TLS programs." ON)
-option(ENABLE_TESTING "Build mbed TLS tests." OFF)
-option(BUILD_TESTING "Build KNX tests" OFF)
 
-#set(OC_SECURITY_ENABLED ON CACHE BOOL "Enable security")
 
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
@@ -187,12 +184,6 @@ set(TLS_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls.c
 )
 
-set(API_INCLUDE_DIR
-    ${PROJECT_SOURCE_DIR}/
-    ${PROJECT_SOURCE_DIR}/api
-    ${PROJECT_SOURCE_DIR}/api/c-timestamp
-    ${PROJECT_SOURCE_DIR}/include
-)
 
 
 
@@ -226,13 +217,37 @@ set(COAP_SOURCES
     ${PROJECT_SOURCE_DIR}/messaging/coap/transactions.c
 )
 
+set(API_INCLUDE_DIR
+    ${PROJECT_SOURCE_DIR}/
+    ${PROJECT_SOURCE_DIR}/api
+    ${PROJECT_SOURCE_DIR}/api/c-timestamp
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+
 set(COAP_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/messaging/coap/
 )
 
+set(KNX_INCLUDE_DIRS 
+    ${PROJECT_SOURCE_DIR}/
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/security
+    ${API_INCLUDE_DIRS}
+    ${COAP_INCLUDE_DIRS}
+)
+
 add_library(kis-common INTERFACE)
 
+add_library(kisClientServer
+    ${CORE_SOURCES}
+    ${COAP_SOURCES}
+    ${API_SOURCES}
+)
 
+add_library(tinycbor-master
+        ${CBOR_SOURCES}
+    )
 
 
 
@@ -300,30 +315,12 @@ if(NOT ${KNX_PAGE_SIZE} EQUAL "")
     add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})
 endif()
 
-# Client and server versions
-set(KNX_INCLUDE_DIRS 
-    ${PROJECT_SOURCE_DIR}/
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/security
-    ${API_INCLUDE_DIRS}
-    ${COAP_INCLUDE_DIRS}
-)
 
-add_compile_definitions(OC_CLIENT OC_SERVER)
-
-
-add_library(kisClientServer
-    ${CORE_SOURCES}
-    ${COAP_SOURCES}
-    ${API_SOURCES}
-)
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
 
 
-    add_library(tinycbor-master
-        ${CBOR_SOURCES}
-    )
+    
 
     target_include_directories(tinycbor-master PUBLIC
         ${PROJECT_SOURCE_DIR}/tinycbor/src
@@ -357,12 +354,25 @@ target_compile_definitions(mbedcrypto
         PUBLIC
         MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\"
     )
+
+     # Detect the platform and pick the right port
+    if(UNIX)
+        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/linux)
+    elseif(WIN32)
+        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)
+    endif()
+
 target_include_directories(mbedcrypto PUBLIC
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
     ${PROJECT_SOURCE_DIR}/security
+    ${PORT_DIR}
 )
+
+
+
+
      
 
 if(CMAKE_COMPILER_IS_GNUCC)
@@ -390,18 +400,11 @@ target_link_libraries(kisClientServer PUBLIC
     tinycbor-master
     kis-port
 )
+
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 
-if(MSVC)
-    # do not treat warnings as errors on Windows
-    add_compile_options(/W1 /WX-)
-elseif(NOT BUILD_TESTING)
-    # enable warnings as errors on GCC-based toolchains
 
-    # do not do this for the testing tree as there are warnings
-    # within gtest
-    add_compile_options(-Werror)
-endif()
+
 
 
 
@@ -419,14 +422,9 @@ endif()
 
 
 if(UNIX OR WIN32)
-    project(knx-iot-stack-port)
+    
 
-    # Detect the platform and pick the right port
-    if(UNIX)
-        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/linux)
-    elseif(WIN32)
-        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)
-    endif()
+   
 
     add_library(kis-port
         ${PROJECT_SOURCE_DIR}/port/oc_log.c
@@ -451,10 +449,7 @@ if(UNIX OR WIN32)
         ${PORT_DIR}/../  
     )
 
-    target_include_directories(mbedcrypto PUBLIC
-        ${PORT_DIR}
-        ${PROJECT_SOURCE_DIR}
-    )
+    
     
     if(WIN32)
         target_sources(kis-port PRIVATE
@@ -466,9 +461,5 @@ if(UNIX OR WIN32)
 
     target_link_libraries(kis-port PUBLIC kis-common mbedtls)
     
-    if(UNIX)
-        target_link_libraries(kis-port PUBLIC pthread m)
-    elseif(WIN32)
-        target_link_libraries(kis-port PUBLIC bcrypt iphlpapi)
-    endif()
+    
 endif()
