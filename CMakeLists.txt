@@ -463,3 +463,13 @@ if(UNIX OR WIN32)
     
     
 endif()
+
+# demo: actuator (e.g. receiving command)
+add_executable(lsab_minimal_all
+    ${PROJECT_SOURCE_DIR}/apps/lsab_minimal_all.c
+)
+target_link_libraries(lsab_minimal_all
+        mbedtls
+        kisClientServer
+    )
+file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/lsab_minimal_all_creds)
