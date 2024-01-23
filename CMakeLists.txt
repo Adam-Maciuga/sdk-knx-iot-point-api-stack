@@ -13,6 +13,7 @@ if(MSVC)
   add_compile_options(/W1 /WX-)
 endif()
 
+# Stack specific variables 
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
 set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
@@ -28,20 +29,19 @@ set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2.")
 set(OC_REPLAY_PROTECTION_ENABLED OFF CACHE BOOL "Enable replay protection using the Echo option")
 
+# KNX specific variables
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
-
 set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping table entries")
 set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "" CACHE STRING "Maximum number of group recipient table entries")
-
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
+set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
+
+# dont show below variables in any GUI
 mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
 
-set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
-
-# API
 set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/oc_base64.c
     ${PROJECT_SOURCE_DIR}/api/oc_blockwise.c
@@ -301,6 +301,10 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 
+target_include_directories(tinycbor-master PUBLIC
+        ${PROJECT_SOURCE_DIR}/tinycbor/src
+    )
+
 target_link_libraries(kisClientServer PUBLIC
     kis-common
     mbedtls
@@ -308,16 +312,14 @@ target_link_libraries(kisClientServer PUBLIC
     kis-port
 )
 
-target_include_directories(tinycbor-master PUBLIC
-        ${PROJECT_SOURCE_DIR}/tinycbor/src
-    )
+
 
 set(mbedtls_static_target "mbedtls")
 set(mbedx509_static_target "mbedx509")
 set(mbedcrypto_static_target "mbedcrypto")
 
 if(WIN32)
-    set(libs ${libs} ws2_32)
+    set(libs ${libs} ws2_32)  # ensure loading WIN32 socket DLL
 endif(WIN32)
    
 add_library(${mbedcrypto_static_target} STATIC ${CRYPTO_SOURCES})
