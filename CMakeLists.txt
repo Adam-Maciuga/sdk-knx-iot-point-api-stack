@@ -396,9 +396,6 @@ endif()
 
 if(UNIX OR WIN32)
     
-
-   
-
     add_library(kis-port
         ${PROJECT_SOURCE_DIR}/port/oc_log.c
         ${PORT_DIR}/abort.c
@@ -422,19 +419,20 @@ if(UNIX OR WIN32)
         ${PORT_DIR}/../  
     )
 
-    
+    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
     
     if(WIN32)
         target_sources(kis-port PRIVATE
             ${PORT_DIR}/mutex.c
             ${PORT_DIR}/network_addresses.c
         )
-        #target_compile_definitions(kis-port PUBLIC OC_IPV4)
-    endif()
 
-    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
-    
-    
+        target_link_libraries(kis-port PUBLIC iphlpapi)
+
+    elseif(UNIX)    
+        target_link_libraries(kis-port PUBLIC pthread m)
+    endif()
+       
 endif()
 
 # demo: actuator (e.g. receiving command)
