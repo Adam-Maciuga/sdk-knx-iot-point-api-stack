@@ -6,14 +6,12 @@ if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
   add_compile_options(-fPIC)
 endif()
 
-add_compile_definitions(OC_DYNAMIC_ALLOCATION)
+add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
 if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   add_compile_options(/W1 /WX-)
 endif()
-
-
 
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
@@ -30,8 +28,6 @@ set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2.")
 set(OC_REPLAY_PROTECTION_ENABLED OFF CACHE BOOL "Enable replay protection using the Echo option")
 
-
-
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
 
 set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping table entries")
@@ -44,10 +40,6 @@ set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations 
 mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
 
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
-
-
-
-
 
 # API
 set(API_SOURCES
@@ -94,7 +86,6 @@ set(CBOR_SOURCES
      ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborparser.c
      ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborpretty.c
 )
-
 
 set(CRYPTO_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aes.c
@@ -184,10 +175,6 @@ set(TLS_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls.c
 )
 
-
-
-
-# Core functions used by the stack
 set(CORE_SOURCES
     # Utilities that are used deep within the stack
     ${PROJECT_SOURCE_DIR}/util/oc_etimer.c
@@ -203,10 +190,8 @@ set(CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_engine.c
     ${PROJECT_SOURCE_DIR}/security/oc_spake2plus.c
     ${PROJECT_SOURCE_DIR}/security/oc_tls.c
-
 )
 
-# stack implementation of CoAP
 set(COAP_SOURCES
     ${PROJECT_SOURCE_DIR}/messaging/coap/coap.c
     ${PROJECT_SOURCE_DIR}/messaging/coap/coap_signal.c
@@ -223,7 +208,6 @@ set(API_INCLUDE_DIR
     ${PROJECT_SOURCE_DIR}/api/c-timestamp
     ${PROJECT_SOURCE_DIR}/include
 )
-
 
 set(COAP_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/messaging/coap/
@@ -246,10 +230,8 @@ add_library(kisClientServer
 )
 
 add_library(tinycbor-master
-        ${CBOR_SOURCES}
-    )
-
-
+    ${CBOR_SOURCES}
+)
 
 if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_OSCORE)
@@ -280,8 +262,6 @@ endif()
 if(OC_REPLAY_PROTECTION_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_REPLAY_PROTECTION)
 endif()
-
-
 
 if(OC_DNS_SD_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_DNS_SD)
@@ -319,34 +299,40 @@ endif()
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
 
+target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 
-    
+target_link_libraries(kisClientServer PUBLIC
+    kis-common
+    mbedtls
+    tinycbor-master
+    kis-port
+)
 
-    target_include_directories(tinycbor-master PUBLIC
+target_include_directories(tinycbor-master PUBLIC
         ${PROJECT_SOURCE_DIR}/tinycbor/src
     )
 
- set(mbedtls_static_target "mbedtls")
- set(mbedx509_static_target "mbedx509")
- set(mbedcrypto_static_target "mbedcrypto")
+set(mbedtls_static_target "mbedtls")
+set(mbedx509_static_target "mbedx509")
+set(mbedcrypto_static_target "mbedcrypto")
 
- if(WIN32)
+if(WIN32)
     set(libs ${libs} ws2_32)
 endif(WIN32)
    
- add_library(${mbedcrypto_static_target} STATIC ${CRYPTO_SOURCES})
- set_target_properties(${mbedcrypto_static_target} PROPERTIES OUTPUT_NAME mbedcrypto)
- target_link_libraries(${mbedcrypto_static_target} ${libs})
+add_library(${mbedcrypto_static_target} STATIC ${CRYPTO_SOURCES})
+set_target_properties(${mbedcrypto_static_target} PROPERTIES OUTPUT_NAME mbedcrypto)
+target_link_libraries(${mbedcrypto_static_target} ${libs})
 
-  add_library(${mbedx509_static_target} STATIC ${X509_SOURCES})
-  set_target_properties(${mbedx509_static_target} PROPERTIES OUTPUT_NAME mbedx509)
-  target_link_libraries(${mbedx509_static_target} ${libs} ${mbedcrypto_static_target})
+add_library(${mbedx509_static_target} STATIC ${X509_SOURCES})
+set_target_properties(${mbedx509_static_target} PROPERTIES OUTPUT_NAME mbedx509)
+target_link_libraries(${mbedx509_static_target} ${libs} ${mbedcrypto_static_target})
 
-  add_library(${mbedtls_static_target} STATIC ${TLS_SOURCES})
-  set_target_properties(${mbedtls_static_target} PROPERTIES OUTPUT_NAME mbedtls)
-  target_link_libraries(${mbedtls_static_target} ${libs} ${mbedx509_static_target})
+add_library(${mbedtls_static_target} STATIC ${TLS_SOURCES})
+set_target_properties(${mbedtls_static_target} PROPERTIES OUTPUT_NAME mbedtls)
+target_link_libraries(${mbedtls_static_target} ${libs} ${mbedx509_static_target})
 
-  install(TARGETS ${mbedtls_static_target} ${mbedx509_static_target} ${mbedcrypto_static_target}
+install(TARGETS ${mbedtls_static_target} ${mbedx509_static_target} ${mbedcrypto_static_target}
             DESTINATION ${LIB_INSTALL_DIR}
             PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
@@ -355,12 +341,12 @@ target_compile_definitions(mbedcrypto
         MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\"
     )
 
-     # Detect the platform and pick the right port
-    if(UNIX)
+# Detect the platform and pick the right port
+if(UNIX)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/linux)
-    elseif(WIN32)
+elseif(WIN32)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)
-    endif()
+endif()
 
 target_include_directories(mbedcrypto PUBLIC
     ${PROJECT_SOURCE_DIR}
@@ -370,11 +356,6 @@ target_include_directories(mbedcrypto PUBLIC
     ${PORT_DIR}
 )
 
-
-
-
-     
-
 if(CMAKE_COMPILER_IS_GNUCC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes")
 endif(CMAKE_COMPILER_IS_GNUCC)
@@ -382,7 +363,6 @@ endif(CMAKE_COMPILER_IS_GNUCC)
 if(CMAKE_COMPILER_IS_CLANG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes -Wdocumentation -Wno-documentation-deprecated-sync -Wunreachable-code")
 endif(CMAKE_COMPILER_IS_CLANG)
-
 
 add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
@@ -394,18 +374,11 @@ if (OC_USE_MULTICAST_SCOPE_2)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_MULTICAST_SCOPE_2)
 endif()
 
-target_link_libraries(kisClientServer PUBLIC
-    kis-common
-    mbedtls
-    tinycbor-master
-    kis-port
-)
 
-target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 
-add_compile_definitions(OC_CLIENT OC_SERVER)
 
-target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
+
+
 
 
 
