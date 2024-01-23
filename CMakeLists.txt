@@ -396,16 +396,16 @@ endif()
 
 target_link_libraries(kisClientServer PUBLIC
     kis-common
-    
+    mbedtls
     tinycbor-master
     kis-port
 )
 
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 
+add_compile_definitions(OC_CLIENT OC_SERVER)
 
-
-
+target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
 
 
