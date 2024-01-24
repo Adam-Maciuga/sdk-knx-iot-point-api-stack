@@ -258,7 +258,7 @@ if(UNIX)
         )
 elseif(WIN32)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
-        set(libs ${libs} ws2_32)                            # ensure loading WIN32 socket DLL
+        set(libs ws2_32)                                    # ensure loading WIN32 socket DLL
 
         target_sources(kis-port PUBLIC
             ${PORT_DIR}/abort.c
@@ -297,8 +297,8 @@ target_link_libraries(lsab_minimal_all mbedtls kisClientServer)
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
 target_link_libraries(mbedcrypto ${libs})
-target_link_libraries(mbedx509 ${libs} mbedcrypto)
-target_link_libraries(mbedtls ${libs} mbedx509)   
+target_link_libraries(mbedx509  mbedcrypto)
+target_link_libraries(mbedtls  mbedx509)   
 
 set_target_properties(mbedcrypto PROPERTIES OUTPUT_NAME mbedcrypto)
 set_target_properties(mbedx509 PROPERTIES OUTPUT_NAME mbedx509)
