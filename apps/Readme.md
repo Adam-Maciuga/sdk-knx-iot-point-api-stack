@@ -35,8 +35,7 @@ Test server on Windows & Linux.
 Test Client on Windows & Linux.
 
 - no KNX compliant application
-- KNX client application
-   example to send data to other device
+- KNX client application example to send data to other device
 - can discover devices through well-known/core
 - can send s-mode multicast message
 
