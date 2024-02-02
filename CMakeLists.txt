@@ -223,8 +223,6 @@ set(KNX_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/api/c-timestamp
 )
 
-
-
 # virtual library targets
 add_library(kis-common INTERFACE)
 
@@ -235,12 +233,23 @@ add_library(mbedtls STATIC ${TLS_SOURCES})
 add_library(mbedx509 STATIC ${X509_SOURCES})
 add_library(mbedcrypto STATIC ${CRYPTO_SOURCES})
 add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
+add_library(kis-link SHARED ${PROJECT_SOURCE_DIR}/dll/stack_callback.c)
 
 # target with no individual output, will be build always 
 add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
-# physical exe targets, actuator demo (e.g. receiving command)
+# physical exe targets, actuator demo (e.g. receiving command) > assumes WIN32/UNIX is in place
 add_executable(lsab_minimal_all ${PROJECT_SOURCE_DIR}/apps/lsab_minimal_all.c)
+
+# specific Cmake package 
+include (GenerateExportHeader)
+
+GENERATE_EXPORT_HEADER(kis-link
+    BASE_NAME kis-link
+    EXPORT_MACRO_NAME kis-link_EXPORT
+    EXPORT_FILE_NAME kis-link_export.h
+    STATIC_DEFINE kis-link_BUILT_AS_STATIC
+)
 
 # Detect the used platform and pick the right port
 if(UNIX)
@@ -279,8 +288,10 @@ endif()
 
 target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
+target_compile_definitions(kis-link PUBLIC OC_SERVER OC_CLIENT)
 
 # Specifies include directories to use when compiling a given target
+target_include_directories(kis-link PRIVATE ${PROJECT_BINARY_DIR} ${KNX_INCLUDE_DIRS})
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
 target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
@@ -293,6 +304,7 @@ target_include_directories(mbedcrypto PUBLIC
 )
 
 # Specifies linked libraries to build a target
+target_link_libraries(kis-link PUBLIC kisClientServer)
 target_link_libraries(lsab_minimal_all mbedtls kisClientServer)
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
@@ -307,8 +319,6 @@ set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
 install(TARGETS mbedtls mbedx509 mbedcrypto
     DESTINATION ${LIB_INSTALL_DIR}
     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-
-
 
 # Process individual stack/ (demo)application behavior 
 if(OC_OSCORE_ENABLED)
