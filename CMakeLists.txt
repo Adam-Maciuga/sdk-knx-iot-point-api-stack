@@ -39,7 +39,8 @@ set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2.")
-set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
+set(OC_REPLAY_PROTECTION_ENABLED OFF CACHE BOOL "Enable replay protection using the Echo option")
+set(OC_TRUST_FIRST_MCAST_ENABLED ON CACHE BOOL "Trust first multicast message from an unsynchronised client")
 
 # KNX specific variables
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
@@ -47,6 +48,8 @@ set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mappin
 set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "" CACHE STRING "Maximum number of group recipient table entries")
+set(KNX_SEC_MAX_ENTRIES "" CACHE STRING "Maximum number of group security table (auth/at) entries")
+
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
@@ -352,6 +355,12 @@ if(OC_REPLAY_PROTECTION_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_REPLAY_PROTECTION)
 endif()
 
+if(OC_TRUST_FIRST_MCAST_ENABLED)
+    target_compile_definitions(kis-common INTERFACE OC_TRUST_FIRST_MCAST)
+endif()
+
+
+
 if(OC_DNS_SD_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_DNS_SD)
 endif()
@@ -398,6 +407,10 @@ endif()
 
 if(NOT ${KNX_GRT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})
+endif()
+
+if(NOT ${KNX_SEC_MAX_ENTRIES} EQUAL "")
+    add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})
 endif()
 
 if(NOT ${KNX_PAGE_SIZE} EQUAL "")

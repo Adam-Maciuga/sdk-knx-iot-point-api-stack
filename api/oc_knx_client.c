@@ -665,7 +665,7 @@ oc_do_s_mode_read(int64_t group_address)
         (uint32_t)group_address, sia_value, iid);
 
   // find the grpid that belongs to the group address
-  grpid = oc_find_grpid_in_publisher_table(group_address);
+  grpid = oc_find_grpid_in_recipient_table(group_address);
   if (grpid > 0) {
 #ifdef OC_USE_MULTICAST_SCOPE_2
     oc_issue_s_mode(2, sia_value, grpid, group_address, iid, "r", 0, 0);
@@ -736,6 +736,8 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
     return;
   }
 
+  oc_notify_observers(my_resource);
+
   value_size = oc_s_mode_get_resource_value(resource_url, rp, buffer, 50);
 
   // get the sender ia
@@ -774,6 +776,43 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
       for (int j = 0; j < ga_len; j++) {
         group_address = oc_core_find_group_object_table_group_entry(index, j);
         PRINT("      ga : %d\n", group_address);
+        // Check if any other GOT entries have the same GA with "w" flag
+        int other_index = oc_core_find_group_object_table_index(group_address);
+        while (other_index != -1) {
+          oc_cflag_mask_t other_cflags =
+            oc_core_group_object_table_cflag_entries(other_index);
+          oc_string_t other_url =
+            oc_core_find_group_object_table_url_from_index(other_index);
+          const char *other_url_char = oc_string(other_url);
+          const oc_resource_t *other_resource = oc_ri_get_app_resource_by_uri(
+            other_url_char, strlen(other_url_char), 0);
+          if (other_resource == NULL) {
+            other_index = oc_core_find_next_group_object_table_index(
+              group_address, other_index);
+            continue;
+          }
+          if ((other_cflags & OC_CFLAG_WRITE) &&
+              other_resource->put_handler.cb) {
+            // Update the resource internally
+            oc_request_t new_request;
+            memset(&new_request, 0, sizeof(oc_request_t));
+
+            oc_rep_t *rep;
+            struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
+            oc_rep_set_pool(&rep_objects);
+            oc_parse_rep(buffer, value_size, &rep);
+
+            new_request.request_payload = rep;
+            new_request.uri_path = other_url_char;
+            new_request.uri_path_len = strlen(other_url_char);
+
+            other_resource->put_handler.cb(
+              &new_request, OC_IF_NONE, other_resource->put_handler.user_data);
+          }
+
+          other_index = oc_core_find_next_group_object_table_index(
+            group_address, other_index);
+        }
         if (j == 0) {
           // issue the s-mode command, but only for the first ga entry
           uint32_t grpid = oc_find_grpid_in_recipient_table(group_address);
