@@ -25,6 +25,11 @@ endif()
 # add preprocessor definitiosn for the current CMakeLists file
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
+option(OC_BUILD_PORT "Whether to build the ports for Windows & Linux" ON)
+mark_as_advanced(OC_BUILD_PORT)
+
+#set(OC_SECURITY_ENABLED ON CACHE BOOL "Enable security")
+
 # Stack specific variables 
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
