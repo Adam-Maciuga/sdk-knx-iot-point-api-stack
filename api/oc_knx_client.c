@@ -397,9 +397,21 @@ int
 oc_knx_client_do_broker_request(const char *resource_url, uint64_t iid,
                                 uint32_t ia, char *destination, char *rp)
 {
-  char query[20];
+  char query[50] = "";
 
-  snprintf(query, 20, "ep=knx://ia.%llu.%lu", iid, ia);
+  char prefix[20];
+  snprintf(prefix, 13, "ep=knx://ia.");
+  strcat(query, prefix);
+
+  char iid_hex[20];
+  oc_conv_uint64_to_hex_string(iid_hex, iid);
+  strcat(query, iid_hex);
+
+  char ia_str[11];
+  snprintf(ia_str, 11, ".%x", ia);
+  strcat(query, ia_str);
+
+  PRINT("oc_knx_client_do_broker_request: query=%s\n", query);
 
   // not sure if we should use a malloc here, what would happen if there are no
   // devices found? because that causes a memory leak
@@ -685,6 +697,8 @@ void
 oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
                                   bool check)
 {
+  PRINT("oc_do_s_mode_with_scope_and_check\nscope = %d\nurl = %s\nrp=%s\n",
+        scope, resource_url, rp);
   int value_size;
   bool error = true;
   uint8_t buffer[50];
@@ -775,42 +789,50 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
       for (int j = 0; j < ga_len; j++) {
         group_address = oc_core_find_group_object_table_group_entry(index, j);
         PRINT("      ga : %lu\n", group_address);
-        // Check if any other GOT entries have the same GA with "w" flag
-        int other_index = oc_core_find_group_object_table_index(group_address);
-        while (other_index != -1) {
-          oc_cflag_mask_t other_cflags =
-            oc_core_group_object_table_cflag_entries(other_index);
-          oc_string_t other_url =
-            oc_core_find_group_object_table_url_from_index(other_index);
-          const char *other_url_char = oc_string(other_url);
-          const oc_resource_t *other_resource = oc_ri_get_app_resource_by_uri(
-            other_url_char, strlen(other_url_char), 0);
-          if (other_resource == NULL) {
+        if (strcmp(rp, "a") == 0 || strcmp(rp, "rp") == 0) {
+          // Check if any other GOT entries have the same GA with "w" flag
+          PRINT("Checking & updating internal group objects\n");
+          int other_index =
+            oc_core_find_group_object_table_index(group_address);
+          while (other_index != -1) {
+            if (other_index != index) {
+              oc_cflag_mask_t other_cflags =
+                oc_core_group_object_table_cflag_entries(other_index);
+              oc_string_t other_url =
+                oc_core_find_group_object_table_url_from_index(other_index);
+              const char *other_url_char = oc_string(other_url);
+              const oc_resource_t *other_resource =
+                oc_ri_get_app_resource_by_uri(other_url_char,
+                                              strlen(other_url_char), 0);
+              if (other_resource == NULL) {
+                other_index = oc_core_find_next_group_object_table_index(
+                  group_address, other_index);
+                continue;
+              }
+              if ((other_cflags & OC_CFLAG_WRITE) &&
+                  other_resource->put_handler.cb) {
+                // Update the resource internally
+                oc_request_t new_request;
+                memset(&new_request, 0, sizeof(oc_request_t));
+
+                oc_rep_t *rep;
+                struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
+                oc_rep_set_pool(&rep_objects);
+                oc_parse_rep(buffer, value_size, &rep);
+
+                new_request.request_payload = rep;
+                new_request.uri_path = other_url_char;
+                new_request.uri_path_len = strlen(other_url_char);
+
+                other_resource->put_handler.cb(
+                  &new_request, OC_IF_NONE,
+                  other_resource->put_handler.user_data);
+              }
+            }
+
             other_index = oc_core_find_next_group_object_table_index(
               group_address, other_index);
-            continue;
           }
-          if ((other_cflags & OC_CFLAG_WRITE) &&
-              other_resource->put_handler.cb) {
-            // Update the resource internally
-            oc_request_t new_request;
-            memset(&new_request, 0, sizeof(oc_request_t));
-
-            oc_rep_t *rep;
-            struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
-            oc_rep_set_pool(&rep_objects);
-            oc_parse_rep(buffer, value_size, &rep);
-
-            new_request.request_payload = rep;
-            new_request.uri_path = other_url_char;
-            new_request.uri_path_len = strlen(other_url_char);
-
-            other_resource->put_handler.cb(
-              &new_request, OC_IF_NONE, other_resource->put_handler.user_data);
-          }
-
-          other_index = oc_core_find_next_group_object_table_index(
-            group_address, other_index);
         }
         if (j == 0) {
           // issue the s-mode command, but only for the first ga entry
