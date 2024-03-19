@@ -257,7 +257,7 @@ GENERATE_EXPORT_HEADER(kis-link
 # Detect the used platform and pick the right port
 if(UNIX)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/linux)      # linux port
-        target_link_libraries(kis-port PUBLIC pthread m)
+        target_link_libraries(kis-port PUBLIC pthread m)    # add Linux parallel execution helper 
 
         target_sources(kis-port PUBLIC
             ${PORT_DIR}/abort.c
@@ -270,6 +270,8 @@ if(UNIX)
         )
 elseif(WIN32)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
+        target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
+
         set(libs ws2_32)                                    # ensure loading WIN32 socket DLL
 
         target_sources(kis-port PUBLIC
@@ -285,8 +287,7 @@ elseif(WIN32)
         target_sources(kis-port PRIVATE
             ${PORT_DIR}/mutex.c
             ${PORT_DIR}/network_addresses.c
-        )
-        target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
+        )        
 endif()
 
 target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
@@ -358,8 +359,6 @@ endif()
 if(OC_TRUST_FIRST_MCAST_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_TRUST_FIRST_MCAST)
 endif()
-
-
 
 if(OC_DNS_SD_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_DNS_SD)
