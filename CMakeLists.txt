@@ -40,7 +40,6 @@ set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compila
 set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2.")
 set(OC_REPLAY_PROTECTION_ENABLED OFF CACHE BOOL "Enable replay protection using the Echo option")
-set(OC_TRUST_FIRST_MCAST_ENABLED ON CACHE BOOL "Trust first multicast message from an unsynchronised client")
 
 # KNX specific variables
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
@@ -354,10 +353,6 @@ endif()
 
 if(OC_REPLAY_PROTECTION_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_REPLAY_PROTECTION)
-endif()
-
-if(OC_TRUST_FIRST_MCAST_ENABLED)
-    target_compile_definitions(kis-common INTERFACE OC_TRUST_FIRST_MCAST)
 endif()
 
 if(OC_DNS_SD_ENABLED)
