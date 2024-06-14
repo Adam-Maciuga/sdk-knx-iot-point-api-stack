@@ -33,8 +33,7 @@ extern "C" {
  * @param rx_kid Key Identifier of received request
  * @param rx_kid_ctx Key ID Context of received request
  */
-void oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid,
-                          oc_string_t rx_kid_ctx);
+void oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
 
 /**
  * @brief Check if a client is synchronised
@@ -46,13 +45,11 @@ void oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid,
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
  * @param rx_kid Key Identifier of received request
  * @param rx_kid_ctx Key ID Context of received request
- * @param is_mcast Whether received message is multicast
  * @return true Client is synchronised, you may accept the frame with the given
  * SSN
  * @return false Client is not synchronised, you must challenge the frame
  */
-bool oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
-                            oc_string_t rx_kid_ctx, bool is_mcast);
+bool oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
 
 /**
  * @brief Free all clients with a given KID. Should be used whenever the
@@ -102,8 +99,14 @@ void oc_replay_message_unref(struct oc_message_s *msg);
  * @param token Token used to identify the message
  * @return struct oc_message_s*
  */
-struct oc_message_s *oc_replay_find_msg_by_token(uint16_t token_len,
-                                                 uint8_t *token);
+struct oc_message_s *oc_replay_find_msg_by_token(uint16_t token_len, uint8_t *token);
+
+/**
+ * @brief Get the first available (not used) record
+ *
+ * @return oc_replay_record*
+ */
+static struct oc_replay_record *get_empty_record(void);
 
 #ifdef __cplusplus
 }

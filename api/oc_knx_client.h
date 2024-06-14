@@ -72,7 +72,7 @@ int oc_initiate_spake(oc_endpoint_t *endpoint, char *password,
 /**
  * @brief initiate the spake handshake
  *
- * NOTE: After the success full handshake the OSCORE context should have:
+ * NOTE: After the successful handshake the OSCORE context should have:
  * - SID : serial number as byte array
  * - RID : the recipient ID as given input
  *
@@ -80,10 +80,10 @@ int oc_initiate_spake(oc_endpoint_t *endpoint, char *password,
  * @param serial_number the serial number of the device, to put back in the
  * callback, this is a string, e.g. SN as HEX string e.g. "00FA10010701"
  * @param password the spake password to be used
- * @param recipient_id the recipient ID id for the resulting OSCORE context
+ * @param recipient_id the recipient id for the resulting OSCORE context
  * (byte string)
  * @param recipient_id_len length of the recipient ID byte string
- * @return int success full start up of the handshake
+ * @return int successful start up of the handshake
  */
 int oc_initiate_spake_parameter_request(oc_endpoint_t *endpoint,
                                         char *serial_number, char *password,
@@ -99,9 +99,9 @@ typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep,
 
   This module contains the receiving side of the s-mode functionality.
   The received s-mode messages are routed to the appropriate POST methods of the
-  data point. However since not all data is in the s-mode message the POST
+  data point. However, since not all data is in the s-mode message the POST
   method needs to retrieve the data from the s-mode message differently than
-  for an normal CoAP post message (the message payload is constructed
+  for a normal CoAP post message (the message payload is constructed
   differently).
 
   @{

@@ -23,6 +23,7 @@
 #include "messaging/coap/constants.h"
 #include "oc_api.h"
 
+
 #ifndef OC_MAX_REPLAY_RECORDS
 #define OC_MAX_REPLAY_RECORDS (20)
 #endif
@@ -37,13 +38,12 @@
 
 static struct oc_replay_record
 {
-  uint64_t rx_ssn;        /// most recent received SSN of client
-  oc_string_t rx_kid;     /// byte string holding the KID of the client
-  oc_string_t rx_kid_ctx; /// byte string holding the KID context of the client.
-                          /// can be null
-  oc_clock_time_t time;   /// time of last received packet
-  uint32_t window; /// bitfield indicating received SSNs through bit position
-  bool in_use;     /// whether this structure is in use & has valid data
+  uint64_t rx_ssn;        // most recent received SSN of client TODO change to 32 bit
+  oc_string_t rx_kid;     // byte string holding the KID of the client
+  oc_string_t rx_kid_ctx; // byte string holding the KID context of the client, can be null
+  oc_clock_time_t time;   // time of last received packet
+  uint32_t window;        // bitfield indicating received SSNs through bit position
+  bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
 static struct oc_cached_message_record
@@ -54,11 +54,11 @@ static struct oc_cached_message_record
 } message_records[OC_MAX_MESSAGE_RECORDS] = { 0 };
 
 // make record available for reuse
-static void
-free_record(struct oc_replay_record *rec)
+static void free_record(struct oc_replay_record *rec)
 {
-  // bounds check
-  if (replay_records <= rec && rec < replay_records + OC_MAX_REPLAY_RECORDS) {
+  // bounds check, use of C pointer arithmetics
+  if (replay_records <= rec && rec < replay_records + OC_MAX_REPLAY_RECORDS) 
+  {
     rec->rx_ssn = 0;
     rec->window = 0;
     oc_free_string(&rec->rx_kid);
@@ -68,9 +68,7 @@ free_record(struct oc_replay_record *rec)
   }
 }
 
-// get the first available record
-static struct oc_replay_record *
-get_empty_record()
+static struct oc_replay_record *get_empty_record(void)
 {
   for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) {
     if (!replay_records[i].in_use)
@@ -88,16 +86,19 @@ get_empty_record()
 }
 
 // find record with KID and CTX
-static struct oc_replay_record *
-get_record(oc_string_t rx_kid, oc_string_t rx_kid_ctx)
+static struct oc_replay_record *get_record(oc_string_t rx_kid, oc_string_t rx_kid_ctx)
 {
-  if (oc_byte_string_len(rx_kid) == 0)
+  if (oc_byte_string_len(rx_kid) == 0) 
+  {
     return NULL;
+  }
 
-  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) {
+  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) 
+  {
     struct oc_replay_record *rec = replay_records + i;
 
-    if (rec->in_use) {
+    if (rec->in_use) 
+    {
       bool rx_kid_match = oc_byte_string_cmp(rx_kid, rec->rx_kid) == 0;
       bool null_contexts = oc_byte_string_len(rx_kid_ctx) == 0 &&
                            oc_byte_string_len(rec->rx_kid_ctx) == 0;
@@ -112,12 +113,9 @@ get_record(oc_string_t rx_kid, oc_string_t rx_kid_ctx)
 }
 
 // return true if SSN of device identified by KID & KID_CTX is within replay
-// window
-//    if it is, update SSN within replay record
+// window if it is, update SSN within replay record
 // return false if no entry found, or if SSN is outside replay window
-bool
-oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
-                       oc_string_t rx_kid_ctx, bool is_mcast)
+bool oc_replay_check_client(uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
 {
   /*
   With CoAP over UDP, you cannot guarantee messages are received in order.
@@ -158,16 +156,19 @@ oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
   */
 
   struct oc_replay_record *rec = get_record(rx_kid, rx_kid_ctx);
+
   if (rec == NULL) 
   { // no match > force echo option (regardless of unicast/multicast)
     return false;
   }
+
   // received message matched existing record, so this record is useful &
   // should be kept around - thus we update the time here
   rec->time = oc_clock_time();
-  PRINT("new ssn = %llx\n", rx_ssn);
+
+  PRINT("new ssn = %llx\n", rx_ssn);                // %llx = 64 bit ulong
   PRINT("record ssn = %llx\n", rec->rx_ssn);
-  PRINT("KEYID = %s\n", oc_string(rx_kid));
+  PRINT("KEYID = %s\n", oc_string(rx_kid));         // %s = string
   PRINT("REC->WIN before: %llx\n", rec->window);
 
   int64_t ssn_diff = rec->rx_ssn - rx_ssn;
@@ -219,15 +220,13 @@ oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
   }
 }
 
-// update replay record if match found
-// otherwise, create new replay record
-void
-oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid,
-                     oc_string_t rx_kid_ctx)
+// update replay record if match found otherwise, create new replay record
+void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
 {
   struct oc_replay_record *rec = get_record(rx_kid, rx_kid_ctx);
 
-  if (!rec) {
+  if (rec == NULL) 
+  { // no match
     rec = get_empty_record();
     oc_byte_string_copy(&rec->rx_kid, rx_kid);
     oc_byte_string_copy(&rec->rx_kid_ctx, rx_kid_ctx);
@@ -239,19 +238,19 @@ oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid,
   rec->time = oc_clock_time();
 }
 
-void
-oc_replay_free_client(oc_string_t rx_kid)
+void oc_replay_free_client(const oc_string_t rx_kid)
 {
-  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) {
+  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) 
+  {
     struct oc_replay_record *rec = replay_records + i;
-    if (oc_byte_string_cmp(rx_kid, rec->rx_kid) == 0) {
+    if (oc_byte_string_cmp(rx_kid, rec->rx_kid) == 0) 
+    {
       free_record(rec);
     }
   }
 }
 
-struct oc_message_s *
-oc_replay_find_msg_by_token(uint16_t token_len, uint8_t *token)
+struct oc_message_s *oc_replay_find_msg_by_token(uint16_t token_len, uint8_t *token)
 {
   for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; ++i) {
     if (message_records[i].message == NULL)
@@ -265,8 +264,7 @@ oc_replay_find_msg_by_token(uint16_t token_len, uint8_t *token)
   return NULL;
 }
 
-static struct oc_cached_message_record *
-find_record_by_msg(struct oc_message_s *msg)
+static struct oc_cached_message_record *find_record_by_msg(struct oc_message_s *msg)
 {
   if (msg == NULL)
     return NULL;
@@ -277,8 +275,7 @@ find_record_by_msg(struct oc_message_s *msg)
   return NULL;
 }
 
-static struct oc_cached_message_record *
-find_empty_msg_record()
+static struct oc_cached_message_record *find_empty_msg_record()
 {
   for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; ++i)
     if (message_records[i].message == NULL)
@@ -286,8 +283,7 @@ find_empty_msg_record()
   return NULL;
 }
 
-static oc_event_callback_retval_t
-oc_replay_free_msg_handler(void *msg)
+static oc_event_callback_retval_t oc_replay_free_msg_handler(void *msg)
 {
   struct oc_cached_message_record *rec = find_record_by_msg(msg);
   if (msg) {
@@ -300,17 +296,14 @@ oc_replay_free_msg_handler(void *msg)
   return OC_EVENT_DONE;
 }
 
-void
-oc_replay_message_unref(struct oc_message_s *msg)
+void oc_replay_message_unref(struct oc_message_s *msg)
 {
   oc_replay_free_msg_handler(msg);
   // OC_DBG("Removing callback...");
   oc_remove_delayed_callback(msg, oc_replay_free_msg_handler);
 }
 
-void
-oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len,
-                        uint8_t *token)
+void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, uint8_t *token)
 {
   struct oc_cached_message_record *rec = find_empty_msg_record();
   if (rec == NULL)
@@ -324,6 +317,5 @@ oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len,
   memcpy(rec->token, token, token_len);
   rec->message = msg;
 
-  oc_set_delayed_callback(msg, oc_replay_free_msg_handler,
-                          OC_REPLAY_RECORD_TIMEOUT);
+  oc_set_delayed_callback(msg, oc_replay_free_msg_handler,OC_REPLAY_RECORD_TIMEOUT);
 }
