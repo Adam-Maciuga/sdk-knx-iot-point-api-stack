@@ -103,7 +103,3 @@ Please check here for build instructions:
 
  - [Windows](<https://knx-iot.github.io/building_windows/>)
  - [Linux](<https://knx-iot.github.io/building_linux/>)
-
-# Send Feedback
-
-Bugs and [Issues](<https://gitlab.knx.org/shared-projects/knx-iot-point-api-public-stack/-/issues>)
