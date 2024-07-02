@@ -22,5 +22,5 @@ SOFTWARE.
 
 * [MIT License](https://opensource.org/licenses/MIT)
 
-* [Contact KNX Association](support@knx.org)
+* Contact KNX Association at <support@knx.org>
 
