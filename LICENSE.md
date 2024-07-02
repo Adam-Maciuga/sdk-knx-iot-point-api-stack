@@ -18,9 +18,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-* Terms of Service KNX Association https://www.knx.org/knx-en/privacy
+* [Terms of Service KNX Association](https://www.knx.org/knx-en/privacy)
 
-* MIT License https://opensource.org/licenses/MIT
+* [MIT License](https://opensource.org/licenses/MIT)
 
-* Contact KNX Association cvba at <support@knx.org>
+* [Contact KNX Association](support@knx.org)
 
