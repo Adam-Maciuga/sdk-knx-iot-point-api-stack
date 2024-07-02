@@ -20,7 +20,5 @@ SOFTWARE.
 
 * [Terms of Service KNX Association](https://www.knx.org/knx-en/privacy)
 
-* [MIT License](https://opensource.org/licenses/MIT)
-
 * Contact KNX Association at <support@knx.org>
 
