@@ -2,7 +2,7 @@
 
 We'd love to accept your patches and contributions to this project.
 
-There are several tools already using the HBES Information model, several workflows prepare for these tools the corresponding content, based on internal and external requests.
+There are several tools/vendors already using the stack, several workflows prepare for these tools the corresponding content, based on internal and external requests.
 
 To keep control over the (build) tools and their generated artefact's please simply:
 
