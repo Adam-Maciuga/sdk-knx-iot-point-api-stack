@@ -13,7 +13,7 @@ There are several tools/vendors already using the API, several workflows prepare
 
 To keep control over the (build) tools and their generated artefact's please simply:
 
-1. create a git issue in this [repository](https://gitlab.knx.org/public-projects/knx-iot-3rd-party-api-schema/-/issues) by using your credentials/username
+1. create a git issue in this [repository](https://gitlab.knx.org/public-projects/knx-iot-point-api-stack/-/issues) by using your credentials/username
 2. describe your requested change or issue/bug (you may also add a code snippet)
 3. All submissions require review. We use the [Feature Branch Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/feature-branch-workflow) and review all changes before we merge to the work_in_progress branch. Merge requests are only possible by the repository maintainer, this prevents accidental damage. After merging/testing/publishing it, the change will also be deployed here.
 
