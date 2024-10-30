@@ -40,13 +40,12 @@ void oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_ki
  *
  * If the client is synchronised, this function also updates its entry with the
  * new SSN. Thus, the replay window is updated 'in the background', through the
- * natural usage of this function
+ * natural usage of this function.
  *
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
  * @param rx_kid Key Identifier of received request
  * @param rx_kid_ctx Key ID Context of received request
- * @return true Client is synchronised, you may accept the frame with the given
- * SSN
+ * @return true Client is synchronised, you may accept the frame with the given SSN
  * @return false Client is not synchronised, you must challenge the frame
  */
 bool oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
@@ -78,8 +77,7 @@ void oc_replay_free_client(oc_string_t rx_kid);
  * @param token_len the length of the message's token
  * @param token the token, used for identifying the message
  */
-void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len,
-                             uint8_t *token);
+void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, uint8_t *token);
 
 /**
  * @brief Free a message that was previously marked with
