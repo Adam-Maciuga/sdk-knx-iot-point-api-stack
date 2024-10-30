@@ -524,28 +524,26 @@ coap_receive(oc_message_t *msg)
       }
 
 #if defined(OC_REPLAY_PROTECTION) && defined(OC_OSCORE)
-      bool client_is_sync = true;
-      oc_string_t kid = { 0 };
-      oc_string_t kid_ctx = { 0 };
-      uint64_t ssn;
 
-      if (msg->endpoint.flags & OSCORE_DECRYPTED) {
+      bool client_is_sync = true;   // assume synced
+      oc_string_t kid = { 0 };      // init default kid (multicast:GA / unicast:SN)
+      oc_string_t kid_ctx = { 0 };  // init default kid context
+      uint64_t ssn;                 // local ssn 
+
+      if (msg->endpoint.flags & OSCORE_DECRYPTED) 
+      {
         oc_new_byte_string(&kid, msg->endpoint.kid, msg->endpoint.kid_len);
-        oc_new_byte_string(&kid_ctx, msg->endpoint.kid_ctx,
-                           msg->endpoint.kid_ctx_len);
-        oscore_read_piv(msg->endpoint.request_piv,
-                        msg->endpoint.request_piv_len, &ssn);
-
-        if (msg->endpoint.flags & MULTICAST) {
-          client_is_sync = oc_replay_check_client(ssn, kid, kid_ctx, true);
-        } else {
-          client_is_sync = oc_replay_check_client(ssn, kid, kid_ctx, false);
-        }
+        oc_new_byte_string(&kid_ctx, msg->endpoint.kid_ctx,msg->endpoint.kid_ctx_len);
+        oscore_read_piv(msg->endpoint.request_piv,msg->endpoint.request_piv_len, &ssn); // extract 32 bit ssn
+        
+        client_is_sync = oc_replay_check_client(ssn, kid, kid_ctx);
+        
       }
 
       // Server-side logic for sending responses with an echo option,
       // and checking whether the echo option included in a retransmitted
       // request is fresh enough.
+
       if (!client_is_sync && msg->endpoint.flags & OSCORE_DECRYPTED &&
           is_myself == false) {
         // Client is not synchronised, so we go through echo replay
