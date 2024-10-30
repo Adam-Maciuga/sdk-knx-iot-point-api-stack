@@ -165,7 +165,7 @@ bool oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid, con
   if (rec == NULL) 
   { // no match > force echo option (regardless of unicast/multicast)
     // either first pub message or after a release of an old recipient context
-    // no context record available! 
+    // no recipient context record available! 
     return false;
   }
 
