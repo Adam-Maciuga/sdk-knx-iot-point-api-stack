@@ -1,6 +1,9 @@
 cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
 
+include(FetchContent)  # load module to fetch external content
+include (GenerateExportHeader) # specific Cmake package 
+
 # compiler options 
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
   # emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
@@ -38,10 +41,10 @@ set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages")
 set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
-set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2.")
+set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC applications.")
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
 
-# KNX specific variables
+# KNX stack specific variables
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
 set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping table entries")
 set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
@@ -52,6 +55,9 @@ set(KNX_SEC_MAX_ENTRIES "" CACHE STRING "Maximum number of group security table 
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
+
+# KNX application specific variables
+set(USE_CONSOLE ON CACHE BOOL "use console (for output logging)")
 
 # dont show below variables in any (command) GUI
 mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
@@ -240,11 +246,10 @@ add_library(kis-link SHARED ${PROJECT_SOURCE_DIR}/dll/stack_callback.c)
 # target with no individual output, will be build always 
 add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
-# physical exe targets, actuator demo (e.g. receiving command) > assumes WIN32/UNIX is in place
-add_executable(lsab_minimal_all ${PROJECT_SOURCE_DIR}/apps/lsab_minimal_all.c)
+# physical exe targets, EITT certification NON GUI demo (assumes WIN32/UNIX is in place)
+add_executable(eitt_virtual ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.c)
 
-# specific Cmake package 
-include (GenerateExportHeader)
+
 
 GENERATE_EXPORT_HEADER(kis-link
     BASE_NAME kis-link
@@ -267,7 +272,9 @@ if(UNIX)
             ${PORT_DIR}/storage.c
             ${PORT_DIR}/tcpadapter.c
         )
-elseif(WIN32)
+endif()
+
+if(WIN32)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
         target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
 
@@ -286,7 +293,31 @@ elseif(WIN32)
         target_sources(kis-port PRIVATE
             ${PORT_DIR}/mutex.c
             ${PORT_DIR}/network_addresses.c
-        )        
+        ) 
+        
+        # fetch GUI framework
+        FetchContent_Declare(
+          wxWidgets
+          URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.5/wxWidgets-3.1.5.7z
+        )
+
+        option(wxBUILD_SHARED "" OFF)
+
+        message(STATUS "Fetching wxWidgets, kindly wait...")
+        FetchContent_MakeAvailable(wxWidgets)
+
+        # physical exe targets, EITT certification GUI demo 
+        add_executable(eitt_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.cpp
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.c
+        )
+
+        target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
+        target_compile_definitions(eitt_virtual_gui PUBLIC KNX_GUI)
+
+        if(USE_CONSOLE)
+           set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
+        endif()
 endif()
 
 target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
@@ -308,7 +339,7 @@ target_include_directories(mbedcrypto PUBLIC
 
 # Specifies linked libraries to build a target
 target_link_libraries(kis-link PUBLIC kisClientServer)
-target_link_libraries(lsab_minimal_all mbedtls kisClientServer)
+target_link_libraries(eitt_virtual kisClientServer)
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
 target_link_libraries(mbedcrypto ${libs})

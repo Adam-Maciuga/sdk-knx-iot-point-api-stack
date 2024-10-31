@@ -11,55 +11,23 @@ naming convention:
 
 ## Example applications
 
-### serial numbers
+### Serial numbers
 
-| Application       | serial number |
-| ----------------- | ----------- |
-| LSAB_minimal_all  | 00FA10010701 |
-| LSSB_minimal_all  | 00FA10010401 |
-| testserver_all    | 000005 |
-| testclient_all    | 000006 |
+Can be set in code. 
+Note, the example applications have deliberated incorrect serial numbers.
 
-Note: The test applications have deliberated incorrect serial numbers.
+### knx_iot_virtual_sa.c
 
-
-### testserver_all.c
-
-Test server on Windows & Linux.
+Console application for Windows & Linux.
 
 - no KNX compliant application
-- example to receive data from other device
+- example to be used to validate against KNX EITT certification tests 
 
-### testclient_all.c
+### knx_iot_virtual_sa.cpp
 
-Test Client on Windows & Linux.
+GUI application for Windows (fetches wxWidgets GUI framework).
 
 - no KNX compliant application
-- KNX client application example to send data to other device
-- can discover devices through well-known/core
-- can send s-mode multicast message
-
-### LSAB_minimal_all.c
-
-KNX-IOT example on Windows & Linux.
-capable of receiving commands for data point 417.61
-
-- Implements Functional Block LSAB 417
-  - only data point 61
-  - e.g. dpa: 417.61
-  - url : "p/o_1_1"
-
-Note: can be configured to receive s-mode commands from LSSB_minimal_all.
-
-### LSSB_minimal_all.c
-
-KNX-IOT example on Windows & Linux.
-capable of sending commands from data point 421.61
-
-- Implements Functional Block LSSB 421
-  - only data point 61
-  - e.g. dpa: 421.61
-  - url : "p/o_1_1"
-
-Note: can be configured to send s-mode commands to LSAB_minimal_all.
-Note: this application has only trigger mechanism to send the s-mode message at start up.
+- example to be used to validate against KNX EITT certification tests 
+- view of device tables (auth, ...)
+- trigger of device commands (reset, ...)
