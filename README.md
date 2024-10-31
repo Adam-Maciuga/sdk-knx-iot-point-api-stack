@@ -5,7 +5,6 @@ Specifically, the stack realizes all the functionalities of the KNX IoT Point AP
 
 ![](./images/knxstack-v1.png "Architecture")
    
-
 The responsibilities between the stack and an actual KNX IoT Point API device implementation is depicted in the following diagram:
 
 ![](/images/application.png "Application vs Stack")
@@ -41,7 +40,6 @@ __messaging/coap/__
 * contains a tailored CoAP implementation.
 
 __security/*__
-
 * contains resource handlers that implement the security model, using OSCORE.
 
 __utils/*__
@@ -89,16 +87,13 @@ __port/<OS>/*__
 __apps/*__
 * contains sample applications.
 
-# External Sample Applications
+# Sample Applications
 
-The external sample applications are using CMAKE to pull in the KNX IoT Point API stack. Examples are:
-
-  - [Simple Example](<https://github.com/KNX-IOT/Example-Application>)
-  - [KNX IoT Virtual](<https://github.com/KNX-IOT/KNX-IOT-Virtual>)
+Sample [applications](/apps/readme.md) how to use the stack.
 
 # Build instructions
 
-Grab source and dependencies from GitLab ``git clone --recursive https://gitlab.knx.org/shared-projects/knx-iot-point-api-public-stack.git``
+Grab source and dependencies from GitLab ``git clone --recursive https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git``
 Please check here for build instructions:
 
  - [Windows](<https://knx-iot.github.io/building_windows/>)
