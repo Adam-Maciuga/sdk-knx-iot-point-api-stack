@@ -111,15 +111,11 @@ static CRITICAL_SECTION cs;   /**< event loop variable */
 #define GetCurrentDir getcwd
 #endif
 
-#define btoa(x) ((x) ? "true" : "false")
+
 volatile int quit = 0;  /**< stop variable, used by handle_signal */
 bool g_reset = false;   /**< reset variable, set by commandline arguments */
 //char g_serial_number[20] = "00FA10010700";
 char g_serial_number[20] = "00fa10020800";
-
-
-
-
 
 volatile bool g_OnOff_1;   /**< global variable for OnOff_1 */
 volatile bool g_InfoOnOff_1;   /**< global variable for InfoOnOff_1 */

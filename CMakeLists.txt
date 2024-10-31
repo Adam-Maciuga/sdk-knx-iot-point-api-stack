@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
 
-include(FetchContent)  # load module to fetch external content
+include(FetchContent) # load module to fetch external content
 include (GenerateExportHeader) # specific Cmake package 
 
 # compiler options 
@@ -248,8 +248,6 @@ add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
 # physical exe targets, EITT certification NON GUI demo (assumes WIN32/UNIX is in place)
 add_executable(eitt_virtual ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.c)
-
-
 
 GENERATE_EXPORT_HEADER(kis-link
     BASE_NAME kis-link
