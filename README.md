@@ -87,9 +87,9 @@ __port/<OS>/*__
 __apps/*__
 * contains sample applications.
 
-# Sample Applications
+# Sample applications
 
-Sample [applications](/apps/readme.md) how to use the stack.
+Sample [applications](apps/Readme.md) how to use the stack.
 
 # Build instructions
 
