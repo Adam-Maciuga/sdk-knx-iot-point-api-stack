@@ -28,7 +28,7 @@ endif()
 # add preprocessor definitiosn for the current CMakeLists file
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
-# Stack specific variables 
+# Stack compilation specific variables 
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
 set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
@@ -241,20 +241,9 @@ add_library(mbedtls STATIC ${TLS_SOURCES})
 add_library(mbedx509 STATIC ${X509_SOURCES})
 add_library(mbedcrypto STATIC ${CRYPTO_SOURCES})
 add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
-add_library(kis-link SHARED ${PROJECT_SOURCE_DIR}/dll/stack_callback.c)
-
-# target with no individual output, will be build always 
-add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
 
 # physical exe targets, EITT certification NON GUI demo (assumes WIN32/UNIX is in place)
 add_executable(eitt_virtual ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.c)
-
-GENERATE_EXPORT_HEADER(kis-link
-    BASE_NAME kis-link
-    EXPORT_MACRO_NAME kis-link_EXPORT
-    EXPORT_FILE_NAME kis-link_export.h
-    STATIC_DEFINE kis-link_BUILT_AS_STATIC
-)
 
 # Detect the used platform and pick the right port
 if(UNIX)
@@ -320,10 +309,8 @@ endif()
 
 target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
-target_compile_definitions(kis-link PUBLIC OC_SERVER OC_CLIENT)
 
 # Specifies include directories to use when compiling a given target
-target_include_directories(kis-link PRIVATE ${PROJECT_BINARY_DIR} ${KNX_INCLUDE_DIRS})
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
 target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
@@ -336,7 +323,6 @@ target_include_directories(mbedcrypto PUBLIC
 )
 
 # Specifies linked libraries to build a target
-target_link_libraries(kis-link PUBLIC kisClientServer)
 target_link_libraries(eitt_virtual kisClientServer)
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
