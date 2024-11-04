@@ -1,6 +1,7 @@
 /*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
+ Copyright (c) 2024-2024 KNX Association
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -55,9 +56,6 @@
  * ## File specific defines
  * - NO_MAIN
  *   compile out the function main()
- * - INCLUDE_EXTERNAL
- *   includes header file "external_header.h", so that other tools/dependencies
- *   can be included without changing this code
  * - KNX_GUI
  *   build the GUI with console option, so that all 
  *   logging can be seen in the command window
@@ -67,22 +65,19 @@
 #include "oc_rep.h"
 #include "oc_helpers.h"
 #include "api/oc_knx_fp.h"
-#include "port/oc_clock.h"
-#include <signal.h>
-/* test purpose only; commandline reset */
 #include "api/oc_knx_dev.h"
+#include "port/oc_clock.h"
+
 #ifdef OC_SPAKE
-#include "security/oc_spake2plus.h"
+#include "security/oc_spake2plus.h"     // security enrollment by password
 #endif
-#ifdef INCLUDE_EXTERNAL
-/* import external definitions from header file*/
-/* this file should be externally supplied */
-#include "external_header.h"
-#endif
+
 #include "knx_iot_virtual_sa.h"
 
+#include <signal.h>                     // test purpose only; commandline reset 
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdio.h>                      // defines FILENAME_MAX 
 
 #ifdef __linux__
 /** linux specific code */
@@ -94,27 +89,22 @@ static struct timespec ts;
 #endif /* NO_MAIN */
 #endif
 
-#include <stdio.h> /* defines FILENAME_MAX */
-
-#define MY_NAME "KNX virtual Switching Actuator" /**< The name of the application */
+#define MY_NAME "KNX virtual Switching Actuator"
 #define APP_MAX_STRING 30
 
-#ifdef WIN32
-/** windows specific code */
+#ifdef WIN32                  // windows specific code 
 #include <windows.h>
 static CONDITION_VARIABLE cv; /**< event loop variable */
 static CRITICAL_SECTION cs;   /**< event loop variable */
 #include <direct.h>
-#define GetCurrentDir _getcwd
-#else
+#define GetCurrentDir _getcwd // path of current working directory, WIN
+#else                         // linux,mac specific code 
 #include <unistd.h>
-#define GetCurrentDir getcwd
+#define GetCurrentDir getcwd // path of current working directory, LINUX, MAC 
 #endif
-
 
 volatile int quit = 0;  /**< stop variable, used by handle_signal */
 bool g_reset = false;   /**< reset variable, set by commandline arguments */
-//char g_serial_number[20] = "00FA10010700";
 char g_serial_number[20] = "00fa10020800";
 
 volatile bool g_OnOff_1;   /**< global variable for OnOff_1 */
@@ -130,9 +120,6 @@ volatile bool g_fault_OnOff_1;   /**< global variable for fault OnOff_1 */
 volatile bool g_fault_OnOff_2;   /**< global variable for fault OnOff_2 */ 
 volatile bool g_fault_OnOff_3;   /**< global variable for fault OnOff_3 */ 
 volatile bool g_fault_OnOff_4;   /**< global variable for fault OnOff_4 */
-
-
-
 
 // BOOLEAN code
 
@@ -383,32 +370,6 @@ int app_initialize_stack();
 void signal_event_loop(void);
 void register_resources(void);
 int app_init(void);
-#ifdef __cplusplus
-}
-#endif
-
-// DEVBOARD code
-
-/**
- * @brief devboard button toggle callback
- *
- */
-// we no longer have app_set_bool_variable
-//void dev_btn_toggle_cb(char *url)
-//{
-//  PRINT_APP("Handling %s\n", url);
-//  bool val = app_retrieve_bool_variable(url);
-//  if (val == true)
-//  {
-//    val = false;
-//  }
-//  else
-//  {
-//    val = true;
-//  }
-//  app_set_bool_variable(url, val);
-//  oc_do_s_mode_with_scope(5, url, "w");
-//}
 
 /**
  * @brief s-mode response callback
@@ -426,8 +387,6 @@ oc_add_s_mode_response_cb(char *url, oc_rep_t *rep, oc_rep_t *rep_value)
 
   PRINT("oc_add_s_mode_response_cb %s\n", url);
 }
-
-
 
 /**
  * @brief function to set the input string to upper case
@@ -517,7 +476,6 @@ char* app_get_password()
 }
 
 // data point (objects) handling
-
 
 /**
  * @brief CoAP GET method for data point "OnOff_1" resource at url URL_ONOFF_1 ("/p/1").
@@ -625,7 +583,6 @@ get_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_OnOff_1\n");
 }
 
- 
 /**
  * @brief CoAP PUT method for data point "OnOff_1" resource at url "/p/1".
  * resource types: ['urn:knx:dpa.417.61']
@@ -797,8 +754,6 @@ get_InfoOnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_InfoOnOff_1\n");
 }
 
-
-
 /**
  * @brief CoAP GET method for data point "OnOff_2" resource at url URL_ONOFF_2 ("/p/3").
  * resource types: ['urn:knx:dpa.417.61']
@@ -905,7 +860,6 @@ get_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_OnOff_2\n");
 }
 
- 
 /**
  * @brief CoAP PUT method for data point "OnOff_2" resource at url "/p/3".
  * resource types: ['urn:knx:dpa.417.61']
@@ -1077,8 +1031,6 @@ get_InfoOnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_InfoOnOff_2\n");
 }
 
-
-
 /**
  * @brief CoAP GET method for data point "OnOff_3" resource at url URL_ONOFF_3 ("/p/5").
  * resource types: ['urn:knx:dpa.417.61']
@@ -1185,7 +1137,6 @@ get_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_OnOff_3\n");
 }
 
- 
 /**
  * @brief CoAP PUT method for data point "OnOff_3" resource at url "/p/5".
  * resource types: ['urn:knx:dpa.417.61']
@@ -1357,8 +1308,6 @@ get_InfoOnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_InfoOnOff_3\n");
 }
 
-
-
 /**
  * @brief CoAP GET method for data point "OnOff_4" resource at url URL_ONOFF_4 ("/p/7").
  * resource types: ['urn:knx:dpa.417.61']
@@ -1464,7 +1413,6 @@ get_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   }
   PRINT("-- End get_OnOff_4\n");
 }
-
  
 /**
  * @brief CoAP PUT method for data point "OnOff_4" resource at url "/p/7".
@@ -1637,12 +1585,7 @@ get_InfoOnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   PRINT("-- End get_InfoOnOff_4\n");
 }
 
-
-
-
 // parameters handling
-
-
 
 /**
  * @brief register all the data point resources to the stack
@@ -2055,7 +1998,6 @@ signal_event_loop(void)
 #endif /* NO_MAIN */
 }
 #endif /* __linux__ */
-
 
 #ifndef NO_MAIN
 
