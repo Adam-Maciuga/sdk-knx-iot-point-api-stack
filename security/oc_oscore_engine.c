@@ -1034,15 +1034,16 @@ oc_oscore_send_message(oc_message_t *msg)
     bool is_request = coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
     bool is_empty_ack = coap_pkt->type == COAP_TYPE_ACK && inner_code == 0;
     bool is_separate_response = coap_pkt->type == COAP_TYPE_CON;
+
     /* Set the OSCORE option */
-    if (is_request || is_empty_ack || is_separate_response) {
-      coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, ctx_id,
-                             ctx_id_len);
-    } else {
-      // other responses use the (cached) piv of the matching request, stored in
-      // the ep/clientcb
-      coap_set_header_oscore(coap_pkt, NULL, 0, kid, kid_len, ctx_id,
-                             ctx_id_len);
+    if (is_request || is_empty_ack || is_separate_response) 
+    {
+      coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, ctx_id,ctx_id_len);
+    }
+    else 
+    {
+      // other responses use the (cached) piv of the matching request, stored in the ep/client_cb
+      coap_set_header_oscore(coap_pkt, NULL, 0, kid, kid_len, ctx_id,ctx_id_len);
     }
 
     /* Reflect the Observe option (if present in the CoAP packet) */

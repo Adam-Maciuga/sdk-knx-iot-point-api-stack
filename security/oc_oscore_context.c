@@ -423,7 +423,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     memcpy(ctx->token_id, senderid, senderid_size);
     ctx->sendid_len = (uint8_t)senderid_size;
   }
-  PRINT("SendID (%d):", ctx->sendid_len);
+  OC_INF("SendID (%d):", ctx->sendid_len);
   OC_LOGbytes_OSCORE(ctx->sendid, ctx->sendid_len);
 
   id_len = OSCORE_CTXID_LEN;
@@ -436,7 +436,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     memcpy(ctx->recvid, recipientid, recipientid_size);
     ctx->recvid_len = (uint8_t)recipientid_size;
   }
-  PRINT("RecvID (%d):", ctx->recvid_len);
+  OC_INF("RecvID (%d):", ctx->recvid_len);
   OC_LOGbytes_OSCORE(ctx->recvid, ctx->recvid_len);
 
   if (osc_ctx && osc_ctx_size > 0) {
@@ -454,36 +454,30 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     memcpy((char *)&ctx->master_secret, mastersecret, mastersecret_size);
   }
 
-  OC_DBG_OSCORE("### Reading OSCORE context ###");
-  OC_DBG_OSCORE("### \t\tderiving Sender key ###");
+  OC_DBG_OSCORE("### reading OSCORE context ...");
+
+  OC_DBG_OSCORE("### deriving Sender key ...");
   if (oc_oscore_context_derive_param(
         ctx->sendid, ctx->sendid_len, ctx->idctx, ctx->idctx_len, "Key",
         (uint8_t *)mastersecret, mastersecret_size, (uint8_t *)salt, salt_size,
         ctx->sendkey, OSCORE_KEY_LEN) < 0) {
-    OC_ERR("*** error deriving Sender key ###");
+    OC_ERR("### error deriving Sender key ...");
     goto add_oscore_context_error;
   }
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived SND_KEY: ", ctx->sendkey));
 
-  OC_DBG_OSCORE("### derived Sender key ###");
-  PRINT("SEND_KEY:");
-  oc_char_println_hex(ctx->sendkey, OSCORE_KEY_LEN);
-  OC_LOGbytes_OSCORE(ctx->sendkey, OSCORE_KEY_LEN);
-
-  OC_DBG_OSCORE("### \t\tderiving Recipient key ###");
+  OC_DBG_OSCORE("### deriving Recipient key ...");
   if (oc_oscore_context_derive_param(
         ctx->recvid, ctx->recvid_len, ctx->idctx, ctx->idctx_len, "Key",
         (uint8_t *)mastersecret, mastersecret_size, (uint8_t *)salt, salt_size,
         ctx->recvkey, OSCORE_KEY_LEN) < 0) {
-    OC_ERR("*** error deriving Recipient key ###");
+    OC_ERR("### error deriving Recipient key ...");
     goto add_oscore_context_error;
   }
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived RCV_KEY: ", ctx->recvkey));
 
-  OC_DBG_OSCORE("### derived Recipient key ###");
-  PRINT("RCV_KEY:");
-  oc_char_println_hex(ctx->recvkey, OSCORE_KEY_LEN);
-  OC_LOGbytes_OSCORE(ctx->recvkey, OSCORE_KEY_LEN);
 
-  OC_DBG_OSCORE("### \t\tderiving Common IV ###");
+  OC_DBG_OSCORE("### deriving Common IV ...");
   if (oc_oscore_context_derive_param(NULL, 0, ctx->idctx, ctx->idctx_len, "IV",
                                      (uint8_t *)mastersecret, mastersecret_size,
                                      (uint8_t *)salt, salt_size, ctx->commoniv,
@@ -491,10 +485,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     OC_ERR("*** error deriving Common IV ###");
     goto add_oscore_context_error;
   }
-  PRINT("IV:");
-  oc_char_println_hex(ctx->commoniv, OSCORE_COMMON_IV_LEN);
-  OC_LOGbytes_OSCORE(ctx->commoniv, OSCORE_COMMON_IV_LEN);
-  OC_DBG_OSCORE("### derived Common IV ###");
+  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV: ", ctx->commoniv));
 
   oc_list_add(contexts, ctx);
 

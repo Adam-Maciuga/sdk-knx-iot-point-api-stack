@@ -1697,7 +1697,7 @@ oc_knx_load_state(size_t device_index)
   int temp_size;
 
   oc_lsm_state_t lsm;
-  PRINT("oc_knx_load_state: Loading Device Config from Persistent storage\n");
+  OC_INF("oc_knx_load_state: Loading Device Config from Persistent storage");
 
   oc_device_info_t *device = oc_core_get_device_info(device_index);
   if (device == NULL) {
@@ -1708,7 +1708,7 @@ oc_knx_load_state(size_t device_index)
   temp_size = oc_storage_read(LSM_STORE, (uint8_t *)&lsm, sizeof(lsm));
   if (temp_size > 0) {
     device->lsm_s = lsm;
-    PRINT("  load state (storage) %ld [%s]\n", (long)lsm,
+    OC_INF("load state (storage) %ld [%s]\n", (long)lsm,
           oc_core_get_lsm_state_as_string((oc_lsm_state_t)lsm));
   }
 

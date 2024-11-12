@@ -64,7 +64,7 @@ oc_storage_config(const char *store)
   }
 
 #ifdef OC_USE_STORAGE
-  PRINT("\tCreating storage directory at %s\n", temp_dir);
+  OC_INF("Creating storage directory at %s", temp_dir);
 #ifdef __GNUC__
   int retval = mkdir(temp_dir);
 #else

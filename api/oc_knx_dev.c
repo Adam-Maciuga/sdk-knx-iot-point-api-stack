@@ -1357,23 +1357,23 @@ oc_knx_device_storage_read(size_t device_index)
   char tempstring[255];
   bool pm;
 
-  PRINT("Loading Device Config from Persistent storage\n");
+  OC_INF("Loading Device Config from persistent storage");
 
   if (device_index >= oc_core_get_num_devices()) {
-    PRINT("device_index %d too large\n", (int)device_index);
+    OC_INF("device_index %d too large", (int)device_index);
     return;
   }
 
   oc_device_info_t *device = oc_core_get_device_info(device_index);
   if (device == NULL) {
-    OC_ERR(" could not get device %d\n", (int)device_index);
+    OC_ERR("could not get device %d", (int)device_index);
   }
 
   /* IA */
   temp_size = oc_storage_read(KNX_STORAGE_IA, (uint8_t *)&ia, sizeof(ia));
   if (temp_size > 0) {
     device->ia = ia;
-    PRINT("  ia (storage) %d\n", ia);
+    OC_INF("ia (storage) %d", ia);
   }
 
   /* HOST NAME */
@@ -1382,19 +1382,19 @@ oc_knx_device_storage_read(size_t device_index)
   if (temp_size > 1) {
     tempstring[temp_size] = 0;
     oc_core_set_device_hostname(device_index, tempstring);
-    PRINT("  hostname (storage) %s\n", oc_string_checked(device->hostname));
+    OC_INF("hostname (storage) %s", oc_string_checked(device->hostname));
   }
 
   /* KNX_STORAGE_IID */
   temp_size =
     oc_storage_read(KNX_STORAGE_IID, (uint8_t *)&device->iid, sizeof(int64_t));
-  PRINT("  idd (storage) %" PRIu64 "\n", device->iid);
+  OC_INF("idd (storage) %" PRIu64 "", device->iid);
 
   /* KNX_STORAGE_PM */
   temp_size = oc_storage_read(KNX_STORAGE_PM, (uint8_t *)&pm, 1);
   if (temp_size > 0) {
     device->pm = pm;
-    PRINT("  pm (storage) %d\n", device->pm);
+    OC_INF("pm (storage) %d\n", device->pm);
   }
 
   oc_core_read_ap(device_index);
@@ -1507,7 +1507,7 @@ oc_knx_device_in_programming_mode(size_t device_index)
 {
 
   if (device_index >= oc_core_get_num_devices()) {
-    PRINT("device_index %d too large\n", (int)device_index);
+    OC_INF("device_index %d too large", (int)device_index);
     return false;
   }
 
@@ -1520,7 +1520,7 @@ oc_knx_device_set_programming_mode(size_t device_index, bool programming_mode)
 {
 
   if (device_index >= oc_core_get_num_devices()) {
-    PRINT("device_index %d too large\n", (int)device_index);
+    OC_INF("device_index %d too large", (int)device_index);
     return;
   }
 

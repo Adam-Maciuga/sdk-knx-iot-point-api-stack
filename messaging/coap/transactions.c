@@ -121,8 +121,7 @@ coap_send_transaction(coap_transaction_t *t)
   if (!oc_main_initialized()) {
     return;
   }
-  OC_DBG("Sending transaction(len: %zd) %u: %p", t->message->length, t->mid,
-         (void *)t);
+  OC_DBG("Sending transaction(len: %zd) %u: %p", t->message->length, t->mid,(void *)t);
   OC_LOGbytes(t->message->data, t->message->length);
   bool confirmable = false;
 
@@ -136,7 +135,7 @@ coap_send_transaction(coap_transaction_t *t)
     OC_ERR("data in message in transaction == NULL");
   }
 
-  PRINT(" coap_send_transaction  xxxxx %d\n", t->message->data[0]);
+  OC_DBG("coap_send_transaction  xxxxx %d", t->message->data[0]);
 
   confirmable =
     (COAP_TYPE_CON == ((COAP_HEADER_TYPE_MASK & t->message->data[0]) >>

@@ -392,7 +392,7 @@ oc_core_fp_g_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_fp_g_get_handler\n");
+  OC_INF("oc_core_fp_g_get_handler");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
@@ -465,7 +465,7 @@ oc_core_fp_g_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_fp_g_get_handler - end\n");
+  OC_INF("oc_core_fp_g_get_handler - end");
 }
 
 static bool
@@ -517,7 +517,7 @@ oc_core_fp_g_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   bool status_ok = true;
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  PRINT("oc_core_fp_g_post_handler\n");
+  OC_INF("oc_core_fp_g_post_handler");
 
   /* check if the accept header is cbor-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -655,7 +655,7 @@ oc_core_fp_g_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
         oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
         return;
       } else {
-        PRINT("  storing at index: %d\n", index);
+        OC_INF("  storing at index: %d", index);
         status_ok = oc_fp_g_check_and_save(index, device_index, status_ok);
       }
     }
@@ -696,7 +696,7 @@ oc_core_fp_g_x_get_handler(oc_request_t *request,
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_g_x_get_handler\n");
+  OC_INF("oc_core_fp_g_x_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -709,7 +709,7 @@ oc_core_fp_g_x_get_handler(oc_request_t *request,
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
   int index = oc_core_find_index_in_group_object_table_from_id(id);
-  PRINT("  id=%d index = %d\n", id, index);
+  OC_INF("id=%d index = %d\n", id, index);
   if (index == -1) {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
     return;
@@ -733,8 +733,7 @@ oc_core_fp_g_x_get_handler(oc_request_t *request,
   oc_rep_end_root_object();
   oc_send_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_fp_g_x_get_handler - end\n");
-  return;
+  OC_INF("oc_core_fp_g_x_get_handler - end");
 }
 
 static void
@@ -743,7 +742,7 @@ oc_core_fp_g_x_del_handler(oc_request_t *request,
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_g_x_del_handler\n");
+  OC_INF("oc_core_fp_g_x_del_handler - start");
 
   size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADING) {
@@ -773,7 +772,7 @@ oc_core_fp_g_x_del_handler(oc_request_t *request,
   // update the finger print
   oc_knx_increase_fingerprint();
 
-  PRINT("oc_core_fp_g_x_del_handler - end\n");
+  OC_INF("oc_core_fp_g_x_del_handler - end");
   oc_send_response_no_format(request, OC_STATUS_DELETED);
 }
 
@@ -850,7 +849,7 @@ oc_core_fp_p_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_fp_p_get_handler\n");
+  OC_INF("oc_core_fp_p_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
@@ -923,7 +922,7 @@ oc_core_fp_p_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_fp_p_get_handler - end\n");
+  OC_INF("oc_core_fp_p_get_handler - end");
 }
 
 static void
@@ -934,7 +933,7 @@ oc_core_fp_p_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   (void)iface_mask;
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  PRINT("oc_core_fp_p_post_handler\n");
+  OC_INF("oc_core_fp_p_post_handler - start");
 
   /* check if the accept header is cbor-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -1102,7 +1101,7 @@ oc_core_fp_p_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   };
 
   oc_knx_increase_fingerprint();
-  PRINT("oc_core_fp_p_post_handler - end\n");
+  OC_INF("oc_core_fp_p_post_handler - end");
   oc_send_response_no_format(request, return_status);
 }
 
@@ -1115,7 +1114,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p, knx_fp_p_x, 0, "/fp/p",
 void
 oc_create_fp_p_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_fp_p_resource\n");
+  OC_DBG("oc_create_fp_p_resource");
   oc_core_populate_resource(resource_idx, device, "/fp/p", OC_IF_C | OC_IF_B,
                             APPLICATION_CBOR, OC_DISCOVERABLE,
                             oc_core_fp_p_get_handler, 0,
@@ -1128,7 +1127,7 @@ oc_core_fp_p_x_get_handler(oc_request_t *request,
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_p_x_get_handler\n");
+  OC_INF("oc_core_fp_p_x_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -1197,7 +1196,7 @@ oc_core_fp_p_x_get_handler(oc_request_t *request,
 
   oc_send_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_fp_p_x_get_handler - end\n");
+  OC_INF("oc_core_fp_p_x_get_handler - end");
   return;
 }
 
@@ -1207,7 +1206,7 @@ oc_core_fp_p_x_del_handler(oc_request_t *request,
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_p_x_del_handler\n");
+  OC_INF("oc_core_fp_p_x_del_handler - start");
 
   size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADING) {
@@ -1234,7 +1233,7 @@ oc_core_fp_p_x_del_handler(oc_request_t *request,
   oc_dump_group_rp_table_entry(index, GPT_STORE, g_gpt,
                                oc_core_get_publisher_table_size());
   oc_knx_increase_fingerprint();
-  PRINT("oc_core_fp_p_x_del_handler - end\n");
+  OC_INF("oc_core_fp_p_x_del_handler - end");
 
   oc_send_response_no_format(request, OC_STATUS_DELETED);
 }
@@ -1249,7 +1248,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p_x, knx_fp_r, 0, "/fp/p/*",
 void
 oc_create_fp_p_x_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_fp_p_x_resource\n");
+  OC_DBG("oc_create_fp_p_x_resource");
   oc_core_populate_resource(resource_idx, device, "/fp/p/*", OC_IF_D | OC_IF_C,
                             APPLICATION_CBOR, OC_DISCOVERABLE,
                             oc_core_fp_p_x_get_handler, 0, 0,
@@ -1281,7 +1280,7 @@ oc_core_fp_r_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_fp_r_get_handler\n");
+  OC_INF("oc_core_fp_r_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
@@ -1354,7 +1353,7 @@ oc_core_fp_r_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_fp_r_get_handler - end\n");
+  OC_INF("oc_core_fp_r_get_handler - end");
 }
 
 static void
@@ -1551,7 +1550,7 @@ oc_core_fp_r_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
 
   oc_knx_increase_fingerprint();
 
-  PRINT("oc_core_fp_r_post_handler - end\n");
+  OC_INF("oc_core_fp_r_post_handler - end");
   oc_send_response_no_format(request, return_status);
 }
 
@@ -1576,7 +1575,7 @@ oc_core_fp_r_x_get_handler(oc_request_t *request,
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_r_x_get_handler\n");
+  OC_INF("oc_core_fp_r_x_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -1636,7 +1635,7 @@ oc_core_fp_r_x_get_handler(oc_request_t *request,
 
   oc_send_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_fp_r_x_get_handler - end\n");
+  OC_INF("oc_core_fp_r_x_get_handler - end");
   return;
 }
 
@@ -1946,7 +1945,7 @@ oc_load_group_object_table_entry(int entry)
 void
 oc_load_group_object_table()
 {
-  PRINT("Loading Group Object Table from Persistent storage\n");
+  OC_INF("Loading Group Object Table from persistent storage");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++) {
     oc_load_group_object_table_entry(i);
     oc_print_group_object_table_entry(i);
@@ -2222,14 +2221,14 @@ void
 oc_load_rp_object_table()
 {
 
-  PRINT("Loading Group Recipient Table from Persistent storage\n");
+  OC_INF("Loading Group Recipient Table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++) {
     oc_load_group_rp_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
     oc_print_group_rp_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
   }
 
 #ifdef OC_PUBLISHER_TABLE
-  PRINT("Loading Group Publisher Table from Persistent storage\n");
+  OC_INF("Loading Group Publisher Table from persistent storage");
   for (int i = 0; i < oc_core_get_publisher_table_size(); i++) {
     oc_load_group_rp_table_entry(i, GPT_STORE, g_gpt,
                                  oc_core_get_publisher_table_size());
@@ -2734,13 +2733,13 @@ oc_register_group_multicasts()
   // installation id will be used as ULA prefix
   oc_device_info_t *device = oc_core_get_device_info(0);
   if (!device) {
-    PRINT("oc_register_group_multicasts: no device info\n");
+    OC_INF("oc_register_group_multicasts: no device info");
     return;
   }
   int64_t installation_id = device->iid;
   uint32_t port = device->mport;
 
-  PRINT("oc_register_group_multicasts: mport %d \n", port);
+  OC_INF("oc_register_group_multicasts: mport %d", port);
 
   bool registered_pub = false;
   bool pub_entry = false;
@@ -2767,7 +2766,7 @@ oc_register_group_multicasts()
           uint32_t grpid = oc_find_grpid_in_table(
             g_gpt, oc_core_get_publisher_table_size(), g_got[index].ga[i]);
 
-          PRINT(" oc_register_group_multicasts index=%d i=%d grpid: %u "
+          OC_INF("oc_register_group_multicasts index=%d i=%d grpid: %u "
                 "group_address: %d cflags=",
                 index, i, grpid, g_got[index].ga[i]);
           oc_print_cflags(cflags);
@@ -2813,7 +2812,7 @@ void
 oc_init_datapoints_at_initialization()
 {
   int index;
-  PRINT("oc_init_datapoints_at_initialization\n");
+  OC_INF("oc_init_datapoints_at_initialization");
 
   for (index = 0; index < GOT_MAX_ENTRIES; index++) {
     int nr_entries = g_got[index].ga_len;

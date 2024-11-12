@@ -89,8 +89,7 @@ static struct timespec ts;
 #endif /* NO_MAIN */
 #endif
 
-#define MY_NAME "KNX virtual Switching Actuator"
-#define APP_MAX_STRING 30
+#define MY_NAME "KNX virtual switch actuator"
 
 #ifdef WIN32                  // windows specific code 
 #include <windows.h>
@@ -458,10 +457,10 @@ app_init(void)
   if (strlen(oc_spake_get_password()) == 0)
     oc_spake_set_password(PASSWORD);
 
-
   strncpy(serial_number_uppercase, oc_string(device->serialnumber), 19);
   app_str_to_upper(serial_number_uppercase);
-  printf("\n === QR Code: KNX:S:%s;P:%s ===\n", serial_number_uppercase, oc_spake_get_password());
+
+  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", serial_number_uppercase,oc_spake_get_password());
 #endif
 
   return ret;
@@ -1603,7 +1602,7 @@ get_InfoOnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
 void
 register_resources(void)
 {
-  PRINT("Register Resource 'OnOff_1' with local path \"%s\"\n", URL_ONOFF_1);
+  OC_INF("Register Resource 'OnOff_1' with local path \"%s\"", URL_ONOFF_1);
   oc_resource_t *res_OnOff_1 =
     oc_new_resource("OnOff_1", URL_ONOFF_1, 1, 0);
   oc_resource_bind_resource_type(res_OnOff_1, "urn:knx:dpa.417.61");
@@ -1624,7 +1623,7 @@ register_resources(void)
   oc_resource_set_request_handler(res_OnOff_1, OC_GET, get_OnOff_1, NULL);
   oc_resource_set_request_handler(res_OnOff_1, OC_PUT, put_OnOff_1, NULL); 
   oc_add_resource(res_OnOff_1);
-  PRINT("Register Resource 'InfoOnOff_1' with local path \"%s\"\n", URL_INFOONOFF_1);
+  OC_INF("Register Resource 'InfoOnOff_1' with local path \"%s\"", URL_INFOONOFF_1);
   oc_resource_t *res_InfoOnOff_1 =
     oc_new_resource("InfoOnOff_1", URL_INFOONOFF_1, 1, 0);
   oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62"); // was 417.51 - test frame 82
@@ -1644,7 +1643,7 @@ register_resources(void)
   oc_resource_set_observable(res_InfoOnOff_1, true);
   oc_resource_set_request_handler(res_InfoOnOff_1, OC_GET, get_InfoOnOff_1, NULL);
   oc_add_resource(res_InfoOnOff_1);
-  PRINT("Register Resource 'OnOff_2' with local path \"%s\"\n", URL_ONOFF_2);
+  OC_INF("Register Resource 'OnOff_2' with local path \"%s\"", URL_ONOFF_2);
   oc_resource_t *res_OnOff_2 =
     oc_new_resource("OnOff_2", URL_ONOFF_2, 1, 0);
   oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61"); // was 417.61 - test frame 82
@@ -1665,7 +1664,7 @@ register_resources(void)
   oc_resource_set_request_handler(res_OnOff_2, OC_GET, get_OnOff_2, NULL);
   oc_resource_set_request_handler(res_OnOff_2, OC_PUT, put_OnOff_2, NULL); 
   oc_add_resource(res_OnOff_2);
-  PRINT("Register Resource 'InfoOnOff_2' with local path \"%s\"\n", URL_INFOONOFF_2);
+  OC_INF("Register Resource 'InfoOnOff_2' with local path \"%s\"", URL_INFOONOFF_2);
   oc_resource_t *res_InfoOnOff_2 =
     oc_new_resource("InfoOnOff_2", URL_INFOONOFF_2, 1, 0);
   oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62"); // was 417.51 - test frame 97
@@ -1708,7 +1707,7 @@ register_resources(void)
 
   if (b)
   {
-      PRINT("Register Resource 'InfoOnOff_3' with local path \"%s\"\n", URL_INFOONOFF_3);
+      OC_INF("Register Resource 'InfoOnOff_3' with local path \"%s\"", URL_INFOONOFF_3);
       oc_resource_t* res_InfoOnOff_3 =
           oc_new_resource("InfoOnOff_3", URL_INFOONOFF_3, 1, 0);
       oc_resource_bind_resource_type(res_InfoOnOff_3, "urn:knx:dpa.417.51");
@@ -1728,7 +1727,7 @@ register_resources(void)
       oc_resource_set_observable(res_InfoOnOff_3, true);
       oc_resource_set_request_handler(res_InfoOnOff_3, OC_GET, get_InfoOnOff_3, NULL);
       oc_add_resource(res_InfoOnOff_3);
-      PRINT("Register Resource 'OnOff_4' with local path \"%s\"\n", URL_ONOFF_4);
+      OC_INF("Register Resource 'OnOff_4' with local path \"%s\"", URL_ONOFF_4);
       oc_resource_t* res_OnOff_4 =
           oc_new_resource("OnOff_4", URL_ONOFF_4, 1, 0);
       oc_resource_bind_resource_type(res_OnOff_4, "urn:knx:dpa.417.61");
@@ -1749,7 +1748,7 @@ register_resources(void)
       oc_resource_set_request_handler(res_OnOff_4, OC_GET, get_OnOff_4, NULL);
       oc_resource_set_request_handler(res_OnOff_4, OC_PUT, put_OnOff_4, NULL);
       oc_add_resource(res_OnOff_4);
-      PRINT("Register Resource 'InfoOnOff_4' with local path \"%s\"\n", URL_INFOONOFF_4);
+      OC_INF("Register Resource 'InfoOnOff_4' with local path \"%s\"", URL_INFOONOFF_4);
       oc_resource_t* res_InfoOnOff_4 =
           oc_new_resource("InfoOnOff_4", URL_INFOONOFF_4, 1, 0);
       oc_resource_bind_resource_type(res_InfoOnOff_4, "urn:knx:dpa.417.51");
@@ -1900,14 +1899,14 @@ int app_initialize_stack()
   int init;
   char *fname = "my_software_image";
 
-  PRINT("KNX-IOT Server name : \"%s\"\n", MY_NAME);
+  OC_INF("KNX-IOT server name : \"%s\"", MY_NAME);
 
   /* show the current working folder */
   char buff[FILENAME_MAX];
   char *retbuf = NULL;
   retbuf = GetCurrentDir(buff, FILENAME_MAX);
   if (retbuf != NULL) {
-    PRINT("Current working dir: %s\n", buff);
+    OC_INF("Current working dir: %s", buff);
   }
 
   /*
@@ -1918,7 +1917,7 @@ int app_initialize_stack()
 #ifdef WIN32
   char storage[400];
   sprintf(storage,"./knx_iot_virtual_sa_%s",g_serial_number);  
-  PRINT("\tstorage at '%s' \n",storage);
+  OC_INF("storage at '%s'",storage);
   oc_storage_config(storage);
 #else
   PRINT("\tstorage at 'knx_iot_virtual_sa_creds' \n");
@@ -1945,26 +1944,23 @@ int app_initialize_stack()
   init = oc_main_init(&handler);
 
   if (init < 0) {
-    PRINT("oc_main_init failed %d, exiting.\n", init);
+    OC_INF("oc_main_init failed %d, exiting.", init);
     return init;
   }
 
 #ifdef OC_OSCORE
-  PRINT("OSCORE - Enabled\n");
+  OC_DBG_OSCORE("OSCORE - Enabled");
 #else
-  PRINT("OSCORE - Disabled\n");
+  OC_DBG_OSCORE("OSCORE - Disabled");
 #endif /* OC_OSCORE */
 
   oc_device_info_t *device = oc_core_get_device_info(0);
-  PRINT("serial number: %s\n", oc_string(device->serialnumber));
+  OC_INF("serial number: %s", oc_string(device->serialnumber));
   oc_endpoint_t *my_ep = oc_connectivity_get_endpoints(0);
   if (my_ep != NULL) {
     PRINTipaddr(*my_ep);
-    PRINT("\n");
   }
-  PRINT("Server \"%s\" running, waiting on incoming "
-        "connections.\n",
-        MY_NAME);
+  OC_INF("Server \"%s\" running, waiting on incoming connections...",MY_NAME);
   return 0;
 }
 

@@ -58,11 +58,10 @@ oc_storage_config(const char *store)
   if (temp_dir[dir_len - 1] == '/') {
     temp_dir[dir_len - 1] = 0;
   }
-
-  PRINT("\tCreating storage directory at %s\n", temp_dir);
+OC_INF("Creating storage directory at %s", temp_dir);
   int retval = mkdir(temp_dir, 0777);
 #else
-  PRINT("\tNot Creating storage directory \n");
+  OC_INF("Not Creating storage directory");
 #endif
 
   return 0;

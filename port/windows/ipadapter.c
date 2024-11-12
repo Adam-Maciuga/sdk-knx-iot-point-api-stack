@@ -414,9 +414,8 @@ get_interface_addresses(ifaddr_t *ifaddr_list, ip_context_t *dev,
       memcpy(new_ep, &ep, sizeof(oc_endpoint_t));
       oc_list_add(dev->eps, new_ep);
 #ifdef OC_DEBUG
-      PRINT("Adding address for interface %d\n", ifaddr->if_index);
+      OC_INF("Adding address for interface %d", ifaddr->if_index);
       PRINTipaddr(ep);
-      PRINT("\n\n");
 #endif /* OC_DEBUG */
       continue;
     }
@@ -434,9 +433,8 @@ get_interface_addresses(ifaddr_t *ifaddr_list, ip_context_t *dev,
       memcpy(new_ep, &ep, sizeof(oc_endpoint_t));
       oc_list_add(dev->eps, new_ep);
 #ifdef OC_DEBUG
-      PRINT("Adding address for interface %d\n", ifaddr->if_index);
+      OC_INF("Adding address for interface %d\n", ifaddr->if_index);
       PRINTipaddr(ep);
-      PRINT("\n\n");
 #endif /* OC_DEBUG */
       continue;
     }
@@ -875,9 +873,8 @@ network_event_thread(void *data)
 #endif /* OC_OSCORE */
       common:
 #ifdef OC_DEBUG
-        PRINT("Incoming message of size %zd bytes from ", message->length);
+        OC_INF("Incoming message of size %zd bytes from ", message->length);
         PRINTipaddr(message->endpoint);
-        PRINT("\n\n");
 #endif /* OC_DEBUG */
         oc_network_event(message);
       }
@@ -1099,10 +1096,9 @@ int
 oc_send_buffer(oc_message_t *message)
 {
 #ifdef OC_DEBUG
-  PRINT("oc_send_buffer: Outgoing message of size %zd bytes to ",
+  OC_INF("oc_send_buffer: Outgoing message of size %zd bytes to ",
         message->length);
   PRINTipaddr(message->endpoint);
-  PRINT("\n");
 #endif /* OC_DEBUG */
   struct sockaddr_storage receiver;
   memset(&receiver, 0, sizeof(receiver));

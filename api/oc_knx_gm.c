@@ -378,7 +378,7 @@ oc_load_group_mapping_table_entry(int entry)
 void
 oc_load_group_mapping_table()
 {
-  PRINT("Loading Group Mapping Table from Persistent storage\n");
+  OC_INF("Loading Group Mapping Table from persistent storage");
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
     oc_load_group_mapping_table_entry(i);
     oc_print_group_mapping_table_entry(i);

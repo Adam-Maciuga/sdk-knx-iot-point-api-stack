@@ -71,7 +71,7 @@ static void free_record(struct oc_replay_record *rec)
 // find empty record in queue, if queue is full ... free oldest record
 static struct oc_replay_record *get_empty_record(void)
 {
-  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) 
+  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; i++) 
   {
     if (!replay_records[i].in_use)
       return replay_records + i;
@@ -81,8 +81,8 @@ static struct oc_replay_record *get_empty_record(void)
   // defines oldest record as first array element
   struct oc_replay_record *oldest_rec = replay_records;
   
-  // finding of oldest record 
-  for (size_t i = 1; i < OC_MAX_REPLAY_RECORDS; ++i) 
+  // finding of oldest record, to release it (on heap limitations) 
+  for (size_t i = 1; i < OC_MAX_REPLAY_RECORDS; i++) 
   {
     if (replay_records[i].time < oldest_rec->time)
       oldest_rec = replay_records + i;
@@ -100,7 +100,7 @@ static struct oc_replay_record *get_record(const oc_string_t rx_kid, const oc_st
     return NULL; // rx kid not present -> a match is not applicable
   }
 
-  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i) 
+  for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; i++) 
   {
     // c pointer arithmetics
     struct oc_replay_record *rec = replay_records + i;
@@ -119,13 +119,13 @@ static struct oc_replay_record *get_record(const oc_string_t rx_kid, const oc_st
   return NULL;  // nothing found
 }
 
-// true if SSN is within replay, false if no entry found or if SSN is outside replay window
-bool oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
+replay_state_t
+oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid,
+                       const oc_string_t rx_kid_ctx)
 {
   /*
-  With CoAP over UDP, you cannot guarantee messages are received in order.
-  what if you happen to receive SSN 32 followed by non-replayed SSNs 28,
-  29, 30, 31... do you drop all these?
+  With CoAP over UDP, you cannot guarantee messages are received in order,
+  hence SSN needs to be checked against replayed SSNs.
 
   We can use the default anti-replay algorithm specified by OSCORE, which
   uses a sliding window in order to track every received SSN within a
@@ -136,109 +136,95 @@ bool oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid, con
   of the bit indicates whether the packet has been received before
 
   The entire bitfield is left shifted whenever the recorded SSN increases,
-  thus 'sliding' the window in a very efficient manner
+  thus 'sliding' the window in a very efficient manner. Here's an example
+  of the algorithm in operation, with a REDUCED bitfield for readability:
 
-  Here's an example of the algorithm in operation, with a reduced bitfield
-  for readability:
-
-  ssn = 8
-  bitfield = 0b1100'0011
-
-  rx 6, 8 - 6 = 2, check bit 2, accept & set bit 2
-
-  ssn = 8
-  bitfield = 0b1100'0111
-
-  rx 7 again, thrown out because bit 8 - 7 = 1 is set
-  rx 2 again, thrown out because 8 - 2 = 6 and bit 6 is set
-  rx 8, 8 - 8 = 0, check bit 0 & reject
-
-  rx 9, 8 - 9 = -1,  change ssn, left shift bitfield by 1, set bit 0
-
-  ssn = 9
-  bitfield = 0b1000'1111
+  max ssn = 8, bitfield = 0b0100'0001
+  rx 6, bit 8 - 6 = 2, bit is not set -> delayed msg: accept msg & set bit 2  
+  :
+  :
+  max ssn = 8, bitfield = 0b0100'0101
+  rx 2, bit 8 - 2 = 6, bit is set -> replayed msg: ssn 6 received again, throw msg 
+  rx 8, bit 8 - 8 = 0, bit is set -> replayed msg: ssn 8 received again, throw msg
+  :
+  :
+  rx 9, bit 8 - 9 = -1, fresh msg: change ssn, left shift bitfield by 1, set bit 0
+  max ssn = 9, bitfield = 0b1000'1011
+  :
+  :
+  rx 99, bit 9 - 99 = bit -90, fresh msg: change ssn, left shift bitfield by 90, set bit 0 
+  max ssn = 99, bitfield = 0b0000'0001
 
   */
 
   struct oc_replay_record *rec = get_record(rx_kid, rx_kid_ctx);
 
   if (rec == NULL) 
-  { // no match > force echo option (regardless of unicast/multicast)
-    // either first pub message or after a release of an old recipient context
-    // no recipient context record available! 
-    return false;
+  {
+    // no replay window record available, force echo option
+    // regardless unicast/multicast, either on first pub message
+    // or after a release of an old recipient context
+    return ECHO;
   }
 
   // received message matched existing record, so this record is useful &
-  // should be kept around - thus we update the time here
+  // should be kept around - update the time (to prevent a release from heap)  
   rec->time = oc_clock_time();
 
-  PRINT("new ssn = %llx\n", rx_ssn);                // %llx = 64 bit ulong
-  PRINT("old ssn = %llx\n", rec->rx_ssn);           // %llx = 64 bit ulong
+  PRINT("new ssn = %lld\n", rx_ssn);                // %lld = 64 bit ulong
+  PRINT("old ssn = %lld\n", rec->rx_ssn);           // %lld = 64 bit ulong
   PRINT("kid     = %s\n", oc_string(rx_kid));       // %s = string
-  PRINT("wnd old : %ulx\n", rec->window);           // %ulx = 32 bit ulong bit field 
-
+  PRINT("wnd old : %lu\n", rec->window);            // %u = 32 bit ulong bit field 
   const int64_t ssn_diff = rec->rx_ssn - rx_ssn;    // SSN = 32 bit hence unproblematic
 
+  PRINT("ssn_diff = dec: %lld, hex: %llx\n", ssn_diff, ssn_diff);
+
+  // new SSN <= max value of received SSN -> either new SSN is within window or out of left bound  
   if (ssn_diff >= 0) 
   {
-    // new SSN < old SSN -> negative 
     PRINT("ssn_diff = %llx >= 0\n", ssn_diff);
 
-    // ensure it is not too old e.g. falls out of lower bound of window
-    // diff > 32 falls out of lower bound 
-    if (ssn_diff > sizeof(rec->window) * 8) 
+    // diff >= 32 -> out of left bound (max ssn = 32, rx = 0 -> SSN of 1..32 can be windowed) 
+    if (ssn_diff >= sizeof(rec->window) * 8) 
     {
-      PRINT("false reason 1: too old\n");
-      return false;
+      PRINT("out of window left bound\n");
+      return ECHO; // not known if it was received before  
     }
-
-    // received SSN is within the window - see if it has been received before
-    if (rec->window & ((uint32_t)1 << ssn_diff)) {
-
-      // received before, so this is a replay
-      PRINT("false reason 2: is replay\n");
-      return false;
-    } else 
+    // diff < 32 -> within the window (max ssn = 32, rx = 1 -> SSN 1..31 can be windowed)
+    
+    // see if it has been received before, so this can be a replay
+    if (rec->window & ((uint32_t)1 << ssn_diff)) 
     {
-      // not received before, so remember that this SSN has been seen before
-      rec->window |= (uint32_t)1 << ssn_diff;
-      PRINT("true 1\n");
-      return true;
-    }
-  } else 
-  {
-    PRINT("ssn_diff = dec: %lld, hex: %llx\n", ssn_diff, ssn_diff);
+      PRINT("within window, replay msg\n");
+      return REPLAY; // known that it was received before 
+    }  
+    
+    // SSN not received before, tick that this SSN is now occupied
+    // DO NOT remember SSN, it is not the highest one
+    rec->window |= (uint32_t)1 << ssn_diff;
 
-    uint64_t rplwdo = oc_oscore_get_rplwdo();
+    PRINT("within window, new msg\n");
+    return SYNCED;
+  } 
 
-    PRINT("replwdo = %llx\n", rplwdo);
+  // new SSN > old SSN -> fresh message, slide the window and accept the packet
+  // note that shifting by an amount larger than the size of the type
+  // is undefined behaviour, so we must zero the window manually here
 
-    if (-ssn_diff <= rplwdo) {
-      PRINT("-ssn_diff <= rplwdo, shifting bitfield by %d\n", ssn_diff);
-      // slide the window and accept the packet
-      rec->rx_ssn = rx_ssn;
-      // ssn_diff is negative in this side of the if
-      // note that shifting by an amount greater than the size of the type
-      // is undefined behaviour, so we must zero the window manually here
-      if (-ssn_diff >= sizeof(rec->window) * 8)
-        rec->window = 0;
-      else
-        rec->window = rec->window << (-ssn_diff);
+  if (-ssn_diff >= sizeof(rec->window) * 8)
+    rec->window = 0;            // 00000000'..'..'00000001' << 32 = 00000000'..'..'00000000'
+  else
+    rec->window <<= -ssn_diff;  // 00000000'..'..'00000001' << 31 = 10000000'..'..'00000000'
 
-      // set bit 1, indicating ssn rec->rx_ssn has been received
-      rec->window |= 1;
-      PRINT("REC->WIN before: %llx\n", rec->window);
-      PRINT("true 2\n");
-      return true;
-    } else {
-      PRINT("false reason 3: out of window\n");
-      return false;
-    }
-  }
+  // set bit 0, indicating ssn 'rec->rx_ssn' has been received
+  // DO remember SSN, it is now the highest one
+  rec->window |= 1;
+  rec->rx_ssn = rx_ssn;
+
+  PRINT("out of window right bound\n");
+  return SYNCED;
 }
 
-// update replay record if match found otherwise, create new replay record
 void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
 {
   struct oc_replay_record *rec = get_record(rx_kid, rx_kid_ctx);
@@ -251,6 +237,8 @@ void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const
     rec->in_use = true;
   }
 
+  // reinit record with fresh SSN + window, option to receive possible
+  // older SSNs within the old window (if it was present) are gone  
   rec->rx_ssn = rx_ssn;
   rec->window = 1;
   rec->time = oc_clock_time();

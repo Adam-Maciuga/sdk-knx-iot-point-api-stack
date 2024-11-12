@@ -91,7 +91,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t *request,
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler\n");
+  OC_INF("oc_core_knx_auth_o_osndelay_get_handler");
 
   /* check if the accept header is cbor-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -104,7 +104,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t *request,
   oc_rep_i_set_uint(root, 1, g_oscore_osndelay);
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done\n");
+  OC_INF("oc_core_knx_auth_o_osndelay_get_handler - done");
   oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -1642,7 +1642,7 @@ oc_core_find_at_entry_empty_slot(size_t device_index)
 void
 oc_load_at_table(size_t device_index)
 {
-  PRINT("Loading AT Table from Persistent storage\n");
+  OC_INF("Loading AT Table from Persistent storage");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++) {
     oc_at_load_entry(i);
     if (oc_string_len(g_at_entries[i].id) > 0) {
@@ -1656,7 +1656,7 @@ oc_load_at_table(size_t device_index)
 void
 oc_delete_at_table(size_t device_index)
 {
-  PRINT("Deleting AT Object Table from Persistent storage\n");
+  OC_INF("Deleting AT Object Table from Persistent storage");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++) {
     oc_at_delete_entry(device_index, i);
     oc_print_auth_at_entry(device_index, i);
@@ -1669,7 +1669,7 @@ oc_delete_at_table(size_t device_index)
 void
 oc_reset_at_table(size_t device_index, int erase_code)
 {
-  PRINT("Reset AT Object Table: %d\n", erase_code);
+  OC_INF("Reset AT Object Table: %d", erase_code);
 
   if (erase_code == 2) {
     oc_delete_at_table(device_index);

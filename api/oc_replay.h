@@ -23,17 +23,29 @@ extern "C" {
 #include "oc_helpers.h"
 #include "oc_buffer.h"
 
+typedef enum replay_state
+{
+  SYNCED = 0,   // replay window present Y   -> pass msg to AL
+  REPLAY = 1,   // replay window present Y   -> 4.01 
+  ECHO   = 2,   // replay window present Y+N -> 4.01 + ECHO 
+} replay_state_t;
+
+
 /**
  * @brief Add a synchronised client
  *
  * If a client with the same KID & KID_CTX already exists, it will be
- * updated and marked as in sync
+ * reinitialized and marked as in sync (with the new SSN + cleaned window),
+ * otherwise a new record will be set up.
+ *
+ * For a reinitialized record it means also that older SSNs from the old SSN/window 
+ * from now on are ignored.    
  *
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
  * @param rx_kid Key Identifier of received request
  * @param rx_kid_ctx Key ID Context of received request
  */
-void oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
+void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx);
 
 /**
  * @brief Check if a client is synchronised
@@ -45,10 +57,11 @@ void oc_replay_add_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_ki
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
  * @param rx_kid Key Identifier of received request
  * @param rx_kid_ctx Key ID Context of received request
- * @return true Client is synchronised, you may accept the frame with the given SSN
- * @return false Client is not synchronised, you must challenge the frame
+ * @return Either client is synchronised (you may accept the frame with the given SSN)
+ * or it is not synchronised (either you challenge the frame or deny it completely)
  */
-bool oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
+replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
+                                       oc_string_t rx_kid_ctx);
 
 /**
  * @brief Free all clients with a given KID. Should be used whenever the
@@ -77,7 +90,7 @@ void oc_replay_free_client(oc_string_t rx_kid);
  * @param token_len the length of the message's token
  * @param token the token, used for identifying the message
  */
-void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, uint8_t *token);
+void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, const uint8_t *token);
 
 /**
  * @brief Free a message that was previously marked with
@@ -97,7 +110,8 @@ void oc_replay_message_unref(struct oc_message_s *msg);
  * @param token Token used to identify the message
  * @return struct oc_message_s*
  */
-struct oc_message_s *oc_replay_find_msg_by_token(uint16_t token_len, uint8_t *token);
+struct oc_message_s *oc_replay_find_msg_by_token(uint16_t token_len,
+                                                 const uint8_t *token);
 
 /**
  * @brief Get the first available (not used) record

@@ -1163,16 +1163,20 @@ coap_oscore_serialize_message(void *packet, uint8_t *buffer, bool inner,
   option += option_length;
 
   /* Pack payload */
-  if ((option - coap_pkt->buffer) <= COAP_MAX_HEADER_SIZE) {
+  if ((option - coap_pkt->buffer) <= COAP_MAX_HEADER_SIZE) 
+  {
     /* Payload marker */
-    if (coap_pkt->payload_len > 0) {
+    if (coap_pkt->payload_len > 0) 
+    {
       *option = 0xFF;
       ++option;
       memmove(option, coap_pkt->payload, coap_pkt->payload_len);
     }
     OC_DBG("Serialized payload:");
     OC_LOGbytes(option, coap_pkt->payload_len);
-  } else {
+  }
+  else 
+  {
     /* an error occurred: caller must check for !=0 */
     OC_WRN("Serialized header length %u exceeds COAP_MAX_HEADER_SIZE %u",
            (unsigned int)(option - coap_pkt->buffer), COAP_MAX_HEADER_SIZE);
@@ -1183,7 +1187,6 @@ coap_oscore_serialize_message(void *packet, uint8_t *buffer, bool inner,
          (unsigned int)(coap_pkt->payload_len + option - buffer),
          (unsigned int)(option - buffer), (unsigned int)coap_pkt->payload_len);
 
-  OC_DBG("Dump");
   OC_LOGbytes(coap_pkt->buffer, (coap_pkt->payload_len + option - buffer));
 
   return (option - buffer) + coap_pkt->payload_len; /* packet length */

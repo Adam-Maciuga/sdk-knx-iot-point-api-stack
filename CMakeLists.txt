@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
 
 include(FetchContent) # load module to fetch external content
-include (GenerateExportHeader) # specific Cmake package 
 
 # compiler options 
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
@@ -34,10 +33,10 @@ set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
 set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
 set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
-set(OC_PRINT_ENABLED ON CACHE BOOL "Enable print messages. Setting this to OFF will disable virtually all logging.")
-set(OC_PRINT_APP_ENABLED ON CACHE BOOL "Enable application log messages. Independent from OC_PRINT_ENABLED")
+set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages. Setting this to OFF will disable virtually all logging.")
+set(OC_PRINT_APP_ENABLED OFF CACHE BOOL "Enable application log messages. Independent from OC_PRINT_ENABLED")
 set(OC_DEBUG_ENABLED ON CACHE BOOL "Enable debug messages")
-set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages")
+set(OC_DEBUG_OSCORE_ENABLED ON CACHE BOOL "Enable security debug messages")
 set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
@@ -307,8 +306,8 @@ if(WIN32)
         endif()
 endif()
 
-target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
-target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
+target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config done by Intel
+target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                      # stack can send+receive
 
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
@@ -322,21 +321,21 @@ target_include_directories(mbedcrypto PUBLIC
     ${PORT_DIR}
 )
 
-# Specifies linked libraries to build a target
+# Specifies linked libraries (dependencies/referenbces) to build a target
 target_link_libraries(eitt_virtual kisClientServer)
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
-target_link_libraries(mbedcrypto ${libs})
-target_link_libraries(mbedx509  mbedcrypto)
-target_link_libraries(mbedtls  mbedx509)   
+target_link_libraries(mbedcrypto ${libs}) 
+target_link_libraries(mbedx509 mbedcrypto)
+target_link_libraries(mbedtls mbedx509)   
 
 set_target_properties(mbedcrypto PROPERTIES OUTPUT_NAME mbedcrypto)
 set_target_properties(mbedx509 PROPERTIES OUTPUT_NAME mbedx509)
 set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
 
-install(TARGETS mbedtls mbedx509 mbedcrypto
-    DESTINATION ${LIB_INSTALL_DIR}
-    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+install(TARGETS mbedcrypto mbedx509 mbedtls
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
 
 # Process individual stack/ (demo)application behavior 
 if(OC_OSCORE_ENABLED)
@@ -384,18 +383,12 @@ endif()
 
 if (OC_USE_STORAGE)
     target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
-endif()
-
-if (OC_USE_STORAGE)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
 endif()
 
+
 if (OC_USE_MULTICAST_SCOPE_2)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_MULTICAST_SCOPE_2)
-endif()
-
-if(OC_LOG_TO_FILE_ENABLED)
-    target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
 endif()
 
 if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)
