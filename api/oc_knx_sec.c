@@ -91,7 +91,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t *request,
   (void)data;
   (void)iface_mask;
 
-  OC_INF("oc_core_knx_auth_o_osndelay_get_handler");
+  PRINT("oc_core_knx_auth_o_osndelay_get_handler");
 
   /* check if the accept header is cbor-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -104,7 +104,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t *request,
   oc_rep_i_set_uint(root, 1, g_oscore_osndelay);
   oc_rep_end_root_object();
 
-  OC_INF("oc_core_knx_auth_o_osndelay_get_handler - done");
+  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done");
   oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -126,7 +126,7 @@ oc_core_knx_auth_o_osndelay_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_knx_auth_o_osndelay_put_handler type: %d value %d\n",
+        PRINT("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d\n",
               (int)rep->type, (int)rep->value.integer);
         g_oscore_osndelay = rep->value.integer;
         oc_send_cbor_response(request, OC_STATUS_CHANGED);
@@ -200,7 +200,7 @@ oc_core_knx_auth_o_replwdo_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_knx_auth_o_replwdo_put_handler type: %d value %d\n",
+        PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d\n",
               rep->type, (int)rep->value.integer);
         g_oscore_replaywindow = rep->value.integer;
         oc_send_cbor_response(request, OC_STATUS_CHANGED);
@@ -380,7 +380,7 @@ oc_core_a_sen_post_handler(oc_request_t *request,
 
   /* input was set, so create the response*/
   if (changed == true) {
-    PRINT("  oc_core_a_sen_post_handler cmd %d\n", cmd);
+    PRINT("oc_core_a_sen_post_handler cmd %d\n", cmd);
     // renew the credentials.
     // note: this is optional for now
 
@@ -457,7 +457,7 @@ find_access_token_from_payload(oc_rep_t *object)
     case OC_REP_BYTE_STRING: {
       if (oc_string_len(object->name) == 0 && object->iname == 0) {
         index = &object->value.string;
-        PRINT(" find_access_token_from_payload: %s \n",
+        PRINT("find_access_token_from_payload: %s \n",
               oc_string_checked(*index));
         return index;
       }
@@ -465,7 +465,7 @@ find_access_token_from_payload(oc_rep_t *object)
     case OC_REP_STRING: {
       if (oc_string_len(object->name) == 0 && object->iname == 0) {
         index = &object->value.string;
-        PRINT(" find_access_token_from_payload: %s \n",
+        PRINT("find_access_token_from_payload: %s \n",
               oc_string_checked(*index));
         return index;
       }
@@ -477,7 +477,7 @@ find_access_token_from_payload(oc_rep_t *object)
     } /* switch */
     object = object->next;
   } /* while */
-  PRINT("  find_access_token_from_payload Error \n");
+  PRINT("find_access_token_from_payload Error \n");
   return index;
 }
 
@@ -623,7 +623,7 @@ oc_core_auth_at_post_handler(oc_request_t *request,
       object = rep->value.object;
       while (object != NULL) {
         if (object->type == OC_REP_MIXED_ARRAY) {
-          PRINT("  mixed array as scope is not allowed!\n");
+          PRINT("mixed array as scope is not allowed!\n");
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -633,19 +633,19 @@ oc_core_auth_at_post_handler(oc_request_t *request,
       object = rep->value.object;
       oc_string_t *at = find_access_token_from_payload(object);
       if (at == NULL) {
-        PRINT("  access token not found!\n");
+        PRINT("access token not found!\n");
         oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
         return;
       }
       index = find_index_from_at(at);
       if (index != -1) {
-        PRINT("   entry already exist! \n");
+        PRINT("entry already exist! \n");
         return_status = OC_STATUS_CHANGED;
       } else {
         index = find_empty_at_index();
         return_status = OC_STATUS_CREATED;
         if (index == -1) {
-          PRINT("  no space left!\n");
+          PRINT("no space left!\n");
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -737,7 +737,7 @@ oc_core_auth_at_post_handler(oc_request_t *request,
           id_only = false;
           if (object->iname == 38) {
             // profile (38 ("coap_dtls" ==1 or "coap_oscore" == 2))
-            PRINT("   profile %d\n", (int)object->value.integer);
+            PRINT("profile %d\n", (int)object->value.integer);
             g_at_entries[index].profile = (int)object->value.integer;
           }
         } else if (object->type == OC_REP_OBJECT) {
@@ -745,7 +745,7 @@ oc_core_auth_at_post_handler(oc_request_t *request,
           // level of cnf or sub.
           subobject = object->value.object;
           int subobject_nr = object->iname;
-          PRINT("  subobject_nr %d\n", subobject_nr);
+          PRINT("subobject_nr %d\n", subobject_nr);
           while (subobject) {
             if (subobject->type == OC_REP_STRING) {
               if (subobject->iname == 3 && subobject_nr == 8) {
@@ -829,11 +829,11 @@ oc_core_auth_at_post_handler(oc_request_t *request,
         object = object->next;
       } // while (inner object)
       if (id_only) {
-        PRINT("  only found id in request, deleting entry at index: %d\n",
+        PRINT("only found id in request, deleting entry at index: %d\n",
               index);
         oc_at_delete_entry(device_index, index);
       } else {
-        PRINT("  storage index: %d (%s)\n", index, oc_string_checked(*at));
+        PRINT("storage index: %d (%s)\n", index, oc_string_checked(*at));
         // show the entry on screen
         oc_print_auth_at_entry(device_index, index);
 
@@ -922,16 +922,16 @@ oc_core_auth_at_x_get_handler(oc_request_t *request,
   // - delete the index.
   if (value_len <= 0) {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    PRINT("  index (at) not found\n");
+    PRINT("index (at) not found\n");
     return;
   }
-  PRINT("  id = %.*s\n", value_len, value);
+  PRINT("id = %.*s\n", value_len, value);
   // get the index
   int index = find_index_from_at_string(value, value_len);
   // - delete the index.
   if (index < 0) {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    PRINT("  index in structure not found\n");
+    PRINT("index in structure not found\n");
     return;
   }
   oc_print_auth_at_entry(0, index);
@@ -960,17 +960,17 @@ oc_core_auth_at_x_get_handler(oc_request_t *request,
       oc_new_string_array(&cflags_entries, (size_t)nr_entries);
       int framed = oc_get_interface_in_mask_in_string_array(
         g_at_entries[index].scope, nr_entries, cflags_entries);
-      PRINT("  entries in cflags %d framed: %d \n", nr_entries, framed);
+      PRINT("entries in cflags %d framed: %d \n", nr_entries, framed);
       oc_rep_i_set_string_array(root, 9, cflags_entries);
       oc_free_string_array(&cflags_entries);
     }
   }
   if (g_at_entries[index].profile == OC_PROFILE_COAP_DTLS) {
     if (oc_string_len(g_at_entries[index].sub) > 0) {
-      PRINT("    sub    : %s\n", oc_string_checked(g_at_entries[index].sub));
+      PRINT("sub    : %s\n", oc_string_checked(g_at_entries[index].sub));
     }
     if (oc_string_len(g_at_entries[index].kid) > 0) {
-      PRINT("    kid    : %s\n", oc_string_checked(g_at_entries[index].kid));
+      PRINT("kid    : %s\n", oc_string_checked(g_at_entries[index].kid));
     }
   }
   if (g_at_entries[index].profile == OC_PROFILE_COAP_OSCORE ||
@@ -1054,7 +1054,7 @@ oc_core_auth_at_x_post_handler(oc_request_t *request,
   }
   /* input was set, so create the response*/
   if (changed == true) {
-    PRINT("  cmd %d\n", cmd);
+    PRINT("cmd %d\n", cmd);
     oc_send_cbor_response(request, OC_STATUS_CHANGED);
     return;
   }
@@ -1088,7 +1088,7 @@ oc_core_auth_at_x_delete_handler(oc_request_t *request,
     PRINT("index (at) not found\n");
     return;
   }
-  PRINT("  id = %.*s\n", value_len, value);
+  PRINT("id = %.*s\n", value_len, value);
   // get the index
   int index = find_index_from_at_string(value, value_len);
   // - delete the index.
@@ -1242,55 +1242,55 @@ oc_print_auth_at_entry(size_t device_index, int index)
   if (index > -1) {
     if (oc_string_len(g_at_entries[index].id) > 0) {
 
-      PRINT("  at index: %d\n", index);
-      PRINT("    id (0)        : '%s'\n",
-            oc_string_checked(g_at_entries[index].id));
-      PRINT("    scope (9)     : %d\n", g_at_entries[index].scope);
-      PRINT("    profile (38)  : %d (%s)\n", g_at_entries[index].profile,
-            oc_at_profile_to_string(g_at_entries[index].profile));
+      PRINT("at index      : %d", index);
+      PRINT("id (0)        : %s", oc_string_checked(g_at_entries[index].id));
+      PRINT("scope (9)     : %d", g_at_entries[index].scope);
+      PRINT("profile (38)  : %d (%s)", g_at_entries[index].profile, oc_at_profile_to_string(g_at_entries[index].profile));
       if (g_at_entries[index].profile == OC_PROFILE_COAP_DTLS) {
-        if (oc_string_len(g_at_entries[index].sub) > 0) {
-          PRINT("    sub           : %s\n",
-                oc_string_checked(g_at_entries[index].sub));
+
+        if (oc_string_len(g_at_entries[index].sub) > 0) 
+        {
+          PRINT("sub           : %s", oc_string_checked(g_at_entries[index].sub));
         }
-        if (oc_string_len(g_at_entries[index].kid) > 0) {
-          PRINT("    kid           : %s\n",
-                oc_string_checked(g_at_entries[index].kid));
+
+        if (oc_string_len(g_at_entries[index].kid) > 0) 
+        {
+          PRINT("kid           : %s", oc_string_checked(g_at_entries[index].kid));
         }
       }
       if (g_at_entries[index].profile == OC_PROFILE_COAP_OSCORE ||
           g_at_entries[index].profile == OC_PROFILE_COAP_PASE) {
         if (oc_string_len(g_at_entries[index].osc_ms) > 0) {
-          PRINT("    osc:ms    (h) : (%d) ",
+          PRINT("osc:ms (h)    : (%d) ",
                 (int)oc_byte_string_len(g_at_entries[index].osc_ms));
           oc_string_println_hex(g_at_entries[index].osc_ms);
         }
         if (oc_string_len(g_at_entries[index].osc_salt) > 0) {
-          PRINT("    osc:salt    (h) : (%d) ",
+          PRINT("osc:salt (h)  : (%d) ",
                 (int)oc_byte_string_len(g_at_entries[index].osc_salt));
           oc_string_println_hex(g_at_entries[index].osc_salt);
         }
         if (oc_string_len(g_at_entries[index].osc_contextid) > 0) {
-          PRINT("    osc:ctx_id (h): (%d) ",
+          PRINT("osc:ctx_id (h): (%d) ",
                 (int)oc_byte_string_len(g_at_entries[index].osc_contextid));
           oc_string_println_hex(g_at_entries[index].osc_contextid);
         }
         if (oc_string_len(g_at_entries[index].osc_id) > 0) {
-          PRINT("    osc:id    (h) : (%d) ",
+          PRINT("osc:id (h)    : (%d) ",
                 (int)oc_byte_string_len(g_at_entries[index].osc_id));
           oc_string_println_hex(g_at_entries[index].osc_id);
         }
         if (oc_string_len(g_at_entries[index].osc_rid) > 0) {
-          PRINT("    osc:rid   (h) : (%d) ",
+          PRINT("osc:rid (h)   : (%d) ",
                 (int)oc_byte_string_len(g_at_entries[index].osc_rid));
           oc_string_println_hex(g_at_entries[index].osc_rid);
         }
         if (g_at_entries[index].ga_len > 0) {
-          PRINT("    osc:ga        : [");
+          PRINT("osc:ga        : [");
           for (int i = 0; i < g_at_entries[index].ga_len; i++) {
-            PRINT(" %" PRIu64 "", (uint64_t)g_at_entries[index].ga[i]);
+            PRINTF("%" PRIu64 "", (uint64_t)g_at_entries[index].ga[i]);
           }
-          PRINT(" ]\n");
+          PRINTF("]");
         }
       }
     }
@@ -1642,7 +1642,7 @@ oc_core_find_at_entry_empty_slot(size_t device_index)
 void
 oc_load_at_table(size_t device_index)
 {
-  OC_INF("Loading AT Table from Persistent storage");
+  PRINT("Loading AT Table from Persistent storage");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++) {
     oc_at_load_entry(i);
     if (oc_string_len(g_at_entries[i].id) > 0) {
@@ -1656,7 +1656,7 @@ oc_load_at_table(size_t device_index)
 void
 oc_delete_at_table(size_t device_index)
 {
-  OC_INF("Deleting AT Object Table from Persistent storage");
+  PRINT("Deleting AT Object Table from Persistent storage");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++) {
     oc_at_delete_entry(device_index, i);
     oc_print_auth_at_entry(device_index, i);
@@ -1669,7 +1669,7 @@ oc_delete_at_table(size_t device_index)
 void
 oc_reset_at_table(size_t device_index, int erase_code)
 {
-  OC_INF("Reset AT Object Table: %d", erase_code);
+  PRINT("Reset AT Object Table: %d", erase_code);
 
   if (erase_code == 2) {
     oc_delete_at_table(device_index);
@@ -2060,11 +2060,11 @@ method_allowed(oc_method_t method, const oc_resource_t *resource,
         false) {
       PRINT("method_allowed : not allowed: request  %d : ", calling_interfaces);
       oc_print_interface(calling_interfaces);
-      PRINT("\n");
+      
       PRINT("method_allowed : not allowed: resource %d : ",
             resource_interfaces);
       oc_print_interface(resource_interfaces);
-      PRINT("\n");
+      
       OC_WRN(" resource %s call denied: %d  %d", oc_string(resource->uri),
              calling_interfaces, resource_interfaces);
 

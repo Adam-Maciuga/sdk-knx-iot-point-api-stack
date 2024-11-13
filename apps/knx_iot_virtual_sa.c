@@ -384,7 +384,7 @@ oc_add_s_mode_response_cb(char *url, oc_rep_t *rep, oc_rep_t *rep_value)
   (void)rep;
   (void)rep_value;
 
-  PRINT("oc_add_s_mode_response_cb %s\n", url);
+  PRINT("oc_add_s_mode_response_cb %s", url);
 }
 
 /**
@@ -500,7 +500,7 @@ get_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_OnOff_1 %s \n", URL_ONOFF_1);
+  PRINT("-- Begin get_OnOff_1 %s ", URL_ONOFF_1);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -513,7 +513,7 @@ get_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -573,13 +573,13 @@ get_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_OnOff_1\n");
+  PRINT("-- End get_OnOff_1");
 }
 
 /**
@@ -602,12 +602,12 @@ put_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   (void)interfaces;
   (void)user_data;
   bool error_state = true;
-  PRINT("-- Begin put_OnOff_1:\n");
+  PRINT("-- Begin put_OnOff_1:");
 
   oc_rep_t *rep = NULL;
   /* handle the different requests e.g. via s-mode or normal CoAP call*/
   if (oc_is_redirected_request(request)) {
-    PRINT("  redirected request..\n");
+    PRINT("redirected request..");
   }
   rep = request->request_payload;
   /* loop over all the entries in the request */
@@ -616,7 +616,7 @@ put_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   while (rep != NULL) {
     /* handle the type of payload correctly. */
     if ((rep->iname == 1) && (rep->type == OC_REP_BOOL)) {
-      PRINT("  put_OnOff_1 received : %d\n", rep->value.boolean);
+      PRINT("put_OnOff_1 received : %d", rep->value.boolean);
       g_OnOff_1 = rep->value.boolean;
       error_state = false;
       break;
@@ -627,24 +627,24 @@ put_OnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
       oc_send_cbor_response(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_1*/
       if (g_fault_OnOff_1 == false) { 
-        PRINT("  No Fault update feedback to %d'\n", g_OnOff_1);
+        PRINT("No Fault update feedback to %d'", g_OnOff_1);
         /* no fault hence update the feedback with the current state of the actuator */
         g_InfoOnOff_1 = g_OnOff_1;  
       } else {
         /* fault hence update the feedback with "false" */
-        PRINT("  Fault'\n");
+        PRINT("Fault'");
         g_InfoOnOff_1 = false; 
       }
       /* send the status information InfoOnOff_1 to '/p/2' with flag 'w' */
-      PRINT("  Send status to '/p/2' with flag: 'w'\n");
+      PRINT("Send status to '/p/2' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_1, "w"); 
       do_put_cb(URL_ONOFF_1);
-      PRINT("-- End put_OnOff_1\n");
+      PRINT("-- End put_OnOff_1");
       return;
   }
   /* request data was not recognized, so it was a bad request */
   oc_send_response(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End put_OnOff_1\n");
+  PRINT("-- End put_OnOff_1");
 }
 
 /**
@@ -671,7 +671,7 @@ get_InfoOnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_InfoOnOff_1 %s \n", URL_INFOONOFF_1);
+  PRINT("-- Begin get_InfoOnOff_1 %s ", URL_INFOONOFF_1);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -684,7 +684,7 @@ get_InfoOnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -744,13 +744,13 @@ get_InfoOnOff_1(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_InfoOnOff_1\n");
+  PRINT("-- End get_InfoOnOff_1");
 }
 
 /**
@@ -777,7 +777,7 @@ get_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_OnOff_2 %s \n", URL_ONOFF_2);
+  PRINT("-- Begin get_OnOff_2 %s ", URL_ONOFF_2);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -790,7 +790,7 @@ get_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -850,13 +850,13 @@ get_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_OnOff_2\n");
+  PRINT("-- End get_OnOff_2");
 }
 
 /**
@@ -879,12 +879,12 @@ put_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   (void)interfaces;
   (void)user_data;
   bool error_state = true;
-  PRINT("-- Begin put_OnOff_2:\n");
+  PRINT("-- Begin put_OnOff_2:");
 
   oc_rep_t *rep = NULL;
   /* handle the different requests e.g. via s-mode or normal CoAP call*/
   if (oc_is_redirected_request(request)) {
-    PRINT("  redirected request..\n");
+    PRINT("redirected request..");
   }
   rep = request->request_payload;
   /* loop over all the entries in the request */
@@ -893,7 +893,7 @@ put_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   while (rep != NULL) {
     /* handle the type of payload correctly. */
     if ((rep->iname == 1) && (rep->type == OC_REP_BOOL)) {
-      PRINT("  put_OnOff_2 received : %d\n", rep->value.boolean);
+      PRINT("put_OnOff_2 received : %d", rep->value.boolean);
       g_OnOff_2 = rep->value.boolean;
       error_state = false;
       break;
@@ -904,24 +904,24 @@ put_OnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
       oc_send_cbor_response(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_2*/
       if (g_fault_OnOff_2 == false) { 
-        PRINT("  No Fault update feedback to %d'\n", g_OnOff_2);
+        PRINT("No Fault update feedback to %d'", g_OnOff_2);
         /* no fault hence update the feedback with the current state of the actuator */
         g_InfoOnOff_2 = g_OnOff_2;  
       } else {
         /* fault hence update the feedback with "false" */
-        PRINT("  Fault'\n");
+        PRINT("Fault'");
         g_InfoOnOff_2 = false; 
       }
       /* send the status information InfoOnOff_2 to '/p/4' with flag 'w' */
-      PRINT("  Send status to '/p/4' with flag: 'w'\n");
+      PRINT("Send status to '/p/4' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_2, "w"); 
       do_put_cb(URL_ONOFF_2);
-      PRINT("-- End put_OnOff_2\n");
+      PRINT("-- End put_OnOff_2");
       return;
   }
   /* request data was not recognized, so it was a bad request */
   oc_send_response(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End put_OnOff_2\n");
+  PRINT("-- End put_OnOff_2");
 }
 
 /**
@@ -948,7 +948,7 @@ get_InfoOnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_InfoOnOff_2 %s \n", URL_INFOONOFF_2);
+  PRINT("-- Begin get_InfoOnOff_2 %s ", URL_INFOONOFF_2);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -961,7 +961,7 @@ get_InfoOnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -1021,13 +1021,13 @@ get_InfoOnOff_2(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_InfoOnOff_2\n");
+  PRINT("-- End get_InfoOnOff_2");
 }
 
 /**
@@ -1054,7 +1054,7 @@ get_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_OnOff_3 %s \n", URL_ONOFF_3);
+  PRINT("-- Begin get_OnOff_3 %s ", URL_ONOFF_3);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -1067,7 +1067,7 @@ get_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -1127,13 +1127,13 @@ get_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_OnOff_3\n");
+  PRINT("-- End get_OnOff_3");
 }
 
 /**
@@ -1156,12 +1156,12 @@ put_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   (void)interfaces;
   (void)user_data;
   bool error_state = true;
-  PRINT("-- Begin put_OnOff_3:\n");
+  PRINT("-- Begin put_OnOff_3:");
 
   oc_rep_t *rep = NULL;
   /* handle the different requests e.g. via s-mode or normal CoAP call*/
   if (oc_is_redirected_request(request)) {
-    PRINT("  redirected request..\n");
+    PRINT("redirected request..");
   }
   rep = request->request_payload;
   /* loop over all the entries in the request */
@@ -1170,7 +1170,7 @@ put_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   while (rep != NULL) {
     /* handle the type of payload correctly. */
     if ((rep->iname == 1) && (rep->type == OC_REP_BOOL)) {
-      PRINT("  put_OnOff_3 received : %d\n", rep->value.boolean);
+      PRINT("put_OnOff_3 received : %d", rep->value.boolean);
       g_OnOff_3 = rep->value.boolean;
       error_state = false;
       break;
@@ -1181,24 +1181,24 @@ put_OnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
       oc_send_cbor_response(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_3*/
       if (g_fault_OnOff_3 == false) { 
-        PRINT("  No Fault update feedback to %d'\n", g_OnOff_3);
+        PRINT("No Fault update feedback to %d'", g_OnOff_3);
         /* no fault hence update the feedback with the current state of the actuator */
         g_InfoOnOff_3 = g_OnOff_3;  
       } else {
         /* fault hence update the feedback with "false" */
-        PRINT("  Fault'\n");
+        PRINT("Fault'");
         g_InfoOnOff_3 = false; 
       }
       /* send the status information InfoOnOff_3 to '/p/6' with flag 'w' */
-      PRINT("  Send status to '/p/6' with flag: 'w'\n");
+      PRINT("Send status to '/p/6' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_3, "w"); 
       do_put_cb(URL_ONOFF_3);
-      PRINT("-- End put_OnOff_3\n");
+      PRINT("-- End put_OnOff_3");
       return;
   }
   /* request data was not recognized, so it was a bad request */
   oc_send_response(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End put_OnOff_3\n");
+  PRINT("-- End put_OnOff_3");
 }
 
 /**
@@ -1225,7 +1225,7 @@ get_InfoOnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_InfoOnOff_3 %s \n", URL_INFOONOFF_3);
+  PRINT("-- Begin get_InfoOnOff_3 %s ", URL_INFOONOFF_3);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -1238,7 +1238,7 @@ get_InfoOnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -1298,13 +1298,13 @@ get_InfoOnOff_3(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_InfoOnOff_3\n");
+  PRINT("-- End get_InfoOnOff_3");
 }
 
 /**
@@ -1331,7 +1331,7 @@ get_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_OnOff_4 %s \n", URL_ONOFF_4);
+  PRINT("-- Begin get_OnOff_4 %s ", URL_ONOFF_4);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -1344,7 +1344,7 @@ get_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -1404,13 +1404,13 @@ get_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_OnOff_4\n");
+  PRINT("-- End get_OnOff_4");
 }
  
 /**
@@ -1433,12 +1433,12 @@ put_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   (void)interfaces;
   (void)user_data;
   bool error_state = true;
-  PRINT("-- Begin put_OnOff_4:\n");
+  PRINT("-- Begin put_OnOff_4:");
 
   oc_rep_t *rep = NULL;
   /* handle the different requests e.g. via s-mode or normal CoAP call*/
   if (oc_is_redirected_request(request)) {
-    PRINT("  redirected request..\n");
+    PRINT("redirected request..");
   }
   rep = request->request_payload;
   /* loop over all the entries in the request */
@@ -1447,7 +1447,7 @@ put_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   while (rep != NULL) {
     /* handle the type of payload correctly. */
     if ((rep->iname == 1) && (rep->type == OC_REP_BOOL)) {
-      PRINT("  put_OnOff_4 received : %d\n", rep->value.boolean);
+      PRINT("put_OnOff_4 received : %d", rep->value.boolean);
       g_OnOff_4 = rep->value.boolean;
       error_state = false;
       break;
@@ -1458,24 +1458,24 @@ put_OnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
       oc_send_cbor_response(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_4*/
       if (g_fault_OnOff_4 == false) { 
-        PRINT("  No Fault update feedback to %d'\n", g_OnOff_4);
+        PRINT("No Fault update feedback to %d'", g_OnOff_4);
         /* no fault hence update the feedback with the current state of the actuator */
         g_InfoOnOff_4 = g_OnOff_4;  
       } else {
         /* fault hence update the feedback with "false" */
-        PRINT("  Fault'\n");
+        PRINT("Fault'");
         g_InfoOnOff_4 = false; 
       }
       /* send the status information InfoOnOff_4 to '/p/8' with flag 'w' */
-      PRINT("  Send status to '/p/8' with flag: 'w'\n");
+      PRINT("Send status to '/p/8' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_4, "w"); 
       do_put_cb(URL_ONOFF_4);
-      PRINT("-- End put_OnOff_4\n");
+      PRINT("-- End put_OnOff_4");
       return;
   }
   /* request data was not recognized, so it was a bad request */
   oc_send_response(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End put_OnOff_4\n");
+  PRINT("-- End put_OnOff_4");
 }
 
 /**
@@ -1502,7 +1502,7 @@ get_InfoOnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   */
   bool error_state = false; /* the error state, the generated code */
 
-  PRINT("-- Begin get_InfoOnOff_4 %s \n", URL_INFOONOFF_4);
+  PRINT("-- Begin get_InfoOnOff_4 %s ", URL_INFOONOFF_4);
   /* check if the accept header is CBOR */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
@@ -1515,7 +1515,7 @@ get_InfoOnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   size_t m_key_len;
   size_t m_len = (int)oc_get_query_value(request, "m", &m);
   if (m_len != -1) {
-    PRINT("  Query param: %.*s",(int)m_len, m);
+    PRINT("Query param: %.*s",(int)m_len, m);
     oc_init_query_iterator();
     size_t device_index = request->resource->device;
     oc_device_info_t *device = oc_core_get_device_info(device_index);
@@ -1575,13 +1575,13 @@ get_InfoOnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
   if (g_err) {
     error_state = true;
   }
-  PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
   if (error_state == false) {
     oc_send_cbor_response(request, OC_STATUS_OK);
   } else {
     oc_send_response(request, OC_STATUS_BAD_OPTION);
   }
-  PRINT("-- End get_InfoOnOff_4\n");
+  PRINT("-- End get_InfoOnOff_4");
 }
 
 // parameters handling
@@ -1602,7 +1602,7 @@ get_InfoOnOff_4(oc_request_t *request, oc_interface_mask_t interfaces,
 void
 register_resources(void)
 {
-  OC_INF("Register Resource 'OnOff_1' with local path \"%s\"", URL_ONOFF_1);
+  PRINT("Register Resource 'OnOff_1' with local path \"%s\"", URL_ONOFF_1);
   oc_resource_t *res_OnOff_1 =
     oc_new_resource("OnOff_1", URL_ONOFF_1, 1, 0);
   oc_resource_bind_resource_type(res_OnOff_1, "urn:knx:dpa.417.61");
@@ -1623,7 +1623,7 @@ register_resources(void)
   oc_resource_set_request_handler(res_OnOff_1, OC_GET, get_OnOff_1, NULL);
   oc_resource_set_request_handler(res_OnOff_1, OC_PUT, put_OnOff_1, NULL); 
   oc_add_resource(res_OnOff_1);
-  OC_INF("Register Resource 'InfoOnOff_1' with local path \"%s\"", URL_INFOONOFF_1);
+  PRINT("Register Resource 'InfoOnOff_1' with local path \"%s\"", URL_INFOONOFF_1);
   oc_resource_t *res_InfoOnOff_1 =
     oc_new_resource("InfoOnOff_1", URL_INFOONOFF_1, 1, 0);
   oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62"); // was 417.51 - test frame 82
@@ -1643,7 +1643,7 @@ register_resources(void)
   oc_resource_set_observable(res_InfoOnOff_1, true);
   oc_resource_set_request_handler(res_InfoOnOff_1, OC_GET, get_InfoOnOff_1, NULL);
   oc_add_resource(res_InfoOnOff_1);
-  OC_INF("Register Resource 'OnOff_2' with local path \"%s\"", URL_ONOFF_2);
+  PRINT("Register Resource 'OnOff_2' with local path \"%s\"", URL_ONOFF_2);
   oc_resource_t *res_OnOff_2 =
     oc_new_resource("OnOff_2", URL_ONOFF_2, 1, 0);
   oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61"); // was 417.61 - test frame 82
@@ -1664,7 +1664,7 @@ register_resources(void)
   oc_resource_set_request_handler(res_OnOff_2, OC_GET, get_OnOff_2, NULL);
   oc_resource_set_request_handler(res_OnOff_2, OC_PUT, put_OnOff_2, NULL); 
   oc_add_resource(res_OnOff_2);
-  OC_INF("Register Resource 'InfoOnOff_2' with local path \"%s\"", URL_INFOONOFF_2);
+  PRINT("Register Resource 'InfoOnOff_2' with local path \"%s\"", URL_INFOONOFF_2);
   oc_resource_t *res_InfoOnOff_2 =
     oc_new_resource("InfoOnOff_2", URL_INFOONOFF_2, 1, 0);
   oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62"); // was 417.51 - test frame 97
@@ -1687,7 +1687,7 @@ register_resources(void)
 
 
   /*
-  PRINT("Register Resource 'OnOff_3' with local path \"%s\"\n", URL_ONOFF_3);
+  PRINT("Register Resource 'OnOff_3' with local path \"%s\"", URL_ONOFF_3);
   oc_resource_t *res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
   oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.61");
   oc_resource_bind_dpt(res_OnOff_3, ":dpt.switch");
@@ -1707,7 +1707,7 @@ register_resources(void)
 
   if (b)
   {
-      OC_INF("Register Resource 'InfoOnOff_3' with local path \"%s\"", URL_INFOONOFF_3);
+      PRINT("Register Resource 'InfoOnOff_3' with local path \"%s\"", URL_INFOONOFF_3);
       oc_resource_t* res_InfoOnOff_3 =
           oc_new_resource("InfoOnOff_3", URL_INFOONOFF_3, 1, 0);
       oc_resource_bind_resource_type(res_InfoOnOff_3, "urn:knx:dpa.417.51");
@@ -1727,7 +1727,7 @@ register_resources(void)
       oc_resource_set_observable(res_InfoOnOff_3, true);
       oc_resource_set_request_handler(res_InfoOnOff_3, OC_GET, get_InfoOnOff_3, NULL);
       oc_add_resource(res_InfoOnOff_3);
-      OC_INF("Register Resource 'OnOff_4' with local path \"%s\"", URL_ONOFF_4);
+      PRINT("Register Resource 'OnOff_4' with local path \"%s\"", URL_ONOFF_4);
       oc_resource_t* res_OnOff_4 =
           oc_new_resource("OnOff_4", URL_ONOFF_4, 1, 0);
       oc_resource_bind_resource_type(res_OnOff_4, "urn:knx:dpa.417.61");
@@ -1748,7 +1748,7 @@ register_resources(void)
       oc_resource_set_request_handler(res_OnOff_4, OC_GET, get_OnOff_4, NULL);
       oc_resource_set_request_handler(res_OnOff_4, OC_PUT, put_OnOff_4, NULL);
       oc_add_resource(res_OnOff_4);
-      OC_INF("Register Resource 'InfoOnOff_4' with local path \"%s\"", URL_INFOONOFF_4);
+      PRINT("Register Resource 'InfoOnOff_4' with local path \"%s\"", URL_INFOONOFF_4);
       oc_resource_t* res_InfoOnOff_4 =
           oc_new_resource("InfoOnOff_4", URL_INFOONOFF_4, 1, 0);
       oc_resource_bind_resource_type(res_InfoOnOff_4, "urn:knx:dpa.417.51");
@@ -1792,7 +1792,7 @@ factory_presets_cb(size_t device_index, void *data)
   (void)data;
 
   if (g_reset) {
-    PRINT("factory_presets_cb: resetting device\n");
+    PRINT("factory_presets_cb: resetting device");
     oc_knx_device_storage_reset(device_index, 2);
   }
 }
@@ -1810,7 +1810,7 @@ hostname_cb(size_t device_index, oc_string_t host_name, void *data)
   (void)device_index;
   (void)data;
 
-  PRINT("-----host name ------- %s\n", oc_string(host_name));
+  PRINT("-----host name ------- %s", oc_string(host_name));
 }
 
 static oc_event_callback_retval_t send_delayed_response(void *context)
@@ -1821,11 +1821,11 @@ static oc_event_callback_retval_t send_delayed_response(void *context)
   {
     oc_set_separate_response_buffer(response);
     oc_send_separate_response(response, OC_STATUS_CHANGED);
-    PRINT_APP("Delayed response sent\n");
+    PRINT_APP("Delayed response sent");
   }
   else
   {
-    PRINT_APP("Delayed response NOT active\n");
+    PRINT_APP("Delayed response NOT active");
   }
 
   return OC_EVENT_DONE;
@@ -1854,7 +1854,7 @@ void swu_cb(size_t device,
   (void)device;
   (void)binary_size;
   char filename[] = "./downloaded.bin";
-  PRINT(" swu_cb %s block=%d size=%d \n", filename, (int)offset, (int)len);
+  PRINT("swu_cb %s block=%d size=%d ", filename, (int)offset, (int)len);
 
   FILE *write_ptr = fopen("downloaded_bin", "ab");
   size_t r = fwrite(payload, sizeof(*payload), len, write_ptr);
@@ -1899,14 +1899,14 @@ int app_initialize_stack()
   int init;
   char *fname = "my_software_image";
 
-  OC_INF("KNX-IOT server name : \"%s\"", MY_NAME);
+  PRINT("KNX-IOT server name : \"%s\"", MY_NAME);
 
   /* show the current working folder */
   char buff[FILENAME_MAX];
   char *retbuf = NULL;
   retbuf = GetCurrentDir(buff, FILENAME_MAX);
   if (retbuf != NULL) {
-    OC_INF("Current working dir: %s", buff);
+    PRINT("Current working dir: %s", buff);
   }
 
   /*
@@ -1917,10 +1917,10 @@ int app_initialize_stack()
 #ifdef WIN32
   char storage[400];
   sprintf(storage,"./knx_iot_virtual_sa_%s",g_serial_number);  
-  OC_INF("storage at '%s'",storage);
+  PRINT("storage at '%s'",storage);
   oc_storage_config(storage);
 #else
-  PRINT("\tstorage at 'knx_iot_virtual_sa_creds' \n");
+  PRINT("\tstorage at 'knx_iot_virtual_sa_creds' ");
   oc_storage_config("./knx_iot_virtual_sa_creds");
 #endif
   
@@ -1944,7 +1944,7 @@ int app_initialize_stack()
   init = oc_main_init(&handler);
 
   if (init < 0) {
-    OC_INF("oc_main_init failed %d, exiting.", init);
+    PRINT("oc_main_init failed %d, exiting.", init);
     return init;
   }
 
@@ -1955,12 +1955,12 @@ int app_initialize_stack()
 #endif /* OC_OSCORE */
 
   oc_device_info_t *device = oc_core_get_device_info(0);
-  OC_INF("serial number: %s", oc_string(device->serialnumber));
+  PRINT("serial number: %s", oc_string(device->serialnumber));
   oc_endpoint_t *my_ep = oc_connectivity_get_endpoints(0);
   if (my_ep != NULL) {
     PRINTipaddr(*my_ep);
   }
-  OC_INF("Server \"%s\" running, waiting on incoming connections...",MY_NAME);
+  PRINT("Server \"%s\" running, waiting on incoming connections...",MY_NAME);
   return 0;
 }
 
@@ -2016,11 +2016,11 @@ handle_signal(int signal)
 static void
 print_usage()
 {
-  PRINT("Usage:\n");
-  PRINT("no arguments : starts the server\n");
-  PRINT("-help  : this message\n");
-  PRINT("reset  : does an full reset of the device\n");
-  PRINT("-s <serial number> : sets the serial number of the device\n");
+  PRINT("Usage:");
+  PRINT("no arguments : starts the server");
+  PRINT("-help  : this message");
+  PRINT("reset  : does an full reset of the device");
+  PRINT("-s <serial number> : sets the serial number of the device");
   exit(0);
 }
 /**
@@ -2058,11 +2058,11 @@ main(int argc, char *argv[])
 #endif
 
   for (int i = 0; i < argc; i++) {
-    PRINT_APP("argv[%d] = %s\n", i, argv[i]);
+    PRINT_APP("argv[%d] = %s", i, argv[i]);
   }
   if (argc > 1) {
     if (strcmp(argv[1], "reset") == 0) {
-      PRINT(" internal reset\n");
+      PRINT("internal reset");
       g_reset = true;
     }
     if (strcmp(argv[1], "-help") == 0) {
@@ -2072,7 +2072,7 @@ main(int argc, char *argv[])
   if (argc > 2) {
      if (strcmp(argv[1], "-s") == 0) {
         // serial number
-        PRINT("serial number %s\n", argv[2]);
+        PRINT("serial number %s", argv[2]);
         app_set_serial_number(argv[2]);
      }
   }

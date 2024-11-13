@@ -926,7 +926,7 @@ network_event_thread(void *data)
       //#ifdef OC_DEBUG
       PRINT("Incoming message of size %zd bytes from ", message->length);
       PRINTipaddr(message->endpoint);
-      PRINT("\n\n");
+      
       //#endif /* OC_DEBUG */
 
       oc_network_event(message);
@@ -1027,7 +1027,7 @@ oc_send_buffer(oc_message_t *message)
 #ifdef OC_DEBUG
   PRINT("Outgoing message of size %zd bytes to ", message->length);
   PRINTipaddr(message->endpoint);
-  PRINT("\n\n");
+  
 #endif /* OC_DEBUG */
 
   struct sockaddr_storage receiver;

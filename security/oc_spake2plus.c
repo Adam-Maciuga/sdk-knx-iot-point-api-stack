@@ -259,7 +259,7 @@ oc_spake_print_point(mbedtls_ecp_point *p)
   for (size_t i = 0; i < len; i++) {
     PRINT("%02x", buf[i]);
   }
-  PRINT("\n");
+  
 }
 
 void
@@ -273,7 +273,7 @@ oc_spake_print_mpi(mbedtls_mpi *m)
   for (size_t i = 0; i < len; i++) {
     PRINT("%02x", buf[i]);
   }
-  PRINT("\n");
+  
 }
 
 int

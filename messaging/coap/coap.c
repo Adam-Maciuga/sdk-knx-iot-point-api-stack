@@ -484,7 +484,7 @@ coap_serialize_options(void *packet, uint8_t *option_array, bool inner,
   }
 
   if (option) {
-    OC_DBG("-Done serializing at %p----", option);
+    OC_DBG("-Done serializing at address %p----", option);
   }
 
   return option_length;
@@ -1183,7 +1183,7 @@ coap_oscore_serialize_message(void *packet, uint8_t *buffer, bool inner,
     goto exit;
   }
 
-  OC_DBG("-Done %u B (header len %u, payload len %u)-",
+  OC_DBG("-Done %u Bytes (header len %u, payload len %u)-",
          (unsigned int)(coap_pkt->payload_len + option - buffer),
          (unsigned int)(option - buffer), (unsigned int)coap_pkt->payload_len);
 

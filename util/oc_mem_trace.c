@@ -116,13 +116,13 @@ oc_mem_trace_print_paces(void)
 
   PRINT("==================================================================");
   PRINT("=================\n");
-  PRINT("  %2s   %-22s   %11s    %5s   %5s    %5s    %5s \n", "No.", "Func",
+  PRINT("%2s   %-22s   %11s    %5s   %5s    %5s    %5s \n", "No.", "Func",
         "Address", "Size", "Req", "Cur", "Peak");
   PRINT("------------------------------------------------------------------");
   PRINT("-----------------\n");
 
   while (mem_log_item_link) {
-    PRINT(" %3d   %-26.25s  %10p   %5d   %5s    %5d    %5d\n", ++cnt,
+    PRINT("%3d   %-26.25s  %10p   %5d   %5s    %5d    %5d\n", ++cnt,
           mem_log_item_link->func, mem_log_item_link->address,
           mem_log_item_link->size,
           (mem_log_item_link->type == MEM_TRACE_FREE) ? "Free" : "Alloc",

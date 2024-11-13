@@ -443,7 +443,7 @@ oc_is_redirected_request(oc_request_t *request)
     return false;
   }
 
-  PRINT("  oc_is_redirected_request %.*s\n", (int)request->uri_path_len,
+  PRINT("oc_is_redirected_request %.*s\n", (int)request->uri_path_len,
         request->uri_path);
   if (strncmp(".knx", request->uri_path, request->uri_path_len) == 0) {
     return true;
@@ -493,7 +493,7 @@ oc_issue_s_mode(int scope, int sia_value, uint32_t grpid,
                 uint32_t group_address, uint64_t iid, char *rp,
                 uint8_t *value_data, int value_size)
 {
-  PRINT("  oc_issue_s_mode : scope %d\n", scope);
+  PRINT("oc_issue_s_mode : scope %d\n", scope);
 
 #ifdef S_MODE_ALL_COAP_NODES
 #ifdef OC_OSCORE
@@ -531,10 +531,10 @@ oc_send_s_mode(oc_endpoint_t *endpoint, char *path, uint32_t sia_value,
 {
   char token[8];
 
-  PRINT("  oc_send_s_mode : \n");
-  PRINT("  ");
+  PRINT("oc_send_s_mode : \n");
+  PRINT("");
   PRINTipaddr(*endpoint);
-  PRINT("\n");
+  
 
 #ifndef OC_OSCORE
   if (oc_init_post(path, endpoint, NULL, NULL, LOW_QOS, NULL)) {
@@ -583,13 +583,13 @@ oc_send_s_mode(oc_endpoint_t *endpoint, char *path, uint32_t sia_value,
 
 #ifndef OC_OSCORE
     if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR)) {
-      PRINT("  Sent POST request\n");
+      PRINT("Sent POST request\n");
 #else
     if (oc_do_multicast_update()) {
-      PRINT("  Sent oc_do_multicast_update update\n");
+      PRINT("Sent oc_do_multicast_update update\n");
 #endif
     } else {
-      PRINT("  Could not send POST request\n");
+      PRINT("Could not send POST request\n");
     }
   }
 }
@@ -608,7 +608,7 @@ oc_s_mode_get_resource_value(const char *resource_url, char *rp, uint8_t *buf,
   const oc_resource_t *my_resource =
     oc_ri_get_app_resource_by_uri(resource_url, strlen(resource_url), 0);
   if (my_resource == NULL) {
-    PRINT(" oc_do_s_mode : error no URL found %s\n", resource_url);
+    PRINT("oc_do_s_mode : error no URL found %s\n", resource_url);
     return 0;
   }
 
@@ -729,7 +729,7 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
   size_t device_index = 0;
   oc_device_info_t *device = oc_core_get_device_info(device_index);
   if (device == NULL) {
-    PRINT(" oc_do_s_mode_with_scope_internal : device is NULL\n");
+    PRINT("oc_do_s_mode_with_scope_internal : device is NULL\n");
     return;
   }
 
@@ -744,7 +744,7 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
   const oc_resource_t *my_resource =
     oc_ri_get_app_resource_by_uri(resource_url, strlen(resource_url), 0);
   if (my_resource == NULL) {
-    PRINT(" oc_do_s_mode_with_scope_internal : error no URL found %s\n",
+    PRINT("oc_do_s_mode_with_scope_internal : error no URL found %s\n",
           resource_url);
     return;
   }
@@ -761,7 +761,7 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
   // loop over all group addresses and issue the s-mode command
   int index = oc_core_find_group_object_table_url(resource_url);
   if (index == -1) {
-    PRINT(" oc_do_s_mode_with_scope_internal : no table entry found for %s\n",
+    PRINT("oc_do_s_mode_with_scope_internal : no table entry found for %s\n",
           resource_url);
     return;
   }
@@ -769,26 +769,26 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
     int ga_len = oc_core_find_group_object_table_number_group_entries(index);
     oc_cflag_mask_t cflags = oc_core_group_object_table_cflag_entries(index);
 
-    PRINT(" index %d rp = %s cflags %d flags=", index, rp, cflags);
+    PRINT("index %d rp = %s cflags %d flags=", index, rp, cflags);
     oc_print_cflags(cflags);
 
     bool do_send = (cflags & OC_CFLAG_TRANSMISSION) > 0;
     if (check == false) {
-      PRINT("    not checking flags.. always send\n");
+      PRINT("not checking flags.. always send\n");
       do_send = true;
     }
 
     if (do_send) {
       // o
-      PRINT(" index %d rp = %s cflags %d flags=", index, rp, cflags);
+      PRINT("index %d rp = %s cflags %d flags=", index, rp, cflags);
       oc_print_cflags(cflags);
 
       // With a read command to a Group Object, the device send this Group
       // Object's value.
-      PRINT("    handling: index %d\n", index);
+      PRINT("handling: index %d\n", index);
       for (int j = 0; j < ga_len; j++) {
         group_address = oc_core_find_group_object_table_group_entry(index, j);
-        PRINT("      ga : %lu\n", group_address);
+        PRINT("ga : %lu\n", group_address);
         if (strcmp(rp, "a") == 0 || strcmp(rp, "rp") == 0) {
           // Check if any other GOT entries have the same GA with "w" flag
           PRINT("Checking & updating internal group objects\n");
@@ -855,7 +855,7 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
           if (found) {
             char *url = oc_core_get_recipient_index_url_or_path(jr);
             if (url) {
-              PRINT(" broker send: %s\n", url);
+              PRINT("broker send: %s\n", url);
               uint32_t ia = oc_core_get_recipient_ia(jr);
               if (ia > 0) {
                 // ia == 0 is reserved, so only send with ia > 0
@@ -866,7 +866,7 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
         }
       }
     } else {
-      PRINT("    not send due to flags\n");
+      PRINT("not send due to flags\n");
     }
     /* cflag */
     index = oc_core_find_next_group_object_table_url(resource_url, index);

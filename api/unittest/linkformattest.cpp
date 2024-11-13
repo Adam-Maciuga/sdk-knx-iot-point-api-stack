@@ -73,7 +73,7 @@ TEST_F(TestLinkFormat, LF_full)
   const char *param;
   int param_len;
 
-  PRINT(" entries %d\n", nr_entries);
+  PRINT("entries %d", nr_entries);
   EXPECT_EQ(5, nr_entries);
 
   int i = 0;

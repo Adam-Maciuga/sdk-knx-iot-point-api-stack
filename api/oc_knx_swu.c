@@ -142,7 +142,7 @@ oc_knx_swu_protocol_put_handler(oc_request_t *request,
   /* not sure what to do with request data, so we are just parsing it for now*/
   oc_rep_t *rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_INT)) {
-    PRINT("  oc_knx_swu_protocol_put_handler received : %d\n",
+    PRINT("oc_knx_swu_protocol_put_handler received : %d\n",
           (int)rep->value.integer);
 
     oc_send_response_no_format(request, OC_STATUS_CHANGED);
@@ -211,7 +211,7 @@ oc_knx_swu_maxdefer_put_handler(oc_request_t *request,
 
   oc_rep_t *rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_INT)) {
-    PRINT("  oc_knx_swu_maxdefer_put_handler received : %d\n",
+    PRINT("oc_knx_swu_maxdefer_put_handler received : %d\n",
           (int)rep->value.integer);
     g_swu_max_defer = (int)rep->value.integer;
     oc_storage_write(KNX_STORAGE_SWU_MAX_DEFER, (uint8_t *)&g_swu_max_defer,
@@ -286,7 +286,7 @@ oc_knx_swu_method_put_handler(oc_request_t *request,
 
   oc_rep_t *rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_INT)) {
-    PRINT("  oc_knx_swu_method_put_handler received : %d\n",
+    PRINT("oc_knx_swu_method_put_handler received : %d\n",
           (int)rep->value.integer);
     g_swu_update_method = (int)rep->value.integer;
     oc_storage_write(KNX_STORAGE_SWU_METHOD, (uint8_t *)&g_swu_update_method,
@@ -454,7 +454,7 @@ oc_knx_swu_update_put_handler(oc_request_t *request,
   /* not sure what to do with request data, so we are just parsing it for now*/
   oc_rep_t *rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_INT)) {
-    PRINT("  oc_knx_swu_update_put_handler received : %d\n",
+    PRINT("oc_knx_swu_update_put_handler received : %d\n",
           (int)rep->value.integer);
     oc_send_response_no_format(request, OC_STATUS_OK);
     // oc_send_cbor_response(request, OC_STATUS_OK);
@@ -548,7 +548,7 @@ oc_knx_swu_a_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   else
     (void)s_delayed_response_swu;
 
-  PRINT("  oc_knx_swu_a_put_handler : Start\n");
+  PRINT("oc_knx_swu_a_put_handler : Start\n");
 
   /* check if the accept header is CBOR-format */
   if (oc_check_accept_header(request, APPLICATION_OCTET_STREAM) == false) {
@@ -580,7 +580,7 @@ oc_knx_swu_a_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
 
   bool berr =
     oc_get_request_payload_raw(request, &payload, &len, &content_format);
-  // PRINT("      raw buffer ok: %d len=%d\n", berr, len);
+  // PRINT("raw buffer ok: %d len=%d\n", berr, len);
 
   if (my_cb && my_cb->cb) {
     my_cb->cb(device_index, &s_delayed_response_swu, binary_size, block_offset,
@@ -589,7 +589,7 @@ oc_knx_swu_a_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
     oc_send_cbor_response(request, OC_STATUS_OK);
   }
 
-  PRINT("  oc_knx_swu_a_put_handler : End\n");
+  PRINT("oc_knx_swu_a_put_handler : End\n");
 }
 
 static void
@@ -610,7 +610,7 @@ oc_knx_swu_a_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   // not implemented
   oc_rep_t *rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_INT)) {
-    PRINT("  oc_knx_swu_a_post_handler received : %d\n",
+    PRINT("oc_knx_swu_a_post_handler received : %d\n",
           (int)rep->value.integer);
 
     oc_send_cbor_response(request, OC_STATUS_OK);
@@ -716,7 +716,7 @@ oc_knx_swu_pkgqurl_put_handler(oc_request_t *request,
 
   oc_rep_t *rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_STRING)) {
-    PRINT("  oc_knx_swu_pkgqurl_put_handler received : %s\n",
+    PRINT("oc_knx_swu_pkgqurl_put_handler received : %s\n",
           oc_string_checked(rep->value.string));
 
     oc_send_response_no_format(request, OC_STATUS_OK);

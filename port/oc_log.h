@@ -29,6 +29,8 @@
     prints information as Warning level
   - OC_ERR
     prints information as Error level
+  - OC_INF
+    prints information as Info level, used by PRINT
 
   compile flags:
   - OC_DEBUG
@@ -52,7 +54,7 @@
 #endif
 
 #ifdef __ANDROID__
-#include "android/oc_log_android.h"
+  #include "android/oc_log_android.h"
 #endif
 
 #ifdef __cplusplus
@@ -64,25 +66,30 @@ extern "C" {
   #ifdef __ANDROID__
     #define TAG "OC-JNI"
     #define PRINT(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+    #define PRINTF(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
   #else
     #ifdef OC_LOG_TO_FILE
       // logging to file
       #define PRINT(...) oc_file_print(__VA_ARGS__)
     #else
-      #define PRINT(...) printf(__VA_ARGS__)
+      #define PRINT(...) OC_INF(__VA_ARGS__)
+      #define PRINTF(...) printf(__VA_ARGS__)
     #endif
   #endif
 
 #else
 
   #define PRINT(...)
+  #define PRINTF(...)
 
 #endif
 
 #ifdef OC_PRINT_APP
-  #define PRINT_APP(...) printf(__VA_ARGS__)
+  #define PRINT_APP(...) OC_INF(__VA_ARGS__)
+  #define PRINTF(...) printf(__VA_ARGS__)
 #else
   #define PRINT_APP(...)
+  #define PRINTF(...)
 #endif
 
 #define SPRINTF(...) sprintf(__VA_ARGS__)
@@ -98,12 +105,12 @@ extern "C" {
     if ((endpoint).flags & TCP && (endpoint).flags & SECURED)                  \
       scheme = "coaps+tcp";                                                    \
     if ((endpoint).flags & IPV4) {                                             \
-      OC_INF("%s://%d.%d.%d.%d:%d", scheme, ((endpoint).addr.ipv4.address)[0],  \
+      PRINTF("%s://%d.%d.%d.%d:%d", scheme, ((endpoint).addr.ipv4.address)[0], \
             ((endpoint).addr.ipv4.address)[1],                                 \
             ((endpoint).addr.ipv4.address)[2],                                 \
             ((endpoint).addr.ipv4.address)[3], (endpoint).addr.ipv4.port);     \
     } else {                                                                   \
-      OC_INF(                                                                   \
+      PRINTF(                                                                  \
         "%s://[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%"    \
         "02x:%"                                                                \
         "02x%"                                                                 \
@@ -125,75 +132,31 @@ extern "C" {
 #define PRINTipaddr_flags(endpoint)                                            \
   do {                                                                         \
     if ((endpoint).flags & SECURED) {                                          \
-      OC_INF(" Secured ");                                                      \
+      PRINTF("Secured ");                                                      \
     };                                                                         \
     if ((endpoint).flags & MULTICAST) {                                        \
-      OC_INF(" MULTICAST ");                                                    \
+      PRINTF("MULTICAST ");                                                    \
     };                                                                         \
     if ((endpoint).flags & TCP) {                                              \
-      PRINT(" TCP ");                                                          \
+      PRINTF("TCP ");                                                           \
     };                                                                         \
     if ((endpoint).flags & IPV4) {                                             \
-      OC_INF(" IPV4 ");                                                         \
+      PRINTF("IPV4 ");                                                         \
     };                                                                         \
     if ((endpoint).flags & IPV6) {                                             \
-      OC_INF(" IPV6 ");                                                         \
+      PRINTF("IPV6 ");                                                         \
     };                                                                         \
     if ((endpoint).flags & OSCORE) {                                           \
-      OC_INF(" OSCORE ");                                                       \
+      PRINTF("OSCORE ");                                                       \
     };                                                                         \
     if ((endpoint).flags & ACCEPTED) {                                         \
-      OC_INF(" ACCEPTED ");                                                     \
+      PRINTF("ACCEPTED ");                                                     \
     };                                                                         \
     if ((endpoint).flags & OSCORE_DECRYPTED) {                                 \
-      OC_INF(" OSCORE_DECRYPTED ");                                             \
+      PRINTF("OSCORE_DECRYPTED ");                                             \
     };                                                                         \
-    PRINT(" \n");                                                              \
   } while (0)
 
-#define PRINTipaddr_local(endpoint)                                            \
-  do {                                                                         \
-    const char *scheme = "coap";                                               \
-    if ((endpoint).flags & SECURED)                                            \
-      scheme = "coaps";                                                        \
-    if ((endpoint).flags & TCP)                                                \
-      scheme = "coap+tcp";                                                     \
-    if ((endpoint).flags & TCP && (endpoint).flags & SECURED)                  \
-      scheme = "coaps+tcp";                                                    \
-    if ((endpoint).flags & IPV4) {                                             \
-      OC_INF("%s://%d.%d.%d.%d:%d", scheme,                                     \
-            ((endpoint).addr_local.ipv4.address)[0],                           \
-            ((endpoint).addr_local.ipv4.address)[1],                           \
-            ((endpoint).addr_local.ipv4.address)[2],                           \
-            ((endpoint).addr_local.ipv4.address)[3],                           \
-            (endpoint).addr_local.ipv4.port);                                  \
-    } else {                                                                   \
-      OC_INF(                                                                   \
-        "%s://[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%"    \
-        "02x:%"                                                                \
-        "02x%"                                                                 \
-        "02x]:%d",                                                             \
-        scheme, ((endpoint).addr_local.ipv6.address)[0],                       \
-        ((endpoint).addr_local.ipv6.address)[1],                               \
-        ((endpoint).addr_local.ipv6.address)[2],                               \
-        ((endpoint).addr_local.ipv6.address)[3],                               \
-        ((endpoint).addr_local.ipv6.address)[4],                               \
-        ((endpoint).addr_local.ipv6.address)[5],                               \
-        ((endpoint).addr_local.ipv6.address)[6],                               \
-        ((endpoint).addr_local.ipv6.address)[7],                               \
-        ((endpoint).addr_local.ipv6.address)[8],                               \
-        ((endpoint).addr_local.ipv6.address)[9],                               \
-        ((endpoint).addr_local.ipv6.address)[10],                              \
-        ((endpoint).addr_local.ipv6.address)[11],                              \
-        ((endpoint).addr_local.ipv6.address)[12],                              \
-        ((endpoint).addr_local.ipv6.address)[13],                              \
-        ((endpoint).addr_local.ipv6.address)[14],                              \
-        ((endpoint).addr_local.ipv6.address)[15],                              \
-        (endpoint).addr_local.ipv6.port);                                      \
-    }                                                                          \
-  } while (0)
-
-#define IPADDR_BUFF_SIZE 64 // max size : scheme://[ipv6]:port = 59 bytes
 
 #define SNPRINTFipaddr(str, size, endpoint)                                    \
   do {                                                                         \
@@ -242,26 +205,55 @@ extern "C" {
   } while (0)
 
 #define PRINT16BYTEHEX(text, data)              \
-  text "%02X%02X%02X%02X:%02X%02X%02X%02X:"           \
-       "%02X%02X%02X%02X:%02X%02X%02X%02X",           \
+  text "%02X%02X%02X%02X:%02X%02X%02X%02X:"     \
+       "%02X%02X%02X%02X:%02X%02X%02X%02X",     \
   (data)[0], (data)[1], (data)[2], (data)[3],   \
   (data)[4], (data)[5], (data)[6], (data)[7],   \
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12],(data)[13],(data)[14],(data)[15]
 
-  #define PRINT13BYTEHEX(text, data)                                           \
-  text "%02X%02X%02X%02X:%02X%02X%02X%02X:"                                     \
-       "%02X%02X%02X%02X:%02X",                                     \
-    (data)[0], (data)[1], (data)[2], (data)[3], (data)[4], (data)[5],          \
-    (data)[6], (data)[7], (data)[8], (data)[9], (data)[10], (data)[11],        \
-    (data)[12]
+  #define PRINT13BYTEHEX(text, data)            \
+  text "%02X%02X%02X%02X:%02X%02X%02X%02X:"     \
+       "%02X%02X%02X%02X:%02X",                 \
+  (data)[0], (data)[1], (data)[2], (data)[3],   \
+  (data)[4], (data)[5], (data)[6], (data)[7],   \
+  (data)[8], (data)[9], (data)[10],(data)[11],  \
+  (data)[12]
 
-#define OC_LOG(level, ...)                                                     \
-  do {                                                                         \
-    PRINT("%-6s: %-20s %-5d:%-40s> ", level, __FILENAME__, __LINE__, __func__);\
-    PRINT(__VA_ARGS__);   \
-    PRINT("\n");                                \
+#define F_SIZE  15             // sizeof file name to be shown
+#define W_SIZE  30             // sizeof method window
+
+#define M_SIZE  28             // sizeof method name to be shown
+
+#define STR_(X) #X             // convert to string 
+#define STRS(X) STR_(X)        // expand before convert  
+
+#define OC_LOG(level, ...)                                   \
+  do {                                                       \
+  char func[W_SIZE] = "";                                    \
+  strncpy(func, __func__, M_SIZE-3); strcat(func, "...");    \
+  PRINTF("\n"                                                \
+         "%-4s: "                                            \
+         "%-20s "                                            \
+         "%-5d: "                                            \
+         "%-"STRS(W_SIZE)"" "."STRS(M_SIZE)"s> ",            \
+         level,                                              \
+         __FILENAME__,                                       \
+         __LINE__,                                           \
+         strlen(__func__) < M_SIZE ? __func__ : func);       \
+  PRINTF(__VA_ARGS__);                                       \
   } while (0)
+
+#define OC_LOGbytes(bytes, length)                             \
+  do {                                                         \
+    for (uint16_t i = 0; i < (length); i++)                    \
+      PRINTF("%02X", (bytes)[i]);                              \
+  } while (0)
+
+// always do OC_ERR and OC_WRN logs
+#define OC_ERR(...) OC_LOG("ERR", __VA_ARGS__)
+#define OC_WRN(...) OC_LOG("WRN", __VA_ARGS__)
+#define OC_INF(...) OC_LOG("INF", __VA_ARGS__)
 
 #ifdef OC_DEBUG
 
@@ -272,52 +264,25 @@ extern "C" {
       android_log_ipaddr("DEBUG", __FILE__, __func__, __LINE__, endpoint)
     #define OC_LOGbytes(bytes, length)                                             \
       android_log_bytes("DEBUG", __FILE__, __func__, __LINE__, bytes, length)
-  #else /* ! __ANDROID */
+  #else 
 
-  #define OC_LOGipaddr(endpoint)                                                 \
-  do {                                                                         \
-    PRINT("DEBUG: %s <%s:%d>: ", __FILENAME__, __func__, __LINE__);            \
-    PRINTipaddr(endpoint);                                                     \
-    PRINT("\n");                                                               \
-  } while (0)
-
-  #define OC_LOGbytes(bytes, length) OC_LOGbytesWithLevel("DUMP", bytes, length)                                            \
-
-  #define OC_LOGbytesWithLevel(level, bytes, length)                                             \
-  do {                                              \
-    PRINT("%-6s: %-20s %-5d:%-40s> ",           \
-          level, __FILENAME__, __LINE__,  __func__ ); \
-    uint16_t i;                                     \
-    for (i = 0; i < (length); i++)                  \
-      PRINT("%02X", (bytes)[i]);                   \
-    PRINT("\n");                                    \
-  } while (0)
-  
-
-  #endif /* __ANDROID__ */
+  #endif
 
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
-  
 
 #else
 
   #define OC_DBG(...)
-  #define OC_LOGipaddr(endpoint)
   #define OC_LOGbytes(bytes, length)
 
 #endif
 
-// always do OC_ERR and OC_WRN logs
-#define OC_ERR(...) OC_LOG("ERR", __VA_ARGS__)
-#define OC_WRN(...) OC_LOG("WRN", __VA_ARGS__)
-#define OC_INF(...) OC_LOG("INF", __VA_ARGS__)
-
 #ifdef OC_DEBUG_OSCORE
 
-  #define OC_DBG_OSCORE(...) OC_LOG("OSCORE", __VA_ARGS__)
-  #define OC_DBG_SPAKE(...) OC_LOG("SPAKE", __VA_ARGS__)
-  #define OC_LOGbytes_OSCORE(bytes, length) OC_LOGbytesWithLevel("OSCORE", bytes, length)
-  #define OC_LOGbytes_SPAKE(bytes, length)  OC_LOGbytesWithLevel("SPAKE", bytes, length)
+  #define OC_DBG_OSCORE(...) OC_LOG("OSC", __VA_ARGS__)
+  #define OC_DBG_SPAKE(...)  OC_LOG("SPK", __VA_ARGS__)
+  #define OC_LOGbytes_OSCORE(bytes, length) OC_LOGbytes(bytes, length)
+  #define OC_LOGbytes_SPAKE(bytes, length)  OC_LOGbytes(bytes, length)
 
 #else
 

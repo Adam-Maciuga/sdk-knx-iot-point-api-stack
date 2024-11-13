@@ -64,11 +64,11 @@ oc_oscore_find_context_by_kid(oc_oscore_context_t *ctx, size_t device_index,
   oc_char_println_hex((char *)(kid), kid_len);
 
   while (ctx != NULL) {
-    PRINT("  ---> recvid:");
+    PRINT("---> recvid:");
     oc_char_println_hex((char *)(ctx->recvid), ctx->recvid_len);
 
     if (kid_len == ctx->recvid_len && memcmp(kid, ctx->recvid, kid_len) == 0) {
-      PRINT("oc_oscore_find_context_by_kid FOUND  auth/at index: %d\n",
+      PRINT("oc_oscore_find_context_by_kid FOUND  auth/at index: %d",
             ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
@@ -96,13 +96,13 @@ oc_oscore_find_context_by_kid_idctx(oc_oscore_context_t *ctx,
   oc_char_println_hex((char *)(kid), kid_len);
 
   while (ctx != NULL) {
-    PRINT("  ---> recvid:");
+    PRINT("---> recvid:");
     oc_char_println_hex((char *)(ctx->recvid), ctx->recvid_len);
 
     if (kid_len == ctx->recvid_len && memcmp(kid, ctx->recvid, kid_len) == 0 &&
         kid_ctx_len == ctx->idctx_len &&
         memcmp(kid_ctx, ctx->idctx, kid_ctx_len) == 0) {
-      PRINT("oc_oscore_find_context_by_kid_idctx FOUND  auth/at index: %d\n",
+      PRINT("oc_oscore_find_context_by_kid_idctx FOUND  auth/at index: %d",
             ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
@@ -169,7 +169,7 @@ oc_oscore_find_context_by_token_mid(size_t device, uint8_t *token,
     //    return ctx;
     //   }
     if (memcmp(oscore_id, ctx->sendid, oscore_id_len) == 0) {
-      PRINT("oc_oscore_find_context_by_token_mid FOUND auth/at index: %d\n",
+      PRINT("oc_oscore_find_context_by_token_mid FOUND auth/at index: %d",
             ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
@@ -187,16 +187,16 @@ oc_oscore_find_context_by_oscore_id(size_t device, char *oscore_id,
   int cmp_len = 16;
 
   if (oscore_id_len > 16) {
-    OC_ERR("oscore_id longer than 16: %d\n", (int)oscore_id_len);
+    OC_ERR("oscore_id longer than 16: %d", (int)oscore_id_len);
     return NULL;
   }
 
   if (oscore_id_len == 0) {
-    OC_ERR("oscore_id_len == 0\n");
+    OC_ERR("oscore_id_len == 0");
     return NULL;
   }
   if (oscore_id == NULL) {
-    OC_ERR("oscore_id NULL\n");
+    OC_ERR("oscore_id NULL");
     return NULL;
   }
   if (oscore_id_len < 16) {
@@ -210,7 +210,7 @@ oc_oscore_find_context_by_oscore_id(size_t device, char *oscore_id,
   while (ctx != NULL) {
     char *ctx_serial_number = ctx->token_id;
     if (memcmp(oscore_id, ctx_serial_number, cmp_len) == 0) {
-      PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index: %d\n",
+      PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index: %d",
             ctx->auth_at_index);
       OC_DBG_OSCORE("    Common IV:");
       OC_LOGbytes_OSCORE(ctx->commoniv, OSCORE_COMMON_IV_LEN);
@@ -219,7 +219,7 @@ oc_oscore_find_context_by_oscore_id(size_t device, char *oscore_id,
     }
     ctx = ctx->next;
   }
-  PRINT("  NOT FOUND\n");
+  PRINT("NOT FOUND");
   return ctx;
 }
 
@@ -230,16 +230,16 @@ oc_oscore_find_context_by_rid(size_t device, char *rid, size_t rid_len)
   int cmp_len = 16;
 
   if (rid_len > 16) {
-    OC_ERR("rid longer than 16: %d\n", (int)rid_len);
+    OC_ERR("rid longer than 16: %d", (int)rid_len);
     return NULL;
   }
 
   if (rid_len == 0) {
-    OC_ERR("rid == 0\n");
+    OC_ERR("rid == 0");
     return NULL;
   }
   if (rid == NULL) {
-    OC_ERR("rid NULL\n");
+    OC_ERR("rid NULL");
     return NULL;
   }
   if (rid_len < 16) {
@@ -253,7 +253,7 @@ oc_oscore_find_context_by_rid(size_t device, char *rid, size_t rid_len)
   while (ctx != NULL) {
     char *ctx_recvid = ctx->recvid;
     if (memcmp(rid, ctx_recvid, cmp_len) == 0) {
-      PRINT("oc_oscore_find_context_by_rid FOUND auth/at index: %d\n",
+      PRINT("oc_oscore_find_context_by_rid FOUND auth/at index: %d",
             ctx->auth_at_index);
       OC_DBG_OSCORE("    Common IV:");
       OC_LOGbytes_OSCORE(ctx->commoniv, OSCORE_COMMON_IV_LEN);
@@ -262,7 +262,7 @@ oc_oscore_find_context_by_rid(size_t device, char *rid, size_t rid_len)
     }
     ctx = ctx->next;
   }
-  PRINT("  NOT FOUND\n");
+  PRINT("NOT FOUND");
   return ctx;
 }
 
@@ -281,7 +281,7 @@ oc_oscore_find_context_by_group_address(size_t device, uint32_t group_address)
 
         uint32_t group_value = my_entry->ga[i];
         PRINT(
-          "   oc_oscore_find_context_by_group_address : find: %u value: %u\n",
+          "   oc_oscore_find_context_by_group_address : find: %u value: %u",
           group_address, group_value);
         if (group_address == group_value) {
           ctx->last_used = oc_clock_time();
@@ -387,18 +387,18 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
   ctx->auth_at_index = auth_at_index;
   ctx->last_used = oc_clock_time();
 
-  PRINT("  device    : %d\n", (int)device);
-  PRINT("  desc      : %s\n", desc);
-  PRINT("  index     : %d\n", auth_at_index);
-  PRINT("  sid size  : %d ", senderid_size);
+  PRINT("device    : %d", (int)device);
+  PRINT("desc      : %s", desc);
+  PRINT("index     : %d", auth_at_index);
+  PRINT("sid size  : %d", senderid_size);
   oc_char_println_hex(senderid, senderid_size);
-  PRINT("  rid size  : %d ", recipientid_size);
+  PRINT("rid size  : %d", recipientid_size);
   oc_char_println_hex(recipientid, recipientid_size);
-  PRINT("  ctx size  : %d", osc_ctx_size);
+  PRINT("ctx size  : %d", osc_ctx_size);
   oc_char_println_hex(osc_ctx, osc_ctx_size);
-  PRINT("  ms size   : %d ", mastersecret_size);
+  PRINT("ms size   : %d", mastersecret_size);
   oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("  salt size : %d ", salt_size);
+  PRINT("salt size : %d", salt_size);
   oc_char_println_hex(salt, salt_size);
 
   /* To prevent SSN reuse, bump to higher value that could've been previously
@@ -407,7 +407,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
   if (from_storage) {
     ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
   }
-  PRINT("  ssn       %" PRIu64 "\n", ctx->ssn);
+  PRINT("ssn       : %" PRIu64 "", ctx->ssn);
   if (desc) {
     oc_new_string(&ctx->desc, desc, strlen(desc));
   }
@@ -423,7 +423,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     memcpy(ctx->token_id, senderid, senderid_size);
     ctx->sendid_len = (uint8_t)senderid_size;
   }
-  OC_INF("SendID (%d):", ctx->sendid_len);
+  PRINT("SendID (%d) : ", ctx->sendid_len);
   OC_LOGbytes_OSCORE(ctx->sendid, ctx->sendid_len);
 
   id_len = OSCORE_CTXID_LEN;
@@ -436,7 +436,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     memcpy(ctx->recvid, recipientid, recipientid_size);
     ctx->recvid_len = (uint8_t)recipientid_size;
   }
-  OC_INF("RecvID (%d):", ctx->recvid_len);
+  PRINT("RecvID (%d) : ", ctx->recvid_len);
   OC_LOGbytes_OSCORE(ctx->recvid, ctx->recvid_len);
 
   if (osc_ctx && osc_ctx_size > 0) {
@@ -447,7 +447,7 @@ oc_oscore_add_context(size_t device, const char *senderid, int senderid_size,
     memcpy(ctx->idctx, osc_ctx, osc_ctx_size);
     ctx->idctx_len = (uint8_t)osc_ctx_size;
   }
-  PRINT("OSC CTX (%d):", ctx->idctx_len);
+  PRINT("OSC CTX (%d): ", ctx->idctx_len);
   OC_LOGbytes_OSCORE(ctx->idctx, ctx->idctx_len);
 
   if (mastersecret) {

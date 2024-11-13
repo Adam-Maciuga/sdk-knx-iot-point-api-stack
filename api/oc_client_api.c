@@ -406,7 +406,7 @@ oc_do_get_ex_secured(const char *uri, oc_endpoint_t *endpoint,
   };
 
   endpoint->flags += OSCORE;
-  PRINT("  enable OSCORE encryption\n");
+  PRINT("enable OSCORE encryption\n");
 
   oc_endpoint_set_oscore_id_from_str(endpoint, (char *)token);
 
@@ -668,7 +668,7 @@ multi_scope_ipv6_discovery_wk(oc_client_cb_t *cb4, uint8_t scope,
                               void *user_data)
 {
   // ALL_COAP_NODES_IPV6_SITE = "FF05::FD"
-  PRINT("  multi_scope_ipv6_discovery_wk: %d\n", scope);
+  PRINT("multi_scope_ipv6_discovery_wk: %d\n", scope);
 
   oc_make_ipv6_endpoint(mcast, IPV6 | DISCOVERY, 5683, 0xff, scope, 0, 0, 0, 0,
                         0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0xfd);
@@ -676,10 +676,10 @@ multi_scope_ipv6_discovery_wk(oc_client_cb_t *cb4, uint8_t scope,
   // debug info
   oc_string_t mcast_str;
   oc_endpoint_to_string(&mcast, &mcast_str);
-  PRINT("   sending to: %s\n", oc_string_checked(mcast_str));
+  PRINT("sending to: %s\n", oc_string_checked(mcast_str));
   oc_free_string(&mcast_str);
 
-  PRINT("   query: %s\n", query);
+  PRINT("query: %s\n", query);
 
   mcast.addr.ipv6.scope = 0;
   return dispatch_ip_discovery_ex(cb4, ".well-known/core", query, handler,

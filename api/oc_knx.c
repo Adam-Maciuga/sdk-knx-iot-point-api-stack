@@ -249,8 +249,8 @@ oc_core_knx_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
     rep = rep->next;
   }
 
-  PRINT("  cmd   : %d\n", cmd);
-  PRINT("  value : %d\n", (int)value);
+  PRINT("cmd   : %d\n", cmd);
+  PRINT("value : %d\n", (int)value);
 
   bool error = true;
   size_t device_index = request->resource->device;
@@ -274,7 +274,7 @@ oc_core_knx_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   // as defined 691 for the Response to a Master Reset Request for KNX Classic
   // devices, see [10].
   if (error == true) {
-    PRINT(" invalid command\n");
+    PRINT("invalid command\n");
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   } else if (cmd == RESET_DEVICE) {
@@ -482,7 +482,7 @@ oc_core_a_lsm_post_handler(oc_request_t *request,
     rep = rep->next;
   } /* while */
 
-  PRINT("  load event %d [%s]\n", event,
+  PRINT("load event %d [%s]\n", event,
         oc_core_get_lsm_event_as_string((oc_lsm_event_t)event));
   // check the input and change the state
   changed = oc_lsm_event_to_state((oc_lsm_event_t)event, device_index);
@@ -675,7 +675,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
     if (origin != NULL) {
       PRINT("k post : origin of message:");
       PRINTipaddr(*origin);
-      PRINT("\n");
+      
     }
 
     oc_endpoint_t *my_ep = oc_connectivity_get_endpoints(0);
@@ -683,12 +683,12 @@ oc_core_knx_k_post_handler(oc_request_t *request,
 
     for (ep_i = my_ep; ep_i != NULL; ep_i = ep_i->next) {
       PRINTipaddr(*ep_i);
-      PRINT("\n");
+      
 
       if (oc_endpoint_compare_address(origin, ep_i) == 0) {
         if (origin->addr.ipv6.port == ep_i->addr.ipv6.port) {
           request->response->response_buffer->code = oc_status_code(OC_IGNORE);
-          PRINT(" same address and port: not handling message");
+          PRINT("same address and port: not handling message");
           return;
         }
       }
@@ -791,7 +791,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
   }
 
   if (oc_is_device_in_runtime(device_index) == false) {
-    PRINT(" Device not in runtime state:%d - ignore message", device->lsm_s);
+    PRINT("Device not in runtime state:%d - ignore message", device->lsm_s);
     oc_send_cbor_response(request, OC_IGNORE);
     return;
   }
@@ -801,7 +801,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
   bool st_read = false;
   // handle the request
   // loop over the group addresses of the /fp/r
-  PRINT(" k : origin:%s sia: %d ga: %d st: %s\n", ip_address,
+  PRINT("k : origin:%s sia: %d ga: %d st: %s\n", ip_address,
         g_received_notification.sia, g_received_notification.ga,
         oc_string_checked(g_received_notification.st));
   if (strcmp(oc_string_checked(g_received_notification.st), "w") == 0) {
@@ -828,7 +828,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
   }
 
   int index = oc_core_find_group_object_table_index(g_received_notification.ga);
-  PRINT(" k : index %d\n", index);
+  PRINT("k : index %d\n", index);
   if (index == -1) {
     // if nothing is found (initially) then return a bad request.
     oc_send_cbor_response(request, OC_IGNORE);
@@ -847,7 +847,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
 
   while (index != -1) {
     oc_string_t myurl = oc_core_find_group_object_table_url_from_index(index);
-    PRINT(" k : url  %s\n", oc_string_checked(myurl));
+    PRINT("k : url  %s\n", oc_string_checked(myurl));
     if (oc_string_len(myurl) > 0) {
       // get the resource to do the fake post on
       const oc_resource_t *my_resource = oc_ri_get_app_resource_by_uri(
@@ -859,7 +859,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
       // check if the data is allowed to write or update
       oc_cflag_mask_t cflags = oc_core_group_object_table_cflag_entries(index);
       if (((cflags & OC_CFLAG_WRITE) > 0) && (st_write)) {
-        PRINT(" (case1) W-WRITE: index %d handled due to flags %d\n", index,
+        PRINT("(case1) W-WRITE: index %d handled due to flags %d\n", index,
               cflags);
         // CASE 1:
         // Received from bus: -st w, any ga
@@ -882,7 +882,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
             // Case 3) part 1
             // @sender : updated object value + cflags = t
             // Sent : -st w, sending association(1st assigned ga)
-            PRINT("  (case3) (W-WRITE) sending WRITE due to TRANSMIT flag \n");
+            PRINT("(case3) (W-WRITE) sending WRITE due to TRANSMIT flag \n");
 #ifdef OC_USE_MULTICAST_SCOPE_2
             oc_do_s_mode_with_scope(2, oc_string(myurl), "w");
 #endif
@@ -891,7 +891,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
         }
       }
       if (((cflags & OC_CFLAG_UPDATE) > 0) && (st_rep)) {
-        PRINT(" (case2) RP-UPDATE: index %d handled due to flags %d\n", index,
+        PRINT("(case2) RP-UPDATE: index %d handled due to flags %d\n", index,
               cflags);
         // Case 2)
         // Received from bus: -st rp , any ga
@@ -920,7 +920,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
         }
       }
       if (((cflags & OC_CFLAG_READ) > 0) && (st_read)) {
-        PRINT(" (case4) (R-READ) index %d handled due to flags %d\n", index,
+        PRINT("(case4) (R-READ) index %d handled due to flags %d\n", index,
               cflags);
         send_payload = true;
         // Case 4)
@@ -928,7 +928,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
         // Received from bus: -st r
         // Sent: -st rp, sending association (1st assigned ga)
         // specifically: do not check the transmission flag
-        PRINT("   (case3) (RP-UPDATE) sending RP due to READ flag \n");
+        PRINT("(case3) (RP-UPDATE) sending RP due to READ flag \n");
 
         if (my_resource->get_handler.cb) {
           oc_ri_new_request_from_request(&new_request, request,
@@ -956,7 +956,7 @@ oc_core_knx_k_post_handler(oc_request_t *request,
 
   // don't send anything back on a multi cast message
   if (request->origin && (request->origin->flags & MULTICAST)) {
-    PRINT(" k : Multicast - not sending response\n");
+    PRINT("k : Multicast - not sending response\n");
     oc_send_cbor_response(request, OC_IGNORE);
     return;
   }
@@ -1065,20 +1065,20 @@ oc_core_knx_ia_post_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 12) {
-        PRINT("  oc_core_knx_ia_post_handler received 12 (ia) : %d\n",
+        PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d\n",
               (int)rep->value.integer);
         oc_core_set_device_ia(device_index, (uint32_t)rep->value.integer);
         int temp = (int)rep->value.integer;
         oc_storage_write(KNX_STORAGE_IA, (uint8_t *)&temp, sizeof(temp));
         ia_set = true;
       } else if (rep->iname == 25) {
-        PRINT("  oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "\n",
+        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "\n",
               rep->value.integer);
         oc_core_set_device_fid(device_index, (uint64_t)rep->value.integer);
         uint64_t temp = (uint64_t)rep->value.integer;
         oc_storage_write(KNX_STORAGE_FID, (uint8_t *)&temp, sizeof(temp));
       } else if (rep->iname == 26) {
-        PRINT("  oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "\n",
+        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "\n",
               (uint64_t)rep->value.integer);
         oc_core_set_device_iid(device_index, (uint64_t)rep->value.integer);
         uint64_t temp = (uint64_t)rep->value.integer;
@@ -1697,7 +1697,7 @@ oc_knx_load_state(size_t device_index)
   int temp_size;
 
   oc_lsm_state_t lsm;
-  OC_INF("oc_knx_load_state: Loading Device Config from Persistent storage");
+  PRINT("oc_knx_load_state: Loading Device Config from Persistent storage");
 
   oc_device_info_t *device = oc_core_get_device_info(device_index);
   if (device == NULL) {
@@ -1708,7 +1708,7 @@ oc_knx_load_state(size_t device_index)
   temp_size = oc_storage_read(LSM_STORE, (uint8_t *)&lsm, sizeof(lsm));
   if (temp_size > 0) {
     device->lsm_s = lsm;
-    OC_INF("load state (storage) %ld [%s]\n", (long)lsm,
+    PRINT("load state (storage) %ld [%s]\n", (long)lsm,
           oc_core_get_lsm_state_as_string((oc_lsm_state_t)lsm));
   }
 

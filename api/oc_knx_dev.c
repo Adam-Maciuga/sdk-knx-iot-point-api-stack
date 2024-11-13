@@ -303,7 +303,7 @@ oc_core_dev_hostname_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_STRING) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_dev_hostname_put_handler received : %s\n",
+        PRINT("oc_core_dev_hostname_put_handler received : %s\n",
               oc_string_checked(rep->value.string));
         oc_core_set_device_hostname(device_index, oc_string(rep->value.string));
 
@@ -391,7 +391,7 @@ oc_core_dev_iid_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_dev_iid_put_handler received : %" PRIu64 "\n",
+        PRINT("oc_core_dev_iid_put_handler received : %" PRIu64 "\n",
               rep->value.integer);
         oc_core_set_device_iid(device_index, rep->value.integer);
         // make the value persistent
@@ -571,7 +571,7 @@ oc_core_dev_pm_get_handler(oc_request_t *request,
     return;
   }
 
-  PRINT("  oc_core_dev_pm_get_handler\n");
+  PRINT("oc_core_dev_pm_get_handler\n");
   size_t device_index = request->resource->device;
   oc_device_info_t *device = oc_core_get_device_info(device_index);
   if (device != NULL) {
@@ -608,7 +608,7 @@ oc_core_dev_pm_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_BOOL) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_dev_pm_put_handler received : %d\n",
+        PRINT("oc_core_dev_pm_put_handler received : %d\n",
               (int)rep->value.boolean);
 
         // NOTE: It is the responsibility of the callback (if it exists)
@@ -904,7 +904,7 @@ oc_core_dev_fid_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_dev_fid_put_handler received : %" PRIu64 "\n",
+        PRINT("oc_core_dev_fid_put_handler received : %" PRIu64 "\n",
               rep->value.integer);
         oc_core_set_device_fid(device_index, (uint64_t)rep->value.integer);
         uint64_t temp = (uint64_t)rep->value.integer;
@@ -1031,11 +1031,11 @@ oc_core_dev_mport_put_handler(oc_request_t *request,
   oc_rep_t *rep = request->request_payload;
   // debugging
   if (rep != NULL) {
-    PRINT("  oc_core_dev_mport_put_handler type: %d\n", rep->type);
+    PRINT("oc_core_dev_mport_put_handler type: %d\n", rep->type);
   }
 
   if ((rep != NULL) && (rep->type == OC_REP_INT)) {
-    PRINT("  oc_core_dev_mport_put_handler received : %d\n",
+    PRINT("oc_core_dev_mport_put_handler received : %d\n",
           (int)rep->value.integer);
     device->mport = (uint32_t)rep->value.integer;
     oc_send_response_no_format(request, OC_STATUS_CHANGED);
@@ -1159,7 +1159,7 @@ oc_core_ap_x_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   oc_rep_t *rep = request->request_payload;
   // debugging
   if (rep != NULL) {
-    PRINT("  oc_core_ap_x_put_handler type: %d\n", rep->type);
+    PRINT("oc_core_ap_x_put_handler type: %d\n", rep->type);
   }
 
   if ((rep != NULL) && (rep->type == OC_REP_INT_ARRAY)) {
@@ -1357,10 +1357,10 @@ oc_knx_device_storage_read(size_t device_index)
   char tempstring[255];
   bool pm;
 
-  OC_INF("Loading Device Config from persistent storage");
+  PRINT("Loading Device Config from persistent storage");
 
   if (device_index >= oc_core_get_num_devices()) {
-    OC_INF("device_index %d too large", (int)device_index);
+    PRINT("device_index %d too large", (int)device_index);
     return;
   }
 
@@ -1373,7 +1373,7 @@ oc_knx_device_storage_read(size_t device_index)
   temp_size = oc_storage_read(KNX_STORAGE_IA, (uint8_t *)&ia, sizeof(ia));
   if (temp_size > 0) {
     device->ia = ia;
-    OC_INF("ia (storage) %d", ia);
+    PRINT("ia (storage) %d", ia);
   }
 
   /* HOST NAME */
@@ -1382,19 +1382,19 @@ oc_knx_device_storage_read(size_t device_index)
   if (temp_size > 1) {
     tempstring[temp_size] = 0;
     oc_core_set_device_hostname(device_index, tempstring);
-    OC_INF("hostname (storage) %s", oc_string_checked(device->hostname));
+    PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
   }
 
   /* KNX_STORAGE_IID */
   temp_size =
     oc_storage_read(KNX_STORAGE_IID, (uint8_t *)&device->iid, sizeof(int64_t));
-  OC_INF("idd (storage) %" PRIu64 "", device->iid);
+  PRINT("idd (storage) %" PRIu64 "", device->iid);
 
   /* KNX_STORAGE_PM */
   temp_size = oc_storage_read(KNX_STORAGE_PM, (uint8_t *)&pm, 1);
   if (temp_size > 0) {
     device->pm = pm;
-    OC_INF("pm (storage) %d\n", device->pm);
+    PRINT("pm (storage) %d\n", device->pm);
   }
 
   oc_core_read_ap(device_index);
@@ -1507,7 +1507,7 @@ oc_knx_device_in_programming_mode(size_t device_index)
 {
 
   if (device_index >= oc_core_get_num_devices()) {
-    OC_INF("device_index %d too large", (int)device_index);
+    PRINT("device_index %d too large", (int)device_index);
     return false;
   }
 
@@ -1520,7 +1520,7 @@ oc_knx_device_set_programming_mode(size_t device_index, bool programming_mode)
 {
 
   if (device_index >= oc_core_get_num_devices()) {
-    OC_INF("device_index %d too large", (int)device_index);
+    PRINT("device_index %d too large", (int)device_index);
     return;
   }
 

@@ -292,14 +292,14 @@ find_session_by_endpoint(oc_endpoint_t *endpoint)
 #ifdef OC_DEBUG
     PRINT("could not find ongoing TCP session for endpoint:");
     PRINTipaddr(*endpoint);
-    PRINT("\n");
+    
 #endif /* OC_DEBUG */
     return NULL;
   }
 #ifdef OC_DEBUG
   PRINT("found TCP session for endpoint:");
   PRINTipaddr(*endpoint);
-  PRINT("\n");
+  
 #endif /* OC_DEBUG */
   return session;
 }

@@ -230,10 +230,6 @@ coap_receive(oc_message_t *msg)
   PRINTipaddr(msg->endpoint);
   OC_LOGbytes(msg->data, msg->length);
 
-  PRINT("CoAP Engine: received datalen=%u from ", (unsigned int)msg->length);
-  PRINTipaddr(msg->endpoint);
-  PRINT("\n");
-
   /* static declaration reduces stack peaks and program code size */
   static coap_packet_t
     message[1]; /* this way the packet can be treated as pointer as usual */
@@ -467,21 +463,23 @@ coap_receive(oc_message_t *msg)
 #ifdef OC_DEBUG
       switch (message->code) {
       case COAP_GET:
-        OC_INF("tmethod: GET");
+        PRINT("GET");
         break;
       case COAP_PUT:
-        OC_INF("\method: PUT");
+        PRINT("PUT");
         break;
       case COAP_POST:
-        OC_INF("method: POST");
+        PRINT("POST");
         break;
       case COAP_DELETE:
-        OC_INF("method: DELETE");
+        PRINT("DELETE");
         break;
       }
-      OC_INF("URL: %.*s", (int)message->uri_path_len, message->uri_path);
-      OC_INF("QUERY: %.*s", (int)message->uri_query_len, message->uri_query);
-      OC_INF("Payload: %.*s", (int)message->payload_len, message->payload);
+      PRINT("URL  : %.*s", (int)message->uri_path_len, message->uri_path);
+      PRINT("QUERY: %.*s", (int)message->uri_query_len, message->uri_query);
+      PRINT("Payload Len: %d", (int)message->uri_query_len);
+      // OC_LOGbytes(message->payload, message->payload_len);
+      
 #endif
       const char *href;
       size_t href_len = coap_get_header_uri_path(message, &href);
@@ -522,22 +520,24 @@ coap_receive(oc_message_t *msg)
       }
 
       bool is_myself = false;
-      // check if incoming message is from myself.
-      // if so, then return with bad request
       oc_endpoint_t *my_ep = oc_connectivity_get_endpoints(0);
       oc_endpoint_t *ep_i = NULL;
-#ifdef OC_DEBUG
-      if (my_ep != NULL) {
-        PRINT("engine : myself:");
-        PRINTipaddr(*my_ep);
-        PRINT("\n");
-      }
-#endif /* OC_DEBUG */
-      for (ep_i = my_ep; ep_i != NULL; ep_i = ep_i->next) {
+
+      // check if incoming message is from myself, if so, then return with bad request
+      for (ep_i = my_ep; ep_i != NULL; ep_i = ep_i->next) 
+      {
+        #ifdef OC_DEBUG
+        
+        PRINT("engine, test on myself for ");
         PRINTipaddr(*ep_i);
-        if (oc_endpoint_compare_address(&msg->endpoint, ep_i) == 0) {
-          if (msg->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port) {
-            OC_DBG(" same address and port: not handling message");
+
+        #endif
+
+        if (oc_endpoint_compare_address(&msg->endpoint, ep_i) == 0) 
+        {
+          if (msg->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port) 
+          {
+            OC_DBG("same address and port: not handling message ");
             is_myself = true;
           }
         }

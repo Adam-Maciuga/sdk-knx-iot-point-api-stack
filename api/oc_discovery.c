@@ -405,13 +405,13 @@ oc_wkcore_discovery_handler(oc_request_t *request,
   */
   if (d_len > 12 && strncmp(d_request, "urn:knx:g.s.", 12) == 0) {
     int group_address = atoi(&d_request[12]);
-    PRINT(" group address: %d\n", group_address);
+    PRINT("group address: %d\n", group_address);
     // if not loaded the we can just return
     oc_lsm_state_t lsm = oc_a_lsm_state(device_index);
     if (lsm != LSM_S_LOADED) {
       /* handle bad request..
       note below layer ignores this message if it is a multi cast request */
-      PRINT(" not loaded!");
+      PRINT("not loaded!");
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
@@ -467,7 +467,7 @@ oc_wkcore_discovery_handler(oc_request_t *request,
           matches++;
         }
 
-        PRINT(" oc_wkcore_discovery_handler PM HANDLING: OK\n");
+        PRINT("oc_wkcore_discovery_handler PM HANDLING: OK\n");
       }
     } else {
       /* device is not in programming mode so ignore this request*/
@@ -495,10 +495,10 @@ oc_wkcore_discovery_handler(oc_request_t *request,
 
       oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
-      PRINT(" oc_wkcore_discovery_handler IA HANDLING: OK\n");
+      PRINT("oc_wkcore_discovery_handler IA HANDLING: OK\n");
     } else {
       /* should ignore this request*/
-      // PRINT(" oc_wkcore_discovery_handler IA HANDLING: IGNORE\n");
+      // PRINT("oc_wkcore_discovery_handler IA HANDLING: IGNORE\n");
       oc_ignore_request(request);
     }
     return;
@@ -532,7 +532,7 @@ oc_wkcore_discovery_handler(oc_request_t *request,
       }
     }
     /* should ignore this request*/
-    // PRINT(" oc_wkcore_discovery_handler IA HANDLING: IGNORE\n");
+    // PRINT("oc_wkcore_discovery_handler IA HANDLING: IGNORE\n");
     oc_ignore_request(request);
     return;
   }
@@ -590,8 +590,8 @@ oc_wkcore_discovery_handler(oc_request_t *request,
 
   if (rt_len > 0 || if_len > 0) {
     size_t device = request->resource->device;
-    PRINT("  oc_wkcore_discovery_handler rt='%.*s'\n", rt_len, rt_request);
-    PRINT("  oc_wkcore_discovery_handler if='%.*s'\n", if_len, if_request);
+    PRINT("oc_wkcore_discovery_handler rt='%.*s'\n", rt_len, rt_request);
+    PRINT("oc_wkcore_discovery_handler if='%.*s'\n", if_len, if_request);
     if (!finished) {
       finished =
         oc_process_resources(request, device, &response_length, &matches,
@@ -621,7 +621,7 @@ oc_wkcore_discovery_handler(oc_request_t *request,
       response_length += add_next_page_indicator(
         oc_string(request->resource->uri), next_page_num);
     }
-    PRINT("  oc_wkcore_discovery_handler response_length %d'\n",
+    PRINT("oc_wkcore_discovery_handler response_length %d'\n",
           (int)response_length);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   } else if (request->origin && (request->origin->flags & MULTICAST) == 0) {

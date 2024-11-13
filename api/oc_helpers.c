@@ -437,21 +437,21 @@ oc_conv_hex_string_to_oc_string(const char *hex_str, size_t hex_str_len,
   int return_value = -1;
   size_t size_bytes = (hex_str_len / 2);
 
-  PRINT("oc_conv_hex_string_to_oc_string len:%d -> bytes:%d\n",
+  PRINT("oc_conv_hex_string_to_oc_string len:%d -> bytes:%d",
         (int)hex_str_len, (int)size_bytes);
 
   oc_free_string(out);
 
-  PRINT("oc_conv_hex_string_to_oc_string free string\n");
+  PRINT("oc_conv_hex_string_to_oc_string free string");
   oc_alloc_string(out, size_bytes);
-  PRINT("oc_conv_hex_string_to_oc_string alloc string\n");
+  PRINT("oc_conv_hex_string_to_oc_string alloc string");
   char *ptr = oc_string(*out);
-  PRINT("oc_conv_hex_string_to_oc_string ptr\n");
+  PRINT("oc_conv_hex_string_to_oc_string ptr");
   if (ptr != NULL) {
     return_value =
       oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr, &size_bytes);
   }
-  PRINT("oc_conv_hex_string_to_oc_string result=%d\n", (int)return_value);
+  PRINT("oc_conv_hex_string_to_oc_string result=%d", (int)return_value);
   return return_value;
 }
 
@@ -472,7 +472,7 @@ int
 oc_char_print_hex(const char *str, int str_len)
 {
   for (int i = 0; i < str_len; i++) {
-    PRINT("%02x", (unsigned char)str[i]);
+    PRINTF("%02x", (unsigned char)str[i]);
   }
   return str_len;
 }
@@ -489,7 +489,7 @@ int
 oc_string_println_hex(oc_string_t hex_string)
 {
   int retval = oc_string_print_hex(hex_string);
-  PRINT("\n");
+  
   return retval;
 }
 
@@ -498,7 +498,6 @@ oc_char_println_hex(const char *str, int str_len)
 {
   int retval;
   retval = oc_char_print_hex(str, str_len);
-  PRINT("\n");
   return retval;
 }
 
@@ -733,7 +732,7 @@ oc_get_sn_from_ep(const char *param, int param_len, char *sn, int sn_len,
     char *blank = oc_strnchr(param, ' ', param_len);
     if (blank == NULL) {
       // the sn part is missing
-      PRINT("oc_get_sn_from_ep 222 string: string ia : '%s'\n", &param[10]);
+      PRINT("oc_get_sn_from_ep 222 string: string ia : '%s'", &param[10]);
       // read from hex
       *ia = (uint32_t)strtol(&param[10], NULL, 16);
     } else {
@@ -757,7 +756,7 @@ oc_get_sn_from_ep(const char *param, int param_len, char *sn, int sn_len,
     char *blank = oc_strnchr(param, ' ', param_len);
     if (blank == NULL) {
       // the sn part is missing
-      PRINT("oc_get_sn_from_ep 222 string: string ia : '%s'\n", &param[9]);
+      PRINT("oc_get_sn_from_ep 222 string: string ia : '%s'", &param[9]);
       // read from hex
       *ia = (uint32_t)strtol(&param[9], NULL, 16);
     } else {

@@ -232,23 +232,23 @@ oc_print_group_mapping_table_entry(int entry)
     return;
   }
 
-  PRINT("    id (0)         : %d\n", g_gm_entries[entry].id);
-  PRINT("    dataType (116) : %d\n", g_gm_entries[entry].dataType);
-  PRINT("    ga (7)        : [");
+  PRINT("id (0)         : %d\n", g_gm_entries[entry].id);
+  PRINT("dataType (116) : %d\n", g_gm_entries[entry].dataType);
+  PRINT("ga (7)        : [");
   for (int i = 0; i < g_gm_entries[entry].ga_len; i++) {
-    PRINT(" %" PRIu64 "", (uint64_t)g_gm_entries[entry].ga[i]);
+    PRINT("%" PRIu64 "", (uint64_t)g_gm_entries[entry].ga[i]);
   }
-  PRINT(" ]\n");
+  PRINT("]\n");
   if (oc_string_len(g_gm_entries[entry].groupKey) > 0) {
-    PRINT("    groupKey        : ");
+    PRINT("groupKey        : ");
     int length = (int)oc_string_len(g_gm_entries[entry].groupKey);
     char *ms = oc_string(g_gm_entries[entry].groupKey);
     for (int i = 0; i < length; i++) {
       PRINT("%02x", (unsigned char)ms[i]);
     }
-    PRINT("\n");
-    PRINT("    a (97)         : %d\n", g_gm_entries[entry].authentication);
-    PRINT("    c (99)         : %d\n", g_gm_entries[entry].confidentiality);
+    
+    PRINT("a (97)         : %d\n", g_gm_entries[entry].authentication);
+    PRINT("c (99)         : %d\n", g_gm_entries[entry].confidentiality);
   }
 }
 
@@ -358,7 +358,7 @@ oc_load_group_mapping_table_entry(int entry)
               if (g_gm_entries[entry].ga != 0) {
                 free(g_gm_entries[entry].ga);
               }
-              PRINT("  ga size %d\n", array_size);
+              PRINT("ga size %d\n", array_size);
               g_gm_entries[entry].ga_len = array_size;
               g_gm_entries[entry].ga = new_array;
             }
@@ -378,7 +378,7 @@ oc_load_group_mapping_table_entry(int entry)
 void
 oc_load_group_mapping_table()
 {
-  OC_INF("Loading Group Mapping Table from persistent storage");
+  PRINT("Loading Group Mapping Table from persistent storage");
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
     oc_load_group_mapping_table_entry(i);
     oc_print_group_mapping_table_entry(i);
@@ -556,18 +556,18 @@ oc_core_fp_gm_post_handler(oc_request_t *request,
 
       int index = find_group_mapping_index(id);
       if (index != -1) {
-        PRINT("   entry already exist! \n");
+        PRINT("entry already exist! \n");
         return_status = OC_STATUS_CHANGED;
       } else {
         index = find_empty_group_mapping_index();
         if (index == -1) {
-          PRINT("  no space left!\n");
+          PRINT("no space left!\n");
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
         return_status = OC_STATUS_CREATED;
       }
-      PRINT("  storage index: %d (%d)\n", index, id);
+      PRINT("storage index: %d (%d)\n", index, id);
       g_gm_entries[index].id = id;
 
       // parse the response
@@ -612,7 +612,7 @@ oc_core_fp_gm_post_handler(oc_request_t *request,
           }
           if (object->iname == 116) {
             // dataType (116)
-            PRINT("   dataType %d\n", (int)object->value.integer);
+            PRINT("dataType %d\n", (int)object->value.integer);
             g_gm_entries[index].dataType = (int)object->value.integer;
           }
         } else if (object->type == OC_REP_OBJECT) {
@@ -620,7 +620,7 @@ oc_core_fp_gm_post_handler(oc_request_t *request,
           // level of s
           s_object = object->value.object;
           int s_object_nr = object->iname;
-          PRINT("  s_object_nr %d\n", s_object_nr);
+          PRINT("s_object_nr %d\n", s_object_nr);
           while (s_object) {
             if (s_object->type == OC_REP_BYTE_STRING) {
               if (s_object->iname == 107 && s_object_nr == 115) {
@@ -663,7 +663,7 @@ oc_core_fp_gm_post_handler(oc_request_t *request,
         object = object->next;
       } // while (inner object)
       if (id_only) {
-        PRINT("  only found id in request, deleting entry at index: %d\n",
+        PRINT("only found id in request, deleting entry at index: %d\n",
               index);
         oc_delete_group_mapping_table_entry(index);
         do_save = false;
@@ -827,7 +827,7 @@ load_fra(void)
   temp_size = oc_storage_read(GM_STORE_FRA, (uint8_t *)&g_fra, sizeof(g_fra));
   // if (temp_size > 0) {
   //   device->ia = ia;
-  //   PRINT("  ia (storage) %d\n", ia);
+  //   PRINT("ia (storage) %d\n", ia);
   // }
 }
 
@@ -897,7 +897,7 @@ oc_core_f_netip_fra_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_f_netip_fra_put_handler received (fra) : %d\n",
+        PRINT("oc_core_f_netip_fra_put_handler received (fra) : %d\n",
               (int)rep->value.integer);
         g_fra = (int)rep->value.integer;
         dump_fra();
@@ -954,7 +954,7 @@ load_tol(void)
   temp_size = oc_storage_read(GM_STORE_TOL, (uint8_t *)&g_tol, sizeof(g_tol));
   // if (temp_size > 0) {
   //  device->ia = ia;
-  //  PRINT("  ia (storage) %d\n", ia);
+  //  PRINT("ia (storage) %d\n", ia);
   //}
 }
 
@@ -1023,7 +1023,7 @@ oc_core_f_netip_tol_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_f_netip_tol_put_handler received (tol) : %d\n",
+        PRINT("oc_core_f_netip_tol_put_handler received (tol) : %d\n",
               (int)rep->value.integer);
         g_tol = (int)rep->value.integer;
         dump_tol();
@@ -1183,7 +1183,7 @@ load_ttl(void)
   temp_size = oc_storage_read(GM_STORE_TTL, (uint8_t *)&g_ttl, sizeof(g_ttl));
   // if (temp_size > 0) {
   //  device->ia = ia;
-  //  PRINT("  ia (storage) %d\n", ia);
+  //  PRINT("ia (storage) %d\n", ia);
   //}
 }
 
@@ -1253,7 +1253,7 @@ oc_core_f_netip_ttl_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_f_netip_ttl_put_handler received (ttl) : %d\n",
+        PRINT("oc_core_f_netip_ttl_put_handler received (ttl) : %d\n",
               (int)rep->value.integer);
         g_ttl = (int)rep->value.integer;
         dump_ttl();
@@ -1377,7 +1377,7 @@ oc_core_f_netip_mcast_put_handler(oc_request_t *request,
   while (rep != NULL) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("  oc_core_f_netip_mcast_put_handler (mcast) : %d\n",
+        PRINT("oc_core_f_netip_mcast_put_handler (mcast) : %d\n",
               (uint32_t)rep->value.integer);
         g_mcast = (uint32_t)rep->value.integer;
         dump_mcast();

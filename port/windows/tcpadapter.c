@@ -308,14 +308,14 @@ find_session_by_endpoint_locked(oc_endpoint_t *endpoint)
 #ifdef OC_DEBUG
     PRINT("could not find ongoing TCP session for endpoint:");
     PRINTipaddr(*endpoint);
-    PRINT("\n");
+    
 #endif /* OC_DEBUG */
     return NULL;
   }
 #ifdef OC_DEBUG
   PRINT("found TCP session for endpoint:");
   PRINTipaddr(*endpoint);
-  PRINT("\n");
+  
 #endif /* OC_DEBUG */
   return session;
 }
@@ -604,7 +604,7 @@ recv_message(SOCKET s, void *ctx)
 #ifdef OC_DEBUG
   PRINT("Incoming message of size %zd bytes from ", message->length);
   PRINTipaddr(message->endpoint);
-  PRINT("\n\n");
+  
 #endif /* OC_DEBUG */
   oc_network_event(message);
 }
