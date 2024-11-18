@@ -27,36 +27,38 @@ endif()
 # add preprocessor definitiosn for the current CMakeLists file
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
-# Stack compilation specific variables 
+# Stack compilation variables, specific build configurations (debug,release,...) 
+# needs to set the values as part of 'CmakePresets.json'
+## Common release variables 
+set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
 set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
 set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
-set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages. Setting this to OFF will disable virtually all logging.")
-set(OC_PRINT_APP_ENABLED OFF CACHE BOOL "Enable application log messages. Independent from OC_PRINT_ENABLED")
-set(OC_DEBUG_ENABLED ON CACHE BOOL "Enable debug messages")
-set(OC_DEBUG_OSCORE_ENABLED ON CACHE BOOL "Enable security debug messages")
 set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
-set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC applications.")
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
-
-# KNX stack specific variables
+## Specific debug (print out) varibles 
+set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages. Setting this to OFF will disable virtually all logging.")
+set(OC_PRINT_APP_ENABLED OFF CACHE BOOL "Enable application log messages. Independent from OC_PRINT_ENABLED")
+set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enable debug messages")
+set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages")
+set(USE_CONSOLE ON CACHE BOOL "use console (for output logging)")
+## Specific stack resource variables
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
 set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping table entries")
 set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "" CACHE STRING "Maximum number of group security table (auth/at) entries")
-
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
 
-# KNX application specific variables
-set(USE_CONSOLE ON CACHE BOOL "use console (for output logging)")
+# specific KNX application  variables
+
 
 # dont show below variables in any (command) GUI
 mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)

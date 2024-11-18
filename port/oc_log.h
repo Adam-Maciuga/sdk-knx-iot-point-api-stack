@@ -50,7 +50,7 @@
 #ifdef WIN32
   #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #else
-  #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+  #define __FILENAME__ (strrchr(__FILE__, '/')  ? strrchr(__FILE__, '/')  + 1 : __FILE__)
 #endif
 
 #ifdef __ANDROID__
@@ -71,6 +71,7 @@ extern "C" {
     #ifdef OC_LOG_TO_FILE
       // logging to file
       #define PRINT(...) oc_file_print(__VA_ARGS__)
+      #define PRINTF(...) oc_file_print(__VA_ARGS__)
     #else
       #define PRINT(...) OC_INF(__VA_ARGS__)
       #define PRINTF(...) printf(__VA_ARGS__)
@@ -86,10 +87,8 @@ extern "C" {
 
 #ifdef OC_PRINT_APP
   #define PRINT_APP(...) OC_INF(__VA_ARGS__)
-  #define PRINTF(...) printf(__VA_ARGS__)
 #else
   #define PRINT_APP(...)
-  #define PRINTF(...)
 #endif
 
 #define SPRINTF(...) sprintf(__VA_ARGS__)
@@ -244,11 +243,6 @@ extern "C" {
   PRINTF(__VA_ARGS__);                                       \
   } while (0)
 
-#define OC_LOGbytes(bytes, length)                             \
-  do {                                                         \
-    for (uint16_t i = 0; i < (length); i++)                    \
-      PRINTF("%02X", (bytes)[i]);                              \
-  } while (0)
 
 // always do OC_ERR and OC_WRN logs
 #define OC_ERR(...) OC_LOG("ERR", __VA_ARGS__)
@@ -269,6 +263,11 @@ extern "C" {
   #endif
 
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
+  #define OC_LOGbytes(bytes, length)                                             \
+    do {                                                                         \
+      for (uint16_t i = 0; i < (length); i++)                                    \
+        PRINTF("%02X", (bytes)[i]);                                              \
+    } while (0)
 
 #else
 
