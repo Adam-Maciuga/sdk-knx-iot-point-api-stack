@@ -99,9 +99,9 @@ static CRITICAL_SECTION cs;   /**< event loop variable */
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC 
 #endif
 
-volatile int quit = 0;           /**< stop variable, used by handle_signal */
+volatile int quit = 0;          /**< stop variable, used by handle_signal */
 bool g_reset = false;           /**< reset variable, set by commandline arguments */
-char g_serial_number[sizeof (SN_LOWER)] = SN_LOWER;
+char g_serial_number[] = SN;    // default startup SN, maybe overwritten by CL option  
 
 volatile bool g_OnOff_1;        /**< global variable for OnOff_1 */
 volatile bool g_InfoOnOff_1;    /**< global variable for InfoOnOff_1 */
@@ -488,7 +488,7 @@ extern "C" {
     if (strlen (oc_spake_get_password ()) == 0)
       oc_spake_set_password (PASSWORD);
 
-    OC_DBG_SPAKE ("=== QR Code: KNX:S:%s;P:%s ===", SN_UPPER, oc_spake_get_password ());
+    OC_DBG_SPAKE ("=== QR Code: KNX:S:%s;P:%s ===", SN, oc_spake_get_password ());
 
   #endif
 

@@ -677,7 +677,7 @@ oc_strnchr(const char *string, char p, int size)
 int
 oc_char_convert_to_lower(char *str)
 {
-  for (; *str; ++str)
+  for (; *str; ++str)  // loops until *str is 0, e.g.; string end as \0
     *str = tolower(*str);
   return 0;
 }

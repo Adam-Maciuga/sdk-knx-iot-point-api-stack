@@ -37,8 +37,7 @@ extern "C" {
 
 #define MY_NAME   "KNX virtual switch actuator"
 #define PASSWORD  "ABY8B77J50YXMUDW3DG4"       
-#define SN_LOWER   "00fa10020800"
-#define SN_UPPER   "00FA10020800"
+#define SN        "00FA10020800"
 #define MID        0<<24 + 0<<16 + 15<<8 + 10<<0  // = first 4 digits of sn
 
 // URL defines
