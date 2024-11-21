@@ -73,42 +73,59 @@ extern "C" {
     __VA_ARGS__);                                                              \
   _Pragma("GCC diagnostic pop")
 #endif
+
+#if defined _MSC_VER && !defined __INTEL_COMPILER
+
 /**
- * @brief Create const CORE linked to the next one
- *
+ * @brief
+ * Creates a const CORE resource that is linked to a next resource.
+ * 
+ * It may raise a possible warning of "expexted identifier" ...
+ * 
  * @param resource_name name of this resource
  * @param next_resource name of next resource
+ * 
+ * @note may raise a possible warning of "missing identifier" ...
  *
  * @related OC_CORE_CREATE_CONST_RESOURCE_FINAL
+ * 
  */
-#if defined _MSC_VER && !defined __INTEL_COMPILER
 #define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,     \
                                              ...)                              \
   extern const oc_resource_t core_resource_##next_resource;                    \
   oc_ri_internal_expand_call(OC_CORE_CREATE_CONST_RESOURCE_INTERNAL,           \
                              resource_name, next_resource, __VA_ARGS__)
 #else
+
 #define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,     \
                                              ...)                              \
   extern const oc_resource_t core_resource_##next_resource;                    \
   OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(resource_name, next_resource,         \
                                          __VA_ARGS__)
+
 #endif
 
+#if defined _MSC_VER && !defined __INTEL_COMPILER
+
 /**
- * @brief Create const CORE linked to a final, non-const dummy
+ * @brief
+ * Creates a const CORE resource that is linked to a final, non-const dummy
+ * resource (NULL, -1). 
+ * 
+ * It may raise a possible warning of "expexted identifier" ...
  *
  * @param resource_name name of this resource
  *
  * @related OC_CORE_CREATE_CONST_RESOURCE_LINKED
  */
-#if defined _MSC_VER && !defined __INTEL_COMPILER
 #define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
   oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
   oc_ri_internal_expand_call(OC_CORE_CREATE_CONST_RESOURCE_INTERNAL,           \
                              resource_name, resource_name##_final,             \
                              __VA_ARGS__)
+
 #else
+
 #define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
   oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
   OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(resource_name, resource_name##_final, \
@@ -156,23 +173,23 @@ typedef struct oc_knx_version_info_t
  */
 typedef struct oc_device_info_t
 {
-  oc_string_t serialnumber;  /**< knx serial number */
-  oc_knx_version_info_t hwv; /**< knx hardware version */
-  oc_knx_version_info_t fwv; /**< fwv firmware version */
-  oc_knx_version_info_t ap;  /**< fwv application version */
-  oc_string_t hwt; /**< knx hardware type, should not be larger than 6 chars */
-  oc_string_t model;    /**< knx model */
-  oc_string_t hostname; /**< knx host name */
-  uint32_t mid;         /**< knx manufactorer ID */
-  uint64_t fid;         /**< knx fabric id */
-  uint32_t ia;          /**< knx ia Device individual address */
-  uint64_t iid;         /**< knx iid (installation id) */
-  uint32_t port;        /**< coap port number */
-  uint32_t mport;       /**< multicast port number */
-  bool pm;              /**< knx programming mode */
-  oc_lsm_state_t lsm_s; /**< knx lsm states */
-  oc_core_add_device_cb_t add_device_cb; /**< callback when device is changed */
-  void *data;                            /**< user data */
+  oc_string_t serialnumber;                 /**< knx serial number */
+  oc_knx_version_info_t hwv;                /**< knx hardware version */
+  oc_knx_version_info_t fwv;                /**< fwv firmware version */
+  oc_knx_version_info_t ap;                 /**< fwv application version */
+  oc_string_t hwt;                          /**< knx hardware type, should not be larger than 6 chars */
+  oc_string_t model;                        /**< knx model */
+  oc_string_t hostname;                     /**< knx host name */
+  uint32_t mid;                             /**< knx manufacrurer id */
+  uint64_t fid;                             /**< knx fabric id */
+  uint32_t ia;                              /**< knx ia Device individual address */
+  uint64_t iid;                             /**< knx iid (installation id) */
+  uint32_t port;                            /**< coap port number */
+  uint32_t mport;                           /**< multicast port number */
+  bool pm;                                  /**< knx programming mode */
+  oc_lsm_state_t lsm_s;                     /**< knx lsm states */
+  oc_core_add_device_cb_t add_device_cb;    /**< callback when device is changed */
+  void *data;                               /**< user data */
 } oc_device_info_t;
 
 /**

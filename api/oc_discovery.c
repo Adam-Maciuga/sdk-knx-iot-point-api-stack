@@ -27,11 +27,11 @@
 #include "oc_endpoint.h"
 #include "oc_knx_helpers.h"
 
-#ifdef OC_SECURITY
-#include "security/oc_pstat.h"
-#include "security/oc_sdi.h"
-#include "security/oc_tls.h"
-#endif
+//#ifdef OC_SECURITY
+//#include "security/oc_pstat.h"
+//#include "security/oc_sdi.h"
+//#include "security/oc_tls.h"
+//#endif
 #ifdef OC_OSCORE
 #include "security/oc_tls.h"
 #endif
@@ -640,14 +640,17 @@ OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
 void
 oc_create_discovery_resource(int resource_idx, size_t device)
 {
-  if (resource_idx == WELLKNOWNCORE && device > 0) {
+  if (resource_idx == WELLKNOWNCORE && device > 0) 
+  {
     oc_core_populate_resource(resource_idx, device, "/.well-known/core",
                               OC_IF_NONE, APPLICATION_LINK_FORMAT,
                               OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
                               0, 0, 1, "wk");
-  } else if (device == 0) {
-    OC_DBG("resources for dev 0 created statically");
-  }
+  } else 
+      if (device == 0) 
+      {
+        OC_DBG("device 0: Global discovery resources created statically");
+      }
 }
 
 oc_discovery_flags_t

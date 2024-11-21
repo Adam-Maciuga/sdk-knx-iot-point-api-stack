@@ -249,7 +249,7 @@ oc_core_p_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_p, knx_f, 0, "/p",
                                      OC_IF_LI | OC_IF_D | OC_IF_C | OC_IF_B,
-                                     APPLICATION_LINK_FORMAT, 0,
+                                     APPLICATION_LINK_FORMAT, OC_UNDISCOVERABLE,
                                      oc_core_p_get_handler, 0,
                                      oc_core_p_post_handler, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.0");
@@ -271,7 +271,7 @@ oc_create_knx_p_resources(size_t device_index)
   OC_DBG("oc_create_knx_p_resources");
 
   if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+    OC_DBG("device 0: KNX parameter resources created statically");
     return;
   }
 

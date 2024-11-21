@@ -1802,7 +1802,7 @@ oc_create_knx_sec_resources(size_t device_index)
   oc_load_at_table(device_index);
 
   if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+    OC_DBG("device 0: KNX security resources created statically");
     return;
   }
 

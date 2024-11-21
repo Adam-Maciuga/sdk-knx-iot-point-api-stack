@@ -78,7 +78,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_sn, dev_hwv, 0, "/dev/sn", OC_IF_D,
 void
 oc_create_dev_sn_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_dev_sn_resource\n");
+  OC_DBG("oc_create_dev_sn_resource");
   // rt :dpa:0.11
   // rt :dpt.serNum
   oc_core_populate_resource(
@@ -1533,8 +1533,9 @@ oc_create_knx_device_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_device_resources");
 
-  if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+  if (device_index == 0) 
+  {
+    OC_DBG("device 0: KNX device resources created statically");
     return;
   }
 

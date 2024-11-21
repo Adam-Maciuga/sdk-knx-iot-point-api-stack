@@ -156,7 +156,6 @@ extern "C" {
     };                                                                         \
   } while (0)
 
-
 #define SNPRINTFipaddr(str, size, endpoint)                                    \
   do {                                                                         \
     const char *scheme = "coap";                                               \
@@ -229,8 +228,8 @@ extern "C" {
 
 #define OC_LOG(level, ...)                                   \
   do {                                                       \
-  char func[W_SIZE] = "";                                    \
-  strncpy(func, __func__, M_SIZE-3); strcat(func, "...");    \
+  char func[M_SIZE] = "";                                    \
+  strncpy(func, __func__, M_SIZE-4); strcat(func, "...");    \
   PRINTF("\n"                                                \
          "%-4s: "                                            \
          "%-20s "                                            \

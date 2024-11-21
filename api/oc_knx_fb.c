@@ -245,7 +245,7 @@ oc_core_fb_x_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f_x, knx_swu_protocol, 0, "/f/*",
                                      OC_IF_LI | OC_IF_D,
-                                     APPLICATION_LINK_FORMAT, 0,
+                                     APPLICATION_LINK_FORMAT, OC_UNDISCOVERABLE,
                                      oc_core_fb_x_get_handler, 0, 0, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.0");
 
@@ -563,7 +563,7 @@ oc_core_fb_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f, knx_f_x, 0, "/f",
                                      OC_IF_LI | OC_IF_D,
-                                     APPLICATION_LINK_FORMAT, 0,
+                                     APPLICATION_LINK_FORMAT, OC_UNDISCOVERABLE,
                                      oc_core_fb_get_handler, 0, 0, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.0");
 
@@ -583,8 +583,9 @@ oc_create_knx_fb_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_fb_resources");
 
-  if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+  if (device_index == 0) 
+  {
+    OC_DBG("device 0: KNX functional block resources created statically");
     return;
   }
   oc_create_fb_x_resource(OC_KNX_F_X, device_index);

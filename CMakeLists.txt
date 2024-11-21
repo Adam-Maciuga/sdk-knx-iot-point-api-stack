@@ -29,7 +29,7 @@ add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
 # Stack compilation variables, specific build configurations (debug,release,...) 
 # needs to set the values as part of 'CmakePresets.json'
-## Common release variables 
+## Common variables, used for a release 
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
@@ -40,7 +40,7 @@ set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
 set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC applications.")
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
-## Specific debug (print out) varibles 
+## Specific variables, used for debugging 
 set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages. Setting this to OFF will disable virtually all logging.")
 set(OC_PRINT_APP_ENABLED OFF CACHE BOOL "Enable application log messages. Independent from OC_PRINT_ENABLED")
 set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enable debug messages")

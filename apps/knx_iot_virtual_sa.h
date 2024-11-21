@@ -35,20 +35,22 @@
 extern "C" {
 #endif
 
+#define MY_NAME   "KNX virtual switch actuator"
+#define PASSWORD  "ABY8B77J50YXMUDW3DG4"       
+#define SN_LOWER   "00fa10020800"
+#define SN_UPPER   "00FA10020800"
+#define MID        0<<24 + 0<<16 + 15<<8 + 10<<0  // = first 4 digits of sn
+
 // URL defines
-#define URL_ONOFF_1 "/p/1" // define URL OnOff_1 for /p/o_1_1
-#define URL_INFOONOFF_1 "/p/2" // define URL InfoOnOff_1 for /p/o_2_2
-#define URL_ONOFF_2 "/p/3" // define URL OnOff_2 for /p/o_3_3
-#define URL_INFOONOFF_2 "/p/4" // define URL InfoOnOff_2 for /p/o_4_4
+#define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     for /p/o_1_1
+#define URL_INFOONOFF_1 "/p/2"  // define URL InfoOnOff_1 for /p/o_2_2
+#define URL_ONOFF_2     "/p/3"  // define URL OnOff_2     for /p/o_3_3
+#define URL_INFOONOFF_2 "/p/4"  // define URL InfoOnOff_2 for /p/o_4_4
+#define URL_ONOFF_3     "/p/p1" // define URL OnOff_3     for /p/o_5_5 
 
-#define URL_ONOFF_3 "/p/p1" // define URL OnOff_3 for /p/o_5_5 
-// was p/5
-
-#define URL_INFOONOFF_3 "/p/6" // define URL InfoOnOff_3 for /p/o_6_6
-#define URL_ONOFF_4 "/p/7" // define URL OnOff_4 for /p/o_7_7
-#define URL_INFOONOFF_4 "/p/8" // define URL InfoOnOff_4 for /p/o_8_8
-
-
+#define URL_INFOONOFF_3 "/p/6"  // define URL InfoOnOff_3 for /p/o_6_6
+#define URL_ONOFF_4     "/p/7"  // define URL OnOff_4     for /p/o_7_7
+#define URL_INFOONOFF_4 "/p/8"  // define URL InfoOnOff_4 for /p/o_8_8
 
 /**
  * Callback invoked by the stack when a successfull put is done
@@ -151,15 +153,6 @@ char* app_get_parameter_name(int index);
 void app_set_fault_variable(char* url, bool value);
 
 /**
- * @brief checks if the url is in use (e.g. used in the Group Object Table)
- * 
- * @param url the url of the resource/data point
- * @return true: entry in Group Object Table has the URL
- * @return false: No entry in Group Object Table has the URL
- */
-bool app_is_url_in_use(char* url);
-
-/**
  * @brief function to report if the (oscore) security is turn on for this instance
  * 
  * @return true is secure
@@ -181,14 +174,6 @@ char* app_get_password();
  *
  */
 void app_str_to_upper(char *str);
-
-/**
- * @brief Function to be used as a callback for when a button is pressed.
- *        This function will toggle the value of the url, and send a message.
- * 
- * @param url the url of the resource/data point
- */
-void dev_btn_toggle_cb(char *url);
 
 #ifdef __cplusplus
 }

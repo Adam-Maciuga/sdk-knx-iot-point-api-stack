@@ -2493,8 +2493,9 @@ oc_create_knx_fp_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_fp_resources");
 
-  if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+  if (device_index == 0) 
+  {
+    OC_DBG("device 0: KNX function point resources created statically");
   } else {
     oc_create_fp_g_resource(OC_KNX_FP_G, device_index);
     oc_create_fp_g_x_resource(OC_KNX_FP_G_X, device_index);

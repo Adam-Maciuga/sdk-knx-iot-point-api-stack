@@ -1719,8 +1719,9 @@ void
 oc_create_knx_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_resources");
-  if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+  if (device_index == 0) 
+  {
+    OC_DBG("device 0: KNX common resources created statically");
     return;
   }
 

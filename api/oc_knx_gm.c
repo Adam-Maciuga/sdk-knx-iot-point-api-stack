@@ -1536,7 +1536,7 @@ oc_create_knx_iot_router_resources(size_t device_index)
   OC_DBG("oc_create_knx_gm_resources");
 
   if (device_index == 0) {
-    OC_DBG("resources for dev 0 created statically");
+    OC_DBG("device 0: KNX router resources created statically");
   } else {
     // creating the resources
     oc_create_fp_gm_resource(OC_KNX_FP_GM, device_index);
