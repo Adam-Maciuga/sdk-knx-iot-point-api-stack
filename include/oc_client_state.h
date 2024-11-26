@@ -244,7 +244,7 @@ void oc_ri_free_client_cbs_by_mid(uint16_t mid);
  * @return oc_discovery_flags_t the discovery flags (e.g. more to come)
  */
 oc_discovery_flags_t oc_ri_process_discovery_payload(
-  uint8_t *payload, int len, oc_client_handler_t handler,
+  const uint8_t *payload, int len, oc_client_handler_t handler,
   oc_endpoint_t *endpoint, oc_content_format_t content, void *user_data);
 
 #ifdef __cplusplus

@@ -435,10 +435,10 @@ int oc_string_println_hex(oc_string_t hex_string);
 /**
  * @brief converts the input string to lower case
  *
- * @param[in] string the input string that gets converted
+ * @param[in] stream the input string that gets converted
  * @return int 0 success
  */
-int oc_char_convert_to_lower(char *string);
+int oc_charstream_convert_to_lower(char *stream);
 
 /**
  * @brief prints the string as hex

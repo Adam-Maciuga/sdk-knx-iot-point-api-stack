@@ -149,7 +149,7 @@ extern "C" {
    *
    * Note: can be translated to HTTP or CoAP.
    *
-   * @see oc_status_code for translation to to the CoAP status codes
+   * @see oc_status_code for translation to the CoAP status codes
    */
   typedef enum
   {
@@ -289,7 +289,7 @@ extern "C" {
    * @param mask the interface mask (access scope)
    * @return const char* the interface as string e.g. "if.i"
    */
-  const char* get_interface_string (oc_interface_mask_t mask);
+  const char* get_interface_string(oc_interface_mask_t mask);
 
   /**
    * @brief Get the method name object
@@ -297,7 +297,7 @@ extern "C" {
    * @param method the input method
    * @return const char* the method as string e.g. "GET"
    */
-  const char* get_method_name (oc_method_t method);
+  const char* get_method_name(oc_method_t method);
 
   /**
    * @brief total interfaces in the interface mask
@@ -305,7 +305,7 @@ extern "C" {
    * @param iface_mask the interface mask
    * @return int the amount of interfaces in the mask
    */
-  int oc_total_interface_in_mask (oc_interface_mask_t iface_mask);
+  int oc_total_interface_in_mask(oc_interface_mask_t iface_mask);
 
   /**
    * @brief sets all interfaces in the mask in the string array
@@ -316,9 +316,9 @@ extern "C" {
    * names in
    * @return int the amount of interfaces filled in the interface_arry
    */
-  int oc_get_interface_in_mask_in_string_array (oc_interface_mask_t iface_mask,
-                                                int nr_entries,
-                                                oc_string_array_t interface_array);
+  int oc_get_interface_in_mask_in_string_array(oc_interface_mask_t iface_mask,
+                                               int nr_entries,
+                                               oc_string_array_t interface_array);
 
   /**
    * @brief prints all interfaces in the mask to stdout
@@ -326,7 +326,7 @@ extern "C" {
    * @param iface_mask the interface mask
    * names in
    */
-  void oc_print_interface (oc_interface_mask_t iface_mask);
+  void oc_print_interface(oc_interface_mask_t iface_mask);
 
   /**
    * @brief core resource numbers
@@ -334,12 +334,11 @@ extern "C" {
    */
   typedef enum
   {
-    OC_DEV_SN = 0, /**< Device serial number */
-    OC_DEV_HWV,    /**< Hardware version */
-    OC_DEV_FWV,    /**< Firmware version */
-    OC_DEV_HWT,   /**< The hardware type is a manufacture specific id for a device
-                       type (MaC uses this id for compatibility checks) */
-    OC_DEV_MODEL, /**< Device model */
+    OC_DEV_SN = 0,      /**< Device serial number */
+    OC_DEV_HWV,         /**< Hardware version */
+    OC_DEV_FWV,         /**< Firmware version */
+    OC_DEV_HWT,         /**< The hardware type is a manufacture specific id for a device type (MaC uses this id for compatibility checks) */
+    OC_DEV_MODEL,       /**< Device model */
     OC_DEV_HOSTNAME,    /**< Device host name for DNS resolution. */
     OC_DEV_IID,         /**< KNX installation ID */
     OC_DEV_PM,          /**< Programming Mode */
@@ -365,8 +364,8 @@ extern "C" {
     OC_KNX_FP_G,        /**< FP/G */
     OC_KNX_FP_G_X,      /**< FP/G/X */
   #ifdef OC_PUBLISHER_TABLE
-    OC_KNX_FP_P,   /**< FP/P */
-    OC_KNX_FP_P_X, /**< FP/P/X */
+    OC_KNX_FP_P,        /**< FP/P */
+    OC_KNX_FP_P_X,      /**< FP/P/X */
   #endif
     OC_KNX_FP_R,         /**< FP/R */
     OC_KNX_FP_R_X,       /**< FP/R/X */
@@ -381,13 +380,10 @@ extern "C" {
     OC_KNX_SWU_STATE,    /**< sw state */
     OC_KNX_SWU_UPDATE,   /**< sw update */
     OC_KNX_SWU_PKGV,     /**< sw package version */
-    OC_KNX_SWU_PKGCMD,   /**< sw package command*/
+    OC_KNX_SWU_PKGCMD,   /**< sw package command , a/swu*/
     OC_KNX_SWU_PKGBYTES, /**< sw package bytes*/
     OC_KNX_SWU_PKGQURL,  /**< sw query url */
     OC_KNX_SWU_PKGNAMES, /**< sw package names*/
-  #if 0                  // THIS SHOULD BE IMPLEMENTED IF INCLUDED
-    OC_KNX_SWU_PKG,           /**< sw package */
-  #endif
     OC_KNX_SWU,             /**< swu top level */
     OC_KNX_SUB,             /**< delete all device subscriptions */
     OC_KNX_A_SEN,           /**< a/sen resource */
@@ -398,11 +394,11 @@ extern "C" {
     OC_KNX_AUTH_AT_X,       /**< auth/at/X resources */
     OC_KNX_AUTH,            /**< auth list all sub resources */
   #ifdef OC_IOT_ROUTER
-    OC_KNX_FP_GM,   /**< FP/GM */
-    OC_KNX_FP_GM_X, /**< FP/GM/X */
+    OC_KNX_FP_GM,           /**< FP/GM */
+    OC_KNX_FP_GM_X,         /**< FP/GM/X */
   #endif
     /* List of resources on a logical device: start */
-    WELLKNOWNCORE /**< well-known/core resource */
+    WELLKNOWNCORE           /**< well-known/core resource */
     /* List of resources on a logical device: end */
   } oc_core_resource_t;
 
@@ -417,7 +413,7 @@ extern "C" {
    */
   typedef struct oc_request_t
   {
-    oc_endpoint_t* origin;         /**< origin of the request */
+    oc_endpoint_t* origin;         /**< origin (endpoint) of the request */
     const oc_resource_t* resource; /**< resource structure */
     const char* query;             /**< query (as string) */
     size_t query_len;              /**< query length */
@@ -528,7 +524,7 @@ extern "C" {
     OC_EVENT_CONTINUE  /**< callbacks continue */
   } oc_event_callback_retval_t;
 
-  typedef oc_event_callback_retval_t (*oc_trigger_t)(void*);
+  typedef oc_event_callback_retval_t(*oc_trigger_t)(void*);
 
   /**
    * @brief event callback
@@ -546,13 +542,13 @@ extern "C" {
    * @brief initialize the resource implementation handler
    *
    */
-  void oc_ri_init (void);
+  void oc_ri_init(void);
 
   /**
    * @brief shut down the resource implementation handler
    *
    */
-  void oc_ri_shutdown (void);
+  void oc_ri_shutdown(void);
 
   /**
    * @brief add timed event callback
@@ -561,9 +557,9 @@ extern "C" {
    * @param event_callback the callback
    * @param ticks time in ticks
    */
-  void oc_ri_add_timed_event_callback_ticks (void* cb_data,
-                                             oc_trigger_t event_callback,
-                                             oc_clock_time_t ticks);
+  void oc_ri_add_timed_event_callback_ticks(void* cb_data,
+                                            oc_trigger_t event_callback,
+                                            oc_clock_time_t ticks);
 
   /**
    * @brief add timed event callback in seconds
@@ -586,8 +582,8 @@ extern "C" {
     * @param cb_data the timed event callback info
     * @param event_callback the callback
     */
-  void oc_ri_remove_timed_event_callback (void* cb_data,
-                                          oc_trigger_t event_callback);
+  void oc_ri_remove_timed_event_callback(void* cb_data,
+                                         oc_trigger_t event_callback);
 
   /**
    * @brief convert the (internal) status code to coap status as integer
@@ -595,7 +591,7 @@ extern "C" {
    * @param key the application level key of the code
    * @return int the CoAP status code
    */
-  int oc_status_code (oc_status_t key);
+  int oc_status_code(oc_status_t key);
 
   /**
    * @brief checks if the accept header is correct
@@ -605,7 +601,7 @@ extern "C" {
    * @return true content type is ok
    * @return false content type is not ok
    */
-  bool oc_check_accept_header (oc_request_t* request, oc_content_format_t accept);
+  bool oc_check_accept_header(oc_request_t* request, oc_content_format_t accept);
 
   /**
    * @brief retrieve the resource by uri and device index
@@ -615,16 +611,16 @@ extern "C" {
    * @param device the device index
    * @return oc_resource_t* the resource structure
    */
-  const oc_resource_t* oc_ri_get_app_resource_by_uri (const char* uri,
-                                                      size_t uri_len,
-                                                      size_t device);
+  const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri,
+                                                     size_t uri_len,
+                                                     size_t device);
 
   /**
    * @brief retrieve list of resources
    *
    * @return oc_resource_t* the resource list
    */
-  const oc_resource_t* oc_ri_get_app_resources (void);
+  const oc_resource_t* oc_ri_get_app_resources(void);
 
 #ifdef OC_SERVER
   /**
@@ -632,13 +628,13 @@ extern "C" {
    *
    * @return oc_resource_t*
    */
-  oc_resource_t* oc_ri_alloc_resource (void);
+  oc_resource_t* oc_ri_alloc_resource(void);
   /**
    * @brief allocate a resource structure
    *
    * @return oc_resource_t*
    */
-  oc_resource_data_t* oc_ri_alloc_resource_data (void);
+  oc_resource_data_t* oc_ri_alloc_resource_data(void);
   /**
    * @brief add resource to the system
    *
@@ -646,7 +642,7 @@ extern "C" {
    * @return true success
    * @return false failure
    */
-  bool oc_ri_add_resource (oc_resource_t* resource);
+  bool oc_ri_add_resource(oc_resource_t* resource);
   /**
    * @brief add resource block to the system
    *
@@ -655,7 +651,7 @@ extern "C" {
    * @return true success
    * @return false failure
    */
-  bool oc_ri_add_resource_block (const oc_resource_t* resource);
+  bool oc_ri_add_resource_block(const oc_resource_t* resource);
 
   /**
    * @brief remove the resource from the list of application resources
@@ -665,7 +661,7 @@ extern "C" {
    * @return true success
    * @return false failure
    */
-  bool oc_ri_delete_resource (const oc_resource_t* resource);
+  bool oc_ri_delete_resource(const oc_resource_t* resource);
   /**
    * @brief remove the resource block from the list of application resources
    *
@@ -674,7 +670,7 @@ extern "C" {
    * @return true success
    * @return false failure
    */
-  bool oc_ri_delete_resource_block (const oc_resource_t* resource);
+  bool oc_ri_delete_resource_block(const oc_resource_t* resource);
 #endif /* OC_SERVER */
 
   /**
@@ -682,7 +678,7 @@ extern "C" {
    *
    * @param resource the resource
    */
-  void oc_ri_free_resource_properties (oc_resource_t* resource);
+  void oc_ri_free_resource_properties(oc_resource_t* resource);
 
   /**
    * @brief get the next resource
@@ -691,7 +687,7 @@ extern "C" {
    * @return next resource or NULL if at end
    * skips over dummy resources
    */
-  const oc_resource_t* oc_ri_resource_next (const oc_resource_t* resource);
+  const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource);
 
   /**
    * @brief retrieve the query value at the nth position
@@ -705,9 +701,9 @@ extern "C" {
    * @param n the position to query
    * @return int the position of the next key value pair in the query or NULL
    */
-  int oc_ri_get_query_nth_key_value (const char* query, size_t query_len,
-                                     char** key, size_t* key_len, char** value,
-                                     size_t* value_len, size_t n);
+  int oc_ri_get_query_nth_key_value(const char* query, size_t query_len,
+                                    char** key, size_t* key_len, char** value,
+                                    size_t* value_len, size_t n);
 
   /**
    * @brief retrieve the value of the query parameter "key"
@@ -718,8 +714,8 @@ extern "C" {
    * @param value the returned value
    * @return int the length of the value
    */
-  int oc_ri_get_query_value (const char* query, size_t query_len, const char* key,
-                             char** value);
+  int oc_ri_get_query_value(const char* query, size_t query_len, const char* key,
+                            char** value);
 
   /**
    * @brief checks if key exist in query
@@ -729,7 +725,7 @@ extern "C" {
    * @param[in] key the key to be checked if exist, key is null terminated
    * @return int -1 = not exist
    */
-  int oc_ri_query_exists (const char* query, size_t query_len, const char* key);
+  int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
 
   /**
    * @brief check if the nth key exists
@@ -741,8 +737,8 @@ extern "C" {
    * @param n
    * @return int
    */
-  int oc_ri_query_nth_key_exists (const char* query, size_t query_len, char** key,
-                                  size_t* key_len, size_t n);
+  int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key,
+                                 size_t* key_len, size_t n);
 
   /**
    * @brief retrieve the interface mask from the interface name
@@ -751,7 +747,7 @@ extern "C" {
    * @param if_len the interface length
    * @return oc_interface_mask_t the mask value of the interface
    */
-  oc_interface_mask_t oc_ri_get_interface_mask (char* iface, size_t if_len);
+  oc_interface_mask_t oc_ri_get_interface_mask(char* iface, size_t if_len);
 
   /**
    * @brief checks if the resource is valid
@@ -760,7 +756,7 @@ extern "C" {
    * @return true valid
    * @return false not valid
    */
-  bool oc_ri_is_app_resource_valid (const oc_resource_t* resource);
+  bool oc_ri_is_app_resource_valid(const oc_resource_t* resource);
 
   /**
    * @brief create a new request from the old request
@@ -775,10 +771,10 @@ extern "C" {
    * @return true new request valid
    * @return false new request invalid
    */
-  bool oc_ri_new_request_from_request (oc_request_t* new_request,
-                                       oc_request_t* request,
-                                       oc_response_buffer_t* response_buffer,
-                                       oc_response_t* response_obj);
+  bool oc_ri_new_request_from_request(oc_request_t* new_request,
+                                      oc_request_t* request,
+                                      oc_response_buffer_t* response_buffer,
+                                      oc_response_t* response_obj);
 
 #ifdef __cplusplus
 }

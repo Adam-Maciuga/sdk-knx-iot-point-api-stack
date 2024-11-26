@@ -90,8 +90,7 @@ int oc_initiate_spake_parameter_request(oc_endpoint_t *endpoint,
                                         char *recipient_id,
                                         size_t recipient_id_len);
 
-typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep,
-                                        oc_rep_t *rep_value);
+typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep, oc_rep_t *rep_value);
 
 /**
   @defgroup doc_module_tag_s_mode_server s-mode server
@@ -212,8 +211,7 @@ void oc_do_s_mode_with_scope(int scope, const char *resource_url, char *rp);
  * is calling this function)
  * @param rp the "st" value to send e.g. "w" | "rp" | "r"
  */
-void oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url,
-                                      char *rp);
+void oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url, char *rp);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

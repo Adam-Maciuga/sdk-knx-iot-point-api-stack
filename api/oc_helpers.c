@@ -36,18 +36,19 @@ static bool mmem_initialized = false;
 static void
 oc_malloc(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_handle_t *block, size_t num_items, pool pool_type)
+  oc_handle_t* block, size_t num_items, pool pool_type)
 {
-  if (!mmem_initialized) {
+  if (!mmem_initialized)
+  {
     oc_mmem_init();
     mmem_initialized = true;
   }
   size_t alloc_ret = _oc_mmem_alloc(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     block, num_items, pool_type);
   // oc_assert(alloc_ret > 0);
 }
@@ -55,14 +56,14 @@ oc_malloc(
 static void
 oc_free(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_handle_t *block, pool pool_type)
+  oc_handle_t* block, pool pool_type)
 {
   _oc_mmem_free(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     block, pool_type);
 
   block->next = 0;
@@ -73,156 +74,162 @@ oc_free(
 void
 _oc_new_string(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_string_t *ocstring, const char *str, size_t str_len)
+  oc_string_t* ocstring, const char* str, size_t str_len)
 {
   oc_malloc(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     ocstring, str_len + 1, BYTE_POOL);
-  memcpy(oc_string(*ocstring), (const uint8_t *)str, str_len);
-  memcpy(oc_string(*ocstring) + str_len, (const uint8_t *)"", 1);
+  memcpy(oc_string(*ocstring), (const uint8_t*) str, str_len);
+  memcpy(oc_string(*ocstring) + str_len, (const uint8_t*) "", 1);
 }
 
 void
 _oc_new_byte_string(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_string_t *ocstring, const char *str, size_t str_len)
+  oc_string_t* ocstring, const char* str, size_t str_len)
 {
   oc_malloc(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     ocstring, str_len, BYTE_POOL);
-  memcpy(oc_string(*ocstring), (const uint8_t *)str, str_len);
+  memcpy(oc_string(*ocstring), (const uint8_t*) str, str_len);
 }
 
 void
 _oc_alloc_string(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_string_t *ocstring, size_t size)
+  oc_string_t* ocstring, size_t size)
 {
   oc_malloc(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     ocstring, size, BYTE_POOL);
 }
 
 void
 _oc_free_string(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_string_t *ocstring)
+  oc_string_t* ocstring)
 {
-  if (ocstring && ocstring->size > 0) {
+  if (ocstring && ocstring->size > 0)
+  {
     oc_free(
-#ifdef OC_MEMORY_TRACE
+    #ifdef OC_MEMORY_TRACE
       func,
-#endif
+    #endif
       ocstring, BYTE_POOL);
   }
 }
 
 void
-oc_concat_strings(oc_string_t *concat, const char *str1, const char *str2)
+oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2)
 {
   size_t len1 = strlen(str1), len2 = strlen(str2);
   oc_alloc_string(concat, len1 + len2 + 1);
   memcpy(oc_string(*concat), str1, len1);
   memcpy(oc_string(*concat) + len1, str2, len2);
-  memcpy(oc_string(*concat) + len1 + len2, (const char *)"", 1);
+  memcpy(oc_string(*concat) + len1 + len2, (const char*) "", 1);
 }
 
 void
 _oc_new_array(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_array_t *ocarray, size_t size, pool type)
+  oc_array_t* ocarray, size_t size, pool type)
 {
-  switch (type) {
-  case INT_POOL:
-  case BYTE_POOL:
-  case FLOAT_POOL:
-  case DOUBLE_POOL:
-    oc_malloc(
-#ifdef OC_MEMORY_TRACE
-      func,
-#endif
-      ocarray, size, type);
-    break;
-  default:
-    break;
+  switch (type)
+  {
+    case INT_POOL:
+    case BYTE_POOL:
+    case FLOAT_POOL:
+    case DOUBLE_POOL:
+      oc_malloc(
+      #ifdef OC_MEMORY_TRACE
+        func,
+      #endif
+        ocarray, size, type);
+      break;
+    default:
+      break;
   }
 }
 
 void
 _oc_free_array(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_array_t *ocarray, pool type)
+  oc_array_t* ocarray, pool type)
 {
   oc_free(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     ocarray, type);
 }
 
 void
 _oc_alloc_string_array(
 #ifdef OC_MEMORY_TRACE
-  const char *func,
+  const char* func,
 #endif
-  oc_string_array_t *ocstringarray, size_t size)
+  oc_string_array_t* ocstringarray, size_t size)
 {
   _oc_alloc_string(
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
     func,
-#endif
+  #endif
     ocstringarray, size * STRING_ARRAY_ITEM_MAX_LEN);
 
   size_t i, pos;
-  for (i = 0; i < size; i++) {
+  for (i = 0; i < size; i++)
+  {
     pos = i * STRING_ARRAY_ITEM_MAX_LEN;
-    memcpy((char *)oc_string(*ocstringarray) + pos, (const char *)"", 1);
+    memcpy((char*) oc_string(*ocstringarray) + pos, (const char*) "", 1);
   }
   ocstringarray->size = size * STRING_ARRAY_ITEM_MAX_LEN;
 }
 
 bool
-_oc_copy_byte_string_to_array(oc_string_array_t *ocstringarray,
+_oc_copy_byte_string_to_array(oc_string_array_t* ocstringarray,
                               const char str[], size_t str_len, size_t index)
 {
-  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN) {
+  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN)
+  {
     oc_assert(false);
     return false;
   }
   size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
-  oc_string(*ocstringarray)[pos] = (uint8_t)str_len;
+  oc_string(*ocstringarray)[pos] = (uint8_t) str_len;
   pos++;
-  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t *)str, str_len);
+  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*) str, str_len);
   return true;
 }
 
 bool
-_oc_byte_string_array_add_item(oc_string_array_t *ocstringarray,
+_oc_byte_string_array_add_item(oc_string_array_t* ocstringarray,
                                const char str[], size_t str_len)
 {
   bool success = false;
   size_t i;
   for (i = 0; i < oc_byte_string_array_get_allocated_size(*ocstringarray);
-       i++) {
-    if (oc_byte_string_array_get_item_size(*ocstringarray, i) == 0) {
+       i++)
+  {
+    if (oc_byte_string_array_get_item_size(*ocstringarray, i) == 0)
+    {
       success = oc_byte_string_array_set_item(*ocstringarray, str, str_len, i);
       break;
     }
@@ -231,29 +238,33 @@ _oc_byte_string_array_add_item(oc_string_array_t *ocstringarray,
 }
 
 bool
-_oc_copy_string_to_array(oc_string_array_t *ocstringarray, const char str[],
+_oc_copy_string_to_array(oc_string_array_t* ocstringarray, const char str[],
                          size_t index)
 {
-  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN) {
+  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN)
+  {
     return false;
   }
   size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
   size_t len = strlen(str);
-  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t *)str, len);
-  memcpy(oc_string(*ocstringarray) + pos + len, (const uint8_t *)"", 1);
+  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*) str, len);
+  memcpy(oc_string(*ocstringarray) + pos + len, (const uint8_t*) "", 1);
   return true;
 }
 
 bool
-_oc_string_array_add_item(oc_string_array_t *ocstringarray, const char str[])
+_oc_string_array_add_item(oc_string_array_t* ocstringarray, const char str[])
 {
   bool success = false;
   size_t i;
-  if (ocstringarray == NULL) {
+  if (ocstringarray == NULL)
+  {
     return false;
   }
-  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++) {
-    if (oc_string_array_get_item_size(*ocstringarray, i) == 0) {
+  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  {
+    if (oc_string_array_get_item_size(*ocstringarray, i) == 0)
+    {
       success = oc_string_array_set_item(*ocstringarray, str, i);
       break;
     }
@@ -262,39 +273,45 @@ _oc_string_array_add_item(oc_string_array_t *ocstringarray, const char str[])
 }
 
 void
-oc_join_string_array(oc_string_array_t *ocstringarray, oc_string_t *ocstring)
+oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstring)
 {
   size_t len = 0;
   size_t i;
-  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++) {
-    const char *item =
-      (const char *)oc_string_array_get_item(*ocstringarray, i);
-    if (strlen(item)) {
+  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  {
+    const char* item =
+      (const char*) oc_string_array_get_item(*ocstringarray, i);
+    if (strlen(item))
+    {
       len += strlen(item);
       len++;
     }
   }
   oc_alloc_string(ocstring, len);
   len = 0;
-  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++) {
-    const char *item =
-      (const char *)oc_string_array_get_item(*ocstringarray, i);
-    if (strlen(item)) {
-      if (len > 0) {
+  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  {
+    const char* item =
+      (const char*) oc_string_array_get_item(*ocstringarray, i);
+    if (strlen(item))
+    {
+      if (len > 0)
+      {
         oc_string(*ocstring)[len] = ' ';
         len++;
       }
-      memcpy((char *)oc_string(*ocstring) + len, item, strlen(item));
+      memcpy((char*) oc_string(*ocstring) + len, item, strlen(item));
       len += strlen(item);
     }
   }
-  strcpy((char *)oc_string(*ocstring) + len, "");
+  strcpy((char*) oc_string(*ocstring) + len, "");
 }
 
 int
-oc_conv_uint64_to_dec_string(char *str, uint64_t number)
+oc_conv_uint64_to_dec_string(char* str, uint64_t number)
 {
-  if (number == 0) {
+  if (number == 0)
+  {
     snprintf(str, 2, "0");
     return 0;
   }
@@ -303,14 +320,16 @@ oc_conv_uint64_to_dec_string(char *str, uint64_t number)
   uint64_t temp = number;
   int numDigits = 0; // Note: This needs to be an int to prevent underflow
 
-  while (temp != 0) {
+  while (temp != 0)
+  {
     temp /= 10;
     numDigits++;
   }
 
   // Convert the number to a string
   int i; // int to prevent underflow!!
-  for (i = numDigits - 1; i >= 0; i--) {
+  for (i = numDigits - 1; i >= 0; i--)
+  {
     str[i] = '0' + (number % 10);
     number /= 10;
   }
@@ -323,7 +342,7 @@ int
 oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 {
   char str[21]; // uint64_t decimal number has max 20 numbers + 1 for null
-                // terminator
+  // terminator
 
   if (rep == DEC_REPRESENTATION)
     oc_conv_uint64_to_dec_string(str, number);
@@ -336,17 +355,20 @@ oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 }
 
 int
-oc_conv_uint64_to_hex_string(char *str, uint64_t number)
+oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
 {
   char temp_str[17];
 
-  if (number == 0) {
+  if (number == 0)
+  {
+    // an all zero value MUST is defined as a leading zero (incl. \0)
     snprintf(str, 2, "0");
     return 0;
   }
 
   // Convert to hex string, but will include leading zeros
-  for (uint8_t i = 0; i < 16; ++i) {
+  for (uint8_t i = 0; i < 16; ++i)
+  {
     uint8_t nibble = (number >> ((16 - (i + 1)) * 4));
     sprintf(temp_str + i, "%x", nibble & 0xF);
   }
@@ -354,7 +376,8 @@ oc_conv_uint64_to_hex_string(char *str, uint64_t number)
 
   // Remove leading zeros
   uint8_t leading_zeros;
-  for (leading_zeros = 0; leading_zeros < 16; ++leading_zeros) {
+  for (leading_zeros = 0; leading_zeros < 16; ++leading_zeros)
+  {
     if (temp_str[leading_zeros] != '0')
       break;
   }
@@ -364,10 +387,11 @@ oc_conv_uint64_to_hex_string(char *str, uint64_t number)
 }
 
 int
-oc_conv_byte_array_to_hex_string(const uint8_t *array, size_t array_len,
-                                 char *hex_str, size_t *hex_str_len)
+oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
+                                 char* hex_str, size_t* hex_str_len)
 {
-  if (*hex_str_len < array_len * 2 + 1) {
+  if (*hex_str_len < array_len * 2 + 1)
+  {
     return -1;
   }
 
@@ -375,7 +399,8 @@ oc_conv_byte_array_to_hex_string(const uint8_t *array, size_t array_len,
 
   size_t i;
 
-  for (i = 0; i < array_len; i++) {
+  for (i = 0; i < array_len; i++)
+  {
     snprintf(hex_str + *hex_str_len, 3, "%02x", array[i]);
     *hex_str_len += 2;
   }
@@ -386,16 +411,18 @@ oc_conv_byte_array_to_hex_string(const uint8_t *array, size_t array_len,
 }
 
 int
-oc_conv_hex_string_to_byte_array(const char *hex_str, size_t hex_str_len,
-                                 uint8_t *array, size_t *array_len)
+oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
+                                 uint8_t* array, size_t* array_len)
 {
-  if (hex_str_len < 1) {
+  if (hex_str_len < 1)
+  {
     return -1;
   }
 
-  size_t a = (size_t)((double)hex_str_len / 2.0 + 0.5);
+  size_t a = (size_t) ((double) hex_str_len / 2.0 + 0.5);
 
-  if (*array_len < a) {
+  if (*array_len < a)
+  {
     return -1;
   }
 
@@ -405,25 +432,32 @@ oc_conv_hex_string_to_byte_array(const char *hex_str, size_t hex_str_len,
   uint32_t tmp;
   size_t i, start;
 
-  if (hex_str_len % 2 == 0) {
+  if (hex_str_len % 2 == 0)
+  {
     start = 0;
-  } else {
+  }
+  else
+  {
     start = 1;
     int processed_fields = sscanf(&hex_str[0], "%1x", &tmp);
-    if (processed_fields != 1) {
+    if (processed_fields != 1)
+    {
       return -1;
     }
-    array[a++] = (uint8_t)tmp;
+    array[a++] = (uint8_t) tmp;
   }
 
-  if (hex_str_len >= 2) {
+  if (hex_str_len >= 2)
+  {
     // save guard against string lengths of 1
-    for (i = start; i <= hex_str_len - 2; i += 2) {
+    for (i = start; i <= hex_str_len - 2; i += 2)
+    {
       int processed_fields = sscanf(&hex_str[i], "%2x", &tmp);
-      if (processed_fields != 1) {
+      if (processed_fields != 1)
+      {
         return -1;
       }
-      array[a++] = (uint8_t)tmp;
+      array[a++] = (uint8_t) tmp;
     }
   }
 
@@ -431,37 +465,40 @@ oc_conv_hex_string_to_byte_array(const char *hex_str, size_t hex_str_len,
 }
 
 int
-oc_conv_hex_string_to_oc_string(const char *hex_str, size_t hex_str_len,
-                                oc_string_t *out)
+oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
+                                oc_string_t* out)
 {
   int return_value = -1;
   size_t size_bytes = (hex_str_len / 2);
 
   PRINT("oc_conv_hex_string_to_oc_string len:%d -> bytes:%d",
-        (int)hex_str_len, (int)size_bytes);
+        (int) hex_str_len, (int) size_bytes);
 
   oc_free_string(out);
 
   PRINT("oc_conv_hex_string_to_oc_string free string");
   oc_alloc_string(out, size_bytes);
   PRINT("oc_conv_hex_string_to_oc_string alloc string");
-  char *ptr = oc_string(*out);
+  char* ptr = oc_string(*out);
   PRINT("oc_conv_hex_string_to_oc_string ptr");
-  if (ptr != NULL) {
+  if (ptr != NULL)
+  {
     return_value =
       oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr, &size_bytes);
   }
-  PRINT("oc_conv_hex_string_to_oc_string result=%d", (int)return_value);
+  PRINT("oc_conv_hex_string_to_oc_string result=%d", (int) return_value);
   return return_value;
 }
 
 int
 oc_string_is_hex_array(oc_string_t hex_string)
 {
-  char *array = oc_string(hex_string);
+  char* array = oc_string(hex_string);
   int array_len = strlen(array);
-  for (int i = 0; i < array_len; i++) {
-    if (isxdigit(array[i]) == false) {
+  for (int i = 0; i < array_len; i++)
+  {
+    if (isxdigit(array[i]) == false)
+    {
       return -1;
     }
   }
@@ -469,10 +506,11 @@ oc_string_is_hex_array(oc_string_t hex_string)
 }
 
 int
-oc_char_print_hex(const char *str, int str_len)
+oc_char_print_hex(const char* str, int str_len)
 {
-  for (int i = 0; i < str_len; i++) {
-    PRINTF("%02x", (unsigned char)str[i]);
+  for (int i = 0; i < str_len; i++)
+  {
+    PRINTF("%02x", (unsigned char) str[i]);
   }
   return str_len;
 }
@@ -480,7 +518,7 @@ oc_char_print_hex(const char *str, int str_len)
 int
 oc_string_print_hex(oc_string_t hex_string)
 {
-  char *str = oc_string(hex_string);
+  char* str = oc_string(hex_string);
   int length = oc_byte_string_len(hex_string);
   return oc_char_print_hex(str, length);
 }
@@ -489,12 +527,12 @@ int
 oc_string_println_hex(oc_string_t hex_string)
 {
   int retval = oc_string_print_hex(hex_string);
-  
+
   return retval;
 }
 
 int
-oc_char_println_hex(const char *str, int str_len)
+oc_char_println_hex(const char* str, int str_len)
 {
   int retval;
   retval = oc_char_print_hex(str, str_len);
@@ -502,7 +540,7 @@ oc_char_println_hex(const char *str, int str_len)
 }
 
 int
-oc_string_copy(oc_string_t *string1, oc_string_t string2)
+oc_string_copy(oc_string_t* string1, oc_string_t string2)
 {
   oc_free_string(string1);
   oc_new_string(string1, oc_string(string2), oc_string_len(string2));
@@ -510,7 +548,7 @@ oc_string_copy(oc_string_t *string1, oc_string_t string2)
 }
 
 int
-oc_byte_string_copy(oc_string_t *string1, oc_string_t string2)
+oc_byte_string_copy(oc_string_t* string1, oc_string_t string2)
 {
   oc_free_string(string1);
   oc_new_byte_string(string1, oc_string(string2), oc_byte_string_len(string2));
@@ -518,7 +556,7 @@ oc_byte_string_copy(oc_string_t *string1, oc_string_t string2)
 }
 
 int
-oc_string_copy_from_char(oc_string_t *string1, const char *string2)
+oc_string_copy_from_char(oc_string_t* string1, const char* string2)
 {
   oc_free_string(string1);
   oc_new_string(string1, string2, strlen(string2));
@@ -526,7 +564,7 @@ oc_string_copy_from_char(oc_string_t *string1, const char *string2)
 }
 
 int
-oc_string_copy_from_char_with_size(oc_string_t *string1, const char *string2,
+oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2,
                                    size_t string2_len)
 {
   oc_free_string(string1);
@@ -535,8 +573,8 @@ oc_string_copy_from_char_with_size(oc_string_t *string1, const char *string2,
 }
 
 int
-oc_byte_string_copy_from_char_with_size(oc_string_t *string1,
-                                        const char *string2, size_t string2_len)
+oc_byte_string_copy_from_char_with_size(oc_string_t* string1,
+                                        const char* string2, size_t string2_len)
 {
   oc_free_string(string1);
   oc_new_byte_string(string1, string2, string2_len);
@@ -546,7 +584,8 @@ oc_byte_string_copy_from_char_with_size(oc_string_t *string1,
 int
 oc_string_cmp(oc_string_t string1, oc_string_t string2)
 {
-  if (oc_string_len(string1) != oc_string_len(string2)) {
+  if (oc_string_len(string1) != oc_string_len(string2))
+  {
     return -1;
   }
   return strncmp(oc_string(string1), oc_string(string2),
@@ -556,7 +595,8 @@ oc_string_cmp(oc_string_t string1, oc_string_t string2)
 int
 oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
 {
-  if (oc_byte_string_len(string1) != oc_byte_string_len(string2)) {
+  if (oc_byte_string_len(string1) != oc_byte_string_len(string2))
+  {
     return -1;
   }
   return memcmp(oc_string(string1), oc_string(string2),
@@ -566,17 +606,19 @@ oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
 int
 oc_url_cmp(oc_string_t string1, oc_string_t string2)
 {
-  char *str1 = oc_string(string1);
-  char *str2 = oc_string(string2);
-  char *cmp1 = str1;
-  char *cmp2 = str2;
+  char* str1 = oc_string(string1);
+  char* str2 = oc_string(string2);
+  char* cmp1 = str1;
+  char* cmp2 = str2;
 
-  if ((strlen(str1) > 1) && (str1[0] == '/')) {
+  if ((strlen(str1) > 1) && (str1[0] == '/'))
+  {
     /* skip the leading / */
     cmp1 = &str1[1];
   }
 
-  if ((strlen(str2) > 1) && (str2[0] == '/')) {
+  if ((strlen(str2) > 1) && (str2[0] == '/'))
+  {
     /* skip the leading / */
     cmp2 = &str2[1];
   }
@@ -585,24 +627,27 @@ oc_url_cmp(oc_string_t string1, oc_string_t string2)
 }
 
 bool
-oc_uri_contains_wildcard(const char *uri)
+oc_uri_contains_wildcard(const char* uri)
 {
   if (uri == NULL)
     return false;
 
   size_t len = strlen(uri);
-  if (uri[len - 1] == '*') {
+  if (uri[len - 1] == '*')
+  {
     return true;
   }
   return false;
 }
 
 int
-oc_uri_get_wildcard_value_as_int(const char *uri_resource, size_t uri_len,
-                                 const char *uri_invoked, size_t invoked_len)
+oc_uri_get_wildcard_value_as_int(const char* uri_resource, size_t uri_len,
+                                 const char* uri_invoked, size_t invoked_len)
 {
-  if (uri_resource[uri_len - 1] == '*') {
-    if ((invoked_len + 1) >= uri_len) {
+  if (uri_resource[uri_len - 1] == '*')
+  {
+    if ((invoked_len + 1) >= uri_len)
+    {
       int value = atoi(&uri_invoked[uri_len - 2]);
       return value;
     }
@@ -612,15 +657,18 @@ oc_uri_get_wildcard_value_as_int(const char *uri_resource, size_t uri_len,
 }
 
 int
-oc_uri_get_wildcard_value_as_int_after_underscore(const char *uri_resource,
+oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
                                                   size_t uri_len,
-                                                  const char *uri_invoked,
+                                                  const char* uri_invoked,
                                                   size_t invoked_len)
 {
-  if (uri_resource[uri_len - 1] == '*') {
-    if ((invoked_len + 1) >= uri_len) {
-      char *underscore = strchr(&uri_invoked[uri_len - 2], '_');
-      if (underscore) {
+  if (uri_resource[uri_len - 1] == '*')
+  {
+    if ((invoked_len + 1) >= uri_len)
+    {
+      char* underscore = strchr(&uri_invoked[uri_len - 2], '_');
+      if (underscore)
+      {
         int value = atoi(underscore + 1);
         return value;
       }
@@ -631,14 +679,17 @@ oc_uri_get_wildcard_value_as_int_after_underscore(const char *uri_resource,
 }
 
 bool
-oc_uri_contains_wildcard_value_underscore(const char *uri_resource,
+oc_uri_contains_wildcard_value_underscore(const char* uri_resource,
                                           size_t uri_len,
-                                          const char *uri_invoked,
+                                          const char* uri_invoked,
                                           size_t invoked_len)
 {
-  if (uri_resource[uri_len - 1] == '*') {
-    if ((invoked_len + 1) >= uri_len) {
-      if (strchr(&uri_invoked[uri_len - 2], '_')) {
+  if (uri_resource[uri_len - 1] == '*')
+  {
+    if ((invoked_len + 1) >= uri_len)
+    {
+      if (strchr(&uri_invoked[uri_len - 2], '_'))
+      {
         return true;
       }
     }
@@ -647,130 +698,160 @@ oc_uri_contains_wildcard_value_underscore(const char *uri_resource,
 }
 
 int
-oc_uri_get_wildcard_value_as_string(const char *uri_resource, size_t uri_len,
-                                    const char *uri_invoked, size_t invoked_len,
-                                    const char **value)
+oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t uri_len,
+                                    const char* uri_invoked, size_t invoked_len,
+                                    const char** value)
 {
-  if (uri_resource[uri_len - 1] == '*') {
-    if ((invoked_len + 1) >= uri_len) {
+  if (uri_resource[uri_len - 1] == '*')
+  {
+    if ((invoked_len + 1) >= uri_len)
+    {
       *value = &uri_invoked[uri_len - 2];
       size_t len = invoked_len - uri_len + 2;
-      return (int)len;
+      return (int) len;
     }
   }
 
   return -1;
 }
 
-char *
-oc_strnchr(const char *string, char p, int size)
+char*
+oc_strnchr(const char* string, char p, int size)
 {
   int i;
-  for (i = 0; i < size; i++) {
-    if (string[i] == p) {
-      return (char *)&string[i];
+  for (i = 0; i < size; i++)
+  {
+    if (string[i] == p)
+    {
+      return (char*) &string[i];
     }
   }
   return NULL;
 }
 
 int
-oc_char_convert_to_lower(char *str)
+oc_charstream_convert_to_lower(char* stream)
 {
-  for (; *str; ++str)  // loops until *str is 0, e.g.; string end as \0
-    *str = tolower(*str);
+  for (; *stream; stream++)       // loops until *str is 0, e.g.; stream ends with \0
+    *stream = tolower(*stream);      
   return 0;
 }
 
 int
-oc_get_sn_from_ep(const char *param, int param_len, char *sn, int sn_len,
-                  uint32_t *ia)
+oc_get_sn_from_ep(const char* param, int param_len, char* sn, int sn_len,
+                  uint32_t* ia)
 {
   int error = -1;
   memset(sn, 0, 30);
   *ia = 0;
-  if (param_len < 10) {
+  if (param_len < 10)
+  {
     return error;
   }
-  if (strncmp(param, "\"knx://sn.", 10) == 0) {
+  if (strncmp(param, "\"knx://sn.", 10) == 0)
+  {
     // spec 1.1 ep= contents: (with quote)
     // "knx://sn.<sn> knx://ia.<ia>"
-    char *blank = oc_strnchr(param, ' ', param_len);
-    if (blank == NULL) {
+    char* blank = oc_strnchr(param, ' ', param_len);
+    if (blank == NULL)
+    {
       // the ia part is missing, so length -10 and 1 less to adjust for quot
-      strncpy(sn, (char *)&param[10], param_len - 11);
-    } else {
+      strncpy(sn, (char*) &param[10], param_len - 11);
+    }
+    else
+    {
       int offset = blank - param;
       int len = offset - 10;
       strncpy(sn, &param[10], len);
-      if (strncmp(&param[offset + 1], "knx://ia.", 9) == 0) {
+      if (strncmp(&param[offset + 1], "knx://ia.", 9) == 0)
+      {
         // read from hex
-        *ia = (uint32_t)strtol(&param[offset + 1 + 9], NULL, 16);
+        *ia = (uint32_t) strtol(&param[offset + 1 + 9], NULL, 16);
         error = 0;
       }
     }
-  } else if (strncmp(param, "knx://sn.", 9) == 0) {
+  }
+  else if (strncmp(param, "knx://sn.", 9) == 0)
+  {
     // spec 1.1 ep= contents: (without quote)
     // knx://sn.<sn> knx://ia.<ia>"
-    char *blank = oc_strnchr(param, ' ', param_len);
-    if (blank == NULL) {
+    char* blank = oc_strnchr(param, ' ', param_len);
+    if (blank == NULL)
+    {
       // the ia part is missing, so length -10 and 1 less to adjust for quot
-      strncpy(sn, (char *)&param[9], param_len - 11);
-    } else {
+      strncpy(sn, (char*) &param[9], param_len - 11);
+    }
+    else
+    {
       int offset = blank - param;
       int len = offset - 9;
       strncpy(sn, &param[9], len);
-      if (strncmp(&param[offset + 1], "knx://ia.", 9) == 0) {
+      if (strncmp(&param[offset + 1], "knx://ia.", 9) == 0)
+      {
         // read from hex
-        *ia = (uint32_t)strtol(&param[offset + 1 + 9], NULL, 16);
+        *ia = (uint32_t) strtol(&param[offset + 1 + 9], NULL, 16);
         error = 0;
       }
     }
-  } else if (strncmp(param, "\"knx://ia.", 10) == 0) {
+  }
+  else if (strncmp(param, "\"knx://ia.", 10) == 0)
+  {
     // spec 1.1 ep= contents:
     // "knx://ia.<sn> knx://sn.<ia>"
-    char *blank = oc_strnchr(param, ' ', param_len);
-    if (blank == NULL) {
+    char* blank = oc_strnchr(param, ' ', param_len);
+    if (blank == NULL)
+    {
       // the sn part is missing
       PRINT("oc_get_sn_from_ep 222 string: string ia : '%s'", &param[10]);
       // read from hex
-      *ia = (uint32_t)strtol(&param[10], NULL, 16);
-    } else {
+      *ia = (uint32_t) strtol(&param[10], NULL, 16);
+    }
+    else
+    {
       int offset = blank - param;
-      char *quote = oc_strnchr(&param[offset], '\"', param_len);
+      char* quote = oc_strnchr(&param[offset], '\"', param_len);
       int quote_len = quote - (&param[offset]);
       int len_q = quote_len - 10;
       int len = param_len - offset - 9;
-      if (len > len_q) {
+      if (len > len_q)
+      {
         len = len_q;
       }
-      *ia = (uint32_t)strtol(&param[10], NULL, 16);
-      if (strncmp(&param[offset + 1], "knx://sn.", 9) == 0) {
-        strncpy(sn, (char *)&param[offset + 1 + 9], len);
+      *ia = (uint32_t) strtol(&param[10], NULL, 16);
+      if (strncmp(&param[offset + 1], "knx://sn.", 9) == 0)
+      {
+        strncpy(sn, (char*) &param[offset + 1 + 9], len);
         error = 0;
       }
     }
-  } else if (strncmp(param, "knx://ia.", 9) == 0) {
+  }
+  else if (strncmp(param, "knx://ia.", 9) == 0)
+  {
     // spec 1.1 ep= contents:
     // knx://ia.<sn> knx://sn.<ia>"
-    char *blank = oc_strnchr(param, ' ', param_len);
-    if (blank == NULL) {
+    char* blank = oc_strnchr(param, ' ', param_len);
+    if (blank == NULL)
+    {
       // the sn part is missing
       PRINT("oc_get_sn_from_ep 222 string: string ia : '%s'", &param[9]);
       // read from hex
-      *ia = (uint32_t)strtol(&param[9], NULL, 16);
-    } else {
+      *ia = (uint32_t) strtol(&param[9], NULL, 16);
+    }
+    else
+    {
       int offset = blank - param;
-      char *quote = oc_strnchr(&param[offset], '\"', param_len);
+      char* quote = oc_strnchr(&param[offset], '\"', param_len);
       int quote_len = quote - (&param[offset]);
       int len_q = quote_len - 10;
       int len = param_len - offset - 9;
-      if (len > len_q) {
+      if (len > len_q)
+      {
         len = len_q;
       }
-      *ia = (uint32_t)strtol(&param[9], NULL, 16);
-      if (strncmp(&param[offset + 1], "knx://sn.", 9) == 0) {
-        strncpy(sn, (char *)&param[offset + 1 + 9], len);
+      *ia = (uint32_t) strtol(&param[9], NULL, 16);
+      if (strncmp(&param[offset + 1], "knx://sn.", 9) == 0)
+      {
+        strncpy(sn, (char*) &param[offset + 1 + 9], len);
         error = 0;
       }
     }
@@ -779,11 +860,12 @@ oc_get_sn_from_ep(const char *param, int param_len, char *sn, int sn_len,
 }
 
 static int
-parse_uint64(const char *str, uint64_t *value)
+parse_uint64(const char* str, uint64_t* value)
 {
   int filled_var = sscanf(str, "%" SCNx64, value);
 
-  if (filled_var == 1) {
+  if (filled_var == 1)
+  {
     return 0;
   }
   return -1;
@@ -791,21 +873,23 @@ parse_uint64(const char *str, uint64_t *value)
 
 // parse ia from "knx://ia.<ia>.
 static int
-parse_ia(const char *str, uint32_t *value)
+parse_ia(const char* str, uint32_t* value)
 {
-  *value = (uint32_t)strtol(&str[9], NULL, 16);
+  *value = (uint32_t) strtol(&str[9], NULL, 16);
   return 0;
 }
 
 // parse iid from knx://ia.<ia>.<iid>
 static int
-parse_iid(const char *str, uint64_t *value)
+parse_iid(const char* str, uint64_t* value)
 {
-  char *point = oc_strnchr(&str[1 + 9], '.', 20);
-  if (point == NULL) {
+  char* point = oc_strnchr(&str[1 + 9], '.', 20);
+  if (point == NULL)
+  {
     return -1;
   }
-  if (isxdigit(*(point + 1)) == 0) {
+  if (isxdigit(*(point + 1)) == 0)
+  {
     // first expected digit is not hex
     return -1;
   }
@@ -814,31 +898,37 @@ parse_iid(const char *str, uint64_t *value)
 
 // parse iid from knx://sn.<sn>
 static int
-parse_sn(const char *str, char *sn, int len_input)
+parse_sn(const char* str, char* sn, int len_input)
 {
-  if (str) {
+  if (str)
+  {
     int len = strlen(str);
     int cp_len = len;
     int cp_len_quote = len;
     int cp_len_blank = len;
 
-    char *blank = oc_strnchr(str, ' ', len);
-    char *quote = oc_strnchr(str, '"', len);
-    if (blank) {
+    char* blank = oc_strnchr(str, ' ', len);
+    char* quote = oc_strnchr(str, '"', len);
+    if (blank)
+    {
       cp_len_blank = MAX((blank - str) - 9, 0);
     }
-    if (quote) {
+    if (quote)
+    {
       cp_len_quote = MAX((quote - str) - 9, 0);
     }
     cp_len = MIN(cp_len_quote, cp_len_blank);
-    if (cp_len > len_input) {
+    if (cp_len > len_input)
+    {
       return -1;
     }
-    if (cp_len == 0) {
+    if (cp_len == 0)
+    {
       return -1;
     }
-    if (str && strncmp(str, "knx://sn.", 9) == 0) {
-      strncpy(sn, (char *)&str[9], cp_len);
+    if (str && strncmp(str, "knx://sn.", 9) == 0)
+    {
+      strncpy(sn, (char*) &str[9], cp_len);
       return 0;
     }
   }
@@ -846,68 +936,84 @@ parse_sn(const char *str, char *sn, int len_input)
 }
 
 int
-oc_get_sn_ia_iid_from_ep(const char *param, int param_len, char *sn, int sn_len,
-                         uint32_t *ia, uint64_t *iid)
+oc_get_sn_ia_iid_from_ep(const char* param, int param_len, char* sn, int sn_len,
+                         uint32_t* ia, uint64_t* iid)
 {
   int error = -1;
   memset(sn, 0, sn_len);
   *ia = 0;
   *iid = 0;
-  if (param_len < 10) {
+  if (param_len < 10)
+  {
     return -1;
   }
-  if (param == NULL) {
+  if (param == NULL)
+  {
     return -1;
   }
-  char *k = oc_strnchr(param, 'k', param_len);
-  if (k == NULL) {
+  char* k = oc_strnchr(param, 'k', param_len);
+  if (k == NULL)
+  {
     return -1;
   }
   // starting with serial number
   // "knx://sn.<sn> knx://ia.<ia>.<iid>"
-  if (strncmp(k, "knx://sn.", 9) == 0) {
+  if (strncmp(k, "knx://sn.", 9) == 0)
+  {
     error = parse_sn(k, sn, sn_len);
-    if (error) {
+    if (error)
+    {
       return -1;
     }
     // find the next k, note that the sn can't contain a k
-    char *k2 = oc_strnchr(&param[9], 'k', param_len - 9);
-    if (k2 == NULL) {
+    char* k2 = oc_strnchr(&param[9], 'k', param_len - 9);
+    if (k2 == NULL)
+    {
       // the ia part is missing
       return -1;
     }
     // make sure it is the ia string
-    if (strncmp(k2, "knx://ia.", 9) == 0) {
+    if (strncmp(k2, "knx://ia.", 9) == 0)
+    {
       error = parse_ia(k2, ia);
-      if (error != 0) {
+      if (error != 0)
+      {
         return -1;
       }
       error = parse_iid(k2, iid);
-      if (error != 0) {
+      if (error != 0)
+      {
         return -1;
       }
       // all ok
       return 0;
     }
-  } else if (strncmp(k, "knx://ia.", 9) == 0) {
+  }
+  else if (strncmp(k, "knx://ia.", 9) == 0)
+  {
     // "knx://ia.<ia>.<iid> knx://sn.<sn>"
     error = parse_ia(k, ia);
-    if (error != 0) {
+    if (error != 0)
+    {
       return -1;
     }
     error = parse_iid(k, iid);
-    if (error != 0) {
+    if (error != 0)
+    {
       return -1;
     }
     // find the next k, note that the ia & iid can't contain a k
-    char *k2 = oc_strnchr(&param[9], 'k', param_len - 9);
-    if (k2 == NULL) {
+    char* k2 = oc_strnchr(&param[9], 'k', param_len - 9);
+    if (k2 == NULL)
+    {
       // the ia part is missing
       return -1;
     }
-    if (strncmp(k2, "knx://sn.", 9) == 0) {
+    if (strncmp(k2, "knx://sn.", 9) == 0)
+    {
       error = parse_sn(k2, sn, sn_len);
-      if (error != 0) {
+      if (error != 0)
+      {
         return -1;
       }
       return 0;

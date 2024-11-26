@@ -27,7 +27,7 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
-// ----------------------------------------------------------------------------
+ // ----------------------------------------------------------------------------
 
 #define COAP_PORT (5683)
 #define MAX_SECRET_LEN (32)
@@ -68,19 +68,19 @@ static oc_spake_context_t g_spake_ctx;
 
 // ----------------------------------------------------------------------------
 
-static void oc_send_s_mode(oc_endpoint_t *endpoint, char *path,
-                           uint32_t sia_value, uint32_t group_address, char *rp,
-                           uint8_t *value_data, int value_size);
+static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path,
+                           uint32_t sia_value, uint32_t group_address, char* rp,
+                           uint8_t* value_data, int value_size);
 
-static int oc_s_mode_get_resource_value(const char *resource_url, char *rp,
-                                        uint8_t *buf, int buf_size);
+static int oc_s_mode_get_resource_value(const char* resource_url, char* rp,
+                                        uint8_t* buf, int buf_size);
 
 // ----------------------------------------------------------------------------
 
 #ifdef OC_SPAKE
 
 static void
-update_tokens(uint8_t *secret, int secret_size)
+update_tokens(uint8_t* secret, const int secret_size)
 {
   PRINT("update_tokens: \n");
   oc_oscore_set_auth_mac(oc_string(g_spake_ctx.oscore_id),
@@ -89,9 +89,10 @@ update_tokens(uint8_t *secret, int secret_size)
 }
 
 static void
-finish_spake_handshake(oc_client_response_t *data)
+finish_spake_handshake(oc_client_response_t* data)
 {
-  if (data->code != OC_STATUS_CHANGED) {
+  if (data->code != OC_STATUS_CHANGED)
+  {
     OC_DBG_SPAKE("Error in Credential Verification!!!\n");
     mbedtls_mpi_free(&w0);
     mbedtls_mpi_free(&w1);
@@ -116,7 +117,8 @@ finish_spake_handshake(oc_client_response_t *data)
   mbedtls_ecp_point_free(&pubA);
   memset(K_main, 0, sizeof(K_main));
 
-  if (m_spake_cb) {
+  if (m_spake_cb)
+  {
     m_spake_cb(
       0, oc_string(g_spake_ctx.serial_number), oc_string(g_spake_ctx.oscore_id),
       oc_byte_string_len(g_spake_ctx.oscore_id), shared_key, shared_key_len);
@@ -124,12 +126,13 @@ finish_spake_handshake(oc_client_response_t *data)
 }
 
 static void
-do_credential_verification(oc_client_response_t *data)
+do_credential_verification(oc_client_response_t* data)
 {
   OC_DBG_SPAKE("\nReceived Credential Response!\n");
 
   OC_DBG_SPAKE("  code: %d\n", data->code);
-  if (data->code != OC_STATUS_CHANGED) {
+  if (data->code != OC_STATUS_CHANGED)
+  {
     OC_DBG_SPAKE("Error in Credential Response!!!\n");
     mbedtls_mpi_free(&w0);
     mbedtls_mpi_free(&w1);
@@ -141,18 +144,22 @@ do_credential_verification(oc_client_response_t *data)
 
   oc_print_rep_as_json(data->payload, true);
 
-  uint8_t *pB_bytes = NULL;
-  uint8_t **cB_bytes = NULL;
+  uint8_t* pB_bytes = NULL;
+  uint8_t** cB_bytes = NULL;
 
-  oc_rep_t *rep = data->payload;
-  while (rep != NULL) {
-    if (rep->type == OC_REP_BYTE_STRING) {
+  oc_rep_t* rep = data->payload;
+  while (rep != NULL)
+  {
+    if (rep->type == OC_REP_BYTE_STRING)
+    {
       // pb
-      if (rep->iname == 11) {
+      if (rep->iname == 11)
+      {
         pB_bytes = rep->value.string.ptr;
       }
       // cb
-      if (rep->iname == 13) {
+      if (rep->iname == 13)
+      {
         cB_bytes = rep->value.string.ptr;
       }
     }
@@ -187,12 +194,13 @@ do_credential_verification(oc_client_response_t *data)
 }
 
 static void
-do_credential_exchange(oc_client_response_t *data)
+do_credential_exchange(oc_client_response_t* data)
 {
   OC_DBG_SPAKE("\nReceived Parameter Response!\n");
 
   OC_DBG_SPAKE("  code: %d\n", data->code);
-  if (data->code != OC_STATUS_CHANGED) {
+  if (data->code != OC_STATUS_CHANGED)
+  {
     OC_DBG_SPAKE("Error in Parameter Response!!! %d\n", data->code);
     return;
   }
@@ -200,28 +208,33 @@ do_credential_exchange(oc_client_response_t *data)
 
   char buffer[300];
   memset(buffer, 300, 1);
-  oc_rep_to_json(data->payload, (char *)&buffer, 300, true);
+  oc_rep_to_json(data->payload, (char*) &buffer, 300, true);
   OC_DBG_SPAKE("%s", buffer);
 
   int it;
-  uint8_t *salt;
+  uint8_t* salt;
 
-  oc_rep_t *rep = data->payload;
-  while (rep != NULL) {
+  oc_rep_t* rep = data->payload;
+  while (rep != NULL)
+  {
     // rnd - we just skip
     if (rep->type == OC_REP_BYTE_STRING && rep->iname == 15)
       ;
 
     // pbkdf2 - interesting
-    if (rep->type == OC_REP_OBJECT && rep->iname == 12) {
-      oc_rep_t *inner_rep = rep->value.object;
-      while (inner_rep != NULL) {
+    if (rep->type == OC_REP_OBJECT && rep->iname == 12)
+    {
+      oc_rep_t* inner_rep = rep->value.object;
+      while (inner_rep != NULL)
+      {
         // it
-        if (inner_rep->type == OC_REP_INT && inner_rep->iname == 16) {
+        if (inner_rep->type == OC_REP_INT && inner_rep->iname == 16)
+        {
           it = inner_rep->value.integer;
         }
         // salt
-        if (inner_rep->type == OC_REP_BYTE_STRING && inner_rep->iname == 5) {
+        if (inner_rep->type == OC_REP_BYTE_STRING && inner_rep->iname == 5)
+        {
           salt = inner_rep->value.string.ptr;
         }
 
@@ -257,9 +270,9 @@ do_credential_exchange(oc_client_response_t *data)
 #endif /* OC_SPAKE */
 
 int
-oc_initiate_spake_parameter_request(oc_endpoint_t *endpoint,
-                                    char *serial_number, char *password,
-                                    char *recipient_id, size_t recipient_id_len)
+oc_initiate_spake_parameter_request(oc_endpoint_t* endpoint,
+                                    char* serial_number, char* password,
+                                    char* recipient_id, const size_t recipient_id_len)
 {
   int return_value = -1;
 
@@ -282,7 +295,7 @@ oc_initiate_spake_parameter_request(oc_endpoint_t *endpoint,
   oc_rep_i_set_byte_string(root, 15, rnd, 32);
   oc_rep_end_root_object();
 
-  strncpy((char *)&g_spake_ctx.spake_password, password, MAX_PASSWORD_LEN);
+  strncpy((char*) &g_spake_ctx.spake_password, password, MAX_PASSWORD_LEN);
 
   oc_string_copy_from_char(&g_spake_ctx.serial_number, serial_number);
 
@@ -292,7 +305,8 @@ oc_initiate_spake_parameter_request(oc_endpoint_t *endpoint,
   // oc_string_copy_from_char(&g_spake_ctx.serial_number,
   // endpoint->serial_number);
 
-  if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR)) {
+  if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR))
+  {
     return_value = 0;
   }
 
@@ -301,7 +315,7 @@ oc_initiate_spake_parameter_request(oc_endpoint_t *endpoint,
 }
 
 int
-oc_initiate_spake(oc_endpoint_t *endpoint, char *password, char *recipient_id)
+oc_initiate_spake(oc_endpoint_t* endpoint, char* password, char* recipient_id)
 {
   int return_value = -1;
 
@@ -319,7 +333,8 @@ oc_initiate_spake(oc_endpoint_t *endpoint, char *password, char *recipient_id)
   uint8_t
     rnd[32]; // not actually used by the server, so just send some gibberish
   oc_rep_begin_root_object();
-  if (recipient_id) {
+  if (recipient_id)
+  {
     // convert from hex string to bytes
     oc_conv_hex_string_to_oc_string(recipient_id, strlen(recipient_id),
                                     &g_spake_ctx.oscore_id);
@@ -333,7 +348,7 @@ oc_initiate_spake(oc_endpoint_t *endpoint, char *password, char *recipient_id)
   oc_rep_end_root_object();
 
   // password : still a string
-  strncpy((char *)&g_spake_ctx.spake_password, password, MAX_PASSWORD_LEN);
+  strncpy((char*) &g_spake_ctx.spake_password, password, MAX_PASSWORD_LEN);
   // oc_string_copy(&g_spake_ctx.serial_number, endpoint->oscore_id);
 
   // serial number in endpoint is a string, so it needs to be converted before
@@ -344,7 +359,8 @@ oc_initiate_spake(oc_endpoint_t *endpoint, char *password, char *recipient_id)
   // oc_string_copy_from_char(&g_spake_ctx.serial_number,
   // endpoint->serial_number);
 
-  if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR)) {
+  if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR))
+  {
     return_value = 0;
   }
 
@@ -355,28 +371,30 @@ oc_initiate_spake(oc_endpoint_t *endpoint, char *password, char *recipient_id)
 // ----------------------------------------------------------------------------
 
 static oc_discovery_flags_t
-discovery_ia_cb(const char *payload, int len, oc_endpoint_t *endpoint,
-                void *user_data)
+discovery_ia_cb(const char* payload, const int len, oc_endpoint_t* endpoint,
+                void* user_data)
 {
   //(void)anchor;
-  (void)payload;
-  (void)len;
+  (void) payload;
+  (void) len;
   uint8_t buffer[100];
 
   PRINT("discovery_ia_cb\n");
   oc_endpoint_print(endpoint);
 
   size_t device_index = 0;
-  oc_device_info_t *device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info(device_index);
   uint32_t sender_ia = device->ia;
 
-  broker_s_mode_userdata_t *cb_data = (broker_s_mode_userdata_t *)user_data;
+  broker_s_mode_userdata_t* cb_data = (broker_s_mode_userdata_t*) user_data;
 
   int value_size;
-  if (cb_data->resource_url == NULL) {
+  if (cb_data->resource_url == NULL)
+  {
     return OC_STOP_DISCOVERY;
   }
-  if (cb_data->path == NULL) {
+  if (cb_data->path == NULL)
+  {
     return OC_STOP_DISCOVERY;
   }
 
@@ -386,7 +404,8 @@ discovery_ia_cb(const char *payload, int len, oc_endpoint_t *endpoint,
   oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga,
                  cb_data->rp_type, buffer, value_size);
 
-  if (cb_data) {
+  if (cb_data)
+  {
     free(user_data);
   }
 
@@ -394,8 +413,8 @@ discovery_ia_cb(const char *payload, int len, oc_endpoint_t *endpoint,
 }
 
 int
-oc_knx_client_do_broker_request(const char *resource_url, uint64_t iid,
-                                uint32_t ia, char *destination, char *rp)
+oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid,
+                                const uint32_t ia, char* destination, char* rp)
 {
   char query[50] = "";
 
@@ -415,9 +434,10 @@ oc_knx_client_do_broker_request(const char *resource_url, uint64_t iid,
 
   // not sure if we should use a malloc here, what would happen if there are no
   // devices found? because that causes a memory leak
-  broker_s_mode_userdata_t *cb_data =
-    (broker_s_mode_userdata_t *)malloc(sizeof(broker_s_mode_userdata_t));
-  if (cb_data != NULL) {
+  broker_s_mode_userdata_t* cb_data =
+    (broker_s_mode_userdata_t*) malloc(sizeof(broker_s_mode_userdata_t));
+  if (cb_data != NULL)
+  {
     memset(cb_data, 0, sizeof(broker_s_mode_userdata_t));
     cb_data->ia = ia;
     strncpy(cb_data->rp_type, rp, 2);
@@ -427,7 +447,9 @@ oc_knx_client_do_broker_request(const char *resource_url, uint64_t iid,
     oc_do_wk_discovery_all(query, 2, discovery_ia_cb, cb_data);
     oc_do_wk_discovery_all(query, 3, discovery_ia_cb, cb_data);
     oc_do_wk_discovery_all(query, 5, discovery_ia_cb, cb_data);
-  } else {
+  }
+  else
+  {
     OC_ERR("cb_data is NULL");
     return -1;
   }
@@ -437,51 +459,60 @@ oc_knx_client_do_broker_request(const char *resource_url, uint64_t iid,
 // ----------------------------------------------------------------------------
 
 bool
-oc_is_redirected_request(oc_request_t *request)
+oc_is_redirected_request(oc_request_t* request)
 {
-  if (request == NULL) {
+  if (request == NULL)
+  {
     return false;
   }
 
-  PRINT("oc_is_redirected_request %.*s\n", (int)request->uri_path_len,
+  PRINT("oc_is_redirected_request %.*s\n", (int) request->uri_path_len,
         request->uri_path);
-  if (strncmp(".knx", request->uri_path, request->uri_path_len) == 0) {
+  if (strncmp(".knx", request->uri_path, request->uri_path_len) == 0)
+  {
     return true;
   }
-  if (strncmp("k", request->uri_path, request->uri_path_len) == 0) {
+  if (strncmp("k", request->uri_path, request->uri_path_len) == 0)
+  {
     return true;
   }
-  if (strncmp("/p", request->uri_path, request->uri_path_len) == 0) {
+  if (strncmp("/p", request->uri_path, request->uri_path_len) == 0)
+  {
     return true;
   }
   return false;
 }
 
-oc_rep_t *
-oc_s_mode_get_value(oc_request_t *request)
+oc_rep_t*
+oc_s_mode_get_value(oc_request_t* request)
 {
 
   /* loop over the request document to parse all the data */
-  oc_rep_t *rep = request->request_payload;
-  while (rep != NULL) {
-    switch (rep->type) {
-    case OC_REP_OBJECT: {
-      // find the storage index, e.g. for this object
-      oc_rep_t *object = rep->value.object;
+  oc_rep_t* rep = request->request_payload;
+  while (rep != NULL)
+  {
+    switch (rep->type)
+    {
+      case OC_REP_OBJECT:
+      {
+        // find the storage index, e.g. for this object
+        oc_rep_t* object = rep->value.object;
 
-      object = rep->value.object;
-      while (object != NULL) {
-        // search for "value" (1)
-        if (object->iname == 1) {
-          return object;
+        object = rep->value.object;
+        while (object != NULL)
+        {
+          // search for "value" (1)
+          if (object->iname == 1)
+          {
+            return object;
+          }
+          object = object->next;
         }
-        object = object->next;
       }
-    }
-    case OC_REP_NIL:
-      break;
-    default:
-      break;
+      case OC_REP_NIL:
+        break;
+      default:
+        break;
     }
     rep = rep->next;
   }
@@ -489,9 +520,9 @@ oc_s_mode_get_value(oc_request_t *request)
 }
 
 void
-oc_issue_s_mode(int scope, int sia_value, uint32_t grpid,
-                uint32_t group_address, uint64_t iid, char *rp,
-                uint8_t *value_data, int value_size)
+oc_issue_s_mode(int scope, const int sia_value, const uint32_t grpid,
+                const uint32_t group_address, const uint64_t iid, char* rp,
+                uint8_t* value_data, const int value_size)
 {
   PRINT("oc_issue_s_mode : scope %d\n", scope);
 
@@ -525,25 +556,27 @@ oc_issue_s_mode(int scope, int sia_value, uint32_t grpid,
 }
 
 static void
-oc_send_s_mode(oc_endpoint_t *endpoint, char *path, uint32_t sia_value,
-               uint32_t group_address, char *rp, uint8_t *value_data,
-               int value_size)
+oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t sia_value,
+               const uint32_t group_address, char* rp, uint8_t* value_data,
+               const int value_size)
 {
   char token[8];
 
   PRINT("oc_send_s_mode : \n");
   PRINT("");
   PRINTipaddr(*endpoint);
-  
+
 
 #ifndef OC_OSCORE
-  if (oc_init_post(path, endpoint, NULL, NULL, LOW_QOS, NULL)) {
-#else  /* OC_OSCORE */
+  if (oc_init_post(path, endpoint, NULL, NULL, LOW_QOS, NULL))
+  {
+  #else  /* OC_OSCORE */
   /* not sure if it is needed, the endpoint should already have the OSCORE flag
    * set */
   endpoint->flags = endpoint->flags | OSCORE;
-  if (oc_init_multicast_update(endpoint, path, NULL)) {
-#endif /* OC_OSCORE */
+  if (oc_init_multicast_update(endpoint, path, NULL))
+  {
+  #endif /* OC_OSCORE */
     /*
     { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
     */
@@ -568,7 +601,8 @@ oc_send_s_mode(oc_endpoint_t *endpoint, char *path, uint32_t sia_value,
     // resource GET function
     // the GET function retrieves the data = { 1 : <value> } e.g including
     // the open/close object data. hence this needs to be removed.
-    if (value_size > 2) {
+    if (value_size > 2)
+    {
       oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
     }
 
@@ -581,33 +615,39 @@ oc_send_s_mode(oc_endpoint_t *endpoint, char *path, uint32_t sia_value,
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(),
                        oc_rep_get_encoded_payload_size());
 
-#ifndef OC_OSCORE
-    if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR)) {
+  #ifndef OC_OSCORE
+    if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR))
+    {
       PRINT("Sent POST request\n");
-#else
-    if (oc_do_multicast_update()) {
+    #else
+    if (oc_do_multicast_update())
+    {
       PRINT("Sent oc_do_multicast_update update\n");
-#endif
-    } else {
+    #endif
+    }
+    else
+    {
       PRINT("Could not send POST request\n");
     }
   }
 }
 
 static int
-oc_s_mode_get_resource_value(const char *resource_url, char *rp, uint8_t *buf,
-                             int buf_size)
+oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint8_t * buf,
+                             const int buf_size)
 {
-  (void)rp;
+  (void) rp;
   uint8_t buffer[50];
 
-  if (resource_url == NULL) {
+  if (resource_url == NULL)
+  {
     return 0;
   }
 
-  const oc_resource_t *my_resource =
+  const oc_resource_t* my_resource =
     oc_ri_get_app_resource_by_uri(resource_url, strlen(resource_url), 0);
-  if (my_resource == NULL) {
+  if (my_resource == NULL)
+  {
     PRINT("oc_do_s_mode : error no URL found %s\n", resource_url);
     return 0;
   }
@@ -642,7 +682,7 @@ oc_s_mode_get_resource_value(const char *resource_url, char *rp, uint8_t *buf,
   request.uri_path = resource_url;
   request.uri_path_len = strlen(resource_url);
 
-  oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
+  oc_rep_new(response_buffer.buffer, (int) response_buffer.buffer_size);
 
   // get the value...oc_request_t request_obj;
   oc_interface_mask_t iface_mask = OC_IF_NONE;
@@ -652,10 +692,11 @@ oc_s_mode_get_resource_value(const char *resource_url, char *rp, uint8_t *buf,
 
   // get the data
   int value_size = oc_rep_get_encoded_payload_size();
-  uint8_t *value_data = request.response->response_buffer->buffer;
+  uint8_t* value_data = request.response->response_buffer->buffer;
 
   // Cache value data, as it gets overwritten in oc_issue_do_s_mode
-  if (value_size < buf_size) {
+  if (value_size < buf_size)
+  {
     memcpy(buf, value_data, value_size);
     return value_size;
   }
@@ -664,108 +705,113 @@ oc_s_mode_get_resource_value(const char *resource_url, char *rp, uint8_t *buf,
 }
 
 void
-oc_do_s_mode_read(int64_t group_address)
+oc_do_s_mode_read(const int64_t group_address)
 {
   size_t device_index = 0;
-  oc_device_info_t *device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info(device_index);
   uint32_t sia_value = device->ia;
   uint64_t iid = device->iid;
   uint32_t grpid = 0;
 
   PRINT("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "\n",
-        (uint32_t)group_address, sia_value, iid);
+        (uint32_t) group_address, sia_value, iid);
 
   // find the grpid that belongs to the group address
   grpid = oc_find_grpid_in_recipient_table(group_address);
-  if (grpid > 0) {
-#ifdef OC_USE_MULTICAST_SCOPE_2
+  if (grpid > 0)
+  {
+  #ifdef OC_USE_MULTICAST_SCOPE_2
     oc_issue_s_mode(2, sia_value, grpid, group_address, iid, "r", 0, 0);
-#endif
+  #endif
     oc_issue_s_mode(5, sia_value, grpid, group_address, iid, "r", 0, 0);
-  } else if (group_address > 0) {
+  }
+  else if (group_address > 0)
+  {
 
-#ifdef OC_USE_MULTICAST_SCOPE_2
+  #ifdef OC_USE_MULTICAST_SCOPE_2
     oc_issue_s_mode(2, sia_value, group_address, group_address, iid, "r", 0, 0);
-#endif
+  #endif
     oc_issue_s_mode(5, sia_value, group_address, group_address, iid, "r", 0, 0);
   }
 }
 
-// note: this function does not check the transmit flag
-// the caller of this function needs to check if the flag is set.
-void
-oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
-                                  bool check)
+// Note that this function does not check the transmit flag, the caller of this function needs to check if the flag is set.
+void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* rp, bool check)
 {
-  PRINT("oc_do_s_mode_with_scope_and_check\nscope = %d\nurl = %s\nrp=%s\n",
-        scope, resource_url, rp);
-  int value_size;
+  PRINT("oc_do_s_mode_with_scope_and_check scope = %d url = %s rp=%s", scope, resource_url, rp);
+
   bool error = true;
   uint8_t buffer[50];
 
-  // do the checks
-  if (strcmp(rp, "w") == 0) {
-    error = false;
-  } else if (strcmp(rp, "r") == 0) {
-    error = false;
-  } else if (strcmp(rp, "a") == 0) {
-    // spec 1.1
-    error = false;
-  } else if (strcmp(rp, "rp") == 0) {
-    // spec 1.0
+  // do the checks of w/t/a/
+  if (strcmp(rp, "w") == 0)
+  {
     error = false;
   }
-  if (error) {
+  if (strcmp(rp, "r") == 0)
+  {
+    error = false;
+  }
+  if (strcmp(rp, "a") == 0)
+  {
+    error = false;
+  }
+
+  if (error)
+  {
     OC_ERR("oc_do_s_mode_with_scope_internal : rp value incorrect %s", rp);
     return;
   }
 
-  if (resource_url == NULL) {
+  if (resource_url == NULL)
+  {
     OC_ERR("oc_do_s_mode_with_scope_internal: resource url is NULL");
     return;
   }
 
-  // get the device
-  size_t device_index = 0;
-  oc_device_info_t *device = oc_core_get_device_info(device_index);
-  if (device == NULL) {
-    PRINT("oc_do_s_mode_with_scope_internal : device is NULL\n");
+  // device not initialized
+  const oc_device_info_t* device = oc_core_get_device_info(0);
+  if (device == NULL)
+  {
+    PRINT("oc_do_s_mode_with_scope_internal : device is NULL");
     return;
   }
 
-  // check if the device is in "loaded state"
-  if (oc_is_device_in_runtime(device_index) == false) {
-    PRINT(
-      " oc_do_s_mode_with_scope_internal : device not in loaded state: %d\n",
-      device->lsm_s);
+  // check if the device '0' is in "loaded state"
+  if (!oc_is_device_in_runtime(0))
+  {
+    PRINT("oc_do_s_mode_with_scope_internal : device '0' is not running, load state is: %d", device->lsm_s);
     return;
   }
 
-  const oc_resource_t *my_resource =
-    oc_ri_get_app_resource_by_uri(resource_url, strlen(resource_url), 0);
-  if (my_resource == NULL) {
-    PRINT("oc_do_s_mode_with_scope_internal : error no URL found %s\n",
-          resource_url);
+  const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(resource_url, strlen(resource_url), 0);
+  if (my_resource == NULL)
+  {
+    PRINT("oc_do_s_mode_with_scope_internal : error no URL found %s", resource_url);
     return;
   }
 
   oc_notify_observers(my_resource);
-
-  value_size = oc_s_mode_get_resource_value(resource_url, rp, buffer, 50);
+  const int value_size = oc_s_mode_get_resource_value(resource_url, rp, buffer, sizeof(buffer));
 
   // get the sender ia
   uint32_t sia_value = device->ia;
   uint64_t iid = device->iid;
   uint32_t group_address = 0;
 
-  // loop over all group addresses and issue the s-mode command
+  
   int index = oc_core_find_group_object_table_url(resource_url);
-  if (index == -1) {
-    PRINT("oc_do_s_mode_with_scope_internal : no table entry found for %s\n",
-          resource_url);
+
+  // no index at all available
+  if (index == -1)
+  {
+    PRINT("oc_do_s_mode_with_scope_internal : no table entry found for %s", resource_url);
     return;
   }
-  while (index != -1) {
+
+  // loop over all group addresses and issue the s-mode command
+  while (index != -1)
+  {
     int ga_len = oc_core_find_group_object_table_number_group_entries(index);
     oc_cflag_mask_t cflags = oc_core_group_object_table_cflag_entries(index);
 
@@ -773,12 +819,14 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
     oc_print_cflags(cflags);
 
     bool do_send = (cflags & OC_CFLAG_TRANSMISSION) > 0;
-    if (check == false) {
-      PRINT("not checking flags.. always send\n");
+    if (check == false)
+    {
+      PRINT("not checking flags.. always send");
       do_send = true;
     }
 
-    if (do_send) {
+    if (do_send)
+    {
       // o
       PRINT("index %d rp = %s cflags %d flags=", index, rp, cflags);
       oc_print_cflags(cflags);
@@ -786,36 +834,42 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
       // With a read command to a Group Object, the device send this Group
       // Object's value.
       PRINT("handling: index %d\n", index);
-      for (int j = 0; j < ga_len; j++) {
+      for (int j = 0; j < ga_len; j++)
+      {
         group_address = oc_core_find_group_object_table_group_entry(index, j);
-        PRINT("ga : %lu\n", group_address);
-        if (strcmp(rp, "a") == 0 || strcmp(rp, "rp") == 0) {
+        PRINT("ga : %u\n", group_address);
+        if (strcmp(rp, "a") == 0 || strcmp(rp, "rp") == 0)
+        {
           // Check if any other GOT entries have the same GA with "w" flag
           PRINT("Checking & updating internal group objects\n");
           int other_index =
             oc_core_find_group_object_table_index(group_address);
-          while (other_index != -1) {
-            if (other_index != index) {
+          while (other_index != -1)
+          {
+            if (other_index != index)
+            {
               oc_cflag_mask_t other_cflags =
                 oc_core_group_object_table_cflag_entries(other_index);
               oc_string_t other_url =
                 oc_core_find_group_object_table_url_from_index(other_index);
-              const char *other_url_char = oc_string(other_url);
-              const oc_resource_t *other_resource =
+              const char* other_url_char = oc_string(other_url);
+              const oc_resource_t* other_resource =
                 oc_ri_get_app_resource_by_uri(other_url_char,
                                               strlen(other_url_char), 0);
-              if (other_resource == NULL) {
+              if (other_resource == NULL)
+              {
                 other_index = oc_core_find_next_group_object_table_index(
                   group_address, other_index);
                 continue;
               }
               if ((other_cflags & OC_CFLAG_WRITE) &&
-                  other_resource->put_handler.cb) {
+                  other_resource->put_handler.cb)
+              {
                 // Update the resource internally
                 oc_request_t new_request;
                 memset(&new_request, 0, sizeof(oc_request_t));
 
-                oc_rep_t *rep;
+                oc_rep_t* rep;
                 struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
                 oc_rep_set_pool(&rep_objects);
                 oc_parse_rep(buffer, value_size, &rep);
@@ -834,13 +888,17 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
               group_address, other_index);
           }
         }
-        if (j == 0) {
+        if (j == 0)
+        {
           // issue the s-mode command, but only for the first ga entry
           uint32_t grpid = oc_find_grpid_in_recipient_table(group_address);
-          if (grpid > 0) {
+          if (grpid > 0)
+          {
             oc_issue_s_mode(scope, sia_value, grpid, group_address, iid, rp,
                             buffer, value_size);
-          } else {
+          }
+          else
+          {
             // send to group address in multicast address
             oc_issue_s_mode(scope, sia_value, group_address, group_address, iid,
                             rp, buffer, value_size);
@@ -849,15 +907,19 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
         // the recipient table contains the list of destinations that will
         // receive data. loop over the full recipient table and send a message
         // if the group is there
-        for (int jr = 0; jr < oc_core_get_recipient_table_size(); jr++) {
+        for (int jr = 0; jr < oc_core_get_recipient_table_size(); jr++)
+        {
           bool found =
             oc_core_check_recipient_index_on_group_address(jr, group_address);
-          if (found) {
-            char *url = oc_core_get_recipient_index_url_or_path(jr);
-            if (url) {
-              PRINT("broker send: %s\n", url);
+          if (found)
+          {
+            char* url = oc_core_get_recipient_index_url_or_path(jr);
+            if (url)
+            {
+              PRINT("broker send: %s", url);
               uint32_t ia = oc_core_get_recipient_ia(jr);
-              if (ia > 0) {
+              if (ia > 0)
+              {
                 // ia == 0 is reserved, so only send with ia > 0
                 oc_knx_client_do_broker_request(resource_url, iid, ia, url, rp);
               }
@@ -865,24 +927,23 @@ oc_do_s_mode_with_scope_and_check(int scope, const char *resource_url, char *rp,
           }
         }
       }
-    } else {
-      PRINT("not send due to flags\n");
+    }
+    else
+    {
+      PRINT("not send due to flags");
     }
     /* cflag */
     index = oc_core_find_next_group_object_table_url(resource_url, index);
   }
 }
-// note: this function does not check the transmit flag
-// the caller of this function needs to check if the flag is set.
-void
-oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url, char *rp)
+// Note that this function does not check the transmit flag, the caller of this function needs to check if the flag is set.
+void oc_do_s_mode_with_scope_no_check(const int scope, const char* resource_url, char* rp)
 {
   oc_do_s_mode_with_scope_and_check(scope, resource_url, rp, false);
 }
 
-// note: this function does check the transmit flag
-void
-oc_do_s_mode_with_scope(int scope, const char *resource_url, char *rp)
+// Note that this function DOES check the transmit flag.
+void oc_do_s_mode_with_scope(const int scope, const char* resource_url, char* rp)
 {
   oc_do_s_mode_with_scope_and_check(scope, resource_url, rp, true);
 }
@@ -890,7 +951,7 @@ oc_do_s_mode_with_scope(int scope, const char *resource_url, char *rp)
 // ----------------------------------------------------------------------------
 
 bool
-oc_set_spake_response_cb(oc_spake_cb_t my_func)
+oc_set_spake_response_cb(const oc_spake_cb_t my_func)
 {
   m_spake_cb = my_func;
   return true;
@@ -898,15 +959,13 @@ oc_set_spake_response_cb(oc_spake_cb_t my_func)
 
 // ----------------------------------------------------------------------------
 
-bool
-oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func)
+bool oc_set_s_mode_response_cb(const oc_s_mode_response_cb_t my_func)
 {
   m_s_mode_cb = my_func;
   return true;
 }
 
-oc_s_mode_response_cb_t
-oc_get_s_mode_response_cb()
+oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void)
 {
   return m_s_mode_cb;
 }

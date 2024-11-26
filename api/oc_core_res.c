@@ -609,7 +609,7 @@ oc_core_set_device_fid(size_t device_index, uint64_t fid)
 
 oc_device_info_t*
 oc_core_add_device(const char* name, const char* version, const char* base,
-                   const char* serialnumber,
+                   char* serialnumber,
                    oc_core_add_device_cb_t add_device_cb, void* data)
 {
   (void) data;
@@ -622,10 +622,10 @@ oc_core_add_device(const char* name, const char* version, const char* base,
 #else /* !OC_DYNAMIC_ALLOCATION */
 
   // note, there is always 1 resource present, the initial one in the list
-  // per device 'WELLKNOWNCORE' ressources needed 
+  // per device 'WELLKNOWNCORE' resources needed 
   size_t new_num = 1 + WELLKNOWNCORE * device_count;
 
-  // allocate new device ressources
+  // allocate new device resources
   core_resources = (oc_resource_t*) realloc(core_resources, new_num * sizeof(oc_resource_t));
 
   if (!core_resources)
@@ -669,8 +669,9 @@ oc_core_add_device(const char* name, const char* version, const char* base,
   /* Construct device resource */
   // int properties = OC_DISCOVERABLE;
 
-  // ensure that the serial number is in lower case 
-  oc_char_convert_to_lower(serialnumber);
+  // ensure that the serial number is in lower case
+  // it changes the original, but it must be anyhow lower case...
+  oc_charstream_convert_to_lower(serialnumber);
 
   oc_new_string(&oc_device_info[device_count].serialnumber, serialnumber, strlen(serialnumber));
   oc_device_info[device_count].add_device_cb = add_device_cb;

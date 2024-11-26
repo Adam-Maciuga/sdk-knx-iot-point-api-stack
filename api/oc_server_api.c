@@ -342,7 +342,7 @@ oc_resource_bind_resource_type(oc_resource_t *resource, const char *type)
     OC_ERR("oc_resource_bind_resource_type: resource data is const");
     return;
   }
-  oc_string_array_add_item(resource->types, (char *)type);
+  oc_string_array_add_item(resource->types, type);
 }
 
 void

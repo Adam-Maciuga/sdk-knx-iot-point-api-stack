@@ -38,7 +38,7 @@ extern "C" {
 #define MY_NAME   "KNX virtual switch actuator"
 #define PASSWORD  "ABY8B77J50YXMUDW3DG4"       
 #define SN        "00FA10020800"
-#define MID        0<<24 + 0<<16 + 15<<8 + 10<<0  // = first 4 digits of sn
+#define MID       (250)         // = first 4 digits of sn = 15<<4 + 10
 
 // URL defines
 #define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     for /p/o_1_1
@@ -52,7 +52,7 @@ extern "C" {
 #define URL_INFOONOFF_4 "/p/8"  // define URL InfoOnOff_4 for /p/o_8_8
 
 /**
- * Callback invoked by the stack when a successfull put is done
+ * Callback invoked by the stack when a successful put is done
  *
  * @param[in] url the url of the put
  *
@@ -80,7 +80,7 @@ void app_set_put_cb(oc_put_cb_t cb);
  * 
  * @return int 0 == success
  */
-int app_initialize_stack();
+int app_initialize_stack(void);
 
 /**
  * @brief sets the serial number
@@ -89,7 +89,7 @@ int app_initialize_stack();
  * @param serial_number the serial number as string
  * @return int 0 == success
  */
-int app_set_serial_number(char* serial_number);
+int app_set_serial_number(const char* serial_number);
 
 
 // Getters/Setters for bool
@@ -105,9 +105,9 @@ bool app_is_bool_url(char* url);
  * @brief Set a bool
  * 
  * @param url the url for the bool to set
- * @param in value to set
+ * @param value value to set
  */
-void app_set_bool_variable(char* url, bool value);
+void app_set_bool_variable(const char* url, bool value);
 
 /**
  * @brief Get a bool
@@ -157,14 +157,14 @@ void app_set_fault_variable(char* url, bool value);
  * @return true is secure
  * @return false is not secure
  */
-bool app_is_secure();
+bool app_is_secure(void);
 
 /**
  * @brief retrieves the password for showing on screen
  * 
  * @return password (as string)
  */
-char* app_get_password();
+char* app_get_password(void);
 
 /**
  * @brief function to set the input string to upper case
