@@ -1275,11 +1275,11 @@ extern "C" {
     {
       oc_set_separate_response_buffer(response);
       oc_send_separate_response(response, OC_STATUS_CHANGED);
-      PRINT_APP("Delayed response sent");
+      PRINT("Delayed response sent");
     }
     else
     {
-      PRINT_APP("Delayed response NOT active");
+      PRINT("Delayed response NOT active");
     }
 
     return OC_EVENT_DONE;

@@ -85,12 +85,6 @@ extern "C" {
 
 #endif
 
-#ifdef OC_PRINT_APP
-  #define PRINT_APP(...) OC_INF(__VA_ARGS__)
-#else
-  #define PRINT_APP(...)
-#endif
-
 #define SPRINTF(...) sprintf(__VA_ARGS__)
 #define SNPRINTF(...) snprintf(__VA_ARGS__)
 
