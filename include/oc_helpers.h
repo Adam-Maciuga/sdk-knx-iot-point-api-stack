@@ -548,7 +548,7 @@ int oc_uri_get_wildcard_value_as_string(const char *uri_resource,
  * @return NULL = not found, other wise position in string
  * string
  */
-char *oc_strnchr(const char *string, char p, int size);
+char *oc_strnchr(char *string, char p, int size);
 
 /**
  * @brief retrieves the serial number and individual address from the ep

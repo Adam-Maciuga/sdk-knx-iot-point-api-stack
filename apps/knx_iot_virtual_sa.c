@@ -1338,7 +1338,7 @@ extern "C" {
 
     // show the current working folder
     char buff[FILENAME_MAX];
-    char* retbuf = GetCurrentDir(buff, FILENAME_MAX);
+    const char* retbuf = GetCurrentDir(buff, FILENAME_MAX);
     if (retbuf != NULL)
     {
       PRINT("Current working dir: %s", buff);
@@ -1393,7 +1393,7 @@ extern "C" {
     const oc_device_info_t* device = oc_core_get_device_info(0);
     PRINT("serial number: %s", oc_string(device->serialnumber));
 
-    oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
+    const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
     if (my_ep != NULL)
     {
       PRINTipaddr(*my_ep);

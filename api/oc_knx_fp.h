@@ -54,7 +54,7 @@ extern "C" {
   void oc_print_cflags(oc_cflag_mask_t cflags);
 
   /**
-   * @brief adds the communication flags a preallocated buffer
+   * @brief adds the communication flags a pre-allocated buffer
 
    * cflags in ASCII e.g. "w" "r" "i" "t" "u" without quotes
    * if the flag does not exist, then a "." will be added instead
@@ -74,7 +74,7 @@ extern "C" {
    *        "id": "1",
    *        "href":"/LDSB1/SOO",
    *        "ga":[2305, 2401],
-   *        "cflag":["r","w","t","u"]  // note this is a integer
+   *        "cflag":["r","w","t","u"]  // note this is an integer
    *    },
    *    {
    *        "id": "2",
@@ -556,15 +556,13 @@ extern "C" {
    * @param device_index The device index
    * @param group_address the parsed group address from the query option
    * @param response_length the response length
-   * @param matches if there are matches
    * @return true
    * @return false
    */
   bool oc_add_points_in_group_object_table_to_response(oc_request_t* request,
                                                        size_t device_index,
                                                        uint32_t group_address,
-                                                       size_t* response_length,
-                                                       int matches);
+                                                       size_t* response_length);
 
   /**
    * @brief checks if the href (url) belongs to the device

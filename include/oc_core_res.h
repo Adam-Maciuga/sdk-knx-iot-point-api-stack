@@ -180,10 +180,10 @@ typedef struct oc_device_info_t
   oc_string_t hwt;                          /**< knx hardware type, should not be larger than 6 chars */
   oc_string_t model;                        /**< knx model */
   oc_string_t hostname;                     /**< knx host name */
-  uint32_t mid;                             /**< knx manufacrurer id */
+  uint32_t mid;                             /**< knx manufacturer id */
   uint64_t fid;                             /**< knx fabric id */
-  uint32_t ia;                              /**< knx ia Device individual address */
-  uint64_t iid;                             /**< knx iid (installation id) */
+  uint32_t ia;                              /**< knx individual address */
+  uint64_t iid;                             /**< knx installation id */
   uint32_t port;                            /**< coap port number */
   uint32_t mport;                           /**< multicast port number */
   bool pm;                                  /**< knx programming mode */

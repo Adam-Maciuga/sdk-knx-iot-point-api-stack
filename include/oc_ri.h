@@ -153,9 +153,9 @@ extern "C" {
    */
   typedef enum
   {
-    OC_STATUS_OK = 0,                   /**< OK 2.00*/
-    OC_STATUS_CREATED,                  /**< Created 2.01*/
-    OC_STATUS_CHANGED,                  /**< Changed 2.04*/
+    OC_STATUS_OK = 0,                   /**< Content 2.05 */
+    OC_STATUS_CREATED,                  /**< Created 2.01 */
+    OC_STATUS_CHANGED,                  /**< Changed 2.04 */
     OC_STATUS_DELETED,                  /**< Deleted 2.02 */
     OC_STATUS_NOT_MODIFIED,             /**< Not Modified (VALID 2.03) */
     OC_STATUS_BAD_REQUEST,              /**< Bad Request 4.00*/

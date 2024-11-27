@@ -2889,33 +2889,24 @@ bool
 oc_add_points_in_group_object_table_to_response(oc_request_t* request,
                                                 size_t device_index,
                                                 uint32_t group_address,
-                                                size_t* response_length,
-                                                int matches)
+                                                size_t* response_length)
 {
-  (void) request;
-  (void) device_index;
-  (void) response_length;
-  (void) matches;
-  // int length = 0;
+  
+  
   bool return_value = false;
 
   PRINT("oc_add_points_in_group_object_table_to_response %d", group_address);
 
-  int index;
-  for (index = 0; index < GOT_MAX_ENTRIES; index++)
+  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
     if (g_got[index].id > -1)
     {
       if (is_in_array(group_address, g_got[index].ga, g_got[index].ga_len))
       {
-        // add the resource
-        // note, not checked if the resource is already there...
-        PRINT("oc_add_points_in_group_object_table_to_response [%d] %s",
-              index, oc_string_checked(g_got[index].href));
-        oc_add_resource_to_wk(oc_ri_get_app_resource_by_uri(
-          oc_string(g_got[index].href),
-          oc_string_len(g_got[index].href), device_index),
-          request, device_index, response_length, 1);
+        // add the resource to response, note, it is not checked if the resource is already there...
+        PRINT("oc_add_points_in_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
+
+        oc_add_resource_to_wk(oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href),oc_string_len(g_got[index].href), device_index), request, device_index, response_length, 1);
         return_value = true;
       }
     }
