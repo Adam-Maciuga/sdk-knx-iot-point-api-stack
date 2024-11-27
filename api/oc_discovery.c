@@ -291,8 +291,12 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
-  // check if the accept header is link-format ONLY
-  if (request->accept != APPLICATION_LINK_FORMAT)
+  // check on request accept header (clause 2.2.4)
+  // - link-format == OK =default (use default as response format)
+  // - in case of absence of any format == OK (use default as response format)
+  // - in case of JSON format == OK (use default as response format)S
+  if (request->accept != APPLICATION_LINK_FORMAT &&
+      request->accept != APPLICATION_JSON && request->accept != CONTENT_NONE)
   {
     //handle bad request..., note below layer ignores this message if it is a multicast request
     oc_send_response_no_format(request, OC_STATUS_NOT_ACCEPTABLE);

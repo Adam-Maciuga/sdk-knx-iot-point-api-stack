@@ -46,7 +46,6 @@ extern "C" {
 #define URL_ONOFF_2     "/p/3"  // define URL OnOff_2     for /p/o_3_3
 #define URL_INFOONOFF_2 "/p/4"  // define URL InfoOnOff_2 for /p/o_4_4
 #define URL_ONOFF_3     "/p/p1" // define URL OnOff_3     for /p/o_5_5 
-
 #define URL_INFOONOFF_3 "/p/6"  // define URL InfoOnOff_3 for /p/o_6_6
 #define URL_ONOFF_4     "/p/7"  // define URL OnOff_4     for /p/o_7_7
 #define URL_INFOONOFF_4 "/p/8"  // define URL InfoOnOff_4 for /p/o_8_8

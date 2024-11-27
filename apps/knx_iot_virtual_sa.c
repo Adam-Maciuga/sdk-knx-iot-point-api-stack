@@ -503,7 +503,8 @@ extern "C" {
     return PASSWORD;
   }
 
-  // data point (objects) handling
+  // data point (objects) handling, the (generic) callback 'call' handler uses always
+  // below 3 parameters, provide them even if not used
 
   /**
    * @brief CoAP GET method for data point "OnOff_1" resource at url URL_ONOFF_1 ("/p/1").
@@ -538,9 +539,10 @@ extern "C" {
     // check the query parameter m with the various values
     char* m;
     char* m_key;
-    int m_key_len;
-    int m_len = oc_get_query_value(request, "m", &m);
-    if (m_len != -1)
+    size_t m_key_len;
+    size_t m_len = oc_get_query_value(request, "m", &m);
+
+    if (m_len != -1) //compare problem ...
     {
       PRINT("Query param: %.*s", (int) m_len, m);
       oc_init_query_iterator();
@@ -556,27 +558,31 @@ extern "C" {
               (strncmp(m, "*", m_len) == 0))
           {
             char mystring[100];
-            snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber),
-                     oc_string(request->resource->uri));
+            snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber), oc_string(request->resource->uri));
             oc_rep_i_set_text_string(root, 0, mystring);
           }
+
           // resource types
           if ((strncmp(m, "rt", m_len) == 0) |
               (strncmp(m, "*", m_len) == 0))
           {
             oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
           }
+
           // interfaces
           if ((strncmp(m, "if", m_len) == 0) |
               (strncmp(m, "*", m_len) == 0))
           {
             oc_rep_set_text_string(root, if, "if.a");
           }
+
+          // dpt
           if ((strncmp(m, "dpt", m_len) == 0) |
               (strncmp(m, "*", m_len) == 0))
           {
             oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
           }
+
           // ga
           if ((strncmp(m, "ga", m_len) == 0) |
               (strncmp(m, "*", m_len) == 0))
@@ -591,6 +597,8 @@ extern "C" {
               }
             }
           }
+
+          // description
           if ((strncmp(m, "desc", m_len) == 0) |
               (strncmp(m, "*", m_len) == 0))
           {
@@ -731,8 +739,9 @@ extern "C" {
     char* m;
     char* m_key;
     size_t m_key_len;
-    size_t m_len = (int) oc_get_query_value(request, "m", &m);
-    if (m_len != -1)
+    size_t m_len = oc_get_query_value(request, "m", &m);
+
+    if (m_len != -1) //compare problem ...
     {
       PRINT("Query param: %.*s", (int) m_len, m);
       oc_init_query_iterator();
@@ -830,7 +839,7 @@ extern "C" {
    * @param interfaces the interface used for this call
    * @param user_data the user data.
    */
-  void get_OnOff_2(oc_request_t* request, oc_interface_mask_t interfaces, const void* user_data)
+  void get_OnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
   {
     (void) user_data; /* variable not used */
 
@@ -853,8 +862,9 @@ extern "C" {
     char* m;
     char* m_key;
     size_t m_key_len;
-    size_t m_len = (int) oc_get_query_value(request, "m", &m);
-    if (m_len != -1)
+    size_t m_len = oc_get_query_value(request, "m", &m);
+
+    if (m_len != -1) //compare problem ...
     {
       PRINT("Query param: %.*s", (int) m_len, m);
       oc_init_query_iterator();
@@ -1022,7 +1032,7 @@ extern "C" {
    * @param interfaces the interface used for this call
    * @param user_data the user data.
    */
-  void get_InfoOnOff_2(oc_request_t* request, oc_interface_mask_t interfaces, const void* user_data)
+  void get_InfoOnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces, void* user_data)
   {
     (void) user_data; /* variable not used */
 
@@ -1045,8 +1055,9 @@ extern "C" {
     char* m;
     char* m_key;
     size_t m_key_len;
-    size_t m_len = (int) oc_get_query_value(request, "m", &m);
-    if (m_len != -1)
+    size_t m_len = oc_get_query_value(request, "m", &m);
+
+    if (m_len != -1) //compare problem ...
     {
       PRINT("Query param: %.*s", (int) m_len, m);
       oc_init_query_iterator();
@@ -1133,6 +1144,199 @@ extern "C" {
     PRINT("-- End get_InfoOnOff_2");
   }
 
+  /**
+  * @brief CoAP GET method for data point "OnOff_3" resource at url URL_ONOFF_3 ("/p/5").
+  * resource types: ['urn:knx:dpa.417.61']
+  * function is called to initialize the return values of the GET method.
+  * initialization of the returned values are done from the global property
+  * values.
+  *
+  * @param request the request representation.
+  * @param interfaces the interface used for this call
+  * @param user_data the user data.
+  */
+  void get_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  {
+    (void) user_data; /* variable not used */
+
+    /* MANUFACTORER: SENSOR add here the code to talk to the HW if one implements a
+    sensor. the call to the HW needs to fill in the global variable before it
+    returns to this function here. alternative is to have a callback from the
+    hardware that sets the global variables.
+    */
+    bool error_state = false; /* the error state, the generated code */
+
+    PRINT("-- Begin get_OnOff_3 %s \n", URL_ONOFF_3);
+    /* check if the accept header is CBOR */
+    if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+    {
+      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      return;
+    }
+
+    // check the query parameter m with the various values
+    char* m;
+    char* m_key;
+    size_t m_key_len;
+    size_t m_len = oc_get_query_value(request, "m", &m);
+
+    if (m_len != -1) //compare problem ...
+    {
+      PRINT("  Query param: %.*s", (int) m_len, m);
+      oc_init_query_iterator();
+      size_t device_index = request->resource->device;
+      oc_device_info_t* device = oc_core_get_device_info(device_index);
+      if (device != NULL)
+      {
+        oc_rep_begin_root_object();
+        while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+        {
+          // unique identifier
+          if ((strncmp(m, "id", m_len) == 0) |
+              (strncmp(m, "*", m_len) == 0))
+          {
+            char mystring[100];
+            snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber),
+                     oc_string(request->resource->uri));
+            oc_rep_i_set_text_string(root, 0, mystring);
+          }
+          // resource types
+          if ((strncmp(m, "rt", m_len) == 0) |
+              (strncmp(m, "*", m_len) == 0))
+          {
+            oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
+          }
+          // interfaces
+          if ((strncmp(m, "if", m_len) == 0) |
+              (strncmp(m, "*", m_len) == 0))
+          {
+            oc_rep_set_text_string(root, if, "if.a");
+          }
+          if ((strncmp(m, "dpt", m_len) == 0) |
+              (strncmp(m, "*", m_len) == 0))
+          {
+            oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
+          }
+          // ga
+          if ((strncmp(m, "ga", m_len) == 0) |
+              (strncmp(m, "*", m_len) == 0))
+          {
+            int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
+            if (index > -1)
+            {
+              oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+              if (got_table_entry)
+              {
+                oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
+              }
+            }
+          }
+          if ((strncmp(m, "desc", m_len) == 0) |
+              (strncmp(m, "*", m_len) == 0))
+          {
+            oc_rep_set_text_string(root, desc, "On/Off switch 3");
+          }
+        } /* query iterator */
+        oc_rep_end_root_object();
+      }
+      else
+      {
+        /* device is NULL */
+        oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+      }
+      oc_send_cbor_response(request, OC_STATUS_OK);
+      return;
+    }
+    oc_rep_begin_root_object();
+    oc_rep_i_set_boolean(root, 1, g_OnOff_3);
+    oc_rep_end_root_object();
+
+    if (g_err)
+    {
+      error_state = true;
+    }
+    PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+    if (error_state == false)
+    {
+      oc_send_cbor_response(request, OC_STATUS_OK);
+    }
+    else
+    {
+      oc_send_response(request, OC_STATUS_BAD_OPTION);
+    }
+    PRINT("-- End get_OnOff_3\n");
+  }
+
+  /**
+  * @brief CoAP PUT method for data point "OnOff_3" resource at url "/p/5".
+  * resource types: ['urn:knx:dpa.417.61']
+  * The function has as input the request body, which are the input values of the
+  * PUT method.
+  * The input values (as a set) are checked if all supplied values are correct.
+  * If the input values are correct, they will be assigned to the global property
+  * values.
+  *
+  * @param request the request representation.
+  * @param interfaces the used interfaces during the request.
+  * @param user_data the supplied user data.
+  */
+  void put_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  {
+    (void) interfaces;
+    (void) user_data;
+    bool error_state = true;
+    PRINT("-- Begin put_OnOff_3:\n");
+
+    oc_rep_t* rep = NULL;
+    /* handle the different requests e.g. via s-mode or normal CoAP call*/
+    if (oc_is_redirected_request(request))
+    {
+      PRINT("  redirected request..\n");
+    }
+    rep = request->request_payload;
+    /* loop over all the entries in the request */
+    /* handle the type of payload correctly. */
+    error_state = true;
+    while (rep != NULL)
+    {
+      /* handle the type of payload correctly. */
+      if ((rep->iname == 1) && (rep->type == OC_REP_BOOL))
+      {
+        PRINT("  put_OnOff_3 received : %d\n", rep->value.boolean);
+        g_OnOff_3 = rep->value.boolean;
+        error_state = false;
+        break;
+      }
+    }
+
+    if (error_state == false)
+    {
+      oc_send_cbor_response(request, OC_STATUS_CHANGED);
+      /* update the status information of InfoOnOff_3*/
+      if (g_fault_OnOff_3 == false)
+      {
+        PRINT("  No Fault update feedback to %d'\n", g_OnOff_3);
+        /* no fault hence update the feedback with the current state of the actuator */
+        g_InfoOnOff_3 = g_OnOff_3;
+      }
+      else
+      {
+        /* fault hence update the feedback with "false" */
+        PRINT("  Fault'\n");
+        g_InfoOnOff_3 = false;
+      }
+      /* send the status information InfoOnOff_3 to '/p/6' with flag 'w' */
+      PRINT("  Send status to '/p/6' with flag: 'w'\n");
+      oc_do_s_mode_with_scope(5, URL_INFOONOFF_3, "w");
+      do_put_cb(URL_ONOFF_3);
+      PRINT("-- End put_OnOff_3\n");
+      return;
+    }
+    /* request data was not recognized, so it was a bad request */
+    oc_send_response(request, OC_STATUS_BAD_REQUEST);
+    PRINT("-- End put_OnOff_3\n");
+  }
+
   // parameters handling (empty)
 
   /**
@@ -1151,87 +1355,107 @@ extern "C" {
   void register_resources(void)
   {
     PRINT("Register Resource 'OnOff_1' with local path \"%s\"", URL_ONOFF_1);
-    oc_resource_t* res_OnOff_1 = oc_new_resource("OnOff_1", URL_ONOFF_1, 1, 0);
-    oc_resource_bind_resource_type(res_OnOff_1, "urn:knx:dpa.417.61");
-    oc_resource_bind_dpt(res_OnOff_1, ":dpt.switch");
-    oc_resource_bind_content_type(res_OnOff_1, APPLICATION_CBOR);
-    oc_resource_bind_resource_interface(res_OnOff_1, OC_IF_I);     // 1 x if.i, correlates with number o rt's from above
-    oc_resource_set_function_block_instance(res_OnOff_1, 1);        // related to FB instance #1 
-    oc_resource_set_discoverable(res_OnOff_1, true);
+    {
+      oc_resource_t* res_OnOff_1 = oc_new_resource("OnOff_1", URL_ONOFF_1, 1, 0);
+      oc_resource_bind_resource_type(res_OnOff_1, "urn:knx:dpa.417.61");
+      oc_resource_bind_dpt(res_OnOff_1, ":dpt.switch");
+      oc_resource_bind_content_type(res_OnOff_1, APPLICATION_CBOR);
+      oc_resource_bind_resource_interface(res_OnOff_1, OC_IF_I);     // 1 x if.i, correlates with number o rt's from above
+      oc_resource_set_function_block_instance(res_OnOff_1, 1);        // related to FB instance #1 
+      oc_resource_set_discoverable(res_OnOff_1, true);
 
-    /* periodic observable to be used when one wants to send an event per time slice period is 1 second 
-       oc_resource_set_periodic_observable(res_OnOff_1, 1); 
-       Set observable events are send when oc_notify_observers(oc_resource_t *resource) is
-       called. this function must be called when the value changes, preferable on an interrupt when
-       something is read from the hardware.
-    */
-    oc_resource_set_observable(res_OnOff_1, true);
-    oc_resource_set_request_handler(res_OnOff_1, OC_GET, get_OnOff_1, NULL);
-    oc_resource_set_request_handler(res_OnOff_1, OC_PUT, put_OnOff_1, NULL);
-    oc_add_resource(res_OnOff_1);
+      /* periodic observable to be used when one wants to send an event per time slice period is 1 second
+         oc_resource_set_periodic_observable(res_OnOff_1, 1);
+         Set observable events are send when oc_notify_observers(oc_resource_t *resource) is
+         called. this function must be called when the value changes, preferable on an interrupt when
+         something is read from the hardware.
+      */
+      oc_resource_set_observable(res_OnOff_1, true);
+      oc_resource_set_request_handler(res_OnOff_1, OC_GET, get_OnOff_1, NULL);
+      oc_resource_set_request_handler(res_OnOff_1, OC_PUT, put_OnOff_1, NULL);
+      oc_add_resource(res_OnOff_1);
+    }
 
     PRINT("Register Resource 'InfoOnOff_1' with local path \"%s\"", URL_INFOONOFF_1);
-    oc_resource_t* res_InfoOnOff_1 = oc_new_resource("InfoOnOff_1", URL_INFOONOFF_1, 1, 0);
-    oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62"); // was 417.51 - test frame 82
-    oc_resource_bind_dpt(res_InfoOnOff_1, ":dpt.switch");
-    oc_resource_bind_content_type(res_InfoOnOff_1, APPLICATION_CBOR);
-    oc_resource_bind_resource_interface(res_InfoOnOff_1, OC_IF_O); // 1 x if.o, correlates with number o rt's from above
-    oc_resource_set_function_block_instance(res_InfoOnOff_1, 1);    // related to FB instance #1
-    oc_resource_set_discoverable(res_InfoOnOff_1, true);
+    {
+      oc_resource_t* res_InfoOnOff_1 = oc_new_resource("InfoOnOff_1", URL_INFOONOFF_1, 1, 0);
+      oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62"); // was 417.51 - test frame 82
+      oc_resource_bind_dpt(res_InfoOnOff_1, ":dpt.switch");
+      oc_resource_bind_content_type(res_InfoOnOff_1, APPLICATION_CBOR);
+      oc_resource_bind_resource_interface(res_InfoOnOff_1, OC_IF_O); // 1 x if.o, correlates with number o rt's from above
+      oc_resource_set_function_block_instance(res_InfoOnOff_1, 1);    // related to FB instance #1
+      oc_resource_set_discoverable(res_InfoOnOff_1, true);
 
-    /* periodic observable to be used when one wants to send an event per time slice
-       period is 1 second */
-       /* oc_resource_set_periodic_observable(res_InfoOnOff_1, 1); */
-       /* set observable
-          events are send when oc_notify_observers(oc_resource_t *resource) is
-         called. this function must be called when the value changes, preferable on
-         an interrupt when something is read from the hardware. */
-    oc_resource_set_observable(res_InfoOnOff_1, true);
-    oc_resource_set_request_handler(res_InfoOnOff_1, OC_GET, get_InfoOnOff_1, NULL);
-    oc_add_resource(res_InfoOnOff_1);
+      /* periodic observable to be used when one wants to send an event per time slice period is 1 second
+      oc_resource_set_periodic_observable(res_InfoOnOff_1, 1);
+      Set observable events are send when oc_notify_observers(oc_resource_t *resource) is
+      called. this function must be called when the value changes, preferable on an interrupt when
+      something is read from the hardware.
+      */
+      oc_resource_set_observable(res_InfoOnOff_1, true);
+      oc_resource_set_request_handler(res_InfoOnOff_1, OC_GET, get_InfoOnOff_1, NULL);
+      oc_add_resource(res_InfoOnOff_1);
+    }
 
     PRINT("Register Resource 'OnOff_2' with local path \"%s\"", URL_ONOFF_2);
-    oc_resource_t* res_OnOff_2 =
-      oc_new_resource("OnOff_2", URL_ONOFF_2, 1, 0);
-    oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61"); 
-    oc_resource_bind_dpt(res_OnOff_2, ":dpt.switch");
-    oc_resource_bind_content_type(res_OnOff_2, APPLICATION_CBOR);
-    oc_resource_bind_resource_interface(res_OnOff_2, OC_IF_O); // 1 x if.o, correlates with number o rt's from above
-    oc_resource_set_function_block_instance(res_OnOff_2, 2);    // related to FB instance #2
-    oc_resource_set_discoverable(res_OnOff_2, true);
-    /* periodic observable
-       to be used when one wants to send an event per time slice
-       period is 1 second */
-       /* oc_resource_set_periodic_observable(res_OnOff_2, 1); */
-       /* set observable
-          events are send when oc_notify_observers(oc_resource_t *resource) is
-         called. this function must be called when the value changes, preferable on
-         an interrupt when something is read from the hardware. */
-    oc_resource_set_observable(res_OnOff_2, true);
-    oc_resource_set_request_handler(res_OnOff_2, OC_GET, get_OnOff_2, NULL);
-    oc_resource_set_request_handler(res_OnOff_2, OC_PUT, put_OnOff_2, NULL);
-    oc_add_resource(res_OnOff_2);
+    {
+      oc_resource_t* res_OnOff_2 =
+        oc_new_resource("OnOff_2", URL_ONOFF_2, 1, 0);
+      oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61");
+      oc_resource_bind_dpt(res_OnOff_2, ":dpt.switch");
+      oc_resource_bind_content_type(res_OnOff_2, APPLICATION_CBOR);
+      oc_resource_bind_resource_interface(res_OnOff_2, OC_IF_O); // 1 x if.o, correlates with number o rt's from above
+      oc_resource_set_function_block_instance(res_OnOff_2, 2);    // related to FB instance #2
+      oc_resource_set_discoverable(res_OnOff_2, true);
+
+      /* periodic observable to be used when one wants to send an event per time slice period is 1 second
+      oc_resource_set_periodic_observable(res_OnOff_2, 1);
+      Set observable events are send when oc_notify_observers(oc_resource_t *resource) is
+      called. this function must be called when the value changes, preferable on an interrupt when
+      something is read from the hardware.
+      */
+      oc_resource_set_observable(res_OnOff_2, true);
+      oc_resource_set_request_handler(res_OnOff_2, OC_GET, get_OnOff_2, NULL);
+      oc_resource_set_request_handler(res_OnOff_2, OC_PUT, put_OnOff_2, NULL);
+      oc_add_resource(res_OnOff_2);
+    }
 
     PRINT("Register Resource 'InfoOnOff_2' with local path \"%s\"", URL_INFOONOFF_2);
-    oc_resource_t* res_InfoOnOff_2 =
-      oc_new_resource("InfoOnOff_2", URL_INFOONOFF_2, 1, 0);
-    oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62"); 
-    oc_resource_bind_dpt(res_InfoOnOff_2, ":dpt.switch");
-    oc_resource_bind_content_type(res_InfoOnOff_2, APPLICATION_CBOR);
-    oc_resource_bind_resource_interface(res_InfoOnOff_2, OC_IF_I); // 1 x if.i, correlates with number o rt's from above
-    oc_resource_set_function_block_instance(res_InfoOnOff_2, 2);    // related to FB instance #2
-    oc_resource_set_discoverable(res_InfoOnOff_2, true);
-    /* periodic observable
-       to be used when one wants to send an event per time slice
-       period is 1 second */
-       /* oc_resource_set_periodic_observable(res_InfoOnOff_2, 1); */
-       /* set observable
-          events are send when oc_notify_observers(oc_resource_t *resource) is
-         called. this function must be called when the value changes, preferable on
-         an interrupt when something is read from the hardware. */
-    oc_resource_set_observable(res_InfoOnOff_2, true);
-    oc_resource_set_request_handler(res_InfoOnOff_2, OC_GET, get_InfoOnOff_2, NULL);
-    oc_add_resource(res_InfoOnOff_2);
+    {
+      oc_resource_t* res_InfoOnOff_2 =
+        oc_new_resource("InfoOnOff_2", URL_INFOONOFF_2, 1, 0);
+      oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62");
+      oc_resource_bind_dpt(res_InfoOnOff_2, ":dpt.switch");
+      oc_resource_bind_content_type(res_InfoOnOff_2, APPLICATION_CBOR);
+      oc_resource_bind_resource_interface(res_InfoOnOff_2, OC_IF_I); // 1 x if.i, correlates with number o rt's from above
+      oc_resource_set_function_block_instance(res_InfoOnOff_2, 2);    // related to FB instance #2
+      oc_resource_set_discoverable(res_InfoOnOff_2, true);
+
+      /* periodic observable to be used when one wants to send an event per time slice period is 1 second
+      oc_resource_set_periodic_observable(res_InfoOnOff_2, 1);
+      Set observable events are send when oc_notify_observers(oc_resource_t *resource) is
+      called. this function must be called when the value changes, preferable on an interrupt when
+      something is read from the hardware.
+      */
+      oc_resource_set_observable(res_InfoOnOff_2, true);
+      oc_resource_set_request_handler(res_InfoOnOff_2, OC_GET, get_InfoOnOff_2, NULL);
+      oc_add_resource(res_InfoOnOff_2);
+    }
+
+    PRINT("Register Resource 'OnOff_3' with local path \"%s\"\n", URL_ONOFF_3);
+    { // used only for EITT tests specification clause 5.10.1 and EITT frame 93 S
+      oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
+      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.61");
+      oc_resource_bind_dpt(res_OnOff_3, ":dpt.switch");
+      oc_resource_bind_content_type(res_OnOff_3, APPLICATION_CBOR);
+      oc_resource_bind_resource_interface(res_OnOff_3, OC_IF_A);
+      oc_resource_set_function_block_instance(res_OnOff_3, 3);
+      oc_resource_set_discoverable(res_OnOff_3, true);
+      oc_resource_set_observable(res_OnOff_3, true);
+      oc_resource_set_request_handler(res_OnOff_3, OC_GET, get_OnOff_3, NULL);
+      oc_resource_set_request_handler(res_OnOff_3, OC_PUT, put_OnOff_3, NULL);
+      oc_add_resource(res_OnOff_3);
+    }
   }
 
   /**
