@@ -284,13 +284,12 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint32_
 static void oc_wkcore_discovery_handler(oc_request_t* request)
 {
 
-  size_t response_length = 0;       // response payload len, correlates 
-  int matches = 0;                  // identifies how many (to this device applicable) query parameter KEYs where found
+  size_t response_length = 0;             // response payload len, correlates 
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
   int skipped = 0;
-  bool finished = false;            // defines if a resource was found for a request
-  bool query_match = false;         // true if at least one query parameter was found
-  bool more_request_needed = false; // if more requests (pages) are needed to get the full list
-  int framed_bytes;
+  bool finished = false;                  // defines if a resource was found for a request
+  bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
   // check if the accept header is link-format ONLY
   if (request->accept != APPLICATION_LINK_FORMAT)
@@ -321,8 +320,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   bool ps_exists = false;
   bool total_exists = false;
   int total = 0;          // total query parameters
-  int first_entry = 0;    // on return page : inclusive
-  int last_entry = 0;     // on return page : exclusive
+  int first_entry = 0;    // inclusive
   int query_pn = -1;      // page number (page size is not used)
 
   oc_init_query_iterator();
@@ -334,25 +332,25 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     {
       rt_request = value;
       rt_len = (int) value_len;
-      query_match = true;
+      query_parameter_key_match = true;
     }
     if (strncmp(key, "ep", key_len) == 0)
     {
       ep_request = value;
       ep_len = (int) value_len;
-      query_match = true;
+      query_parameter_key_match = true;
     }
     if (strncmp(key, "if", key_len) == 0)
     {
       if_request = value;
       if_len = (int) value_len;
-      query_match = true;
+      query_parameter_key_match = true;
     }
     if (strncmp(key, "d", key_len) == 0)
     {
       d_request = value;
       d_len = (int) value_len;
-      query_match = true;
+      query_parameter_key_match = true;
     }
   }
 
@@ -389,7 +387,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
 
   total += OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;    // add core elements
   total += oc_count_functional_blocks(device_index);  // add functional blocks  
-  last_entry = total;
+  int last_entry = total;                             // exclusive
 
   // handle query parameters: l=ps and l=total ('l' and 'other' query parameters SHALL NOT be combined in a request)
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
@@ -410,7 +408,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   // handle query parameters: page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))
   {
-    query_match = true;
+    query_parameter_key_match = true;
     first_entry += query_pn * PAGE_SIZE;
     if (first_entry >= last_entry)
     {
@@ -427,8 +425,8 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     more_request_needed = true;
   }
 
-  // on any query parameter present but no query parameter match 
-  if (request->query_len > 0 && !query_match)
+  // on any query parameter present but no query parameter KEY match 
+  if (request->query_len > 0 && !query_parameter_key_match)
   {
     if (request->origin && (request->origin->flags & MULTICAST) == 0)
     {
@@ -453,31 +451,37 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     const oc_lsm_state_t lsm = oc_a_lsm_state(device_index);
     if (lsm != LSM_S_LOADED)
     {
-      /* handle bad request
-      note below layer ignores this message if it is a multicast request */
+      // handle bad request, note below layer ignores this message if it is a multicast request
       PRINT("not loaded!");
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
+
     if (strncmp(d_request, "urn:knx:g.s.*", 13) == 0)
     {
       // quote from EITT test 5.1.1.8: "Must fail since the response would likely be excessively large"
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
+
     // create the response
-    bool ret = oc_add_points_in_group_object_table_to_response(request, device_index, group_address, &response_length);
+    bool const ret = oc_add_points_in_group_object_table_to_response(request, device_index, group_address, &response_length);
+
     if (ret)
     {
+      // unicast or multicast request
       oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
-    }
-    else if (request->origin && (request->origin->flags & MULTICAST) == 0)
-    {
-      oc_send_linkformat_response(request, OC_STATUS_OK, 0);
     }
     else
     {
-      oc_ignore_request(request);
+      if (request->origin && (request->origin->flags & MULTICAST) == 0)
+      { // unicast request
+        oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+      }
+      else
+      { // multicast request
+        oc_ignore_request(request);
+      }
     }
     return;
   }
@@ -487,41 +491,47 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   {
 
     if (oc_is_device_mode_in_programming(device_index))
-    {
+    { // PRG mode on
+
       /*
-         add only the serial number when the interface is if.pm && device is
-         in programming mode return <>; ep="urn:knx:sn.<serial-number>" return
-         immediately so we do not process any other query params note: we ignore
-         the ep=urn:knx:sn.* and if=urn:knx:if.pm concatenation. since that only
-         needs to respond when the device is in programming mode
+         - add only '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' when the interface
+           is if.pm && device is in programming mode, return immediately (do not process any other query params)
+
+         - the ep=knx://sn.* and if=urn:knx:if.pm concatenation is ignored since that only
+           needs to respond when the device is in programming mode
       */
 
+      PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on");
 
-      //  handle programming mode with SN query
       if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
-      { // query parameter present
+      { // query parameter if=urn:knx:if.pm AND ep=knx://sn.xxxxxx present
 
-        // get sn from request
+        // get sn from request, fix position
         const char* ep_serialnumber = ep_request + 9;
 
         if (strncmp(oc_string(device->serialnumber), ep_serialnumber, strlen(oc_string(device->serialnumber))) != 0)
         { // SN does not match
 
+          PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
+
           if (request->origin && (request->origin->flags & MULTICAST) == 0)
           {
-            // unicast request > send
+            // unicast request
             oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
           }
           else
           {
-            // multicast request > ignore
+            // multicast request
             oc_ignore_request(request);
           }
           return;
         }
+        // SN does match
+        PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN direct match");
       }
       else
-      { // query parameter ?/?/?
+      { // query parameter if=urn:knx:if.pm AND something (null up to wildcard)  
+
 
         if (skipped < first_entry)
         {
@@ -530,24 +540,27 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
         }
         else
         {
-          // add sn to response 
+          // add sn to response (but don't send) for unicast/multicast
           response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
-          matches++;
+          query_parameter_kvpair_matches++;
         }
 
-        PRINT("oc_wkcore_discovery_handler PM HANDLING: OK");
+        PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN ???");
       }
     }
     else
-    {
+    { // PRG mode off
+
+      PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode off");
+
       if (request->origin && (request->origin->flags & MULTICAST) == 0)
       {
-        // unicast > send
+        // unicast no PRG mode > send
         oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
       }
       else
       {
-        // multicast > ignore
+        // multicast no PRG mode > ignore
         oc_ignore_request(request);
       }
       return;
@@ -568,17 +581,17 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     // IID pos is fixed after first '.', IA pos follows after second '.' (start searching after first '.')
     char* ep_iid_pos = ep_request + EP_STR_LEN_DOT;
     char* ep_ia_pos = oc_strnchr(ep_request + EP_STR_LEN_DOT, '.', EP_STR_LEN_DOT + IID_STR_LEN_MAX) + 1;
-    char* ep_end_pos = ep_request + ep_len;   
+    char* ep_end_pos = ep_request + ep_len;
 
-    char ia_str[IA_STR_LEN_MAX+1] = ""; // max len IA +\0
+    char ia_str[IA_STR_LEN_MAX + 1] = ""; // max len IA +\0
     strncpy(ia_str, ep_ia_pos, ep_end_pos - ep_ia_pos);// use actual IA size
     const uint32_t ia = strtoul(ia_str, NULL, 16);     // string is hex formatted, on conversion error = 0
 
     if (ia == device->ia)
     { // IA is the same
 
-      char iid_str[IID_STR_LEN_MAX+1] = ""; // max len IID + \0
-      strncpy(iid_str, ep_iid_pos,  ep_ia_pos - ep_iid_pos - 1);// use actual IID size 
+      char iid_str[IID_STR_LEN_MAX + 1] = ""; // max len IID + \0
+      strncpy(iid_str, ep_iid_pos, ep_ia_pos - ep_iid_pos - 1);// use actual IID size 
       const uint64_t iid = strtoull(iid_str, NULL, 16);         // string is hex formatted, on conversion error = 0 (performance ...)
 
       if (iid == device->iid)
@@ -623,14 +636,14 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     PRINT("oc_wkcore_discovery_handler if='%.*s'", if_len, if_request); // first (len) value defines precision 
 
     // process application resources (and add on a 'hit' to response) 
-    finished = oc_process_application_resources(request, device_index, &response_length, &matches, &skipped, first_entry, last_entry);
+    finished = oc_process_application_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, last_entry);
 
   }
 
   if (!finished)
   { // nothing found yet ...
 
-    finished = oc_process_basic_resources(request, device_index, &response_length, &matches, &skipped, first_entry, last_entry);
+    finished = oc_process_basic_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, last_entry);
 
     PRINT("oc_wkcore_discovery_handler add common resources on a unicast request ...");
   }
@@ -641,17 +654,17 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     // unicast, add FBs
     if (oc_filter_functional_blocks(request))
     {
-      oc_add_function_blocks_to_response(request, device_index, &response_length, &matches, &skipped, first_entry, last_entry);
+      oc_add_function_blocks_to_response(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, last_entry);
 
       PRINT("oc_wkcore_discovery_handler add present FB resources on a unicast request ...");
     }
   }
 
-  if (matches > 0 && response_length > 0)
+  if (query_parameter_kvpair_matches > 0 && response_length > 0)
   {
-    // unicast AND multicast
+    // unicast or multicast request
     // matches/response_length >0/>0
-    // m>0;l>0 : -- > at least one query parameter was found AND at least one hit for this device
+    // m>0;l>0 : -- > at least one query parameter KV pair match was found for this device
 
     if (more_request_needed)
     { // add next page resource in case of more data 
@@ -666,18 +679,18 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   else
   {
     // matches/response_length ?/?
-    // m>0;l=0 : -- > at least one query parameter was found but no hit for this device
-    // m=0;l>0 : -- > n/a (no match but a hit ....)
-    // m=0;l=0 : -- > NO query parameter was found AND (hence this) no hit for this device
+    // m>0;l=0 : -- > at least one query parameter KEY was found but no hit for this device
+    // m=0;l>0 : -- > n/a (no query parameter KEY but a hit ....)
+    // m=0;l=0 : -- > NO query parameter KEY was found AND (hence this) no hit for this device
 
     if (request->origin && (request->origin->flags & MULTICAST) == 0)
-    { // unicast
+    { // unicast request
 
-      PRINT("oc_wkcore_discovery_handler send non matching response with length = 0");
-      oc_send_linkformat_response(request, OC_STATUS_OK, 0);
+      PRINT("oc_wkcore_discovery_handler send non matching unicast response with length = 0");
+      oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
     }
     else
-    { // multicast
+    { // multicast request
       oc_ignore_request(request);
     }
   }

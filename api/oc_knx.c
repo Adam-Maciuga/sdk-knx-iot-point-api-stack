@@ -216,12 +216,13 @@ oc_core_knx_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   // int time;
   // int code;
 
-  PRINT("oc_core_knx_post_handler\n");
+  
 
   char buffer[200];
   memset(buffer, 200, 1);
   oc_rep_to_json(request->request_payload, (char *)&buffer, 200, true);
-  PRINT("%s", buffer);
+
+  PRINT("oc_core_knx_post_handler with data \n%s", buffer);
 
   oc_rep_t *rep = request->request_payload;
   while (rep != NULL) {
