@@ -74,7 +74,7 @@ static oc_swu_t app_swu;
 
 // -----------------------------------------------------------------------------
 
-void oc_set_swu_cb (oc_swu_cb_t cb, void* data)
+void oc_set_swu_cb (const oc_swu_cb_t cb, void* data)
 {
   app_swu.cb = cb;
   app_swu.data = data;

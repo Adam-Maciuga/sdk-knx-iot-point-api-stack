@@ -100,7 +100,7 @@ static CRITICAL_SECTION cs;   /**< event loop variable */
 #endif
 
 volatile int quit = 0;          /**< stop variable, used by handle_signal */
-bool g_reset = false;           /**< reset variable, set by commandline arguments */
+bool g_reset = false;           ///reset variable, set by commandline arguments
 char g_serial_number[] = SN;    // default startup SN, maybe overwritten by CL option  
 
 // functional block 417 LSAB command/control are needed for certification tests
@@ -463,7 +463,7 @@ extern "C" {
 
     // set the application name, version, base url, device serial number 
     // init also the device resources such as /dev, /.well-known/core, ...
-    ret |= oc_add_device(MY_NAME, "1.0.0", "//", g_serial_number, NULL, NULL);
+    ret |= oc_add_device(APPLICATION_NAME, "1.0.0", "//", g_serial_number, NULL, NULL);
 
     /* set the hardware version 0.7.0 */
     oc_core_set_device_hwv(0, 0, 7, 0);
@@ -1469,9 +1469,10 @@ extern "C" {
     (void) device_index;
     (void) data;
 
+    // requested by command line 
     if (g_reset)
     {
-      PRINT("factory_presets_cb: resetting device");
+      PRINT("factory_presets_cb: resetting device with erase code '2'");
       oc_knx_device_storage_reset(device_index, 2);
     }
   }
@@ -1483,7 +1484,7 @@ extern "C" {
    * @param host_name the host name to be set on the device
    * @param data the supplied data.
    */
-  void hostname_cb(const size_t device_index, const oc_string_t host_name, const void* data)
+  void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
   {
     (void) device_index;
     (void) data;
@@ -1521,7 +1522,7 @@ extern "C" {
    * @param len the length of the image data
    * @param data the user data
    */
-  void swu_cb(const size_t device, oc_separate_response_t* response, const size_t binary_size, const size_t offset, const uint8_t* payload, const size_t len, void* data)
+  void swu_cb(const size_t device, oc_separate_response_t* response, const size_t binary_size, const size_t offset, uint8_t* payload, const size_t len, void* data)
   {
     (void) device;
     (void) binary_size;
@@ -1543,7 +1544,7 @@ extern "C" {
   void initialize_variables(void)
   {
     /* initialize global variables for resources */
-    /* if wanted read them from persistent storage */
+    /* if wanted to be read them from persistent storage */
   }
 
   int app_set_serial_number(const char* serial_number)
@@ -1555,23 +1556,17 @@ extern "C" {
 
   int app_initialize_stack(void)
   {
-    int init;
-    char* fname = "my_software_image";
+    PRINT("KNX-IOT server name : \"%s\"", APPLICATION_NAME);
 
-    PRINT("KNX-IOT server name : \"%s\"", MY_NAME);
-
-    // show the current working folder
     char buff[FILENAME_MAX];
-    const char* retbuf = GetCurrentDir(buff, FILENAME_MAX);
-    if (retbuf != NULL)
-    {
+    if (GetCurrentDir(buff, FILENAME_MAX) != NULL)
+    { // show the current working folder
       PRINT("Current working dir: %s", buff);
     }
 
     /*
-     The storage folder depends on the build system
-     the folder is created in the makefile, with $target as name with _cred as
-     post fix.
+     The storage folder depends on the build system the folder is created
+     in the makefile, with $target as name with _cred as post fix.
     */
   #ifdef WIN32
 
@@ -1597,13 +1592,16 @@ extern "C" {
                                     .register_resources = register_resources,
                                     .requests_entry = NULL };
 
-    /* set the application callbacks */
+    // must be a pointer for the call below ...
+    static char* fwu_name = FIRMWARE_NAME;
+
+    // set the application callbacks
     oc_set_hostname_cb(hostname_cb, NULL);
     oc_set_factory_presets_cb(factory_presets_cb, NULL);
-    oc_set_swu_cb(swu_cb, (void*) fname);
+    oc_set_swu_cb(swu_cb, fwu_name);
 
     /* start the stack */
-    init = oc_main_init(&handler);
+    const int init = oc_main_init(&handler);
 
     if (init < 0)
     {
@@ -1622,7 +1620,7 @@ extern "C" {
     {
       PRINTipaddr(*my_ep);
     }
-    PRINT("Server '%s' running, waiting on incoming connections...", MY_NAME);
+    PRINT("Server '%s' running, waiting on incoming connections...", APPLICATION_NAME);
     return 0;
   }
 

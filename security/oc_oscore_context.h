@@ -119,13 +119,13 @@ void oc_oscore_free_context(oc_oscore_context_t *ctx);
  * @brief free all OSCORE contexts
  *
  */
-void oc_oscore_free_all_contexts();
+void oc_oscore_free_all_contexts(void);
 
 /**
  * @brief free all OSCORE sender contexts
  *
  */
-void oc_oscore_free_sender_contexts();
+void oc_oscore_free_sender_contexts(void);
 
 /**
  * @brief Free contexts with a given auth_at index

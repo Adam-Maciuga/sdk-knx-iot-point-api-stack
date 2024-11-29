@@ -189,6 +189,16 @@ int oc_core_find_at_entry_with_context_id(size_t device_index,
                                           char *context_id);
 
 /**
+* @brief Find an PASE entry
+*
+* @param device_index The device index
+* 
+* @return int -1 : no PASE entry found
+* @return int >=0 : index of found PASE entry
+*/
+int oc_core_find_pase_entry(size_t device_index);
+
+/**
  * @brief Find an entry with a given OSCORE ID
  *
  * @param device_index The device index

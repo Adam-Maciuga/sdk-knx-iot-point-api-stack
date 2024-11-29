@@ -37,7 +37,7 @@ set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
 set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
-set(OC_USE_STORAGE ON CACHE BOOL "Persistent storage of data.")
+set(OC_USE_STORAGE ON CACHE BOOL "If enbaled the data are persisted in a (file-based) storage.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC applications.")
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
 ## Specific variables, used for debugging 

@@ -3163,27 +3163,23 @@ oc_register_group_multicasts()
   }
 }
 
-void
-oc_init_datapoints_at_initialization()
+// scans for "read on init" cflags and issues a read request in case of
+void oc_init_datapoints_at_initialization(void)
 {
-  int index;
   PRINT("oc_init_datapoints_at_initialization");
 
-  for (index = 0; index < GOT_MAX_ENTRIES; index++)
+  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
-    int nr_entries = g_got[index].ga_len;
+    const int nr_of_ga_entries = g_got[index].ga_len;
 
-    if (nr_entries > 0)
-    {
+    if (nr_of_ga_entries > 0)
+    { // at least one GA is assigned (is an array) 
       oc_cflag_mask_t cflags = g_got[index].cflags;
-      if ((cflags & OC_CFLAG_INIT) > 0)
+      if (cflags & OC_CFLAG_INIT)
       {
-        // Case 5)
-        // @sender : cflags = i After device restart(power up)
-        // Sent : -st r, sending association(1st assigned ga)
-        PRINT("oc_init_datapoints_at_initialization: index: %d issue read on "
-              "group address %d",
-              index, g_got[index].ga[0]);
+        // read on init cflags is set, fire (after device restart)
+        // via the sending association(first assigned ga == sending ga)
+        PRINT("oc_init_datapoints_at_initialization: index: %d issue read on group address %u", index, g_got[index].ga[0]);
         oc_do_s_mode_read(g_got[index].ga[0]);
       }
     }

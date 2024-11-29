@@ -292,9 +292,9 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
   // check on request accept header (clause 2.2.4)
-  // - link-format == OK =default (use default as response format)
+  // - LINK == OK = default (use default as response format)
   // - in case of absence of any format == OK (use default as response format)
-  // - in case of JSON format == OK (use default as response format)S
+  // - in case of JSON format == OK (use default as response format)
   if (request->accept != APPLICATION_LINK_FORMAT &&
       request->accept != APPLICATION_JSON && request->accept != CONTENT_NONE)
   {
@@ -719,7 +719,7 @@ oc_create_discovery_resource(const int resource_idx, const size_t device)
   else
     if (device == 0)
     {
-      OC_DBG("device 0: Global discovery resources created statically");
+      OC_DBG("device 0: Global 'discovery' resources created statically");
     }
 }
 

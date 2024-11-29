@@ -299,7 +299,7 @@ extern "C" {
 
   /**
    * @brief initializes the data points at initialization
-   * e.g. sends out an read s-mode message when the I flag is set.
+   * e.g. sends out a read s-mode message when the 'read on init' I flag is set.
    *
    */
   void oc_init_datapoints_at_initialization();

@@ -184,7 +184,7 @@ extern "C" {
    * https://www.iana.org/assignments/core-parameters/core-parameters.xhtml#rd-parameters
    *
    */
-  typedef enum
+  typedef enum 
   {
     TEXT_PLAIN = 0,                    /**< text/plain */
     TEXT_XML = 1,                      /**< text/xml */

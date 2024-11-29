@@ -35,10 +35,11 @@
 extern "C" {
 #endif
 
-#define MY_NAME   "KNX virtual switch actuator"
-#define PASSWORD  "ABY8B77J50YXMUDW3DG4"       
-#define SN        "00FA10020800"
-#define MID       (250)         // = first 4 digits of sn = 15<<4 + 10
+#define APPLICATION_NAME   "KNX virtual switch actuator"
+#define FIRMWARE_NAME      "KNX stack image"
+#define PASSWORD           "ABY8B77J50YXMUDW3DG4"
+#define SN                 "00FA10020800"
+#define MID                (250)         // = first 4 digits of sn = 15<<4 + 10
 
 // URL defines
 #define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     for /p/o_1_1

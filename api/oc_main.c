@@ -65,7 +65,7 @@ static oc_loadstate_t app_loadstate = { NULL, NULL };
 // -----------------------------------------------------------------------------
 
 void
-oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void *data)
+oc_set_factory_presets_cb(const oc_factory_presets_cb_t cb, void *data)
 {
   factory_presets.cb = cb;
   factory_presets.data = data;
@@ -109,7 +109,7 @@ oc_get_restart_cb(void)
 // -----------------------------------------------------------------------------
 
 void
-oc_set_hostname_cb(oc_hostname_cb_t cb, void *data)
+oc_set_hostname_cb(const oc_hostname_cb_t cb, void *data)
 {
   app_hostname.cb = cb;
   app_hostname.data = data;

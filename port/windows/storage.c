@@ -71,7 +71,7 @@ oc_storage_config(const char *store)
   int retval = _mkdir(temp_dir);
 #endif
 #else
-  PRINT("\tNot Creating storage directory \n");
+  PRINT("Not Creating storage directory");
 #endif
 
   return 0;
