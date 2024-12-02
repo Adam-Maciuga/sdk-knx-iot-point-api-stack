@@ -20,7 +20,7 @@
 int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_exists)
 {
   if (ps_exists == NULL)
-  { 
+  {
     return 0;
   }
   if (total_exists == NULL)
@@ -31,53 +31,48 @@ int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_e
   *ps_exists = false;
   *total_exists = false;
 
-  // handle query parameters
-  if (oc_query_values_available(request))
-  {
-    // check if l exist
-    if (oc_query_value_exists(request, "l") > -1)
-    {
-      // find out if l=ps and/or l=total
-      bool more_query_params;
-      char* value = NULL;
-      int value_len = -1;
-      oc_init_query_iterator();
-      do
-      {
-        more_query_params =
-          oc_iterate_query_get_values(request, "l", &value, &value_len);
-        if (value_len == 2)
-        {
-          if (strncmp("ps", value, value_len) == 0)
-          {
-            *ps_exists = true;
-          }
-        }
-        if (value_len == 5)
-        {
-          if (strncmp("total", value, value_len) == 0)
-          {
-            *total_exists = true;
-          }
-        }
-      }
-      while (more_query_params);
-      if (*ps_exists == false && *total_exists == false)
-      {
-        return -1;
-      }
-    } /* query l exists */
-  }   /* query available */
+  if (!oc_query_values_available(request))
+  { // no query parameter at all exits 
+    return 0;
+  }
 
-  if (*ps_exists == true)
-  {
-    return 1;
+  if (oc_query_value_exists(request, "l") == -1)
+  { // query parameter 'l' does not exit 
+    return 0;
   }
-  if (*total_exists == true)
+
+  bool more_query_params;
+  char* value = NULL;
+  int value_len = -1;
+  oc_init_query_iterator();
+
+  // find out if l=ps and/or l=total exists
+  do
   {
-    return 1;
+    more_query_params = oc_iterate_query_get_values(request, "l", &value, &value_len);
+    if (value_len == 2)
+    {
+      if (strncmp("ps", value, value_len) == 0)
+      {
+        *ps_exists = true;
+      }
+    }
+    if (value_len == 5)
+    {
+      if (strncmp("total", value, value_len) == 0)
+      {
+        *total_exists = true;
+      }
+    }
   }
-  return 0;
+  while (more_query_params);
+
+  if (*ps_exists == false && *total_exists == false)
+  { // query l exist but with no 'ps' or 'total'
+    return -1;
+  }
+  // query l exist with 'ps' and/or 'total'
+  return 1;
 }
 
 int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total)
@@ -85,7 +80,7 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
   // request  <.../fp/r?l=total&l=ps>
   // response </fp/r;l=22;ps=5>
 
-  // init 
+  // open 
   int length = oc_rep_add_line_to_buffer("<");
   int response_length = length;
 

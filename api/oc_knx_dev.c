@@ -1231,7 +1231,7 @@ oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   // debugging
   if (rep != NULL)
   {
-    PRINT("oc_core_ap_x_put_handler type: %d\n", rep->type);
+    PRINT("oc_core_ap_x_put_handler type: %d", rep->type);
   }
 
   if ((rep != NULL) && (rep->type == OC_REP_INT_ARRAY))
@@ -1267,7 +1267,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(app_x, a_lsm, 0, "/ap/pv", OC_IF_P,
 void
 oc_create_ap_x_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_ap_x_resource\n");
+  OC_DBG("oc_create_ap_x_resource");
   oc_core_populate_resource(resource_idx, device, "/ap/pv", OC_IF_P,
                             APPLICATION_CBOR, OC_DISCOVERABLE,
                             oc_core_ap_x_get_handler, oc_core_ap_x_put_handler,

@@ -83,15 +83,15 @@
 #include <pthread.h>
 #ifndef NO_MAIN
 static pthread_mutex_t mutex;
-static pthread_cond_t cv;
+static pthread_cond_t event_is_pending;
 static struct timespec ts;
 #endif /* NO_MAIN */
 #endif
 
 #ifdef WIN32                  // windows specific code 
 #include <windows.h>
-static CONDITION_VARIABLE cv; /**< event loop variable */
-static CRITICAL_SECTION cs;   /**< event loop variable */
+static CONDITION_VARIABLE event_is_pending;
+static CRITICAL_SECTION critical_section;   
 #include <direct.h>
 #define GetCurrentDir _getcwd // path of current working directory, windows
 #else                         // linux,mac specific code 
@@ -408,7 +408,7 @@ void do_put_cb(char* url)
 extern "C" {
 #endif
 
-  // define prototype, used by an init method  
+  // need to define prototype, used by an init method  
   void signal_event_loop(void);
 
   /**
@@ -503,8 +503,8 @@ extern "C" {
     return PASSWORD;
   }
 
-  // data point (objects) handling, the (generic) callback 'call' handler uses always
-  // below 3 parameters, provide them even if not used
+  // data point (objects) handling
+  // note, the (generic) callback 'call' handler uses always below 3 parameters, provide them even if not used
 
   /**
    * @brief CoAP GET method for data point "OnOff_1" resource at url URL_ONOFF_1 ("/p/1").
@@ -1285,13 +1285,13 @@ extern "C" {
     (void) interfaces;
     (void) user_data;
     bool error_state = true;
-    PRINT("-- Begin put_OnOff_3:\n");
+    PRINT("-- Begin put_OnOff_3:");
 
     oc_rep_t* rep = NULL;
     /* handle the different requests e.g. via s-mode or normal CoAP call*/
     if (oc_is_redirected_request(request))
     {
-      PRINT("  redirected request..\n");
+      PRINT("  redirected request..");
     }
     rep = request->request_payload;
     /* loop over all the entries in the request */
@@ -1302,7 +1302,7 @@ extern "C" {
       /* handle the type of payload correctly. */
       if ((rep->iname == 1) && (rep->type == OC_REP_BOOL))
       {
-        PRINT("  put_OnOff_3 received : %d\n", rep->value.boolean);
+        PRINT("  put_OnOff_3 received : %d", rep->value.boolean);
         g_OnOff_3 = rep->value.boolean;
         error_state = false;
         break;
@@ -1442,7 +1442,7 @@ extern "C" {
       oc_add_resource(res_InfoOnOff_2);
     }
 
-    PRINT("Register Resource 'OnOff_3' with local path \"%s\"\n", URL_ONOFF_3);
+    PRINT("Register Resource 'OnOff_3' with local path \"%s\"", URL_ONOFF_3);
     { // used only for EITT tests specification clause 5.10.1 and EITT frame 93 S
       oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
       oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.61");
@@ -1633,8 +1633,8 @@ extern "C" {
   {
 
   #ifndef NO_MAIN
-    WakeConditionVariable(&cv);
-  #endif /* NO_MAIN */
+    WakeConditionVariable(&event_is_pending); 
+  #endif
   }
 #endif /* WIN32 */
 
@@ -1648,7 +1648,7 @@ extern "C" {
   {
   #ifndef NO_MAIN
     pthread_mutex_lock(&mutex);
-    pthread_cond_signal(&cv);
+    pthread_cond_signal(&event_is_pending);
     pthread_mutex_unlock(&mutex);
   #endif /* NO_MAIN */
   }
@@ -1674,22 +1674,18 @@ extern "C" {
    * handles (in a loop) the next event.
    * shuts down the stack
    */
-  int
-    main(const int argc, char* argv[])
+  int main(const int argc, char* argv[])
   {
     oc_clock_time_t next_event;
-    bool do_send_s_mode = false;
 
   #ifdef KNX_GUI
     WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
   #endif
 
   #ifdef WIN32
-    /* windows specific */
-    InitializeCriticalSection(&cs);
-    InitializeConditionVariable(&cv);
-    /* install Ctrl-C */
-    signal(SIGINT, handle_signal);
+    InitializeCriticalSection(&critical_section);   // init , but not used in main actively
+    InitializeConditionVariable(&event_is_pending); // init 
+    signal(SIGINT, handle_signal);                  // install Ctrl-C handler
   #endif
   #ifdef __linux__
     /* Linux specific */
@@ -1733,26 +1729,28 @@ extern "C" {
       }
     }
 
-    /* do all initialization */
+    // application initialization 
     app_initialize_stack();
 
   #ifdef WIN32
-    /* windows specific loop */
-    while (quit != 1)
+    while (quit != 1) // check on Ctrl-C
     {
-      next_event = oc_main_poll();
+      // loops over all events
+      next_event = oc_main_poll(); 
 
       if (next_event == 0)
-      { // no event is pending
-        SleepConditionVariableCS(&cv, &cs, INFINITE);
+      { // no event (timer) is pending, all done
+        SleepConditionVariableCS(&event_is_pending, &critical_section, INFINITE);
       }
       else
       {
+#       // time in ticks (tick = ms) 
         const oc_clock_time_t now = oc_clock_time();
         if (now < next_event)
-        { // sleep XXX ms until next pending event time is reached
-          SleepConditionVariableCS(&cv, &cs, (DWORD) ((next_event - now) * 1000 / OC_CLOCK_SECOND));
+        { // next event lays in the future, sleep until next pending event timer is reached
+          SleepConditionVariableCS(&event_is_pending, &critical_section, ((next_event - now) * 1000 / OC_CLOCK_SECOND));
         }
+        // next event is now ...
       }
     }
   #endif
@@ -1765,20 +1763,20 @@ extern "C" {
       pthread_mutex_lock(&mutex);
       if (next_event == 0)
       {
-        pthread_cond_wait(&cv, &mutex);
+        pthread_cond_wait(&event_is_pending, &mutex);
       }
       else
       {
         ts.tv_sec = (next_event / OC_CLOCK_SECOND);
         ts.tv_nsec = (next_event % OC_CLOCK_SECOND) * 1.e09 / OC_CLOCK_SECOND;
-        pthread_cond_timedwait(&cv, &mutex, &ts);
+        pthread_cond_timedwait(&event_is_pending, &mutex, &ts);
       }
       pthread_mutex_unlock(&mutex);
     }
   #endif
 
-    /* shut down the stack */
+    // shut down the stack
     oc_main_shutdown();
     return 0;
   }
-#endif /* NO_MAIN */
+#endif

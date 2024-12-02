@@ -344,7 +344,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx, knx_fp_g, 0, "/.well-known/knx",
 
 void oc_create_knx_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_knx_resource\n");
+  OC_DBG("oc_create_knx_resource");
   oc_core_populate_resource(
     resource_idx, device, "/.well-known/knx", OC_IF_LI | OC_IF_SEC | OC_IF_D,
     APPLICATION_LINK_FORMAT, OC_DISCOVERABLE, oc_core_knx_get_handler, 0,

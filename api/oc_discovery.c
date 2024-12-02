@@ -214,7 +214,7 @@ oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
 }
 
 bool oc_process_application_resources(oc_request_t* request, const size_t device_index,
-                                      size_t* response_length, int* matches, int* skipped,
+                                      size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
                                       const int first_entry, const int last_entry)
 {
   const oc_resource_t* resource = oc_ri_get_app_resources();
@@ -225,8 +225,8 @@ bool oc_process_application_resources(oc_request_t* request, const size_t device
 
     if (oc_filter_resource(resource, request, device_index, response_length, skipped, first_entry, 0))
     {
-      (*matches)++;
-      if (first_entry + (*matches) >= last_entry)
+      (*query_parameter_kvpair_matches)++;
+      if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
       {
         return true;
       }
@@ -237,15 +237,15 @@ bool oc_process_application_resources(oc_request_t* request, const size_t device
 }
 
 bool oc_process_basic_resources(oc_request_t* request, const size_t device_index,
-                                size_t* response_length, int* matches, int* skipped,
+                                size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
                                 const int first_entry, const int last_entry)
 {
   for (int i = 0; i < OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK; i++)
   {
     if (oc_filter_resource(oc_core_get_resource_by_index(basic_resources[i], device_index), request, device_index, response_length, skipped, first_entry, 0))
     {
-      (*matches)++;
-      if (first_entry + (*matches) >= last_entry)
+      (*query_parameter_kvpair_matches)++;
+      if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
       {
         return true;
       }
@@ -284,13 +284,6 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint32_
 static void oc_wkcore_discovery_handler(oc_request_t* request)
 {
 
-  size_t response_length = 0;             // response payload len, correlates 
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
-  int skipped = 0;
-  bool finished = false;                  // defines if a resource was found for a request
-  bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
-  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
-
   // check on request accept header (clause 2.2.4)
   // - LINK == OK = default (use default as response format)
   // - in case of absence of any format == OK (use default as response format)
@@ -321,11 +314,18 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   char* d_request = 0;    // 'd'
   int d_len = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
-  int total = 0;          // total query parameters
-  int first_entry = 0;    // inclusive
-  int query_pn = -1;      // page number (page size is not used)
+  size_t response_length = 0;             // response payload len 
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+  int skipped = 0;
+  bool finished = false;                  // defines if a resource was found for a request
+  bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
+
+  bool ps_exists ;        // will be initialized in function in anx case
+  bool total_exists;      // will be initialized in function in anx case
+  int total = 0;          // total resources found that matches the request pattern
+  int first_entry = 0;    // first entry number of a resource that is placed on a page
+  int query_pn = -1;      // page number (page size as request parameter is not used)
 
   oc_init_query_iterator();
   while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
@@ -375,7 +375,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   // count 'visible' application resources (only those) in case of query parameters rt/if are present
   if (rt_len > 0 || if_len > 0)
   {
-    for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
+    for (oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
     {
       // skip other devices and not "public" resources 
       if (my_resource->device != device_index || !(my_resource->properties & OC_DISCOVERABLE))
@@ -391,7 +391,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
 
   total += OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;    // add core elements
   total += oc_count_functional_blocks(device_index);  // add functional blocks  
-  int last_entry = total;                             // exclusive
+  int last_entry = total;                             // last entry number of a resource that is placed on a page
 
   // handle query parameters: l=ps and l=total ('l' and 'other' query parameters SHALL NOT be combined in a request)
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
@@ -414,15 +414,18 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   {
     query_parameter_key_match = true;
     first_entry += query_pn * PAGE_SIZE;
+
+    // check if the requested page would carry any resources
+    // e.g; last =10, page = 5 -> no data on page 5
     if (first_entry >= last_entry)
-    {
+    { 
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
   }
 
-  // check if found entries fits in the current page n ... n+page size, cut data to page 'n' with
-  // e.g; first=0, last=300 first=0, last = 20 and 'more response needed' marker = true
+  // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
+  // e.g; first=0, last=300 -> first=0, last = 20 and 'more response needed' marker = true
   if (last_entry > first_entry + PAGE_SIZE)
   {
     last_entry = first_entry + PAGE_SIZE;
@@ -690,11 +693,13 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     if (request->origin && (request->origin->flags & MULTICAST) == 0)
     { // unicast request
 
-      PRINT("oc_wkcore_discovery_handler send non matching unicast response with length = 0");
+      PRINT("oc_wkcore_discovery_handler unicast request, no match -> send unicast response with length = 0");
       oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
     }
     else
     { // multicast request
+
+      PRINT("oc_wkcore_discovery_handler multicast request, no match -> ignore it");
       oc_ignore_request(request);
     }
   }
