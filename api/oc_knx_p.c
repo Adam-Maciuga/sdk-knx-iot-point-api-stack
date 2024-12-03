@@ -25,14 +25,14 @@
 
  // -----------------------------------------------------------------------------
 
-bool
-oc_add_data_points_to_response(oc_request_t* request,
-                               const oc_resource_t* resource,
-                               size_t device_index, size_t* response_length,
-                               int matches, int page_size)
+// add datapoint to response and return true if at least one was added
+static bool oc_add_data_points_to_response(oc_request_t* request,
+                                           const oc_resource_t* resource,
+                                           size_t device_index, size_t* response_length,
+                                           const int page_size)
 {
   (void) request;
-  int length = 0;
+  int matches =0;
 
   for (; resource && matches < page_size; resource = resource->next)
   {
@@ -44,35 +44,26 @@ oc_add_data_points_to_response(oc_request_t* request,
     matches++;
   }
 
-  if (matches > 0)
-  {
-    return true;
-  }
-
-  return false;
+  return matches > 0 ? true : false; 
 }
 
 /*
  * return list of parameter handlers
  */
-static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask_t iface_mask, const void* data)
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;   
-  int matches = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
-  int total = 0;
-  int first_entry = 0; // inclusive
-  // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  size_t response_length = 0;             // response payload len
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
+  bool ps_exists ;                        // will be initialized in function in anx case
+  bool total_exists;                      // will be initialized in function in anx case
+  int total = 0;                          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                    // first entry number of a resource that will be placed on a page
+  int query_pn = -1;                      // page number (page size as request parameter is not used)
 
-  PRINT("oc_core_p_get_handler");
+  PRINT("oc_core_p_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
@@ -83,7 +74,6 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
 
   // get from the request the addressed device as index
   const size_t device_index = request->resource->device;
-
   const oc_resource_t* my_p = oc_ri_get_app_resources();
 
   // calculate total properties
@@ -98,16 +88,13 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
       total++;
     }
   }
-  int last_entry = total;                   // last entry number of a resource that is placed on a page
 
   // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /p > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
@@ -122,82 +109,83 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   if (check_if_query_pn_exist(request, &query_pn, NULL))
   {
     first_entry = query_pn * PAGE_SIZE;
-    if (first_entry >= last_entry)
+
+    // check if the requested page would carry at least one resource
+    // e.g; total=10, page=5 -> no data on page 5 
+    if (first_entry >= total)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
-    // skip endpoints and return the next one
+    // skip all endpoints 'before' the requested page# and return the next one
     for (int i = 0; i < first_entry; i++)
     {
       my_p = my_p->next;
     }
   }
 
-  if (last_entry > first_entry + PAGE_SIZE)
+  // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
+  // e.g; first=0, total=300 -> 'more response needed' marker = true
+  if (total > first_entry + PAGE_SIZE)
   {
     more_request_needed = true;
   }
 
-  bool added = oc_add_data_points_to_response(
-    request, my_p, device_index, &response_length, matches, PAGE_SIZE);
-
-  if (added)
+  const bool at_least_one_added = oc_add_data_points_to_response(request, my_p, device_index, &response_length, PAGE_SIZE);
+  if (at_least_one_added)
   {
     if (more_request_needed)
-    {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+    { 
+      // no page # was in the request next page is 1 or #+1
+      const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
   else
   {
+    // no reference found for the 
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_p_get_handler - end\n");
+  PRINT("oc_core_p_get_handler - end");
 }
 
 /*
  * handles the /p put command, e.g. list of parameters
  */
-static void
-oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                       void* data)
+static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
-  oc_rep_t* rep = NULL;
   bool error = false;
 
-  PRINT("oc_core_p_post_handler\n");
+  PRINT("oc_core_p_post_handler - start");
 
   /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
+
+  // get from the request the addressed device as index
   size_t device_index = request->resource->device;
 
-  /*  check if the url are implemented on the device*/
-  rep = request->request_payload;
+  // check if the url is implemented on the device
+  oc_rep_t* rep = request->request_payload;
   while (rep != NULL)
   {
     if (rep->type == OC_REP_OBJECT)
-    {
-      oc_rep_t* entry = rep->value.object;
+    { 
+
+      const oc_rep_t* entry = rep->value.object;
       while (entry != NULL)
       {
-        // href == 11
+        // href = CBOR KEY 11, value = string 
         if ((entry->iname == 11) && (entry->type == OC_REP_STRING))
         {
-
-          if (oc_belongs_href_to_resource(entry->value.string, false,
-              device_index) == false)
+          if (oc_belongs_href_to_resource(entry->value.string, false, device_index) == false)
           {
             error = true;
             OC_ERR("href '%.*s' does not belong to device",
@@ -210,59 +198,60 @@ oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
     }
     rep = rep->next;
   }
+
   if (error)
   {
-    PRINT("oc_core_p_post_handler - end\n");
+    PRINT("oc_core_p_post_handler - end");
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
     return;
   }
 
-  oc_string_t* myurl;
-  oc_rep_t* value;
   rep = request->request_payload;
+
   while (rep != NULL)
   {
     if (rep->type == OC_REP_OBJECT)
     {
       oc_rep_t* entry = rep->value.object;
-      myurl = NULL;
-      value = NULL;
+      const oc_string_t* myurl = NULL;
+      oc_rep_t* value = NULL;
+
       while (entry != NULL)
       {
-        // href == 11
+        // href
         if ((entry->iname == 11) && (entry->type == OC_REP_STRING))
         {
           myurl = &entry->value.string;
         }
+
+        // value
         if (entry->iname == 1)
         {
           value = entry;
         }
+
         if (value && myurl)
         {
-          // do the post..
-          oc_request_t new_request;
-          memset(&new_request, 0, sizeof(oc_request_t));
-          oc_response_buffer_t response_buffer;
-          memset(&response_buffer, 0, sizeof(oc_response_buffer_t));
-          oc_response_t response_obj;
-          memset(&response_obj, 0, sizeof(oc_response_t));
-          oc_ri_new_request_from_request(&new_request, request,
-                                         &response_buffer, &response_obj);
+          // do the post
+
+          oc_request_t new_request = {0};
+          oc_response_buffer_t response_buffer = {0};
+          oc_response_t response_obj = {0};
+
+          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
           new_request.request_payload = value;
           new_request.uri_path = oc_string(*myurl);
           new_request.uri_path_len = oc_string_len(*myurl);
 
-          const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(
-            oc_string(*myurl), oc_string_len(*myurl), device_index);
+          const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(oc_string(*myurl), oc_string_len(*myurl), device_index);
+
           if (my_resource)
           {
-            // this should not be the request..
-            // Reason for changing POST to PUT:
-            // POST is not mandatory for parameters & datapoints
+            // changing from POST to PUT; POST is not mandatory for parameters & datapoints
             if (my_resource->put_handler.cb)
             {
+              // use new request (not received one with POST)
               my_resource->put_handler.cb(&new_request, iface_mask, NULL);
             }
           }
@@ -274,7 +263,7 @@ oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   }
   oc_knx_increase_fingerprint();
   oc_send_response_no_format(request, OC_STATUS_CHANGED);
-  PRINT("oc_core_p_post_handler - end\n");
+  PRINT("oc_core_p_post_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_p, knx_f, 0, "/p",

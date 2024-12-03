@@ -383,12 +383,9 @@ int oc_core_find_nr_used_in_group_recipient_table(void)
 }
 
 bool
-oc_belongs_href_to_resource(oc_string_t href, bool discoverable,
-                            size_t device_index)
+oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index)
 {
-
-  const oc_resource_t* resource = oc_ri_get_app_resources();
-  for (; resource; resource = resource->next)
+  for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
     if (discoverable)
     {

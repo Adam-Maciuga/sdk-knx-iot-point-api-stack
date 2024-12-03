@@ -910,7 +910,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED (knx_swu, sub, 0, "/swu",
 void
 oc_create_knx_swu_resource (int resource_idx, size_t device)
 {
-  OC_DBG ("oc_create_knx_swu_resource\n");
+  OC_DBG ("oc_create_knx_swu_resource");
   //
   oc_core_populate_resource (
     resource_idx, device, "/swu", OC_IF_SWU | OC_IF_LI | OC_IF_D,

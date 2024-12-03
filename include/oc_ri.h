@@ -184,7 +184,7 @@ extern "C" {
    * https://www.iana.org/assignments/core-parameters/core-parameters.xhtml#rd-parameters
    *
    */
-  typedef enum 
+  typedef enum oc_content_format_s
   {
     TEXT_PLAIN = 0,                    /**< text/plain */
     TEXT_XML = 1,                      /**< text/xml */
@@ -616,7 +616,7 @@ extern "C" {
                                                      size_t device);
 
   /**
-   * @brief retrieve list of resources
+   * @brief retrieve list of application resources (excluding device core resources)
    *
    * @return oc_resource_t* the resource list
    */

@@ -51,7 +51,7 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
                            const size_t device_index, size_t* response_length,
                            const int truncate)
 {
-  (void) device_index; /* variable not used */
+  (void) device_index;
   int length;
 
   if (resource == NULL)
@@ -66,12 +66,12 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
 
   if (*response_length > 0)
   {
-    /* frame the trailing comma */
+    // frame the trailing comma in case a resource (or even a single char) is already added
     length = oc_rep_add_line_to_buffer(",\n");
     *response_length += length;
   }
 
-  /* frame the trailing comma */
+  // <
   length = oc_rep_add_line_to_buffer("<");
   *response_length += length;
   /*
@@ -97,9 +97,11 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
   }
  */
 
+  // uri
   length = oc_rep_add_line_to_buffer(oc_string(resource->uri));
   *response_length += length;
 
+  // >
   length = oc_rep_add_line_to_buffer(">;");
   *response_length += length;
 
@@ -155,8 +157,8 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
   {
     length = oc_rep_add_line_to_buffer("if=");
     *response_length += length;
-    length =
-      oc_frame_interfaces_mask_in_response(resource->interfaces, truncate);
+
+    length = oc_frame_interfaces_mask_in_response(resource->interfaces, truncate);
     *response_length += length;
 
     length = oc_rep_add_line_to_buffer(";");
@@ -167,8 +169,10 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
   {
     length = oc_rep_add_line_to_buffer("ct=");
     *response_length += length;
-    char my_ct_value[5];
-    sprintf((char*) &my_ct_value, "%d", resource->content_type);
+
+    char my_ct_value[5]; // space for one type only (max 5 digits)
+    sprintf(my_ct_value, "%d", resource->content_type);
+
     length = oc_rep_add_line_to_buffer(my_ct_value);
     *response_length += length;
   }
@@ -213,12 +217,11 @@ oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
                                truncate);
 }
 
-bool oc_process_application_resources(oc_request_t* request, const size_t device_index,
+static bool oc_process_application_resources(oc_request_t* request, const size_t device_index,
                                       size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
                                       const int first_entry, const int last_entry)
 {
-  const oc_resource_t* resource = oc_ri_get_app_resources();
-  for (; resource; resource = resource->next)
+  for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
     if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
       continue;
@@ -236,7 +239,7 @@ bool oc_process_application_resources(oc_request_t* request, const size_t device
   return false;
 }
 
-bool oc_process_basic_resources(oc_request_t* request, const size_t device_index,
+static bool oc_process_basic_resources(oc_request_t* request, const size_t device_index,
                                 size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
                                 const int first_entry, const int last_entry)
 {
@@ -283,19 +286,6 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint32_
 
 static void oc_wkcore_discovery_handler(oc_request_t* request)
 {
-
-  // check on request accept header (clause 2.2.4)
-  // - LINK == OK = default (use default as response format)
-  // - in case of absence of any format == OK (use default as response format)
-  // - in case of JSON format == OK (use default as response format)
-  if (request->accept != APPLICATION_LINK_FORMAT &&
-      request->accept != APPLICATION_JSON && request->accept != CONTENT_NONE)
-  {
-    //handle bad request..., note below layer ignores this message if it is a multicast request
-    oc_send_response_no_format(request, OC_STATUS_NOT_ACCEPTABLE);
-    return;
-  }
-
   char* key;             // one key pointer for a key=value 'pair' 
   size_t key_len;
 
@@ -317,20 +307,31 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   size_t response_length = 0;             // response payload len 
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
   int skipped = 0;
-  bool finished = false;                  // defines if a resource was found for a request
+  bool current_page_is_full = false;      // true if response page is full, no more resources can be added
   bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
   bool ps_exists ;        // will be initialized in function in anx case
   bool total_exists;      // will be initialized in function in anx case
-  int total = 0;          // total resources found that matches the request pattern
-  int first_entry = 0;    // first entry number of a resource that is placed on a page
+  int total = 0;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;    // first entry number of a resource that will be  placed on a page
   int query_pn = -1;      // page number (page size as request parameter is not used)
+
+  // check on request accept header (clause 2.2.4)
+  // - LINK == OK = default (use default as response format)
+  // - in case of absence of any format == OK (use default as response format)
+  // - in case of JSON format == OK (use default as response format)
+  if (request->accept != APPLICATION_LINK_FORMAT &&
+      request->accept != APPLICATION_JSON && request->accept != CONTENT_NONE)
+  {
+    //handle bad request..., note below layer ignores this message if it is a multicast request
+    oc_send_response_no_format(request, OC_STATUS_NOT_ACCEPTABLE);
+    return;
+  }
 
   oc_init_query_iterator();
   while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
-  { // if a key was found values are set;
-    // each KEY is found one time per request query parameters (last wins)
+  { // each KEY is found one time per request query parameters (last wins)
 
     if (strncmp(key, "rt", key_len) == 0)
     {
@@ -372,10 +373,10 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
 
   // multicast w/ query parameter ; unicast w/ or w/o query parameter
 
-  // count 'visible' application resources (only those) in case of query parameters rt/if are present
+  // count 'visible' application resources in case of query parameters rt/if are present
   if (rt_len > 0 || if_len > 0)
   {
-    for (oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
+    for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
     {
       // skip other devices and not "public" resources 
       if (my_resource->device != device_index || !(my_resource->properties & OC_DISCOVERABLE))
@@ -383,7 +384,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
         continue;
       }
       if (oc_string(my_resource->uri) != NULL)
-      { // local URI must be present for application resources 
+      { // local URI must be present for a resource 
         total++;
       }
     }
@@ -391,7 +392,6 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
 
   total += OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;    // add core elements
   total += oc_count_functional_blocks(device_index);  // add functional blocks  
-  int last_entry = total;                             // last entry number of a resource that is placed on a page
 
   // handle query parameters: l=ps and l=total ('l' and 'other' query parameters SHALL NOT be combined in a request)
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
@@ -415,9 +415,9 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     query_parameter_key_match = true;
     first_entry += query_pn * PAGE_SIZE;
 
-    // check if the requested page would carry any resources
-    // e.g; last =10, page = 5 -> no data on page 5
-    if (first_entry >= last_entry)
+    // check if the requested page would carry at least one resource
+    // e.g; total=10, page=5 -> no data on page 5 
+    if (first_entry >= total)
     { 
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
@@ -425,10 +425,10 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   }
 
   // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
-  // e.g; first=0, last=300 -> first=0, last = 20 and 'more response needed' marker = true
-  if (last_entry > first_entry + PAGE_SIZE)
+  // e.g; first=0, total=300 -> first=0, total=20 and 'more response needed' marker = true
+  if (total > first_entry + PAGE_SIZE)
   {
-    last_entry = first_entry + PAGE_SIZE;
+    total = first_entry + PAGE_SIZE;
     more_request_needed = true;
   }
 
@@ -643,25 +643,24 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     PRINT("oc_wkcore_discovery_handler if='%.*s'", if_len, if_request); // first (len) value defines precision 
 
     // process application resources (and add on a 'hit' to response) 
-    finished = oc_process_application_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, last_entry);
-
+    current_page_is_full = oc_process_application_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, total);
   }
 
-  if (!finished)
-  { // nothing found yet ...
+  if (!current_page_is_full)
+  { // page not full, things can still be added
 
-    finished = oc_process_basic_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, last_entry);
+    current_page_is_full = oc_process_basic_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, total);
 
     PRINT("oc_wkcore_discovery_handler add common resources on a unicast request ...");
   }
 
-  if (!finished && request->origin && (request->origin->flags & MULTICAST) == 0)
-  { // nothing found yet ...
+  if (!current_page_is_full && request->origin && (request->origin->flags & MULTICAST) == 0)
+  { // page not full, things can still be added
 
     // unicast, add FBs
     if (oc_filter_functional_blocks(request))
     {
-      oc_add_function_blocks_to_response(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, last_entry);
+      oc_add_function_blocks_to_response(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, total);
 
       PRINT("oc_wkcore_discovery_handler add present FB resources on a unicast request ...");
     }
@@ -674,8 +673,8 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     // m>0;l>0 : -- > at least one query parameter KV pair match was found for this device
 
     if (more_request_needed)
-    { // add next page resource in case of more data 
-
+    { 
+      // no page # was in the request next page is 1 or #+1
       const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
       response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
     }

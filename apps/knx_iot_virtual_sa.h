@@ -42,14 +42,14 @@ extern "C" {
 #define MID                (250)         // = first 4 digits of sn = 15<<4 + 10
 
 // URL defines
-#define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     for /p/o_1_1
-#define URL_INFOONOFF_1 "/p/2"  // define URL InfoOnOff_1 for /p/o_2_2
-#define URL_ONOFF_2     "/p/3"  // define URL OnOff_2     for /p/o_3_3
-#define URL_INFOONOFF_2 "/p/4"  // define URL InfoOnOff_2 for /p/o_4_4
-#define URL_ONOFF_3     "/p/p1" // define URL OnOff_3     for /p/o_5_5 
-#define URL_INFOONOFF_3 "/p/6"  // define URL InfoOnOff_3 for /p/o_6_6
-#define URL_ONOFF_4     "/p/7"  // define URL OnOff_4     for /p/o_7_7
-#define URL_INFOONOFF_4 "/p/8"  // define URL InfoOnOff_4 for /p/o_8_8
+#define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     
+#define URL_INFOONOFF_1 "/p/2"  // define URL InfoOnOff_1 
+#define URL_ONOFF_2     "/p/3"  // define URL OnOff_2     
+#define URL_INFOONOFF_2 "/p/4"  // define URL InfoOnOff_2 
+#define URL_ONOFF_3     "/p/p1" // define URL OnOff_3     
+#define URL_INFOONOFF_3 "/p/6"  // define URL InfoOnOff_3 
+#define URL_ONOFF_4     "/p/7"  // define URL OnOff_4     
+#define URL_INFOONOFF_4 "/p/8"  // define URL InfoOnOff_4 
 
 /**
  * Callback invoked by the stack when a successful put is done
@@ -99,7 +99,7 @@ int app_set_serial_number(const char* serial_number);
  * @param url the url 
  * @return true: url conveys a bool
  */
-bool app_is_bool_url(char* url);
+bool app_is_bool_url(const char* url);
 
 /**
  * @brief Set a bool
@@ -115,7 +115,7 @@ void app_set_bool_variable(const char* url, bool value);
  * @param url the url for the bool to get
  * @return boolean variable
  */
-bool app_retrieve_bool_variable(char *url);
+bool app_retrieve_bool_variable(const char *url);
  
 
 /**
@@ -149,7 +149,7 @@ char* app_get_parameter_name(int index);
  * @param url the url of the resource/data point
  * @param value the boolean fault value to be set
  */
-void app_set_fault_variable(char* url, bool value);
+void app_set_fault_variable(const char* url, bool value);
 
 /**
  * @brief function to report if the (oscore) security is turn on for this instance

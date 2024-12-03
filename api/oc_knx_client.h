@@ -131,7 +131,7 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb();
  * @return true
  * @return false
  */
-bool oc_is_redirected_request(oc_request_t *request);
+bool oc_is_redirected_request(const oc_request_t *request);
 
 /**
   @defgroup doc_module_tag_s_mode_client s-mode client

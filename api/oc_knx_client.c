@@ -459,23 +459,20 @@ oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid,
 // ----------------------------------------------------------------------------
 
 bool
-oc_is_redirected_request(oc_request_t* request)
+oc_is_redirected_request(const oc_request_t* request)
 {
   if (request == NULL)
   {
     return false;
   }
 
-  PRINT("oc_is_redirected_request %.*s\n", (int) request->uri_path_len,
-        request->uri_path);
-  if (strncmp(".knx", request->uri_path, request->uri_path_len) == 0)
-  {
-    return true;
-  }
+  // EP allows a redirect such as {4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
   if (strncmp("k", request->uri_path, request->uri_path_len) == 0)
   {
     return true;
   }
+
+  // EP allows a redirect such as { href:/p/p1, value: 1 }
   if (strncmp("/p", request->uri_path, request->uri_path_len) == 0)
   {
     return true;

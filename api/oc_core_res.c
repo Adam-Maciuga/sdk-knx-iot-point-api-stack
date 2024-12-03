@@ -823,19 +823,26 @@ oc_core_get_resource_by_index(int type, size_t device)
 #else
   if (type == OC_DEV_SN)
   {
+    // returns for each device the same SN(0) from device 0
+    // several device will have only one SN 
     return oc_list_head(core_resource_list);
   }
   if (device != 0)
-  {
+  { 
+    // device > 0: need to traverse list of dynamically added core resources 
+    // device 5 =  4 * WK(57) + type = index in table
     return &core_resources[WELLKNOWNCORE * (device - 1) + type];
   }
-  // traverse the list
-  const oc_resource_t* res = oc_list_head(core_resource_list);
+
+  // device = 0 : need to traverse the list of const core resources 
+  oc_resource_t* res = oc_list_head(core_resource_list);
   while (type && res)
   {
-    res = oc_list_item_next((void*) res);
+    // type > 0 (so no SN type can be searched for, see above)
+    res = oc_list_item_next(res);
     type--;
   }
+  // returns the nth pointer such as for type OC_KNX_SWU (48) it is the 48' pointer 
   return res;
 #endif
 }

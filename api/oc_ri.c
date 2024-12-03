@@ -410,14 +410,12 @@ oc_ri_new_request_from_request(oc_request_t* new_request, oc_request_t* request,
 }
 
 #ifdef OC_SERVER
-const oc_resource_t*
-oc_ri_get_app_resources(void)
+const oc_resource_t* oc_ri_get_app_resources(void)
 {
   return oc_list_head(app_resources);
 }
 
-bool
-oc_ri_is_app_resource_valid(const oc_resource_t* resource)
+bool oc_ri_is_app_resource_valid(const oc_resource_t* resource)
 {
   const oc_resource_t* res = oc_ri_get_app_resources();
   while (res)
@@ -717,6 +715,7 @@ const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_l
     res = res->next;
   }
 
+  // here res is NULL
   return res;
 }
 
@@ -856,6 +855,7 @@ oc_ri_add_resource(oc_resource_t* resource)
 {
   if (!resource)
     return false;
+
   if (resource->is_const)
   {
     OC_ERR("oc_ri_add_resource: resource is const!");

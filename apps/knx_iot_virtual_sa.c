@@ -112,7 +112,7 @@ volatile bool g_OnOff_2;        // global, dap.421.61, if.o
 volatile bool g_InfoOnOff_2;    // global, dap.421.51, if.i
 
 // additional objects 
-volatile bool g_OnOff_3;        /**< global variable for OnOff_3 */
+volatile uint8_t g_OnOff_3;     /**< global variable for OnOff_3 */
 volatile bool g_InfoOnOff_3;    /**< global variable for InfoOnOff_3 */
 volatile bool g_OnOff_4;        /**< global variable for OnOff_4 */
 volatile bool g_InfoOnOff_4;    /**< global variable for InfoOnOff_4 */
@@ -195,11 +195,6 @@ void app_set_bool_variable(const char* url, const bool value)
     g_InfoOnOff_2 = value; /**< global variable for InfoOnOff_2 */
     return;
   }
-  if (strcmp(url, URL_ONOFF_3) == 0)
-  {
-    g_OnOff_3 = value; /**< global variable for OnOff_3 */
-    return;
-  }
   if (strcmp(url, URL_INFOONOFF_3) == 0)
   {
     g_InfoOnOff_3 = value; /**< global variable for InfoOnOff_3 */
@@ -240,10 +235,6 @@ bool app_retrieve_bool_variable(const char* url)
   if (strcmp(url, URL_INFOONOFF_2) == 0)
   {
     return g_InfoOnOff_2; /**< global variable for InfoOnOff_2 */
-  }
-  if (strcmp(url, URL_ONOFF_3) == 0)
-  {
-    return g_OnOff_3; /**< global variable for OnOff_3 */
   }
   if (strcmp(url, URL_INFOONOFF_3) == 0)
   {
@@ -652,19 +643,18 @@ extern "C" {
   {
     (void) interfaces;
     (void) user_data;
-    bool error_state = true;
+
     PRINT("-- Begin put_OnOff_1:");
 
-    oc_rep_t* rep = NULL;
     /* handle the different requests e.g. via s-mode or normal CoAP call*/
     if (oc_is_redirected_request(request))
     {
-      PRINT("redirected request..");
+      PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
-    rep = request->request_payload;
-    /* loop over all the entries in the request */
-    /* handle the type of payload correctly. */
-    error_state = true;
+    oc_rep_t* rep = request->request_payload;
+    bool error_state = true;
+
+    // loop over all the entries in the request
     while (rep != NULL)
     {
       /* handle the type of payload correctly. */
@@ -675,6 +665,7 @@ extern "C" {
         error_state = false;
         break;
       }
+      rep= rep->next;
     }
 
     if (error_state == false)
@@ -841,7 +832,8 @@ extern "C" {
    */
   void get_OnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
   {
-    (void) user_data; /* variable not used */
+    (void) interfaces;
+    (void) user_data; 
 
     /* MANUFACTURER: SENSOR add here the code to talk to the HW if one implements a
        sensor. the call to the HW needs to fill in the global variable before it
@@ -968,19 +960,19 @@ extern "C" {
   {
     (void) interfaces;
     (void) user_data;
-    bool error_state = true;
     PRINT("-- Begin put_OnOff_2:");
 
-    oc_rep_t* rep = NULL;
     /* handle the different requests e.g. via s-mode or normal CoAP call*/
     if (oc_is_redirected_request(request))
     {
-      PRINT("redirected request..");
+      PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
-    rep = request->request_payload;
-    /* loop over all the entries in the request */
-    /* handle the type of payload correctly. */
-    error_state = true;
+
+    oc_rep_t* rep = request->request_payload;
+    bool error_state = true;
+    
+    // loop over all the entries in the request
+    
     while (rep != NULL)
     {
       /* handle the type of payload correctly. */
@@ -991,6 +983,7 @@ extern "C" {
         error_state = false;
         break;
       }
+      rep= rep->next;
     }
 
     if (error_state == false)
@@ -1284,29 +1277,30 @@ extern "C" {
   {
     (void) interfaces;
     (void) user_data;
-    bool error_state = true;
+
     PRINT("-- Begin put_OnOff_3:");
 
-    oc_rep_t* rep = NULL;
     /* handle the different requests e.g. via s-mode or normal CoAP call*/
     if (oc_is_redirected_request(request))
     {
-      PRINT("  redirected request..");
+      PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
-    rep = request->request_payload;
-    /* loop over all the entries in the request */
-    /* handle the type of payload correctly. */
-    error_state = true;
+
+    oc_rep_t* rep = request->request_payload;
+    bool error_state = true;
+
+    // loop over all the entries in the request
     while (rep != NULL)
     {
       /* handle the type of payload correctly. */
-      if ((rep->iname == 1) && (rep->type == OC_REP_BOOL))
+      if ((rep->iname == 1) && (rep->type == OC_REP_INT))
       {
-        PRINT("  put_OnOff_3 received : %d", rep->value.boolean);
-        g_OnOff_3 = rep->value.boolean;
+        PRINT("put_OnOff_3 received : %lld", rep->value.integer);
+        g_OnOff_3 = rep->value.integer;
         error_state = false;
         break;
       }
+      rep= rep->next;
     }
 
     if (error_state == false)
@@ -1443,10 +1437,10 @@ extern "C" {
     }
 
     PRINT("Register Resource 'OnOff_3' with local path \"%s\"", URL_ONOFF_3);
-    { // used only for EITT tests specification clause 5.10.1 and EITT frame 93 S
+    { // used only for EITT tests specification clause 5.10.1 and EITT frame 73
       oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
-      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.61");
-      oc_resource_bind_dpt(res_OnOff_3, ":dpt.switch");
+      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.418.70");
+      oc_resource_bind_dpt(res_OnOff_3, ":dpt.scaling");
       oc_resource_bind_content_type(res_OnOff_3, APPLICATION_CBOR);
       oc_resource_bind_resource_interface(res_OnOff_3, OC_IF_A);
       oc_resource_set_function_block_instance(res_OnOff_3, 3);
@@ -1589,8 +1583,8 @@ extern "C" {
     /* initializes the handlers structure */
     static oc_handler_t handler = { .init = app_init,
                                     .signal_event_loop = signal_event_loop,
-                                    .register_resources = register_resources,
-                                    .requests_entry = NULL };
+                                    .register_resources = register_resources,  // for server
+                                    .requests_entry = NULL };                  // for client
 
     // must be a pointer for the call below ...
     static char* fwu_name = FIRMWARE_NAME;

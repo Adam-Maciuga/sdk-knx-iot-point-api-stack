@@ -1642,8 +1642,8 @@ typedef struct oc_rep_s
 {
   oc_rep_value_type_t type; ///< type of the data
   struct oc_rep_s *next;    ///< next in list
-  oc_string_t name;         ///< name of the tag
-  int iname;                ///< integer (identifier) as tag name
+  oc_string_t name;         ///< tag name (CBOR name)
+  int iname;                ///< integer identifier of tag name (CBOR identifier)
   union oc_rep_value {
     int64_t integer;
     bool boolean;

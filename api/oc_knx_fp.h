@@ -567,16 +567,15 @@ extern "C" {
   /**
    * @brief checks if the href (url) belongs to the device
    *
-   * @param href the url to be checked if it belongs to the device
-   * @param discoverable checks only discoverable devices, e.g. belonging to a
-   * function (/fp)
+   * @param href the url to be checked of the device
+   * @param discoverable if true checks the device and its discoverable resources
+   * (e.g. device x belongs to a function such as '/fp'), otherwise all resources
    * @param device_index The device index
    *
    * @return true
    * @return false
    */
-  bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable,
-                                   size_t device_index);
+  bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index);
 
   /**
    * @brief Creation of the KNX feature point resources.
