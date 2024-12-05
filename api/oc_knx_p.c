@@ -40,7 +40,7 @@ static bool oc_add_data_points_to_response(oc_request_t* request,
     {
       continue;
     }
-    oc_add_resource_to_wk(resource, request, device_index, response_length, 1);
+    oc_add_resource_to_wk(resource, request, device_index, response_length, true);
     matches++;
   }
 
@@ -252,6 +252,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
             if (my_resource->put_handler.cb)
             {
               // use new request (not received one with POST)
+              // user data are not possible for /p EP 
               my_resource->put_handler.cb(&new_request, iface_mask, NULL);
             }
           }

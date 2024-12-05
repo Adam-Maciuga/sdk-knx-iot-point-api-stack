@@ -153,9 +153,9 @@ typedef void (*oc_core_add_device_cb_t)(void *data);
  */
 typedef struct oc_platform_info_t
 {
-  oc_string_t mfg_name;                        /**< manufacturer name */
-  oc_core_init_platform_cb_t init_platform_cb; /**< callback function */
-  void *data; /**< user data for the callback function */
+  oc_string_t mfg_name;                         /**< manufacturer name */
+  oc_core_init_platform_cb_t init_platform_cb;  /**< callback function */
+  void *data;                                   /**< user data for the callback function */
 } oc_platform_info_t;
 
 /**
@@ -309,8 +309,7 @@ int oc_core_set_and_store_device_ia(size_t device_index, uint32_t ia);
 
 /**
  * @brief sets the hardware type (string)
- * input string should not be larger than 6,
- * note that if the input is larger than 6, it will be truncated to 6 chars
+ * input string should not be larger than 6
  *
  * @param device_index the device index
  * @param hardware_type the hardware type
@@ -477,14 +476,12 @@ void oc_core_bind_dpt_resource(int core_resource, size_t device_index,
                                const char *dpt);
 
 /**
- * @brief remove "urn:knx" from response when already provided in query
+ * @brief checks for the presence of 'urn:knx' in ANY of the request query parameter value's
  *
- * @param resource the resource to look for
  * @param request the request to scan
- * @return 1 if truncated, 0 otherwise
+ * @return true if present, false otherwise
  */
-int oc_filter_resource_by_urn(const oc_resource_t *resource,
-                              oc_request_t *request);
+bool oc_filter_resource_by_urn(oc_request_t *request);
 
 /**
  * @brief filter if the query parameters of the request contains the resource
@@ -517,11 +514,11 @@ bool oc_filter_resource_by_if(const oc_resource_t *resource,
  * example: full tag if= ":if.i"
  * this function frames ":if.i" (truncated) or "urn:knx:if.i"
  * @param iface_mask The interface masks to frame
- * @param truncated 1 = do not frame "urn:knx"
+ * @param truncated 1 = do not frame "urn:knx" in the payload
  * @return int 0 = success
  */
 int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
-                                         int truncated);
+                                         bool truncated);
 
 #ifdef __cplusplus
 }

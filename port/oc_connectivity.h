@@ -150,7 +150,7 @@ oc_message_t *oc_get_incoming_message_with_ptr(uint8_t *data);
  * @param port  the port number to change
  * @return int 0 = success
  */
-int oc_connectivity_set_port(uint32_t port);
+int oc_connectivity_set_port(uint16_t port);
 
 /**
  * @brief initialize the connectivity (e.g. open sockets) for the device

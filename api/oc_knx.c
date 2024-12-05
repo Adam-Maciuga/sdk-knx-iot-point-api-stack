@@ -1634,7 +1634,6 @@ oc_core_knx_spake_separate_post_handler(void* req_p)
     // return changed, frame pb (11) & cb (13)
 
     const char* password = oc_spake_get_password();
-    int ret;
     mbedtls_mpi_free(&spake_data.w0);
     mbedtls_ecp_point_free(&spake_data.L);
     mbedtls_mpi_free(&spake_data.y);
@@ -1645,8 +1644,7 @@ oc_core_knx_spake_separate_post_handler(void* req_p)
     mbedtls_mpi_init(&spake_data.y);
     mbedtls_ecp_point_init(&spake_data.pub_y);
 
-    ret = oc_spake_get_w0_L(password, sizeof(g_pase.salt), g_pase.salt,
-                            g_pase.it, &spake_data.w0, &spake_data.L);
+    int ret = oc_spake_get_w0_L(sizeof(g_pase.salt), g_pase.salt, g_pase.it, &spake_data.w0, &spake_data.L);
     if (ret != 0)
     {
       OC_ERR("oc_spake_get_w0_L failed with code %d", ret);

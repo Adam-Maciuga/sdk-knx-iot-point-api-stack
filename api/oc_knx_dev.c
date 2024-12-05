@@ -144,9 +144,7 @@ oc_create_dev_hwv_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-static void
-oc_core_dev_fwv_get_handler(oc_request_t* request,
-                            oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -158,18 +156,15 @@ oc_core_dev_fwv_get_handler(oc_request_t* request,
     return;
   }
 
-  PRINT("oc_core_dev_fwv_get_handler\n");
+  PRINT("oc_core_dev_fwv_get_handler - start");
 
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device != NULL)
   {
     // Content-Format: "application/cbor"
-    // Payload: [ 1, 2, 3 ]
-    uint64_t array[3];
-    array[0] = device->fwv.major;
-    array[1] = device->fwv.minor;
-    array[2] = device->fwv.patch;
+    // Payload: [ a, b, c ]
+    const uint64_t array[3] = {device->fwv.major, device->fwv.minor, device->fwv.patch};
     oc_rep_begin_root_object();
     oc_rep_i_set_int_array(root, 1, array, 3);
     oc_rep_end_root_object();
@@ -186,8 +181,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_fwv, dev_hwt, 0, "/dev/fwv", OC_IF_D,
                                      "urn:knx:dpt.version", OC_SIZE_MANY(1),
                                      "urn:knx:dpa.0.25");
 
-void
-oc_create_dev_fwv_resource(int resource_idx, size_t device)
+void oc_create_dev_fwv_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_fwv_resource\n");
   oc_core_populate_resource(resource_idx, device, "/dev/fwv", OC_IF_D,
@@ -200,9 +194,7 @@ oc_create_dev_fwv_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-static void
-oc_core_dev_hwt_get_handler(oc_request_t* request,
-                            oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -233,8 +225,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_hwt, dev_model, 0, "/dev/hwt", OC_IF_D,
                                      "urn:knx:dpt.varString8859_1",
                                      OC_SIZE_ZERO());
 
-void
-oc_create_dev_hwt_resource(int resource_idx, size_t device)
+void oc_create_dev_hwt_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_hwt_resource\n");
   // cbor rt :dpt.varString8859_1
@@ -248,9 +239,7 @@ oc_create_dev_hwt_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-static void
-oc_core_dev_model_get_handler(oc_request_t* request,
-                              oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_model_get_handler(oc_request_t* request,  oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -281,8 +270,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_model, dev_hostname, 0, "/dev/model",
                                      "urn:knx:dpt.utf8", OC_SIZE_MANY(1),
                                      "urn:knx:dpa.0.15");
 
-void
-oc_create_dev_model_resource(int resource_idx, size_t device)
+void oc_create_dev_model_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_model_resource\n");
   oc_core_populate_resource(resource_idx, device, "/dev/model", OC_IF_D,
@@ -295,9 +283,7 @@ oc_create_dev_model_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-static void
-oc_core_dev_hostname_put_handler(oc_request_t* request,
-                                 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -341,12 +327,12 @@ oc_core_dev_hostname_put_handler(oc_request_t* request,
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-static void
-oc_core_dev_hostname_get_handler(oc_request_t* request,
-                                 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
+
+  PRINT("oc_core_dev_hostname_get_handler - start");
 
   /* check if the accept header is CBOR-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
@@ -375,17 +361,15 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_hostname, dev_iid, 0, "/dev/hname",
                                      "urn:knx:dpt.varString8859_1",
                                      OC_SIZE_ZERO());
 
-void
-oc_create_dev_hostname_resource(int resource_idx, size_t device)
+void oc_create_dev_hostname_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_dev_hostname_resource\n");
+  OC_DBG("oc_create_dev_hostname_resource");
   oc_core_populate_resource(resource_idx, device, "/dev/hname", OC_IF_P,
                             APPLICATION_CBOR, OC_DISCOVERABLE,
                             oc_core_dev_hostname_get_handler,
                             oc_core_dev_hostname_put_handler, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device,
-                            "urn:knx:dpt.varString8859_1");
+  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.varString8859_1");
 }
 
 // -----------------------------------------------------------------------------
@@ -757,8 +741,7 @@ oc_core_dev_dev_get_handler(oc_request_t* request,
   {
     const oc_resource_t* resource =
       oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length,
-        &i, i, 1))
+    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
       matches++;
     }
@@ -1278,8 +1261,7 @@ oc_create_ap_x_resource(int resource_idx, size_t device)
 // -----------------------------------------------------------------------------
 
 static void
-oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                       void* data)
+oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1346,8 +1328,7 @@ oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   {
     const oc_resource_t* resource =
       oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length,
-        &i, i, 1))
+    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
       matches++;
     }

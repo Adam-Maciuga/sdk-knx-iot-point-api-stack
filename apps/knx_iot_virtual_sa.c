@@ -99,7 +99,7 @@ static CRITICAL_SECTION critical_section;
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC 
 #endif
 
-volatile int quit = 0;          /**< stop variable, used by handle_signal */
+volatile int quit = 0;          // stop variable, used by handle_signal
 bool g_reset = false;           ///reset variable, set by commandline arguments
 char g_serial_number[] = SN;    // default startup SN, maybe overwritten by CL option  
 
@@ -112,8 +112,8 @@ volatile bool g_OnOff_2;        // global, dap.421.61, if.o
 volatile bool g_InfoOnOff_2;    // global, dap.421.51, if.i
 
 // additional objects 
-volatile uint8_t g_OnOff_3;     /**< global variable for OnOff_3 */
-volatile bool g_InfoOnOff_3;    /**< global variable for InfoOnOff_3 */
+volatile int  g_OnOff_3;        /**< global variable for OnOff_3 */
+volatile int  g_InfoOnOff_3;    /**< global variable for InfoOnOff_3 */
 volatile bool g_OnOff_4;        /**< global variable for OnOff_4 */
 volatile bool g_InfoOnOff_4;    /**< global variable for InfoOnOff_4 */
 
@@ -124,55 +124,6 @@ volatile bool g_fault_OnOff_4;  /**< global variable for fault OnOff_4 */
 
 // BOOLEAN code
 
-/**
- * @brief function to check if the url is represented by a boolean
- *
- * @return url value is a boolean
- *
- */
-bool app_is_bool_url(const char* url)
-{
-  if (strcmp(url, URL_ONOFF_1) == 0)
-  {
-    return true; /**< OnOff_1 is a boolean */
-  }
-  if (strcmp(url, URL_INFOONOFF_1) == 0)
-  {
-    return true; /**< InfoOnOff_1 is a boolean */
-  }
-  if (strcmp(url, URL_ONOFF_2) == 0)
-  {
-    return true; /**< OnOff_2 is a boolean */
-  }
-  if (strcmp(url, URL_INFOONOFF_2) == 0)
-  {
-    return true; /**< InfoOnOff_2 is a boolean */
-  }
-  if (strcmp(url, URL_ONOFF_3) == 0)
-  {
-    return true; /**< OnOff_3 is a boolean */
-  }
-  if (strcmp(url, URL_INFOONOFF_3) == 0)
-  {
-    return true; /**< InfoOnOff_3 is a boolean */
-  }
-  if (strcmp(url, URL_ONOFF_4) == 0)
-  {
-    return true; /**< OnOff_4 is a boolean */
-  }
-  if (strcmp(url, URL_INFOONOFF_4) == 0)
-  {
-    return true; /**< InfoOnOff_4 is a boolean */
-  }
-  return false;
-}
-
-/**
- * @brief sets the global boolean variable at the url
- *
- * @param url the url indicating the global variable
- * @param value the value to be set
- */
 void app_set_bool_variable(const char* url, const bool value)
 {
   if (strcmp(url, URL_ONOFF_1) == 0)
@@ -195,11 +146,6 @@ void app_set_bool_variable(const char* url, const bool value)
     g_InfoOnOff_2 = value; /**< global variable for InfoOnOff_2 */
     return;
   }
-  if (strcmp(url, URL_INFOONOFF_3) == 0)
-  {
-    g_InfoOnOff_3 = value; /**< global variable for InfoOnOff_3 */
-    return;
-  }
   if (strcmp(url, URL_ONOFF_4) == 0)
   {
     g_OnOff_4 = value; /**< global variable for OnOff_4 */
@@ -208,16 +154,9 @@ void app_set_bool_variable(const char* url, const bool value)
   if (strcmp(url, URL_INFOONOFF_4) == 0)
   {
     g_InfoOnOff_4 = value; /**< global variable for InfoOnOff_4 */
-    return;
   }
 }
 
-/**
- * @brief retrieve the global boolean variable at the url
- *
- * @param url the url indicating the global variable
- * @return the value of the variable
- */
 bool app_retrieve_bool_variable(const char* url)
 {
   if (strcmp(url, URL_ONOFF_1) == 0)
@@ -236,10 +175,6 @@ bool app_retrieve_bool_variable(const char* url)
   {
     return g_InfoOnOff_2; /**< global variable for InfoOnOff_2 */
   }
-  if (strcmp(url, URL_INFOONOFF_3) == 0)
-  {
-    return g_InfoOnOff_3; /**< global variable for InfoOnOff_3 */
-  }
   if (strcmp(url, URL_ONOFF_4) == 0)
   {
     return g_OnOff_4; /**< global variable for OnOff_4 */
@@ -252,14 +187,37 @@ bool app_retrieve_bool_variable(const char* url)
   return false;
 }
 
+// INT code
+
+void app_set_int_variable(const char* url, const int value)
+{
+  if (strcmp(url, URL_ONOFF_3) == 0)
+  {
+    g_OnOff_3 = value;
+    return;
+  }
+  if (strcmp(url, URL_INFOONOFF_3) == 0)
+  {
+    g_InfoOnOff_3 = value;
+  }
+}
+
+int app_retrieve_int_variable(const char* url)
+{
+  if (strcmp(url, URL_ONOFF_3) == 0)
+  {
+    return g_OnOff_3;
+  }
+  if (strcmp(url, URL_INFOONOFF_3) == 0)
+  {
+    return g_InfoOnOff_3;
+  }
+
+  return -1;
+}
+
 // FAULT code
 
-/**
- * @brief set the fault (boolean) variable at the url
- *
- * @param url the url indicating the fault variable
- * @param value the value of the fault variable
- */
 void app_set_fault_variable(const char* url, const bool value)
 {
   if (strcmp(url, URL_ONOFF_1) == 0)
@@ -294,17 +252,14 @@ void app_set_fault_variable(const char* url, const bool value)
   }
   if (strcmp(url, URL_ONOFF_3) == 0)
   {
-    /* handling fault of OnOff_3 */
-    g_fault_OnOff_3 = value;   /**< global fault variable for OnOff_3 */
+    g_fault_OnOff_3 = value;
     if (value == true)
     {
-      /* this is a fault is set the info variable on fault */
-      app_set_bool_variable("/p/6", false);
+      app_set_int_variable("/p/6", -1);
     }
     else
     {
-      /* restore the value from the current data*/
-      app_set_bool_variable("/p/6", g_OnOff_3);
+      app_set_int_variable("/p/6", g_OnOff_3);
     }
   }
   if (strcmp(url, URL_ONOFF_4) == 0)
@@ -322,33 +277,6 @@ void app_set_fault_variable(const char* url, const bool value)
       app_set_bool_variable("/p/8", g_OnOff_4);
     }
   }
-}
-
-/**
- * @brief retrieve the fault (boolean) variable at the url
- *
- * @param url the url indicating the fault variable
- * @return the value of the fault variable
- */
-bool app_retrieve_fault_variable(const char* url)
-{
-  if (strcmp(url, URL_ONOFF_1) == 0)
-  {
-    return g_fault_OnOff_1;   /**< global variable for OnOff_1 */
-  }
-  if (strcmp(url, URL_ONOFF_2) == 0)
-  {
-    return g_fault_OnOff_2;   /**< global variable for OnOff_2 */
-  }
-  if (strcmp(url, URL_ONOFF_3) == 0)
-  {
-    return g_fault_OnOff_3;   /**< global variable for OnOff_3 */
-  }
-  if (strcmp(url, URL_ONOFF_4) == 0)
-  {
-    return g_fault_OnOff_4;   /**< global variable for OnOff_4 */
-  }
-  return false;
 }
 
 // PARAMETER code
@@ -456,20 +384,20 @@ extern "C" {
     // init also the device resources such as /dev, /.well-known/core, ...
     ret |= oc_add_device(APPLICATION_NAME, "1.0.0", "//", g_serial_number, NULL, NULL);
 
-    /* set the hardware version 0.7.0 */
-    oc_core_set_device_hwv(0, 0, 7, 0);
+    // set the hardware version 0.0.1, value used from EITT for testing
+    oc_core_set_device_hwv(0, 0, 0, 1);
 
-    /* set the firmware version 0.7.0 */
-    oc_core_set_device_fwv(0, 0, 7, 0);
+    // set the hardware version 0.0.1, value used from EITT for testing
+    oc_core_set_device_fwv(0, 0, 0, 1);
 
-    /* manufacturer id */
-    oc_core_set_device_mid(0, (uint32_t) MID);
+    // set manufacturer id, value used from EITT for testing
+    oc_core_set_device_mid(0, MID);
 
-    // set the hardware type   123456789012                        
-    oc_core_set_device_hwt(0, "000000000001");
+    // set the hardware type -> 12 chars, value used from EITT for testing                        
+    oc_core_set_device_hwt(0, "Windows");
 
-    /* set device model */
-    oc_core_set_device_model(0, "Stack Certification App");
+    // set device model, value used from EITT for testing   
+    oc_core_set_device_model(0, "KNX Certification");
 
     oc_set_s_mode_response_cb(oc_add_s_mode_response_cb);
 
@@ -510,7 +438,8 @@ extern "C" {
    */
   void get_OnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
   {
-    (void) user_data; /* variable not used */
+    (void) user_data;
+    (void) interfaces; 
 
     /* MANUFACTURER: SENSOR add here the code to talk to the HW if one implements a
        sensor. the call to the HW needs to fill in the global variable before it
@@ -709,7 +638,8 @@ extern "C" {
    */
   void get_InfoOnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
   {
-    (void) user_data; /* variable not used */
+    (void) user_data; 
+    (void) interfaces;
 
     /* MANUFACTURER: SENSOR add here the code to talk to the HW if one implements a
        sensor. the call to the HW needs to fill in the global variable before it
@@ -1027,7 +957,8 @@ extern "C" {
    */
   void get_InfoOnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces, void* user_data)
   {
-    (void) user_data; /* variable not used */
+    (void) user_data; 
+    (void) interfaces;
 
     /* MANUFACTURER: SENSOR add here the code to talk to the HW if one implements a
        sensor. the call to the HW needs to fill in the global variable before it
@@ -1150,7 +1081,8 @@ extern "C" {
   */
   void get_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
   {
-    (void) user_data; /* variable not used */
+    (void) user_data; 
+    (void) interfaces;
 
     /* MANUFACTORER: SENSOR add here the code to talk to the HW if one implements a
     sensor. the call to the HW needs to fill in the global variable before it
@@ -1159,7 +1091,7 @@ extern "C" {
     */
     bool error_state = false; /* the error state, the generated code */
 
-    PRINT("-- Begin get_OnOff_3 %s \n", URL_ONOFF_3);
+    PRINT("-- Begin get_OnOff_3 %s ", URL_ONOFF_3);
     /* check if the accept header is CBOR */
     if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
     {
@@ -1241,7 +1173,7 @@ extern "C" {
       return;
     }
     oc_rep_begin_root_object();
-    oc_rep_i_set_boolean(root, 1, g_OnOff_3);
+    oc_rep_set_int(root, 1, g_OnOff_3);
     oc_rep_end_root_object();
 
     if (g_err)
@@ -1283,7 +1215,7 @@ extern "C" {
     /* handle the different requests e.g. via s-mode or normal CoAP call*/
     if (oc_is_redirected_request(request))
     {
-      PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
+      PRINT("-- redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
 
     oc_rep_t* rep = request->request_payload;
@@ -1295,8 +1227,8 @@ extern "C" {
       /* handle the type of payload correctly. */
       if ((rep->iname == 1) && (rep->type == OC_REP_INT))
       {
-        PRINT("put_OnOff_3 received : %lld", rep->value.integer);
-        g_OnOff_3 = rep->value.integer;
+        PRINT("-- put_OnOff_3 received : %lld", rep->value.integer);
+        g_OnOff_3 = (int) rep->value.integer;
         error_state = false;
         break;
       }
@@ -1309,26 +1241,26 @@ extern "C" {
       /* update the status information of InfoOnOff_3*/
       if (g_fault_OnOff_3 == false)
       {
-        PRINT("  No Fault update feedback to %d'\n", g_OnOff_3);
+        PRINT("-- No Fault update feedback to %d'", g_OnOff_3);
         /* no fault hence update the feedback with the current state of the actuator */
         g_InfoOnOff_3 = g_OnOff_3;
       }
       else
       {
         /* fault hence update the feedback with "false" */
-        PRINT("  Fault'\n");
+        PRINT("-- Fault'");
         g_InfoOnOff_3 = false;
       }
       /* send the status information InfoOnOff_3 to '/p/6' with flag 'w' */
-      PRINT("  Send status to '/p/6' with flag: 'w'\n");
+      PRINT("-- Send status to '/p/6' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_3, "w");
       do_put_cb(URL_ONOFF_3);
-      PRINT("-- End put_OnOff_3\n");
+      PRINT("-- End put_OnOff_3");
       return;
     }
     /* request data was not recognized, so it was a bad request */
     oc_send_response(request, OC_STATUS_BAD_REQUEST);
-    PRINT("-- End put_OnOff_3\n");
+    PRINT("-- End put_OnOff_3");
   }
 
   // parameters handling (empty)
@@ -1439,8 +1371,8 @@ extern "C" {
     PRINT("Register Resource 'OnOff_3' with local path \"%s\"", URL_ONOFF_3);
     { // used only for EITT tests specification clause 5.10.1 and EITT frame 73
       oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
-      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.418.70");
-      oc_resource_bind_dpt(res_OnOff_3, ":dpt.scaling");
+      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.255"); // EITT requires FB 417 to be in, PID is artificial  
+      oc_resource_bind_dpt(res_OnOff_3, ":dpt.value4Count");
       oc_resource_bind_content_type(res_OnOff_3, APPLICATION_CBOR);
       oc_resource_bind_resource_interface(res_OnOff_3, OC_IF_A);
       oc_resource_set_function_block_instance(res_OnOff_3, 3);
@@ -1483,7 +1415,7 @@ extern "C" {
     (void) device_index;
     (void) data;
 
-    PRINT("-----host name ------- %s", oc_string(host_name));
+    PRINT("Host Name : %s", oc_string(host_name));
   }
 
   static oc_event_callback_retval_t send_delayed_response(void* context)
@@ -1508,8 +1440,7 @@ extern "C" {
    * @brief software update callback
    *
    * @param device the device index
-   * @param response the instance of an internal struct that is used to track
-   *       		   the state of the separate response
+   * @param response the instance of an internal struct that is used to track the state of the separate response
    * @param binary_size the full size of the binary
    * @param offset the offset of the image
    * @param payload the image data
@@ -1520,12 +1451,15 @@ extern "C" {
   {
     (void) device;
     (void) binary_size;
+    (void) data;
+
     char filename[] = "./downloaded.bin";
     PRINT("swu_cb %s block=%d size=%d ", filename, (int) offset, (int) len);
 
     FILE* write_ptr = fopen("downloaded_bin", "ab");
-    size_t r = fwrite(payload, sizeof(*payload), len, write_ptr);
-    fclose(write_ptr);
+    const size_t n = fwrite(payload, sizeof(*payload), len, write_ptr);
+    const size_t r = fclose(write_ptr);
+    PRINT("written data: %llu, operation ok (=0): %llu", n, r);
 
     oc_set_delayed_callback(response, &send_delayed_response, 0);
   }
@@ -1590,7 +1524,7 @@ extern "C" {
     static char* fwu_name = FIRMWARE_NAME;
 
     // set the application callbacks
-    oc_set_hostname_cb(hostname_cb, NULL);
+    oc_set_hostname_cb(hostname_cb, HOST_NAME);
     oc_set_factory_presets_cb(factory_presets_cb, NULL);
     oc_set_swu_cb(swu_cb, fwu_name);
 
@@ -1679,7 +1613,7 @@ extern "C" {
   #ifdef WIN32
     InitializeCriticalSection(&critical_section);   // init , but not used in main actively
     InitializeConditionVariable(&event_is_pending); // init 
-    signal(SIGINT, handle_signal);                  // install Ctrl-C handler
+    signal(SIGINT, handle_signal);                 // install Ctrl-C handler
   #endif
   #ifdef __linux__
     /* Linux specific */
@@ -1741,8 +1675,8 @@ extern "C" {
 #       // time in ticks (tick = ms) 
         const oc_clock_time_t now = oc_clock_time();
         if (now < next_event)
-        { // next event lays in the future, sleep until next pending event timer is reached
-          SleepConditionVariableCS(&event_is_pending, &critical_section, ((next_event - now) * 1000 / OC_CLOCK_SECOND));
+        { // next event lays in the future, sleep until next pending event timer is reached (in ticks/ms)
+          SleepConditionVariableCS(&event_is_pending, &critical_section, (next_event - now) * (1000 / OC_CLOCK_SECOND));
         }
         // next event is now ...
       }

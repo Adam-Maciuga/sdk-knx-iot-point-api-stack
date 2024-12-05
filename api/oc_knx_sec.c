@@ -319,8 +319,7 @@ oc_core_knx_auth_o_get_handler(oc_request_t* request,
   {
     const oc_resource_t* resource =
       oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length,
-        &i, i, 1))
+    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
       matches++;
     }
@@ -1342,8 +1341,7 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   {
     const oc_resource_t* resource =
       oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length,
-        &i, i, 1))
+    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
       matches++;
     }

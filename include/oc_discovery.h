@@ -44,13 +44,13 @@ void oc_create_discovery_resource(int resource_idx, size_t device);
  * @param response_length the current response length
  * @param skipped number of entries already skipped
  * @param first_entry first entry to be included
- * @param truncate whether to truncate the response payload
+ * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the rt's (resource types)
  * @return true resource added (as entry) to the response
  * @return false resource not added to the response
  */
 bool oc_filter_resource(const oc_resource_t *resource, oc_request_t *request,
                         size_t device_index, size_t *response_length,
-                        int *skipped, int first_entry, int truncate);
+                        int *skipped, int first_entry, bool truncate);
 /**
  * @brief add the resource to the response in application link format
  *
@@ -58,13 +58,13 @@ bool oc_filter_resource(const oc_resource_t *resource, oc_request_t *request,
  * @param request  the request
  * @param device_index the device index
  * @param response_length the response length (to be increased)
- * @param truncate 1 = do urn truncation; remove the urn part of the rt value
+ * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the rt's (resource types)
  * @return true
  * @return false
  */
 bool oc_add_resource_to_wk(const oc_resource_t *resource, oc_request_t *request,
                            size_t device_index, size_t *response_length,
-                           int truncate);
+                           bool truncate);
 
 #ifdef __cplusplus
 }

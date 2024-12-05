@@ -37,9 +37,10 @@ extern "C" {
 
 #define APPLICATION_NAME   "KNX virtual switch actuator"
 #define FIRMWARE_NAME      "KNX stack image"
+#define HOST_NAME          "KNX host"
 #define PASSWORD           "ABY8B77J50YXMUDW3DG4"
-#define SN                 "00FA10020800"
-#define MID                (250)         // = first 4 digits of sn = 15<<4 + 10
+#define SN                 "000010020800"
+#define MID                (0)  // first 4 digits of sn (EITT tests expects 0)
 
 // URL defines
 #define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     
@@ -92,15 +93,6 @@ int app_initialize_stack(void);
 int app_set_serial_number(const char* serial_number);
 
 
-// Getters/Setters for bool
-/**
- * @brief Checks if the url depicts a bool
- * 
- * @param url the url 
- * @return true: url conveys a bool
- */
-bool app_is_bool_url(const char* url);
-
 /**
  * @brief Set a bool
  * 
@@ -109,6 +101,15 @@ bool app_is_bool_url(const char* url);
  */
 void app_set_bool_variable(const char* url, bool value);
 
+
+/**
+* @brief Set an int
+* 
+* @param url the url for the int to set
+* @param value value to set
+*/
+void app_set_int_variable(const char* url, int value);
+
 /**
  * @brief Get a bool
  * 
@@ -116,6 +117,14 @@ void app_set_bool_variable(const char* url, bool value);
  * @return boolean variable
  */
 bool app_retrieve_bool_variable(const char *url);
+
+/**
+* @brief Get an int
+* 
+* @param url the url for the bool to get
+* @return int variable
+*/
+int app_retrieve_int_variable(const char *url);
  
 
 /**
@@ -143,13 +152,23 @@ char* app_get_parameter_url(int index);
 char* app_get_parameter_name(int index);
 
 /**
- * @brief sets the fault state of the url/data point 
+ * @brief sets the fault (bool) state of the url/data point 
  * the caller needs to know if the resource/data point implements a fault situation
  * 
  * @param url the url of the resource/data point
  * @param value the boolean fault value to be set
  */
 void app_set_fault_variable(const char* url, bool value);
+
+
+/**
+* @brief retrieve the fault (boolean) variable at the url
+*
+* @param url the url indicating the fault variable
+* @return the value of the fault variable
+*/
+bool app_retrieve_fault_variable(const char* url);
+
 
 /**
  * @brief function to report if the (oscore) security is turn on for this instance

@@ -49,10 +49,9 @@ int basic_resources[] =
 
 bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
                            const size_t device_index, size_t* response_length,
-                           const int truncate)
+                           const bool truncate)
 {
   (void) device_index;
-  int length;
 
   if (resource == NULL)
   {
@@ -66,36 +65,13 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
 
   if (*response_length > 0)
   {
-    // frame the trailing comma in case a resource (or even a single char) is already added
-    length = oc_rep_add_line_to_buffer(",\n");
-    *response_length += length;
+    // frame with a trailing comma in case a resource (or even a single char) is already added to the response
+    *response_length += oc_rep_add_line_to_buffer(",\n");
   }
 
   // <
-  length = oc_rep_add_line_to_buffer("<");
+  int length = oc_rep_add_line_to_buffer("<");
   *response_length += length;
-  /*
-  // code to frame the used IP address
-  oc_endpoint_t *eps = oc_connectivity_get_endpoints(request->resource->device);
-  oc_string_t ep, uri;
-  memset(&uri, 0, sizeof(oc_string_t));
-  while (eps != NULL) {
-//#ifdef OC_SECURITY
-#ifdef OC_OSCORE
-    if (eps->flags & SECURED) {
-#else
-    if ((eps->flags & SECURED) == 0) {
-#endif // OC_SECURITY
-      if (oc_endpoint_to_string(eps, &ep) == 0) {
-        length = oc_rep_add_line_to_buffer(oc_string(ep));
-        *response_length += length;
-        oc_free_string(&ep);
-        break;
-      }
-    }
-    eps = eps->next;
-  }
- */
 
   // uri
   length = oc_rep_add_line_to_buffer(oc_string(resource->uri));
@@ -105,6 +81,7 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
   length = oc_rep_add_line_to_buffer(">;");
   *response_length += length;
 
+  // rt's
   const int number_of_resource_types = oc_string_array_get_allocated_size(resource->types);
 
   if (number_of_resource_types > 0)
@@ -114,35 +91,39 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
 
     for (int i = 0; i < number_of_resource_types; i++)
     {
-      size_t size = oc_string_array_get_item_size(resource->types, i);
-      const char* t =
-        (const char*) oc_string_array_get_item(resource->types, i);
+      const int size = oc_string_array_get_item_size(resource->types, i);
+      const char* t = oc_string_array_get_item(resource->types, i);
       if (size > 0)
       {
         if (i > 0)
-        {
-          // white space as separator of the rt values
+        { // not for the first rt ...
+
+          // white space as separator between the rt values
           length = oc_rep_add_line_to_buffer(" ");
           *response_length += length;
         }
-        if (truncate == 0)
-        {
-          // full rt with urn
-          length = oc_rep_add_line_size_to_buffer(t, (int) size);
+
+        if (!truncate)
+        { // rt's must be in the response with urn:knx (requester was not using urn:knx)
+
+          // take it and frame 1:1 (assumption urn:knx is always present)
+          length = oc_rep_add_line_size_to_buffer(t, size);
           *response_length += length;
         }
-        else if (truncate == 1)
-        {
-          // rt with urn removed
+        else 
+        { // rt's must be in the response without urn:knx 
+
           if (strncmp(t, "urn:knx", 7) == 0)
           {
+            // take it and frame a chunk with offset '7' after 'urn:knx'
             length = oc_rep_add_line_size_to_buffer(&t[7], (int) size - 7);
             *response_length += length;
           }
           else
           {
-            // does not start with urn, so frame it all
-            length = oc_rep_add_line_size_to_buffer(t, (int) size);
+            // does not start with urn:knx, so frame what you have (e.g; vendor namespaces rt's such as urn:abb)
+            // 
+            length = oc_rep_add_line_size_to_buffer(t, size);
             *response_length += length;
           }
         }
@@ -153,6 +134,7 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
     *response_length += length;
   }
 
+  // if's
   if (resource->interfaces > 0)
   {
     length = oc_rep_add_line_to_buffer("if=");
@@ -170,7 +152,7 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
     length = oc_rep_add_line_to_buffer("ct=");
     *response_length += length;
 
-    char my_ct_value[5]; // space for one type only (max 5 digits)
+    char my_ct_value[5]; // space for one type only (max 5 digits up to CONTENT_NONE)
     sprintf(my_ct_value, "%d", resource->content_type);
 
     length = oc_rep_add_line_to_buffer(my_ct_value);
@@ -180,10 +162,9 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
   return true;
 }
 
-bool
-oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
-                   const size_t device_index, size_t* response_length, int* skipped,
-                   const int first_entry, int truncate)
+bool oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
+                        const size_t device_index, size_t* response_length, int* skipped,
+                        const int first_entry, bool truncate)
 {
   (void) device_index; /* variable not used */
 
@@ -208,25 +189,29 @@ oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
     return false;
   }
 
+  // 'urn:knx' truncation expected? | 'urn:knx' part is present?  | will be cut?
+  // y                              | don't care                  | y  (request belongs to a KNX EP, cut it always)
+  // n (used only on wk request)    | y                           | y  (requester was using urn:knx, so cut it)
+  // n (used only on wk request)    | n                           | n  (requester wasd NOT using of urn:knx, so put it in)
+
   if (!truncate)
   {
-    truncate = oc_filter_resource_by_urn(resource, request);
+    truncate = oc_filter_resource_by_urn(request);
   }
 
-  return oc_add_resource_to_wk(resource, request, device_index, response_length,
-                               truncate);
+  return oc_add_resource_to_wk(resource, request, device_index, response_length, truncate);
 }
 
 static bool oc_process_application_resources(oc_request_t* request, const size_t device_index,
-                                      size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
-                                      const int first_entry, const int last_entry)
+                                             size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
+                                             const int first_entry, const int last_entry)
 {
   for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
     if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
       continue;
 
-    if (oc_filter_resource(resource, request, device_index, response_length, skipped, first_entry, 0))
+    if (oc_filter_resource(resource, request, device_index, response_length, skipped, first_entry, false))
     {
       (*query_parameter_kvpair_matches)++;
       if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
@@ -240,12 +225,12 @@ static bool oc_process_application_resources(oc_request_t* request, const size_t
 }
 
 static bool oc_process_basic_resources(oc_request_t* request, const size_t device_index,
-                                size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
-                                const int first_entry, const int last_entry)
+                                       size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
+                                       const int first_entry, const int last_entry)
 {
   for (int i = 0; i < OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK; i++)
   {
-    if (oc_filter_resource(oc_core_get_resource_by_index(basic_resources[i], device_index), request, device_index, response_length, skipped, first_entry, 0))
+    if (oc_filter_resource(oc_core_get_resource_by_index(basic_resources[i], device_index), request, device_index, response_length, skipped, first_entry, false))
     {
       (*query_parameter_kvpair_matches)++;
       if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
@@ -284,7 +269,7 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint32_
   return response_length;
 }
 
-static void oc_wkcore_discovery_handler(oc_request_t* request)
+void oc_wkcore_discovery_handler(oc_request_t* request)
 {
   char* key;             // one key pointer for a key=value 'pair' 
   size_t key_len;
@@ -311,7 +296,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
   bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
-  bool ps_exists ;        // will be initialized in function in anx case
+  bool ps_exists;        // will be initialized in function in anx case
   bool total_exists;      // will be initialized in function in anx case
   int total = 0;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
   int first_entry = 0;    // first entry number of a resource that will be  placed on a page
@@ -418,7 +403,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     // check if the requested page would carry at least one resource
     // e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= total)
-    { 
+    {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
@@ -673,7 +658,7 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
     // m>0;l>0 : -- > at least one query parameter KV pair match was found for this device
 
     if (more_request_needed)
-    { 
+    {
       // no page # was in the request next page is 1 or #+1
       const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
       response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
@@ -706,12 +691,10 @@ static void oc_wkcore_discovery_handler(oc_request_t* request)
 
 OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
                                     OC_IF_NONE, APPLICATION_LINK_FORMAT,
-                                    OC_DISCOVERABLE,
-                                    oc_wkcore_discovery_handler, 0, 0, 0, NULL,
+                                    OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0, 0, 0, NULL,
                                     OC_SIZE_MANY(1), "wk");
 
-void
-oc_create_discovery_resource(const int resource_idx, const size_t device)
+void oc_create_discovery_resource(const int resource_idx, const size_t device)
 {
   if (resource_idx == WELLKNOWNCORE && device > 0)
   {
@@ -733,14 +716,13 @@ oc_ri_process_discovery_payload(const uint8_t* payload, const int len,
                                 oc_endpoint_t* endpoint,
                                 oc_content_format_t content, void* user_data)
 {
-  oc_discovery_all_handler_t all_handler = client_handler.discovery_all;
-
-  oc_discovery_flags_t ret = OC_CONTINUE_DISCOVERY;
+  const oc_discovery_all_handler_t all_handler = client_handler.discovery_all;
+  const oc_discovery_flags_t ret = OC_CONTINUE_DISCOVERY;
 
   if (content == APPLICATION_LINK_FORMAT)
   {
 
-    PRINT("oc_ri_process_discovery_payload: calling handler all\n");
+    PRINT("oc_ri_process_discovery_payload: calling handler all");
     if (all_handler)
     {
       all_handler((const char*) payload, len, endpoint, user_data);

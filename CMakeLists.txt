@@ -21,7 +21,9 @@ if(MSVC)
   # add command line definitiosn for the target in the current directory
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   # add compile options for the target in the current directory and below
-  add_compile_options(/W1 /WX-)
+  # W4 = max warn level
+  # WX = all compile warnings are errors 
+  add_compile_options(/W4 /WX-)
 endif()
 
 # add preprocessor definitiosn for the current CMakeLists file
@@ -379,7 +381,6 @@ if (OC_USE_STORAGE)
     target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
 endif()
-
 
 if (OC_USE_MULTICAST_SCOPE_2)
     target_compile_definitions(kisClientServer PUBLIC OC_USE_MULTICAST_SCOPE_2)

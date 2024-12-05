@@ -1396,10 +1396,10 @@ register_multicasts(oc_interface_event_t event)
   }
 }
 
-static uint32_t g_unicast_port = COAP_PORT_UNSECURED;
+static uint16_t g_unicast_port = COAP_PORT_UNSECURED;
 
 int
-oc_connectivity_set_port(uint32_t port)
+oc_connectivity_set_port(uint16_t port)
 {
   g_unicast_port = port;
   return 0;

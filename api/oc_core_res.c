@@ -191,12 +191,10 @@ oc_core_encode_interfaces_mask(CborEncoder* parent,
   oc_rep_end_array((parent), if);
 }
 
-int
-oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
-                                     int truncate)
+int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool truncate)
 {
   int total_size = 0;
-  //  </ point - path - example1>;rt = ":dpa.352.51";if= ":if.i";ct = 50 60,
+  //  </point-path-example1>;rt = ":dpa.352.51";if= ":if.i";ct = 50 60,
 
   // start quote
   oc_rep_encode_raw((uint8_t*) "\"", 1);
@@ -209,8 +207,9 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
+      // add urn 
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
     }
@@ -224,7 +223,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -239,7 +238,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -254,7 +253,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -269,7 +268,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -284,7 +283,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -299,7 +298,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -324,7 +323,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -339,7 +338,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -354,7 +353,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -369,7 +368,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -384,7 +383,7 @@ oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
       oc_rep_encode_raw((uint8_t*) " ", 1);
       total_size += 1;
     }
-    if (truncate != 1)
+    if (!truncate)
     {
       oc_rep_encode_raw((uint8_t*) "urn:knx", 7);
       total_size += 7;
@@ -452,7 +451,7 @@ oc_core_set_device_ap(size_t device_index, int major, int minor, int minor2)
 int
 oc_core_set_device_mid(size_t device_index, uint32_t mid)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -461,10 +460,9 @@ oc_core_set_device_mid(size_t device_index, uint32_t mid)
   return 0;
 }
 
-int
-oc_core_set_device_ia(size_t device_index, uint32_t ia)
+int oc_core_set_device_ia(size_t device_index, uint32_t ia)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -488,30 +486,24 @@ oc_core_set_and_store_device_ia(size_t device_index, uint32_t ia)
 }
 
 int
-oc_core_set_device_hwt(size_t device_index, const char* hardwaretype)
+oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
 {
-  int hwt_len = 0;
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
-    OC_ERR("device_index %d too large", (int) device_index);
+    OC_ERR("device_index %llu too large", device_index);
     return -1;
   }
-  hwt_len = strlen(hardwaretype);
-  // if (strlen(hardwaretype) > 6) {
-  //  truncate the hardware type
-  // hwt_len = 6;
-  //}
-
+  const size_t hwt_len = strlen(hardware_type);
+  
   oc_free_string(&oc_device_info[device_index].hwt);
-  oc_new_string(&oc_device_info[device_index].hwt, hardwaretype, hwt_len);
+  oc_new_string(&oc_device_info[device_index].hwt, hardware_type, hwt_len);
 
   return 0;
 }
 
-int
-oc_core_set_device_pm(size_t device_index, bool pm)
+int oc_core_set_device_pm(const size_t device_index, const bool pm)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -522,10 +514,9 @@ oc_core_set_device_pm(size_t device_index, bool pm)
   return 0;
 }
 
-int
-oc_core_set_device_model(size_t device_index, const char* model)
+int oc_core_set_device_model(const size_t device_index, const char* model)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -536,25 +527,22 @@ oc_core_set_device_model(size_t device_index, const char* model)
   return 0;
 }
 
-int
-oc_core_set_device_hostname(size_t device_index, const char* host_name)
+int oc_core_set_device_hostname(const size_t device_index, const char* host_name)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
   }
   oc_free_string(&oc_device_info[device_index].hostname);
-  oc_new_string(&oc_device_info[device_index].hostname, host_name,
-                strlen(host_name));
+  oc_new_string(&oc_device_info[device_index].hostname, host_name, strlen(host_name));
 
   return 0;
 }
 
-int
-oc_core_set_device_iid(size_t device_index, uint64_t iid)
+int oc_core_set_device_iid(const size_t device_index, const uint64_t iid)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -568,10 +556,9 @@ oc_core_set_device_iid(size_t device_index, uint64_t iid)
   return 0;
 }
 
-uint64_t
-oc_core_get_device_iid(size_t device_index)
+uint64_t oc_core_get_device_iid(const size_t device_index)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -581,7 +568,7 @@ oc_core_get_device_iid(size_t device_index)
 }
 
 int
-oc_core_set_and_store_device_iid(size_t device_index, uint64_t iid)
+oc_core_set_and_store_device_iid(const size_t device_index, uint64_t iid)
 {
   const int status = oc_core_set_device_iid(device_index, iid);
 
@@ -594,10 +581,9 @@ oc_core_set_and_store_device_iid(size_t device_index, uint64_t iid)
   return status;
 }
 
-int
-oc_core_set_device_fid(size_t device_index, uint64_t fid)
+int oc_core_set_device_fid(size_t device_index, uint64_t fid)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -607,10 +593,9 @@ oc_core_set_device_fid(size_t device_index, uint64_t fid)
   return 0;
 }
 
-oc_device_info_t*
-oc_core_add_device(const char* name, const char* version, const char* base,
-                   char* serialnumber,
-                   oc_core_add_device_cb_t add_device_cb, void* data)
+oc_device_info_t* oc_core_add_device(const char* name, const char* version, const char* base, 
+                                     char* serialnumber,
+                                     oc_core_add_device_cb_t add_device_cb, void* data)
 {
   (void) data;
 #ifndef OC_DYNAMIC_ALLOCATION
@@ -705,9 +690,7 @@ oc_core_add_device(const char* name, const char* version, const char* base,
   return &oc_device_info[device_count - 1];
 }
 
-oc_platform_info_t*
-oc_core_init_platform(const char* mfg_name, oc_core_init_platform_cb_t init_cb,
-                      void* data)
+oc_platform_info_t* oc_core_init_platform(const char* mfg_name, oc_core_init_platform_cb_t init_cb, void* data)
 {
   if (oc_platform_info.mfg_name.size > 0)
   { // already initialized, size derived from base type 'oc_string_t'
@@ -878,24 +861,26 @@ oc_core_get_resource_by_uri(const char* uri, size_t device)
   return &core_resources[res];
 }
 
-int
-oc_filter_resource_by_urn(const oc_resource_t* resource, oc_request_t* request)
+bool oc_filter_resource_by_urn(oc_request_t* request)
 {
   char* value = NULL;
-  size_t value_len;
   char* key;
+
+  size_t value_len;
   size_t key_len;
-  int truncate = 0;
+
+  bool urn_is_present = false;
+
   oc_init_query_iterator();
   while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
   {
     if (strncmp(value, "urn:knx", 7) == 0)
     {
-      truncate = 1;
+      urn_is_present = true;
       break;
     }
   }
-  return truncate;
+  return urn_is_present;
 }
 
 bool

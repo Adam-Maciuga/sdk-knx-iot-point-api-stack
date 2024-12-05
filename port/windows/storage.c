@@ -14,6 +14,8 @@
 // limitations under the License.
 */
 
+#include <direct.h>
+
 #include "oc_config.h"
 #include "port/oc_storage.h"
 #include "port/oc_log.h"
@@ -58,7 +60,7 @@ oc_storage_config(const char *store)
   if ((strlen(store) > 2) && (store[0] == '.') && (store[1] == '/')) {
     strcpy(temp_dir, &store[2]);
   }
-  int dir_len = strlen(temp_dir);
+  const size_t dir_len = strlen(temp_dir);
   if (temp_dir[dir_len - 1] == '/') {
     temp_dir[dir_len - 1] = 0;
   }
@@ -67,8 +69,10 @@ oc_storage_config(const char *store)
   PRINT("Creating storage directory at %s", temp_dir);
 #ifdef __GNUC__
   int retval = mkdir(temp_dir);
+  PRINT("Result: %s", retval == 0 ? "..created" : "..error");
 #else
   int retval = _mkdir(temp_dir);
+  PRINT("Result: %s", retval == 0 ? "..created" : "..error");
 #endif
 #else
   PRINT("Not Creating storage directory");

@@ -25,10 +25,8 @@ oc_clock_init(void)
 {
 }
 
-oc_clock_time_t
-oc_clock_time(void)
+oc_clock_time_t oc_clock_time(void)
 {
-  oc_clock_time_t time = 0;
 
   // This magic number is the number of 100 nanosecond intervals since January
   // 1, 1601 (UTC)
@@ -41,9 +39,9 @@ oc_clock_time(void)
   GetSystemTime(&system_time);
   SystemTimeToFileTime(&system_time, &file_time);
 
-  time = ((uint64_t)file_time.dwLowDateTime);
-  time += ((uint64_t)file_time.dwHighDateTime) << 32;
-  time = (oc_clock_time_t)((time - EPOCH) / 10000L);
+  oc_clock_time_t time = file_time.dwLowDateTime;
+  time += (uint64_t)file_time.dwHighDateTime << 32;
+  time = (time - EPOCH) / 10000L;
 
   return time;
 }

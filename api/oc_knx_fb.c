@@ -236,7 +236,7 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
       else
       {
         oc_add_resource_to_wk(resource, request, device_index, &response_length,
-                              1);
+                              true);
         matches++;
         if (matches >= PAGE_SIZE)
         {

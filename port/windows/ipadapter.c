@@ -1487,10 +1487,10 @@ handle_session_event_callback(const oc_endpoint_t *endpoint,
 }
 #endif /* OC_SESSION_EVENTS */
 
-static uint32_t g_unicast_port = COAP_PORT_UNSECURED;
+static uint16_t g_unicast_port = COAP_PORT_UNSECURED;
 
 int
-oc_connectivity_set_port(uint32_t port)
+oc_connectivity_set_port(uint16_t port)
 {
   g_unicast_port = port;
   return 0;
@@ -1536,7 +1536,7 @@ oc_connectivity_init(size_t device)
   sm->sin6_family = AF_INET6;
   sm->sin6_port = 0;
   sm->sin6_addr = in6addr_any;
-#endif /* OC_SECURITY */
+#endif
 
   dev->server_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
   dev->mcast_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
@@ -1797,8 +1797,7 @@ oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags flags)
 }
 #endif /* OC_DNS_LOOKUP */
 
-void
-oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
+void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
   ip_context_t *dev = get_ip_context_for_device(address->device);
 
@@ -1808,11 +1807,7 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
   }
 
   // for every interface...
-  int ret = 0;
-  struct ifaddr_t *ifs = NULL, *interface = NULL;
-  ifs = get_network_addresses();
-
-  for (interface = ifs; interface != NULL; interface = interface->next) {
+  for (ifaddr_t * interface = get_network_addresses(); interface != NULL; interface = interface->next) {
     /*
     if (!(interface->ifa_flags & IFF_UP) ||
         (interface->ifa_flags & IFF_LOOPBACK)) {
@@ -1824,16 +1819,14 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     }
     */
     /* Obtain interface index for this address */
-    int if_index = interface->if_index;
+    const ULONG if_index = interface->if_index;
     /* Accordingly handle IPv6/IPv4 addresses */
     // This is probably a very bad cast - double check
     struct sockaddr_storage *a = &interface->addr;
     if (a) {
       // Subscribe to multicast group
-      struct ipv6_mreq mreq;
+      struct ipv6_mreq mreq = {0};
 
-      /* Link-local scope */
-      memset(&mreq, 0, sizeof(mreq));
       memcpy(mreq.ipv6mr_multiaddr.s6_addr, address->addr.ipv6.address, 16);
       mreq.ipv6mr_interface = if_index;
 
@@ -1847,8 +1840,6 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
       }
     }
   }
-
-  return;
 }
 
 void
@@ -1862,11 +1853,7 @@ oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
   }
 
   // for every interface...
-  int ret = 0;
-  struct ifaddr_t *ifs = NULL, *interface = NULL;
-  ifs = get_network_addresses();
-
-  for (interface = ifs; interface != NULL; interface = interface->next) {
+  for (ifaddr_t * interface = get_network_addresses(); interface != NULL; interface = interface->next) {
     /*
     if (!(interface->ifa_flags & IFF_UP) ||
         (interface->ifa_flags & IFF_LOOPBACK)) {
@@ -1878,16 +1865,14 @@ oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     }
     */
     /* Obtain interface index for this address */
-    int if_index = interface->if_index;
+    ULONG if_index = interface->if_index;
     /* Accordingly handle IPv6/IPv4 addresses */
     // This is probably a very bad cast - double check
     struct sockaddr_storage *a = &interface->addr;
     if (a) {
       // Subscribe to multicast group
-      struct ipv6_mreq mreq;
+      struct ipv6_mreq mreq = {0};
 
-      /* Link-local scope */
-      memset(&mreq, 0, sizeof(mreq));
       memcpy(mreq.ipv6mr_multiaddr.s6_addr, address->addr.ipv6.address, 16);
       mreq.ipv6mr_interface = if_index;
 
@@ -1901,6 +1886,4 @@ oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
       //}
     }
   }
-
-  return;
 }

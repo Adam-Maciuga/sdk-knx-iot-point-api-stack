@@ -478,7 +478,7 @@ oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key,
   {
     if (current2 < current)
     {
-      /* the key is does not have = */
+      /* the key does not have = */
       current = NULL;
     }
   }

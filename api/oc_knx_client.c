@@ -956,7 +956,7 @@ oc_set_spake_response_cb(const oc_spake_cb_t my_func)
 
 // ----------------------------------------------------------------------------
 
-bool oc_set_s_mode_response_cb(const oc_s_mode_response_cb_t my_func)
+bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func)
 {
   m_s_mode_cb = my_func;
   return true;
