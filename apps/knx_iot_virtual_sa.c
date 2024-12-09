@@ -76,7 +76,11 @@
 #include <signal.h>                     // test purpose only; commandline reset 
 #include <stdlib.h>
 #include <ctype.h>
-#include <stdio.h>                      // defines FILENAME_MAX 
+#include <stdio.h>                      // defines FILENAME_MAX
+#include <oc_storage.h>                 
+
+#include "oc_knx_client.h"
+#include "oc_knx_swu.h"
 
 #ifdef __linux__
  /** linux specific code */
@@ -399,6 +403,9 @@ extern "C" {
     // set device model, value used from EITT for testing   
     oc_core_set_device_model(0, "KNX Certification");
 
+    // set host name, value used from EITT for testing  
+    oc_core_set_device_hostname(0, HOST_NAME);
+
     oc_set_s_mode_response_cb(oc_add_s_mode_response_cb);
 
   #ifdef OC_SPAKE
@@ -474,8 +481,8 @@ extern "C" {
         while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
         {
           // unique identifier
-          if ((strncmp(m, "id", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "id", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             char mystring[100];
             snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber), oc_string(request->resource->uri));
@@ -483,29 +490,29 @@ extern "C" {
           }
 
           // resource types
-          if ((strncmp(m, "rt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "rt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
           }
 
           // interfaces
-          if ((strncmp(m, "if", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "if", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, if, "if.a");
           }
 
           // dpt
-          if ((strncmp(m, "dpt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "dpt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
           }
 
           // ga
-          if ((strncmp(m, "ga", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "ga", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
             if (index > -1)
@@ -519,8 +526,8 @@ extern "C" {
           }
 
           // description
-          if ((strncmp(m, "desc", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "desc", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, desc, "On/Off switch 1");
           }
@@ -587,7 +594,7 @@ extern "C" {
     while (rep != NULL)
     {
       /* handle the type of payload correctly. */
-      if ((rep->iname == 1) && (rep->type == OC_REP_BOOL))
+      if (rep->iname == 1 && rep->type == OC_REP_BOOL)
       {
         PRINT("put_OnOff_1 received : %d", rep->value.boolean);
         g_OnOff_1 = rep->value.boolean;
@@ -674,8 +681,8 @@ extern "C" {
         while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
         {
           // unique identifier
-          if ((strncmp(m, "id", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "id", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             char mystring[100];
             snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber),
@@ -683,25 +690,25 @@ extern "C" {
             oc_rep_i_set_text_string(root, 0, mystring);
           }
           // resource types
-          if ((strncmp(m, "rt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "rt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.51");
           }
           // interfaces
-          if ((strncmp(m, "if", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "if", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, if, "if.s");
           }
-          if ((strncmp(m, "dpt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "dpt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
           }
           // ga
-          if ((strncmp(m, "ga", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "ga", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
             if (index > -1)
@@ -713,8 +720,8 @@ extern "C" {
               }
             }
           }
-          if ((strncmp(m, "desc", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "desc", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, desc, "Feedback 1");
           }
@@ -798,8 +805,8 @@ extern "C" {
         while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
         {
           // unique identifier
-          if ((strncmp(m, "id", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "id", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             char mystring[100];
             snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber),
@@ -807,25 +814,25 @@ extern "C" {
             oc_rep_i_set_text_string(root, 0, mystring);
           }
           // resource types
-          if ((strncmp(m, "rt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "rt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
           }
           // interfaces
-          if ((strncmp(m, "if", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "if", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, if, "if.a");
           }
-          if ((strncmp(m, "dpt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "dpt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
           }
           // ga
-          if ((strncmp(m, "ga", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "ga", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
             if (index > -1)
@@ -837,8 +844,8 @@ extern "C" {
               }
             }
           }
-          if ((strncmp(m, "desc", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "desc", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, desc, "On/Off switch 2");
           }
@@ -906,7 +913,7 @@ extern "C" {
     while (rep != NULL)
     {
       /* handle the type of payload correctly. */
-      if ((rep->iname == 1) && (rep->type == OC_REP_BOOL))
+      if (rep->iname == 1 && rep->type == OC_REP_BOOL)
       {
         PRINT("put_OnOff_2 received : %d", rep->value.boolean);
         g_OnOff_2 = rep->value.boolean;
@@ -993,8 +1000,8 @@ extern "C" {
         while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
         {
           // unique identifier
-          if ((strncmp(m, "id", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "id", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             char mystring[100];
             snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber),
@@ -1002,25 +1009,25 @@ extern "C" {
             oc_rep_i_set_text_string(root, 0, mystring);
           }
           // resource types
-          if ((strncmp(m, "rt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "rt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.51");
           }
           // interfaces
-          if ((strncmp(m, "if", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "if", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, if, "if.s");
           }
-          if ((strncmp(m, "dpt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "dpt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
           }
           // ga
-          if ((strncmp(m, "ga", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "ga", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
             if (index > -1)
@@ -1032,8 +1039,8 @@ extern "C" {
               }
             }
           }
-          if ((strncmp(m, "desc", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "desc", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, desc, "Feedback 2");
           }
@@ -1117,8 +1124,8 @@ extern "C" {
         while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
         {
           // unique identifier
-          if ((strncmp(m, "id", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "id", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             char mystring[100];
             snprintf(mystring, 99, "urn:knx:sn:%s%s", oc_string(device->serialnumber),
@@ -1126,25 +1133,25 @@ extern "C" {
             oc_rep_i_set_text_string(root, 0, mystring);
           }
           // resource types
-          if ((strncmp(m, "rt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "rt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
           }
           // interfaces
-          if ((strncmp(m, "if", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "if", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, if, "if.a");
           }
-          if ((strncmp(m, "dpt", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "dpt", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
           }
           // ga
-          if ((strncmp(m, "ga", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "ga", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
             if (index > -1)
@@ -1156,8 +1163,8 @@ extern "C" {
               }
             }
           }
-          if ((strncmp(m, "desc", m_len) == 0) |
-              (strncmp(m, "*", m_len) == 0))
+          if (strncmp(m, "desc", m_len) == 0 |
+              strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, desc, "On/Off switch 3");
           }
@@ -1225,7 +1232,7 @@ extern "C" {
     while (rep != NULL)
     {
       /* handle the type of payload correctly. */
-      if ((rep->iname == 1) && (rep->type == OC_REP_INT))
+      if (rep->iname == 1 && rep->type == OC_REP_INT)
       {
         PRINT("-- put_OnOff_3 received : %lld", rep->value.integer);
         g_OnOff_3 = (int) rep->value.integer;
@@ -1385,37 +1392,35 @@ extern "C" {
   }
 
   /**
-   * @brief initiate preset for device
-   * current implementation: device reset as command line argument
+   * @brief
+   * Application factory preset callback handler for the device
+   
    * @param device_index the device identifier of the list of devices
    * @param data the supplied data.
    */
-  void factory_presets_cb(const size_t device_index, const void* data)
+  void factory_presets_cb(size_t device_index, void* data)
   {
     (void) device_index;
     (void) data;
 
-    // requested by command line 
-    if (g_reset)
-    {
-      PRINT("factory_presets_cb: resetting device with erase code '2'");
-      oc_knx_device_storage_reset(device_index, 2);
-    }
+    PRINT("factory preset callback called :");
+
   }
 
   /**
-   * @brief set the host name on the device (application depended on)
+   * @brief
+   * Application host name callback handler for the device
    *
    * @param device_index the device identifier of the list of devices
-   * @param host_name the host name to be set on the device
+   * @param host_name the host name of the device to be maintained (check/set, print, ...)
    * @param data the supplied data.
    */
   void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
   {
-    (void) device_index;
-    (void) data;
+    (void) device_index;  
+    (void) data;         
 
-    PRINT("Host Name : %s", oc_string(host_name));
+    PRINT("host name callback called with host name: %s", oc_string(host_name));
   }
 
   static oc_event_callback_retval_t send_delayed_response(void* context)
@@ -1510,25 +1515,21 @@ extern "C" {
 
   #endif
 
-
     // initialize the 'application' variables
     initialize_variables();
 
     /* initializes the handlers structure */
-    static oc_handler_t handler = { .init = app_init,
-                                    .signal_event_loop = signal_event_loop,
+    static oc_handler_t handler = { .init = app_init,                          // always
+                                    .signal_event_loop = signal_event_loop,    // always
                                     .register_resources = register_resources,  // for server
-                                    .requests_entry = NULL };                  // for client
-
-    // must be a pointer for the call below ...
-    static char* fwu_name = FIRMWARE_NAME;
+                                    .requests_entry = NULL };                  // for client 
 
     // set the application callbacks
-    oc_set_hostname_cb(hostname_cb, HOST_NAME);
+    oc_set_hostname_cb(hostname_cb, NULL);
     oc_set_factory_presets_cb(factory_presets_cb, NULL);
-    oc_set_swu_cb(swu_cb, fwu_name);
+    oc_set_swu_cb(swu_cb, NULL);
 
-    /* start the stack */
+    // start the stack, invokes the .init handler from above
     const int init = oc_main_init(&handler);
 
     if (init < 0)
@@ -1537,11 +1538,12 @@ extern "C" {
       return init;
     }
 
+    const oc_device_info_t* device = oc_core_get_device_info(0);
+
     // may produce a warning if OC_OSCORE is not specified ...
     PRINT("OSCORE - %s", OC_OSCORE ? "Enabled" : "Disabled");
-
-    const oc_device_info_t* device = oc_core_get_device_info(0);
     PRINT("serial number: %s", oc_string(device->serialnumber));
+    PRINT("host name: %s", oc_string(device->hostname));
 
     const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
     if (my_ep != NULL)
@@ -1635,14 +1637,14 @@ extern "C" {
     {
       if (strcmp(argv[1], "-reset") == 0)
       {
-        PRINT("internal reset");
-        g_reset = true;
+        g_reset = true; // ... helper, device is not initiated at this point
+        
       }
       if (strcmp(argv[1], "-help") == 0)
       {
-        PRINTF("usage: no arguments starts the server; \
-                -help shows this message;              \
-                -reset does an full device reset       \
+        PRINTF("usage: no arguments starts the server;              \
+                -help shows this message;                           \
+                -reset does an full device reset (erase code 2)     \
                 -s <serial number> sets the device serial number");
         exit(0);
       }
@@ -1652,13 +1654,20 @@ extern "C" {
     {
       if (strcmp(argv[1], "-s") == 0)
       {
-        PRINT("serial number %s", argv[2]);
-        app_set_serial_number(argv[2]);
+        PRINT("command line serial number %s", argv[2]);
+        app_set_serial_number(argv[2]); // set SN before stack initialization 
       }
     }
 
-    // application initialization 
+    // ... before this call devices and resources are not existing
     app_initialize_stack();
+
+    // ... now device is initiated
+    if (g_reset)
+    {
+      PRINT("command line reset with erase code 2 ...");
+      oc_knx_device_storage_reset(0, 2);
+    }
 
   #ifdef WIN32
     while (quit != 1) // check on Ctrl-C

@@ -25,6 +25,7 @@
 #include "oc_main.h"
 #include "oc_rep.h"
 #include "oc_base64.h"
+#include <oc_storage.h> 
 #include <stdio.h>
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -38,9 +39,9 @@
 
 #define TAGS_AS_STRINGS
 
-#define LSM_STORE "LSM_STORE"
+
 #define FINGERPRINT_STORE "dev_knx_fingerprint"
-#define OSN_STORE "dev_knx_osn"
+
 
  // ---------------------------Variables --------------------------------------
 
@@ -93,11 +94,28 @@ convert_cmd(char* cmd)
   return 0;
 }
 
-int oc_reset_device(const size_t device_index, const int reset_value)
+int oc_reset_device(const size_t device_index, const int reset_mode)
 {
-  PRINT("reset device: %d", reset_value);
+  PRINT("reset device: %d", reset_mode);
 
-  oc_knx_device_storage_reset(device_index, reset_value);
+  // application preset callback handler 
+  const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
+  if (my_preset_cb && my_preset_cb->cb)
+  {
+    PRINT("PRE-set callback handler is called");
+    my_preset_cb->cb(device_index, my_preset_cb->data);
+  }
+
+  // delete data
+  oc_knx_device_storage_reset(device_index, reset_mode);
+
+  // application reset callback handler 
+  const oc_reset_t* my_reset_cb = oc_get_reset_cb();
+  if (my_reset_cb && my_reset_cb->cb)
+  {
+    PRINT("RE-set callback handler is called");
+    my_reset_cb->cb(device_index, reset_mode, my_reset_cb->data);
+  }
 
   return 0;
 }
@@ -159,29 +177,20 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
   }
 }
 
-// used to cache device_index and reset value
-// original values may be void when callbacks are executed (due to clean up resources)
+// cache device_index and reset value, original values may be void when callbacks are executed (due to clean up resources)
 static size_t cached_device_index;
 static int cached_value;
 
-static oc_event_callback_retval_t delayed_reset(void* context)
+static oc_event_callback_retval_t reset(void* context)
 {
   PRINT("reset device");
-
-  // Specification demands
-  // - clear FP tables (runtime interworking stops)
-  // - dep on erase code:
-  //   2=m (delete all security parameters + network parameters)
-  //   3=o (delete IA)
-  //   7=m (delete all security parameters except with if.sec, don't delete network parameters)
-  // - basic restart (see below)
 
   // use cached value
   oc_reset_device(cached_device_index, cached_value);
   return OC_EVENT_DONE;
 }
 
-static oc_event_callback_retval_t delayed_restart(void* context)
+static oc_event_callback_retval_t restart(void* context)
 {
   PRINT("restart device");
 
@@ -213,16 +222,16 @@ static oc_event_callback_retval_t delayed_restart(void* context)
   {
     PRINT("PASE key invalidated");
     oc_at_delete_entry(cached_device_index, auth_at_index_pase); // delete from table
-    oc_oscore_free_contexts_at_id(auth_at_index_pase);           // invalidate (usually restored after startup) 
+    oc_oscore_free_contexts_at_id(auth_at_index_pase);           // invalidate (usually released data are restored after startup) 
   }
 
   // CFG parameters
   oc_init_datapoints_at_initialization();
 
+  // application restart callback handler 
   oc_restart_t* my_restart = oc_get_restart_cb();
   if (my_restart && my_restart->cb)
   {
-    // perform a restart for the application level (if defined)
     my_restart->cb(cached_device_index, my_restart->data);
   }
 
@@ -239,8 +248,12 @@ static oc_event_callback_retval_t delayed_restart(void* context)
   time =    "time"  Unsigned
 
   CBOR payload example:
-  { 2: "reset", 1: <erase code> }
   { 2: "restart" }
+  { 2: "reset", 1: <erase code> }
+  <erase code>:
+  - 2=m (delete all security parameters + network parameters)
+  - 3=o (delete IA)
+  - 7=m (delete all security parameters except with if.sec, don't delete network parameters)
 
 */
 static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -298,7 +311,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     cached_device_index = device_index;
     cached_value = value;
 
-    oc_set_delayed_callback_ms(NULL, delayed_restart, 100);
+    oc_set_delayed_callback_ms(NULL, restart, 100);
     PRINT("oc_core_knx_post_handler - end, restart");
     return;
   }
@@ -309,7 +322,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     cached_device_index = device_index;
     cached_value = value;
 
-    oc_set_delayed_callback_ms(NULL, delayed_reset, 100);
+    oc_set_delayed_callback_ms(NULL, reset, 100);
 
     // Before executing the reset function, the KNX IoT device MUST return a
     // response with CoAP response code 2.04 CHANGED and with payload containing
@@ -370,7 +383,7 @@ oc_a_lsm_state(size_t device_index)
  * function will store the new state
  */
 int
-oc_a_lsm_set_state(size_t device_index, oc_lsm_event_t new_state)
+oc_a_lsm_set_state(size_t device_index, oc_lsm_state_t new_state)
 {
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device == NULL)
@@ -380,7 +393,7 @@ oc_a_lsm_set_state(size_t device_index, oc_lsm_event_t new_state)
   }
   device->lsm_s = new_state;
 
-  oc_storage_write(LSM_STORE, (uint8_t*) &device->lsm_s, sizeof(device->lsm_s));
+  oc_storage_write(KNX_STORAGE_LSM, (uint8_t*) &device->lsm_s, sizeof(device->lsm_s));
 
   return 0;
 }
@@ -1878,7 +1891,7 @@ oc_knx_load_state(size_t device_index)
     return;
   }
 
-  temp_size = oc_storage_read(LSM_STORE, (uint8_t*) &lsm, sizeof(lsm));
+  temp_size = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*) &lsm, sizeof(lsm));
   if (temp_size > 0)
   {
     device->lsm_s = lsm;

@@ -18,9 +18,7 @@
 #define OC_COAP_H
 
 #include "oc_ri.h"
-#include "separate.h"
 #include "util/oc_list.h"
-#include "oc_ri.h"
 #include "oc_blockwise.h"
 
 #ifdef __cplusplus

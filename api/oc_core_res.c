@@ -36,6 +36,8 @@
 #include "port/oc_assert.h"
 #include <stdarg.h>
 
+#include "oc_storage.h"
+
 #ifdef OC_DYNAMIC_ALLOCATION
 #include "oc_endpoint.h"
 #include <stdlib.h>
@@ -407,7 +409,7 @@ oc_core_get_num_devices(void)
 int
 oc_core_set_device_fwv(size_t device_index, int major, int minor, int minor2)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -421,7 +423,7 @@ oc_core_set_device_fwv(size_t device_index, int major, int minor, int minor2)
 int
 oc_core_set_device_hwv(size_t device_index, int major, int minor, int minor2)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -436,7 +438,7 @@ oc_core_set_device_hwv(size_t device_index, int major, int minor, int minor2)
 int
 oc_core_set_device_ap(size_t device_index, int major, int minor, int minor2)
 {
-  if (device_index >= (int) oc_core_get_num_devices())
+  if (device_index >= oc_core_get_num_devices())
   {
     OC_ERR("device_index %d too large", (int) device_index);
     return -1;
@@ -913,7 +915,7 @@ oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
         size_t resource_type_len =
           oc_string_array_get_item_size(resource->types, i);
         const char* resource_type =
-          (const char*) oc_string_array_get_item(resource->types, i);
+          oc_string_array_get_item(resource->types, i);
         PRINT("oc_filter_resource_by_rt '%.*s'", (int) resource_type_len,
               resource_type);
         if (wildcart != NULL)

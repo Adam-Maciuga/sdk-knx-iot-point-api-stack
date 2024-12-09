@@ -136,10 +136,11 @@ typedef void (*oc_swu_cb_t)(size_t device, oc_separate_response_t *response,
 /**
  * Set the software update callback.
  *
- * The host name callback is called by the stack when the software update is
- * performed
+ * The swu name callback is called by the stack when the software update is performed
  *
- * @note oc_set_hostname_cb() must be called before oc_main_init().
+ * @note
+ * - oc_set_swu_cb() must be called before oc_main_init()
+ * - called on each external PUT request to the ep a/swu, but not on a GET request 
  *
  * @param[in] cb oc_swu_cb_t function pointer to be called
  * @param[in] data context pointer that is passed to the oc_restart_cb_t

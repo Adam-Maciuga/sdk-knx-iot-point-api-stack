@@ -68,7 +68,6 @@ set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/oc_client_api.c
     ${PROJECT_SOURCE_DIR}/api/oc_clock.c
     ${PROJECT_SOURCE_DIR}/api/oc_core_res.c
-    ${PROJECT_SOURCE_DIR}/api/oc_device_mode.c
     ${PROJECT_SOURCE_DIR}/api/oc_discovery.c
     ${PROJECT_SOURCE_DIR}/api/oc_endpoint.c
     ${PROJECT_SOURCE_DIR}/api/oc_helpers.c

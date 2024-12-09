@@ -86,6 +86,8 @@ int app_initialize_stack(void);
 /**
  * @brief sets the serial number
  * should be called before app_initialize_stack()
+ *
+ * @note used from several applications, hence define it as method.
  * 
  * @param serial_number the serial number as string
  * @return int 0 == success

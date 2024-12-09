@@ -24,6 +24,8 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
+#include "oc_storage.h"
+
 #define TAGS_AS_STRINGS
 
 #define GOT_STORE "GOT_STORE"

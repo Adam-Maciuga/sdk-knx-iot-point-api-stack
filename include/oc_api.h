@@ -44,7 +44,7 @@
     - functionality to handle the s-mode objects & transmission flags.
 
 
-  Therefore an KNX IoT Point API application exist of:
+  Therefore, an KNX IoT Point API application exist of:
 
   - Code for each specific data points (handling GET/POST)
   - own code to talk to hardware
@@ -85,17 +85,13 @@
 #define OC_API_H
 
 #include "messaging/coap/oc_coap.h"
-#include "oc_buffer_settings.h"
+
 #include "oc_knx.h"
 #include "oc_rep.h"
 #include "oc_ri.h"
 #include "oc_client_state.h"
-#include "oc_signal_event_loop.h"
-#include "port/oc_storage.h"
-#include "api/oc_knx_client.h"
-#include "api/oc_knx_swu.h"
 
-#include "oc_programming_mode.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -307,11 +303,11 @@ oc_clock_time_t oc_main_poll(void);
  */
 void oc_main_shutdown(void);
 
-/**
- * Callback invoked by the stack initialization to perform any
- * "factory settings", e.g., this may be used to load a manufacturer
- * certificate.
+ /**
+ * Preset callback data 
  *
+ * @param[in] device the device index
+ * @param[in] data the user supplied data
  *
  */
 typedef void (*oc_factory_presets_cb_t)(size_t device, void *data);
@@ -319,10 +315,11 @@ typedef void (*oc_factory_presets_cb_t)(size_t device, void *data);
 /**
  * Set the factory presets callback.
  *
- * The factory presets callback is called by the stack to enable per-device
- * presets.
+ * Callback is called by the stack BEFORE the reset actions for the related erase codes (delete storage, reset IA,...) are executed.
+ * Usually to perform "factory settings", e.g. to load a manufacturer certificate.
  *
- * @note oc_set_factory_presets_cb() must be called before oc_main_init().
+ * @note
+ * - oc_set_factory_presets_cb() must be called before oc_main_init()
  *
  * @param[in] cb oc_factory_presets_cb_t function pointer to be called
  * @param[in] data context pointer that is passed to the oc_factory_presets_cb_t
@@ -332,8 +329,7 @@ typedef void (*oc_factory_presets_cb_t)(size_t device, void *data);
 void oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void *data);
 
 /**
- * Callback invoked by the stack initialization to perform any
- * application reset.
+ * Rest callback data.
  *
  * @param[in] device the device index
  * @param[in] reset_value reset value per KNX
@@ -345,8 +341,7 @@ typedef void (*oc_reset_cb_t)(size_t device, int reset_value, void *data);
 /**
  * Set the reset callback.
  *
- * The reset callback is called by the stack to enable per-device
- * reset on application level.
+ * Callback is called by the stack AFTER the reset actions for the related erase codes (delete storage, reset IA,...) are executed.
  *
  * @note oc_set_reset_cb() must be called before oc_main_init().
  *
@@ -358,7 +353,7 @@ typedef void (*oc_reset_cb_t)(size_t device, int reset_value, void *data);
 void oc_set_reset_cb(oc_reset_cb_t cb, void *data);
 
 /**
- * Callback invoked by the stack to invoke a restart
+ * Restart callback data.
  *
  * @param[in] device the device index
  * @param[in] data the user supplied data
@@ -394,16 +389,17 @@ void oc_set_restart_cb(oc_restart_cb_t cb, void *data);
  * @param[in] data the user supplied data
  *
  */
-typedef void (*oc_hostname_cb_t)(size_t device, oc_string_t host_name,
-                                 void *data);
+typedef void (*oc_hostname_cb_t)(size_t device, oc_string_t host_name, void *data);
 
 /**
  * Set the host name callback.
  *
  * The host name callback is called by the stack when the host name needs to be
- * set
+ * set (aka PUT request)
  *
- * @note oc_set_hostname_cb() must be called before oc_main_init().
+ * @note
+ * - oc_set_hostname_cb() must be called before oc_main_init()
+ * - called on each external PUT request to the ep dev/hname, but not on a GET request 
  *
  * @param[in] cb oc_hostname_cb_t function pointer to be called
  * @param[in] data context pointer that is passed to the oc_restart_cb_t
@@ -424,8 +420,7 @@ void oc_set_hostname_cb(oc_hostname_cb_t cb, void *data);
  * @param[in] data the user supplied data
  *
  */
-typedef void (*oc_programming_mode_cb_t)(size_t device, bool programming_mode,
-                                         void *data);
+typedef void (*oc_programming_mode_cb_t)(size_t device, bool programming_mode, void *data);
 
 /**
  * Set the programming mode callback
@@ -1278,7 +1273,6 @@ int oc_notify_observers(const oc_resource_t *resource);
 
   @{
 */
-#include "oc_client_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1687,16 +1681,15 @@ void oc_set_delayed_callback(void *cb_data, oc_trigger_t callback,
                              uint16_t seconds);
 
 /**
- * Schedule a callback to be invoked after a set number of miliseconds.
+ * Schedule a callback to be invoked after a set number of milliseconds.
  *
  * @param[in] cb_data user defined context pointer that is passed to the
  *                    oc_trigger_t callback
  * @param[in] callback the callback invoked after the set number of seconds
- * @param[in] miliseconds the number of miliseconds to wait till the callback is
+ * @param[in] miliseconds the number of milliseconds to wait till the callback is
  * invoked
  */
-void oc_set_delayed_callback_ms(void *cb_data, oc_trigger_t callback,
-                                uint16_t miliseconds);
+void oc_set_delayed_callback_ms(void *cb_data, oc_trigger_t callback,  uint16_t miliseconds);
 
 /**
  * used to cancel a delayed callback

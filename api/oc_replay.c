@@ -36,13 +36,17 @@
 #define OC_REPLAY_RECORD_TIMEOUT (5)
 #endif
 
+#ifndef OC_REPLAY_WINDOW_SIZE
+#define OC_REPLAY_WINDOW_SIZE (32)
+#endif
+
 static struct oc_replay_record
 {
-  uint64_t rx_ssn;        // most recent received SSN of client TODO change to 32 bit
+  uint64_t rx_ssn;        // most recent received SSN of client
   oc_string_t rx_kid;     // byte string holding the KID of the client
   oc_string_t rx_kid_ctx; // byte string holding the KID context of the client, can be null
   oc_clock_time_t time;   // time of last received packet
-  uint32_t window;        // bitfield indicating received SSNs through bit position, 32= default by OSCORE RFC
+  uint32_t window;        // bitfield indicating received SSNs through bit position, 32 = default by OSCORE RFC 
   bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
@@ -170,40 +174,39 @@ oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid,
   // received message matched existing record, so this record is useful &
   // should be kept around - update the time (to prevent a release from heap)  
   rec->time = oc_clock_time();
+  const int64_t ssn_diff = rec->rx_ssn - rx_ssn;  // SSN = 32 bit hence unproblematic
 
-  PRINT("new ssn = %lld\n", rx_ssn);                // %lld = 64 bit ulong
-  PRINT("old ssn = %lld\n", rec->rx_ssn);           // %lld = 64 bit ulong
-  PRINT("kid     = %s\n", oc_string(rx_kid));       // %s = string
-  PRINT("wnd old : %lu\n", rec->window);            // %u = 32 bit ulong bit field 
-  const int64_t ssn_diff = rec->rx_ssn - rx_ssn;    // SSN = 32 bit hence unproblematic
-
-  PRINT("ssn_diff = dec: %lld, hex: %llx\n", ssn_diff, ssn_diff);
+  PRINT("new ssn = %llu", rx_ssn);                // %llu = 64 bit ulong
+  PRINT("old ssn = %llu", rec->rx_ssn);           // %llu = 64 bit ulong
+  PRINT("kid     = %s", oc_string(rx_kid));       // %s = string
+  PRINT("wnd old : %u", rec->window);             // %u = 32 bit ulong bit field 
+  PRINT("ssn_diff = %lli", ssn_diff);             // 64 bit int
 
   // new SSN <= max value of received SSN -> either new SSN is within window or out of left bound  
   if (ssn_diff >= 0) 
   {
-    PRINT("ssn_diff = %llx >= 0\n", ssn_diff);
+    PRINT("ssn_diff = %lli >= 0", ssn_diff);
 
     // diff >= 32 -> out of left bound (max ssn = 32, rx = 0 -> SSN of 1..32 can be windowed) 
-    if (ssn_diff >= sizeof(rec->window) * 8) 
+    if (ssn_diff >= OC_REPLAY_WINDOW_SIZE) 
     {
-      PRINT("out of window left bound\n");
+      PRINT("out of window left bound");
       return ECHO; // not known if it was received before  
     }
     // diff < 32 -> within the window (max ssn = 32, rx = 1 -> SSN 1..31 can be windowed)
     
     // see if it has been received before, so this can be a replay
-    if (rec->window & ((uint32_t)1 << ssn_diff)) 
+    if (rec->window & 1 << ssn_diff) 
     {
-      PRINT("within window, replay msg\n");
+      PRINT("within window, replay msg");
       return REPLAY; // known that it was received before 
     }  
     
     // SSN not received before, tick that this SSN is now occupied
     // DO NOT remember SSN, it is not the highest one
-    rec->window |= (uint32_t)1 << ssn_diff;
+    rec->window |= 1 << ssn_diff;
 
-    PRINT("within window, new msg\n");
+    PRINT("within window, new msg");
     return SYNCED;
   } 
 
@@ -211,7 +214,7 @@ oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid,
   // note that shifting by an amount larger than the size of the type
   // is undefined behaviour, so we must zero the window manually here
 
-  if (-ssn_diff >= sizeof(rec->window) * 8)
+  if (-ssn_diff >= OC_REPLAY_WINDOW_SIZE)
     rec->window = 0;            // 00000000'..'..'00000001' << 32 = 00000000'..'..'00000000'
   else
     rec->window <<= -ssn_diff;  // 00000000'..'..'00000001' << 31 = 10000000'..'..'00000000'
@@ -221,7 +224,7 @@ oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid,
   rec->window |= 1;
   rec->rx_ssn = rx_ssn;
 
-  PRINT("out of window right bound\n");
+  PRINT("out of window right bound");
   return SYNCED;
 }
 

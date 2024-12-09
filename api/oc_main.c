@@ -42,21 +42,21 @@
 
 #ifdef OC_MEMORY_TRACE
 #include "util/oc_mem_trace.h"
-#endif /* OC_MEMORY_TRACE */
+#endif
 
 #include "oc_main.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
-static bool *drop_commands;
-#else  /* OC_DYNAMIC_ALLOCATION */
+static bool* drop_commands;
+#else 
 static bool drop_commands[OC_MAX_NUM_DEVICES];
-#endif /* !OC_DYNAMIC_ALLOCATION */
+#endif
 
-static bool initialized = false;
-static const oc_handler_t *app_callbacks;
-static oc_factory_presets_t factory_presets = { NULL, NULL };
-static oc_reset_t app_reset = { NULL, NULL };
+static bool initialized = false;                                              // marker if init was done, to handle a shutdown without init
+static const oc_handler_t* app_callbacks;
+static oc_factory_presets_t factory_presets = { NULL, NULL };       
+static oc_reset_t app_reset = { NULL, NULL };                       
 static oc_restart_t app_restart = { NULL, NULL };
 static oc_hostname_t app_hostname = { NULL, NULL };
 static oc_programming_mode_t app_programming_mode = { NULL, NULL };
@@ -64,87 +64,76 @@ static oc_loadstate_t app_loadstate = { NULL, NULL };
 
 // -----------------------------------------------------------------------------
 
-void
-oc_set_factory_presets_cb(const oc_factory_presets_cb_t cb, void *data)
+void oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void* data)
 {
   factory_presets.cb = cb;
   factory_presets.data = data;
 }
 
-oc_factory_presets_t *
-oc_get_factory_presets_cb(void)
+oc_factory_presets_t* oc_get_factory_presets_cb(void)
 {
   return &factory_presets;
 }
 
 // -----------------------------------------------------------------------------
 
-void
-oc_set_reset_cb(oc_reset_cb_t cb, void *data)
+void oc_set_reset_cb(oc_reset_cb_t cb, void* data)
 {
   app_reset.cb = cb;
   app_reset.data = data;
 }
 
-oc_reset_t *
-oc_get_reset_cb(void)
+oc_reset_t* oc_get_reset_cb(void)
 {
   return &app_reset;
 }
 
 // -----------------------------------------------------------------------------
 
-void
-oc_set_restart_cb(oc_restart_cb_t cb, void *data)
+void oc_set_restart_cb(oc_restart_cb_t cb, void* data)
 {
   app_restart.cb = cb;
   app_restart.data = data;
 }
 
-oc_restart_t *
-oc_get_restart_cb(void)
+oc_restart_t* oc_get_restart_cb(void)
 {
   return &app_restart;
 }
 // -----------------------------------------------------------------------------
 
-void
-oc_set_hostname_cb(const oc_hostname_cb_t cb, void *data)
+void oc_set_hostname_cb(const oc_hostname_cb_t cb, void* data)
 {
   app_hostname.cb = cb;
   app_hostname.data = data;
 }
 
-oc_hostname_t *
-oc_get_hostname_cb(void)
+oc_hostname_t* oc_get_hostname_cb(void)
 {
   return &app_hostname;
 }
+
 // -----------------------------------------------------------------------------
 
-void
-oc_set_programming_mode_cb(oc_programming_mode_cb_t cb, void *data)
+void oc_set_programming_mode_cb(oc_programming_mode_cb_t cb, void* data)
 {
   app_programming_mode.cb = cb;
   app_programming_mode.data = data;
 }
 
-oc_programming_mode_t *
-oc_get_programming_mode_cb(void)
+oc_programming_mode_t* oc_get_programming_mode_cb(void)
 {
   return &app_programming_mode;
 }
 // -----------------------------------------------------------------------------
 
-void
-oc_set_lsm_change_cb(oc_lsm_change_cb_t cb, void *data)
+void oc_set_lsm_change_cb(oc_lsm_change_cb_t cb, void* data)
 {
   app_loadstate.cb = cb;
   app_loadstate.data = data;
 }
 
-oc_loadstate_t *
-oc_get_lsm_change_cb(void)
+oc_loadstate_t* oc_get_lsm_change_cb(void)
 {
   return &app_loadstate;
 }
@@ -168,7 +157,7 @@ static size_t _OC_BLOCK_SIZE = 1024; // FIX
 int
 oc_set_mtu_size(size_t mtu_size)
 {
-  (void)mtu_size;
+  (void) mtu_size;
 #ifdef OC_INOUT_BUFFER_SIZE
   return -1;
 #endif /* OC_INOUT_BUFFER_SIZE */
@@ -184,7 +173,7 @@ oc_set_mtu_size(size_t mtu_size)
   size_t i;
   for (i = 10; i >= 4 && (mtu_size >> i) == 0; i--)
     ;
-  _OC_BLOCK_SIZE = ((size_t)1) << i;
+  _OC_BLOCK_SIZE = ((size_t) 1) << i;
 #endif /* OC_BLOCK_WISE */
   return 0;
 }
@@ -192,7 +181,7 @@ oc_set_mtu_size(size_t mtu_size)
 long
 oc_get_mtu_size(void)
 {
-  return (long)_OC_MTU_SIZE;
+  return (long) _OC_MTU_SIZE;
 }
 
 void
@@ -211,19 +200,19 @@ oc_set_max_app_data_size(size_t size)
 long
 oc_get_max_app_data_size(void)
 {
-  return (long)_OC_MAX_APP_DATA_SIZE;
+  return (long) _OC_MAX_APP_DATA_SIZE;
 }
 
 long
 oc_get_block_size(void)
 {
-  return (long)_OC_BLOCK_SIZE;
+  return (long) _OC_BLOCK_SIZE;
 }
 #else
 int
 oc_set_mtu_size(size_t mtu_size)
 {
-  (void)mtu_size;
+  (void) mtu_size;
   OC_WRN("Dynamic memory not available");
   return -1;
 }
@@ -238,7 +227,7 @@ oc_get_mtu_size(void)
 void
 oc_set_max_app_data_size(size_t size)
 {
-  (void)size;
+  (void) size;
   OC_WRN("Dynamic memory not available");
 }
 
@@ -261,7 +250,8 @@ static void
 oc_shutdown_all_devices(void)
 {
   size_t device;
-  for (device = 0; device < oc_core_get_num_devices(); device++) {
+  for (device = 0; device < oc_core_get_num_devices(); device++)
+  {
     oc_connectivity_shutdown(device);
   }
 
@@ -270,18 +260,21 @@ oc_shutdown_all_devices(void)
 }
 
 int
-oc_main_init(const oc_handler_t *handler)
+oc_main_init(const oc_handler_t* handler)
 {
   int ret;
 
-  if (initialized == true)
+
+  if (initialized)
+  { // already done ...
     return 0;
+  }
 
   app_callbacks = handler;
 
 #ifdef OC_MEMORY_TRACE
   oc_mem_trace_init();
-#endif /* OC_MEMORY_TRACE */
+#endif
 
   oc_ri_init();
   oc_core_init();
@@ -291,14 +284,16 @@ oc_main_init(const oc_handler_t *handler)
 #endif
 
   ret = app_callbacks->init();
-  if (ret < 0) {
+  if (ret < 0)
+  {
     oc_ri_shutdown();
     oc_shutdown_all_devices();
     goto err;
   }
 #ifdef OC_DYNAMIC_ALLOCATION
-  drop_commands = (bool *)calloc(oc_core_get_num_devices(), sizeof(bool));
-  if (!drop_commands) {
+  drop_commands = (bool*) calloc(oc_core_get_num_devices(), sizeof(bool));
+  if (!drop_commands)
+  {
     oc_abort("Insufficient memory");
   }
 #endif
@@ -307,14 +302,16 @@ oc_main_init(const oc_handler_t *handler)
   //#ifdef OC_OSCORE
 
   ret = oc_tls_init_context();
-  if (ret < 0) {
+  if (ret < 0)
+  {
     oc_ri_shutdown();
     oc_shutdown_all_devices();
     goto err;
   }
 #endif
 
-  for (size_t device = 0; device < oc_core_get_num_devices(); device++) {
+  for (size_t device = 0; device < oc_core_get_num_devices(); device++)
+  {
     oc_knx_device_storage_read(device);
     oc_knx_load_state(device);
     // add here more
@@ -322,17 +319,19 @@ oc_main_init(const oc_handler_t *handler)
 
 #ifdef OC_SECURITY
   size_t device;
-  for (device = 0; device < oc_core_get_num_devices(); device++) {
+  for (device = 0; device < oc_core_get_num_devices(); device++)
+  {
     oc_sec_load_unique_ids(device);
-#ifdef OC_PKI
+  #ifdef OC_PKI
     OC_DBG("oc_main_init(): loading ECDSA keypair");
     oc_sec_load_ecdsa_keypair(device);
-#endif /* OC_PKI */
+  #endif /* OC_PKI */
   }
 #endif
 
 #ifdef OC_SERVER
-  if (app_callbacks->register_resources) {
+  if (app_callbacks->register_resources)
+  {
     app_callbacks->register_resources();
   }
 
@@ -346,16 +345,17 @@ oc_main_init(const oc_handler_t *handler)
   initialized = true;
 
 #ifdef OC_SERVER
-  // listen to the group addresses multi-casts
+  // listen to the group addresses multicasts
   // that are registered in the group object table
   oc_register_group_multicasts();
 #endif
 
 #ifdef OC_CLIENT
-  if (app_callbacks->requests_entry) {
+  if (app_callbacks->requests_entry)
+  {
     app_callbacks->requests_entry();
   }
-  // do initialization of the data points according the I flag in
+  // do initialization of the data points according the 'I' flag
   // in the group object table
   oc_init_datapoints_at_initialization();
 #endif
@@ -363,9 +363,8 @@ oc_main_init(const oc_handler_t *handler)
   // note - only advertising for the first device
   // if multiple devices per KNX instance are desired,
   // the implementation of this service must change
-  oc_device_info_t *device = oc_core_get_device_info(0);
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia,
-                      device->pm);
+  oc_device_info_t* device = oc_core_get_device_info(0);
+  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return 0;
 
@@ -382,7 +381,8 @@ oc_clock_time_t
 oc_main_poll(void)
 {
   oc_clock_time_t ticks_until_next_event = oc_etimer_request_poll();
-  while (oc_process_run()) {
+  while (oc_process_run())
+  {
     ticks_until_next_event = oc_etimer_request_poll();
   }
   return ticks_until_next_event;
@@ -427,7 +427,8 @@ oc_main_initialized(void)
 void
 _oc_signal_event_loop(void)
 {
-  if (app_callbacks) {
+  if (app_callbacks)
+  {
     app_callbacks->signal_event_loop();
   }
 }

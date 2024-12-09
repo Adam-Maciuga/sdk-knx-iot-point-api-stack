@@ -26,9 +26,17 @@
 extern "C" {
 #endif
 
-#define KNX_STORAGE_IA "dev_knx_ia"
-#define KNX_STORAGE_IID "dev_knx_iid"
-#define KNX_STORAGE_FID "dev_knx_fid"
+#define KNX_STORAGE_IA        "dev_knx_ia"
+#define KNX_STORAGE_IID       "dev_knx_iid"
+#define KNX_STORAGE_FID       "dev_knx_fid"
+#define KNX_STORAGE_HOSTNAME  "dev_knx_hostname"
+#define KNX_STORAGE_PM        "dev_knx_pm"
+#define KNX_STORAGE_LSM       "dev_knx_lsm"
+#define KNX_STORAGE_PORT      "dev_knx_port"
+#define KNX_STORAGE_MPORT     "dev_knx_mport"
+#define KNX_STORAGE_AP_MAJOR  "knx_ap_maj"
+#define KNX_STORAGE_AP_MINOR  "knx_ap_min"
+#define KNX_STORAGE_AP_PATCH  "knx_ap_p"
 
 /**
  * @brief Creation of the KNX device resources.
@@ -62,16 +70,16 @@ void oc_knx_device_storage_read(size_t device);
  * @brief clear the persistent storage
  * reset behavior according to the supplied erase code
  * - reset = 2 (Factory Reset) :
- *   - internal address (ia)
  *   - host name (hname)
  *   - Installation ID (iid)
  *   - programming mode (pm)
  *   - device address (da)
  *   - sub address (sa)
+ *   - internal address (ia)
  *   - group object table
  *   - recipient object table
  *   - publisher object table
- * - reset = 3 (reset ia) :
+ * - reset = 3 (Reset IA) :
  *   - internal address (ia)
  * - reset = 7 (Factory Reset without IA):
  *   - group object table
@@ -99,8 +107,7 @@ bool oc_knx_device_in_programming_mode(size_t device_index);
  * @param programming_mode true to set the device in programming mode, false
  * otherwise
  */
-void oc_knx_device_set_programming_mode(size_t device_index,
-                                        bool programming_mode);
+void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mode);
 
 #ifdef __cplusplus
 }

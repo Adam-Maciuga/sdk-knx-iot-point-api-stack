@@ -14,6 +14,7 @@
 // limitations under the License.
 */
 
+#include "oc_storage.h"
 #if defined(OC_OSCORE)
 
 #include "api/oc_events.h"

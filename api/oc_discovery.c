@@ -34,6 +34,8 @@
 #endif
 #include <inttypes.h>
 
+#include "oc_knx_dev.h"
+
 /*
 * - below resources must be in the unicast response for well-known/core certification tests,
 *   other resources may be in real products, tests demands only those one
@@ -482,7 +484,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   if (if_len == 13 && strncmp(if_request, "urn:knx:if.pm", 13) == 0)
   {
 
-    if (oc_is_device_mode_in_programming(device_index))
+    if (oc_knx_device_in_programming_mode(device_index))
     { // PRG mode on
 
       /*

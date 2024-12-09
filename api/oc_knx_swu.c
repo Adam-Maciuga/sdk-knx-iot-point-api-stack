@@ -21,6 +21,8 @@
 #include "oc_core_res.h"
 #include <stdio.h>
 
+#include "oc_storage.h"
+
 typedef struct oc_swu_t
 {
   oc_swu_cb_t cb;
@@ -534,9 +536,7 @@ oc_create_knx_swu_pkgv_resource (int resource_idx, size_t device)
   oc_core_bind_dpt_resource (resource_idx, device, "urn:knx:dpt.version");
 }
 
-static void
-oc_knx_swu_a_put_handler (oc_request_t* request, oc_interface_mask_t iface_mask,
-                          void* data)
+static void oc_knx_swu_a_put_handler (oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -554,18 +554,18 @@ oc_knx_swu_a_put_handler (oc_request_t* request, oc_interface_mask_t iface_mask,
   static oc_separate_response_t s_delayed_response_swu;
 
   oc_swu_t* my_cb = oc_get_swu_cb ();
+
   if (my_cb && my_cb->cb)
     oc_indicate_separate_response (request, &s_delayed_response_swu);
   else
     (void) s_delayed_response_swu;
 
-  PRINT ("oc_knx_swu_a_put_handler : Start\n");
+  PRINT ("oc_knx_swu_a_put_handler - start");
 
   /* check if the accept header is CBOR-format */
   if (oc_check_accept_header (request, APPLICATION_OCTET_STREAM) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code (OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code (OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -585,35 +585,27 @@ oc_knx_swu_a_put_handler (oc_request_t* request, oc_interface_mask_t iface_mask,
       binary_size = atoi (value);
     }
   }
-  PRINT ("binary_size: %d\n", binary_size);
-  PRINT ("block_size: %d\n", block_size);
-  PRINT ("block_offset: %d\n", block_offset);
-  // if (block_size == 0) {
-  //  oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-  //  return;
-  //}
+  PRINT ("binary_size: %d", binary_size);
+  PRINT ("block_size: %d", block_size);
+  PRINT ("block_offset: %d", block_offset);
+  
   size_t device_index = request->resource->device;
 
-  bool berr =
-    oc_get_request_payload_raw (request, &payload, &len, &content_format);
-  // PRINT("raw buffer ok: %d len=%d\n", berr, len);
+  oc_get_request_payload_raw (request, &payload, &len, &content_format);
 
   if (my_cb && my_cb->cb)
   {
-    my_cb->cb (device_index, &s_delayed_response_swu, binary_size, block_offset,
-               (uint8_t*) payload, len, my_cb->data);
+    my_cb->cb (device_index, &s_delayed_response_swu, binary_size, block_offset, (uint8_t*) payload, len, my_cb->data);
   }
   else
   {
     oc_send_cbor_response (request, OC_STATUS_OK);
   }
 
-  PRINT ("oc_knx_swu_a_put_handler : End\n");
+  PRINT ("oc_knx_swu_a_put_handler - end");
 }
 
-static void
-oc_knx_swu_a_post_handler (oc_request_t* request, oc_interface_mask_t iface_mask,
-                           void* data)
+static void oc_knx_swu_a_post_handler (oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -650,7 +642,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED (knx_swu_pkgcmd, knx_swu_pkgbytes, 0,
 void
 oc_create_knx_swu_a_resource (int resource_idx, size_t device)
 {
-  OC_DBG ("oc_create_knx_swu_a_resource\n");
+  OC_DBG ("oc_create_knx_swu_a_resource");
   oc_core_populate_resource (resource_idx, device, "/a/swu", OC_IF_SWU | OC_IF_D,
                              APPLICATION_CBOR, OC_DISCOVERABLE, 0,
                              oc_knx_swu_a_put_handler, oc_knx_swu_a_post_handler,
