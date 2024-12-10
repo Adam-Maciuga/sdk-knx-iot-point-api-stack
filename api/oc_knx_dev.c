@@ -1431,15 +1431,13 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     device->mport = m_port; 
 
     // set default host name to device '0' SN
-
     oc_free_string(&device->hostname);
     oc_new_string(&device->hostname, oc_string(device->serialnumber), oc_string_len(device->serialnumber));
 
+    // delete iot device tables 
     oc_delete_group_object_table();
     oc_delete_group_rp_table();
-    oc_delete_group_mapping_table();
     oc_delete_at_table(device_index);
-
 
   #ifdef OC_IOT_ROUTER
     oc_delete_group_mapping_table();
@@ -1451,13 +1449,12 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_storage_erase(KNX_STORAGE_FID);
     oc_storage_erase(KNX_STORAGE_PM);
 
-    // writing the default values (host name = serial number)
+    // writing the default values (default host name = serial number)
     oc_storage_write(KNX_STORAGE_PORT, (uint8_t*) &u_port, sizeof(device->port));
     oc_storage_write(KNX_STORAGE_MPORT, (uint8_t*) &m_port, sizeof(device->mport));
     oc_storage_write(KNX_STORAGE_HOSTNAME,(uint8_t*) oc_string(device->serialnumber), oc_string_len(device->serialnumber));
 
     return;
-
   }
 
   if (reset_mode == 3)
@@ -1479,9 +1476,9 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // set the ia to KNX defaults
     device->pm = false;
 
+    // delete iot device tables 
     oc_delete_group_object_table();
     oc_delete_group_rp_table();
-    oc_delete_group_mapping_table();
     oc_reset_at_table(device_index, reset_mode);
 
   #ifdef OC_IOT_ROUTER

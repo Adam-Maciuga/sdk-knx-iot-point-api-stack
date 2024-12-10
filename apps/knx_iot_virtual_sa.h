@@ -37,9 +37,10 @@ extern "C" {
 
 #define APPLICATION_NAME   "KNX virtual switch actuator"
 #define FIRMWARE_NAME      "KNX stack image"
-#define HOST_NAME          "KNX host"
-#define PASSWORD           "ABY8B77J50YXMUDW3DG4"
 #define SN                 "000010020800"
+#define HOST_NAME          (SN) // default host name (reset uses SN as default)
+#define PASSWORD           "ABY8B77J50YXMUDW3DG4"
+
 #define MID                (0)  // first 4 digits of sn (EITT tests expects 0)
 
 // URL defines
@@ -90,7 +91,7 @@ int app_initialize_stack(void);
  * @note used from several applications, hence define it as method.
  * 
  * @param serial_number the serial number as string
- * @return int 0 == success
+ * @return int 0 == success, -1 error
  */
 int app_set_serial_number(const char* serial_number);
 

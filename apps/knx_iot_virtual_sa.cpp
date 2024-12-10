@@ -621,7 +621,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
   
   int total =  oc_core_get_publisher_table_size();
   for (int index = 0; index < total; index++) {
-    oc_group_rp_table_t* entry = oc_core_get_publisher_table_entry(index);
+    oc_group_table_t* entry = oc_core_get_publisher_table_entry(index);
 
     if (entry && entry->id >= 0) {
       sprintf(line, "Index %d \n", index);
@@ -698,7 +698,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
 
   int total =  oc_core_get_recipient_table_size();
   for (int index = 0; index < total; index++) {
-    oc_group_rp_table_t* entry = oc_core_get_recipient_table_entry(index);
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(index);
 
     if (entry && entry->id >= 0) {
       sprintf(line, "Index %d \n", index);

@@ -92,7 +92,7 @@ oc_spake_free(void)
 }
 
 const char*
-oc_spake_get_password()
+oc_spake_get_password(void)
 {
   return password;
 }

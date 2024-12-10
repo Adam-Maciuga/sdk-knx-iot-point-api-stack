@@ -880,6 +880,8 @@ oc_core_knx_k_post_handler(oc_request_t* request,
     oc_new_string(&g_received_notification.value, base64_buf, base64_len);
   }
   free(base64_buf);
+
+  #ifdef OC_IOT_ROUTER
   // gateway functionality: call back for all s-mode calls
   oc_gateway_t* my_gw = oc_get_gateway_cb();
   if (my_gw != NULL && my_gw->cb)
@@ -900,6 +902,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
       my_gw->cb(device_index, ip_address, &g_received_notification, buffer);
     }
   }
+  #endif
 
   if (oc_is_device_in_runtime(device_index) == false)
   {
@@ -1603,7 +1606,7 @@ static oc_event_callback_retval_t
 oc_core_knx_spake_separate_post_handler(void* req_p)
 {
   (void) req_p;
-  PRINT("oc_core_knx_spake_separate_post_handler\n");
+  PRINT("oc_core_knx_spake_separate_post_handler");
 
   if (!spake_separate_rsp.active)
   {

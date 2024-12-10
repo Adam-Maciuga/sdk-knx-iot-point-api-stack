@@ -137,7 +137,7 @@ int oc_spake_get_w0_L(size_t len_salt, const uint8_t *salt,
  *
  * @return Null-terminated string holding the password
  */
-const char *oc_spake_get_password();
+const char *oc_spake_get_password(void);
 
 /**
  * @brief Set the Spake2+ password

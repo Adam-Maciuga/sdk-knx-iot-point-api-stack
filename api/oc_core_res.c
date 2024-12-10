@@ -31,7 +31,7 @@
 #include "oc_knx_sub.h"
 #ifdef OC_IOT_ROUTER
 #include "oc_knx_gm.h"
-#endif /* OC_IOT_ROUTER */
+#endif 
 
 #include "port/oc_assert.h"
 #include <stdarg.h>
@@ -675,7 +675,7 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 
 #ifdef OC_IOT_ROUTER
   oc_create_knx_iot_router_resources(device_count);
-#endif /* OC_IOT_ROUTER */
+#endif 
 
   oc_device_info[device_count].data = data;
 

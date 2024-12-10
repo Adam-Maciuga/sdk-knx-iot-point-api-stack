@@ -34,7 +34,7 @@ add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 ## Common variables, used for a release 
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
-set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable Publisher table")
+set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable publisher table (device can send)")
 set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
 set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
@@ -49,7 +49,7 @@ set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages")
 set(USE_CONSOLE ON CACHE BOOL "use console (for output logging)")
 ## Specific stack resource variables
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
-set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping table entries")
+set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping (IoT Router) table entries")
 set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "" CACHE STRING "Maximum number of group recipient table entries")
@@ -389,18 +389,22 @@ if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)
     target_compile_definitions(kis-common INTERFACE KNX_LOG_CAST_64_BIT_INTS)
 endif()
 
+# iot router GA mapping size
 if(NOT ${KNX_GAMT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GAMT_MAX_ENTRIES=${KNX_GAMT_MAX_ENTRIES})
 endif()
 
+# iot device GO table size
 if(NOT ${KNX_GOT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})
 endif()
 
+# # iot device publisher table size 
 if(NOT ${KNX_GPT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})
 endif()
 
+# # iot device recipient table size
 if(NOT ${KNX_GRT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})
 endif()

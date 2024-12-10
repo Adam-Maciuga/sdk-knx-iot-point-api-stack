@@ -337,8 +337,9 @@ oc_main_init(const oc_handler_t* handler)
 
 #ifdef OC_IOT_ROUTER
   oc_create_iot_router_functional_block(0);
-#endif /* OC_IOT_ROUTER */
-#endif /* OC_SERVER */
+#endif
+
+#endif 
 
   OC_DBG("oc_main: stack initialized");
 

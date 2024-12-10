@@ -28,8 +28,9 @@ extern "C" {
 #endif
 
 /**
- * @brief open the storage
- * NOTE: For embedded devices, this function doesn't do anything. However, it
+ * @brief Open the storage.
+ *
+ * @note  For embedded devices, this function doesn't do anything. However, it
  * needs to be called for hosted/virtual devices.
  *
  * @param store the storage (path)

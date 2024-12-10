@@ -25,100 +25,101 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
-// DEBUGGING
-//#define OC_IOT_ROUTER
+#ifdef OC_IOT_ROUTER
 
-#ifndef G_GM_MAX_ENTRIES
-#define G_GM_MAX_ENTRIES 20
+ /** the storage identifiers */
+#define GM_STORE        "gm_store"
+#define GM_STORE_FRA    "gm_store_fra"
+#define GM_STORE_TOL    "gm_store_tol"
+#define GM_STORE_TTL    "gm_store_ttl"
+#define GM_STORE_KEY    "gm_store_key"
+#define GM_STORE_MCAST  "gm_store_mcast"
+
+#define GM_ENTRY_MAX_SIZE (1024)
+
+oc_group_mapping_table_t g_gm_entries[GAMT_MAX_ENTRIES];
+static oc_gateway_t app_gateway = { NULL, NULL };
+
+#ifndef GAMT_MAX_ENTRIES    // don't (re)define if set already by compile definitions  
+#define GAMT_MAX_ENTRIES 20
 #endif
 
-#ifdef OC_IOT_ROUTER
 // ----------------------------------------------------------------------------
 static uint32_t g_fra = 0; // the IPv4 sync latency fraction.
 static uint32_t g_tol = 0; // the IPv4 routing latency tolerance
 static uint32_t g_ttl = 0; // The value defines how many routers a multicast
                            // message
                            // MAY pass until it gets discarded.
-#endif
 
 static oc_string_t g_key; // IPv4 routing backbone key.
 static uint32_t g_mcast;  // Current IPv4 routing multicast address.
 
-int
-oc_core_get_group_mapping_table_size()
+void oc_delete_group_mapping_table(void)
 {
+  PRINT("Deleting Group Mapping Table from Persistent storage");
+  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+    oc_delete_group_mapping_table_entry(i);
+    oc_print_group_mapping_table_entry(i);
+  }
+  // delete all data of netip
 
-#ifdef OC_IOT_ROUTER
-  return G_GM_MAX_ENTRIES;
-#else
-  return 0;
-#endif
+  erase_ttl();
+  erase_tol();
+  erase_fra();
+  erase_mcast();
+  erase_key();
 }
 
-int
-oc_get_f_netip_ttl(size_t device_index)
+void oc_delete_group_mapping_table(void)
+{
+  PRINT("Deleting Group Mapping Table from Persistent storage");
+  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+    oc_delete_group_mapping_table_entry(i);
+    oc_print_group_mapping_table_entry(i);
+  }
+  // delete all data of netip
+
+  erase_ttl();
+  erase_tol();
+  erase_fra();
+  erase_mcast();
+  erase_key();
+}
+
+int oc_core_get_group_mapping_table_size(void)
+{
+ return GAMT_MAX_ENTRIES;
+}
+
+int oc_get_f_netip_ttl(size_t device_index)
 {
   (void)device_index;
-
-#ifdef OC_IOT_ROUTER
   return g_ttl;
-#else
-  PRINT("OC_IOT_ROUTER not compiled in");
-  return 0;
-#endif
 }
 
-int
-oc_get_f_netip_fra(size_t device_index)
+int oc_get_f_netip_fra(size_t device_index)
 {
   (void)device_index;
-#ifdef OC_IOT_ROUTER
   return g_fra;
-#else
-  OC_WRN("OC_IOT_ROUTER not compiled in");
-  return 0;
-#endif
 }
 
-int
-oc_get_f_netip_tol(size_t device_index)
+int oc_get_f_netip_tol(size_t device_index)
 {
   (void)device_index;
-#ifdef OC_IOT_ROUTER
   return g_tol;
-#else
-  OC_WRN("OC_IOT_ROUTER not compiled in");
-  return 0;
-#endif
 }
 
-oc_string_t
-oc_get_f_netip_key(size_t device_index)
+oc_string_t oc_get_f_netip_key(size_t device_index)
 {
   (void)device_index;
-#ifdef OC_IOT_ROUTER
   return g_key;
-#else
-  OC_WRN("OC_IOT_ROUTER not compiled in");
-  memset(&g_key, 0, sizeof(g_key));
-  return g_key;
-#endif
 }
 
-uint32_t
-oc_get_f_netip_mcast(size_t device_index)
+uint32_t oc_get_f_netip_mcast(size_t device_index)
 {
   (void)device_index;
-#ifdef OC_IOT_ROUTER
   return g_mcast;
-#else
-  OC_WRN("OC_IOT_ROUTER not compiled in");
-  memset(&g_mcast, 0, sizeof(g_mcast));
-  return g_mcast;
-#endif
 }
-
-#ifdef OC_IOT_ROUTER
 
 // ----------------------------------------------------------------------------
 
@@ -143,23 +144,10 @@ void oc_dump_group_mapping_table_entry(int entry);
  */
 void oc_load_group_mapping_table_entry(int entry);
 
-/** the storage identifiers */
-#define GM_STORE "gm_store"
-#define GM_STORE_FRA "gm_store_fra"
-#define GM_STORE_TOL "gm_store_tol"
-#define GM_STORE_TTL "gm_store_ttl"
-#define GM_STORE_KEY "gm_store_key"
-#define GM_STORE_MCAST "gm_store_mcast"
-
-#define GM_ENTRY_MAX_SIZE (1024)
-
-/** the list of group mappings */
-oc_group_mapping_table_t g_gm_entries[G_GM_MAX_ENTRIES];
 
 // ----------------------------------------------------------------------------
 
-static int
-find_empty_group_mapping_index()
+static int find_empty_group_mapping_index()
 {
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
     if (g_gm_entries[i].ga_len == 0) {
@@ -169,8 +157,7 @@ find_empty_group_mapping_index()
   return -1;
 }
 
-static int
-find_group_mapping_index(int id)
+static int find_group_mapping_index(int id)
 {
   int len;
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
@@ -181,9 +168,7 @@ find_group_mapping_index(int id)
   return -1;
 }
 
-int
-oc_core_set_group_mapping_table(size_t device_index, int index,
-                                oc_group_mapping_table_t entry, bool store)
+int oc_core_set_group_mapping_table(size_t device_index, int index, oc_group_mapping_table_t entry, bool store)
 {
   if (index > oc_core_get_group_mapping_table_size()) {
     return -1;
@@ -225,8 +210,7 @@ oc_core_set_group_mapping_table(size_t device_index, int index,
   return 0;
 }
 
-void
-oc_print_group_mapping_table_entry(int entry)
+void oc_print_group_mapping_table_entry(int entry)
 {
   if (g_gm_entries[entry].ga_len == 0) {
     return;
@@ -252,8 +236,7 @@ oc_print_group_mapping_table_entry(int entry)
   }
 }
 
-void
-oc_dump_group_mapping_table_entry(int entry)
+void oc_dump_group_mapping_table_entry(int entry)
 {
   char filename[20];
   snprintf(filename, 20, "%s_%d", GM_STORE, entry);
@@ -295,8 +278,7 @@ oc_dump_group_mapping_table_entry(int entry)
   free(buf);
 }
 
-void
-oc_load_group_mapping_table_entry(int entry)
+void oc_load_group_mapping_table_entry(int entry)
 {
   long ret = 0;
   char filename[20];
@@ -375,8 +357,7 @@ oc_load_group_mapping_table_entry(int entry)
   free(buf);
 }
 
-void
-oc_load_group_mapping_table()
+void oc_load_group_mapping_table()
 {
   PRINT("Loading Group Mapping Table from persistent storage");
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
@@ -385,8 +366,7 @@ oc_load_group_mapping_table()
   }
 }
 
-void
-oc_free_group_mapping_table_entry(int entry, bool init)
+void oc_free_group_mapping_table_entry(int entry, bool init)
 {
   g_gm_entries[entry].id = -1;
   if (init == false) {
@@ -400,8 +380,7 @@ oc_free_group_mapping_table_entry(int entry, bool init)
   g_gm_entries[entry].ga_len = 0;
 }
 
-void
-oc_delete_group_mapping_table_entry(int entry)
+void oc_delete_group_mapping_table_entry(int entry)
 {
   char filename[20];
   snprintf(filename, 20, "%s_%d", GM_STORE, entry);
@@ -410,8 +389,7 @@ oc_delete_group_mapping_table_entry(int entry)
   oc_free_group_mapping_table_entry(entry, false);
 }
 
-void
-oc_free_group_mapping_table()
+void oc_free_group_mapping_table()
 {
   PRINT("Free Group Mapping Table\n");
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
@@ -419,8 +397,7 @@ oc_free_group_mapping_table()
   }
 }
 
-int
-oc_core_find_nr_used_in_group_mapping_table()
+int oc_core_find_nr_used_in_group_mapping_table()
 {
   int counter = 0;
   for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
@@ -433,8 +410,7 @@ oc_core_find_nr_used_in_group_mapping_table()
 
 // -----------------------------------------------------------------------------
 
-static void
-oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
+static void oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
                           void *data)
 {
   (void)data;
@@ -444,7 +420,7 @@ oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   int length = 0;
   bool ps_exists;
   bool total_exists;
-  PRINT("oc_core_fp_gm_get_handler\n");
+  PRINT("oc_core_fp_gm_get_handler");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
@@ -505,12 +481,10 @@ oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
   //   oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   // }
 
-  PRINT("oc_core_fp_gm_get_handler - end\n");
+  PRINT("oc_core_fp_gm_get_handler - end");
 }
 
-static void
-oc_core_fp_gm_post_handler(oc_request_t *request,
-                           oc_interface_mask_t iface_mask, void *data)
+static void oc_core_fp_gm_post_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
@@ -522,7 +496,7 @@ oc_core_fp_gm_post_handler(oc_request_t *request,
   int id = -1;
   bool do_save = true;
 
-  PRINT("oc_core_fp_gm_post_handler\n");
+  PRINT("oc_core_fp_gm_post_handler");
 
   /* check if the accept header is cbor-format */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -663,7 +637,7 @@ oc_core_fp_gm_post_handler(oc_request_t *request,
         object = object->next;
       } // while (inner object)
       if (id_only) {
-        PRINT("only found id in request, deleting entry at index: %d\n",
+        PRINT("only found id in request, deleting entry at index: %d",
               index);
         oc_delete_group_mapping_table_entry(index);
         do_save = false;
@@ -690,8 +664,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_gm, knx_fp_gm_x, 0, "/fp/gm",
                                      0, oc_core_fp_gm_post_handler, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:if.c");
 
-void
-oc_create_fp_gm_resource(int resource_idx, size_t device)
+void oc_create_fp_gm_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fp_gm_resource\n");
   oc_core_populate_resource(resource_idx, device, "/fp/gm", OC_IF_C | OC_IF_B,
@@ -700,8 +673,7 @@ oc_create_fp_gm_resource(int resource_idx, size_t device)
                             oc_core_fp_gm_post_handler, 0, 1, "urn:knx:if.c");
 }
 
-static void
-oc_core_fp_gm_x_get_handler(oc_request_t *request,
+static void oc_core_fp_gm_x_get_handler(oc_request_t *request,
                             oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
@@ -762,8 +734,7 @@ oc_core_fp_gm_x_get_handler(oc_request_t *request,
   return;
 }
 
-static void
-oc_core_fp_gm_x_del_handler(oc_request_t *request,
+static void oc_core_fp_gm_x_del_handler(oc_request_t *request,
                             oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
@@ -801,8 +772,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_gm_x, well_known_core, 0,
                                      oc_core_fp_gm_x_del_handler, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:if.c");
 
-void
-oc_create_fp_gm_x_resource(int resource_idx, size_t device)
+void oc_create_fp_gm_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fp_gm_resource\n");
   oc_core_populate_resource(resource_idx, device, "/fp/gm/*", OC_IF_D,
@@ -813,14 +783,12 @@ oc_create_fp_gm_x_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-void
-dump_fra(void)
+void dump_fra(void)
 {
   oc_storage_write(GM_STORE_FRA, (uint8_t *)&g_fra, sizeof(g_fra));
 }
 
-void
-load_fra(void)
+void load_fra(void)
 {
   int temp_size;
 
@@ -831,22 +799,19 @@ load_fra(void)
   // }
 }
 
-void
-erase_fra(void)
+void erase_fra(void)
 {
   oc_storage_erase(GM_STORE_FRA);
 }
 
-static void
-oc_core_f_netip_fra_get_handler(oc_request_t *request,
-                                oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_fra_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_fra_get_handler\n");
+  PRINT("oc_core_f_netip_fra_get_handler");
 
   /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -866,19 +831,17 @@ oc_core_f_netip_fra_get_handler(oc_request_t *request,
   oc_rep_i_set_int(root, 1, g_fra);
   oc_rep_end_root_object();
   oc_send_cbor_response(request, OC_STATUS_OK);
-  PRINT("oc_core_f_netip_fra_get_handler - end\n");
+  PRINT("oc_core_f_netip_fra_get_handler - end");
 }
 
-static void
-oc_core_f_netip_fra_put_handler(oc_request_t *request,
-                                oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_fra_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_fra_put_handler\n");
+  PRINT("oc_core_f_netip_fra_put_handler");
 
   /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -910,8 +873,7 @@ oc_core_f_netip_fra_put_handler(oc_request_t *request,
   PRINT("oc_core_f_netip_fra_put_handler - end\n");
 }
 
-static void
-oc_create_f_netip_fra_resource(size_t device)
+static void oc_create_f_netip_fra_resource(size_t device)
 {
   OC_DBG("oc_create_f_netip_fra_resource\n");
   oc_resource_t *res = oc_new_resource("netip_fra", "/p/netip/fra", 2, 0);
@@ -940,14 +902,12 @@ oc_create_f_netip_fra_resource(size_t device)
 
 // -----------------------------------------------------------------------------
 
-void
-dump_tol(void)
+void dump_tol(void)
 {
   oc_storage_write(GM_STORE_TOL, (uint8_t *)&g_tol, sizeof(g_tol));
 }
 
-void
-load_tol(void)
+void load_tol(void)
 {
   int temp_size;
 
@@ -958,14 +918,12 @@ load_tol(void)
   //}
 }
 
-void
-erase_tol(void)
+void erase_tol(void)
 {
   oc_storage_erase(GM_STORE_TOL);
 }
 
-static void
-oc_core_f_netip_tol_get_handler(oc_request_t *request,
+static void oc_core_f_netip_tol_get_handler(oc_request_t *request,
                                 oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
@@ -996,16 +954,14 @@ oc_core_f_netip_tol_get_handler(oc_request_t *request,
   PRINT("oc_core_f_netip_tol_get_handler - end\n");
 }
 
-static void
-oc_core_f_netip_tol_put_handler(oc_request_t *request,
-                                oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_tol_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_tol_put_handler\n");
+  PRINT("oc_core_f_netip_tol_put_handler");
 
   /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -1033,11 +989,10 @@ oc_core_f_netip_tol_put_handler(oc_request_t *request,
   }
 
   oc_send_cbor_response(request, OC_STATUS_CHANGED);
-  PRINT("oc_core_f_netip_tol_put_handler - end\n");
+  PRINT("oc_core_f_netip_tol_put_handler - end");
 }
 
-static void
-oc_create_f_netip_tol_resource(size_t device)
+static void oc_create_f_netip_tol_resource(size_t device)
 {
   OC_DBG("oc_create_f_netip_tol_resource\n");
   oc_resource_t *res = oc_new_resource("netip_tol", "/p/netip/tol", 2, 0);
@@ -1066,8 +1021,7 @@ oc_create_f_netip_tol_resource(size_t device)
 
 // -----------------------------------------------------------------------------
 
-void
-dump_key(void)
+void dump_key(void)
 {
   int key_size = oc_string_len(g_key);
   // oc_storage_write(GM_STORE_KEY, (uint8_t *)&key_size, sizeof(key_size));
@@ -1077,8 +1031,7 @@ dump_key(void)
   }
 }
 
-void
-load_key(void)
+void load_key(void)
 {
   int temp_size;
   int key_size;
@@ -1090,22 +1043,19 @@ load_key(void)
   }
 }
 
-void
-erase_key(void)
+void erase_key(void)
 {
   oc_storage_erase(GM_STORE_KEY);
 }
 
-static void
-oc_core_f_netip_key_put_handler(oc_request_t *request,
-                                oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_key_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_key_put_handler\n");
+  PRINT("oc_core_f_netip_key_put_handler");
 
   /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -1134,11 +1084,10 @@ oc_core_f_netip_key_put_handler(oc_request_t *request,
   }
 
   oc_send_cbor_response(request, OC_STATUS_CHANGED);
-  PRINT("oc_core_f_netip_key_put_handler - end\n");
+  PRINT("oc_core_f_netip_key_put_handler - end");
 }
 
-static void
-oc_create_f_netip_key_resource(size_t device)
+static void oc_create_f_netip_key_resource(size_t device)
 {
   OC_DBG("oc_create_f_netip_key_resource\n");
   oc_resource_t *res = oc_new_resource("netip_key", "/p/netip/key", 2, 0);
@@ -1169,14 +1118,12 @@ oc_create_f_netip_key_resource(size_t device)
 
 // -----------------------------------------------------------------------------
 
-void
-dump_ttl(void)
+void dump_ttl(void)
 {
   oc_storage_write(GM_STORE_TTL, (uint8_t *)&g_ttl, sizeof(g_ttl));
 }
 
-void
-load_ttl(void)
+void load_ttl(void)
 {
   int temp_size;
 
@@ -1187,15 +1134,12 @@ load_ttl(void)
   //}
 }
 
-void
-erase_ttl(void)
+void erase_ttl(void)
 {
   oc_storage_erase(GM_STORE_TTL);
 }
 
-static void
-oc_core_f_netip_ttl_get_handler(oc_request_t *request,
-                                oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_ttl_get_handler(oc_request_t *request,                                 oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
@@ -1225,16 +1169,14 @@ oc_core_f_netip_ttl_get_handler(oc_request_t *request,
   PRINT("oc_core_f_netip_ttl_get_handler - end\n");
 }
 
-static void
-oc_core_f_netip_ttl_put_handler(oc_request_t *request,
-                                oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_ttl_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_ttl_put_handler\n");
+  PRINT("oc_core_f_netip_ttl_put_handler");
 
   /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
@@ -1263,7 +1205,7 @@ oc_core_f_netip_ttl_put_handler(oc_request_t *request,
   }
 
   oc_send_cbor_response(request, OC_STATUS_CHANGED);
-  PRINT("oc_core_f_netip_ttl_put_handler - end\n");
+  PRINT("oc_core_f_netip_ttl_put_handler - end");
 }
 
 static void
@@ -1296,14 +1238,12 @@ oc_create_f_netip_ttl_resource(size_t device)
 
 // -----------------------------------------------------------------------------
 
-void
-dump_mcast(void)
+void dump_mcast(void)
 {
   oc_storage_write(GM_STORE_MCAST, (uint8_t *)&g_mcast, sizeof(g_mcast));
 }
 
-void
-load_mcast(void)
+void load_mcast(void)
 {
   int temp_size;
 
@@ -1311,15 +1251,12 @@ load_mcast(void)
     oc_storage_read(GM_STORE_MCAST, (uint8_t *)&g_mcast, sizeof(g_mcast));
 }
 
-void
-erase_mcast(void)
+void erase_mcast(void)
 {
   oc_storage_erase(GM_STORE_MCAST);
 }
 
-static void
-oc_core_f_netip_mcast_get_handler(oc_request_t *request,
-                                  oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_mcast_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
@@ -1350,9 +1287,7 @@ oc_core_f_netip_mcast_get_handler(oc_request_t *request,
   PRINT("oc_core_f_netip_mcast_get_handler - end\n");
 }
 
-static void
-oc_core_f_netip_mcast_put_handler(oc_request_t *request,
-                                  oc_interface_mask_t iface_mask, void *data)
+static void oc_core_f_netip_mcast_put_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
@@ -1390,8 +1325,7 @@ oc_core_f_netip_mcast_put_handler(oc_request_t *request,
   PRINT("oc_core_f_netip_mcast_put_handler - end\n");
 }
 
-static void
-oc_create_f_netip_mcast_resource(size_t device)
+static void oc_create_f_netip_mcast_resource(size_t device)
 {
   OC_DBG("oc_create_f_netip_mcast_resource\n");
   oc_resource_t *res = oc_new_resource("netip_mcast", "/p/netip/mcast", 2, 0);
@@ -1423,10 +1357,9 @@ oc_create_f_netip_mcast_resource(size_t device)
 // This is never called and has no oc_core_resource_t entry?
 // I guess no OC_CORE_CREATE_CONST_RESOURCE_LINKED().
 // to be removed
-void
-oc_create_f_netip_resource(int resource_idx, size_t device)
+void oc_create_f_netip_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_f_netip_resource\n");
+  OC_DBG("oc_create_f_netip_resource");
   oc_core_populate_resource(resource_idx, device, "/p/netip", OC_IF_D,
                             APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
                             oc_core_f_netip_get_handler, 0, 0, 0, 0, 1,
@@ -1435,11 +1368,8 @@ oc_create_f_netip_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-#endif /* OC_IOT_ROUTER */
-
 // to be removed
-void
-oc_core_f_netip_get_handler(oc_request_t *request,
+void oc_core_f_netip_get_handler(oc_request_t *request,
                             oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
@@ -1449,7 +1379,7 @@ oc_core_f_netip_get_handler(oc_request_t *request,
   int length = 0;
   bool ps_exists;
   bool total_exists;
-  PRINT("oc_core_f_netip_get_handler\n");
+  PRINT("oc_core_f_netip_get_handler");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
@@ -1459,7 +1389,6 @@ oc_core_f_netip_get_handler(oc_request_t *request,
   }
   /* example entry: </f/netip/xxx>;ct=60 (cbor)*/
 
-#ifdef OC_IOT_ROUTER
 
   // handle query parameters: l=ps l=total
   // if (check_if_query_l_exist(request, &ps_exists, &total_exists)) {
@@ -1518,21 +1447,17 @@ oc_core_f_netip_get_handler(oc_request_t *request,
   length = oc_rep_add_line_to_buffer(";ct=60");
   response_length += length;
 
-#endif /* OC_IOT_ROUTER */
-
   if (response_length > 0) {
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   } else {
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_f_netip_get_handler - end\n");
+  PRINT("oc_core_f_netip_get_handler - end");
 }
 
-void
-oc_create_knx_iot_router_resources(size_t device_index)
+void oc_create_knx_iot_router_resources(size_t device_index)
 {
-#ifdef OC_IOT_ROUTER
   OC_DBG("oc_create_knx_gm_resources");
 
   if (device_index == 0) {
@@ -1550,45 +1475,20 @@ oc_create_knx_iot_router_resources(size_t device_index)
   load_fra();
   load_mcast();
   load_key();
-#endif /* OC_IOT_ROUTER */
+
 }
 
-void
-oc_create_iot_router_functional_block(size_t device_index)
+void oc_create_iot_router_functional_block(size_t device_index)
 {
   (void)device_index;
-#ifdef OC_IOT_ROUTER
   oc_create_f_netip_mcast_resource(device_index);
   oc_create_f_netip_ttl_resource(device_index);
   oc_create_f_netip_tol_resource(device_index);
   oc_create_f_netip_key_resource(device_index);
   oc_create_f_netip_fra_resource(device_index);
-#endif /* OC_IOT_ROUTER */
 }
 
-void
-oc_delete_group_mapping_table()
-{
-
-#ifdef OC_IOT_ROUTER
-  PRINT("Deleting Group Mapping Table from Persistent storage\n");
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
-    oc_delete_group_mapping_table_entry(i);
-    oc_print_group_mapping_table_entry(i);
-  }
-  // delete all data of netip
-
-  erase_ttl();
-  erase_tol();
-  erase_fra();
-  erase_mcast();
-  erase_key();
-
-#endif /* OC_IOT_ROUTER */
-}
-
-oc_group_mapping_table_t *
-oc_get_group_mapping_entry(size_t device_index, int index)
+oc_group_mapping_table_t * oc_get_group_mapping_entry(size_t device_index, int index)
 {
   (void)device_index;
 
@@ -1599,21 +1499,17 @@ oc_get_group_mapping_entry(size_t device_index, int index)
     return NULL;
   }
 
-#ifdef OC_IOT_ROUTER
   return &g_gm_entries[index];
-#else
-  return NULL;
-#endif
+
 }
 
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
 
-static oc_gateway_t app_gateway = { NULL, NULL };
 
-int
-oc_set_gateway_cb(oc_gateway_s_mode_cb_t cb, void *data)
+
+int oc_set_gateway_cb(oc_gateway_s_mode_cb_t cb, void *data)
 {
   app_gateway.cb = cb;
   app_gateway.data = data;
@@ -1621,8 +1517,9 @@ oc_set_gateway_cb(oc_gateway_s_mode_cb_t cb, void *data)
   return 0;
 }
 
-oc_gateway_t *
-oc_get_gateway_cb(void)
+oc_gateway_t * oc_get_gateway_cb(void)
 {
   return &app_gateway;
 }
+
+#endif

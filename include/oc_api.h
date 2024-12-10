@@ -329,7 +329,7 @@ typedef void (*oc_factory_presets_cb_t)(size_t device, void *data);
 void oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void *data);
 
 /**
- * Rest callback data.
+ * Reset callback data.
  *
  * @param[in] device the device index
  * @param[in] reset_value reset value per KNX
@@ -392,10 +392,9 @@ void oc_set_restart_cb(oc_restart_cb_t cb, void *data);
 typedef void (*oc_hostname_cb_t)(size_t device, oc_string_t host_name, void *data);
 
 /**
- * Set the host name callback.
+ * Host name (set) callback.
  *
- * The host name callback is called by the stack when the host name needs to be
- * set (aka PUT request)
+ * The host name callback is called by the stack when the host name will be set (aka PUT request)
  *
  * @note
  * - oc_set_hostname_cb() must be called before oc_main_init()
@@ -438,7 +437,7 @@ typedef void (*oc_programming_mode_cb_t)(size_t device, bool programming_mode, v
 void oc_set_programming_mode_cb(oc_programming_mode_cb_t cb, void *data);
 
 /**
- * Add an a device to the stack.
+ * Add a device to the stack.
  *
  * This function is typically called as part of the stack initialization
  * process from inside the `init` callback handler.

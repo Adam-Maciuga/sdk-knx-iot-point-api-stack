@@ -123,14 +123,14 @@ void oc_core_f_netip_get_handler(oc_request_t *request,
  * storage
  *
  */
-void oc_delete_group_mapping_table();
+void oc_delete_group_mapping_table(void);
 
 /**
  * @brief returns the size (amount of total entries) of the fp / gm table
  *
  * @return the allocated amount of entries of the group mapping at table
  */
-int oc_core_get_group_mapping_table_size();
+int oc_core_get_group_mapping_table_size(void);
 
 /**
  * @brief set an entry in the group mapping table

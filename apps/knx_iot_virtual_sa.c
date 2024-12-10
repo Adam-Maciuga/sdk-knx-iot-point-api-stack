@@ -100,7 +100,7 @@ static CRITICAL_SECTION critical_section;
 #define GetCurrentDir _getcwd // path of current working directory, windows
 #else                         // linux,mac specific code 
 #include <unistd.h>
-#define GetCurrentDir getcwd // path of current working directory, LINUX, MAC 
+#define GetCurrentDir getcwd  // path of current working directory, LINUX, MAC 
 #endif
 
 volatile int quit = 0;          // stop variable, used by handle_signal
@@ -410,7 +410,7 @@ extern "C" {
 
   #ifdef OC_SPAKE
 
-    // if internal pwd is not set, use definition from test application
+    // if current (negotiated) pwd is not set, use definition from test application
     if (strlen(oc_spake_get_password()) == 0)
       oc_spake_set_password(PASSWORD);
 
@@ -422,7 +422,7 @@ extern "C" {
   }
 
   /**
-   * @brief returns the password
+   * @brief returns the password, used from external application hence defined as separate method.
    */
   char* app_get_password(void)
   {
@@ -1483,20 +1483,11 @@ extern "C" {
   int app_set_serial_number(const char* serial_number)
   {
     // don't copy more than size of SN 
-    strncpy(g_serial_number, serial_number, sizeof(g_serial_number));
-    return 0;
+    return strncpy(g_serial_number, serial_number, sizeof(g_serial_number)) != NULL ?  0 : -1;
   }
 
   int app_initialize_stack(void)
   {
-    PRINT("KNX-IOT server name : \"%s\"", APPLICATION_NAME);
-
-    char buff[FILENAME_MAX];
-    if (GetCurrentDir(buff, FILENAME_MAX) != NULL)
-    { // show the current working folder
-      PRINT("Current working dir: %s", buff);
-    }
-
     /*
      The storage folder depends on the build system the folder is created
      in the makefile, with $target as name with _cred as post fix.
@@ -1504,54 +1495,38 @@ extern "C" {
   #ifdef WIN32
 
     char storage[400];
+    char dir[FILENAME_MAX] = "";
+    GetCurrentDir(dir, FILENAME_MAX);
     sprintf(storage, "./knx_iot_virtual_sa_%s", g_serial_number);
-    PRINT("storage at '%s'", storage);
+    PRINT("Current path is: '%s'",dir);
     oc_storage_config(storage);
 
   #else
 
-    PRINT("\tstorage at 'knx_iot_virtual_sa_creds' ");
-    oc_storage_config("./knx_iot_virtual_sa_creds");
+    char storage[400];
+    char dir[FILENAME_MAX] = "";
+    GetCurrentDir(dir, FILENAME_MAX);
+    PRINT("storage at 'knx_iot_virtual_sa_creds' ");  // TODO
+    oc_storage_config("./knx_iot_virtual_sa_creds");  // TODO 
 
   #endif
 
-    // initialize the 'application' variables
+    // initialize the 'application' runtime variables
     initialize_variables();
 
-    /* initializes the handlers structure */
-    static oc_handler_t handler = { .init = app_init,                          // always
-                                    .signal_event_loop = signal_event_loop,    // always
-                                    .register_resources = register_resources,  // for server
-                                    .requests_entry = NULL };                  // for client 
+    // set the stack handler callbacks 
+    static oc_handler_t handler = { .init = app_init,                          // called always
+                                    .signal_event_loop = signal_event_loop,    // called always
+                                    .register_resources = register_resources,  // called for a server
+                                    .requests_entry = NULL };                  // called for a client 
 
-    // set the application callbacks
+    // set the application handler callbacks
     oc_set_hostname_cb(hostname_cb, NULL);
     oc_set_factory_presets_cb(factory_presets_cb, NULL);
     oc_set_swu_cb(swu_cb, NULL);
 
-    // start the stack, invokes the .init handler from above
-    const int init = oc_main_init(&handler);
-
-    if (init < 0)
-    {
-      PRINT("oc_main_init failed %d, exiting.", init);
-      return init;
-    }
-
-    const oc_device_info_t* device = oc_core_get_device_info(0);
-
-    // may produce a warning if OC_OSCORE is not specified ...
-    PRINT("OSCORE - %s", OC_OSCORE ? "Enabled" : "Disabled");
-    PRINT("serial number: %s", oc_string(device->serialnumber));
-    PRINT("host name: %s", oc_string(device->hostname));
-
-    const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
-    if (my_ep != NULL)
-    {
-      PRINTipaddr(*my_ep);
-    }
-    PRINT("Server '%s' running, waiting on incoming connections...", APPLICATION_NAME);
-    return 0;
+    // start the stack, calls directly also the .init handler from above
+    return oc_main_init(&handler);
   }
 
 #ifdef WIN32
@@ -1632,7 +1607,7 @@ extern "C" {
       PRINT("argv[%d] = %s", i, argv[i]);
     }
 
-    // reset/help uses one argument
+    // arv[0]= file; reset/help uses one argument
     if (argc > 1)
     {
       if (strcmp(argv[1], "-reset") == 0)
@@ -1649,25 +1624,45 @@ extern "C" {
         exit(0);
       }
     }
-    // sn uses two arguments
+    // arv[0]= file; sn uses two arguments
+    // set SN before stack initialization 
     if (argc > 2)
     {
       if (strcmp(argv[1], "-s") == 0)
       {
-        PRINT("command line serial number %s", argv[2]);
-        app_set_serial_number(argv[2]); // set SN before stack initialization 
+        PRINT("use command line serial number %s", argv[2]);
+        app_set_serial_number(argv[2]); 
       }
     }
 
-    // ... before this call devices and resources are not existing
-    app_initialize_stack();
+    PRINT("KNX-IOT server name : \"%s\"", APPLICATION_NAME);
+
+    // ... before this call devices and resources are not existing, return code issued by .init handler
+    const int code = app_initialize_stack();
+    if (code < 0)
+    {
+      PRINT("stack initialization failed with %d, exiting.", code);
+      exit(-1);
+    }
 
     // ... now device is initiated
     if (g_reset)
     {
-      PRINT("command line reset with erase code 2 ...");
+      PRINT("execute command line reset for device '0' with erase code 2 ...");
       oc_knx_device_storage_reset(0, 2);
     }
+
+    const oc_device_info_t* device = oc_core_get_device_info(0);
+
+    // may produce a warning if OC_OSCORE is not specified ...
+    PRINT("OSCORE - %s", OC_OSCORE ? "Enabled" : "Disabled");
+    PRINT("serial number: %s", oc_string(device->serialnumber));
+    PRINT("host name: %s", oc_string(device->hostname));
+
+    // used to refresh (and print) IP addresses 
+    oc_connectivity_get_endpoints(0);
+
+    PRINT("Server '%s' is now running, waiting on incoming connections...", APPLICATION_NAME);
 
   #ifdef WIN32
     while (quit != 1) // check on Ctrl-C
@@ -1681,7 +1676,7 @@ extern "C" {
       }
       else
       {
-#       // time in ticks (tick = ms) 
+        // time in ticks (tick = ms) 
         const oc_clock_time_t now = oc_clock_time();
         if (now < next_event)
         { // next event lays in the future, sleep until next pending event timer is reached (in ticks/ms)

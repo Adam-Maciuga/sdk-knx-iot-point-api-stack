@@ -178,13 +178,12 @@ extern "C" {
     uint32_t grpid;   /**< the multicast group id */
     oc_string_t path; /**< contents of path, default path = ".knx"*/
     oc_string_t url;  /**< contents of url */
-    oc_string_t at;   /**< Access token id. Reference to the security credentials
-                         for unicast subscription encryption. */
+    oc_string_t at;   /**< Access token id. Reference to the security credentials for unicast subscription encryption. */
     uint32_t* ga;     /**< array of integers */
     int ga_len;       /**< length of the array of group addresses identifiers */
-    bool non; /**< true = non-confirmable unicast request, default = false*/
-    int mt;   /**< The number of maximum retransmissions for CON & NON requests */
-  } oc_group_rp_table_t;
+    bool non;         /**< true = non-confirmable unicast request, default = false*/
+    int mt;           /**< The number of maximum retransmissions for CON & NON requests */
+  } oc_group_table_t;
 
   /**
    * @brief Prints a reduced version of the entries of the group publisher table:
@@ -405,7 +404,7 @@ extern "C" {
    * @brief load all entries of the Group Object Table (from persistent) storage
    *
    */
-  void oc_load_group_object_table();
+  void oc_load_group_object_table(void);
 
   /**
    * @brief delete entry of the Group Object Table
@@ -475,7 +474,7 @@ extern "C" {
    * @param index the index in the recipient table
    * @return oc_group_rp_table_t* pointer to the entry
    */
-  oc_group_rp_table_t* oc_core_get_recipient_table_entry(int index);
+  oc_group_table_t* oc_core_get_recipient_table_entry(int index);
 
   /**
    * @brief find empty slot in recipient table
@@ -500,14 +499,16 @@ extern "C" {
    * @param entry The entry to be added
    * @return 0 : successful
    */
-  int oc_core_add_recipient_entry(int index, oc_group_rp_table_t entry);
+  int oc_core_add_recipient_entry(int index, oc_group_table_t entry);
 
   /**
    * @brief return the size of the publisher table
    *
+   * @note size is set in dependency if GPT table is present or not (size =0)
+   *
    * @return int the size of the table
    */
-  int oc_core_get_publisher_table_size();
+  int oc_core_get_publisher_table_size(void);
 
   /**
    * @brief retrieve the publisher table entry
@@ -522,7 +523,7 @@ extern "C" {
    * @param index the index in the publisher table
    * @return oc_group_rp_table_t* pointer to the entry
    */
-  oc_group_rp_table_t* oc_core_get_publisher_table_entry(int index);
+  oc_group_table_t* oc_core_get_publisher_table_entry(int index);
 
   /**
    * @brief add publisher entry
@@ -531,7 +532,7 @@ extern "C" {
    * @param entry The entry to be added
    * @return 0 : successful
    */
-  int oc_core_add_publisher_entry(int index, oc_group_rp_table_t entry);
+  int oc_core_add_publisher_entry(int index, oc_group_table_t entry);
   /**
    * @brief find empty slot in recipient table
    *
