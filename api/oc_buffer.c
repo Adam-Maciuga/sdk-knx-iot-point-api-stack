@@ -189,7 +189,7 @@ oc_send_message(oc_message_t *message)
   if (oc_process_post(&message_buffer_handler,
                       oc_events[OUTBOUND_NETWORK_EVENT],
                       message) == OC_PROCESS_ERR_FULL) {
-    OC_ERR("oc_send_message  ref_count decrease due to FULL\n");
+    OC_ERR("oc_send_message  ref_count decrease due to FULL");
     message->ref_count--;
   }
 

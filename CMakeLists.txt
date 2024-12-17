@@ -29,27 +29,27 @@ endif()
 # add preprocessor definitiosn for the current CMakeLists file
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
-# Stack compilation variables, specific build configurations (debug,release,...) 
-# needs to set the values as part of 'CmakePresets.json'
-## Common variables, used for a release 
+# Stack compilation variables, specific build configurations (debug,release,...) needs to be set the values as part of 'CmakePresets.json'
+
+## Common
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
+set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
 set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
-set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "enable publisher table (device can send)")
-set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore")
-set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
+set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table (device can (also) receive)")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
-set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
-set(OC_USE_STORAGE ON CACHE BOOL "If enbaled the data are persisted in a (file-based) storage.")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC applications.")
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
-## Specific variables, used for debugging 
+
+## Debug 
+set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
+set(OC_USE_STORAGE ON CACHE BOOL "If enbaled the data are persisted in a (file-based) storage.")
+set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore, can be disabled for debugging")
 set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages for the stack (and application; if used). OFF will disable virtually all logging.")
 set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enable debug messages for the stack")
 set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages")
 set(USE_CONSOLE ON CACHE BOOL "use console (for output logging)")
-## Specific stack resource variables
-set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
-set(KNX_GAMT_MAX_ENTRIES "" CACHE STRING "Maximum number of group address mapping (IoT Router) table entries")
+
+## iot device specific resource variables
 set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "" CACHE STRING "Maximum number of group recipient table entries")
@@ -57,6 +57,10 @@ set(KNX_SEC_MAX_ENTRIES "" CACHE STRING "Maximum number of group security table 
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
+
+# iot router specific resource variables
+set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
+set(KNX_GAMT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group address mapping (iot router) table entries")
 
 # dont show below variables in any (command) GUI
 mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
@@ -229,7 +233,7 @@ set(KNX_INCLUDE_DIRS
     ${PROJECT_SOURCE_DIR}/api/c-timestamp
 )
 
-# virtual library targets
+# virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
 
 # physical library targets
@@ -337,6 +341,7 @@ install(TARGETS mbedcrypto mbedx509 mbedtls
 
 
 # Process individual stack/ (demo)application behavior 
+## Security 
 if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_OSCORE)
    target_compile_definitions(kis-common INTERFACE OC_SPAKE)
@@ -345,7 +350,7 @@ if(OC_OSCORE_ENABLED)
 endif()
 
 if(OC_IOT_ROUTER_ENABLED)
-    target_compile_definitions(kis-common INTERFACE OC_IOT_ROUTER)
+    target_compile_definitions(kis-common INTERFACE OC_IOT_ROUTER GAMT_MAX_ENTRIES=${KNX_GAMT_MAX_ENTRIES})
 endif()
 
 if(OC_PRINT_ENABLED)
@@ -389,26 +394,22 @@ if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)
     target_compile_definitions(kis-common INTERFACE KNX_LOG_CAST_64_BIT_INTS)
 endif()
 
-# iot router GA mapping size
-if(NOT ${KNX_GAMT_MAX_ENTRIES} EQUAL "")
-    add_compile_definitions(GAMT_MAX_ENTRIES=${KNX_GAMT_MAX_ENTRIES})
-endif()
-
 # iot device GO table size
 if(NOT ${KNX_GOT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})
 endif()
 
-# # iot device publisher table size 
-if(NOT ${KNX_GPT_MAX_ENTRIES} EQUAL "")
-    add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})
-endif()
-
-# # iot device recipient table size
+# iot device recipient table size
 if(NOT ${KNX_GRT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})
 endif()
 
+# iot device publisher table size
+if(NOT ${KNX_GPT_MAX_ENTRIES} EQUAL "")
+    add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})
+endif()
+
+# AT table size, independent from OS_OSCORE (hence not added to target compile defintions)
 if(NOT ${KNX_SEC_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})
 endif()

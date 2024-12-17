@@ -168,7 +168,7 @@ bool oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
                         const size_t device_index, size_t* response_length, int* skipped,
                         const int first_entry, bool truncate)
 {
-  (void) device_index; /* variable not used */
+  (void) device_index;
 
   if (!oc_filter_resource_by_rt(resource, request))
   {
@@ -218,11 +218,11 @@ static bool oc_process_application_resources(oc_request_t* request, const size_t
       (*query_parameter_kvpair_matches)++;
       if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
       {
+        // first page entry + current amount of matches exceeds page size
         return true;
       }
     }
   }
-
   return false;
 }
 
@@ -237,6 +237,7 @@ static bool oc_process_basic_resources(oc_request_t* request, const size_t devic
       (*query_parameter_kvpair_matches)++;
       if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
       {
+        // first page entry + current amount of matches exceeds page size
         return true;
       }
     }
@@ -298,8 +299,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
-  bool ps_exists;        // will be initialized in function in anx case
-  bool total_exists;      // will be initialized in function in anx case
+  bool ps_exists;         // will be initialized in function in any case
+  bool total_exists;      // will be initialized in function in any case
   int total = 0;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
   int first_entry = 0;    // first entry number of a resource that will be  placed on a page
   int query_pn = -1;      // page number (page size as request parameter is not used)
@@ -389,7 +390,6 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
-
   if (l_exist == -1)  // invalid 'l' parameters
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
@@ -441,12 +441,11 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     const int group_address = atoi(&d_request[12]);
     PRINT("group address: %d", group_address);
 
-    // if not loaded then we can just return
-    const oc_lsm_state_t lsm = oc_a_lsm_state(device_index);
-    if (lsm != LSM_S_LOADED)
+    // if not in 'runtime' just return
+    if (!oc_is_device_in_runtime(device_index))
     {
       // handle bad request, note below layer ignores this message if it is a multicast request
-      PRINT("not loaded!");
+      PRINT("device not at 'runtime'");
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
@@ -459,9 +458,9 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     }
 
     // create the response
-    bool const ret = oc_add_points_in_group_object_table_to_response(request, device_index, group_address, &response_length);
+    bool const at_least_one_added = oc_add_points_in_group_object_table_to_response(request, device_index, group_address, &response_length);
 
-    if (ret)
+    if (at_least_one_added)
     {
       // unicast or multicast request
       oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
@@ -491,20 +490,20 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
          - add only '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' when the interface
            is if.pm && device is in programming mode, return immediately (do not process any other query params)
 
-         - the ep=knx://sn.* and if=urn:knx:if.pm concatenation is ignored since that only
+         - the ep=knx://sn.* and if=urn:knx:if.pm concatenation is ignored since HERE only
            needs to respond when the device is in programming mode
       */
 
       PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on");
 
       if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
-      { // query parameter if=urn:knx:if.pm AND ep=knx://sn.xxxxxx present
+      { // query parameter if=urn:knx:if.pm AND ep=knx://sn. AND some extra xx data present
 
         // get sn from request, fix position
         const char* ep_serialnumber = ep_request + 9;
 
         if (strncmp(oc_string(device->serialnumber), ep_serialnumber, strlen(oc_string(device->serialnumber))) != 0)
-        { // SN does not match
+        { // SN does NOT match, xx data can be anything
 
           PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
 
@@ -520,12 +519,11 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
           }
           return;
         }
-        // SN does match
-        PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN direct match");
+        PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN 1:1 match");
+        // SN does match 1:1, leaves here and continues on 'handle serial number' (with double code)
       }
       else
-      { // query parameter if=urn:knx:if.pm AND something (null up to wildcard)  
-
+      { // query parameter if=urn:knx:if.pm AND some extra xx (nothing up to wildcard)  
 
         if (skipped < first_entry)
         {
@@ -534,12 +532,13 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
         }
         else
         {
-          // add sn to response (but don't send) for unicast/multicast
+          // add sn to response for unicast/multicast (but don't send now)
           response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
           query_parameter_kvpair_matches++;
         }
 
-        PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN ???");
+        PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN MAY match");
+        // SN may match, leaves here and continues on 'handle serial number' (with double code)
       }
     }
     else
@@ -585,7 +584,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     { // IA is the same
 
       char iid_str[IID_STR_LEN_MAX + 1] = ""; // max len IID + \0
-      strncpy(iid_str, ep_iid_pos, ep_ia_pos - ep_iid_pos - 1);// use actual IID size 
+      strncpy(iid_str, ep_iid_pos, ep_ia_pos - ep_iid_pos - 1); // use actual IID size 
       const uint64_t iid = strtoull(iid_str, NULL, 16);         // string is hex formatted, on conversion error = 0 (performance ...)
 
       if (iid == device->iid)
@@ -603,15 +602,14 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     return;
   }
 
-  // handle serial number 
+  // handle serial number, w/wo PROG mode set
   if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
   {
-    // request for all devices via serial number wild card
+    // request for all devices via sn or sn wild card
     const char* ep_serialnumber = ep_request + 9;
 
     if (strncmp(ep_serialnumber, "*", 1) == 0 ||
-        strncmp(oc_string(device->serialnumber), ep_serialnumber,
-        strlen(oc_string(device->serialnumber))) == 0)
+        strncmp(oc_string(device->serialnumber), ep_serialnumber,strlen(oc_string(device->serialnumber))) == 0)
     {
       response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
       oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
@@ -659,6 +657,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     // matches/response_length >0/>0
     // m>0;l>0 : -- > at least one query parameter KV pair match was found for this device
 
+    // add only a page hint if at least one response entry is in
     if (more_request_needed)
     {
       // no page # was in the request next page is 1 or #+1
@@ -672,7 +671,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   else
   {
     // matches/response_length ?/?
-    // m>0;l=0 : -- > at least one query parameter KEY was found but no hit for this device
+    // m>0;l=0 : -- > at least one query parameter KEY/VALUE pair found but no hit for this device
     // m=0;l>0 : -- > n/a (no query parameter KEY but a hit ....)
     // m=0;l=0 : -- > NO query parameter KEY was found AND (hence this) no hit for this device
 

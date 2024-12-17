@@ -22,7 +22,7 @@
 #include "oc_core_res.h"
 #include "oc_knx_helpers.h"
 #include <stdio.h>
-#define __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 
 #ifdef OC_IOT_ROUTER
@@ -37,12 +37,9 @@
 
 #define GM_ENTRY_MAX_SIZE (1024)
 
+// size is set by compile CMAKE definitions  
 oc_group_mapping_table_t g_gm_entries[GAMT_MAX_ENTRIES];
 static oc_gateway_t app_gateway = { NULL, NULL };
-
-#ifndef GAMT_MAX_ENTRIES    // don't (re)define if set already by compile definitions  
-#define GAMT_MAX_ENTRIES 20
-#endif
 
 // ----------------------------------------------------------------------------
 static uint32_t g_fra = 0; // the IPv4 sync latency fraction.
@@ -57,7 +54,7 @@ static uint32_t g_mcast;  // Current IPv4 routing multicast address.
 void oc_delete_group_mapping_table(void)
 {
   PRINT("Deleting Group Mapping Table from Persistent storage");
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     oc_delete_group_mapping_table_entry(i);
     oc_print_group_mapping_table_entry(i);
   }
@@ -73,7 +70,7 @@ void oc_delete_group_mapping_table(void)
 void oc_delete_group_mapping_table(void)
 {
   PRINT("Deleting Group Mapping Table from Persistent storage");
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     oc_delete_group_mapping_table_entry(i);
     oc_print_group_mapping_table_entry(i);
   }
@@ -149,7 +146,7 @@ void oc_load_group_mapping_table_entry(int entry);
 
 static int find_empty_group_mapping_index()
 {
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     if (g_gm_entries[i].ga_len == 0) {
       return i;
     }
@@ -160,7 +157,7 @@ static int find_empty_group_mapping_index()
 static int find_group_mapping_index(int id)
 {
   int len;
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     if (g_gm_entries[i].id == id) {
       return i;
     }
@@ -170,7 +167,7 @@ static int find_group_mapping_index(int id)
 
 int oc_core_set_group_mapping_table(size_t device_index, int index, oc_group_mapping_table_t entry, bool store)
 {
-  if (index > oc_core_get_group_mapping_table_size()) {
+  if (index > GAMT_MAX_ENTRIES) {
     return -1;
   }
 
@@ -360,7 +357,7 @@ void oc_load_group_mapping_table_entry(int entry)
 void oc_load_group_mapping_table()
 {
   PRINT("Loading Group Mapping Table from persistent storage");
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     oc_load_group_mapping_table_entry(i);
     oc_print_group_mapping_table_entry(i);
   }
@@ -392,7 +389,7 @@ void oc_delete_group_mapping_table_entry(int entry)
 void oc_free_group_mapping_table()
 {
   PRINT("Free Group Mapping Table\n");
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     oc_free_group_mapping_table_entry(i, false);
   }
 }
@@ -400,7 +397,7 @@ void oc_free_group_mapping_table()
 int oc_core_find_nr_used_in_group_mapping_table()
 {
   int counter = 0;
-  for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
     if (g_gm_entries[i].ga_len > 0) {
       counter++;
     }
@@ -438,7 +435,7 @@ static void oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t
   //   if (ps_exists) {
   //     length = oc_rep_add_line_to_buffer(";ps=");
   //     response_length += length;
-  //     length = oc_frame_integer(oc_core_get_group_mapping_table_size());
+  //     length = oc_frame_integer(GAMT_MAX_ENTRIES);
   //     response_length += length;
   //   }
   //   if (total_exists) {
@@ -454,7 +451,7 @@ static void oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t
   // }
 
   /* example entry: </fp/gm/1>;ct=60 (cbor)*/
-  for (i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+  for (i = 0; i < GAMT_MAX_ENTRIES; i++) {
     if (g_gm_entries[i].ga_len == 0) {
       // index not in use
       break;
@@ -498,7 +495,7 @@ static void oc_core_fp_gm_post_handler(oc_request_t *request, oc_interface_mask_
 
   PRINT("oc_core_fp_gm_post_handler");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -507,7 +504,7 @@ static void oc_core_fp_gm_post_handler(oc_request_t *request, oc_interface_mask_
   // check loading state
   size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADING) {
-    OC_ERR(" not in loading state\n");
+    OC_ERR("not in loading state");
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -648,7 +645,7 @@ static void oc_core_fp_gm_post_handler(oc_request_t *request, oc_interface_mask_
   }
 
   if (do_save) {
-    for (int i = 0; i < oc_core_get_group_mapping_table_size(); i++) {
+    for (int i = 0; i < GAMT_MAX_ENTRIES; i++) {
       if (g_gm_entries[i].ga_len != 0) {
         oc_dump_group_mapping_table_entry(i);
       }
@@ -690,7 +687,7 @@ static void oc_core_fp_gm_x_get_handler(oc_request_t *request,
   int value = oc_uri_get_wildcard_value_as_int(
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
-  if (value >= oc_core_get_group_mapping_table_size()) {
+  if (value >= GAMT_MAX_ENTRIES) {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -745,7 +742,7 @@ static void oc_core_fp_gm_x_del_handler(oc_request_t *request,
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
 
-  if (value >= oc_core_get_group_mapping_table_size()) {
+  if (value >= GAMT_MAX_ENTRIES) {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -1495,7 +1492,7 @@ oc_group_mapping_table_t * oc_get_group_mapping_entry(size_t device_index, int i
   if (index < 0) {
     return NULL;
   }
-  if (index >= oc_core_get_group_mapping_table_size()) {
+  if (index >= GAMT_MAX_ENTRIES) {
     return NULL;
   }
 

@@ -53,7 +53,8 @@ static bool* drop_commands;
 static bool drop_commands[OC_MAX_NUM_DEVICES];
 #endif
 
-static bool initialized = false;                                              // marker if init was done, to handle a shutdown without init
+static bool initialized = false;  // marker if init was done, to handle a shutdown without init
+
 static const oc_handler_t* app_callbacks;
 static oc_factory_presets_t factory_presets = { NULL, NULL };       
 static oc_reset_t app_reset = { NULL, NULL };                       
@@ -61,6 +62,20 @@ static oc_restart_t app_restart = { NULL, NULL };
 static oc_hostname_t app_hostname = { NULL, NULL };
 static oc_programming_mode_t app_programming_mode = { NULL, NULL };
 static oc_loadstate_t app_loadstate = { NULL, NULL };
+static oc_swu_t app_swu = { NULL, NULL };
+
+// -----------------------------------------------------------------------------
+
+void oc_set_swu_cb(const oc_swu_cb_t cb, void* data)
+{
+  app_swu.cb = cb;
+  app_swu.data = data;
+}
+
+oc_swu_t* oc_get_swu_cb(void)
+{
+  return &app_swu;
+}
 
 // -----------------------------------------------------------------------------
 
@@ -100,6 +115,7 @@ oc_restart_t* oc_get_restart_cb(void)
 {
   return &app_restart;
 }
+
 // -----------------------------------------------------------------------------
 
 void oc_set_hostname_cb(const oc_hostname_cb_t cb, void* data)
@@ -125,6 +141,7 @@ oc_programming_mode_t* oc_get_programming_mode_cb(void)
 {
   return &app_programming_mode;
 }
+
 // -----------------------------------------------------------------------------
 
 void oc_set_lsm_change_cb(oc_lsm_change_cb_t cb, void* data)
@@ -144,14 +161,14 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
 #include "oc_buffer_settings.h"
 #ifdef OC_INOUT_BUFFER_SIZE
 static size_t _OC_MTU_SIZE = OC_INOUT_BUFFER_SIZE;
-#else  /* OC_INOUT_BUFFER_SIZE */
+#else  
 static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
-#endif /* !OC_INOUT_BUFFER_SIZE */
+#endif 
 #ifdef OC_APP_DATA_BUFFER_SIZE
 static size_t _OC_MAX_APP_DATA_SIZE = 7168;
-#else                                /* OC_APP_DATA_BUFFER_SIZE */
+#else                                
 static size_t _OC_MAX_APP_DATA_SIZE = 7168;
-#endif                               /* !OC_APP_DATA_BUFFER_SIZE */
+#endif                               
 static size_t _OC_BLOCK_SIZE = 1024; // FIX
 
 int
@@ -246,11 +263,9 @@ oc_get_block_size(void)
 }
 #endif /* OC_DYNAMIC_ALLOCATION */
 
-static void
-oc_shutdown_all_devices(void)
+static void oc_shutdown_all_devices(void)
 {
-  size_t device;
-  for (device = 0; device < oc_core_get_num_devices(); device++)
+  for (size_t device = 0; device < oc_core_get_num_devices(); device++)
   {
     oc_connectivity_shutdown(device);
   }
@@ -259,11 +274,9 @@ oc_shutdown_all_devices(void)
   oc_core_shutdown();
 }
 
-int
-oc_main_init(const oc_handler_t* handler)
+int oc_main_init(const oc_handler_t* handler)
 {
   int ret;
-
 
   if (initialized)
   { // already done ...

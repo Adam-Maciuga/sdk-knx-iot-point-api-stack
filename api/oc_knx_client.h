@@ -121,7 +121,7 @@ bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
  *
  * @return oc_s_mode_response_cb_t the callback function that has been set
  */
-oc_s_mode_response_cb_t oc_get_s_mode_response_cb();
+oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
 
 /**
  * @brief checks if the request is a redirected request from /k or /p

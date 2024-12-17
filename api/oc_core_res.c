@@ -636,8 +636,9 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
       oc_abort("Insufficient memory");
     }
 
+    // define extern for below usage
+    OC_CORE_EXTERN_CONST_RESOURCE(dev_sn)
     // clear device 0 resources
-    OC_CORE_EXTERN_CONST_RESOURCE(dev_sn);
     oc_list_add_block(core_resource_list, (oc_resource_t*) &OC_CORE_RESOURCE_NAME(dev_sn));
   }
 
@@ -780,8 +781,7 @@ oc_core_bind_dpt_resource(int core_resource, size_t device_index,
   oc_resource_bind_dpt((oc_resource_t*) r, dpt);
 }
 
-oc_device_info_t*
-oc_core_get_device_info(size_t device)
+oc_device_info_t* oc_core_get_device_info(size_t device)
 {
   if (device >= device_count)
   {
@@ -790,14 +790,12 @@ oc_core_get_device_info(size_t device)
   return &oc_device_info[device];
 }
 
-oc_platform_info_t*
-oc_core_get_platform_info(void)
+oc_platform_info_t* oc_core_get_platform_info(void)
 {
   return &oc_platform_info;
 }
 
-const oc_resource_t*
-oc_core_get_resource_by_index(int type, size_t device)
+const oc_resource_t* oc_core_get_resource_by_index(int type, size_t device)
 {
 #ifndef OC_DYNAMIC_ALLOCATION
   if (type == OC_DEV_SN)
@@ -854,7 +852,7 @@ oc_core_get_resource_by_uri(const char* uri, size_t device)
 
 #ifdef OC_SECURITY
 
-#endif /* OC_SECURITY */
+#endif
   else
   {
     return NULL;
@@ -901,15 +899,14 @@ oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
     {
 
       /* adapt size when a wild card exists */
-      char* wildcart = memchr(rt, '*', rt_len);
-      if (wildcart != NULL)
+      char* wildcard = memchr(rt, '*', rt_len);
+      if (wildcard != NULL)
       {
-        rt_len = (int) (wildcart - rt);
+        rt_len = (int) (wildcard - rt);
       }
 
       match = false;
-      int i;
-      for (i = 0; i < (int) oc_string_array_get_allocated_size(resource->types);
+      for (int i = 0; i < (int) oc_string_array_get_allocated_size(resource->types);
            i++)
       {
         size_t resource_type_len =
@@ -918,7 +915,7 @@ oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
           oc_string_array_get_item(resource->types, i);
         PRINT("oc_filter_resource_by_rt '%.*s'", (int) resource_type_len,
               resource_type);
-        if (wildcart != NULL)
+        if (wildcard != NULL)
         {
           if (strncmp(rt, resource_type, rt_len) == 0)
           {
@@ -937,8 +934,7 @@ oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
   return match;
 }
 
-bool
-oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
+bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
 {
   bool match = true, more_query_params = false;
   char* value = NULL;
@@ -953,8 +949,8 @@ oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
     {
 
       /* adapt size when a wild card exists */
-      char* wildcart = memchr(value, '*', value_len);
-      if (wildcart != NULL)
+      char* wildcard = memchr(value, '*', value_len);
+      if (wildcard != NULL)
       {
         /* wild card means that everything matches */
         return true;

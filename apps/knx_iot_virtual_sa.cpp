@@ -27,6 +27,8 @@
 
 #define NO_MAIN
 #include "knx_iot_virtual_sa.h"
+
+#include "oc_knx_client.h"
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_sec.h"
 #include "api/oc_knx_fp.h"

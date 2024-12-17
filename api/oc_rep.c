@@ -1613,13 +1613,10 @@ void
 oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print)
 {
 #ifdef OC_PRINT
-  char *json;
-  size_t json_size;
-  json_size = oc_rep_to_json(rep, NULL, 0, pretty_print);
-  json = (char *)malloc(json_size + 1);
+  size_t json_size = oc_rep_to_json(rep, NULL, 0, pretty_print);
+  char* json = malloc(json_size + 1);
   oc_rep_to_json(rep, json, json_size + 1, pretty_print);
-  PRINT("oc_print_rep_as_json:\n");
-  PRINT("%s\n", json);
+  PRINT("oc_print_rep_as_json: %s", json);
   free(json);
 #endif
 }

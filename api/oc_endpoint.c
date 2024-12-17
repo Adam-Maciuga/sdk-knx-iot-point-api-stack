@@ -456,8 +456,7 @@ oc_parse_endpoint_string(oc_string_t *endpoint_str, oc_endpoint_t *endpoint,
    */
   size_t address_len = p - address;
 #ifdef OC_DNS_LOOKUP
-  oc_string_t ipaddress;
-  memset(&ipaddress, 0, sizeof(oc_string_t));
+  oc_string_t ipaddress = {0};
 #endif /* OC_DNS_LOOKUP */
   if (('A' <= address[address_len - 1] && 'Z' >= address[address_len - 1]) ||
       ('a' <= address[address_len - 1] && 'z' >= address[address_len - 1])) {
@@ -688,6 +687,6 @@ oc_endpoint_print(oc_endpoint_t *ep)
 {
   oc_string_t ip_str;
   oc_endpoint_to_string(ep, &ip_str);
-  PRINT("IP address (ep) to: %s\n", oc_string_checked(ip_str));
+  PRINT("IP address (ep) to: %s", oc_string_checked(ip_str));
   oc_free_string(&ip_str);
 }

@@ -27,7 +27,7 @@
 #include "oc_base64.h"
 #include <oc_storage.h> 
 #include <stdio.h>
-#define __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 
 #include "oc_oscore_context.h"
@@ -36,8 +36,6 @@
 #ifdef OC_SPAKE
 #include "security/oc_spake2plus.h"
 #endif
-
-#define TAGS_AS_STRINGS
 
 
 #define FINGERPRINT_STORE "dev_knx_fingerprint"
@@ -366,8 +364,7 @@ void oc_create_knx_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-oc_lsm_state_t
-oc_a_lsm_state(size_t device_index)
+oc_lsm_state_t oc_a_lsm_state(size_t device_index)
 {
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device == NULL)
@@ -426,8 +423,7 @@ oc_core_get_lsm_state_as_string(oc_lsm_state_t lsm)
   return "";
 }
 
-const char*
-oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
+const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
 {
   // commands
   if (lsm == LSM_E_NOP)
@@ -450,11 +446,9 @@ oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
   return "";
 }
 
-/*
- * function will store the new state
- */
-bool
-oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
+
+// LSM handler, stores the new state and returns if event was OK (true)
+bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
 {
   if (lsm_e == LSM_E_NOP)
   {
@@ -473,39 +467,43 @@ oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
   }
   if (lsm_e == LSM_E_UNLOAD)
   {
-    // do a reset
-    oc_delete_group_rp_table();
-    oc_delete_group_object_table();
+
+    // LSM (first to prevent any runtime messaging in/out)
     oc_a_lsm_set_state(device_index, LSM_S_UNLOADED);
+
+    // do a reset like erase code 2 but not the AT table, ia, iid, fid -> EITT test 
+    oc_delete_group_tables();
+    oc_delete_group_object_table();
+
     return true;
   }
   return false;
 }
 
-static void
-oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                          void* data)
+static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
 
-  PRINT("oc_core_a_lsm_get_handler\n");
+  PRINT("oc_core_a_lsm_get_handler - start");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
+  // get from the request the addressed device as index
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
+
   if (device == NULL)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
+
   oc_lsm_state_t lsm = oc_a_lsm_state(device_index);
 
   oc_rep_begin_root_object();
@@ -514,88 +512,85 @@ oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
 
   oc_send_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_a_lsm_get_handler - done\n");
+  PRINT("oc_core_a_lsm_get_handler - end");
 }
 
-static void
-oc_core_a_lsm_post_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
   oc_rep_t* rep = NULL;
 
-  /* check if the accept header is cbor-format */
+  PRINT("oc_core_lsm_post_handler - start");
+
+  /* check if the accept header is cbor */
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
+  // get from the request the addressed device as index
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
+
   if (device == NULL)
   {
+    PRINT("oc_core_lsm_post_handler - end");
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  bool changed = false;
+  // default setting if nothing will be found
   int event = LSM_E_NOP;
-  /* loop over the request document */
+
   rep = request->request_payload;
   while (rep != NULL)
   {
     if (rep->type == OC_REP_INT)
     {
+      // cmd = CBOR KEY 2, status = int 
       if (rep->iname == 2)
       {
         event = (int) rep->value.integer;
-        changed = true;
         break;
       }
     }
     rep = rep->next;
-  } /* while */
+  }
 
-  PRINT("load event %d [%s]\n", event,
-        oc_core_get_lsm_event_as_string((oc_lsm_event_t) event));
-  // check the input and change the state
-  changed = oc_lsm_event_to_state((oc_lsm_event_t) event, device_index);
+  PRINT("load event %d [%s]", event, oc_core_get_lsm_event_as_string(event));
 
-  /* input was set, so create the response*/
-  if (changed == true)
+  // LSM state changed correctly ?
+  if (oc_lsm_event_to_state(event, device_index))
   {
-    oc_loadstate_t* lsm_cb = oc_get_lsm_change_cb();
+    const oc_loadstate_t* my_cb = oc_get_lsm_change_cb();
 
-    if (lsm_cb->cb != NULL)
+    // application LSM mode callback handler
+    if (my_cb && my_cb->cb)
     {
-      lsm_cb->cb(device_index, oc_a_lsm_state(device_index), lsm_cb->data);
+      my_cb->cb(device_index, oc_a_lsm_state(device_index), my_cb->data);
     }
 
+    // if running ... 
     if (oc_is_device_in_runtime(device_index))
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
-      oc_device_info_t* device = oc_core_get_device_info(device_index);
-      if (device)
-      {
-        knx_publish_service(oc_string(device->serialnumber), device->iid,
-                            device->ia, device->pm);
-      }
+      knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
 
-    oc_rep_new(request->response->response_buffer->buffer,
-               (int) request->response->response_buffer->buffer_size);
+    // create response 
+    oc_rep_new(request->response->response_buffer->buffer, (int) request->response->response_buffer->buffer_size);
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 3, (int) oc_a_lsm_state(device_index));
+    oc_rep_i_set_int(root, 3, oc_a_lsm_state(device_index));
     oc_rep_end_root_object();
 
+    // note that also on event 'NOP' a 'changed' is returned 
     oc_send_cbor_response(request, OC_STATUS_CHANGED);
     return;
   }
-
+  // invalid event
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
@@ -605,11 +600,10 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(a_lsm, knx_spake, 0, "/a/lsm", OC_IF_C,
                                      oc_core_a_lsm_post_handler, 0, NULL,
                                      OC_SIZE_ZERO());
 
-void
-oc_create_a_lsm_resource(int resource_idx, size_t device)
+void oc_create_a_lsm_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_a_lsm_resource\n");
-  // "/a/lsm"
+  OC_DBG("oc_create_a_lsm_resource");
+
   oc_core_populate_resource(
     resource_idx, device, "/a/lsm", OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
     oc_core_a_lsm_get_handler, 0, oc_core_a_lsm_post_handler, 0, 0);
@@ -617,16 +611,14 @@ oc_create_a_lsm_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                          void* data)
+static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
 
-  PRINT("oc_core_knx_k_get_handler\n");
+  PRINT("oc_core_knx_k_get_handler");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -649,8 +641,8 @@ oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   // sia
   oc_rep_i_set_int(root, 4, g_received_notification.sia);
 
-  oc_rep_i_set_key(&root_map, 5);
-  CborEncoder value_map;
+  oc_rep_i_set_key(&root_map, 5)
+    CborEncoder value_map;
   cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
 
   // ga
@@ -725,25 +717,21 @@ oc_reset_g_received_notification()
 }
 
 /*
- {sia: 5678, es: {st: write, ga: 1, value: 100 }}
+ {sia: 5678, s: {st: write, ga: 1, value: 100 }}
 */
-static void
-oc_core_knx_k_post_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   oc_rep_t* rep = NULL;
-  oc_rep_t* rep_value = NULL;
   char ip_address[100];
 
-  PRINT("KNX K POST Handler\n");
-  PRINT("Decoded Payload:\n");
+  PRINT("KNX /k POST Handler, decoded payload: ");
   oc_print_rep_as_json(request->request_payload, true);
 
-  PRINT("Full Payload Size: %d\n", (int) request->_payload_len);
+  PRINT("Full Payload Size: %d", (int) request->_payload_len);
   OC_LOGbytes_OSCORE(request->_payload, (int) request->_payload_len);
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (request->accept != APPLICATION_CBOR &&
       request->accept != APPLICATION_OSCORE &&
       request->accept != CONTENT_NONE)
@@ -772,7 +760,6 @@ oc_core_knx_k_post_handler(oc_request_t* request,
     for (ep_i = my_ep; ep_i != NULL; ep_i = ep_i->next)
     {
       PRINTipaddr(*ep_i);
-
 
       if (oc_endpoint_compare_address(origin, ep_i) == 0)
       {
@@ -853,12 +840,12 @@ oc_core_knx_k_post_handler(oc_request_t* request,
         }
       }
       case OC_REP_NIL:
-        break;
       default:
         break;
     }
     rep = rep->next;
   }
+
   // maximum base64 overhead, plus one byte for the null terminator
   size_t base64_max_len = (request->_payload_len / 3 + 1) * 4 + 1;
   int base64_len;
@@ -881,7 +868,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
   }
   free(base64_buf);
 
-  #ifdef OC_IOT_ROUTER
+#ifdef OC_IOT_ROUTER
   // gateway functionality: call back for all s-mode calls
   oc_gateway_t* my_gw = oc_get_gateway_cb();
   if (my_gw != NULL && my_gw->cb)
@@ -902,7 +889,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
       my_gw->cb(device_index, ip_address, &g_received_notification, buffer);
     }
   }
-  #endif
+#endif
 
   if (oc_is_device_in_runtime(device_index) == false)
   {
@@ -916,7 +903,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
   bool st_read = false;
   // handle the request
   // loop over the group addresses of the /fp/r
-  PRINT("k : origin:%s sia: %d ga: %d st: %s\n", ip_address,
+  PRINT("k : origin:%s sia: %d ga: %d st: %s", ip_address,
         g_received_notification.sia, g_received_notification.ga,
         oc_string_checked(g_received_notification.st));
   if (strcmp(oc_string_checked(g_received_notification.st), "w") == 0)
@@ -950,7 +937,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
   }
 
   int index = oc_core_find_group_object_table_index(g_received_notification.ga);
-  PRINT("k : index %d\n", index);
+  PRINT("k : index %d", index);
   if (index == -1)
   {
     // if nothing is found (initially) then return a bad request.
@@ -961,22 +948,19 @@ oc_core_knx_k_post_handler(oc_request_t* request,
   bool send_payload = false;
 
   // create the dummy request
-  oc_request_t new_request;
-  memset(&new_request, 0, sizeof(oc_request_t));
-  oc_response_buffer_t response_buffer;
-  memset(&response_buffer, 0, sizeof(oc_response_buffer_t));
-  oc_response_t response_obj;
-  memset(&response_obj, 0, sizeof(oc_response_t));
+  oc_request_t new_request = { 0 };
+  oc_response_buffer_t response_buffer = { 0 };
+  oc_response_t response_obj = { 0 };
 
   while (index != -1)
   {
-    oc_string_t myurl = oc_core_find_group_object_table_url_from_index(index);
-    PRINT("k : url  %s\n", oc_string_checked(myurl));
-    if (oc_string_len(myurl) > 0)
+    oc_string_t my_url = oc_core_find_group_object_table_url_from_index(index);
+    PRINT("k : url  %s", oc_string_checked(my_url));
+    if (oc_string_len(my_url) > 0)
     {
-      // get the resource to do the fake post on
+      // len > 0 = no error, get the resource to do the fake post on
       const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(
-        oc_string(myurl), oc_string_len(myurl), device_index);
+        oc_string(my_url), oc_string_len(my_url), device_index);
       if (my_resource == NULL)
       {
         return;
@@ -986,8 +970,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
       oc_cflag_mask_t cflags = oc_core_group_object_table_cflag_entries(index);
       if (((cflags & OC_CFLAG_WRITE) > 0) && (st_write))
       {
-        PRINT("(case1) W-WRITE: index %d handled due to flags %d\n", index,
-              cflags);
+        PRINT("(case1) W-WRITE: index %d handled due to flags %d", index, cflags);
         // CASE 1:
         // Received from bus: -st w, any ga
         // @receiver : cflags = w->overwrite object value
@@ -1011,17 +994,17 @@ oc_core_knx_k_post_handler(oc_request_t* request,
             // Case 3) part 1
             // @sender : updated object value + cflags = t
             // Sent : -st w, sending association(1st assigned ga)
-            PRINT("(case3) (W-WRITE) sending WRITE due to TRANSMIT flag \n");
+            PRINT("(case3) (W-WRITE) sending WRITE due to TRANSMIT flag");
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_do_s_mode_with_scope(2, oc_string(myurl), "w");
+            oc_do_s_mode_with_scope(2, oc_string(my_url), "w");
           #endif
-            oc_do_s_mode_with_scope(5, oc_string(myurl), "w");
+            oc_do_s_mode_with_scope(5, oc_string(my_url), "w");
           }
         }
       }
       if (((cflags & OC_CFLAG_UPDATE) > 0) && (st_rep))
       {
-        PRINT("(case2) RP-UPDATE: index %d handled due to flags %d\n", index,
+        PRINT("(case2) RP-UPDATE: index %d handled due to flags %d", index,
               cflags);
         // Case 2)
         // Received from bus: -st rp , any ga
@@ -1039,46 +1022,44 @@ oc_core_knx_k_post_handler(oc_request_t* request,
                                       my_resource->put_handler.user_data);
           if ((cflags & OC_CFLAG_TRANSMISSION) > 0)
           {
-            PRINT(
-              "   (case3) (RP-UPDATE) sending WRITE due to TRANSMIT flag \n");
+            PRINT("(case3) (RP-UPDATE) sending WRITE due to TRANSMIT flag");
             // Case 3) part 2
             // @sender : updated object value + cflags = t
             // Sent : -st w, sending association(1st assigned ga)
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_do_s_mode_with_scope(2, oc_string(myurl), "w");
+            oc_do_s_mode_with_scope(2, oc_string(my_url), "w");
           #endif
-            oc_do_s_mode_with_scope(5, oc_string(myurl), "w");
+            oc_do_s_mode_with_scope(5, oc_string(my_url), "w");
           }
         }
       }
       if (((cflags & OC_CFLAG_READ) > 0) && (st_read))
       {
-        PRINT("(case4) (R-READ) index %d handled due to flags %d\n", index,
-              cflags);
+        PRINT("(case4) (R-READ) index %d handled due to flags %d", index, cflags);
         send_payload = true;
         // Case 4)
         // @sender: cflags = r
         // Received from bus: -st r
         // Sent: -st rp, sending association (1st assigned ga)
         // specifically: do not check the transmission flag
-        PRINT("(case3) (RP-UPDATE) sending RP due to READ flag \n");
+        PRINT("(case3) (RP-UPDATE) sending RP due to READ flag");
 
         if (my_resource->get_handler.cb)
         {
           oc_ri_new_request_from_request(&new_request, request,
                                          &response_buffer, &response_obj);
-          new_request.uri_path = oc_string(myurl);
-          new_request.uri_path_len = oc_string_len(myurl);
+          new_request.uri_path = oc_string(my_url);
+          new_request.uri_path_len = oc_string_len(my_url);
           new_request.accept = request->accept;
 
           my_resource->get_handler.cb(&new_request, iface_mask, NULL);
         }
       #ifdef OC_USE_MULTICAST_SCOPE_2
         // oc_do_s_mode_with_scope_no_check(2, oc_string(myurl), "rp");
-        oc_do_s_mode_with_scope_no_check(2, oc_string(myurl), "a");
+        oc_do_s_mode_with_scope_no_check(2, oc_string(my_url), "a");
       #endif
         // oc_do_s_mode_with_scope_no_check(5, oc_string(myurl), "rp");
-        oc_do_s_mode_with_scope_no_check(5, oc_string(myurl), "a");
+        oc_do_s_mode_with_scope_no_check(5, oc_string(my_url), "a");
       }
     }
     // get the next index in the table to get the url from.
@@ -1091,7 +1072,7 @@ oc_core_knx_k_post_handler(oc_request_t* request,
   // don't send anything back on a multi cast message
   if (request->origin && (request->origin->flags & MULTICAST))
   {
-    PRINT("k : Multicast - not sending response\n");
+    PRINT("k : Multicast - not sending response");
     oc_send_cbor_response(request, OC_IGNORE);
     return;
   }
@@ -1115,7 +1096,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_k, knx_fingerprint, 0, "/k",
 void
 oc_create_knx_k_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_knx_k_resource (g)\n");
+  OC_DBG("oc_create_knx_k_resource (g)");
 
   oc_core_populate_resource(resource_idx, device, "/k",
                             OC_IF_LI | OC_IF_G | OC_IF_D, APPLICATION_CBOR,
@@ -1138,9 +1119,9 @@ oc_core_knx_fingerprint_get_handler(oc_request_t* request,
 {
   (void) data;
   (void) iface_mask;
-  PRINT("oc_core_knx_fingerprint_get_handler\n");
+  PRINT("oc_core_knx_fingerprint_get_handler");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -1152,7 +1133,7 @@ oc_core_knx_fingerprint_get_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADED)
   {
-    OC_ERR(" not in loaded state\n");
+    OC_ERR(" not in loaded state");
     oc_send_response_no_format(request, OC_STATUS_SERVICE_UNAVAILABLE);
     return;
   }
@@ -1162,7 +1143,7 @@ oc_core_knx_fingerprint_get_handler(oc_request_t* request,
   oc_rep_i_set_int(root, 1, g_fingerprint);
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_fingerprint_get_handler - done\n");
+  PRINT("oc_core_knx_fingerprint_get_handler - done");
   oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -1175,7 +1156,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fingerprint, knx_ia, 0,
 void
 oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_knx_fingerprint_resource\n");
+  OC_DBG("oc_create_knx_fingerprint_resource");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx/f", OC_IF_C,
                             APPLICATION_CBOR, OC_DISCOVERABLE,
                             oc_core_knx_fingerprint_get_handler, 0, 0, 0, 0);
@@ -1193,7 +1174,7 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
   bool ia_set = false;
   bool iid_set = false;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1209,7 +1190,7 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
     {
       if (rep->iname == 12)
       {
-        PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d\n",
+        PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d",
               (int) rep->value.integer);
         oc_core_set_device_ia(device_index, (uint32_t) rep->value.integer);
         int temp = (int) rep->value.integer;
@@ -1218,16 +1199,14 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
       }
       else if (rep->iname == 25)
       {
-        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "\n",
-              rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "",              rep->value.integer);
         oc_core_set_device_fid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_FID, (uint8_t*) &temp, sizeof(temp));
       }
       else if (rep->iname == 26)
       {
-        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "\n",
-              (uint64_t) rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "",              (uint64_t) rep->value.integer);
         oc_core_set_device_iid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &temp, sizeof(temp));
@@ -1264,7 +1243,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ia, knx_osn, 0, "/.well-known/knx/ia",
 void
 oc_create_knx_ia(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_knx_ia\n");
+  OC_DBG("oc_create_knx_ia");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ia",
                             OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE, NULL, 0,
                             oc_core_knx_ia_post_handler, 0, 0, "");
@@ -1280,7 +1259,7 @@ oc_core_knx_osn_get_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_knx_osn_get_handler\n");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -1323,7 +1302,7 @@ oc_core_knx_ldevid_get_handler(oc_request_t* request,
 
   PRINT("oc_core_knx_ldevid_get_handler\n");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_PKCS7_CMC_REQUEST) == false)
   {
     request->response->response_buffer->code =
@@ -1371,7 +1350,7 @@ oc_core_knx_idevid_get_handler(oc_request_t* request,
 
   PRINT("oc_core_knx_idevid_get_handler\n");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_PKCS7_CMC_REQUEST) == false)
   {
     request->response->response_buffer->code =
@@ -1475,7 +1454,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_knx_spake_post_handler\n");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -1879,11 +1858,8 @@ oc_knx_increase_fingerprint()
 
 // ----------------------------------------------------------------------------
 
-void
-oc_knx_load_state(size_t device_index)
+void oc_knx_load_state(size_t device_index)
 {
-  int temp_size;
-
   oc_lsm_state_t lsm;
   PRINT("oc_knx_load_state: Loading Device Config from Persistent storage");
 
@@ -1894,7 +1870,7 @@ oc_knx_load_state(size_t device_index)
     return;
   }
 
-  temp_size = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*) &lsm, sizeof(lsm));
+  int temp_size = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*) &lsm, sizeof(lsm));
   if (temp_size > 0)
   {
     device->lsm_s = lsm;
@@ -1905,8 +1881,7 @@ oc_knx_load_state(size_t device_index)
   oc_knx_load_fingerprint();
 }
 
-void
-oc_create_knx_resources(size_t device_index)
+void oc_create_knx_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_resources");
   if (device_index == 0)
@@ -1928,18 +1903,16 @@ oc_create_knx_resources(size_t device_index)
 
 // ----------------------------------------------------------------------------
 
-bool
-oc_is_device_in_runtime(size_t device_index)
+bool oc_is_device_in_runtime(size_t device_index)
 {
   oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device->ia <= 0)
+
+  if (device->iid == 0)
   {
+    // EITT test this for a reset with code 2
     return false;
   }
-  if (device->iid <= 0)
-  {
-    return false;
-  }
+
   if (device->lsm_s != LSM_S_LOADED)
   {
     return false;

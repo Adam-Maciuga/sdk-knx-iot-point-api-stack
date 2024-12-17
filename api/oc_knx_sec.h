@@ -160,9 +160,13 @@ typedef struct oc_auth_at_t
 /**
  * @brief returns the size (amount of total entries) of the auth/at table
  *
+ * @note
+ * - returned size depends on if AT table is present (>0) or not (=0)
+ * - defined as extra method, to be used from extern 
+ *
  * @return the allocated amount of entries of the auth/at table
  */
-int oc_core_get_at_table_size();
+int oc_core_get_at_table_size(void);
 
 /**
  * @brief set an entry in the auth/at table

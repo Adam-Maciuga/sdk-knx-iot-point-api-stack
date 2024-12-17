@@ -471,8 +471,7 @@ oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
   int return_value = -1;
   size_t size_bytes = (hex_str_len / 2);
 
-  PRINT("oc_conv_hex_string_to_oc_string len:%d -> bytes:%d",
-        (int) hex_str_len, (int) size_bytes);
+  PRINT("oc_conv_hex_string_to_oc_string len:%d -> bytes:%d",        (int) hex_str_len, (int) size_bytes);
 
   oc_free_string(out);
 
@@ -486,7 +485,7 @@ oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
     return_value =
       oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr, &size_bytes);
   }
-  PRINT("oc_conv_hex_string_to_oc_string result=%d", (int) return_value);
+  PRINT("oc_conv_hex_string_to_oc_string result=%d", return_value);
   return return_value;
 }
 

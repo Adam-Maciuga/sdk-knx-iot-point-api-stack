@@ -126,9 +126,13 @@ void oc_core_f_netip_get_handler(oc_request_t *request,
 void oc_delete_group_mapping_table(void);
 
 /**
- * @brief returns the size (amount of total entries) of the fp / gm table
+ * @brief returns the size (amount of total entries) of the gm table
  *
- * @return the allocated amount of entries of the group mapping at table
+ *@note
+ * - returned size depends on if GMA table is present (>0) or not (=0)
+ * - defined as extra method, to be used from extern 
+ *
+  * @return the allocated amount of entries of the group mapping at table
  */
 int oc_core_get_group_mapping_table_size(void);
 

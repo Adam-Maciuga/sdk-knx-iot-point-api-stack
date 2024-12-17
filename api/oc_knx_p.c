@@ -23,16 +23,14 @@
 #include "oc_discovery.h"
 #include <stdio.h>
 
- // -----------------------------------------------------------------------------
 
-// add datapoint to response and return true if at least one was added
-static bool oc_add_data_points_to_response(oc_request_t* request,
-                                           const oc_resource_t* resource,
+ // add datapoint to response and return true if at least one was added
+static bool oc_add_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
                                            size_t device_index, size_t* response_length,
                                            const int page_size)
 {
   (void) request;
-  int matches =0;
+  int matches = 0;
 
   for (; resource && matches < page_size; resource = resource->next)
   {
@@ -44,7 +42,7 @@ static bool oc_add_data_points_to_response(oc_request_t* request,
     matches++;
   }
 
-  return matches > 0 ? true : false; 
+  return matches > 0 ? true : false;
 }
 
 /*
@@ -57,7 +55,7 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
 
   size_t response_length = 0;             // response payload len
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
-  bool ps_exists ;                        // will be initialized in function in anx case
+  bool ps_exists;                         // will be initialized in function in anx case
   bool total_exists;                      // will be initialized in function in anx case
   int total = 0;                          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
   int first_entry = 0;                    // first entry number of a resource that will be placed on a page
@@ -135,8 +133,9 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
   const bool at_least_one_added = oc_add_data_points_to_response(request, my_p, device_index, &response_length, PAGE_SIZE);
   if (at_least_one_added)
   {
+    // add only a page hint if at least one response entry is in
     if (more_request_needed)
-    { 
+    {
       // no page # was in the request next page is 1 or #+1
       const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
       response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
@@ -145,7 +144,7 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
   }
   else
   {
-    // no reference found for the 
+    // no reference found for the request pattern
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
@@ -177,7 +176,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   while (rep != NULL)
   {
     if (rep->type == OC_REP_OBJECT)
-    { 
+    {
 
       const oc_rep_t* entry = rep->value.object;
       while (entry != NULL)
@@ -234,9 +233,9 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
         {
           // do the post
 
-          oc_request_t new_request = {0};
-          oc_response_buffer_t response_buffer = {0};
-          oc_response_t response_obj = {0};
+          oc_request_t new_request = { 0 };
+          oc_response_buffer_t response_buffer = { 0 };
+          oc_response_t response_obj = { 0 };
 
           oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
@@ -273,10 +272,10 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_p, knx_f, 0, "/p",
                                      oc_core_p_get_handler, 0,
                                      oc_core_p_post_handler, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.0");
-void
-oc_create_p_resource(int resource_idx, size_t device)
+
+void oc_create_p_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_p_resource\n");
+  OC_DBG("oc_create_p_resource");
   // note that this resource is listed in /.well-known/core so it should have
   // the full rt with urn:knx prefix
   oc_core_populate_resource(resource_idx, device, "/p",
@@ -285,8 +284,7 @@ oc_create_p_resource(int resource_idx, size_t device)
                             0, oc_core_p_post_handler, 0, 1, "urn:knx:fb.0");
 }
 
-void
-oc_create_knx_p_resources(size_t device_index)
+void oc_create_knx_p_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_p_resources");
 

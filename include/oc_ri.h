@@ -184,7 +184,7 @@ extern "C" {
    * https://www.iana.org/assignments/core-parameters/core-parameters.xhtml#rd-parameters
    *
    */
-  typedef enum oc_content_format_s
+  typedef enum oc_content_format
   {
     TEXT_PLAIN = 0,                    /**< text/plain */
     TEXT_XML = 1,                      /**< text/xml */
@@ -262,7 +262,7 @@ extern "C" {
    * security access scopes defined as interfaces
    * note that scope = 1 is not used.
    */
-  typedef enum
+  typedef enum oc_interface_mask
   {
     OC_IF_NONE = 0,        /**< no interface defined */
     OC_IF_I = (1 << 1),    /**< if.i  (2)*/
@@ -422,11 +422,9 @@ extern "C" {
     oc_rep_t* request_payload;     /**< request payload structure */
     const uint8_t* _payload;       /**< payload of the request */
     size_t _payload_len;           /**< payload size */
-    oc_content_format_t
-      content_format;              /**< content format (of the payload in the request) */
-    oc_content_format_t
-      accept;                       /**< accept header, e.g the format to be returned on the request */
-    oc_response_t* response;        /**< pointer to the response */
+    oc_content_format_t content_format;              /**< content format (of the payload in the request) */
+    oc_content_format_t  accept;   /**< accept header, e.g. the format to be returned on the request */
+    oc_response_t* response;       /**< pointer to the response */
   } oc_request_t;
 
   /**

@@ -75,7 +75,6 @@
 #include "knx_iot_virtual_sa.h"         // application constants
 #include <signal.h>                     // test purpose only; commandline reset 
 #include <stdlib.h>
-#include <ctype.h>
 #include <stdio.h>                      // defines FILENAME_MAX
 #include <oc_storage.h>                 
 
@@ -430,7 +429,7 @@ extern "C" {
   }
 
   // data point (objects) handling
-  // note, the (generic) callback 'call' handler uses always below 3 parameters, provide them even if not used
+  // note, the (generic) callback 'call' handler uses always below defined 3 parameters, provide them even if not used
 
   /**
    * @brief CoAP GET method for data point "OnOff_1" resource at url URL_ONOFF_1 ("/p/1").
@@ -455,7 +454,7 @@ extern "C" {
     */
     bool error_state = false; /* the error state, the generated code */
 
-    PRINT("-- Begin get_OnOff_1 %s ", URL_ONOFF_1);
+    PRINT("-- Begin get_OnOff_1: %s ", URL_ONOFF_1);
     /* check if the accept header is CBOR */
     if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
     {
@@ -580,7 +579,7 @@ extern "C" {
     (void) interfaces;
     (void) user_data;
 
-    PRINT("-- Begin put_OnOff_1:");
+    PRINT("-- Begin put_OnOff_1");
 
     /* handle the different requests e.g. via s-mode or normal CoAP call*/
     if (oc_is_redirected_request(request))
@@ -1421,6 +1420,11 @@ extern "C" {
     (void) data;         
 
     PRINT("host name callback called with host name: %s", oc_string(host_name));
+
+    /*
+     * The application callback needs to handle a changed host name such as to announce
+     * it to a border router or local daemon.
+    */
   }
 
   static oc_event_callback_retval_t send_delayed_response(void* context)
@@ -1497,7 +1501,7 @@ extern "C" {
     char storage[400];
     char dir[FILENAME_MAX] = "";
     GetCurrentDir(dir, FILENAME_MAX);
-    sprintf(storage, "./knx_iot_virtual_sa_%s", g_serial_number);
+    (void)sprintf(storage, "./knx_iot_virtual_sa_%s", g_serial_number);
     PRINT("Current path is: '%s'",dir);
     oc_storage_config(storage);
 

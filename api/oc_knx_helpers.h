@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-#ifndef PAGE_SIZE
+#ifndef PAGE_SIZE     // don't (re)define if set by CMAKE compile definitions 
 #define PAGE_SIZE 20
 #endif
 

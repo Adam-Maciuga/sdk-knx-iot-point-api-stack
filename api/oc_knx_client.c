@@ -24,7 +24,7 @@
 #include "oc_core_res.h"
 
 #include <stdio.h>
-#define __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 
  // ----------------------------------------------------------------------------
@@ -36,18 +36,18 @@
 
 typedef struct broker_s_mode_userdata_t
 {
-  int ia;          /**< internal address of the destination */
-  char path[20];   /**< the path on the device designated with ia */
-  uint32_t ga;     /**< group address to use */
-  char rp_type[3]; /**< mode to send the message "w"  = 1  "r" = 2  "a" = 3 ("rp") */
-  char resource_url[20]; /**< the url to pull the data from. */
+  int ia;                 /**< internal address of the destination */
+  char path[20];          /**< the path on the device designated with ia */
+  uint32_t ga;            /**< group address to use */
+  char rp_type[3];        /**< mode to send the message "w"  = 1  "r" = 2  "a" = 3 ("rp") */
+  char resource_url[20];  /**< the url to pull the data from. */
 } broker_s_mode_userdata_t;
 
 typedef struct oc_spake_context_t
 {
-  char spake_password[MAX_PASSWORD_LEN]; /**< spake password */
-  oc_string_t serial_number; /**< the serial number of the device string */
-  oc_string_t oscore_id;     /**< the oscore id used (byte string) */
+  char spake_password[MAX_PASSWORD_LEN];  /**< spake password */
+  oc_string_t serial_number;              /**< the serial number of the device string */
+  oc_string_t oscore_id;                  /**< the oscore id used (byte string) */
 } oc_spake_context_t;
 
 // ----------------------------------------------------------------------------
@@ -698,8 +698,7 @@ oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint8_t * buf,
   return 0;
 }
 
-void
-oc_do_s_mode_read(const int64_t group_address)
+void oc_do_s_mode_read(const int64_t group_address)
 {
   size_t device_index = 0;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
@@ -793,7 +792,7 @@ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url
   uint64_t iid = device->iid;
   uint32_t group_address = 0;
 
-  
+
   int index = oc_core_find_group_object_table_url(resource_url);
 
   // no index at all available
@@ -844,16 +843,12 @@ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url
             {
               oc_cflag_mask_t other_cflags =
                 oc_core_group_object_table_cflag_entries(other_index);
-              oc_string_t other_url =
-                oc_core_find_group_object_table_url_from_index(other_index);
+              oc_string_t other_url = oc_core_find_group_object_table_url_from_index(other_index);
               const char* other_url_char = oc_string(other_url);
-              const oc_resource_t* other_resource =
-                oc_ri_get_app_resource_by_uri(other_url_char,
-                                              strlen(other_url_char), 0);
+              const oc_resource_t* other_resource = oc_ri_get_app_resource_by_uri(other_url_char, strlen(other_url_char), 0);
               if (other_resource == NULL)
               {
-                other_index = oc_core_find_next_group_object_table_index(
-                  group_address, other_index);
+                other_index = oc_core_find_next_group_object_table_index(                  group_address, other_index);
                 continue;
               }
               if ((other_cflags & OC_CFLAG_WRITE) &&
@@ -930,6 +925,7 @@ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url
     index = oc_core_find_next_group_object_table_url(resource_url, index);
   }
 }
+
 // Note that this function does not check the transmit flag, the caller of this function needs to check if the flag is set.
 void oc_do_s_mode_with_scope_no_check(const int scope, const char* resource_url, char* rp)
 {
@@ -944,8 +940,7 @@ void oc_do_s_mode_with_scope(const int scope, const char* resource_url, char* rp
 
 // ----------------------------------------------------------------------------
 
-bool
-oc_set_spake_response_cb(const oc_spake_cb_t my_func)
+bool oc_set_spake_response_cb(const oc_spake_cb_t my_func)
 {
   m_spake_cb = my_func;
   return true;

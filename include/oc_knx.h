@@ -86,7 +86,7 @@ extern "C" {
    * | st       | 6             | string   |
    * | ga       | 7             | uint32_t |
    */
-  typedef struct oc_group_object_notification_t
+  typedef struct oc_group_object_notification
   {
     oc_string_t value; /**< generic value received. */
     uint32_t sia;      /**< (source id) sender individual address */
@@ -183,11 +183,12 @@ extern "C" {
     oc_group_object_notification_t notification);
 
   /**
-   * @brief checks if the device is in "run-time" mode
-   * run-time is:
-   * - ia initialized (e.g. larger than 0)
+   * @brief checks if the device is in "runtime" mode, which is:
    * - iid initialized (e.g. larger than 0)
    * - load state machine (lsm) == loaded
+   *
+   * @note devices from manufacturing will not work out of the box, only
+   * if a MaC was setting the iid to a value > 0
    *
    * @param device_index The device index.
    * @return true in runtime

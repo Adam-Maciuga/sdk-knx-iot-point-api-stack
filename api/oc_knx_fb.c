@@ -31,7 +31,7 @@ int g_int_array[2][ARRAY_SIZE];
 int g_array_size = 0;
 static int g_nr_functional_blocks = 0;
 
-unsigned int get_fp_from_dp(const char* dpt)
+int get_fp_from_dp(const char* dpt)
 {
   // dpa.352.51 or urn:knx:dpa.352.51
   // returns 352 or -1 ('strtol' error returns FB# 0, better than an 'atoi' crash)
@@ -52,8 +52,7 @@ bool is_in_g_array(int value, int instance)
   return false;
 }
 
-void
-store_in_array(int value, int instance)
+void store_in_array(int value, int instance)
 {
   if (value == -1)
   {
@@ -66,29 +65,26 @@ store_in_array(int value, int instance)
 }
 
 // -----------------------------------------------------------------------------
-static int
-oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_value)
+static int oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_value)
 {
   int counter = 0;
-  int i;
 
   const oc_resource_t* resource = oc_ri_get_app_resources();
   for (; resource; resource = resource->next)
   {
-    if (resource->device != device_index ||
-        !(resource->properties & OC_DISCOVERABLE))
+    if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
-    int instance_resource = resource->fb_instance;
-    oc_string_array_t types = resource->types;
-    for (i = 0; i < (int) oc_string_array_get_allocated_size(types); i++)
+    const int instance_resource = resource->fb_instance;
+    const oc_string_array_t types = resource->types;
+    for (int i = 0; i < (int) oc_string_array_get_allocated_size(types); i++)
     {
-      char* t = oc_string_array_get_item(types, i);
+      const char* t = oc_string_array_get_item(types, i);
       if ((strncmp(t, ":dpa", 4) == 0) ||
           (strncmp(t, "urn:knx:dpa", 11) == 0))
       {
-        int fp_int = get_fp_from_dp(t);
+        const int fp_int = get_fp_from_dp(t);
         if (fp_int == fb_value && instance_resource == instance)
         {
           counter++;
@@ -268,8 +264,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f_x, knx_swu_protocol, 0, "/f/*",
                                      oc_core_fb_x_get_handler, 0, 0, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.0");
 
-void
-oc_create_fb_x_resource(int resource_idx, size_t device)
+void oc_create_fb_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fb_x_resource\n");
   // note that this resource is listed in /.well-known/core so it should have
@@ -281,8 +276,7 @@ oc_create_fb_x_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-int
-oc_count_functional_blocks(size_t device_index)
+int oc_count_functional_blocks(size_t device_index)
 {
   int counter = 0;
   bool netip_added = false;
@@ -338,8 +332,7 @@ oc_count_functional_blocks(size_t device_index)
   return g_nr_functional_blocks;
 }
 
-bool
-oc_filter_functional_blocks(oc_request_t* request)
+bool oc_filter_functional_blocks(oc_request_t* request)
 {
   char* value = NULL;
   size_t value_len;
@@ -397,8 +390,8 @@ oc_filter_functional_blocks(oc_request_t* request)
   return false;
 }
 
-bool
-oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
+// add functional blocks to response and return true if at least one was added
+bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
                                    size_t* response_length, int* matches,
                                    int* skipped, int first_entry,
                                    int last_entry)
@@ -415,8 +408,7 @@ oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
   const oc_resource_t* resource = oc_ri_get_app_resources();
   for (; resource; resource = resource->next)
   {
-    if (resource->device != device_index ||
-        !(resource->properties & OC_DISCOVERABLE))
+    if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -424,12 +416,12 @@ oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
     oc_string_array_t types = resource->types;
     for (i = 0; i < (int) oc_string_array_get_allocated_size(types); i++)
     {
-      char* t = oc_string_array_get_item(types, i);
+      const char* t = oc_string_array_get_item(types, i);
       if ((strncmp(t, ":dpa.11.", 8) == 0) ||
           (strncmp(t, "urn:knx:dpa.11.", 15) == 0))
       {
         /* specific functional block iot_router : /f/netip */
-        // add the functional block only once..
+        // add the functional block only once.
         if (netip_added == false)
         {
           if (*skipped < first_entry)
@@ -444,8 +436,7 @@ oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
               length = oc_rep_add_line_to_buffer(",\n");
               *response_length += length;
             }
-            length =
-              oc_rep_add_line_to_buffer("</f/netip>;rt=\":fb.11\";ct=40");
+            length = oc_rep_add_line_to_buffer("</f/netip>;rt=\":fb.11\";ct=40");
             *response_length += length;
             (*matches)++;
             netip_added = true;
@@ -461,7 +452,7 @@ oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
             (strncmp(t, "urn:knx:dpa", 11) == 0))
         {
           int fp_int = get_fp_from_dp(t);
-          int instance = resource->fb_instance;
+          const int instance = resource->fb_instance;
           if ((fp_int > 0) && (is_in_g_array(fp_int, instance) == false))
           {
             store_in_array(fp_int, instance);
@@ -545,53 +536,45 @@ oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
 /*
  * return list of function blocks
  */
-static void
-oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                       void* data)
+static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,  void* data)
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
-  int matches = 0;
+
+  size_t response_length = 0;             // response payload len 
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
   int skipped = 0;
+  bool current_page_is_full = false;      // true if response page is full, no more resources can be added
+  bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
-  bool ps_exists = false;
-  bool total_exists = false;
-  int total = 0;
-  int first_entry = 0; // inclusive
-  int last_entry = 0;  // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  bool ps_exists;         // will be initialized in function in any case
+  bool total_exists;      // will be initialized in function in any case
+  int total = 0;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;    // first entry number of a resource that will be  placed on a page
+  int query_pn = -1;      // page number (page size as request parameter is not used)
 
-  PRINT("oc_core_fb_get_handler\n");
+  PRINT("oc_core_fb_get_handler");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
   size_t device_index = request->resource->device;
-
   total = oc_count_functional_blocks(device_index);
-  last_entry = total;
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
+  // handle query parameters: l=ps and l=total ('l' and 'other' query parameters SHALL NOT be combined in a request)
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  if (l_exist == 1) // valid 'l' parameters, example /f?l=total&l=ps
   {
-    // example : < /f > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
-  if (l_exist == -1)
+  if (l_exist == -1) // invalid 'l' parameters
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
     return;
@@ -601,38 +584,37 @@ oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   if (check_if_query_pn_exist(request, &query_pn, NULL))
   {
     first_entry += query_pn * PAGE_SIZE;
-    if (first_entry >= last_entry)
+    if (first_entry >= total)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
   }
 
-  if (last_entry > first_entry + PAGE_SIZE)
+  if (total > first_entry + PAGE_SIZE)
   {
     more_request_needed = true;
   }
 
-  bool added = oc_add_function_blocks_to_response(
-    request, device_index, &response_length, &matches, &skipped, first_entry,
-    last_entry);
+  const bool at_least_one_added = oc_add_function_blocks_to_response(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, total);
 
-  if (added)
+  if (at_least_one_added)
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request next page is 1 or #+1
+      const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
   else
   {
+    // no reference found for the request pattern
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_fb_get_handler - end\n");
+  PRINT("oc_core_fb_get_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f, knx_f_x, 0, "/f",
@@ -641,10 +623,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f, knx_f_x, 0, "/f",
                                      oc_core_fb_get_handler, 0, 0, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.0");
 
-void
-oc_create_fb_resource(int resource_idx, size_t device)
+void oc_create_fb_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_fb_resource\n");
+  OC_DBG("oc_create_fb_resource");
   // note that this resource is listed in /.well-known/core so it should have
   // the full rt with urn:knx prefix
   oc_core_populate_resource(resource_idx, device, "/f", OC_IF_LI | OC_IF_D,
@@ -652,8 +633,7 @@ oc_create_fb_resource(int resource_idx, size_t device)
                             0, 0, 0, 1, "urn:knx:fb.0");
 }
 
-void
-oc_create_knx_fb_resources(size_t device_index)
+void oc_create_knx_fb_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_fb_resources");
 

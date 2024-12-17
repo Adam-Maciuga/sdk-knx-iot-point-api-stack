@@ -19,7 +19,7 @@
 #include "oc_discovery.h"
 #include "oc_core_res.h"
 #include <stdio.h>
-#define __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 #include "security/oc_oscore_context.h"
 #include "oc_knx.h"
@@ -101,7 +101,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request,
 
   PRINT("oc_core_knx_auth_o_osndelay_get_handler");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -125,7 +125,7 @@ oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -180,7 +180,7 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -204,7 +204,7 @@ oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -271,7 +271,7 @@ oc_core_knx_auth_o_get_handler(oc_request_t* request,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
   {
     request->response->response_buffer->code =
@@ -387,7 +387,7 @@ oc_core_a_sen_post_handler(oc_request_t* request,
   oc_rep_t* rep = NULL;
   int cmd = 0;
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -529,17 +529,16 @@ find_access_token_from_payload(oc_rep_t* object)
   return index;
 }
 
-int
-oc_core_get_at_table_size()
+int oc_core_get_at_table_size(void)
 {
   return G_AT_MAX_ENTRIES;
 }
 
-int
-oc_core_find_nr_used_in_auth_at_table()
+// TODO use static variable
+int oc_core_find_nr_used_in_auth_at_table(void)
 {
   int counter = 0;
-  for (int i = 0; i < oc_core_get_at_table_size(); i++)
+  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
@@ -551,8 +550,7 @@ oc_core_find_nr_used_in_auth_at_table()
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_auth_at_get_handler(oc_request_t* request,
+static void oc_core_auth_at_get_handler(oc_request_t* request,
                             oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
@@ -669,7 +667,7 @@ oc_core_auth_at_post_handler(oc_request_t* request,
   int index = -1;
   PRINT("oc_core_auth_at_post_handler\n");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1025,7 +1023,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1164,7 +1162,7 @@ oc_core_auth_at_x_post_handler(oc_request_t* request,
   (void) iface_mask;
   oc_rep_t* rep = NULL;
   int cmd = 0;
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1206,7 +1204,7 @@ oc_core_auth_at_x_delete_handler(oc_request_t* request,
   (void) iface_mask;
   const char* value;
   int value_len = -1;
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -1296,8 +1294,7 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1467,7 +1464,7 @@ oc_at_get_interface_mask(size_t device_index, int index)
   {
     return OC_IF_NONE;
   }
-  if (index > oc_core_get_at_table_size() - 1)
+  if (index > G_AT_MAX_ENTRIES - 1)
   {
     return OC_IF_NONE;
   }
@@ -1482,7 +1479,7 @@ oc_at_delete_entry(size_t device_index, int index)
   {
     return -1;
   }
-  if (index > oc_core_get_at_table_size() - 1)
+  if (index > G_AT_MAX_ENTRIES - 1)
   {
     return -1;
   }

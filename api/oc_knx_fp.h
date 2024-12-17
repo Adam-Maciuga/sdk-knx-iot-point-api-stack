@@ -169,7 +169,7 @@ extern "C" {
    * - free up the allocated data
    * - return the structure at a specific index
    */
-  typedef struct oc_group_rp_table_t
+  typedef struct oc_group_table
   {
     int id;           /**< contents of id*/
     int ia;           /**< contents of ia (individual address)*/
@@ -206,7 +206,7 @@ extern "C" {
    *
    * @return int -1 : not found, > -1 : value found
    */
-  int oc_table_find_id_from_rep(oc_rep_t* object);
+  int oc_table_find_id_from_rep(const oc_rep_t* object);
 
   /**
    * @brief set an entry in the group object table
@@ -222,22 +222,25 @@ extern "C" {
    * e.g. the number of entries that can be stored
    *
    * @return int the total number of entries
+   *
+   * @note
+   * - defined as extra method, to be used from extern 
    */
-  int oc_core_get_group_object_table_total_size();
+  int oc_core_get_group_object_table_total_size(void);
 
-  /**
-   * @brief retrieve the group object table entry
-   *
-   * Note that always the group object table is returned.
-   * regardless if the data is valid or not.
-   *
-   * To check if the data is valid, please check if
-   * ga_len > 0, if ga_len <= 0 then the group object table does
-   * not contain an entry.
-   *
-   * @param index the index in the group object table
-   * @return oc_group_object_table_t* pointer to the entry
-   */
+/**
+ * @brief retrieve the group object table entry
+ *
+ * Note that always the group object table is returned.
+ * regardless if the data is valid or not.
+ *
+ * To check if the data is valid, please check if
+ * ga_len > 0, if ga_len <= 0 then the group object table does
+ * not contain an entry.
+ *
+ * @param index the index in the group object table
+ * @return oc_group_object_table_t* pointer to the entry
+ */
   oc_group_object_table_t* oc_core_get_group_object_table_entry(int index);
 
   /**
@@ -272,17 +275,17 @@ extern "C" {
    * function is called when the device is (re)started in run-time mode (e.g.
    * state = "loaded")
    */
-  void oc_register_group_multicasts();
+  void oc_register_group_multicasts(void);
 
-  /**
-   * @brief find the grpid from the group_address in the publisher table
-   *
-   * @see oc_register_group_multicasts
-   *
-   * @param group_address The group_address from the group object table
-   * @return the grpid matching the group_address the table publisher table
-   *  or 0 if not found
-   */
+/**
+ * @brief find the grpid from the group_address in the publisher table
+ *
+ * @see oc_register_group_multicasts
+ *
+ * @param group_address The group_address from the group object table
+ * @return the grpid matching the group_address the table publisher table
+ *  or 0 if not found
+ */
   uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address);
 
   /**
@@ -298,17 +301,19 @@ extern "C" {
 
   /**
    * @brief initializes the data points at initialization
-   * e.g. sends out a read s-mode message when the 'read on init' I flag is set.
+   * e.g. sends out a read s-mode message request when the 'read on init' I flag is set.
+   *
+   * @note only applicable if device can also receive (publisher table must be present)
    *
    */
-  void oc_init_datapoints_at_initialization();
+  void oc_init_datapoints_at_initialization(void);
 
-  /**
-   * @brief find index belonging to the id
-   *
-   * @param id the identifier of the entry
-   * @return int the index in the table or -1
-   */
+/**
+ * @brief find index belonging to the id
+ *
+ * @param id the identifier of the entry
+ * @return int the index in the table or -1
+ */
   int oc_core_find_index_in_group_object_table_from_id(int id);
 
   /**
@@ -326,8 +331,7 @@ extern "C" {
    * @param cur_index  the current index to start from.
    * @return int the index in the table or -1
    */
-  int oc_core_find_next_group_object_table_index(uint32_t group_address,
-                                                 int cur_index);
+  int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_index);
 
   /**
    * @brief find (first) index in the group address table via url
@@ -418,14 +422,14 @@ extern "C" {
    * @brief delete all entries of the Group Object Table (from persistent) storage
    *
    */
-  void oc_delete_group_object_table();
+  void oc_delete_group_object_table(void);
 
   /**
    * @brief delete all entries of the Recipient and Publisher Object Table (from
    * persistent) storage
    *
    */
-  void oc_delete_group_rp_table();
+  void oc_delete_group_tables(void);
 
   /**
    * @brief checks if the group address is part of the recipient table at index
@@ -457,23 +461,26 @@ extern "C" {
   /**
    * @brief return the size of the recipient table
    *
+   * @note
+   * - defined as extra method, to be used from extern 
+   *
    * @return int the size of the table
    */
-  int oc_core_get_recipient_table_size();
+  int oc_core_get_recipient_table_size(void);
 
-  /**
-   * @brief retrieve the recipient table entry
-   *
-   * Note that always the group object table is returned.
-   * regardless if the data is valid or not.
-   *
-   * To check if the data is valid, please check if
-   * ga_len > 0, if ga_len <= 0 then the group object table does
-   * not contain an entry.
-   *
-   * @param index the index in the recipient table
-   * @return oc_group_rp_table_t* pointer to the entry
-   */
+/**
+ * @brief retrieve the recipient table entry
+ *
+ * Note that always the group object table is returned.
+ * regardless if the data is valid or not.
+ *
+ * To check if the data is valid, please check if
+ * ga_len > 0, if ga_len <= 0 then the group object table does
+ * not contain an entry.
+ *
+ * @param index the index in the recipient table
+ * @return oc_group_table_t* pointer to the entry
+ */
   oc_group_table_t* oc_core_get_recipient_table_entry(int index);
 
   /**
@@ -504,7 +511,9 @@ extern "C" {
   /**
    * @brief return the size of the publisher table
    *
-   * @note size is set in dependency if GPT table is present or not (size =0)
+   * @note
+   * - returned size depends on if GPT table is present (>0) or not (=0)
+   * - defined as extra method, to be used from extern 
    *
    * @return int the size of the table
    */
@@ -521,7 +530,7 @@ extern "C" {
    * not contain an entry.
    *
    * @param index the index in the publisher table
-   * @return oc_group_rp_table_t* pointer to the entry
+   * @return oc_group_table_t* pointer to the entry
    */
   oc_group_table_t* oc_core_get_publisher_table_entry(int index);
 

@@ -31,10 +31,8 @@
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 #include <stdio.h>
-#define __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
-
-
 
 
 static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -42,7 +40,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -91,7 +89,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -140,7 +138,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -190,7 +188,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -235,7 +233,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -279,7 +277,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -326,7 +324,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 
   PRINT("oc_core_dev_hostname_get_handler - start");
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -373,7 +371,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -388,12 +386,10 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 1)
       {
-        PRINT("oc_core_dev_iid_put_handler received : %" PRIu64 "\n",
-              rep->value.integer);
+        PRINT("oc_core_dev_iid_put_handler received : %" PRId64 "", rep->value.integer);
         oc_core_set_device_iid(device_index, rep->value.integer);
         // make the value persistent
-        oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &rep->value.integer,
-                         sizeof(uint64_t));
+        oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &rep->value.integer, sizeof(uint64_t));
         oc_send_response_no_format(request, OC_STATUS_CHANGED);
 
         // do the run time installation
@@ -401,9 +397,8 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
         {
           oc_register_group_multicasts();
           oc_init_datapoints_at_initialization();
-          oc_device_info_t* device = oc_core_get_device_info(device_index);
-          knx_publish_service(oc_string(device->serialnumber), device->iid,
-                              device->ia, device->pm);
+          const oc_device_info_t* device = oc_core_get_device_info(device_index);
+          knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
         }
         return;
       }
@@ -419,7 +414,7 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -506,7 +501,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
     return;
   }
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -617,8 +612,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
       {
         PRINT("oc_core_dev_pm_put_handler received : %d", (int) rep->value.boolean);
 
-        // in case a callback exists the callback as such must set the programming mode
-        // if not present it is set directly
+        // application programming mode callback handler, if not present PM it is set directly
         if (my_cb && my_cb->cb)
           my_cb->cb(device_index, rep->value.boolean, my_cb->data);
         else
@@ -663,38 +657,34 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   (void) iface_mask;
   size_t response_length = 0;
   int i;
-  int matches = 0;
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 
-  bool ps_exists = false;
-  bool total_exists = false;
-  int total = (int) OC_DEV - (int) OC_DEV_SN;
-  int first_entry = (int) OC_DEV_SN; // inclusive
-  int last_entry = (int) OC_DEV;     // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int total = OC_DEV - OC_DEV_SN;         // total entries of this resource 
+  int first_entry = OC_DEV_SN;            // first entry number of a resource that will be placed on a page
+  int last_entry = OC_DEV;                // last entry number of a resource that will be placed on a page     
 
-  PRINT("oc_core_dev_dev_get_handler\n");
+  int query_pn = -1;                      // page number (page size as request parameter is not used)
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
+  bool ps_exists;                         // will be initialized in function in anx case
+  bool total_exists;                      // will be initialized in function in anx case
+
+  PRINT("oc_core_dev_dev_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  size_t device_index = request->resource->device;
+  const size_t device_index = request->resource->device;
 
   // handle query parameters: l=ps l=total
   int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /dev > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
@@ -708,6 +698,9 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   if (check_if_query_pn_exist(request, &query_pn, NULL))
   {
     first_entry += query_pn * PAGE_SIZE;
+
+    // check if the requested page would carry at least one resource
+    // e.g; max=20, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -723,15 +716,14 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 
   for (i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource =
-      oc_core_get_resource_by_index(i, device_index);
+    const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
     if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
-      matches++;
+      query_parameter_kvpair_matches++;
     }
   }
 
-  if (matches > 0)
+  if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)
     {
@@ -746,7 +738,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_dev_dev_get_handler - end\n");
+  PRINT("oc_core_dev_dev_get_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev, app, 0, "/dev", OC_IF_LI | OC_IF_D,
@@ -765,23 +757,14 @@ void oc_create_dev_dev_resource(int resource_idx, size_t device)
 }
 
 // -----------------------------------------------------------------------------
-/*
-  Each KNX IoT device, i.e.a Router or an end device,
-  SHALL have a unique KNX Individual Address in a network.The KNX Individual
-  Address is a 2 octet value that consist of an 8 bit Subnetwork
-  Address(see �dev / sa�) and
-  an 8 bit Device Address(see �dev / da�)
-  octet 0 == subnetwork
-  octet 1 == device address
-  Example: Subnetwork Address: 0, Device Address: 1 = 0x0001
-*/
 
+// 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
 static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -793,7 +776,7 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
   if (device != NULL)
   {
     oc_rep_begin_root_object();
-    uint8_t sa = (uint8_t) ((device->ia) >> 8);
+    const uint8_t sa = (uint8_t) (device->ia >> 8);
     oc_rep_i_set_int(root, 1, sa);
     oc_rep_end_root_object();
 
@@ -812,7 +795,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_sa, dev_da, 0, "/dev/sna", OC_IF_P,
 
 static void oc_create_dev_sa_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_dev_sa_resource\n");
+  OC_DBG("oc_create_dev_sa_resource");
   oc_core_populate_resource(resource_idx, device, "/dev/sna", OC_IF_P,
                             APPLICATION_CBOR, OC_DISCOVERABLE,
                             oc_core_dev_sa_get_handler, 0, 0, 0, 1,
@@ -828,7 +811,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -874,7 +857,7 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -882,7 +865,7 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
   }
 
   size_t device_index = request->resource->device;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  const oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device != NULL)
   {
     oc_rep_begin_root_object();
@@ -896,13 +879,12 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-static void oc_core_dev_fid_put_handler(oc_request_t* request,
-                                        oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -917,8 +899,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request,
     {
       if (rep->iname == 1)
       {
-        PRINT("oc_core_dev_fid_put_handler received : %" PRIu64 "\n",
-              rep->value.integer);
+        PRINT("oc_core_dev_fid_put_handler received : %" PRId64 "", rep->value.integer);
         oc_core_set_device_fid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_FID, (uint8_t*) &temp, sizeof(temp));
@@ -958,7 +939,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1005,7 +986,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1043,7 +1024,7 @@ void oc_create_dev_mport_resource(int resource_idx, size_t device)
 }
 
 // -----------------------------------------------------------------------------
-static int oc_core_dump_ap(int device_index)
+static int oc_core_dump_ap(size_t device_index)
 {
   // KNX_STORAGE_AP
   oc_device_info_t* device = oc_core_get_device_info(device_index);
@@ -1060,7 +1041,7 @@ static int oc_core_dump_ap(int device_index)
   return -1;
 }
 
-static int oc_core_read_ap(int device_index)
+static int oc_core_read_ap(size_t device_index)
 {
   // KNX_STORAGE_AP
   oc_device_info_t* device = oc_core_get_device_info(device_index);
@@ -1097,7 +1078,7 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1129,7 +1110,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1301,7 +1282,7 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  /* check if the accept header is CBOR-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1342,12 +1323,6 @@ static void oc_create_dev_mid_resource(int resource_idx, size_t device)
 // -----------------------------------------------------------------------------
 void oc_knx_device_storage_read(size_t device_index)
 {
-
-  uint32_t ia;
-  int temp_size;
-  char tempstring[255];
-  bool pm;
-
   PRINT("Loading Device Config from persistent storage");
 
   if (device_index >= oc_core_get_num_devices())
@@ -1362,35 +1337,29 @@ void oc_knx_device_storage_read(size_t device_index)
     OC_ERR("could not get device %d", (int) device_index);
   }
 
-  /* IA */
-  temp_size = oc_storage_read(KNX_STORAGE_IA, (uint8_t*) &ia, sizeof(ia));
-  if (temp_size > 0)
-  {
-    device->ia = ia;
-    PRINT("ia (storage) %d", ia);
-  }
+  // read IA from storage (on error = 0xFFFF)
+  uint32_t ia;
+  device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*) &ia, sizeof(ia)) > 0 ? ia : 0x0000FFFF;
+  PRINT("ia (storage) %u", ia);
 
-  /* HOST NAME */
-  temp_size =
-    oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*) &tempstring, 255);
+  // read host name from storage (on error = 0)
+  uint64_t iid;
+  device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*) &iid, sizeof(iid)) > 0 ? iid : 0x00000000;
+  PRINT("idd (storage) %llu", device->iid);
+
+  // read PRG mode from storage (on error = false)
+  bool pm;
+  device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*) &pm, sizeof(pm)) > 0 ? pm : false;
+  PRINT("pm (storage) %d", pm);
+
+  // read host name from storage (on error = '0')
+  char hostname[255] = { 0 };
+  int temp_size = oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*) &hostname, 255);
   if (temp_size > 1)
   {
-    tempstring[temp_size] = 0;
-    oc_core_set_device_hostname(device_index, tempstring);
+    // '0' terminated host name, used from oc_string 
+    oc_core_set_device_hostname(device_index, hostname);
     PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
-  }
-
-  /* KNX_STORAGE_IID */
-  temp_size =
-    oc_storage_read(KNX_STORAGE_IID, (uint8_t*) &device->iid, sizeof(int64_t));
-  PRINT("idd (storage) %" PRIu64 "", device->iid);
-
-  /* KNX_STORAGE_PM */
-  temp_size = oc_storage_read(KNX_STORAGE_PM, (uint8_t*) &pm, 1);
-  if (temp_size > 0)
-  {
-    device->pm = pm;
-    PRINT("pm (storage) %d\n", device->pm);
   }
 
   oc_core_read_ap(device_index);
@@ -1424,11 +1393,11 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
     // set the other data to KNX defaults
     device->pm = false;
-    device->ia = 0xFFFF;
-    device->iid = 0;
+    device->ia = 0x0000FFFF;
+    device->iid = 0;   // checked in 'runtime test'
     device->fid = 0;
-    device->port = u_port;   
-    device->mport = m_port; 
+    device->port = u_port;
+    device->mport = m_port;
 
     // set default host name to device '0' SN
     oc_free_string(&device->hostname);
@@ -1436,7 +1405,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
     // delete iot device tables 
     oc_delete_group_object_table();
-    oc_delete_group_rp_table();
+    oc_delete_group_tables();
     oc_delete_at_table(device_index);
 
   #ifdef OC_IOT_ROUTER
@@ -1452,7 +1421,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // writing the default values (default host name = serial number)
     oc_storage_write(KNX_STORAGE_PORT, (uint8_t*) &u_port, sizeof(device->port));
     oc_storage_write(KNX_STORAGE_MPORT, (uint8_t*) &m_port, sizeof(device->mport));
-    oc_storage_write(KNX_STORAGE_HOSTNAME,(uint8_t*) oc_string(device->serialnumber), oc_string_len(device->serialnumber));
+    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*) oc_string(device->serialnumber), oc_string_len(device->serialnumber));
 
     return;
   }
@@ -1463,7 +1432,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
     // set the ia to KNX defaults
     device->pm = false;
-    device->ia = 0xFFFF;
+    device->ia = 0x0000FFFF;
 
     return;
   }
@@ -1478,7 +1447,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
     // delete iot device tables 
     oc_delete_group_object_table();
-    oc_delete_group_rp_table();
+    oc_delete_group_tables();
     oc_reset_at_table(device_index, reset_mode);
 
   #ifdef OC_IOT_ROUTER

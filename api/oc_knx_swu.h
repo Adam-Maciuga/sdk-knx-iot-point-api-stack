@@ -23,134 +23,137 @@
 
 #include <stddef.h>
 
+#include "oc_core_res.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * @brief The software update states
- *
- */
-typedef enum {
-  OC_SWU_STATE_IDLE = 0,    /**< state is idle */
-  OC_SWU_STATE_DOWNLOADING, /**< state is downloading */
-  OC_SWU_STATE_DOWNLOADED   /**< state is downloaded */
-} oc_swu_state_t;
+  typedef enum oc_swu_method
+  {
+    PULL = 0,
+    PUSH = 1,
+    BOTH = 2      // PULL + PUSH 
+  } oc_swu_method_t;
 
-/**
- * @brief The software result states
- *
- */
-typedef enum {
-  OC_SWU_RESULT_INIT =
-    0, /**< 0 Initial value. Once the updating process is initiated (Download
-          /Update), this Resource MUST be reset to Initial value. */
-  OC_SWU_RESULT_SUCCESS,   /**< 1 Software updated successfully.*/
-  OC_SWU_RESULT_ERR_FLASH, /**< 2 Not enough flash memory for the new software
-                              package.*/
-  OC_SWU_RESULT_ERR_RAM,   /**< 3 Out of RAM during downloading process*/
-  OC_SWU_RESULT_ERR_CONN,  /**< 4 Connection lost during downloading process.*/
-  OC_SWU_RESULT_ERR_ICF,   /**< 5 Integrity check failure for new downloaded
-                              package.*/
-  OC_SWU_RESULT_ERR_UPT,   /**< 6 Unsupported package type.*/
-  OC_SWU_RESULT_ERR_URL,   /**< 7 Invalid URL.*/
-  OC_SWU_RESULT_ERR_SUF,   /**< 8 Software update failed.*/
-  OC_SWU_RESULT_ERR_UP,    /**< 9 Unsupported protocol. */
-} oc_swu_result_t;
+  typedef enum oc_swu_protocol
+  {
+    CoAP = 0,     // unicast CoAP + OSCORE (RFC 7252) and block-wise transfer 
+    CoAPS = 1,    // as defined in RFC 7252 with optional support for block-wise transfer
+    CoAP_TCP = 2, // as defined in RFC 7252 with optional support for block-wise transfer
+    CoAP_TLS = 3, // CoAP + OSCORE + TCP as defined in RFC 8323
+    Vendor = 254
+  } oc_swu_protocol_t;
 
-/**
- * @brief Creation of the KNX software update resources.
- *
- * @param device index of the device to which the resources are to be created
- */
-void oc_create_knx_swu_resources(size_t device);
+  /**
+  * @brief The software update states
+  *
+  */
+  typedef enum
+  {
+    OC_SWU_STATE_IDLE = 0,    /**< state is idle */
+    OC_SWU_STATE_DOWNLOADING, /**< state is downloading */
+    OC_SWU_STATE_DOWNLOADED   /**< state is downloaded */
+  } oc_swu_state_t;
 
-/**
- * @brief set the current firmware package name
- *
- * @param name the name of the firmware package
- */
-void oc_swu_set_package_name(char *name);
+  /**
+  * @brief The software result states
+  *
+  */
+  typedef enum
+  {
+    OC_SWU_RESULT_INIT = 0, /**< 0 Initial value. Once the updating process is initiated (Download/Update), this Resource MUST be reset to Initial value. */
+    OC_SWU_RESULT_SUCCESS,   /**< 1 Software updated successfully.*/
+    OC_SWU_RESULT_ERR_FLASH, /**< 2 Not enough flash memory for the new software package.*/
+    OC_SWU_RESULT_ERR_RAM,   /**< 3 Out of RAM during downloading process*/
+    OC_SWU_RESULT_ERR_CONN,  /**< 4 Connection lost during downloading process.*/
+    OC_SWU_RESULT_ERR_ICF,   /**< 5 Integrity check failure for new downloaded package.*/
+    OC_SWU_RESULT_ERR_UPT,   /**< 6 Unsupported package type.*/
+    OC_SWU_RESULT_ERR_URL,   /**< 7 Invalid URL.*/
+    OC_SWU_RESULT_ERR_SUF,   /**< 8 Software update failed.*/
+    OC_SWU_RESULT_ERR_UP,    /**< 9 Unsupported protocol. */
+  } oc_swu_result_t;
 
-/**
- * @brief set the current last update time
- *
- * @param time the update time in IETF RFC 3339
- */
-void oc_swu_set_last_update(char *time);
 
-/**
- * @brief set the current amount of the bytes written
- *
- * @param package_bytes the amount of bytes written
- */
-void oc_swu_set_package_bytes(int package_bytes);
+  /**
+  * @brief device swu information
+  */
+  typedef struct oc_device_swu
+  {
+    int max_defer;
+    int update_method;        // swu update method (0=pull, 1=push=default or 2=both)
+    oc_string_t pkg_name;
+    oc_string_t last_update;
+    int pkg_bytes;
+    oc_knx_version_info_t pkg_version;
+    oc_swu_state_t state;
+    oc_string_t query_url;
+    oc_swu_result_t result;   // download result
+    bool downloaded_once;     // marker for a never updated device
+    int protocol;             // only 0=unicast CoAP supported
 
-/**
- * @brief Sets the current package version
- *
- * @param major the major number e.g. 1 of [1, 2, 3]
- * @param minor the minor number e.g. 2 of [1, 2, 3]
- * @param minor2 the minor2 number e.g. 3 of [1, 2, 3]
- */
-void oc_swu_set_package_version(int major, int minor, int minor2);
+  } oc_device_swu_t;
 
-/**
- * @brief sets the current download state
- *
- * @param state the download state
- */
-void oc_swu_set_state(oc_swu_state_t state);
+  /**
+   * @brief Creation of the KNX software update resources.
+   *
+   * @param device index of the device to which the resources are to be created
+   */
+  void oc_create_knx_swu_resources(size_t device);
 
-/**
- * @brief sets the url to be queried for downloading
- *
- * @param qurl the url
- */
-void oc_swu_set_qurl(char *qurl);
+  /**
+   * @brief set the current firmware package name
+   *
+   * @param name the name of the firmware package
+   */
+  void oc_swu_set_package_name(const char* name);
 
-/**
- * @brief sets the result of the download procedure
- *
- * @param result the result, including possible errors
- */
-void oc_swu_set_result(oc_swu_result_t result);
+  /**
+   * @brief set the current last update time
+   *
+   * @param time the update time in IETF RFC 3339
+   */
+  void oc_swu_set_last_update(char* time);
 
-/**
- * Callback invoked by the stack to set the software
- *
- * @param[in] device the device index
- * @param[in] response the instance of an internal struct that is used to track
- *                     the state of the separate response
- * @param[in] binary_size the full size of the binary
- * @param[in] block_offset the offset (in the file)
- * @param[in] block_data the block data
- * @param[in] block_len the size of the block_data
- * @param[in] data the user supplied data
- *
- */
-typedef void (*oc_swu_cb_t)(size_t device, oc_separate_response_t *response,
-                            size_t binary_size, size_t block_offset,
-                            uint8_t *block_data, size_t block_len, void *data);
+  /**
+   * @brief set the current amount of the bytes written
+   *
+   * @param package_bytes the amount of bytes written
+   */
+  void oc_swu_set_package_bytes(int package_bytes);
 
-/**
- * Set the software update callback.
- *
- * The swu name callback is called by the stack when the software update is performed
- *
- * @note
- * - oc_set_swu_cb() must be called before oc_main_init()
- * - called on each external PUT request to the ep a/swu, but not on a GET request 
- *
- * @param[in] cb oc_swu_cb_t function pointer to be called
- * @param[in] data context pointer that is passed to the oc_restart_cb_t
- *                 the pointer must be a valid pointer till after oc_main_init()
- *                 call completes.
- */
-void oc_set_swu_cb(oc_swu_cb_t cb, void *data);
+  /**
+   * @brief Sets the current package version
+   *
+   * @param major the major number e.g. 1 of [1, 2, 3]
+   * @param minor the minor number e.g. 2 of [1, 2, 3]
+   * @param patch the patch number e.g. 3 of [1, 2, 3]
+   */
+  void oc_swu_set_package_version(int major, int minor, int patch);
+
+  /**
+   * @brief sets the current download state
+   *
+   * @param state the download state
+   */
+  void oc_swu_set_state(oc_swu_state_t state);
+
+  /**
+   * @brief sets the url to be queried for downloading
+   *
+   * @param url the url
+   */
+  void oc_swu_set_query_url(char* url);
+
+  /**
+   * @brief sets the result of the download procedure
+   *
+   * @param result the result, including possible errors
+   */
+  void oc_swu_set_result(oc_swu_result_t result);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_KNX_SWU_INTERNAL_H */
+#endif

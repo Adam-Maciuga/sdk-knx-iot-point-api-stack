@@ -21,97 +21,79 @@
 #include "oc_helpers.h"
 #include "oc_knx_helpers.h"
 #include <stdio.h>
-#define __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS                    // defined to use format specifiers also in C++
 #include <inttypes.h>
 
+#include "oc_knx_client.h"
 #include "oc_storage.h"
-
-#define TAGS_AS_STRINGS
 
 #define GOT_STORE "GOT_STORE"
 #define GPT_STORE "GPUBT_STORE"
 #define GRT_STORE "GRECT_STORE"
 
-#ifndef GOT_MAX_ENTRIES                         // don't (re)define if set already by compile definitions 
-#define GOT_MAX_ENTRIES 20
+#ifndef GOT_MAX_ENTRIES // don't (re)define if set by CMAKE compile definitions                         
+#define GOT_MAX_ENTRIES 20  
 #endif
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];
 
 #ifdef OC_PUBLISHER_TABLE
 
-#ifndef GPT_MAX_ENTRIES                         // don't (re)define if set already by compile definitions  
+#ifndef GPT_MAX_ENTRIES // don't (re)define if set by CMAKE compile definitions                        
 #define GPT_MAX_ENTRIES 20
 #endif
-static oc_group_table_t g_gpt[GPT_MAX_ENTRIES]; // publisher table (device can send)
 
-#else
-
-#define GPT_MAX_ENTRIES 0                       // no table, no (other) size defintion allowed 
+static oc_group_table_t g_gpt[GPT_MAX_ENTRIES]; // pub table (to receive)
 
 #endif 
 
-#ifndef GRT_MAX_ENTRIES                         // don't (re)define if set already by compile definitions  
-#define GRT_MAX_ENTRIES 20
+#ifndef GRT_MAX_ENTRIES // don't (re)define if set by CMAKE compile definitions                        
+#define GRT_MAX_ENTRIES 20 
 #endif
-static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // recipient table (device can receive)
 
-// -----------------------------------------------------------------------------
+static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // rec table (to send)
 
-static void oc_print_group_table_entry(int entry, char* Store,
-                                          oc_group_table_t* rp_table,
-                                          int max_size);
+// -externals -
 
-static void oc_print_reduced_group_rp_table_entry(int entry, char* Store,
-                                                  oc_group_table_t* rp_table,
-                                                  int max_size);
+static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
-static void oc_dump_group_rp_table_entry(int entry, char* Store,
-                                         oc_group_table_t* rp_table,
-                                         int max_size);
+static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
-static int oc_core_find_index_in_rp_table_from_id(int id,
-                                                  oc_group_table_t* rp_table,
-                                                  int max_size);
+static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
-int find_empty_slot_in_rp_table(int id, oc_group_table_t* rp_table,
-                                int max_size);
+static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
-static int oc_core_find_used_nr_in_rp_table(oc_group_table_t* rp_table,
-                                            int max_size);
+static int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max_size);
 
-static void oc_delete_group_rp_table_entry(int entry, char* Store,
-                                           oc_group_table_t* rp_table,
-                                           int max_size);
+int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size);
 
-// -----------------------------------------------------------------------------
+static int oc_core_add_entry(int index, oc_group_table_t* table, int table_size, oc_group_table_t entry);
 
-int
-oc_print_reduced_group_publisher_table(void)
+static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, uint32_t group_address);
+
+// ------------
+
+int oc_print_reduced_group_publisher_table(void)
 {
 #ifdef OC_PUBLISHER_TABLE
-  for (int i = 0; i < oc_core_get_publisher_table_size(); i++)
+  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_print_reduced_group_rp_table_entry(i, GPT_STORE, g_gpt,oc_core_get_publisher_table_size());
+    oc_print_reduced_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
   }
 #endif
   return 0;
 }
 
-int
-oc_print_reduced_group_recipient_table(void)
+int oc_print_reduced_group_recipient_table(void)
 {
-  for (int i = 0; i < oc_core_get_recipient_table_size(); i++)
+  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_print_reduced_group_rp_table_entry(i, GRT_STORE, g_grt,
-                                          oc_core_get_recipient_table_size());
+    oc_print_reduced_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
   }
   return 0;
 }
 
-int
-oc_table_find_id_from_rep(oc_rep_t* object)
+int oc_table_find_id_from_rep(const oc_rep_t* object)
 {
-  int id = -1;
   while (object != NULL)
   {
     switch (object->type)
@@ -120,59 +102,50 @@ oc_table_find_id_from_rep(oc_rep_t* object)
       {
         if (oc_string_len(object->name) == 0 && object->iname == 0)
         {
-          id = (int) object->value.integer;
+          const int id = (int) object->value.integer;
           PRINT("oc_table_find_id_from_rep id=%d ", id);
           return id;
         }
       } break;
       case OC_REP_NIL:
-        break;
       default:
         break;
-    } /* switch */
+    }
     object = object->next;
-  } /* while */
-  PRINT("oc_table_find_id_from_rep ERR: id=%d ", id);
-  return id;
+  }
+  PRINT("oc_table_find_id_from_rep id=-1 (error)");
+  return -1;
 }
 
-// -----------------------------------------------------------------------------
-
-int
-find_empty_slot_in_group_object_table(int id)
+int find_empty_slot_in_group_object_table(const int id)
 {
-  int index = -1;
   if (id < 0)
   {
-    /* should be a positive number */
-    return index;
+    // should be a positive number
+    return -1;
   }
 
-  /* empty slot */
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id == -1)
-    {
+    { // empty slot
       return i;
     }
   }
   return -1;
 }
 
-int
-oc_core_set_group_object_table(int index, oc_group_object_table_t entry)
+int oc_core_set_group_object_table(int index, oc_group_object_table_t entry)
 {
-  if (index >= oc_core_get_group_object_table_total_size())
+  if (index >= GOT_MAX_ENTRIES)
   {
-    OC_ERR("index too large index:%d %d", index,
-           oc_core_get_group_object_table_total_size());
+    OC_ERR("index too large index:%d %d", index, GOT_MAX_ENTRIES);
   }
   g_got[index].cflags = entry.cflags;
   g_got[index].id = entry.id;
 
   oc_free_string(&g_got[index].href);
-  oc_new_string(&g_got[index].href, oc_string(entry.href),
-                oc_string_len(entry.href));
+  oc_new_string(&g_got[index].href, oc_string(entry.href), oc_string_len(entry.href));
   /* copy the ga array */
   g_got[index].ga_len = 0;
   uint32_t* new_array = (uint32_t*) malloc(entry.ga_len * sizeof(uint32_t));
@@ -194,14 +167,12 @@ oc_core_set_group_object_table(int index, oc_group_object_table_t entry)
   return 0;
 }
 
-int
-oc_core_get_group_object_table_total_size()
+int oc_core_get_group_object_table_total_size(void)
 {
   return GOT_MAX_ENTRIES;
 }
 
-oc_group_object_table_t*
-oc_core_get_group_object_table_entry(int index)
+oc_group_object_table_t* oc_core_get_group_object_table_entry(int index)
 {
   if (index < 0)
   {
@@ -214,8 +185,7 @@ oc_core_get_group_object_table_entry(int index)
   return &g_got[index];
 }
 
-int
-oc_core_find_index_in_group_object_table_from_id(int id)
+int oc_core_find_index_in_group_object_table_from_id(int id)
 {
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -227,16 +197,13 @@ oc_core_find_index_in_group_object_table_from_id(int id)
   return -1;
 }
 
-int
-oc_core_find_group_object_table_index(uint32_t group_address)
+int oc_core_find_group_object_table_index(uint32_t group_address)
 {
-  int i, j;
-  for (i = 0; i < GOT_MAX_ENTRIES; i++)
+  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-
     if (g_got[i].id > -1)
     {
-      for (j = 0; j < g_got[i].ga_len; j++)
+      for (int j = 0; j < g_got[i].ga_len; j++)
       {
         if (group_address == g_got[i].ga[j])
         {
@@ -248,22 +215,18 @@ oc_core_find_group_object_table_index(uint32_t group_address)
   return -1;
 }
 
-int
-oc_core_find_next_group_object_table_index(uint32_t group_address,
-                                           int cur_index)
+int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_index)
 {
   if (cur_index == -1)
   {
     return -1;
   }
 
-  int i, j;
-  for (i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
+  for (int i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
   {
-
     if (g_got[i].id > -1)
     {
-      for (j = 0; j < g_got[i].ga_len; j++)
+      for (int j = 0; j < g_got[i].ga_len; j++)
       {
         if (group_address == g_got[i].ga[j])
         {
@@ -275,17 +238,18 @@ oc_core_find_next_group_object_table_index(uint32_t group_address,
   return -1;
 }
 
-oc_string_t
-oc_core_find_group_object_table_url_from_index(int index)
+oc_string_t oc_core_find_group_object_table_url_from_index(int index)
 {
-  // if (index < GOT_MAX_ENTRIES) {
-  return g_got[index].href;
-  //}
-  // return oc_string_t();
+  const oc_string_t error = { 0 };
+
+  if (index < GOT_MAX_ENTRIES)
+  {
+    return g_got[index].href;
+  }
+  return error;
 }
 
-oc_cflag_mask_t
-oc_core_group_object_table_cflag_entries(int index)
+oc_cflag_mask_t oc_core_group_object_table_cflag_entries(int index)
 {
   if (index < GOT_MAX_ENTRIES)
   {
@@ -294,8 +258,7 @@ oc_core_group_object_table_cflag_entries(int index)
   return 0;
 }
 
-int
-oc_core_find_group_object_table_number_group_entries(int index)
+int oc_core_find_group_object_table_number_group_entries(int index)
 {
   if (index < GOT_MAX_ENTRIES)
   {
@@ -304,8 +267,7 @@ oc_core_find_group_object_table_number_group_entries(int index)
   return 0;
 }
 
-int
-oc_core_find_group_object_table_group_entry(int index, int entry)
+int oc_core_find_group_object_table_group_entry(int index, int entry)
 {
   if (index < GOT_MAX_ENTRIES)
   {
@@ -317,8 +279,7 @@ oc_core_find_group_object_table_group_entry(int index, int entry)
   return 0;
 }
 
-int
-oc_core_find_group_object_table_url(const char* url)
+int oc_core_find_group_object_table_url(const char* url)
 {
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -347,8 +308,8 @@ int oc_core_find_next_group_object_table_url(const char* url, const int cur_inde
   return -1;
 }
 
-int
-oc_core_find_nr_used_in_group_object_table()
+// TODO use static variable
+static int oc_core_items_used_in_group_object_table(void)
 {
   int counter = 0;
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -361,22 +322,8 @@ oc_core_find_nr_used_in_group_object_table()
   return counter;
 }
 
-#ifdef OC_PUBLISHER_TABLE
-int oc_core_find_nr_used_in_group_publisher_table(void)
-{
-  int counter = 0;
-  for (int i = 0; i < oc_core_get_publisher_table_size(); i++)
-  {
-    if (g_gpt[i].id > -1)
-    {
-      counter++;
-    }
-  }
-  return counter;
-}
-#endif /* OC_PUBLISHER_TABLE */
-
-int oc_core_find_nr_used_in_group_recipient_table(void)
+// TODO use static variable
+static int oc_core_items_used_in_group_recipient_table(void)
 {
   int counter = 0;
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
@@ -389,8 +336,7 @@ int oc_core_find_nr_used_in_group_recipient_table(void)
   return counter;
 }
 
-bool
-oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index)
+bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index)
 {
   for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
@@ -411,45 +357,37 @@ oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_i
   return false;
 }
 
-static void
-oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                         void* data)
+static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
-  int i;
-  int length = 0;
-  int matches = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
-  int total = oc_core_find_nr_used_in_group_object_table();
-  int first_entry = 0;              // inclusive
-  int last_entry = GOT_MAX_ENTRIES; // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int length;
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;             // response payload len
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
+  bool ps_exists;                         // will be initialized in function in anx case
+  bool total_exists;                      // will be initialized in function in anx case
+  const int total = oc_core_items_used_in_group_object_table();  // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                    // first entry number of a resource that will be placed on a page
+  int query_pn = -1;                      // page number (page size as request parameter is not used)
 
-  PRINT("oc_core_fp_g_get_handler");
+
+  PRINT("oc_core_fp_g_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
   // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /fp/g > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
@@ -463,7 +401,10 @@ oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   if (check_if_query_pn_exist(request, &query_pn, NULL))
   {
     first_entry += query_pn * PAGE_SIZE;
-    if (first_entry >= last_entry)
+
+    // check if the requested page would carry at least one resource
+    // e.g; max=20, page=5 -> no data on page 5 
+    if (first_entry >= GOT_MAX_ENTRIES)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
@@ -475,34 +416,39 @@ oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
     more_request_needed = true;
   }
 
-  /* example entry: </fp/g/1>;ct=60   (cbor)*/
-  for (i = first_entry; i < last_entry; i++)
+  // example entry: </fp/g/1>;ct=60
+  for (int i = first_entry; i < GOT_MAX_ENTRIES; i++)
   {
-
     if (g_got[i].id > -1)
     {
-      // index  in use
+      // index in use
       PRINT(". adding %d", i);
       if (response_length > 0)
       {
+        // add a ',' if at least one entry is already in
         length = oc_rep_add_line_to_buffer(",");
         response_length += length;
       }
 
+      // url
       length = oc_rep_add_line_to_buffer("</fp/g/");
       response_length += length;
+
+      // id (max 10 chars)
       char string[10];
-      sprintf((char*) &string, "%d>", g_got[i].id);
+      (void) sprintf(string, "%d>", g_got[i].id);
       length = oc_rep_add_line_to_buffer(string);
       response_length += length;
 
+      // ct , only CBOR
       length = oc_rep_add_line_to_buffer(";ct=60");
       response_length += length;
 
-      matches++;
+      query_parameter_kvpair_matches++;
 
-      if (matches >= PAGE_SIZE)
+      if (query_parameter_kvpair_matches >= PAGE_SIZE)
       {
+        // don't add more than page supports
         break;
       }
     }
@@ -510,17 +456,16 @@ oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
 
   if (more_request_needed)
   {
-    int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-    response_length +=
-      add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+    // no page # was in the request next page is 1 or #+1
+    const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
+    response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
   PRINT("oc_core_fp_g_get_handler - end");
 }
 
-static bool
-oc_fp_g_check_and_save(int index, size_t device_index, bool status_ok)
+static bool oc_fp_g_check_and_save(int index, size_t device_index, bool status_ok)
 {
   bool do_save = true;
   if (status_ok == false)
@@ -548,8 +493,7 @@ oc_fp_g_check_and_save(int index, size_t device_index, bool status_ok)
       false)
   {
     do_save = false;
-    OC_ERR("index %d href '%s' does not belong to device", index,
-           oc_string_checked(g_got[index].href));
+    OC_ERR("index %d href '%s' does not belong to device", index, oc_string_checked(g_got[index].href));
   }
 
   oc_print_group_object_table_entry(index);
@@ -567,25 +511,23 @@ oc_fp_g_check_and_save(int index, size_t device_index, bool status_ok)
   return status_ok;
 }
 
-static void
-oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                          void* data)
+static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
   bool status_ok = true;
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  PRINT("oc_core_fp_g_post_handler");
+  PRINT("oc_core_fp_g_post_handler - start");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  size_t device_index = request->resource->device;
+  const size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
@@ -597,8 +539,7 @@ oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   oc_print_rep_as_json(request->request_payload, true);
 
   int index = -1;
-  int id;
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
   while (rep != NULL)
   {
@@ -606,13 +547,14 @@ oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
     {
       case OC_REP_OBJECT:
       {
-
         // find id and the storage index for this object
-        oc_rep_t* object = rep->value.object;
-        id = oc_table_find_id_from_rep(object);
+        const oc_rep_t* object = rep->value.object;
+
+        const int id = oc_table_find_id_from_rep(object);
         if (id == -1)
         {
           OC_ERR("ERROR id %d", index);
+          // index not found
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -636,8 +578,7 @@ oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         }
 
         bool id_only = true;
-        int mandatory_items =
-          0; // Needs to be 4 for creating new entry, i.e. id, ga, cflag & href
+        int mandatory_items = 0; // Needs to be 4 for creating new entry, i.e. id, ga, cflag & href
         object = rep->value.object;
         while (object != NULL)
         {
@@ -679,7 +620,7 @@ oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
                 // cflags (8)
                 mandatory_items++;
                 g_got[index].cflags = OC_CFLAG_NONE;
-                int64_t* arr = oc_int_array(object->value.array);
+                const int64_t* arr = oc_int_array(object->value.array);
                 for (int i = 0; i < (int) oc_int_array_size(object->value.array);
                      i++)
                 {
@@ -709,10 +650,9 @@ oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
               {
                 // ga (7)
                 mandatory_items++;
-                int64_t* arr = oc_int_array(object->value.array);
-                int array_size = (int) oc_int_array_size(object->value.array);
-                uint32_t* new_array =
-                  (uint32_t*) malloc(array_size * sizeof(uint32_t));
+                const int64_t* arr = oc_int_array(object->value.array);
+                const int array_size = (int) oc_int_array_size(object->value.array);
+                uint32_t* new_array = (uint32_t*) malloc(array_size * sizeof(uint32_t));
                 if (new_array)
                 {
                   for (int i = 0; i < array_size; i++)
@@ -741,8 +681,7 @@ oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         } // next object in array
         if (id_only)
         {
-          PRINT("only found id in request, deleting entry at index: %d",
-                index);
+          PRINT("only found id in request, deleting entry at index: %d", index);
           oc_delete_group_object_table_entry(index);
         }
         else if (return_status == OC_STATUS_CREATED && mandatory_items != 4)
@@ -780,8 +719,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
                                      0, oc_core_fp_g_post_handler, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:if.c");
 
-void
-oc_create_fp_g_resource(int resource_idx, size_t device)
+void oc_create_fp_g_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fp_g_resource");
   oc_core_populate_resource(resource_idx, device, "/fp/g", OC_IF_C | OC_IF_B,
@@ -790,9 +728,8 @@ oc_create_fp_g_resource(int resource_idx, size_t device)
                             oc_core_fp_g_post_handler, 0, 1, "urn:knx:if.c");
 }
 
-static void
-oc_core_fp_g_x_get_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_g_x_get_handler(oc_request_t* request,
+                                       oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -839,9 +776,7 @@ oc_core_fp_g_x_get_handler(oc_request_t* request,
   PRINT("oc_core_fp_g_x_get_handler - end");
 }
 
-static void
-oc_core_fp_g_x_del_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -896,8 +831,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g_x, knx_fp_r, 0, "/fp/g/*",
                                      oc_core_fp_g_x_del_handler, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:if.c");
 #endif
-void
-oc_create_fp_g_x_resource(int resource_idx, size_t device)
+void oc_create_fp_g_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fp_g_x_resource");
   oc_core_populate_resource(resource_idx, device, "/fp/g/*", OC_IF_D | OC_IF_C,
@@ -906,15 +840,48 @@ oc_create_fp_g_x_resource(int resource_idx, size_t device)
                             oc_core_fp_g_x_del_handler, 1, "urn:knx:if.c");
 }
 
-// ---------------------PUBLISHER------------------------------------------
+// -PUBLISHER-
 
 #ifdef OC_PUBLISHER_TABLE
 
-int
-oc_core_find_publisher_table_index(uint32_t group_address)
+int oc_core_find_empty_slot_in_publisher_table(int id)
+{
+  return find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES);
+}
+
+int oc_core_find_index_in_publisher_table_from_id(int id)
+{
+  return oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+}
+
+int oc_core_add_publisher_entry(int index, oc_group_table_t entry)
+{
+  return oc_core_add_entry(index, g_gpt, GPT_MAX_ENTRIES, entry);
+}
+
+uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address)
+{
+  return oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, group_address);
+}
+
+// TODO use static variable
+static int oc_core_items_used_in_group_publisher_table(void)
+{
+  int counter = 0;
+  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  {
+    if (g_gpt[i].id > -1)
+    {
+      counter++;
+    }
+  }
+  return counter;
+}
+
+int oc_core_find_publisher_table_index(uint32_t group_address)
 {
   int i, j;
-  for (i = 0; i < oc_core_get_publisher_table_size(); i++)
+  for (i = 0; i < GPT_MAX_ENTRIES; i++)
   {
 
     if (g_gpt[i].id > -1)
@@ -931,28 +898,25 @@ oc_core_find_publisher_table_index(uint32_t group_address)
   return -1;
 }
 
-oc_string_t
-oc_core_find_publisher_table_url_from_index(int index)
+oc_string_t oc_core_find_publisher_table_url_from_index(int index)
 {
   return g_gpt[index].url;
 }
 
-static void
-oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                         void* data)
+static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
+                                     void* data)
 {
   (void) data;
   (void) iface_mask;
   size_t response_length = 0;
-  int i;
   int length = 0;
   int matches = 0;
 
   bool ps_exists = false;
   bool total_exists = false;
-  int total = oc_core_find_nr_used_in_group_publisher_table();
+  int total = oc_core_items_used_in_group_publisher_table();
   int first_entry = 0;              // inclusive
-  int last_entry = oc_core_get_publisher_table_size(); // exclusive
+  int last_entry = GPT_MAX_ENTRIES; // exclusive
   // int query_ps = -1;
   int query_pn = -1;
   bool more_request_needed =
@@ -1002,13 +966,11 @@ oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   }
 
   /* example entry: </fp/p/1>;ct=60 */
-  for (i = first_entry; i < last_entry; i++)
-  {
-
+  for (int i = first_entry; i < last_entry; i++)
+  {     
     if (g_gpt[i].id > -1)
     {
       // index  in use
-
       if (response_length > 0)
       {
         length = oc_rep_add_line_to_buffer(",");
@@ -1045,9 +1007,8 @@ oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   PRINT("oc_core_fp_p_get_handler - end");
 }
 
-static void
-oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                          void* data)
+static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
+                                      void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1055,7 +1016,7 @@ oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
 
   PRINT("oc_core_fp_p_post_handler - start");
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
@@ -1086,8 +1047,7 @@ oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         /* find the storage index, e.g. for this object */
         oc_rep_t* object = rep->value.object;
         id = oc_table_find_id_from_rep(object);
-        index = oc_core_find_index_in_rp_table_from_id(
-          id, g_gpt, oc_core_get_publisher_table_size());
+        index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
         if (index != -1)
         {
           // index already in use, so it will be changed
@@ -1097,8 +1057,7 @@ oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         {
           // no index, so we will create one
           return_status = OC_STATUS_CREATED;
-          index = find_empty_slot_in_rp_table(id, g_gpt,
-                                              oc_core_get_publisher_table_size());
+          index = find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES);
           if (index == -1)
           {
             PRINT("ERROR index %d", index);
@@ -1215,22 +1174,19 @@ oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         {
           PRINT("only found id in request, deleting entry at index: %d",
                 index);
-          oc_delete_group_rp_table_entry(index, GPT_STORE, g_gpt,
-                                         oc_core_get_publisher_table_size());
+          oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
         }
         else if (return_status == OC_STATUS_CREATED &&
                  (mandatory_items != 2 || !identifier_exists))
         {
           PRINT("Mandatory items missing!");
-          oc_delete_group_rp_table_entry(index, GPT_STORE, g_gpt,
-                                         oc_core_get_publisher_table_size());
+          oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
         else
         {
-          oc_print_group_table_entry(index, GPT_STORE, g_gpt,
-                                        oc_core_get_publisher_table_size());
+          oc_print_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
           bool do_save = true;
           if (oc_string_len(g_gpt[index].url) > OC_MAX_URL_LENGTH)
           {
@@ -1243,12 +1199,10 @@ oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
             OC_ERR("path is longer than %d ", (int) OC_MAX_URL_LENGTH);
           }
 
-          oc_print_group_table_entry(index, GPT_STORE, g_gpt,
-                                        oc_core_get_publisher_table_size());
+          oc_print_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
           if (do_save)
           {
-            oc_dump_group_rp_table_entry(index, GPT_STORE, g_gpt,
-                                         oc_core_get_publisher_table_size());
+            oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
           }
         }
       } break;
@@ -1300,8 +1254,8 @@ oc_core_fp_p_x_get_handler(oc_request_t* request,
   int id = oc_uri_get_wildcard_value_as_int(
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
-  int index = oc_core_find_index_in_rp_table_from_id(
-    id, g_gpt, oc_core_get_publisher_table_size());
+  int index = oc_core_find_index_in_table_from_id(
+    id, g_gpt, GPT_MAX_ENTRIES);
   PRINT("id:%d index = %d", id, index);
 
   if (index == -1)
@@ -1391,8 +1345,8 @@ oc_core_fp_p_x_del_handler(oc_request_t* request,
   int id = oc_uri_get_wildcard_value_as_int(
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
-  int index = oc_core_find_index_in_rp_table_from_id(
-    id, g_gpt, oc_core_get_publisher_table_size());
+  int index = oc_core_find_index_in_table_from_id(
+    id, g_gpt, GPT_MAX_ENTRIES);
 
   if (index == -1)
   {
@@ -1401,11 +1355,10 @@ oc_core_fp_p_x_del_handler(oc_request_t* request,
   }
 
   // delete the entry
-  oc_delete_group_rp_table_entry(index, GPT_STORE, g_gpt, oc_core_get_publisher_table_size());
+  oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
 
   // make the change persistent
-  oc_dump_group_rp_table_entry(index, GPT_STORE, g_gpt,
-                               oc_core_get_publisher_table_size());
+  oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
   oc_knx_increase_fingerprint();
   PRINT("oc_core_fp_p_x_del_handler - end");
 
@@ -1429,49 +1382,41 @@ oc_create_fp_p_x_resource(int resource_idx, size_t device)
                             oc_core_fp_p_x_del_handler, 0, 1, "urn:knx:if.c");
 }
 
-#endif /* OC_PUBLISHER_TABLE */
+#endif 
 
-// --------------------------RECIPIENT-----------------------------------------
+// -RECIPIENT-
 
-static void
-oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                         void* data)
+static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
-  int i;
-  int length = 0;
-  int matches = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
-  int total = oc_core_find_nr_used_in_group_recipient_table();
-  int first_entry = 0;              // inclusive
-  int last_entry = GRT_MAX_ENTRIES; // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int length;
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;             // response payload len
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
+  bool ps_exists;                         // will be initialized in function in anx case
+  bool total_exists;                      // will be initialized in function in anx case
+  const int total = oc_core_items_used_in_group_recipient_table();  // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                    // first entry number of a resource that will be placed on a page
+  int query_pn = -1;                      // page number (page size as request parameter is not used)
+
 
   PRINT("oc_core_fp_r_get_handler - start");
 
   /* check if the accept header is link-format */
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
   // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /fp/r > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
@@ -1485,26 +1430,29 @@ oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   if (check_if_query_pn_exist(request, &query_pn, NULL))
   {
     first_entry += query_pn * PAGE_SIZE;
-    if (first_entry >= last_entry)
+
+    // check if the requested page would carry at least one resource
+    // e.g; max=20, page=5 -> no data on page 5 
+    if (first_entry >= GRT_MAX_ENTRIES)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
   }
 
+  // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
+  // e.g; first=0, total=300 -> 'more response needed' marker = true
   if (total > first_entry + PAGE_SIZE)
   {
     more_request_needed = true;
   }
 
   /* example entry: </fp/r/1>;ct=60 (cbor) */
-  for (i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < GRT_MAX_ENTRIES; i++)
   {
-
     if (g_grt[i].id > -1)
     {
       // index  in use
-
       if (response_length > 0)
       {
         length = oc_rep_add_line_to_buffer(",");
@@ -1521,9 +1469,9 @@ oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
       length = oc_rep_add_line_to_buffer(";ct=60");
       response_length += length;
 
-      matches++;
+      query_parameter_kvpair_matches++;
 
-      if (matches >= PAGE_SIZE)
+      if (query_parameter_kvpair_matches >= PAGE_SIZE)
       {
         break;
       }
@@ -1532,28 +1480,25 @@ oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
 
   if (more_request_needed)
   {
-    int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-    response_length +=
-      add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+    // no page # was in the request next page is 1 or #+1
+    const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
+    response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
   PRINT("oc_core_fp_r_get_handler - end");
 }
 
-static void
-oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                          void* data)
+static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  /* check if the accept header is cbor-format */
+  // check if the accept header is cbor-format 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1568,7 +1513,6 @@ oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   oc_print_rep_as_json(request->request_payload, true);
 
   int index = -1;
-  int id = -1;
   oc_rep_t* rep = request->request_payload;
 
   while (rep != NULL)
@@ -1579,15 +1523,15 @@ oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
       {
         // find the storage index, e.g. for this object
         oc_rep_t* object = rep->value.object;
-        id = oc_table_find_id_from_rep(object);
+        int id = oc_table_find_id_from_rep(object);
         if (id == -1)
         {
           OC_ERR("ERROR id %d", index);
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
-        index = oc_core_find_index_in_rp_table_from_id(
-          id, g_grt, oc_core_get_recipient_table_size());
+        index = oc_core_find_index_in_table_from_id(
+          id, g_grt, GRT_MAX_ENTRIES);
         if (index != -1)
         {
           // index already in use, so it will be changed
@@ -1597,8 +1541,8 @@ oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         {
           // no index, so we will create one
           return_status = OC_STATUS_CREATED;
-          index = find_empty_slot_in_rp_table(id, g_grt,
-                                              oc_core_get_recipient_table_size());
+          index = find_empty_slot_in_table(id, g_grt,
+                                           GRT_MAX_ENTRIES);
           if (index == -1)
           {
             OC_ERR("ERROR index %d", index);
@@ -1734,15 +1678,15 @@ oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
         {
           PRINT("only found id in request, deleting entry at index: %d",
                 index);
-          oc_delete_group_rp_table_entry(index, GRT_STORE, g_grt,
-                                         GRT_MAX_ENTRIES);
+          oc_delete_group_table_entry(index, GRT_STORE, g_grt,
+                                      GRT_MAX_ENTRIES);
         }
         else if (return_status == OC_STATUS_CREATED &&
                  (mandatory_items != 2 || !identifier_exists))
         {
           PRINT("Mandatory items missing!");
-          oc_delete_group_rp_table_entry(index, GRT_STORE, g_grt,
-                                         GRT_MAX_ENTRIES);
+          oc_delete_group_table_entry(index, GRT_STORE, g_grt,
+                                      GRT_MAX_ENTRIES);
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -1764,8 +1708,8 @@ oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
           if (do_save)
           {
             PRINT("storing at %d", index);
-            oc_dump_group_rp_table_entry(index, GRT_STORE, g_grt,
-                                         GRT_MAX_ENTRIES);
+            oc_dump_group_table_entry(index, GRT_STORE, g_grt,
+                                      GRT_MAX_ENTRIES);
           }
         }
       }
@@ -1788,8 +1732,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r, knx_fp_r_x, 0, "/fp/r",
                                      OC_DISCOVERABLE, oc_core_fp_r_get_handler,
                                      0, oc_core_fp_r_post_handler, 0, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:if.c");
-void
-oc_create_fp_r_resource(int resource_idx, size_t device)
+void oc_create_fp_r_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fp_r_resource");
   oc_core_populate_resource(resource_idx, device, "/fp/r", OC_IF_C | OC_IF_B,
@@ -1798,9 +1741,7 @@ oc_create_fp_r_resource(int resource_idx, size_t device)
                             oc_core_fp_r_post_handler, 0, 1, "urn:knx:if.c");
 }
 
-static void
-oc_core_fp_r_x_get_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1818,7 +1759,7 @@ oc_core_fp_r_x_get_handler(oc_request_t* request,
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
   int index =
-    oc_core_find_index_in_rp_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+    oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 
   PRINT("id:%d index = %d", id, index);
 
@@ -1876,9 +1817,7 @@ oc_core_fp_r_x_get_handler(oc_request_t* request,
   return;
 }
 
-static void
-oc_core_fp_r_x_del_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1896,7 +1835,7 @@ oc_core_fp_r_x_del_handler(oc_request_t* request,
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
   int index =
-    oc_core_find_index_in_rp_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+    oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 
   if (index == -1)
   {
@@ -1906,10 +1845,10 @@ oc_core_fp_r_x_del_handler(oc_request_t* request,
   PRINT("oc_core_fp_r_x_del_handler: deleting id %d at index %d", id, index);
 
   // delete the entry
-  oc_delete_group_rp_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+  oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
 
   // make the change persistent
-  oc_dump_group_rp_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+  oc_dump_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
   oc_knx_increase_fingerprint();
 
   PRINT("oc_core_fp_r_x_del_handler - end");
@@ -1923,8 +1862,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",
                                      oc_core_fp_r_x_get_handler, 0, 0,
                                      oc_core_fp_r_x_del_handler, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:if.c");
-void
-oc_create_fp_r_x_resource(int resource_idx, size_t device)
+void oc_create_fp_r_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_fp_r_x_resource");
   oc_core_populate_resource(resource_idx, device, "/fp/r/*", OC_IF_D | OC_IF_C,
@@ -1933,9 +1871,7 @@ oc_create_fp_r_x_resource(int resource_idx, size_t device)
                             oc_core_fp_r_x_del_handler, 1, "urn:knx:if.c");
 }
 
-bool
-oc_core_check_recipient_index_on_group_address(int index,
-                                               uint32_t group_address)
+bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_address)
 {
   if (index >= GRT_MAX_ENTRIES)
   {
@@ -1955,8 +1891,7 @@ oc_core_check_recipient_index_on_group_address(int index,
   return false;
 }
 
-uint32_t
-oc_core_get_recipient_ia(int index)
+uint32_t oc_core_get_recipient_ia(int index)
 {
   if (index >= GRT_MAX_ENTRIES)
   {
@@ -1966,8 +1901,7 @@ oc_core_get_recipient_ia(int index)
   return g_grt[index].ia;
 }
 
-char*
-oc_core_get_recipient_index_url_or_path(int index)
+char* oc_core_get_recipient_index_url_or_path(int index)
 {
   if (index >= GRT_MAX_ENTRIES)
   {
@@ -2007,12 +1941,9 @@ oc_core_get_recipient_index_url_or_path(int index)
   return NULL;
 }
 
-//#endif /* OC_RECIPIENT_TABLE */
+// -utilities -
 
-// -----------------------------------------------------------------------------
-
-void
-oc_cflags_as_string(char* buffer, oc_cflag_mask_t cflags)
+void oc_cflags_as_string(char* buffer, oc_cflag_mask_t cflags)
 {
 
   if (cflags & OC_CFLAG_READ)
@@ -2057,8 +1988,7 @@ oc_cflags_as_string(char* buffer, oc_cflag_mask_t cflags)
   }
 }
 
-void
-oc_print_cflags(oc_cflag_mask_t cflags)
+void oc_print_cflags(const oc_cflag_mask_t cflags)
 {
 
   if (cflags & OC_CFLAG_READ)
@@ -2084,8 +2014,7 @@ oc_print_cflags(oc_cflag_mask_t cflags)
 
 }
 
-void
-oc_print_group_object_table_entry(int entry)
+void oc_print_group_object_table_entry(int entry)
 {
   if (g_got[entry].id == -1)
   {
@@ -2104,8 +2033,7 @@ oc_print_group_object_table_entry(int entry)
   PRINTF("]");
 }
 
-void
-oc_dump_group_object_table_entry(int entry)
+void oc_dump_group_object_table_entry(int entry)
 {
   char filename[20];
   snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
@@ -2147,14 +2075,12 @@ oc_dump_group_object_table_entry(int entry)
 }
 
 #define GOT_ENTRY_MAX_SIZE (1024)
-void
-oc_load_group_object_table_entry(int entry)
+void oc_load_group_object_table_entry(int entry)
 {
-  long ret = 0;
   char filename[20];
   snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
 
-  oc_rep_t* rep, * head;
+  oc_rep_t* rep;
 
   uint8_t* buf = malloc(GOT_ENTRY_MAX_SIZE);
   if (!buf)
@@ -2162,14 +2088,14 @@ oc_load_group_object_table_entry(int entry)
     return;
   }
 
-  ret = oc_storage_read(filename, buf, GOT_ENTRY_MAX_SIZE);
-  PRINTF(" ... bytes: %ld",ret < 0 ? 0 : ret);
+  long ret = oc_storage_read(filename, buf, GOT_ENTRY_MAX_SIZE);
+  PRINTF(" ... bytes: %ld", ret < 0 ? 0 : ret);
   if (ret > 0)
   {
     struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
     oc_rep_set_pool(&rep_objects);
     int err = oc_parse_rep(buf, ret, &rep);
-    head = rep;
+    oc_rep_t* head = rep;
     if (err == 0)
     {
       while (rep != NULL)
@@ -2231,8 +2157,7 @@ oc_load_group_object_table_entry(int entry)
   free(buf);
 }
 
-void
-oc_load_group_object_table(void)
+void oc_load_group_object_table(void)
 {
   PRINT("Loading Group Object Table from persistent storage");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -2242,8 +2167,7 @@ oc_load_group_object_table(void)
   }
 }
 
-void
-oc_free_group_object_table_entry(int entry, bool init)
+void oc_free_group_object_table_entry(int entry, bool init)
 {
   g_got[entry].id = -1;
   if (init == false)
@@ -2257,8 +2181,7 @@ oc_free_group_object_table_entry(int entry, bool init)
   g_got[entry].cflags = 0;
 }
 
-void
-oc_delete_group_object_table_entry(int entry)
+void oc_delete_group_object_table_entry(int entry)
 {
   char filename[20];
   snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
@@ -2267,8 +2190,7 @@ oc_delete_group_object_table_entry(int entry)
   oc_free_group_object_table_entry(entry, false);
 }
 
-void
-oc_delete_group_object_table()
+void oc_delete_group_object_table(void)
 {
   PRINT("Deleting Group Object Table from Persistent storage");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -2278,8 +2200,7 @@ oc_delete_group_object_table()
   }
 }
 
-void
-oc_free_group_object_table()
+void oc_free_group_object_table(void)
 {
   PRINT("Free Group Object Table");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -2288,15 +2209,11 @@ oc_free_group_object_table()
   }
 }
 
-// -----------------------------------------------------------------------------
-
-int
-oc_core_find_index_in_rp_table_from_id(int id, oc_group_table_t* rp_table,
-                                       int max_size)
+int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max_size)
 {
   for (int i = 0; i < max_size; i++)
   {
-    if (rp_table[i].id == id)
+    if (table[i].id == id)
     {
       return i;
     }
@@ -2304,82 +2221,75 @@ oc_core_find_index_in_rp_table_from_id(int id, oc_group_table_t* rp_table,
   return -1;
 }
 
-static void
-oc_print_group_table_entry(int entry, char* Store,
-                              oc_group_table_t* rp_table, int max_size)
+static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   (void) max_size;
-  if (rp_table[entry].id == -1)
+  if (table[entry].id == -1)
   {
     return;
   }
-  PRINT("%s [%d] --> [%d]", Store, entry, rp_table[entry].ga_len);
-  PRINT("id (0)     : %d", rp_table[entry].id);
-  PRINT("ia (12)    : %d", rp_table[entry].ia);
-  PRINT("iid (26)   : %" PRIu64 "", rp_table[entry].iid);
-  PRINT("fid (25)   : %" PRIu64 "", rp_table[entry].fid);
-  PRINT("grpid (13) : %u", rp_table[entry].grpid);
-  if (oc_string_len(rp_table[entry].path) > 0)
+  PRINT("%s [%d] --> [%d]", store, entry, table[entry].ga_len);
+  PRINT("id (0)     : %d", table[entry].id);
+  PRINT("ia (12)    : %d", table[entry].ia);
+  PRINT("iid (26)   : %" PRIu64 "", table[entry].iid);
+  PRINT("fid (25)   : %" PRIu64 "", table[entry].fid);
+  PRINT("grpid (13) : %u", table[entry].grpid);
+  if (oc_string_len(table[entry].path) > 0)
   {
-    PRINT("path (112) : '%s'", oc_string_checked(rp_table[entry].path));
+    PRINT("path (112) : '%s'", oc_string_checked(table[entry].path));
   }
-  if (oc_string_len(rp_table[entry].url) > 0)
+  if (oc_string_len(table[entry].url) > 0)
   {
-    PRINT("url (10)   : '%s'", oc_string_checked(rp_table[entry].url));
+    PRINT("url (10)   : '%s'", oc_string_checked(table[entry].url));
   }
-  if (oc_string_len(rp_table[entry].at) > 0)
+  if (oc_string_len(table[entry].at) > 0)
   {
-    PRINT("at (14) : %s", oc_string_checked(rp_table[entry].at));
+    PRINT("at (14) : %s", oc_string_checked(table[entry].at));
   }
   PRINT("ga (7)     : [");
-  for (int i = 0; i < rp_table[entry].ga_len; i++)
+  for (int i = 0; i < table[entry].ga_len; i++)
   {
-    PRINTF("%u", rp_table[entry].ga[i]);
+    PRINTF("%u", table[entry].ga[i]);
   }
   PRINTF("]");
 }
 
-static void
-oc_print_reduced_group_rp_table_entry(int entry, char* Store,
-                                      oc_group_table_t* rp_table,
-                                      int max_size)
+static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   (void) max_size;
-  if (rp_table[entry].id == -1)
+  if (table[entry].id == -1)
   {
     return;
   }
-  printf("  %s [%d] --> [%d]", Store, entry, rp_table[entry].ga_len);
-  printf("    id (0)     : %d", rp_table[entry].id);
+  printf("  %s [%d] --> [%d]", store, entry, table[entry].ga_len);
+  printf("    id (0)     : %d", table[entry].id);
 
   printf("    iid (26)   : ");
-  oc_print_uint64_t(rp_table[entry].iid, DEC_REPRESENTATION);
+  oc_print_uint64_t(table[entry].iid, DEC_REPRESENTATION);
   printf("");
 
-  printf("    grpid (13) : %u", rp_table[entry].grpid);
+  printf("    grpid (13) : %u", table[entry].grpid);
 
   printf("    ga (7)     : [");
-  for (int i = 0; i < rp_table[entry].ga_len; i++)
+  for (int i = 0; i < table[entry].ga_len; i++)
   {
-    printf(" %u", rp_table[entry].ga[i]);
+    printf(" %u", table[entry].ga[i]);
   }
   printf(" ]");
 }
 
 #define RP_ENTRY_MAX_SIZE (1024)
-static void
-oc_dump_group_rp_table_entry(int entry, char* Store,
-                             oc_group_table_t* rp_table, int max_size)
+static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   (void) max_size;
   char filename[20];
-  snprintf(filename, 20, "%s_%d", Store, entry);
-  // PRINT("oc_dump_group_rp_table_entry %s, fname=%s", Store, filename);
+  (void) snprintf(filename, 20, "%s_%d", store, entry);
+  PRINT("oc_dump_group_table_entry %s, file name=%s", store, filename);
 
   uint8_t* buf = malloc(RP_ENTRY_MAX_SIZE);
   if (!buf)
   {
-    PRINT("oc_dump_group_rp_table_entry: no allocated mem");
+    PRINT("oc_dump_group_table_entry: no allocated mem");
     return;
   }
 
@@ -2387,23 +2297,23 @@ oc_dump_group_rp_table_entry(int entry, char* Store,
   // write the data
   oc_rep_begin_root_object();
   // id 0
-  oc_rep_i_set_int(root, 0, rp_table[entry].id);
+  oc_rep_i_set_int(root, 0, table[entry].id);
   // ia- 12
-  oc_rep_i_set_int(root, 12, rp_table[entry].ia);
+  oc_rep_i_set_int(root, 12, table[entry].ia);
   // iid 26
-  oc_rep_i_set_int(root, 26, rp_table[entry].iid);
+  oc_rep_i_set_int(root, 26, table[entry].iid);
   // fid - 25
-  oc_rep_i_set_int(root, 25, rp_table[entry].fid);
+  oc_rep_i_set_int(root, 25, table[entry].fid);
   // grpid - 13
-  oc_rep_i_set_int(root, 13, rp_table[entry].grpid);
+  oc_rep_i_set_int(root, 13, table[entry].grpid);
   // at - 14
-  oc_rep_i_set_text_string(root, 14, oc_string(rp_table[entry].at));
+  oc_rep_i_set_text_string(root, 14, oc_string(table[entry].at));
   // path- 112
-  oc_rep_i_set_text_string(root, 112, oc_string(rp_table[entry].path));
+  oc_rep_i_set_text_string(root, 112, oc_string(table[entry].path));
   // url - 10
-  oc_rep_i_set_text_string(root, 10, oc_string(rp_table[entry].url));
+  oc_rep_i_set_text_string(root, 10, oc_string(table[entry].url));
   // ga - 7
-  oc_rep_i_set_int_array(root, 7, rp_table[entry].ga, rp_table[entry].ga_len);
+  oc_rep_i_set_int_array(root, 7, table[entry].ga, table[entry].ga_len);
 
   // cflags 8 /// this is different than the response on the wire
   // oc_rep_i_set_int(root, 8, rp_table[entry].cflags);
@@ -2413,13 +2323,13 @@ oc_dump_group_rp_table_entry(int entry, char* Store,
   int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_dump_group_rp_table_entry: dumped current state [%s] [%s] [%d]: "
+    OC_DBG("oc_dump_group_table_entry: dumped current state [%s] [%s] [%d]: "
            "size %d",
-           filename, Store, entry, size);
+           filename, store, entry, size);
     long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long) size)
     {
-      PRINT("oc_dump_group_rp_table_entry: written %d != %d (towrite)",
+      PRINT("oc_dump_group_table_entry: written %d != %d (towrite)",
             (int) written_size, size);
     }
   }
@@ -2430,11 +2340,10 @@ oc_dump_group_rp_table_entry(int entry, char* Store,
 void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_table, int max_size)
 {
   (void) max_size;
-  long ret = 0;
   char filename[20];
-  snprintf(filename, 20, "%s_%d", Store, entry);
+  (void) snprintf(filename, 20, "%s_%d", Store, entry);
 
-  oc_rep_t* rep, * head;
+  oc_rep_t* rep;
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
@@ -2442,14 +2351,14 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
     return;
   }
 
-  ret = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
-  PRINTF(" ... bytes: %ld",ret < 0 ? 0 : ret);
+  long ret = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+  PRINTF(" ... bytes: %ld", ret < 0 ? 0 : ret);
   if (ret > 0)
   {
     struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
     oc_rep_set_pool(&rep_objects);
     int err = oc_parse_rep(buf, ret, &rep);
-    head = rep;
+    oc_rep_t* head = rep;
     if (err == 0)
     {
       while (rep != NULL)
@@ -2538,7 +2447,7 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
   free(buf);
 }
 
-void oc_load_rp_object_table(void)
+void oc_load_object_table(void)
 {
 
   PRINT("Loading Group Recipient Table from persistent storage");
@@ -2550,140 +2459,114 @@ void oc_load_rp_object_table(void)
 
 #ifdef OC_PUBLISHER_TABLE
   PRINT("Loading Group Publisher Table from persistent storage");
-  for (int i = 0; i < oc_core_get_publisher_table_size(); i++)
+  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, GPT_STORE, g_gpt,oc_core_get_publisher_table_size());
-    oc_print_group_table_entry(i, GPT_STORE, g_gpt,oc_core_get_publisher_table_size());
+    oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
   }
 #endif
 }
 
-static void oc_free_group_rp_table_entry(int entry, char* Store,
-                             oc_group_table_t* rp_table, int max_size,
-                             bool init)
+static void oc_free_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size, bool init)
 {
   (void) max_size;
-  (void) Store;
-  rp_table[entry].id = -1;
-  rp_table[entry].ia = -1;
-  rp_table[entry].iid = -1;
-  rp_table[entry].fid = -1;
-  rp_table[entry].grpid = 0;
+  (void) store;
+
+  table[entry].id = -1;
+  table[entry].ia = -1;
+  table[entry].iid = -1;
+  table[entry].fid = -1;
+  table[entry].grpid = 0;
+
   if (init == false)
   {
-    oc_free_string(&rp_table[entry].path);
-    oc_free_string(&rp_table[entry].url);
-    oc_free_string(&rp_table[entry].at);
-    free(rp_table[entry].ga);
+    oc_free_string(&table[entry].path);
+    oc_free_string(&table[entry].url);
+    oc_free_string(&table[entry].at);
+    free(table[entry].ga);
   }
-  rp_table[entry].ga = NULL;
-  rp_table[entry].ga_len = 0;
+  table[entry].ga = NULL;
+  table[entry].ga_len = 0;
 }
 
-static void
-oc_delete_group_rp_table_entry(int entry, char* Store,
-                               oc_group_table_t* rp_table, int max_size)
+static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   char filename[20];
-  snprintf(filename, 20, "%s_%d", Store, entry);
+  snprintf(filename, 20, "%s_%d", store, entry);
   oc_storage_erase(filename);
 
-  oc_free_group_rp_table_entry(entry, Store, rp_table, max_size, false);
+  oc_free_group_table_entry(entry, store, table, max_size, false);
 }
 
-void
-oc_delete_group_rp_table()
+void oc_delete_group_tables(void)
 {
   PRINT("Deleting Group Recipient Table from Persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_delete_group_rp_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+    oc_delete_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
     oc_print_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
   }
 
 #ifdef OC_PUBLISHER_TABLE
   PRINT("Deleting Group Publisher Table from Persistent storage");
-  for (int i = 0; i < oc_core_get_publisher_table_size(); i++)
+  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_delete_group_rp_table_entry(i, GPT_STORE, g_gpt, oc_core_get_publisher_table_size());
-    oc_print_group_table_entry(i, GPT_STORE, g_gpt, oc_core_get_publisher_table_size());
+    oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
   }
 #endif
 }
 
-void
-oc_free_group_rp_table()
+void oc_free_group_table(void)
 {
-  PRINT("Free Group Recipient Table from Persistent storage");
+  PRINT("Deleting Recipient Table from Persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_free_group_rp_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES, false);
+    oc_free_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES, false);
   }
 
 #ifdef OC_PUBLISHER_TABLE
-  PRINT("Deleting Group Publisher Table from Persistent storage");
-  for (int i = 0; i < oc_core_get_publisher_table_size(); i++)
+  PRINT("Deleting Publisher Table from Persistent storage");
+  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_free_group_rp_table_entry(i, GPT_STORE, g_gpt,oc_core_get_publisher_table_size(), false);
+    oc_free_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES, false);
   }
 #endif
 }
 
-int
-find_empty_slot_in_rp_table(int id, oc_group_table_t* rp_table, int max_size)
+int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size)
 {
-  int index = -1;
   if (id < 0)
   {
     // should be a positive number
-    return index;
+    return -1;
   }
 
-  // empty slot
   for (int i = 0; i < max_size; i++)
   {
-    if (rp_table[i].id == -1)
-    {
+    if (table[i].id == -1)
+    { // empty slot
       return i;
     }
   }
   return -1;
 }
 
-static int
-oc_core_find_used_nr_in_rp_table(oc_group_table_t* rp_table, int max_size)
+int oc_core_add_entry(int index, oc_group_table_t* table, int table_size, oc_group_table_t entry)
 {
-  int counter = 0;
-  PRINT("Deleting Group Recipient Table from Persistent storage");
-
-  for (int i = 0; i < max_size; i++)
+  if (index >= table_size)
   {
-    if (rp_table[i].id > -1)
-    {
-      counter++;
-    }
-  }
-  return counter;
-}
-
-int
-oc_core_add_rp_entry(int index, oc_group_table_t* rp_table,
-                     int rp_table_size, oc_group_table_t entry)
-{
-  if (index >= rp_table_size)
-  {
-    OC_ERR("recipient table index is too large: index(%d) max_size(%d)", index,
-           rp_table_size);
+    OC_ERR("recipient table index is too large: index(%d) max_size(%d)", index, table_size);
   }
 
   // Store entries
-  rp_table[index].id = entry.id;
-  rp_table[index].iid = entry.iid;
-  rp_table[index].fid = entry.fid;
-  rp_table[index].grpid = entry.grpid;
+  table[index].id = entry.id;
+  table[index].iid = entry.iid;
+  table[index].fid = entry.fid;
+  table[index].grpid = entry.grpid;
 
   // Copy group addresses
-  rp_table[index].ga_len = 0;
+  table[index].ga_len = 0;
   uint32_t* new_array = (uint32_t*) malloc(entry.ga_len * sizeof(uint32_t));
   if (new_array != NULL && entry.id > -1)
   {
@@ -2693,131 +2576,81 @@ oc_core_add_rp_entry(int index, oc_group_table_t* rp_table,
       new_array[i] = entry.ga[i];
     }
     // copy only when the allocation was done correctly
-    rp_table[index].ga_len = entry.ga_len;
-    if (rp_table[index].ga != 0)
+    table[index].ga_len = entry.ga_len;
+    if (table[index].ga != 0)
     {
-      free(rp_table[index].ga);
+      free(table[index].ga);
     }
-    rp_table[index].ga = new_array;
+    table[index].ga = new_array;
   }
 
   return 0;
 }
 
-int
-oc_core_add_recipient_entry(int index, oc_group_table_t entry)
+int oc_core_add_recipient_entry(int index, oc_group_table_t entry)
 {
-  return oc_core_add_rp_entry(index, g_grt, oc_core_get_recipient_table_size(),
-                              entry);
+  return oc_core_add_entry(index, g_grt, GRT_MAX_ENTRIES, entry);
 }
 
-int
-oc_core_get_recipient_table_size()
+int oc_core_get_recipient_table_size(void)
 {
   return GRT_MAX_ENTRIES;
 }
 
-oc_group_table_t*
-oc_core_get_recipient_table_entry(int index)
+oc_group_table_t* oc_core_get_recipient_table_entry(int index)
 {
-  if (index < 0)
-  {
-    return NULL;
-  }
-  if (index >= GRT_MAX_ENTRIES)
-  {
-    return NULL;
-  }
-  return &g_grt[index];
+  return index < 0 ? NULL : index >= GRT_MAX_ENTRIES ? NULL : &g_grt[index];
 }
 
 int oc_core_get_publisher_table_size(void)
 {
+#ifdef OC_PUBLISHER_TABLE
   return GPT_MAX_ENTRIES;
+#else
+  return 0;
+#endif
 }
 
 oc_group_table_t* oc_core_get_publisher_table_entry(int index)
 {
 
 #ifdef OC_PUBLISHER_TABLE
-  if (index < 0)
-  {
-    return NULL;
-  }
-  if (index >= oc_core_get_publisher_table_size())
-  {
-    return NULL;
-  }
-  return &g_gpt[index];
+  return index < 0 ? NULL : index >= GPT_MAX_ENTRIES ? NULL : &g_gpt[index];
 #else
   return NULL;
 #endif
 }
 
-int
-oc_core_add_publisher_entry(int index, oc_group_table_t entry)
+int oc_core_find_empty_slot_in_recipient_table(int id)
 {
-  return oc_core_add_rp_entry(index, g_gpt, oc_core_get_publisher_table_size(),
-                              entry);
+  return find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES);
 }
 
-int
-oc_core_find_empty_slot_in_publisher_table(int id)
+int oc_core_find_index_in_recipient_table_from_id(int id)
 {
-  return find_empty_slot_in_rp_table(id, g_gpt,
-                                     oc_core_get_publisher_table_size());
+  return oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 }
-
-int
-oc_core_find_index_in_publisher_table_from_id(int id)
-{
-  return oc_core_find_index_in_rp_table_from_id(
-    id, g_gpt, oc_core_get_publisher_table_size());
-}
-
-int
-oc_core_find_empty_slot_in_recipient_table(int id)
-{
-  return find_empty_slot_in_rp_table(id, g_grt,
-                                     oc_core_get_recipient_table_size());
-}
-
-int
-oc_core_find_index_in_recipient_table_from_id(int id)
-{
-  return oc_core_find_index_in_rp_table_from_id(
-    id, g_grt, oc_core_get_recipient_table_size());
-}
-
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
 
 void oc_init_tables(void)
 {
 #ifdef OC_PUBLISHER_TABLE
-  for (int i = 0; i < oc_core_get_publisher_table_size(); i++)
+  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    // oc_delete_group_rp_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-    oc_free_group_rp_table_entry(i, GPT_STORE, g_gpt,oc_core_get_publisher_table_size(), true);
+    oc_free_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES, true);
   }
 #endif
 
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    // oc_delete_group_rp_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-    oc_free_group_rp_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES, true);
+    oc_free_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES, true);
   }
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     oc_free_group_object_table_entry(i, true);
-    // oc_delete_group_object_table_entry(i);
   }
 }
 
-// -----------------------------------------------------------------------------
-
-void
-oc_create_knx_fp_resources(size_t device_index)
+void oc_create_knx_fp_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_fp_resources");
 
@@ -2833,29 +2666,23 @@ oc_create_knx_fp_resources(size_t device_index)
   #ifdef OC_PUBLISHER_TABLE
     oc_create_fp_p_resource(OC_KNX_FP_P, device_index);
     oc_create_fp_p_x_resource(OC_KNX_FP_P_X, device_index);
-  #endif /* OC_PUBLISHER_TABLE */
+  #endif
 
     oc_create_fp_r_resource(OC_KNX_FP_R, device_index);
     oc_create_fp_r_x_resource(OC_KNX_FP_R_X, device_index);
   }
   oc_init_tables();
   oc_load_group_object_table();
-  oc_load_rp_object_table();
-
-  // oc_register_group_multicasts();
+  oc_load_object_table();
 }
 
-void
-oc_free_knx_fp_resources(size_t device_index)
+void oc_free_knx_fp_resources(size_t device_index)
 {
-  oc_free_group_rp_table();
+  oc_free_group_table();
   oc_free_group_object_table();
 }
 
-// -----------------------------------------------------------------------------
-
-bool
-is_in_array(uint32_t value, uint32_t* array, int array_size)
+bool is_in_array(uint32_t value, uint32_t* array, int array_size)
 {
   if (array_size <= 0)
   {
@@ -2875,14 +2702,10 @@ is_in_array(uint32_t value, uint32_t* array, int array_size)
   return false;
 }
 
-bool
-oc_add_points_in_group_object_table_to_response(oc_request_t* request,
-                                                size_t device_index,
-                                                uint32_t group_address,
-                                                size_t* response_length)
+bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address, size_t* response_length)
 {
-  
-  
+
+
   bool return_value = false;
 
   PRINT("oc_add_points_in_group_object_table_to_response %d", group_address);
@@ -2896,7 +2719,7 @@ oc_add_points_in_group_object_table_to_response(oc_request_t* request,
         // add the resource to response, note, it is not checked if the resource is already there...
         PRINT("oc_add_points_in_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
 
-        oc_add_resource_to_wk(oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href),oc_string_len(g_got[index].href), device_index), request, device_index, response_length, true);
+        oc_add_resource_to_wk(oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index), request, device_index, response_length, true);
         return_value = true;
       }
     }
@@ -2904,9 +2727,7 @@ oc_add_points_in_group_object_table_to_response(oc_request_t* request,
   return return_value;
 }
 
-oc_endpoint_t
-oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr,
-                                            int64_t iid, int scope, int port)
+oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, int64_t iid, int scope, int port)
 {
   // create the multicast address from group and scope
   // FF3_:FD__:____:____:(8-f)___:____
@@ -2958,21 +2779,16 @@ oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr,
   return in;
 }
 
-oc_endpoint_t
-oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr,
-                                  int64_t iid, int scope)
+oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr, int64_t iid, int scope)
 {
   return oc_create_multicast_group_address_with_port(in, group_nr, iid, scope,
                                                      5683);
 }
 
-void
-subscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid,
-                                       int scope, int port)
+void subscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid, int scope, int port)
 {
-  // create the multi cast address from group and scope and port
-  oc_endpoint_t group_mcast;
-  memset(&group_mcast, 0, sizeof(group_mcast));
+  // create the multicast address from group and scope and port
+  oc_endpoint_t group_mcast = { 0 };
 
   group_mcast = oc_create_multicast_group_address_with_port(
     group_mcast, group_nr, iid, scope, port);
@@ -2981,8 +2797,7 @@ subscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid,
   oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
 }
 
-void
-subscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
+void subscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
 {
   // FF35::30: <ULA-routing-prefix>::<group id>
   //
@@ -2997,9 +2812,7 @@ subscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
   oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
 }
 
-void
-unsubscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid,
-                                         int scope, int port)
+void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid, int scope, int port)
 {
   // create the multi cast address from group and scope
   oc_endpoint_t group_mcast;
@@ -3012,8 +2825,7 @@ unsubscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid,
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);
 }
 
-void
-unsubscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
+void unsubscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
 {
   // FF35::30: <ULA-routing-prefix>::<group id>
   //
@@ -3028,41 +2840,32 @@ unsubscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);
 }
 
-uint32_t
-oc_find_grpid_in_table(oc_group_table_t* rp_table, int max_size,
-                       uint32_t group_address)
+uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, uint32_t group_address)
 {
-  int index;
-  for (index = 0; index < max_size; index++)
+  for (int index = 0; index < max_size; index++)
   {
-    uint32_t* array = rp_table[index].ga;
-    int array_size = rp_table[index].ga_len;
+    uint32_t* array = table[index].ga;
+    int array_size = table[index].ga_len;
     bool found = is_in_array(group_address, array, array_size);
     if (found)
     {
-      return rp_table[index].grpid;
+      return table[index].grpid;
     }
   }
   // not found
   return 0;
 }
 
-uint32_t
-oc_find_grpid_in_publisher_table(uint32_t group_address)
-{
-  return oc_find_grpid_in_table(g_gpt, oc_core_get_publisher_table_size(),
-                                group_address);
-}
-
-uint32_t
-oc_find_grpid_in_recipient_table(uint32_t group_address)
+uint32_t oc_find_grpid_in_recipient_table(uint32_t group_address)
 {
   return oc_find_grpid_in_table(g_grt, GRT_MAX_ENTRIES, group_address);
 }
 
-void
-oc_register_group_multicasts()
+void oc_register_group_multicasts(void)
 {
+#ifdef OC_PUBLISHER_TABLE
+
+  // register only if publisher is active
   // installation id will be used as ULA prefix
   oc_device_info_t* device = oc_core_get_device_info(0);
   if (!device)
@@ -3070,90 +2873,75 @@ oc_register_group_multicasts()
     PRINT("oc_register_group_multicasts: no device info");
     return;
   }
-  int64_t installation_id = device->iid;
-  uint32_t port = device->mport;
+  const uint64_t installation_id = device->iid;
+  const uint32_t mport = device->mport;
 
-  PRINT("oc_register_group_multicasts: mport %d", port);
+  PRINT("oc_register_group_multicasts: mport %u", mport);
 
-  bool registered_pub = false;
-  bool pub_entry = false;
+  bool pub_table_grpid_entry_present = false;
 
-  int index;
-  for (index = 0; index < oc_core_get_publisher_table_size(); index++)
+  for (int index = 0; index < GPT_MAX_ENTRIES; index++)
   {
     uint32_t grpid = g_gpt[index].grpid;
     if (grpid > 0)
     {
-      pub_entry = true;
+      pub_table_grpid_entry_present = true;
       break;
     }
   }
-  if (pub_entry == true)
+  if (pub_table_grpid_entry_present)
   {
-    for (index = 0; index < oc_core_get_publisher_table_size(); index++)
+    // register via grpid
+    for (int index = 0; index < GPT_MAX_ENTRIES; index++)
     {
-      int nr_entries = g_got[index].ga_len;
+      const int nr_entries = g_got[index].ga_len;
 
       oc_cflag_mask_t cflags = g_got[index].cflags;
-      // check if the group address is used for receiving.
-      // e.g. WRITE or UPDATE
-      if ((cflags & OC_CFLAG_WRITE) > 0 || (cflags & OC_CFLAG_UPDATE) > 0 ||
-          (cflags & OC_CFLAG_READ) > 0)
+      // check if the GA is used for receiving, e.g. one of r/w/u
+      if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
       {
-
         for (int i = 0; i < nr_entries; i++)
         {
-          uint32_t grpid = oc_find_grpid_in_table(
-            g_gpt, oc_core_get_publisher_table_size(), g_got[index].ga[i]);
+          // check if a 'receiving' GA as part of a GO is in the publisher table (device can receive)
+          uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
 
-          PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u "
-                "group_address: %d cflags=",
-                index, i, grpid, g_got[index].ga[i]);
+          PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %d cflags=", index, i, grpid, g_got[index].ga[i]);
           oc_print_cflags(cflags);
 
           if (grpid > 0)
-          {
-            subscribe_group_to_multicast_with_port(grpid, installation_id, 2,
-                                                   port);
-            subscribe_group_to_multicast_with_port(grpid, installation_id, 5,
-                                                   port);
+          { // found
+            subscribe_group_to_multicast_with_port(grpid, installation_id, 2, mport);
+            subscribe_group_to_multicast_with_port(grpid, installation_id, 5, mport);
           }
         }
       }
     }
   }
-  if (pub_entry == false)
+  else
   {
-    // register via group object table
-    int index;
-    for (index = 0; index < GOT_MAX_ENTRIES; index++)
+    // register via group object
+    for (int index = 0; index < GOT_MAX_ENTRIES; index++)
     {
-      int nr_entries = g_got[index].ga_len;
+      const int nr_entries = g_got[index].ga_len;
 
       oc_cflag_mask_t cflags = g_got[index].cflags;
-      // check if the group address is used for receiving.
-      // e.g. WRITE or UPDATE
-      if ((cflags & OC_CFLAG_WRITE) > 0 || (cflags & OC_CFLAG_UPDATE) > 0 ||
-          (cflags & OC_CFLAG_READ) > 0)
+      // check if the GA is used for receiving, e.g. one of r/w/u
+      if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
       {
-
+        // register all GA's of this GO 
         for (int i = 0; i < nr_entries; i++)
         {
-          PRINT(
-            " oc_register_group_multicasts index=%d i=%d group: %u  cflags=",
-            index, i, g_got[index].ga[i]);
+          PRINT(" oc_register_group_multicasts index=%d i=%d group: %u  cflags=", index, i, g_got[index].ga[i]);
           oc_print_cflags(cflags);
-          subscribe_group_to_multicast_with_port(g_got[index].ga[i],
-                                                 installation_id, 2, port);
-          subscribe_group_to_multicast_with_port(g_got[index].ga[i],
-                                                 installation_id, 5, port);
+          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 2, mport);
+          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 5, mport);
         }
       }
     }
   }
+#endif
 }
 
-// scans for "read on init" cflags and issues a read request in case of
 void oc_init_datapoints_at_initialization(void)
 {
   PRINT("oc_init_datapoints_at_initialization");
