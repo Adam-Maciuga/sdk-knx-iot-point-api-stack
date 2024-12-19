@@ -363,14 +363,12 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void) iface_mask;
 
   int length;
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
-  size_t response_length = 0;             // response payload len
-  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
-  bool ps_exists;                         // will be initialized in function in anx case
-  bool total_exists;                      // will be initialized in function in anx case
-  const int total = oc_core_items_used_in_group_object_table();  // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;                    // first entry number of a resource that will be placed on a page
-  int query_pn = -1;                      // page number (page size as request parameter is not used)
+  int query_parameter_kvpair_matches = 0;                       // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;                                   // response payload len
+  bool more_request_needed = false;                             // if more requests (pages) are needed to get the full list
+  const int total = oc_core_items_used_in_group_object_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                                          // first entry number of a resource that will be placed on a page
+  int query_pn = -1;                                            // page number (page size as request parameter is not used)
 
 
   PRINT("oc_core_fp_g_get_handler - start");
@@ -382,23 +380,8 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+  if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
-  }
-  if (l_exist == -1)  
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))
@@ -912,8 +895,6 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   int length = 0;
   int matches = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
   int total = oc_core_items_used_in_group_publisher_table();
   int first_entry = 0;              // inclusive
   int last_entry = GPT_MAX_ENTRIES; // exclusive
@@ -931,24 +912,8 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    // example : < /fp/p > l = total>;total=22;ps=5
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+  if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))
@@ -1389,14 +1354,12 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void) iface_mask;
 
   int length;
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
-  size_t response_length = 0;             // response payload len
-  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
-  bool ps_exists;                         // will be initialized in function in anx case
-  bool total_exists;                      // will be initialized in function in anx case
-  const int total = oc_core_items_used_in_group_recipient_table();  // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;                    // first entry number of a resource that will be placed on a page
-  int query_pn = -1;                      // page number (page size as request parameter is not used)
+  int query_parameter_kvpair_matches = 0;                          // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;                                      // response payload len
+  bool more_request_needed = false;                                // if more requests (pages) are needed to get the full list
+  const int total = oc_core_items_used_in_group_recipient_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                                             // first entry number of a resource that will be placed on a page
+  int query_pn = -1;                                               // page number (page size as request parameter is not used)
 
 
   PRINT("oc_core_fp_r_get_handler - start");
@@ -1408,23 +1371,8 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+  if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))

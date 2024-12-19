@@ -31,22 +31,20 @@ extern "C" {
 #endif
 
   /**
-   * @brief helper function to check if query parameter 'l' exists with valid query parameters
+   * @brief helper function to process entire query parameter 'l' handling 
    *
    * @example: /fp/r?l=total&l=ps
    * @param request the request
-   * @param ps_exists (bool) return value if l=ps exists
-   * @param total_exists (bool) return value if l=total exists
+   * @param ps the current page size 
+   * @param total the current total amount of resource items 
    *
    * @note 'l' and 'other' query parameters SHALL NOT be combined in a request
    *
-   * @return 0: 'l' doesn't exist
-   * @return 1: 'l' exists (with either ps or total or both)
-   * @return -1: invalid 'l' parameters
-   * @return -2: additional query parameters beyond 'l'
+   * @return false if 'l' doesn't exist (continue to process the message)
+   * @return true if 'l' exists (all 'l' steps are done, stop processing the message)
    * 
    */
-  int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_exists);
+  bool query_l_was_processed(oc_request_t* request, int ps, int total);
 
   /**
    * @brief helper function to frame url part of query response:

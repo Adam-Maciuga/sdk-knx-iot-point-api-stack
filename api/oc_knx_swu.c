@@ -112,7 +112,7 @@ static void oc_knx_swu_max_defer_get_handler(oc_request_t* request, oc_interface
 {
   (void) data;
   (void) iface_mask;
-   
+
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -130,7 +130,7 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 {
   (void) data;
   (void) iface_mask;
-   
+
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -281,7 +281,7 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
 {
   (void) data;
   (void) iface_mask;
-   
+
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -599,7 +599,7 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 {
   (void) data;
   (void) iface_mask;
-   
+
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -641,7 +641,7 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 {
   (void) data;
   (void) iface_mask;
-   
+
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -686,9 +686,6 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   int i;
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 
-  bool ps_exists;                         // will be initialized in function in anx case
-  bool total_exists;                      // will be initialized in function in anx case
-
   int total = (int) OC_KNX_SWU - (int) OC_KNX_SWU_PROTOCOL;
   int first_entry = (int) OC_KNX_SWU_PROTOCOL; // inclusive
   int last_entry = (int) OC_KNX_SWU;           // exclusive
@@ -697,7 +694,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   PRINT("oc_core_swu_get_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) )
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -706,24 +703,8 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   size_t device_index = request->resource->device;
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    // example : < /swu > l = total>;total=22;ps=5
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+  if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))

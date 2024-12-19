@@ -53,17 +53,15 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  size_t response_length = 0;             // response payload len
-  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
-  bool ps_exists;                         // will be initialized in function in anx case
-  bool total_exists;                      // will be initialized in function in anx case
-  int total = 0;                          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;                    // first entry number of a resource that will be placed on a page
-  int query_pn = -1;                      // page number (page size as request parameter is not used)
+  size_t response_length = 0;       // response payload len
+  bool more_request_needed = false; // if more requests (pages) are needed to get the full list
+  int total = 0;                    // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;              // first entry number of a resource that will be placed on a page
+  int query_pn = -1;                // page number (page size as request parameter is not used)
 
   PRINT("oc_core_p_get_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) )
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -87,23 +85,8 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
   }
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
-    return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
+  if (query_l_was_processed(request, PAGE_SIZE, total))
+      return;
 
   my_p = oc_ri_get_app_resources();
   // handle query with page number (pn)
@@ -113,11 +96,11 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
 
     // check if the requested page would carry at least one resource
     // e.g; total=10, page=5 -> no data on page 5 
-    if (first_entry >= total)
-    {
-      oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
+      if (first_entry >= total)
+      {
+        oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
 
     // skip all endpoints 'before' the requested page# and return the next one
     for (int i = 0; i < first_entry; i++)
@@ -164,7 +147,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
   PRINT("oc_core_p_post_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;

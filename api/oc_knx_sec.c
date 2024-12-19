@@ -255,8 +255,6 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
   int i;
   int matches = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
   int total = (int) OC_KNX_AUTH_O_OSNDELAY - (int) OC_KNX_AUTH_O_REPLWDO;
   int first_entry = (int) OC_KNX_AUTH_O_REPLWDO; // inclusive
   int last_entry = (int) OC_KNX_AUTH_O;          // exclusive
@@ -276,24 +274,8 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    // example : < /dev > l = total>;total=22;ps=5
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
-    return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
+   if(query_l_was_processed(request, PAGE_SIZE, total))
+     return;
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))
@@ -553,8 +535,6 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
   int i;
   int length = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
   int total = oc_core_find_nr_used_in_auth_at_table();
   int first_entry = 0;               // inclusive
   int last_entry = G_AT_MAX_ENTRIES; // exclusive
@@ -572,24 +552,8 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
   }
 
   // handle query parameters l=ps and/or l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    // example : < /auth/at > l = total>;total=22;ps=5
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
-    return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
+   if(query_l_was_processed(request, PAGE_SIZE, total))
+      return;
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))
@@ -1270,8 +1234,6 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   int i;
   int matches = 0;
 
-  bool ps_exists = false;
-  bool total_exists = false;
   int total = (int) OC_KNX_AUTH_AT_X - (int) OC_KNX_AUTH_O;
   int first_entry = (int) OC_KNX_AUTH_O;   // inclusive
   int last_entry = (int) OC_KNX_AUTH_AT_X; // exclusive
@@ -1291,24 +1253,8 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
 
   // handle query parameters: l=ps l=total
-  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1)
-  {
-    // example : < /auth > l = total>;total=22;ps=5
-    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
-    return;
-  }
-  if (l_exist == -1)
-  {
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
-    return;
-  }
-  if (l_exist == -2)
-  {
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
+   if(query_l_was_processed(request, PAGE_SIZE, total))
+      return;
 
   // handle query with page number (pn)
   if (check_if_query_pn_exist(request, &query_pn, NULL))

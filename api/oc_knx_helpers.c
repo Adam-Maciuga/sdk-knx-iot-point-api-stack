@@ -17,31 +17,22 @@
 #include "oc_api.h"
 #include "oc_knx_helpers.h"
 
-int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_exists)
+bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
 {
-  if (ps_exists == NULL)
-  {
-    return 0;
-  }
-  if (total_exists == NULL)
-  {
-    return 0;
-  }
-
-  *ps_exists = false;
-  *total_exists = false;
-
   if (!oc_query_values_available(request))
   { // no query parameter at all exits 
-    return 0;
+    return false;
   }
 
   if (oc_query_value_exists(request, "l") == -1)
   { // query parameter 'l' does not exit 
-    return 0;
+    return false;
   }
 
   bool more_query_params;
+  bool ps_exists = false;
+  bool total_exists = false;
+
   char* value = NULL;
   int value_len = -1;
 
@@ -55,38 +46,48 @@ int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_e
     {
       if (strncmp("ps", value, value_len) == 0)
       {
-        *ps_exists = true;
+        ps_exists = true;
       }
     }
     if (value_len == 5)
     {
       if (strncmp("total", value, value_len) == 0)
       {
-        *total_exists = true;
+        total_exists = true;
       }
     }
   }
   while (more_query_params);
 
-  if (*ps_exists) 
-  {
-    if (*total_exists) 
-    {
-      if (request->query_len > sizeof("l=total&l=ps") - 1)
-        return -2;  // query l exist with 'ps' and 'total' but other query parameter as well 
-      return 1;     // good enough
-    }
-    if (request->query_len > sizeof("l=ps") - 1)
-      return -2;    // query l exist with 'ps' alone but other query parameter as well 
-    return 1;       // good enough
+  if (!ps_exists && !total_exists)
+  { // query l exist but with no 'ps' or 'total' 
+    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return true;        
   }
-  if (*total_exists)
-  {
-    if (request->query_len > sizeof("l=total") - 1)
-      return -2;    // query l exist with 'total' alone but other query parameter as well
-    return 1;       // good enough
+
+  if (ps_exists && total_exists && request->query_len > sizeof("l=total&l=ps") - 1)
+  { // query l exist with 'ps' and 'total' but other query parameter as well 
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return true;        
   }
-  return -1;        // query l exist but with no 'ps' or 'total'
+
+  if (ps_exists && !total_exists && request->query_len > sizeof("l=ps") - 1)
+  { // query l exist with 'ps' but other query parameter as well 
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return true;        
+  }
+
+  if (!ps_exists && total_exists && request->query_len > sizeof("l=total") - 1)
+  { // query l exist with 'total' but other query parameter as well 
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return true;        
+  }
+
+  // good enough
+  const int response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, ps, total_exists, total);
+  oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+  return true;          
+
 }
 
 int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total)
