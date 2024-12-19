@@ -455,8 +455,8 @@ extern "C" {
     bool error_state = false; /* the error state, the generated code */
 
     PRINT("-- Begin get_OnOff_1: %s ", URL_ONOFF_1);
-    /* check if the accept header is CBOR */
-    if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+    
+    if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
       oc_send_response(request, OC_STATUS_BAD_OPTION);
       return;
@@ -655,8 +655,8 @@ extern "C" {
     bool error_state = false; /* the error state, the generated code */
 
     PRINT("-- Begin get_InfoOnOff_1 %s ", URL_INFOONOFF_1);
-    /* check if the accept header is CBOR */
-    if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+    
+    if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
       oc_send_response(request, OC_STATUS_BAD_OPTION);
       return;
@@ -779,8 +779,8 @@ extern "C" {
     bool error_state = false; /* the error state, the generated code */
 
     PRINT("-- Begin get_OnOff_2 %s ", URL_ONOFF_2);
-    /* check if the accept header is CBOR */
-    if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+    
+    if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
       oc_send_response(request, OC_STATUS_BAD_OPTION);
       return;
@@ -974,8 +974,8 @@ extern "C" {
     bool error_state = false; /* the error state, the generated code */
 
     PRINT("-- Begin get_InfoOnOff_2 %s ", URL_INFOONOFF_2);
-    /* check if the accept header is CBOR */
-    if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+    
+    if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
       oc_send_response(request, OC_STATUS_BAD_OPTION);
       return;
@@ -1098,8 +1098,8 @@ extern "C" {
     bool error_state = false; /* the error state, the generated code */
 
     PRINT("-- Begin get_OnOff_3 %s ", URL_ONOFF_3);
-    /* check if the accept header is CBOR */
-    if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+    
+    if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
       oc_send_response(request, OC_STATUS_BAD_OPTION);
       return;

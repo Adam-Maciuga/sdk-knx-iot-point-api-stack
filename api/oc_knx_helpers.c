@@ -44,11 +44,12 @@ int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_e
   bool more_query_params;
   char* value = NULL;
   int value_len = -1;
+
   oc_init_query_iterator();
 
-  // find out if l=ps and/or l=total exists
   do
   {
+    // find out if l=ps and/or l=total exists
     more_query_params = oc_iterate_query_get_values(request, "l", &value, &value_len);
     if (value_len == 2)
     {
@@ -67,51 +68,56 @@ int check_if_query_l_exist(oc_request_t* request, bool* ps_exists, bool* total_e
   }
   while (more_query_params);
 
-  if (*ps_exists == false && *total_exists == false)
-  { // query l exist but with no 'ps' or 'total'
-    return -1;
+  if (*ps_exists) 
+  {
+    if (*total_exists) 
+    {
+      if (request->query_len > sizeof("l=total&l=ps") - 1)
+        return -2;  // query l exist with 'ps' and 'total' but other query parameter as well 
+      return 1;     // good enough
+    }
+    if (request->query_len > sizeof("l=ps") - 1)
+      return -2;    // query l exist with 'ps' alone but other query parameter as well 
+    return 1;       // good enough
   }
-  // query l exist with 'ps' and/or 'total'
-  return 1;
+  if (*total_exists)
+  {
+    if (request->query_len > sizeof("l=total") - 1)
+      return -2;    // query l exist with 'total' alone but other query parameter as well
+    return 1;       // good enough
+  }
+  return -1;        // query l exist but with no 'ps' or 'total'
 }
 
 int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total)
 {
-  // request  <.../fp/r?l=total&l=ps>
-  // response </fp/r;l=22;ps=5>
+  // request  .../fp/r?l=total&l=ps
+  // response </fp/r>;l=22;ps=5
 
   // open 
-  int length = oc_rep_add_line_to_buffer("<");
-  int response_length = length;
+  int response_length = oc_rep_add_line_to_buffer("<");
 
   // add URL
-  length = oc_rep_add_line_to_buffer(url);
-  response_length += length;
+  response_length += oc_rep_add_line_to_buffer(url);
 
   // close 
-  length = oc_rep_add_line_to_buffer(">");
-  response_length += length;
+  response_length += oc_rep_add_line_to_buffer(">");
 
-  if (ps_exists)
+  if (total_exists) // first total 
   {
-    length = oc_rep_add_line_to_buffer(";ps=");
-    response_length += length;
-    length = oc_frame_integer(ps);
-    response_length += length;
+    response_length += oc_rep_add_line_to_buffer(";total=");
+    response_length += oc_frame_integer(total);
   }
-  if (total_exists)
+  if (ps_exists)    // second page size (if total)
   {
-    length = oc_rep_add_line_to_buffer(";total=");
-    response_length += length;
-    length = oc_frame_integer(total);
-    response_length += length;
+    response_length += oc_rep_add_line_to_buffer(";ps=");
+    response_length += oc_frame_integer(ps);
   }
 
   return response_length;
 }
 
-bool
-check_if_query_pn_exist(oc_request_t* request, int* pn_value, int* ps_value)
+bool check_if_query_pn_exist(oc_request_t* request, int* pn_value, int* ps_value)
 {
   (void) ps_value;
   char* value = NULL;
@@ -119,6 +125,7 @@ check_if_query_pn_exist(oc_request_t* request, int* pn_value, int* ps_value)
 
   if (pn_value == NULL)
   {
+    // need to have a ref ptr for the parent value
     return false;
   }
   // if (ps_value == NULL) {

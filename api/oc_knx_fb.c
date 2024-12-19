@@ -37,7 +37,7 @@ int get_fp_from_dp(const char* dpt)
   // returns 352 or -1 ('strtol' error returns FB# 0, better than an 'atoi' crash)
 
   const char* dot = strchr(dpt, '.');
-  return dot ? strtol(dot + 1,NULL,10) : -1; 
+  return dot ? strtol(dot + 1, NULL, 10) : -1;
 }
 
 bool is_in_g_array(int value, int instance)
@@ -96,8 +96,7 @@ static int oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_valu
 }
 
 static void
-oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                         void* data)
+oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -114,13 +113,11 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_fb_x_get_handler\n");
+  PRINT("oc_core_fb_x_get_handler");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -159,8 +156,8 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   total = oc_core_count_dp_in_fb(device_index, instance, fb_value);
   last_entry = total;
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /f/* > l = total>;total=22;ps=5
@@ -173,6 +170,11 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -392,9 +394,9 @@ bool oc_filter_functional_blocks(oc_request_t* request)
 
 // add functional blocks to response and return true if at least one was added
 bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_index,
-                                   size_t* response_length, int* matches,
-                                   int* skipped, int first_entry,
-                                   int last_entry)
+                                        size_t* response_length, int* matches,
+                                        int* skipped, int first_entry,
+                                        int last_entry)
 {
   (void) request;
   int length = 0;
@@ -536,7 +538,7 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
 /*
  * return list of function blocks
  */
-static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,  void* data)
+static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -544,8 +546,6 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   size_t response_length = 0;             // response payload len 
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
   int skipped = 0;
-  bool current_page_is_full = false;      // true if response page is full, no more resources can be added
-  bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
   bool ps_exists;         // will be initialized in function in any case
@@ -555,28 +555,32 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   int query_pn = -1;      // page number (page size as request parameter is not used)
 
   PRINT("oc_core_fb_get_handler");
-
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  size_t device_index = request->resource->device;
+  const size_t device_index = request->resource->device;
   total = oc_count_functional_blocks(device_index);
 
-  // handle query parameters: l=ps and l=total ('l' and 'other' query parameters SHALL NOT be combined in a request)
+  // handle query parameters l=ps and/or l=total
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
-  if (l_exist == 1) // valid 'l' parameters, example /f?l=total&l=ps
+  if (l_exist == 1)
   {
     response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
-  if (l_exist == -1) // invalid 'l' parameters
+  if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 

@@ -134,36 +134,25 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
   (void) data;
   (void) iface_mask;
 
-  // check on request accept header (clause 2.2.4)
-  // - CBOR == OK = default (use default as response format)
-  // - in case of absence of any format == OK (use default as response format)
-  // - in case of JSON format == OK (use default as response format)
-  if (request->accept != APPLICATION_CBOR &&
-      request->accept != APPLICATION_JSON && request->accept != CONTENT_NONE)
+  // this EP MUST support JSON in addition (KNX IoT specification clause 5.1.3)
+  if (request->accept != APPLICATION_JSON && !oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_NOT_ACCEPTABLE);
     return;
   }
+
   if (request->accept == APPLICATION_JSON)
   {
-    size_t length = oc_rep_add_line_to_buffer("{");
-    size_t response_length = length;
-
-    length = oc_rep_add_line_to_buffer("\"api\": { \"version\": \"1.0.0\",");
-    response_length += length;
-
-    length = oc_rep_add_line_to_buffer("\"base\": \"/ \"}");
-    response_length += length;
-
-    length = oc_rep_add_line_to_buffer("}");
-    response_length += length;
+    int response_length = oc_rep_add_line_to_buffer("{");
+    response_length += oc_rep_add_line_to_buffer("\"api\": { \"version\": \"1.0.0\",");
+    response_length += oc_rep_add_line_to_buffer("\"base\": \"/ \"}");
+    response_length += oc_rep_add_line_to_buffer("}");
 
     oc_send_json_response(request, OC_STATUS_OK);
-    request->response->response_buffer->response_length = response_length;
+    request->response->response_buffer->response_length = response_length;  // overwrite length again (its JSON, not CBOR)
   }
   else
   {
-
     oc_rep_begin_root_object();
     oc_rep_set_object(root, api);
     oc_rep_set_text_string(api, version, "1.0.0");
@@ -220,7 +209,7 @@ static oc_event_callback_retval_t restart(void* context)
   {
     PRINT("PASE key invalidated");
     oc_at_delete_entry(cached_device_index, auth_at_index_pase); // delete from table
-    oc_oscore_free_contexts_at_id(auth_at_index_pase);           // invalidate (usually released data are restored after startup) 
+    oc_oscore_free_contexts_at_id(auth_at_index_pase);           // invalidate (usually the data are restored after startup) 
   }
 
   // CFG parameters
@@ -487,8 +476,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
   PRINT("oc_core_a_lsm_get_handler - start");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -523,8 +511,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 
   PRINT("oc_core_lsm_post_handler - start");
 
-  /* check if the accept header is cbor */
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -618,11 +605,9 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 
   PRINT("oc_core_knx_k_get_handler");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -731,7 +716,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   PRINT("Full Payload Size: %d", (int) request->_payload_len);
   OC_LOGbytes_OSCORE(request->_payload, (int) request->_payload_len);
 
-  // check if the accept header is cbor-format 
+
   if (request->accept != APPLICATION_CBOR &&
       request->accept != APPLICATION_OSCORE &&
       request->accept != CONTENT_NONE)
@@ -1121,11 +1106,9 @@ oc_core_knx_fingerprint_get_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_knx_fingerprint_get_handler");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1174,8 +1157,7 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
   bool ia_set = false;
   bool iid_set = false;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1199,14 +1181,14 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
       }
       else if (rep->iname == 25)
       {
-        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "",              rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "", rep->value.integer);
         oc_core_set_device_fid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_FID, (uint8_t*) &temp, sizeof(temp));
       }
       else if (rep->iname == 26)
       {
-        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "",              (uint64_t) rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "", (uint64_t) rep->value.integer);
         oc_core_set_device_iid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &temp, sizeof(temp));
@@ -1259,11 +1241,9 @@ oc_core_knx_osn_get_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_knx_osn_get_handler\n");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   // cbor_encode_uint(&g_encoder, g_osn);
@@ -1302,11 +1282,9 @@ oc_core_knx_ldevid_get_handler(oc_request_t* request,
 
   PRINT("oc_core_knx_ldevid_get_handler\n");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_PKCS7_CMC_REQUEST) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   response_length = oc_string_len(g_ldevid);
@@ -1350,11 +1328,9 @@ oc_core_knx_idevid_get_handler(oc_request_t* request,
 
   PRINT("oc_core_knx_idevid_get_handler\n");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_PKCS7_CMC_REQUEST) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   response_length = oc_string_len(g_idevid);
@@ -1452,20 +1428,19 @@ oc_core_knx_spake_post_handler(oc_request_t* request,
 {
   (void) data;
   (void) iface_mask;
-  PRINT("oc_core_knx_spake_post_handler\n");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  PRINT("oc_core_knx_spake_post_handler - start");
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   // check if the state is unloaded
   size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_UNLOADED)
   {
-    OC_ERR(" not in unloaded state\n");
+    OC_ERR(" not in unloaded state");
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -1479,7 +1454,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request,
     request->response->response_buffer->max_age = get_seconds_until_unblocked();
     return;
   }
-#endif /* OC_SPAKE */
+#endif 
 
   oc_rep_t* rep = request->request_payload;
 

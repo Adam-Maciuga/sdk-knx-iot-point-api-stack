@@ -32,7 +32,7 @@ extern "C" {
   typedef enum oc_swu_method
   {
     PULL = 0,
-    PUSH = 1,
+    PUSH = 1,     // only PUSH mode is used in this stack
     BOTH = 2      // PULL + PUSH 
   } oc_swu_method_t;
 
@@ -40,9 +40,9 @@ extern "C" {
   {
     CoAP = 0,     // unicast CoAP + OSCORE (RFC 7252) and block-wise transfer 
     CoAPS = 1,    // as defined in RFC 7252 with optional support for block-wise transfer
-    CoAP_TCP = 2, // as defined in RFC 7252 with optional support for block-wise transfer
-    CoAP_TLS = 3, // CoAP + OSCORE + TCP as defined in RFC 8323
-    Vendor = 254
+    CoAP_TCP = 2, // CoAP + OSCORE over TCP as defined in RFC 8323 
+    CoAP_TLS = 3, // CoAP + TLS as defined in RFC 8323
+    Vendor = 254  // manufacturer specific
   } oc_swu_protocol_t;
 
   /**
@@ -62,7 +62,7 @@ extern "C" {
   */
   typedef enum
   {
-    OC_SWU_RESULT_INIT = 0, /**< 0 Initial value. Once the updating process is initiated (Download/Update), this Resource MUST be reset to Initial value. */
+    OC_SWU_RESULT_INIT = 0,  /**< 0 Initial value. Once the updating process is initiated (Download/Update), this Resource MUST be reset to Initial value. */
     OC_SWU_RESULT_SUCCESS,   /**< 1 Software updated successfully.*/
     OC_SWU_RESULT_ERR_FLASH, /**< 2 Not enough flash memory for the new software package.*/
     OC_SWU_RESULT_ERR_RAM,   /**< 3 Out of RAM during downloading process*/

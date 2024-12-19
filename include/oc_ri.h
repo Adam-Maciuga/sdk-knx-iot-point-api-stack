@@ -173,9 +173,9 @@ extern "C" {
     OC_STATUS_SERVICE_UNAVAILABLE,      /**< Service Unavailable 5.03*/
     OC_STATUS_GATEWAY_TIMEOUT,          /**< Gateway Timeout 5.04*/
     OC_STATUS_PROXYING_NOT_SUPPORTED,   /**< Proxying not supported 5.05 */
-    __NUM_OC_STATUS_CODES__,
-    OC_IGNORE,      /**< Ignore: do not respond to request */
-    OC_PING_TIMEOUT /**< Ping Time out */
+    NUMBER_OF_OC_STATUS_CODES,          // artificial code to count above codes 
+    OC_IGNORE,                          /**< Ignore: do not respond to request */
+    OC_PING_TIMEOUT                     /**< Ping Time out */
   } oc_status_t;
 
   /**
@@ -593,13 +593,17 @@ extern "C" {
 
   /**
    * @brief checks if the accept header is correct
-   * note that if the accept header is not there, this check is a pass
+   *
+   * @note if no accept header is present in the request, this check also passes
+   *       with true by using the default response format (KNX IoT specification clause 2.2.4)
+   *
    * @param request the request
    * @param accept the content type of the resource
+   *
    * @return true content type is ok
    * @return false content type is not ok
    */
-  bool oc_check_accept_header(oc_request_t* request, oc_content_format_t accept);
+  bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
 
   /**
    * @brief retrieve the resource by uri and device index

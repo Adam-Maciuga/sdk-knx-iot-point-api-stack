@@ -959,8 +959,8 @@ bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* reque
       match = false;
       const char* resource_interface =
         get_interface_string(resource->interfaces);
-      // the value contains urn:knx:if.xxx
-      if (strncmp(resource_interface, value + 8, value_len - 8) == 0)
+      // the value contains urn:knx:if.xxx; +8 points to the last DOT '.' , -8 is len of all - sizeof(urn:knx:if.) 
+      if (strncmp(resource_interface, value + 8, value_len - 8) == 0)  
       {
         return true;
       }

@@ -375,25 +375,28 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   PRINT("oc_core_fp_g_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  // handle query parameters: l=ps l=total
+  // handle query parameters l=ps and/or l=total
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
-    // example : < /fp/g > l = total>;total=22;ps=5
     response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
-  if (l_exist == -1)
+  if (l_exist == -1)  
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -520,8 +523,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
   PRINT("oc_core_fp_g_post_handler - start");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -735,11 +737,9 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_fp_g_x_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -924,28 +924,29 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   PRINT("oc_core_fp_p_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /fp/p > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -967,7 +968,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   /* example entry: </fp/p/1>;ct=60 */
   for (int i = first_entry; i < last_entry; i++)
-  {     
+  {
     if (g_gpt[i].id > -1)
     {
       // index  in use
@@ -1016,11 +1017,9 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
   PRINT("oc_core_fp_p_post_handler - start");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1243,11 +1242,9 @@ oc_core_fp_p_x_get_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_fp_p_x_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1404,18 +1401,16 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   PRINT("oc_core_fp_r_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  // handle query parameters: l=ps l=total
+  // handle query parameters l=ps and/or l=total
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
-    // example : < /fp/r > l = total>;total=22;ps=5
     response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
@@ -1423,6 +1418,11 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1495,8 +1495,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   (void) iface_mask;
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -1745,13 +1744,12 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
 {
   (void) data;
   (void) iface_mask;
+
   PRINT("oc_core_fp_r_x_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 

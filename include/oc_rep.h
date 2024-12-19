@@ -100,7 +100,7 @@ void oc_rep_encode_raw_encoder(CborEncoder *encoder, const uint8_t *data,
 
 /**
  * @brief add a line to the response buffer
- * note updates the occupied size in the response buffer
+ * @note updates the occupied size in the response buffer
  *
  * @param line data to be added
  * @return length of the line added to the response buffer

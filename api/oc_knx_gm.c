@@ -419,7 +419,7 @@ static void oc_core_fp_gm_get_handler(oc_request_t *request, oc_interface_mask_t
   bool total_exists;
   PRINT("oc_core_fp_gm_get_handler");
 
-  /* check if the accept header is link-format */
+  
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -495,7 +495,7 @@ static void oc_core_fp_gm_post_handler(oc_request_t *request, oc_interface_mask_
 
   PRINT("oc_core_fp_gm_post_handler");
 
-  // check if the accept header is cbor-format 
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -677,7 +677,7 @@ static void oc_core_fp_gm_x_get_handler(oc_request_t *request,
   (void)iface_mask;
   PRINT("oc_core_fp_gm_x_get_handler\n");
 
-  /* check if the accept header is link-format */
+  
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -810,7 +810,7 @@ static void oc_core_f_netip_fra_get_handler(oc_request_t *request, oc_interface_
   int length = 0;
   PRINT("oc_core_f_netip_fra_get_handler");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -840,7 +840,7 @@ static void oc_core_f_netip_fra_put_handler(oc_request_t *request, oc_interface_
   int length = 0;
   PRINT("oc_core_f_netip_fra_put_handler");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -930,7 +930,7 @@ static void oc_core_f_netip_tol_get_handler(oc_request_t *request,
   int length = 0;
   PRINT("oc_core_f_netip_tol_get_handler\n");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -960,7 +960,7 @@ static void oc_core_f_netip_tol_put_handler(oc_request_t *request, oc_interface_
   int length = 0;
   PRINT("oc_core_f_netip_tol_put_handler");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1054,7 +1054,7 @@ static void oc_core_f_netip_key_put_handler(oc_request_t *request, oc_interface_
   int length = 0;
   PRINT("oc_core_f_netip_key_put_handler");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1145,7 +1145,7 @@ static void oc_core_f_netip_ttl_get_handler(oc_request_t *request,              
   int length = 0;
   PRINT("oc_core_f_netip_ttl_get_handler\n");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1175,7 +1175,7 @@ static void oc_core_f_netip_ttl_put_handler(oc_request_t *request, oc_interface_
   int length = 0;
   PRINT("oc_core_f_netip_ttl_put_handler");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1262,7 +1262,7 @@ static void oc_core_f_netip_mcast_get_handler(oc_request_t *request, oc_interfac
   int length = 0;
   PRINT("oc_core_f_netip_mcast_get_handler\n");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1293,7 +1293,7 @@ static void oc_core_f_netip_mcast_put_handler(oc_request_t *request, oc_interfac
   int length = 0;
   PRINT("oc_core_f_netip_mcast_put_handler\n");
 
-  /* check if the accept header is cbor */
+   
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1378,7 +1378,7 @@ void oc_core_f_netip_get_handler(oc_request_t *request,
   bool total_exists;
   PRINT("oc_core_f_netip_get_handler");
 
-  /* check if the accept header is link-format */
+  
   if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false) {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);

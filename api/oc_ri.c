@@ -29,7 +29,7 @@
 #include "messaging/coap/oc_coap.h"
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
-#endif /* OC_TCP */
+#endif 
 
 #include "port/oc_random.h"
 
@@ -40,7 +40,7 @@
 #include "oc_network_events.h"
 #ifdef OC_TCP
 #include "oc_session_events.h"
-#endif /* OC_TCP */
+#endif 
 #include "oc_api.h"
 #include "oc_ri.h"
 #include "oc_uuid.h"
@@ -49,12 +49,12 @@
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif /* OC_BLOCK_WISE */
+#endif 
 
 #ifdef OC_OSCORE
 #include "security/oc_tls.h"
 #include "security/oc_oscore.h"
-#endif /* OC_OSCORE */
+#endif 
 
 #ifdef OC_SERVER
 OC_LIST(app_resources);
@@ -67,74 +67,42 @@ OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);
 #include "oc_client_state.h"
 OC_LIST(client_cbs);
 OC_MEMB(client_cbs_s, oc_client_cb_t, OC_MAX_NUM_CONCURRENT_REQUESTS + 1);
-#endif /* OC_CLIENT */
+#endif 
 
 OC_LIST(timed_callbacks);
-OC_MEMB(event_callbacks_s, oc_event_callback_t,
-        1 + WELLKNOWNCORE * OC_MAX_NUM_DEVICES + OC_MAX_APP_RESOURCES +
-        OC_MAX_NUM_CONCURRENT_REQUESTS * 2);
+OC_MEMB(event_callbacks_s, oc_event_callback_t, 1 + WELLKNOWNCORE * OC_MAX_NUM_DEVICES + OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS * 2);
 
 OC_PROCESS(timed_callback_events, "OC timed callbacks");
 
 #ifdef OC_TCP
 oc_event_callback_retval_t oc_remove_ping_handler(void* data);
-#endif /* OC_TCP */
+#endif 
 
-// extern int strncasecmp(const char *s1, const char *s2, size_t n);
-
-static unsigned int oc_coap_status_codes[__NUM_OC_STATUS_CODES__];
+static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
+{
+  CONTENT_2_05,                     // mapped from OC_STATUS_OK
+  CREATED_2_01,                     // mapped from OC_STATUS_CREATED
+  CHANGED_2_04,                     // mapped from OC_STATUS_CHANGED
+  DELETED_2_02,                     // mapped from OC_STATUS_DELETED
+  VALID_2_03,                       // mapped from OC_STATUS_NOT_MODIFIED
+  BAD_REQUEST_4_00,                 // mapped from OC_STATUS_BAD_REQUEST
+  UNAUTHORIZED_4_01,                // mapped from OC_STATUS_UNAUTHORIZED
+  BAD_OPTION_4_02,                  // mapped from OC_STATUS_BAD_OPTION
+  FORBIDDEN_4_03,                   // mapped from OC_STATUS_FORBIDDEN
+  NOT_FOUND_4_04,                   // mapped from OC_STATUS_NOT_FOUND
+  METHOD_NOT_ALLOWED_4_05,          // mapped from OC_STATUS_METHOD_NOT_ALLOWED
+  NOT_ACCEPTABLE_4_06,              // mapped from OC_STATUS_NOT_ACCEPTABLE
+  REQUEST_ENTITY_TOO_LARGE_4_13,    // mapped from OC_STATUS_REQUEST_ENTITY_TOO_LARGE
+  UNSUPPORTED_MEDIA_TYPE_4_15,      // mapped from OC_STATUS_UNSUPPORTED_MEDIA_TYPE
+  INTERNAL_SERVER_ERROR_5_00,       // mapped from OC_STATUS_INTERNAL_SERVER_ERROR
+  NOT_IMPLEMENTED_5_01,             // mapped from OC_STATUS_NOT_IMPLEMENTED
+  BAD_GATEWAY_5_02,                 // mapped from OC_STATUS_BAD_GATEWAY
+  SERVICE_UNAVAILABLE_5_03,         // mapped from OC_STATUS_SERVICE_UNAVAILABLE
+  GATEWAY_TIMEOUT_5_04,             // mapped from OC_STATUS_GATEWAY_TIMEOUT
+  PROXYING_NOT_SUPPORTED_5_05       // mapped from OC_STATUS_PROXYING_NOT_SUPPORTED
+};
 
 oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
-
-static void
-set_mpro_status_codes(void)
-{
-  /* OK_200 */
-  oc_coap_status_codes[OC_STATUS_OK] = CONTENT_2_05;
-  /* CREATED_201 */
-  oc_coap_status_codes[OC_STATUS_CREATED] = CREATED_2_01;
-  /* NO_CONTENT_204 */
-  oc_coap_status_codes[OC_STATUS_CHANGED] = CHANGED_2_04;
-  /* NO_CONTENT_204 */
-  oc_coap_status_codes[OC_STATUS_DELETED] = DELETED_2_02;
-  /* NOT_MODIFIED_304 */
-  oc_coap_status_codes[OC_STATUS_NOT_MODIFIED] = VALID_2_03;
-  /* BAD_REQUEST_400 */
-  oc_coap_status_codes[OC_STATUS_BAD_REQUEST] = BAD_REQUEST_4_00;
-  /* UNAUTHORIZED_401 */
-  oc_coap_status_codes[OC_STATUS_UNAUTHORIZED] = UNAUTHORIZED_4_01;
-  /* BAD_REQUEST_400 */
-  oc_coap_status_codes[OC_STATUS_BAD_OPTION] = BAD_OPTION_4_02;
-  /* FORBIDDEN_403 */
-  oc_coap_status_codes[OC_STATUS_FORBIDDEN] = FORBIDDEN_4_03;
-  /* NOT_FOUND_404 */
-  oc_coap_status_codes[OC_STATUS_NOT_FOUND] = NOT_FOUND_4_04;
-  /* METHOD_NOT_ALLOWED_405 */
-  oc_coap_status_codes[OC_STATUS_METHOD_NOT_ALLOWED] = METHOD_NOT_ALLOWED_4_05;
-  /* NOT_ACCEPTABLE_406 */
-  oc_coap_status_codes[OC_STATUS_NOT_ACCEPTABLE] = NOT_ACCEPTABLE_4_06;
-  /* REQUEST_ENTITY_TOO_LARGE_413 */
-  oc_coap_status_codes[OC_STATUS_REQUEST_ENTITY_TOO_LARGE] =
-    REQUEST_ENTITY_TOO_LARGE_4_13;
-  /* UNSUPPORTED_MEDIA_TYPE_415 */
-  oc_coap_status_codes[OC_STATUS_UNSUPPORTED_MEDIA_TYPE] =
-    UNSUPPORTED_MEDIA_TYPE_4_15;
-  /* INTERNAL_SERVER_ERROR_500 */
-  oc_coap_status_codes[OC_STATUS_INTERNAL_SERVER_ERROR] =
-    INTERNAL_SERVER_ERROR_5_00;
-  /* NOT_IMPLEMENTED_501 */
-  oc_coap_status_codes[OC_STATUS_NOT_IMPLEMENTED] = NOT_IMPLEMENTED_5_01;
-  /* BAD_GATEWAY_502 */
-  oc_coap_status_codes[OC_STATUS_BAD_GATEWAY] = BAD_GATEWAY_5_02;
-  /* SERVICE_UNAVAILABLE_503 */
-  oc_coap_status_codes[OC_STATUS_SERVICE_UNAVAILABLE] =
-    SERVICE_UNAVAILABLE_5_03;
-  /* GATEWAY_TIMEOUT_504 */
-  oc_coap_status_codes[OC_STATUS_GATEWAY_TIMEOUT] = GATEWAY_TIMEOUT_5_04;
-  /* INTERNAL_SERVER_ERROR_500 */
-  oc_coap_status_codes[OC_STATUS_PROXYING_NOT_SUPPORTED] =
-    PROXYING_NOT_SUPPORTED_5_05;
-}
 
 static const char* interface_strings[] = { "if.i",  "if.o",  "if.g.s", "if.c",
                                            "if.p",  "if.d",  "if.a",   "if.s",
@@ -430,8 +398,7 @@ bool oc_ri_is_app_resource_valid(const oc_resource_t* resource)
 }
 #endif
 
-bool
-oc_check_accept_header(oc_request_t* request, oc_content_format_t accept)
+bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
 {
   if (request->accept == accept)
   {
@@ -637,11 +604,9 @@ oc_ri_query_exists(const char* query, size_t query_len, const char* key)
   return found;
 }
 
-void
-allocate_events(void)
+void allocate_events(void)
 {
-  int i = 0;
-  for (i = 0; i < __NUM_OC_EVENT_TYPES__; i++)
+  for (int i = 0; i < __NUM_OC_EVENT_TYPES__; i++)
   {
     oc_events[i] = oc_process_alloc_event();
   }
@@ -744,7 +709,6 @@ oc_ri_init(void)
 {
   oc_random_init();
   oc_clock_init();
-  set_mpro_status_codes();
 
 #ifdef OC_SERVER
   oc_list_init(app_resources);
@@ -762,20 +726,17 @@ oc_ri_init(void)
 }
 
 #ifdef OC_SERVER
-oc_resource_t*
-oc_ri_alloc_resource(void)
+oc_resource_t* oc_ri_alloc_resource(void)
 {
   return oc_memb_alloc(&app_resources_s);
 }
 
-oc_resource_data_t*
-oc_ri_alloc_resource_data(void)
+oc_resource_data_t* oc_ri_alloc_resource_data(void)
 {
   return oc_memb_alloc(&app_resource_datas_s);
 }
 
-bool
-oc_ri_delete_resource(const oc_resource_t* _resource)
+bool oc_ri_delete_resource(const oc_resource_t* _resource)
 {
   if (!_resource)
     return false;
@@ -808,8 +769,7 @@ oc_ri_delete_resource(const oc_resource_t* _resource)
   return true;
 }
 
-bool
-oc_ri_delete_resource_block(const oc_resource_t* _resource)
+bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
 {
   if (!_resource)
     return false;
@@ -850,8 +810,7 @@ oc_ri_delete_resource_block(const oc_resource_t* _resource)
   return true;
 }
 
-bool
-oc_ri_add_resource(oc_resource_t* resource)
+bool oc_ri_add_resource(oc_resource_t* resource)
 {
   if (!resource)
     return false;
@@ -1885,11 +1844,11 @@ oc_ri_is_client_cb_valid(oc_client_cb_t * client_cb)
 bool
 oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t * *response_state,
                        oc_client_cb_t * cb, oc_endpoint_t * endpoint)
-#else  /* OC_BLOCK_WISE */
+#else  
 bool
 oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
                        oc_endpoint_t * endpoint)
-#endif /* OC_BLOCK_WISE */
+#endif 
 {
   // to be checked, default is not CBOR being returned.
   oc_content_format_t cf = 60;
@@ -1900,10 +1859,8 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
   uint8_t* payload = NULL;
   int payload_len = 0;
   coap_packet_t* const pkt = (coap_packet_t*) response;
-  int i;
 
-  oc_client_response_t client_response;
-  memset(&client_response, 0, sizeof(oc_client_response_t));
+  oc_client_response_t client_response = { 0 };
   client_response.client_cb = cb;
   client_response.endpoint = endpoint;
   client_response.observe_option = -1;
@@ -1912,10 +1869,10 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
   client_response._payload_len = 0;
   client_response.content_format = cf;
   client_response.user_data = cb->user_data;
-  for (i = 0; i < __NUM_OC_STATUS_CODES__; i++)
+  for (int i = 0; i < NUMBER_OF_OC_STATUS_CODES; i++)
   {
     if (oc_coap_status_codes[i] == pkt->code)
-    {
+    { // number 0...n (19) of array is needed, not the actual coap code 
       client_response.code = i;
       break;
     }

@@ -40,8 +40,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -89,8 +88,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -138,8 +136,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -188,8 +185,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -233,8 +229,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -277,8 +272,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -324,14 +318,12 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 
   PRINT("oc_core_dev_hostname_get_handler - start");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  //  
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
 
@@ -371,8 +363,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -414,8 +405,7 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -460,7 +450,6 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 {
   (void) data;
   (void) iface_mask;
-  int i;
 
   int ps = 1;
   bool ps_exists = false;
@@ -471,13 +460,19 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   // int query_ps = -1;
   int query_pn = -1;
 
-  PRINT("oc_core_dev_ipv6_get_handler");
+  PRINT("oc_core_dev_ipv6_get_handler - start");
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return;
+  }
 
   // get the device
   size_t device_index = request->resource->device;
-
   oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(device_index);
-  // Calculate total endpoints
+
+  // calculate total endpoints
   while (my_ep != NULL)
   {
     my_ep = my_ep->next;
@@ -485,8 +480,8 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   }
   last_entry = total;
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /dev/ipv6 > l = total>;total=22;ps=5
@@ -500,13 +495,13 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
     return;
   }
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (l_exist == -2)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
+   
+  
 
   my_ep = oc_connectivity_get_endpoints(device_index);
   // handle query with page number (pn)
@@ -520,7 +515,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
     }
 
     // skip endpoints and return the next one
-    for (i = 0; i < first_entry; i++)
+    for (int i = 0; i < first_entry; i++)
     {
       my_ep = my_ep->next;
     }
@@ -560,14 +555,14 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is CBOR-format, optional JSON not supported
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  PRINT("calling dev/pm GET handler");
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  PRINT("calling dev/pm GET handler");
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
 
@@ -591,14 +586,14 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is CBOR-format, optional JSON not supported
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  PRINT("calling dev/pm PUT handler");
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  PRINT("calling dev/pm PUT handler");
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   oc_rep_t* rep = request->request_payload;
@@ -669,9 +664,8 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   bool total_exists;                      // will be initialized in function in anx case
 
   PRINT("oc_core_dev_dev_get_handler - start");
-
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) )
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -679,8 +673,8 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 
   const size_t device_index = request->resource->device;
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /dev > l = total>;total=22;ps=5
@@ -691,6 +685,11 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -764,8 +763,7 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -811,8 +809,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -857,8 +854,7 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -884,8 +880,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -939,8 +934,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -986,8 +980,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1078,8 +1071,7 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1110,8 +1102,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1120,12 +1111,9 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   oc_rep_t* rep = request->request_payload;
-  // debugging
-  if (rep != NULL)
-  {
-    PRINT("oc_core_ap_x_put_handler type: %d", rep->type);
-  }
 
+  OC_DBG("oc_core_ap_x_put_handler type: %d", rep ? rep->type : OC_REP_NIL);
+  
   if ((rep != NULL) && (rep->type == OC_REP_INT_ARRAY))
   {
     int64_t* arr = oc_int_array(rep->value.array);
@@ -1186,10 +1174,9 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_ap_get_handler\n");
+  PRINT("oc_core_ap_get_handler");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) )
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1197,8 +1184,8 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 
   size_t device_index = request->resource->device;
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /ap > l = total>;total=22;ps=5
@@ -1211,6 +1198,11 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1282,8 +1274,8 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;

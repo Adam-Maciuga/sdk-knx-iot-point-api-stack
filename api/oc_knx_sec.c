@@ -101,11 +101,9 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request,
 
   PRINT("oc_core_knx_auth_o_osndelay_get_handler");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   // cbor_encode_uint(&g_encoder, g_oscore_osndelay);
@@ -125,8 +123,7 @@ oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -180,8 +177,7 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -204,8 +200,7 @@ oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -251,9 +246,8 @@ oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_auth_o_get_handler(oc_request_t* request,
-                               oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
+                                           oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -271,30 +265,33 @@ oc_core_knx_auth_o_get_handler(oc_request_t* request,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  PRINT("oc_core_auth_o_get_handler - start");
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
   size_t device_index = request->resource->device;
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /dev > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -384,11 +381,9 @@ oc_core_a_sen_post_handler(oc_request_t* request,
 {
   (void) data;
   (void) iface_mask;
-  oc_rep_t* rep = NULL;
   int cmd = 0;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -396,11 +391,10 @@ oc_core_a_sen_post_handler(oc_request_t* request,
 
   bool changed = false;
   /* loop over the request document to check if all inputs are ok */
-  rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
   while (rep != NULL)
   {
-    PRINT("oc_core_a_sen_post_handler: key: (check) %s \n",
-          oc_string_checked(rep->name));
+    PRINT("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name));
     if (rep->type == OC_REP_STRING)
     {
       if (rep->iname == 2)
@@ -416,7 +410,7 @@ oc_core_a_sen_post_handler(oc_request_t* request,
   /* input was set, so create the response*/
   if (changed == true)
   {
-    PRINT("oc_core_a_sen_post_handler cmd %d\n", cmd);
+    PRINT("oc_core_a_sen_post_handler cmd %d ", cmd);
     // renew the credentials.
     // note: this is optional for now
 
@@ -551,7 +545,7 @@ int oc_core_find_nr_used_in_auth_at_table(void)
 // ----------------------------------------------------------------------------
 
 static void oc_core_auth_at_get_handler(oc_request_t* request,
-                            oc_interface_mask_t iface_mask, void* data)
+                                        oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -569,30 +563,31 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_auth_at_get_handler\n");
+  PRINT("oc_core_auth_at_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  // handle query parameters l=ps and/or l=total
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /auth/at > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -667,8 +662,7 @@ oc_core_auth_at_post_handler(oc_request_t* request,
   int index = -1;
   PRINT("oc_core_auth_at_post_handler\n");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -982,10 +976,9 @@ oc_core_auth_at_delete_handler(oc_request_t* request,
   (void) iface_mask;
   PRINT("oc_core_auth_at_delete_handler\n");
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1023,8 +1016,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1162,8 +1154,8 @@ oc_core_auth_at_x_post_handler(oc_request_t* request,
   (void) iface_mask;
   oc_rep_t* rep = NULL;
   int cmd = 0;
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1204,14 +1196,13 @@ oc_core_auth_at_x_delete_handler(oc_request_t* request,
   (void) iface_mask;
   const char* value;
   int value_len = -1;
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
-  PRINT("oc_core_auth_at_x_delete_handler\n");
+  PRINT("oc_core_auth_at_x_delete_handler - start");
   size_t device_index = request->resource->device;
 
   // - find the id from the URL
@@ -1289,10 +1280,9 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   bool more_request_needed =
     false; // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_knx_auth_get_handler\n");
+  PRINT("oc_core_knx_auth_get_handler - start");
 
-  /* check if the accept header is link-format */
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -1301,19 +1291,22 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
 
   // handle query parameters: l=ps l=total
-  int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
+  const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
     // example : < /auth > l = total>;total=22;ps=5
-    response_length =
-      oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE,
-                       total_exists, total);
+    response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -1819,9 +1812,9 @@ int oc_core_find_pase_entry(size_t device_index)
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
-        return i;
+      return i;
   }
-return -1;
+  return -1;
 }
 
 int

@@ -359,8 +359,7 @@ coap_notify_observers(const oc_resource_t *resource,
     response.separate_response = 0;
     oc_response_buffer_t response_buffer;
     if (!response_buf && resource) {
-      OC_DBG("coap_notify_observers: Issue GET request to resource %s\n\n",
-             oc_string_checked(resource->uri));
+      OC_DBG("coap_notify_observers: Issue GET request to resource %s", oc_string_checked(resource->uri));
       response_buffer.buffer = buffer;
       response_buffer.buffer_size = OC_MAX_OBSERVE_SIZE;
       response.response_buffer = &response_buffer;

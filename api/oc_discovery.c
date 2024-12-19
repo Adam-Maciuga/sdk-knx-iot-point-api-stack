@@ -305,12 +305,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   int first_entry = 0;    // first entry number of a resource that will be  placed on a page
   int query_pn = -1;      // page number (page size as request parameter is not used)
 
-  // check on request accept header (clause 2.2.4)
-  // - LINK == OK = default (use default as response format)
-  // - in case of absence of any format == OK (use default as response format)
-  // - in case of JSON format == OK (use default as response format)
-  if (request->accept != APPLICATION_LINK_FORMAT &&
-      request->accept != APPLICATION_JSON && request->accept != CONTENT_NONE)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
     //handle bad request..., note below layer ignores this message if it is a multicast request
     oc_send_response_no_format(request, OC_STATUS_NOT_ACCEPTABLE);
@@ -381,18 +376,23 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   total += OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;    // add core elements
   total += oc_count_functional_blocks(device_index);  // add functional blocks  
 
-  // handle query parameters: l=ps and l=total ('l' and 'other' query parameters SHALL NOT be combined in a request)
+  // handle query parameters l=ps and/or l=total
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
 
-  if (l_exist == 1) // valid 'l' parameters, example /.well-known/core?l=total&l=ps
+  if (l_exist == 1) 
   {
     response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, PAGE_SIZE, total_exists, total);
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
     return;
   }
-  if (l_exist == -1)  // invalid 'l' parameters
+  if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 

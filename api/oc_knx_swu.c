@@ -25,7 +25,7 @@
 
 static oc_device_swu_t swu_device = {
   0,
-  BOTH,
+  PUSH,
   {NULL,0,NULL},
   {NULL,0,NULL},
   0,
@@ -48,15 +48,14 @@ static void oc_knx_swu_protocol_get_handler(oc_request_t* request, oc_interface_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 1, swu_device.protocol, 1); 
+  oc_rep_i_set_int(root, 1, swu_device.protocol, 1);
   oc_rep_end_root_object();
 
   oc_send_cbor_response(request, OC_STATUS_OK);
@@ -67,8 +66,7 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -81,6 +79,7 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 
     if (rep->value.integer == CoAP)
     { // allow only CoAP to be written, otherwise bad request
+      // value is already set by init ... but store it again and save to storage
       swu_device.protocol = (int) rep->value.integer;
       oc_storage_write(KNX_STORAGE_SWU_PROTOCOL, (uint8_t*) &swu_device.protocol, sizeof(swu_device.protocol));
       oc_send_response_no_format(request, OC_STATUS_CHANGED);
@@ -113,9 +112,8 @@ static void oc_knx_swu_max_defer_get_handler(oc_request_t* request, oc_interface
 {
   (void) data;
   (void) iface_mask;
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+   
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -132,9 +130,8 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 {
   (void) data;
   (void) iface_mask;
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+   
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -177,9 +174,7 @@ static void oc_knx_swu_method_get_handler(oc_request_t* request, oc_interface_ma
   (void) data;
   (void) iface_mask;
 
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -196,10 +191,8 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
 {
   (void) data;
   (void) iface_mask;
-  // size_t response_length = 0;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -245,8 +238,7 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -289,9 +281,8 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
 {
   (void) data;
   (void) iface_mask;
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+   
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -326,11 +317,9 @@ static void oc_knx_swu_state_get_handler(oc_request_t* request, oc_interface_mas
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -362,11 +351,9 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   // note we are not doing anything with the trigger.
@@ -406,8 +393,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -471,8 +457,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
 
   PRINT("oc_knx_swu_a_put_handler - start");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_OCTET_STREAM) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_OCTET_STREAM))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -519,22 +504,21 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 
-  // Triggers a software update query request (PULL on Software Update Server).
-  // not implemented
+  // triggers a software update query request (PULL on Software Update Server).
+  // triggers a {cmd:start/cancel} with some add. data. 
   oc_rep_t* rep = request->request_payload;
   if ((rep != NULL) && (rep->type == OC_REP_INT))
   {
-    PRINT("oc_knx_swu_a_post_handler received : %d\n", (int) rep->value.integer);
+    PRINT("oc_knx_swu_a_post_handler received : %d", (int) rep->value.integer);
 
-    oc_send_cbor_response(request, OC_STATUS_OK);
+    // not implemented 
+    oc_send_cbor_response(request, OC_STATUS_NOT_IMPLEMENTED);
     return;
   }
 
@@ -564,8 +548,7 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -600,8 +583,7 @@ static void oc_knx_swu_pkg_query_url_get_handler(oc_request_t* request, oc_inter
   (void) data;
   (void) iface_mask;
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -617,9 +599,8 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 {
   (void) data;
   (void) iface_mask;
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+   
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -660,9 +641,8 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 {
   (void) data;
   (void) iface_mask;
-
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+   
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -717,8 +697,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   PRINT("oc_core_swu_get_handler - start");
 
-  // check if the accept header is cbor-format 
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) )
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
@@ -726,7 +705,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   size_t device_index = request->resource->device;
 
-  // handle query parameters: l=ps l=total
+  // handle query parameters l=ps and/or l=total
   const int l_exist = check_if_query_l_exist(request, &ps_exists, &total_exists);
   if (l_exist == 1)
   {
@@ -738,6 +717,11 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   if (l_exist == -1)
   {
     oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    return;
+  }
+  if (l_exist == -2)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
 
@@ -811,7 +795,7 @@ void oc_create_knx_swu_resources(size_t device_index)
   OC_DBG("oc_create_knx_swu_resources");
 
   // create missing runtime variables 
-  oc_swu_set_package_name("");                            // no name
+  oc_swu_set_package_name("");                            // no name for the initial (never downloaded) state
   oc_swu_set_last_update("2020-04-12T23:20:50.52Z"); // EITT test value for manufacturing date 
 
   if (device_index == 0)
