@@ -67,8 +67,7 @@ oc_string_to_at_profile(oc_string_t str)
   return OC_PROFILE_UNKNOWN;
 }
 
-char*
-oc_at_profile_to_string(oc_at_profile_t at_profile)
+char* oc_at_profile_to_string(oc_at_profile_t at_profile)
 {
   if (at_profile == OC_PROFILE_COAP_OSCORE)
   {
@@ -92,9 +91,7 @@ oc_at_profile_to_string(oc_at_profile_t at_profile)
 // ----------------------------------------------------------------------------
 
 static void
-oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request,
-                                        oc_interface_mask_t iface_mask,
-                                        void* data)
+oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -106,7 +103,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request,
     request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
-  // cbor_encode_uint(&g_encoder, g_oscore_osndelay);
+
   oc_rep_begin_root_object();
   oc_rep_i_set_uint(root, 1, g_oscore_osndelay);
   oc_rep_end_root_object();
@@ -116,9 +113,7 @@ oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request,
 }
 
 static void
-oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request,
-                                        oc_interface_mask_t iface_mask,
-                                        void* data)
+oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -136,8 +131,7 @@ oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request,
     {
       if (rep->iname == 1)
       {
-        PRINT("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d\n",
-              (int) rep->type, (int) rep->value.integer);
+        PRINT("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int) rep->type, (int) rep->value.integer);
         g_oscore_osndelay = rep->value.integer;
         oc_send_cbor_response(request, OC_STATUS_CHANGED);
         return;
@@ -159,7 +153,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0,
 void
 oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
 {
-  OC_DBG("oc_create_knx_auth_o_osndelay_resource\n");
+  OC_DBG("oc_create_knx_auth_o_osndelay_resource");
   //
   oc_core_populate_resource(
     resource_idx, device, "/auth/o/osndelay", OC_IF_D, APPLICATION_CBOR,
@@ -170,17 +164,14 @@ oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
 // ----------------------------------------------------------------------------
 
 static void
-oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request,
-                                       oc_interface_mask_t iface_mask,
-                                       void* data)
+oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code =
-      oc_status_code(OC_STATUS_BAD_REQUEST);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
   // cbor_encode_uint(&g_encoder, g_oscore_replaywindow);
@@ -188,7 +179,7 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request,
   oc_rep_i_set_uint(root, 1, g_oscore_replaywindow);
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done\n");
+  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done");
   oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -252,16 +243,13 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
   size_t response_length = 0;
-  int i;
-  int matches = 0;
+  int query_parameter_kvpair_matches = 0;   // how many (to this device applicable) query parameter key/value pair matches where found 
 
-  int total = (int) OC_KNX_AUTH_O_OSNDELAY - (int) OC_KNX_AUTH_O_REPLWDO;
-  int first_entry = (int) OC_KNX_AUTH_O_REPLWDO; // inclusive
-  int last_entry = (int) OC_KNX_AUTH_O;          // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int total = OC_KNX_AUTH_O_OSNDELAY - OC_KNX_AUTH_O_REPLWDO;
+  int first_entry = OC_KNX_AUTH_O_REPLWDO;
+  int last_entry = OC_KNX_AUTH_O;
+  int query_pn;                             // page number (page size as request parameter is not used)
+  bool more_request_needed = false;         // If more requests (pages) are needed to get the full list
 
   PRINT("oc_core_auth_o_get_handler - start");
 
@@ -274,13 +262,17 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
 
   // handle query parameters l=ps and/or l=total
-   if(query_l_was_processed(request, PAGE_SIZE, total))
-     return;
+  if (query_l_was_processed(request, PAGE_SIZE, total))
+    return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -294,23 +286,21 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
     more_request_needed = true;
   }
 
-  for (i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource =
-      oc_core_get_resource_by_index(i, device_index);
+    const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
     if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
-      matches++;
+      query_parameter_kvpair_matches++;
     }
   }
 
-  if (matches > 0)
+  if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
@@ -531,17 +521,15 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
 {
   (void) data;
   (void) iface_mask;
+
   size_t response_length = 0;
-  int i;
-  int length = 0;
 
   int total = oc_core_find_nr_used_in_auth_at_table();
-  int first_entry = 0;               // inclusive
-  int last_entry = G_AT_MAX_ENTRIES; // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int first_entry = 0;
+  int last_entry = G_AT_MAX_ENTRIES;
+
+  int query_pn;                     // page number (page size as request parameter is not used)
+  bool more_request_needed = false; // If more requests (pages) are needed to get the full list
 
   PRINT("oc_core_auth_at_get_handler - start");
 
@@ -552,13 +540,17 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
   }
 
   // handle query parameters l=ps and/or l=total
-   if(query_l_was_processed(request, PAGE_SIZE, total))
-      return;
+  if (query_l_was_processed(request, PAGE_SIZE, total))
+    return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -573,32 +565,28 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
   }
 
   /* example entry: </auth/at/token-id>;ct=50 */
-  for (i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < last_entry; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
-      // index  in use
+
       if (response_length > 0)
       {
-        length = oc_rep_add_line_to_buffer(",\n");
-        response_length += length;
+        // add a new line after the first was inserted
+        response_length += oc_rep_add_line_to_buffer(",\n");
       }
-      length = oc_rep_add_line_to_buffer("</auth/at/");
-      response_length += length;
-      length = oc_rep_add_line_to_buffer(oc_string(g_at_entries[i].id));
-      response_length += length;
-      // return cbor
-      length = oc_rep_add_line_to_buffer(">;ct=60");
-      response_length += length;
+
+      response_length += oc_rep_add_line_to_buffer("</auth/at/");
+      response_length += oc_rep_add_line_to_buffer(oc_string(g_at_entries[i].id));
+      response_length += oc_rep_add_line_to_buffer(">;ct=60");
     }
   }
   if (response_length > 0)
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
@@ -1124,7 +1112,7 @@ oc_core_auth_at_x_post_handler(oc_request_t* request,
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
-  PRINT("oc_core_auth_at_x_post_handler\n");
+  PRINT("oc_core_auth_at_x_post_handler - start");
   bool changed = false;
   /* loop over the request document to check if all inputs are ok */
   rep = request->request_payload;
@@ -1231,16 +1219,15 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   (void) data;
   (void) iface_mask;
   size_t response_length = 0;
-  int i;
-  int matches = 0;
 
-  int total = (int) OC_KNX_AUTH_AT_X - (int) OC_KNX_AUTH_O;
-  int first_entry = (int) OC_KNX_AUTH_O;   // inclusive
-  int last_entry = (int) OC_KNX_AUTH_AT_X; // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+
+  int total = OC_KNX_AUTH_AT_X - OC_KNX_AUTH_O;
+  int first_entry = OC_KNX_AUTH_O;
+  int last_entry = OC_KNX_AUTH_AT_X;
+
+  int query_pn;                           // page number (page size as request parameter is not used)
+  bool more_request_needed = false;    // If more requests (pages) are needed to get the full list
 
   PRINT("oc_core_knx_auth_get_handler - start");
 
@@ -1252,14 +1239,18 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
 
   size_t device_index = request->resource->device;
 
-  // handle query parameters: l=ps l=total
-   if(query_l_was_processed(request, PAGE_SIZE, total))
-      return;
+  // handle query parameters l=ps and/or l=total
+  if (query_l_was_processed(request, PAGE_SIZE, total))
+    return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1273,22 +1264,21 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
     more_request_needed = true;
   }
 
-  for (i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < last_entry; i++)
   {
     const oc_resource_t* resource =
       oc_core_get_resource_by_index(i, device_index);
     if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
-      matches++;
+      query_parameter_kvpair_matches++;
     }
   }
-  if (matches > 0)
+  if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
@@ -1297,7 +1287,7 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_knx_auth_get_handler - end\n");
+  PRINT("oc_core_knx_auth_get_handler - end");
 }
 
 #ifdef OC_IOT_ROUTER

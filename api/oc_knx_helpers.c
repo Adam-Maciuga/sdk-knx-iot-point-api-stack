@@ -118,9 +118,10 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
   return response_length;
 }
 
-bool check_if_query_pn_exist(oc_request_t* request, int* pn_value, int* ps_value)
+bool check_if_query_pn_exist(oc_request_t* request, int* pn_value)
 {
-  (void) ps_value;
+  
+
   char* value = NULL;
   int value_len = -1;
 
@@ -129,67 +130,40 @@ bool check_if_query_pn_exist(oc_request_t* request, int* pn_value, int* ps_value
     // need to have a ref ptr for the parent value
     return false;
   }
-  // if (ps_value == NULL) {
-  //   return false;
-  // }
 
-  // *ps_value = -1;
-  *pn_value = -1;
+  *pn_value = 0;
 
-  // handle query parameters
-  if (oc_query_values_available(request))
+  if (!oc_query_values_available(request))
+  { // no query parameter at all exits 
+    return false;
+  }
+
+  oc_init_query_iterator();
+  if (oc_query_value_exists(request, "pn") > -1)
   {
-    oc_init_query_iterator();
-    // check if pn exist
-    if (oc_query_value_exists(request, "pn") > -1)
-    {
-      oc_iterate_query_get_values(request, "pn", &value, &value_len);
-      *pn_value = atoi(value);
-    }
-    // oc_init_query_iterator();
-    // if (oc_query_value_exists(request, "ps") > -1) {
-    //   oc_iterate_query_get_values(request, "ps", &value, &value_len);
-    //   *ps_value = atoi(value);
-    // }
-  } /* query available */
-
-  // if (*ps_value > -1) {
-  //   return true;
-  // }
-  if (*pn_value > -1)
-  {
+    // fetch the first, ignore any possible (additional) next pn=xxx
+    oc_iterate_query_get_values(request, "pn", &value, &value_len);
+    // converts to '0' in case of error conversion 
+    *pn_value = atoi(value); 
     return true;
   }
+
   return false;
 }
 
-int
-add_next_page_indicator(char* url, int next_page_num)
+int add_next_page_indicator(char* url, int next_page_num)
 {
   // example : </p?pn=1>;rt="p.next";ct=40
-  int response_length = 0;
-  int length;
+  // 'p.next' is fix and 'p' is not an individual url part
+  
   char next_page_str[20];
-  sprintf(next_page_str, "%d", next_page_num);
+  (void)sprintf(next_page_str, "%d", next_page_num);
 
-  length = oc_rep_add_line_to_buffer(",\n<");
-  response_length += length;
-  length = oc_rep_add_line_to_buffer(url);
-  response_length += length;
-  length = oc_rep_add_line_to_buffer("?pn=");
-  response_length += length;
-  length = oc_rep_add_line_to_buffer(next_page_str);
-  response_length += length;
-  length = oc_rep_add_line_to_buffer(">;rt=\"");
-  response_length += length;
-  if (url[0] == '/')
-  {
-    url++;
-  }
-  length = oc_rep_add_line_to_buffer(url);
-  response_length += length;
-  length = oc_rep_add_line_to_buffer(".next\";ct=40");
-  response_length += length;
+  int response_length = oc_rep_add_line_to_buffer(",\n<"); 
+  response_length += oc_rep_add_line_to_buffer(url);
+  response_length += oc_rep_add_line_to_buffer("?pn=");
+  response_length += oc_rep_add_line_to_buffer(next_page_str);
+  response_length += oc_rep_add_line_to_buffer(">;rt=\"p.next\";ct=40");
 
   return response_length;
 }

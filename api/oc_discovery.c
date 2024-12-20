@@ -60,36 +60,32 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
     return false;
   }
 
-  if ((oc_string_len(resource->uri) == 0))
+  if (oc_string_len(resource->uri) == 0)
   {
     return false;
   }
 
   if (*response_length > 0)
   {
-    // frame with a trailing comma in case a resource (or even a single char) is already added to the response
+    // close previous record to create a new 
     *response_length += oc_rep_add_line_to_buffer(",\n");
   }
 
   // <
-  int length = oc_rep_add_line_to_buffer("<");
-  *response_length += length;
+  *response_length += oc_rep_add_line_to_buffer("<");
 
   // uri
-  length = oc_rep_add_line_to_buffer(oc_string(resource->uri));
-  *response_length += length;
+  *response_length += oc_rep_add_line_to_buffer(oc_string(resource->uri));
 
   // >
-  length = oc_rep_add_line_to_buffer(">;");
-  *response_length += length;
+  *response_length += oc_rep_add_line_to_buffer(">;");
 
   // rt's
   const int number_of_resource_types = oc_string_array_get_allocated_size(resource->types);
 
   if (number_of_resource_types > 0)
   {
-    length = oc_rep_add_line_to_buffer("rt=\"");
-    *response_length += length;
+    *response_length += oc_rep_add_line_to_buffer("rt=\"");
 
     for (int i = 0; i < number_of_resource_types; i++)
     {
@@ -101,16 +97,14 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
         { // not for the first rt ...
 
           // white space as separator between the rt values
-          length = oc_rep_add_line_to_buffer(" ");
-          *response_length += length;
+          *response_length += oc_rep_add_line_to_buffer(" ");
         }
 
         if (!truncate)
         { // rt's must be in the response with urn:knx (requester was not using urn:knx)
 
           // take it and frame 1:1 (assumption urn:knx is always present)
-          length = oc_rep_add_line_size_to_buffer(t, size);
-          *response_length += length;
+          *response_length += oc_rep_add_line_size_to_buffer(t, size);
         }
         else
         { // rt's must be in the response without urn:knx 
@@ -118,47 +112,36 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
           if (strncmp(t, "urn:knx", 7) == 0)
           {
             // take it and frame a chunk with offset '7' after 'urn:knx'
-            length = oc_rep_add_line_size_to_buffer(&t[7], (int) size - 7);
-            *response_length += length;
+            *response_length += oc_rep_add_line_size_to_buffer(&t[7], (int) size - 7);
           }
           else
           {
             // does not start with urn:knx, so frame what you have (e.g; vendor namespaces rt's such as urn:abb)
             // 
-            length = oc_rep_add_line_size_to_buffer(t, size);
-            *response_length += length;
+            *response_length += oc_rep_add_line_size_to_buffer(t, size);
           }
         }
       }
     }
 
-    length = oc_rep_add_line_to_buffer("\";");
-    *response_length += length;
+    *response_length += oc_rep_add_line_to_buffer("\";");
   }
 
   // if's
   if (resource->interfaces > 0)
   {
-    length = oc_rep_add_line_to_buffer("if=");
-    *response_length += length;
-
-    length = oc_frame_interfaces_mask_in_response(resource->interfaces, truncate);
-    *response_length += length;
-
-    length = oc_rep_add_line_to_buffer(";");
-    *response_length += length;
+    *response_length += oc_rep_add_line_to_buffer("if=");
+    *response_length += oc_frame_interfaces_mask_in_response(resource->interfaces, truncate);
+    *response_length += oc_rep_add_line_to_buffer(";");
   }
 
   if (resource->content_type)
   {
-    length = oc_rep_add_line_to_buffer("ct=");
-    *response_length += length;
+    *response_length += oc_rep_add_line_to_buffer("ct=");
 
     char my_ct_value[5]; // space for one type only (max 5 digits up to CONTENT_NONE)
-    sprintf(my_ct_value, "%d", resource->content_type);
-
-    length = oc_rep_add_line_to_buffer(my_ct_value);
-    *response_length += length;
+    (void)sprintf(my_ct_value, "%d", resource->content_type);
+    *response_length += oc_rep_add_line_to_buffer(my_ct_value);
   }
 
   return true;
@@ -299,9 +282,9 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   bool query_parameter_key_match = false; // true if at least one (to this device applicable) query parameter KEY was found
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
-  int total = 0;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int total = OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
   int first_entry = 0;    // first entry number of a resource that will be  placed on a page
-  int query_pn = -1;      // page number (page size as request parameter is not used)
+  int query_pn;           // page number (page size as request parameter is not used)
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -312,7 +295,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
 
   oc_init_query_iterator();
   while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
-  { // each KEY is found one time per request query parameters (last wins)
+  { // each KEY (+ value) is stored one time per request (last wins)
 
     if (strncmp(key, "rt", key_len) == 0)
     {
@@ -352,7 +335,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     return;
   }
 
-  // multicast w/ query parameter ; unicast w/ or w/o query parameter
+  // multicast w/ query parameter ; unicast w/wo query parameter
 
   // count 'visible' application resources in case of query parameters rt/if are present
   if (rt_len > 0 || if_len > 0)
@@ -371,21 +354,23 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     }
   }
 
-  total += OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;    // add core elements
-  total += oc_count_functional_blocks(device_index);  // add functional blocks  
+  // add FBs
+  total += oc_count_functional_blocks(device_index); 
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
 
   // handle query parameters: page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
     query_parameter_key_match = true;
+
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
 
-    // check if the requested page would carry at least one resource
-    // e.g; total=10, page=5 -> no data on page 5 
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= total)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -642,9 +627,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     // add only a page hint if at least one response entry is in
     if (more_request_needed)
     {
-      // no page # was in the request next page is 1 or #+1
-      const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
 
     PRINT("oc_wkcore_discovery_handler send matching response with length = %d", (int) response_length);

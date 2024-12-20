@@ -95,23 +95,19 @@ static int oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_valu
   return counter;
 }
 
-static void
-oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
+
   size_t response_length = 0;
-  int matches = 0;
-
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
   int total = 0;
-  int first_entry = 0; // inclusive
-  int last_entry = 0;  // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int first_entry = 0;
+  int query_pn;                          // page number (page size as request parameter is not used)
+  bool more_request_needed = false;      // If more requests (pages) are needed to get the full list
 
-  PRINT("oc_core_fb_x_get_handler");
+  PRINT("oc_core_fb_x_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -148,28 +144,31 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, 
       oc_string(request->resource->uri), oc_string_len(request->resource->uri),
       request->uri_path, request->uri_path_len);
   }
-  PRINT("instance: %d\n", instance);
+  PRINT("instance: %d ", instance);
   size_t device_index = request->resource->device;
 
   total = oc_core_count_dp_in_fb(device_index, instance, fb_value);
-  last_entry = total;
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
-    if (first_entry >= last_entry)
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
+    if (first_entry >= total)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
     }
   }
 
-  if (last_entry > first_entry + PAGE_SIZE)
+  if (total > first_entry + PAGE_SIZE)
   {
     more_request_needed = true;
   }
@@ -211,10 +210,9 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, 
       }
       else
       {
-        oc_add_resource_to_wk(resource, request, device_index, &response_length,
-                              true);
-        matches++;
-        if (matches >= PAGE_SIZE)
+        oc_add_resource_to_wk(resource, request, device_index, &response_length, true);
+        query_parameter_kvpair_matches++;
+        if (query_parameter_kvpair_matches >= PAGE_SIZE)
         {
           break;
         }
@@ -222,13 +220,12 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, 
     }
   }
 
-  if (matches > 0)
+  if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
@@ -237,7 +234,7 @@ oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, 
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_fb_x_get_handler - end\n");
+  PRINT("oc_core_fb_x_get_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f_x, knx_swu_protocol, 0, "/f/*",
@@ -379,7 +376,7 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
                                         int last_entry)
 {
   (void) request;
-  int length = 0;
+  
   char number[24];
   int i;
   int original_matches = *matches;
@@ -402,8 +399,7 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
       if ((strncmp(t, ":dpa.11.", 8) == 0) ||
           (strncmp(t, "urn:knx:dpa.11.", 15) == 0))
       {
-        /* specific functional block iot_router : /f/netip */
-        // add the functional block only once.
+        // specific functional block iot_router : /f/netip, add block only once
         if (netip_added == false)
         {
           if (*skipped < first_entry)
@@ -415,11 +411,10 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
             /* add only once, this is not the first entry, so add the ,\n */
             if (*response_length > 0)
             {
-              length = oc_rep_add_line_to_buffer(",\n");
-              *response_length += length;
+              // close previous record to create a new 
+              *response_length += oc_rep_add_line_to_buffer(",\n");
             }
-            length = oc_rep_add_line_to_buffer("</f/netip>;rt=\":fb.11\";ct=40");
-            *response_length += length;
+            *response_length += oc_rep_add_line_to_buffer("</f/netip>;rt=\":fb.11\";ct=40");
             (*matches)++;
             netip_added = true;
             counter++;
@@ -428,14 +423,12 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
       }
       else
       {
-        /* regular functional block, framing by functional block numbers &
-         * instances*/
-        if ((strncmp(t, ":dpa", 4) == 0) ||
-            (strncmp(t, "urn:knx:dpa", 11) == 0))
+        // regular functional block, framing by functional block numbers & instances
+        if ((strncmp(t, ":dpa", 4) == 0) || (strncmp(t, "urn:knx:dpa", 11) == 0))
         {
-          int fp_int = get_fp_from_dp(t);
+          const int fp_int = get_fp_from_dp(t);
           const int instance = resource->fb_instance;
-          if ((fp_int > 0) && (is_in_g_array(fp_int, instance) == false))
+          if (fp_int > 0 && !is_in_g_array(fp_int, instance))
           {
             store_in_array(fp_int, instance);
             counter++;
@@ -459,46 +452,39 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
     {
       if (*response_length > 0)
       {
-        /* frame the trailing comma */
-        length = oc_rep_add_line_to_buffer(",\n");
-        *response_length += length;
+        // close previous record to create a new 
+        *response_length += oc_rep_add_line_to_buffer(",\n");
       }
 
-      length = oc_rep_add_line_to_buffer("</f/");
-      *response_length += length;
+      // URI
+      *response_length += oc_rep_add_line_to_buffer("</f/");
+
+      // FB number
       if (g_int_array[1][i] > 0)
       {
-        // functional block with instance with 2 numbers, e.g. <functional
-        // block>_<instance>
-        snprintf(number, 23, "%05d_%02d", g_int_array[0][i], g_int_array[1][i]);
-        // snprintf(number, 23, "%d_%d", g_int_array[0][i], g_int_array[1][i]);
+        // functional block with instance with 2 numbers, e.g. <functional block>_<instance>
+        (void)snprintf(number, 23, "%05d_%02d", g_int_array[0][i], g_int_array[1][i]);
       }
       else
       {
         // functional block with no instance, e.g. defaulting to instance 0.
-        snprintf(number, 5, "%d", g_int_array[0][i]);
+        (void)snprintf(number, 5, "%d", g_int_array[0][i]);
       }
-      length = oc_rep_add_line_to_buffer(number);
-      *response_length += length;
-      length = oc_rep_add_line_to_buffer(">;");
-      *response_length += length;
-      (*matches)++;
 
-      length = oc_rep_add_line_to_buffer("rt=\"");
-      *response_length += length;
-      length = oc_rep_add_line_to_buffer("urn:knx:fb.");
-      *response_length += length;
-      // e.g. max functional block is 12345
-      snprintf(number, 6, "%d", g_int_array[0][i]);
-      length = oc_rep_add_line_to_buffer(number);
-      *response_length += length;
-      length = oc_rep_add_line_to_buffer("\";");
-      *response_length += length;
-      length = oc_rep_add_line_to_buffer("if=\":if.ll\";");
-      *response_length += length;
-      /* content type application link format*/
-      length = oc_rep_add_line_to_buffer("ct=40");
-      *response_length += length;
+      (*matches)++;
+      
+      *response_length += oc_rep_add_line_to_buffer(number);
+
+      // text 
+      *response_length += oc_rep_add_line_to_buffer(">;rt=\"urn:knx:fb.");
+      
+
+      // FB instance (e.g. max functional block is 5 digits such as 12345)
+      (void)snprintf(number, 6, "%d", g_int_array[0][i]);
+      *response_length += oc_rep_add_line_to_buffer(number);
+
+      // if and ct  
+      *response_length += oc_rep_add_line_to_buffer("\";if=\":if.ll\";ct=40");
     }
   }
 
@@ -527,10 +513,9 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
   int skipped = 0;
   bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
-
-  int total = 0;          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;    // first entry number of a resource that will be  placed on a page
-  int query_pn = -1;      // page number (page size as request parameter is not used)
+  int total = 0;                          // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                    // first entry number of a resource that will be  placed on a page
+  int query_pn;                          // page number (page size as request parameter is not used)
 
   PRINT("oc_core_fb_get_handler");
 
@@ -548,9 +533,13 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= total)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -569,9 +558,8 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   {
     if (more_request_needed)
     {
-      // no page # was in the request next page is 1 or #+1
-      const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }

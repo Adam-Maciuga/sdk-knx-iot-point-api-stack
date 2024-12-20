@@ -54,8 +54,7 @@ static oc_device_info_t oc_device_info[OC_MAX_NUM_DEVICES];
 static oc_platform_info_t oc_platform_info; // platform provider     
 static size_t device_count = 0;             // holds the current number of allocated devices 
 
-void
-oc_core_init(void)
+void oc_core_init(void)
 {
   oc_core_shutdown();
 
@@ -71,8 +70,7 @@ oc_core_init(void)
 #endif /* OC_DYNAMIC_ALLOCATION */
 }
 
-static void
-oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
+static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
 {
   if (oc_device_info_item)
   {
@@ -84,8 +82,7 @@ oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
   }
 }
 
-void
-oc_core_shutdown(void)
+void oc_core_shutdown(void)
 {
   size_t i;
   oc_free_string(&(oc_platform_info.mfg_name));

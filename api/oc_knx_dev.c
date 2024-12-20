@@ -93,14 +93,13 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
-  PRINT("oc_core_dev_hwv_get_handler\n");
+  PRINT("oc_core_dev_hwv_get_handler");
 
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device != NULL)
   {
-    // Content-Format: "application/cbor"
-    // Payload: [ 1, 2, 3 ]
+    // cbor with payload: [ 1, 2, 3 ]
     uint64_t array[3];
     array[0] = device->hwv.major;
     array[1] = device->hwv.minor;
@@ -453,10 +452,9 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   (void) data;
   (void) iface_mask;
 
-  #define PAGE_SIZE_IPV6 1  // see clause 2.5.6JSON value or array of JSON values
-  
+  int first_entry = 0;    // first entry number of a resource that will be  placed on a page
   int total = 0;
-  int query_pn = -1;
+  int query_pn;           // page number (page size as request parameter is not used)
 
   PRINT("oc_core_dev_ipv6_get_handler - start");
 
@@ -477,15 +475,19 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   // handle query parameters l=ps and/or l=total
-  if (query_l_was_processed(request, PAGE_SIZE_IPV6, total))
+  if (query_l_was_processed(request, BATCH_SIZE, total))
     return;
 
   my_ep = oc_connectivity_get_endpoints(device_index);
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
-    const int first_entry = query_pn * PAGE_SIZE_IPV6;
+    // update only when pn query parameter was present
+    first_entry += query_pn * BATCH_SIZE;
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= total)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -634,7 +636,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   int first_entry = OC_DEV_SN;            // first entry number of a resource that will be placed on a page
   int last_entry = OC_DEV;                // last entry number of a resource that will be placed on a page     
 
-  int query_pn = -1;                // page number (page size as request parameter is not used)
+  int query_pn;                // page number (page size as request parameter is not used)
   bool more_request_needed = false; // if more requests (pages) are needed to get the full list
 
   PRINT("oc_core_dev_dev_get_handler - start");
@@ -652,12 +654,13 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
 
-    // check if the requested page would carry at least one resource
-    // e.g; max=20, page=5 -> no data on page 5 
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -684,9 +687,8 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
@@ -732,7 +734,7 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
   if (device != NULL)
   {
     oc_rep_begin_root_object();
-    const uint8_t sa = (uint8_t) (device->ia >> 8);
+    const uint8_t sa = device->ia >> 8;
     oc_rep_i_set_int(root, 1, sa);
     oc_rep_end_root_object();
 
@@ -779,7 +781,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
   {
     oc_rep_begin_root_object();
 
-    uint8_t da = (uint8_t) (device->ia);
+    uint8_t da = device->ia;
     oc_rep_i_set_int(root, 1, da);
     oc_rep_end_root_object();
     oc_send_cbor_response(request, OC_STATUS_OK);
@@ -853,8 +855,8 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_fid_put_handler received : %" PRId64 "", rep->value.integer);
-        oc_core_set_device_fid(device_index, (uint64_t) rep->value.integer);
-        uint64_t temp = (uint64_t) rep->value.integer;
+        oc_core_set_device_fid(device_index, rep->value.integer);
+        uint64_t temp = rep->value.integer;
         oc_storage_write(KNX_STORAGE_FID, (uint8_t*) &temp, sizeof(temp));
         oc_send_response_no_format(request, OC_STATUS_CHANGED);
         return;
@@ -1075,7 +1077,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
   if ((rep != NULL) && (rep->type == OC_REP_INT_ARRAY))
   {
     int64_t* arr = oc_int_array(rep->value.array);
-    int array_size = (int) oc_int_array_size(rep->value.array);
+    int array_size = oc_int_array_size(rep->value.array);
     if (array_size != 3)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1118,17 +1120,15 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
-  int i;
-  int matches = 0;
 
-  int total = (int) OC_KNX_SPAKE - (int) OC_APP_X;
-  int first_entry = (int) OC_APP_X;    // inclusive
-  int last_entry = (int) OC_KNX_SPAKE; // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  size_t response_length = 0;
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found
+
+  int total = OC_KNX_SPAKE - OC_APP_X;
+  int first_entry = OC_APP_X;
+  int last_entry = OC_KNX_SPAKE;
+  int query_pn;                           // page number (page size as request parameter is not used)
+  bool more_request_needed = false;       // If more requests (pages) are needed to get the full list
 
   PRINT("oc_core_ap_get_handler");
 
@@ -1145,9 +1145,13 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1161,23 +1165,22 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
     more_request_needed = true;
   }
 
-  for (i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < last_entry; i++)
   {
     const oc_resource_t* resource =
       oc_core_get_resource_by_index(i, device_index);
     if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
-      matches++;
+      query_parameter_kvpair_matches++;
     }
   }
 
-  if (matches > 0)
+  if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)
     {
-      int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(
-        oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }
@@ -1186,7 +1189,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_ap_get_handler - end\n");
+  PRINT("oc_core_ap_get_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(app, app_x, 0, "/ap", OC_IF_P,

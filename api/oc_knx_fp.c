@@ -309,7 +309,7 @@ int oc_core_find_next_group_object_table_url(const char* url, const int cur_inde
 }
 
 // TODO use static variable
-static int oc_core_items_used_in_group_object_table(void)
+static int oc_core_items_used_in_go_table(void)
 {
   int counter = 0;
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -323,7 +323,7 @@ static int oc_core_items_used_in_group_object_table(void)
 }
 
 // TODO use static variable
-static int oc_core_items_used_in_group_recipient_table(void)
+static int oc_core_items_used_in_rcp_table(void)
 {
   int counter = 0;
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
@@ -362,13 +362,12 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void) data;
   (void) iface_mask;
 
-  int length;
-  int query_parameter_kvpair_matches = 0;                       // how many (to this device applicable) query parameter key/value pair matches where found 
-  size_t response_length = 0;                                   // response payload len
-  bool more_request_needed = false;                             // if more requests (pages) are needed to get the full list
-  const int total = oc_core_items_used_in_group_object_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;                                          // first entry number of a resource that will be placed on a page
-  int query_pn = -1;                                            // page number (page size as request parameter is not used)
+  int query_parameter_kvpair_matches = 0;             // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;                         // response payload len
+  bool more_request_needed = false;                   // if more requests (pages) are needed to get the full list
+  const int total = oc_core_items_used_in_go_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                                // first entry number of a resource that will be placed on a page
+  int query_pn;                                       // page number (page size as request parameter is not used)
 
 
   PRINT("oc_core_fp_g_get_handler - start");
@@ -384,12 +383,13 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
 
-    // check if the requested page would carry at least one resource
-    // e.g; max=20, page=5 -> no data on page 5 
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= GOT_MAX_ENTRIES)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -397,6 +397,8 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
     }
   }
 
+  // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
+  // e.g; first=0, total=300 -> 'more response needed' marker = true
   if (total > first_entry + PAGE_SIZE)
   {
     more_request_needed = true;
@@ -407,28 +409,18 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   {
     if (g_got[i].id > -1)
     {
-      // index in use
-      PRINT(". adding %d", i);
+
       if (response_length > 0)
       {
-        // add a ',' if at least one entry is already in
-        length = oc_rep_add_line_to_buffer(",");
-        response_length += length;
+        // close previous record to create a new 
+        response_length += oc_rep_add_line_to_buffer(",\n");
       }
 
-      // url
-      length = oc_rep_add_line_to_buffer("</fp/g/");
-      response_length += length;
-
-      // id (max 10 chars)
+      response_length += oc_rep_add_line_to_buffer("</fp/g/");
       char string[10];
       (void) sprintf(string, "%d>", g_got[i].id);
-      length = oc_rep_add_line_to_buffer(string);
-      response_length += length;
-
-      // ct , only CBOR
-      length = oc_rep_add_line_to_buffer(";ct=60");
-      response_length += length;
+      response_length += oc_rep_add_line_to_buffer(string);
+      response_length += oc_rep_add_line_to_buffer(";ct=60");
 
       query_parameter_kvpair_matches++;
 
@@ -442,9 +434,8 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   if (more_request_needed)
   {
-    // no page # was in the request next page is 1 or #+1
-    const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-    response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+    // no page # was in the request (query_p =0) = next page 1 else #+1
+    response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
@@ -848,7 +839,7 @@ uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address)
 }
 
 // TODO use static variable
-static int oc_core_items_used_in_group_publisher_table(void)
+static int oc_core_items_used_in_pub_table(void)
 {
   int counter = 0;
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
@@ -886,22 +877,17 @@ oc_string_t oc_core_find_publisher_table_url_from_index(int index)
   return g_gpt[index].url;
 }
 
-static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
-                                     void* data)
+static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
-  int length = 0;
-  int matches = 0;
 
-  int total = oc_core_items_used_in_group_publisher_table();
-  int first_entry = 0;              // inclusive
-  int last_entry = GPT_MAX_ENTRIES; // exclusive
-  // int query_ps = -1;
-  int query_pn = -1;
-  bool more_request_needed =
-    false; // If more requests (pages) are needed to get the full list
+  int query_parameter_kvpair_matches = 0;              // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;                          // response payload len
+  bool more_request_needed = false;                    // if more requests (pages) are needed to get the full list
+  const int total = oc_core_items_used_in_pub_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                                 // first entry number of a resource that will be placed on a page
+  int query_pn;                                        // page number (page size as request parameter is not used)
 
   PRINT("oc_core_fp_p_get_handler - start");
 
@@ -916,10 +902,14 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
-    if (first_entry >= last_entry)
+
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
+    if (first_entry >= GPT_MAX_ENTRIES)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
       return;
@@ -932,31 +922,26 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
 
   /* example entry: </fp/p/1>;ct=60 */
-  for (int i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < GPT_MAX_ENTRIES; i++)
   {
     if (g_gpt[i].id > -1)
     {
-      // index  in use
       if (response_length > 0)
       {
-        length = oc_rep_add_line_to_buffer(",");
-        response_length += length;
+        // add a new line after the first was inserted
+        response_length += oc_rep_add_line_to_buffer(",\n");
       }
 
-      length = oc_rep_add_line_to_buffer("</fp/p/");
-      response_length += length;
+      response_length += oc_rep_add_line_to_buffer("</fp/p/");
       char string[10];
-      sprintf((char*) &string, "%d>", g_gpt[i].id);
-      length = oc_rep_add_line_to_buffer(string);
-      response_length += length;
+      (void) sprintf((char*) &string, "%d>", g_gpt[i].id);
+      response_length += oc_rep_add_line_to_buffer(string);
+      response_length += oc_rep_add_line_to_buffer(";ct=60");
 
-      length = oc_rep_add_line_to_buffer(";ct=60");
-      response_length += length;
+      query_parameter_kvpair_matches++;
 
-      matches++;
-
-      if (matches >= PAGE_SIZE)
-      {
+      if (query_parameter_kvpair_matches >= PAGE_SIZE)
+      { // don't add more than page supports
         break;
       }
     }
@@ -964,9 +949,8 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   if (more_request_needed)
   {
-    int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-    response_length +=
-      add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+    // no page # was in the request (query_p =0) = next page 1 else #+1
+    response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
@@ -1353,13 +1337,12 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void) data;
   (void) iface_mask;
 
-  int length;
-  int query_parameter_kvpair_matches = 0;                          // how many (to this device applicable) query parameter key/value pair matches where found 
-  size_t response_length = 0;                                      // response payload len
-  bool more_request_needed = false;                                // if more requests (pages) are needed to get the full list
-  const int total = oc_core_items_used_in_group_recipient_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;                                             // first entry number of a resource that will be placed on a page
-  int query_pn = -1;                                               // page number (page size as request parameter is not used)
+  int query_parameter_kvpair_matches = 0;              // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;                          // response payload len
+  bool more_request_needed = false;                    // if more requests (pages) are needed to get the full list
+  const int total = oc_core_items_used_in_rcp_table(); // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
+  int first_entry = 0;                                 // first entry number of a resource that will be placed on a page
+  int query_pn;                                        // page number (page size as request parameter is not used)
 
 
   PRINT("oc_core_fp_r_get_handler - start");
@@ -1375,12 +1358,13 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
 
-    // check if the requested page would carry at least one resource
-    // e.g; max=20, page=5 -> no data on page 5 
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= GRT_MAX_ENTRIES)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1400,27 +1384,23 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   {
     if (g_grt[i].id > -1)
     {
-      // index  in use
       if (response_length > 0)
       {
-        length = oc_rep_add_line_to_buffer(",");
-        response_length += length;
+        // // close previous record to create a new 
+        response_length += oc_rep_add_line_to_buffer(",\n");
       }
 
-      length = oc_rep_add_line_to_buffer("</fp/r/");
-      response_length += length;
+      response_length += oc_rep_add_line_to_buffer("</fp/r/");
       char string[10];
-      sprintf((char*) &string, "%d>", g_grt[i].id);
-      length = oc_rep_add_line_to_buffer(string);
-      response_length += length;
-
-      length = oc_rep_add_line_to_buffer(";ct=60");
-      response_length += length;
+      (void) sprintf(string, "%d>", g_grt[i].id);
+      response_length += oc_rep_add_line_to_buffer(string);
+      response_length += oc_rep_add_line_to_buffer(";ct=60");
 
       query_parameter_kvpair_matches++;
 
       if (query_parameter_kvpair_matches >= PAGE_SIZE)
       {
+        // don't add more than page supports
         break;
       }
     }
@@ -1428,9 +1408,8 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   if (more_request_needed)
   {
-    // no page # was in the request next page is 1 or #+1
-    const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-    response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+    // no page # was in the request (query_p =0) = next page 1 else #+1
+    response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
   }
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
@@ -1457,6 +1436,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
+  // debugging
   oc_print_rep_as_json(request->request_payload, true);
 
   int index = -1;
@@ -1473,12 +1453,11 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         int id = oc_table_find_id_from_rep(object);
         if (id == -1)
         {
-          OC_ERR("ERROR id %d", index);
+          OC_ERR("ERROR on id %d", index);
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
-        index = oc_core_find_index_in_table_from_id(
-          id, g_grt, GRT_MAX_ENTRIES);
+        index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
         if (index != -1)
         {
           // index already in use, so it will be changed
@@ -1488,8 +1467,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         {
           // no index, so we will create one
           return_status = OC_STATUS_CREATED;
-          index = find_empty_slot_in_table(id, g_grt,
-                                           GRT_MAX_ENTRIES);
+          index = find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES);
           if (index == -1)
           {
             OC_ERR("ERROR index %d", index);
@@ -1503,8 +1481,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         g_grt[index].id = id;
 
         bool id_only = true;
-        int mandatory_items = 0; // Needs to be 2 for creating entry, i.e. id & ga
-        bool identifier_exists = false; // Once of ia, grpid or url
+        int mandatory_items = 0;        // needs to be 2 for creating entry, i.e. id & ga
+        bool identifier_exists = false; // one of ia, grpid or url
         object = rep->value.object;
         while (object != NULL)
         {
@@ -1513,8 +1491,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
             case OC_REP_BOOL:
             {
-              if (oc_string_len(object->name) > 0 &&
-                  strncmp(oc_string(object->name), "non", 3) == 0)
+              if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
               {
                 g_grt[index].non = object->value.boolean;
               }
@@ -1548,8 +1525,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
               {
                 g_grt[index].fid = object->value.integer;
               }
-              if (oc_string_len(object->name) > 0 &&
-                  strncmp(oc_string(object->name), "mt", 2) == 0)
+              if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "mt", 2) == 0)
               {
                 g_grt[index].mt = object->value.integer;
               }
@@ -1561,21 +1537,18 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
               if (object->iname == 112)
               {
                 oc_free_string(&g_grt[index].path);
-                oc_new_string(&g_grt[index].path, oc_string(object->value.string),
-                              oc_string_len(object->value.string));
+                oc_new_string(&g_grt[index].path, oc_string(object->value.string), oc_string_len(object->value.string));
               }
               if (object->iname == 10)
               {
                 identifier_exists = true;
                 oc_free_string(&g_grt[index].url);
-                oc_new_string(&g_grt[index].url, oc_string(object->value.string),
-                              oc_string_len(object->value.string));
+                oc_new_string(&g_grt[index].url, oc_string(object->value.string), oc_string_len(object->value.string));
               }
               if (object->iname == 14)
               {
                 oc_free_string(&g_grt[index].at);
-                oc_new_string(&g_grt[index].at, oc_string(object->value.string),
-                              oc_string_len(object->value.string));
+                oc_new_string(&g_grt[index].at, oc_string(object->value.string), oc_string_len(object->value.string));
               }
             } break;
             case OC_REP_INT_ARRAY:
@@ -1586,9 +1559,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
                 mandatory_items++;
                 // g_got[index].id = object->value.integer;
                 int64_t* arr = oc_int_array(object->value.array);
-                int array_size = (int) oc_int_array_size(object->value.array);
-                uint32_t* new_array =
-                  (uint32_t*) malloc(array_size * sizeof(uint32_t));
+                int array_size = oc_int_array_size(object->value.array);
+                uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
                 if (new_array)
                 {
                   for (int i = 0; i < array_size; i++)
@@ -1623,17 +1595,13 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         }
         if (id_only)
         {
-          PRINT("only found id in request, deleting entry at index: %d",
-                index);
-          oc_delete_group_table_entry(index, GRT_STORE, g_grt,
-                                      GRT_MAX_ENTRIES);
+          PRINT("only found id in request, deleting entry at index: %d",                index);
+          oc_delete_group_table_entry(index, GRT_STORE, g_grt,                                      GRT_MAX_ENTRIES);
         }
-        else if (return_status == OC_STATUS_CREATED &&
-                 (mandatory_items != 2 || !identifier_exists))
+        else if (return_status == OC_STATUS_CREATED &&                 (mandatory_items != 2 || !identifier_exists))
         {
           PRINT("Mandatory items missing!");
-          oc_delete_group_table_entry(index, GRT_STORE, g_grt,
-                                      GRT_MAX_ENTRIES);
+          oc_delete_group_table_entry(index, GRT_STORE, g_grt,                                      GRT_MAX_ENTRIES);
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -1654,9 +1622,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           oc_print_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
           if (do_save)
           {
-            PRINT("storing at %d", index);
-            oc_dump_group_table_entry(index, GRT_STORE, g_grt,
-                                      GRT_MAX_ENTRIES);
+            PRINT("storing at %d", index);            oc_dump_group_table_entry(index, GRT_STORE, g_grt,                                      GRT_MAX_ENTRIES);
           }
         }
       }
@@ -1666,7 +1632,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         break;
     }
     rep = rep->next;
-  };
+  }
 
   oc_knx_increase_fingerprint();
 

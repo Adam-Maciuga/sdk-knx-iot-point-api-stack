@@ -458,7 +458,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -658,7 +658,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -782,7 +782,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -977,7 +977,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1101,7 +1101,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 

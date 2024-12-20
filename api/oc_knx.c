@@ -137,7 +137,7 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
   // this EP MUST support JSON in addition (KNX IoT specification clause 5.1.3)
   if (request->accept != APPLICATION_JSON && !oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    request->response->response_buffer->code = oc_status_code(OC_STATUS_NOT_ACCEPTABLE);
+    request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
     return;
   }
 

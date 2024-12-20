@@ -482,26 +482,26 @@ extern "C" {
    */
   struct oc_resource_s
   {
-    struct oc_resource_s* next;          /**< next resource */
-    size_t device;                       /**< device index */
-    oc_string_t name;                    /**< name of the resource (e.g. "n") */
-    oc_string_t uri;                     /**< uri of the resource */
-    oc_string_array_t types;             /**< "rt" types of the resource */
-    oc_string_t dpt;                     /**< dpt of the resource */
-    oc_interface_mask_t interfaces;      /**< supported interfaces */
-    oc_content_format_t content_type;    /**< the content format that the resource
+    struct oc_resource_s* next;           /**< next resource */
+    size_t device;                        /**< device index */
+    oc_string_t name;                     /**< name of the resource (e.g. "n") */
+    oc_string_t uri;                      /**< uri of the resource */
+    oc_string_array_t types;              /**< "rt" types of the resource */
+    oc_string_t dpt;                      /**< dpt of the resource */
+    oc_interface_mask_t interfaces;       /**< supported interfaces */
+    oc_content_format_t content_type;     /**< the content format that the resource
                                               supports, e.g. only 1 at the moment */
-    oc_resource_properties_t properties; /**< properties (as bit mask) */
-    oc_request_handler_t get_handler;    /**< callback for GET */
-    oc_request_handler_t put_handler;    /**< callback for PUT */
-    oc_request_handler_t post_handler;   /**< callback for POST */
-    oc_request_handler_t delete_handler; /**< callback for DELETE */
-    oc_properties_cb_t get_properties;   /**< callback for get properties */
-    oc_properties_cb_t set_properties;   /**< callback for set properties */
-    uint16_t observe_period_seconds;     /**< observe period in seconds */
-    uint8_t fb_instance; /**< function block instance, default = 0 */
-    const bool is_const; /**< Whether the associated resource data is readonly */
-    oc_resource_data_t* runtime_data; /**< Runtime modifiable data*/
+    oc_resource_properties_t properties;  /**< properties (as bit mask) */
+    oc_request_handler_t get_handler;     /**< callback for GET */
+    oc_request_handler_t put_handler;     /**< callback for PUT */
+    oc_request_handler_t post_handler;    /**< callback for POST */
+    oc_request_handler_t delete_handler;  /**< callback for DELETE */
+    oc_properties_cb_t get_properties;    /**< callback for get properties */
+    oc_properties_cb_t set_properties;    /**< callback for set properties */
+    uint16_t observe_period_seconds;      /**< observe period in seconds */
+    uint8_t fb_instance;                  /**< function block instance, default = 0 */
+    const bool is_const;                  /**< Whether the associated resource data is readonly */
+    oc_resource_data_t* runtime_data;     /**< Runtime modifiable data*/
   };
 
   typedef struct oc_resource_dummy_s

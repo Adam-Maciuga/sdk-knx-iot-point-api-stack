@@ -683,14 +683,13 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   (void) iface_mask;
 
   size_t response_length = 0;             // response payload len
-  int i;
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 
-  int total = (int) OC_KNX_SWU - (int) OC_KNX_SWU_PROTOCOL;
-  int first_entry = (int) OC_KNX_SWU_PROTOCOL; // inclusive
-  int last_entry = (int) OC_KNX_SWU;           // exclusive
-  int query_pn = -1;                      // page number (page size as request parameter is not used)
-  bool more_request_needed = false;      // if more requests (pages) are needed to get the full list
+  int total = OC_KNX_SWU - OC_KNX_SWU_PROTOCOL;
+  int first_entry = OC_KNX_SWU_PROTOCOL; 
+  int last_entry = OC_KNX_SWU;           
+  int query_pn ;                          // page number (page size as request parameter is not used)
+  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
 
   PRINT("oc_core_swu_get_handler - start");
 
@@ -707,12 +706,13 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
     return;
 
   // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn, NULL))
+  if (check_if_query_pn_exist(request, &query_pn))
   {
+    // update only when pn query parameter was present
     first_entry += query_pn * PAGE_SIZE;
 
-    // check if the requested page would carry at least one resource
-    // e.g; total=10, page=5 -> no data on page 5 
+    // check only when pn query parameter was present ...
+    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
     if (first_entry >= last_entry)
     {
       oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -728,7 +728,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
     more_request_needed = true;
   }
 
-  for (i = first_entry; i < last_entry; i++)
+  for (int i = first_entry; i < last_entry; i++)
   {
     const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
     if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
@@ -742,9 +742,8 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
     // add only a page hint if at least one response entry is in
     if (more_request_needed)
     {
-      // no page # was in the request next page is 1 or #+1
-      const int next_page_num = query_pn > -1 ? query_pn + 1 : 1;
-      response_length += add_next_page_indicator(oc_string(request->resource->uri), next_page_num);
+      // no page # was in the request (query_p =0) = next page 1 else #+1
+      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
     }
     oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   }

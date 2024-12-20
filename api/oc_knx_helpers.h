@@ -26,8 +26,10 @@
 extern "C" {
 #endif
 
+#define BATCH_SIZE 1  // see if.b in 2.5.3.8, if ps is not part of the request then this assumes a ps =1
+
 #ifndef PAGE_SIZE     // don't (re)define if set by CMAKE compile definitions 
-#define PAGE_SIZE 20
+#define PAGE_SIZE 20  // default server size in case the ps query parameter is absent
 #endif
 
   /**
@@ -63,16 +65,16 @@ extern "C" {
    *
    * example: /dev/ipv6?pn=0&ps=3
    * @param request the request
-   * @param pn_value return -1 if not exist otherwise value
-   * @param ps_value return -1 if not exist otherwise value
+   * @param pn_value returns '0' if not exist otherwise value
    *
    * @note
-   * - EPs with interface type if.ll or if.b must support pn + ps
-   * - EPs not supporting ps must return a 4.00 
+   * - value '0' is also the default for requests without pn present (pn=0 )
+   * - EPs with interface type if.ll or if.b must support pn + ps in a request
+   * - page size (ps) is not supported, EPS not supporting it must return a 4.00 
    *
    * @return true == pn exists
    */
-  bool check_if_query_pn_exist(oc_request_t* request, int* pn_value, int* ps_value);
+  bool check_if_query_pn_exist(oc_request_t* request, int* pn_value);
 
   /**
    * @brief helper function to frame next page indicator, if more requests (pages)
