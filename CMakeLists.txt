@@ -1,7 +1,8 @@
 cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
 
-include(FetchContent) # load module to fetch external content
+# load module to fetch external content
+include(FetchContent)
 
 # compiler options 
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
@@ -236,12 +237,12 @@ set(KNX_INCLUDE_DIRS
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
 
-# physical library targets
+# physical library targets, with default type STATIC
 add_library(kisClientServer ${CORE_SOURCES} ${COAP_SOURCES} ${API_SOURCES})
 add_library(tinycbor-master ${CBOR_SOURCES})
-add_library(mbedtls STATIC ${TLS_SOURCES})
-add_library(mbedx509 STATIC ${X509_SOURCES})
-add_library(mbedcrypto STATIC ${CRYPTO_SOURCES})
+add_library(mbedtls ${TLS_SOURCES})
+add_library(mbedx509 ${X509_SOURCES})
+add_library(mbedcrypto ${CRYPTO_SOURCES})
 add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
 # physical exe targets, EITT certification NON GUI demo (assumes WIN32/UNIX is in place)
@@ -290,6 +291,8 @@ if(WIN32)
           URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.5/wxWidgets-3.1.5.7z
         )
 
+        # prefer to use extraction timestamp rather than archive timepstamp 
+        option(DOWNLOAD_EXTRACT_TIMESTAMP "" ON) 
         option(wxBUILD_SHARED "" OFF)
 
         message(STATUS "Fetching wxWidgets, kindly wait...")
@@ -309,7 +312,7 @@ if(WIN32)
         endif()
 endif()
 
-target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config done by Intel
+target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config defined by Intel
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                      # stack can send+receive
 
 # Specifies include directories to use when compiling a given target
@@ -324,7 +327,7 @@ target_include_directories(mbedcrypto PUBLIC
     ${PORT_DIR}
 )
 
-# Specifies linked libraries (dependencies/referenbces) to build a target
+# Specifies linked libraries (dependencies/references) to build a target
 target_link_libraries(eitt_virtual kisClientServer)
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
@@ -394,7 +397,7 @@ if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)
     target_compile_definitions(kis-common INTERFACE KNX_LOG_CAST_64_BIT_INTS)
 endif()
 
-# iot device GO table size
+# iot device group object table size
 if(NOT ${KNX_GOT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})
 endif()
@@ -409,7 +412,7 @@ if(NOT ${KNX_GPT_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})
 endif()
 
-# AT table size, independent from OS_OSCORE (hence not added to target compile defintions)
+# iot device access token table size, independent from OS_OSCORE (hence not added to target compile defintions)
 if(NOT ${KNX_SEC_MAX_ENTRIES} EQUAL "")
     add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})
 endif()
