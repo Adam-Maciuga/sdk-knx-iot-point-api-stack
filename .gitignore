@@ -1,70 +1,20 @@
-out/*
-.vs/*
-CMakeSettings.json
+# build system 
+/out  
+
+# vs code setting files
+/.vscode 
+
+# vs setting files
+/.vs 
 
 # dependend subprojects
 deps/gtest**
 deps/mbedtls**
+deps/tinycbor**
 
-# various ports
-
-port/linux/pki_certs/**
-port/linux/client
-port/linux/server
-port/linux/simpleclient*
-port/linux/simpleserver*
-port/linux/libkis-client.*
-port/linux/libkis-server.*
-port/linux/libkis-client-server.*
-port/linux/kis-lite-server.pc
-port/linux/kis-client.pc
-port/linux/kis-server.pc
-port/linux/kis-client-server.pc
-port/linux/tests/*
-port/linux/obj/
-port/linux/onboarding_tool_creds/
-
-port/windows/vs2015/.vs/
-port/windows/vs2015/Debug/
-port/windows/vs2015/Release/
-port/windows/vs2015/simpleserver_creds/
-port/windows/vs2015/Win32/
-port/windows/vs2015/x64/
-port/windows/vs2015/onboarding_tool/Debug
-port/windows/vs2015/onboarding_tool/x64
-port/windows/vs2015/*.VC.opendb
-port/windows/vs2015/*.VC.db
-port/windows/vs2015/*.vcxproj.user
-
-port/openthread/output
-
+# various
 *.o
 *.cmd
 *.tmp
 *.gcda
 *.gcno
-whitespace_commit_checker.sh
-port/linux/platformtest
-port/linux/storage_test
-port/linux/apitest
-port/linux/messagingtest
-port/linux/rdclienttest
-port/linux/securitytest
-port/linux/simpleserver_pki
-port/linux/stapptest
-
-#creds files
-port/linux/client_creds
-port/linux/server_creds
-port/linux/client_multithread_linux_creds
-
-#service
-service/resource-directory/client/unittest/obj
-
-#vscode setting files
-.vscode
-
-.clant-tidy
-
-build
-build_*
