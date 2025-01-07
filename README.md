@@ -1,3 +1,5 @@
+# Contect (TOC)
+
 [TOC]
 
 # Introduction
@@ -122,7 +124,8 @@ Stack -> Platform
 
   The platform abstraction is a set of generically defined interfaces which elicit a specific contract from implementations. 
   The stack utilizes these interfaces to interact with the underlying OS/platform. 
-  The simplicity and boundedness of these interface definitions allow them to be rapidly implemented on any chosen OS/target. Such an implementation constitutes a "port".
+  The simplicity and boundedness of these interface definitions allow them to be rapidly implemented on any chosen OS/target. 
+  Such an implementation constitutes a "port".
 
 # Project Directory Structure
 
@@ -196,7 +199,7 @@ contains the sample [application](apps/Readme.md) desribeding how to use the sta
 
 ## Windows 
 
-The port is prefertably used to test (virtual) applications together with the (windows based) KNX commissioning tool ETS and/or 
+This "port" is prefertably used to test (virtual) applications together with the (windows based) KNX commissioning tool ETS and/or 
 (windows based) KNX Interworking Test Tool (EITT), the latter is also used for the stack tests 
 respectively the stack certification.
 
@@ -216,14 +219,9 @@ respectively the stack certification.
 
  ### Build Steps 
 
-``` Build 
- # clone the stack from your self created working folder (such as knx-iot-point-api-public-stack)
- git clone --recurse-submodules https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git
- 
- # go into the cloned repo
- cd knx-iot-point-api-public-stack
-```
-Note that the above steps can also be performed directly in the IDE. 
+:memo: 
+The below steps are explained for VS 2022, for a command line level see 
+CMake [documentation](https://cmake.org/cmake/help/latest/manual/cmake.1.html). 
 
 1. Clone Code from GitLab
    - [Example VS 2022](https://learn.microsoft.com/en-us/visualstudio/version-control/git-clone-repository) 
@@ -232,15 +230,15 @@ Note that the above steps can also be performed directly in the IDE.
    - [Example VS 2022](https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio)
 ![](images/vs-open-cmake-project.png "Open Project")
 3. Build All 
-   - output can be found in build folder, such as .../out/build/x64-debug/eitt_virtual.exe)_)
+   - output can be found in build folder, such as .../out/build/x64-debug/eitt_virtual.exe (x64 + debug)
 4. Set 'Startup Item' 
-   - your desired debug executable, e.g. initially eitt_virtual, see sample [application](apps/Readme.md) 
+   - your desired debug target, e.g. initially eitt_virtual executable, see sample [application](apps/Readme.md) 
 5. Run 
    - w/wo Debug (F5/CTRL+F5)
 
 ## Linux 
 
-The port is prefertably used to develop a physical device based on a specific (linux based) hardware platform.  
+This "port" is prefertably used to develop a physical device based on a specific (linux based) hardware platform.  
 
 ### Prerequisites
 
@@ -272,4 +270,6 @@ The port is prefertably used to develop a physical device based on a specific (l
  # go back to the source directory
  cd ..
 ```
-## Complie-Flags 
+## Compily Flags 
+
+The comple flags are described in detail as part of the [CMakeLists.txt](CMakeLists.txt) 
