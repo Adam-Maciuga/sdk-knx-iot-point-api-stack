@@ -1,4 +1,4 @@
-# Contect (TOC)
+# Content (TOC)
 
 [TOC]
 
@@ -64,12 +64,12 @@ class Application
   - Issuing S-Mode requests
   - Receive S-Mode requests
   - Set device characteristics data
-  - Startung the stack
+  - Starting the stack
 }
 
 class Stack 
 {
-  Functionallity
+  Functionality
   ..
   - Discovery (CoAP & mDNS)
   - S-Mode client and server
@@ -85,7 +85,8 @@ Application ..> Stack : uses
 @enduml
 ```
 
-The project was created to bring together the open-source community to accelerate the development of the KNX IoT Point API devices and services required to connect the growing number of IoT devices. 
+The project was created to bring together the open-source community to accelerate the development of the KNX IoT Point API 
+devices and services required to connect the growing number of IoT devices. 
 The project offers device vendors and application developers royalty-free access under the [Apache 2.0 license](LICENSE.md).
 
 # Stack Features
@@ -93,7 +94,7 @@ The project offers device vendors and application developers royalty-free access
 * **OS Agnostic** 
 
   The KNX IoT Point API device stack and modules work cross-platform (pure C code) and execute in an event-driven style. 
-  The stack interacts with lower level OS/hardware platform-specific functionality through a set of abstract interfaces. 
+  The stack interacts with lower-level OS/hardware platform-specific functionality through a set of abstract interfaces. 
   This decoupling of standards related functionality from platform adaptation code promotes ease of long-term maintenance 
   and evolution of the stack through successive releases.
 
@@ -157,8 +158,8 @@ contains external project dependencies
  *  __deps/mbedtls/*__  
     contains the mbedTLS sources
    
- > The IoT stack repository uses GIT **submodules** to retrieve the (above desribed) external code as part of the 
-   version control system (also possible is to use CMake **fetchcontent** that handels it as part of the build system). 
+ > The IoT stack repository uses GIT **submodules** to retrieve the (above described) external code as part of the 
+   version control system (also possible is to use CMake **fetchcontent** that handles it as part of the build system). 
    The `.gitmodules` file defines the folder/path per submodule, the specifically used commit ID is defined in 
    the corresponding folder with a gitlink (name@commit). 
    See git/stack overflow documentation for gitmodules (how to pull or init submodules).   
@@ -190,16 +191,16 @@ Storage folder is created by the make system.
  This allows copying of the executables to other folders without having to know which folder to create.
 
 __apps/*__  
-contains the sample [application](apps/Readme.md) desribeding how to use the stack
+contains the sample [application](apps/Readme.md) describeding how to use the stack
 
 # Build instructions
 
-* The build system enviroment is based on [CMake](https://cmake.org/), various IDEs (or command line tools) can be used for this.
+* The build system environment is based on [CMake](https://cmake.org/), various IDEs (or command line tools) can be used for this.
 * The public repository link for the stack on GitLab is https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git
 
 ## Windows 
 
-This "port" is prefertably used to test (virtual) applications together with the (windows based) KNX commissioning tool ETS and/or 
+This "port" is preferably  used to test (virtual) applications together with the (windows based) KNX commissioning tool ETS and/or 
 (windows based) KNX Interworking Test Tool (EITT), the latter is also used for the stack tests 
 respectively the stack certification.
 
@@ -238,7 +239,7 @@ CMake [documentation](https://cmake.org/cmake/help/latest/manual/cmake.1.html).
 
 ## Linux 
 
-This "port" is prefertably used to develop a physical device based on a specific (linux based) hardware platform.  
+This "port" is preferably used to develop a physical device based on a specific (linux based) hardware platform.  
 
 ### Prerequisites
 
@@ -251,7 +252,7 @@ This "port" is prefertably used to develop a physical device based on a specific
 ### Build Steps 
 
 ``` Build 
- # clone the stack from your self created working folder (such as knx-iot-point-api-public-stack)
+ # clone the stack from your self-created working folder (such as knx-iot-point-api-public-stack)
  git clone --recurse-submodules https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git
  
  # go into the cloned repo
@@ -270,6 +271,6 @@ This "port" is prefertably used to develop a physical device based on a specific
  # go back to the source directory
  cd ..
 ```
-## Compily Flags 
+## Compile Flags 
 
-The comple flags are described in detail as part of the [CMakeLists.txt](CMakeLists.txt) 
+The compile flags are described in detail as part of the [CMakeLists.txt](CMakeLists.txt).
