@@ -7,7 +7,7 @@
 # vs setting files
 .vs
 
-# dependend subprojects
+# dependend subprojects are not visible (user choise)
 deps/gtest**
 deps/mbedtls**
 deps/tinycbor**
