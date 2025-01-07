@@ -1,5 +1,3 @@
-# Content (TOC)
-
 [TOC]
 
 # Introduction
@@ -98,21 +96,33 @@ The project offers device vendors and application developers royalty-free access
   This decoupling of standards related functionality from platform adaptation code promotes ease of long-term maintenance 
   and evolution of the stack through successive releases.
 
+* **Porting Layer** 
+
+  The platform abstraction is a set of generically defined interfaces which elicit a specific contract from implementations. 
+  The stack utilizes these interfaces to interact with the underlying OS/platform. 
+  The simplicity and boundedness of these interface definitions allow them to be rapidly implemented on any chosen OS/target. 
+  Such an implementation constitutes a "port".
+
 ```plantuml
 @startuml
-
-title Porting Layer 
 
 component [Application]
 component [Stack]
 component [Platform]
 
 note bottom of Platform 
- Clock, Secure Storage, PRNG, Media Connectivity
+ Platform abstractions:
+ - Clock 
+ - Secure Storage 
+ - PRNG 
+ - Media Connectivity
+ - ...
 end note 
 
 note right of Platform
- Existing ports Linux, Windows
+ Existing ports: 
+ - Linux 
+ - Windows
 end note 
 
 Application -> Stack
@@ -120,13 +130,6 @@ Stack -> Platform
 
 @enduml
 ```
-
-* **Porting Layer** 
-
-  The platform abstraction is a set of generically defined interfaces which elicit a specific contract from implementations. 
-  The stack utilizes these interfaces to interact with the underlying OS/platform. 
-  The simplicity and boundedness of these interface definitions allow them to be rapidly implemented on any chosen OS/target. 
-  Such an implementation constitutes a "port".
 
 # Project Directory Structure
 
