@@ -30,33 +30,35 @@ endif()
 # add preprocessor definitiosn for the current CMakeLists file
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
-# Stack compilation variables, specific build configurations (debug,release,...) needs to be set the values as part of 'CmakePresets.json'
+# Stack compilation variables 
+# - each build configuration (debug,release,...) needs to set the values as part of 'CmakePresets.json'
+# - in dependence of a variables value a specific complie flag is set (see cmake 'target_compile_definitions')
 
 ## Common
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
-set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD")
-set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table (device can (also) receive)")
+set(OC_DNS_SD_ENABLED OFF CACHE BOOL "Enable DNS SD discovery")
+set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this a device can (also) receive (OFF: for plain senders).")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
-set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC applications.")
-set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option")
+set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send also group multicast events with scope2, e.g.; for PC based applications.")
 
 ## Debug 
-set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to file")
+set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to a file")
 set(OC_USE_STORAGE ON CACHE BOOL "If enbaled the data are persisted in a (file-based) storage.")
-set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore, can be disabled for debugging")
+set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore, OFF may be used for debugging reasons")
 set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages for the stack (and application; if used). OFF will disable virtually all logging.")
-set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enable debug messages for the stack")
-set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages")
-set(USE_CONSOLE ON CACHE BOOL "use console (for output logging)")
+set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enable debug messages for the stack (and application; if used).")
+set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages for the stack, ON may be used for debugging reasons.")
+set(USE_CONSOLE ON CACHE BOOL "Enable to use the console for the logging output, ON is typically used for debugging reasons.")
+set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option, OFF may be used for debugging reasons.")
 
 ## iot device specific resource variables
-set(KNX_GOT_MAX_ENTRIES "" CACHE STRING "Maximum number of group object table entries")
-set(KNX_GPT_MAX_ENTRIES "" CACHE STRING "Maximum number of group publisher table entries")
-set(KNX_GRT_MAX_ENTRIES "" CACHE STRING "Maximum number of group recipient table entries")
-set(KNX_SEC_MAX_ENTRIES "" CACHE STRING "Maximum number of group security table (auth/at) entries")
+set(KNX_GOT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group object table entries")
+set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher table entries")
+set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
+set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of group security table (auth/at) entries")
+set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
-set(KNX_PAGE_SIZE "" CACHE STRING "Default page size for pagination")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
 
 # iot router specific resource variables
@@ -313,7 +315,7 @@ if(WIN32)
 endif()
 
 target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config defined by Intel
-target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                      # stack can send+receive
+target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                      # stack can send + receive
 
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
@@ -344,6 +346,14 @@ install(TARGETS mbedcrypto mbedx509 mbedtls
 
 
 # Process individual stack/ (demo)application behavior 
+
+## Sizes (tables, pagination, ...)
+add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
+add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
+add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
+add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile defintions)
+add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
+
 ## Security 
 if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_OSCORE)
@@ -395,28 +405,4 @@ endif()
 
 if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)
     target_compile_definitions(kis-common INTERFACE KNX_LOG_CAST_64_BIT_INTS)
-endif()
-
-# iot device group object table size
-if(NOT ${KNX_GOT_MAX_ENTRIES} EQUAL "")
-    add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})
-endif()
-
-# iot device recipient table size
-if(NOT ${KNX_GRT_MAX_ENTRIES} EQUAL "")
-    add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})
-endif()
-
-# iot device publisher table size
-if(NOT ${KNX_GPT_MAX_ENTRIES} EQUAL "")
-    add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})
-endif()
-
-# iot device access token table size, independent from OS_OSCORE (hence not added to target compile defintions)
-if(NOT ${KNX_SEC_MAX_ENTRIES} EQUAL "")
-    add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})
-endif()
-
-if(NOT ${KNX_PAGE_SIZE} EQUAL "")
-    add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})
 endif()

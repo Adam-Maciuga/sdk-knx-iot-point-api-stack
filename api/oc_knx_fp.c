@@ -31,26 +31,12 @@
 #define GPT_STORE "GPUBT_STORE"
 #define GRT_STORE "GRECT_STORE"
 
-#ifndef GOT_MAX_ENTRIES // don't (re)define if set by CMAKE compile definitions                         
-#define GOT_MAX_ENTRIES 20  
-#endif
-static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];
+static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
+static oc_group_table_t        g_grt[GRT_MAX_ENTRIES];  // rec table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
-
-#ifndef GPT_MAX_ENTRIES // don't (re)define if set by CMAKE compile definitions                        
-#define GPT_MAX_ENTRIES 20
-#endif
-
-static oc_group_table_t g_gpt[GPT_MAX_ENTRIES]; // pub table (to receive)
-
+static oc_group_table_t        g_gpt[GPT_MAX_ENTRIES];  // pub table (to receive)
 #endif 
-
-#ifndef GRT_MAX_ENTRIES // don't (re)define if set by CMAKE compile definitions                        
-#define GRT_MAX_ENTRIES 20 
-#endif
-
-static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // rec table (to send)
 
 // -externals -
 

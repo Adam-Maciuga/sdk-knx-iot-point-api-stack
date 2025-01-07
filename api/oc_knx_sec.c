@@ -28,22 +28,11 @@
 uint64_t g_oscore_replaywindow = 32;
 uint64_t g_oscore_osndelay = 1000;
 
-/** the list of connections */
-//#define G_OCM_MAX_ENTRIES 20
-// oc_oscore_cm_t g_ocm[G_OCM_MAX_ENTRIES];
-
-/** the list of oscore profiles */
 #define AT_STORE "at_store"
-#ifndef G_AT_MAX_ENTRIES
-#define G_AT_MAX_ENTRIES 20
-#endif
-oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
 
-// ----------------------------------------------------------------------------
+static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
 
 static void oc_at_dump_entry(size_t device_index, int entry);
-
-// ----------------------------------------------------------------------------
 
 oc_at_profile_t
 oc_string_to_at_profile(oc_string_t str)

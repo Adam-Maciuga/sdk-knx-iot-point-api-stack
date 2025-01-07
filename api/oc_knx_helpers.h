@@ -28,10 +28,6 @@ extern "C" {
 
 #define BATCH_SIZE 1  // see if.b in 2.5.3.8, if ps is not part of the request then this assumes a ps =1
 
-#ifndef PAGE_SIZE     // don't (re)define if set by CMAKE compile definitions 
-#define PAGE_SIZE 20  // default server size in case the ps query parameter is absent
-#endif
-
   /**
    * @brief helper function to process entire query parameter 'l' handling 
    *
