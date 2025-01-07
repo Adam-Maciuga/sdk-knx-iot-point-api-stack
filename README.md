@@ -1,4 +1,4 @@
-[TOCS]
+[TOC]
 
 # Introduction
 
@@ -231,7 +231,8 @@ Note that the above steps can also be performed directly in the IDE.
    - file `CMakeLists.txt` 
    - [Example VS 2022](https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio)
 ![](images/vs-open-cmake-project.png "Open Project")
-3. Build All    - output can be found in build folder, such as .../out/build/x64-debug/eitt_virtual.exe)_)
+3. Build All 
+   - output can be found in build folder, such as .../out/build/x64-debug/eitt_virtual.exe)_)
 4. Set 'Startup Item' 
    - your desired debug executable, e.g. initially eitt_virtual, see sample [application](apps/Readme.md) 
 5. Run 
