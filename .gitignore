@@ -2,10 +2,10 @@
 /out  
 
 # vs code setting files
-/.vscode 
+.vscode 
 
 # vs setting files
-/.vs 
+.vs
 
 # dependend subprojects
 deps/gtest**

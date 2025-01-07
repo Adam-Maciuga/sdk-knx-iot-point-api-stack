@@ -9,28 +9,37 @@ Specifically, the stack realizes all the functionalities of the KNX IoT Point AP
 title Stack Components 
 
 database Stack as "
-Application
+..**Application**..
+- vendor specific
 ----
-m/o Resources (vendor specific)
+.. **m/o Resources**..
+- vendor specific
 ----
-OSCORE (RFC 8613)
+..**OSCORE**..
+- RFC 8613
 ----
-Core-Link (RFC 6690) | CBOR (RFC 7049)
+..**Core-Link | CBOR**..
+- RFC 6690 
+- RFC 7049
 ----
-CoAP (RFC 7252)
+..**CoAP**..
+- RFC 7252
 ----
-mDNS (RFC 6762) | DTLS (RFC 4347)
+..**mDNS | DTLS**..
+- RFC 6762
+- RFC 4347
 ----
-UDP (RFC 768)
+..**UDP**..
+- RFC 768
 ----
-IPv6 (RFC 2460)
+..**IPv6**..
+- RFC 2460
 ----
-Porting Layer (vendor/platform specific)
+..**Porting Layer**..
+- platform specific
 ----
-WiFi | Thread | Ethernet | ...
+..**WiFi | Thread | Ethernet | ...** ..
 "
-
-@enduml
 
 @enduml
 ```
@@ -144,10 +153,10 @@ __deps/*__
     __include/*__
     * contains all common headers
 
-      > The IoT stack repository uses GIT **submodules** to retrieve the (above desribed) external code as part of the 
-        version control system (also possible is to use CMake **fetchcontent** that handels it as part of the build system). 
-        The `.gitmodules` file defines the folder/path per submodule, the specific commit ID is defined in 
-        the corresponding folder with a gitlink (name@commit). See git documentation.   
+    > The IoT stack repository uses GIT **submodules** to retrieve the (above desribed) external code as part of the 
+      version control system (also possible is to use CMake **fetchcontent** that handels it as part of the build system). 
+      The `.gitmodules` file defines the folder/path per submodule, the specific commit ID is defined in 
+      the corresponding folder with a gitlink (name@commit). See git/stack overflow documentation for gitmodules (how to pull or init submodules).   
 
 __include/oc_api.h__
 * contains client/server APIs
@@ -177,8 +186,71 @@ __apps/*__
 
 # Build instructions
 
-Grab source and dependencies from GitLab `git clone --recursive https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git`
-Please check here for build instructions:
+Grab source and dependencies from GitLab 
+The build system enviroment is based on CMake, various IDEs (or command line tools) can be used for this. 
 
- - [Windows](<https://knx-iot.github.io/building_windows/>)
- - [Linux](<https://knx-iot.github.io/building_linux/>)
+
+## Windows 
+
+### Prerequisities
+
+ - Windows (10/11) machine
+ - [CMake](https://cmake.org/)
+ - Development [IDE](https://cmake.org/cmake/help/latest/guide/ide-integration/index.html#ides-with-cmake-integration) 
+    > on using Visual Studio 2022 C++ package needs to be installed    
+ - git 
+   - [gui/bash](https://git-scm.com/downloads/win) 
+   - optinally a preferred IDE git extension/plugin
+ - Python
+
+ ### Build Steps 
+
+``` Build 
+ # clone the stack from your self created working folder (such as knx-iot-point-api-public-stack)
+ git clone --recurse-submodules https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git
+ 
+ # go into the cloned repo
+ cd knx-iot-point-api-public-stack
+```
+Note that the above steps can also be performed directly in the IDE (example VS 2022). 
+
+1. Clone Project
+![](images/vs-clone-repository.png "Clone Repository")
+2. Open CMake Project (File `CMakeLists.txt`)
+![](images/vs-open-cmake-project.png "Open Project")
+3. Build All
+4. Set your desired debug executable as 'Startup Item' (e.g. initially eitt_virtual, see sample [application](apps/Readme.md)) 
+5. Run w/wo Debug (F5/CTRL+F5)
+
+## Linux 
+
+### Prerequisities
+
+- Linux machine
+- [Cmake](https://cmake.org/)
+- git
+- gcc
+- Python (preinstalled)
+
+### Build Steps 
+
+``` Build 
+ # clone the stack from your self created working folder (such as knx-iot-point-api-public-stack)
+ git clone --recurse-submodules https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git
+ 
+ # go into the cloned repo
+ cd knx-iot-point-api-public-stack
+ 
+ # make a working directory (named anything)
+ mkdir build
+ cd build 
+
+ # do the configuration step, e.g. build the native make files
+ cmake ..
+
+ # build the sdk, the -j is the amount of processor the build will be using
+ make -j12
+
+ # go back to the source directory
+ cd ..
+```
