@@ -87,6 +87,39 @@ The project was created to bring together the open-source community to accelerat
 devices and services required to connect the growing number of IoT devices. 
 The project offers device vendors and application developers royalty-free access under the [Apache 2.0 license](LICENSE.md).
 
+The KNX IoT Point API infrastructure contains of the follwoing main componets.
+
+**Device Callbacks**
+
+- Application callbacks (datappoint r/w access, programming mode, ...)
+- Reset/ restart callbacks
+- Software update callback
+- Host name callback
+
+The corresponding callbacks are used in the device application, 
+the callback code is defined in `oc_main.c/h`.
+
+**Device Configuration Data**
+
+- Installation ID (iid)
+- Individual Address (ia)
+- Serial Number (sn)
+- Group Object/Publisher/Recipient/Security Table
+
+All configuration data is stored persistently.
+
+**Datapoints**
+
+- S-Mode Messaging Principle
+- GET/POST access (including the to be used runtime flags read/write/ack)
+- Types (DPT, DPA) 
+
+[!TIP]] 
+Details such as for the tables, 'iid' or 'ia' from above are explained in more detail 
+as part of the KNX Point API Scheme Description (also an public repository):
+- [Stack + Resources + Messaging](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/README.md?ref_type=heads#knx-iot-point-api-stack)
+- [Rest API Endpoints](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/knxiot-point-api-scheme-openapi.yaml?ref_type=heads)
+
 # Stack Features
 
 * **OS Agnostic** 
@@ -223,7 +256,7 @@ respectively the stack certification.
 
  ### Build Steps 
 
-:memo: 
+[!TIP]
 The below steps are explained for VS 2022, for a command line level see 
 CMake [documentation](https://cmake.org/cmake/help/latest/manual/cmake.1.html). 
 
