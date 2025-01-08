@@ -1,3 +1,4 @@
+```plantuml
 @startuml
 
 title Stack Components 
@@ -36,3 +37,4 @@ database Stack as "
 "
 
 @enduml
+```
