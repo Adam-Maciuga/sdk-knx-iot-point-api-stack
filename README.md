@@ -5,47 +5,8 @@
 KNX IoT Point API stack is an open-source, reference implementation of the KNX IoT standard for the Internet of Things (IoT). 
 Specifically, the stack realizes all the functionalities of the KNX IoT Point API specification.
 
-```plantuml
-@startuml
-
-title Stack Components 
-
-database Stack as "
-..**Application**..
-- vendor specific
-----
-.. **m/o Resources**..
-- vendor specific
-----
-..**OSCORE**..
-- RFC 8613
-----
-..**Core-Link | CBOR**..
-- RFC 6690 
-- RFC 7049
-----
-..**CoAP**..
-- RFC 7252
-----
-..**mDNS | DTLS**..
-- RFC 6762
-- RFC 4347
-----
-..**UDP**..
-- RFC 768
-----
-..**IPv6**..
-- RFC 2460
-----
-..**Porting Layer**..
-- platform specific
-----
-..**WiFi | Thread | Ethernet | ...** ..
-"
-
-@enduml
-```
-   
+::include{file=images/stack.puml}
+  
 The responsibilities between the stack and an actual KNX IoT Point API device implementation is depicted 
 in the following diagram.
 
@@ -104,7 +65,7 @@ the callback code is defined in `oc_main.c/h`.
 - Installation ID (iid)
 - Individual Address (ia)
 - Serial Number (sn)
-- Group Object/Publisher/Recipient/Security Table
+- Group Object/Publisher/Recipient/Security Tables
 
 All configuration data is stored persistently.
 
@@ -114,8 +75,8 @@ All configuration data is stored persistently.
 - GET/POST access (including the to be used runtime flags read/write/ack)
 - Types (DPT, DPA) 
 
-[!TIP]] 
-Details such as for the tables, 'iid' or 'ia' from above are explained in more detail 
+:memo:
+The tables, 'iid', 'ia' or S-Mode Messaging from above are explained in more detail 
 as part of the KNX Point API Scheme Description (also an public repository):
 - [Stack + Resources + Messaging](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/README.md?ref_type=heads#knx-iot-point-api-stack)
 - [Rest API Endpoints](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/knxiot-point-api-scheme-openapi.yaml?ref_type=heads)
@@ -169,7 +130,7 @@ Stack -> Platform
 __api/*__  
 contains the implementations of: 
 * client/server APIs 
-  * (rest) API as described in <https://gitlab.knx.org/public-projects/knx-iot-point-api-schema> 
+  * (rest) API 
   * (programming) API
 * resources
 * utility and helper functions to encode/decode CBOR to/from data points (function blocks)
@@ -256,7 +217,7 @@ respectively the stack certification.
 
  ### Build Steps 
 
-[!TIP]
+:memo:
 The below steps are explained for VS 2022, for a command line level see 
 CMake [documentation](https://cmake.org/cmake/help/latest/manual/cmake.1.html). 
 
