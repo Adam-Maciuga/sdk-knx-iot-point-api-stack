@@ -77,9 +77,8 @@
 #include <stdlib.h>
 #include <stdio.h>                      // defines FILENAME_MAX
 #include <oc_storage.h>                 
-
 #include "oc_knx_client.h"
-#include "oc_knx_swu.h"
+
 
 #ifdef __linux__
  /** linux specific code */
@@ -1561,7 +1560,7 @@ extern "C" {
     pthread_mutex_unlock(&mutex);
   #endif /* NO_MAIN */
   }
-#endif /* __linux__ */
+#endif 
 
 #ifndef NO_MAIN
 
@@ -1594,7 +1593,7 @@ extern "C" {
   #ifdef WIN32
     InitializeCriticalSection(&critical_section);   // init , but not used in main actively
     InitializeConditionVariable(&event_is_pending); // init 
-    signal(SIGINT, handle_signal);                 // install Ctrl-C handler
+    (void)signal(SIGINT, handle_signal);            // install Ctrl-C handler
   #endif
   #ifdef __linux__
     /* Linux specific */

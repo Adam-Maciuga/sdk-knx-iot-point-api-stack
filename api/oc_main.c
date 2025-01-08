@@ -17,27 +17,20 @@
 
 #include <stdint.h>
 #include <stdio.h>
-
 #include "oc_config.h"
 #include "port/oc_assert.h"
-#include "port/oc_clock.h"
 #include "port/oc_connectivity.h"
 #include "port/dns-sd.h"
-
 #include "util/oc_etimer.h"
 #include "util/oc_process.h"
-
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_signal_event_loop.h"
-
 #include "oc_knx.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
-#include "oc_knx_gm.h"
 
 #ifdef OC_OSCORE
-#include "security/oc_tls.h"
 #endif
 
 #ifdef OC_MEMORY_TRACE

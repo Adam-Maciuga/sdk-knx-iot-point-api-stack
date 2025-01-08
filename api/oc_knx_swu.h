@@ -21,8 +21,6 @@
 #ifndef OC_KNX_SWU_INTERNAL_H
 #define OC_KNX_SWU_INTERNAL_H
 
-#include <stddef.h>
-
 #include "oc_core_res.h"
 
 #ifdef __cplusplus
