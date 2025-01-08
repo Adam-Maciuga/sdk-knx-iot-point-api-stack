@@ -5,7 +5,7 @@
 KNX IoT Point API stack is an open-source, reference implementation of the KNX IoT standard for the Internet of Things (IoT). 
 Specifically, the stack realizes all the functionalities of the KNX IoT Point API specification.
 
-::include{file=images/stack.puml}
+::include{file=./images/stack.puml}
   
 The responsibilities between the stack and an actual KNX IoT Point API device implementation is depicted 
 in the following diagram.
