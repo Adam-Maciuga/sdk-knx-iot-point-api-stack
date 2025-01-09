@@ -67,7 +67,7 @@ void oc_core_init(void)
   }
 
   oc_device_info = NULL;
-#endif /* OC_DYNAMIC_ALLOCATION */
+#endif 
 }
 
 static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
@@ -87,10 +87,10 @@ void oc_core_shutdown(void)
   size_t i;
   oc_free_string(&(oc_platform_info.mfg_name));
 
-#ifdef OC_DYNAMIC_ALLOCATION
+  #ifdef OC_DYNAMIC_ALLOCATION
   if (oc_device_info)
   {
-  #endif /* OC_DYNAMIC_ALLOCATION */
+  #endif 
     for (i = 0; i < device_count; ++i)
     {
       oc_device_info_t* oc_device_info_item = &oc_device_info[i];
@@ -106,12 +106,12 @@ void oc_core_shutdown(void)
     free(oc_device_info);
     oc_device_info = NULL;
   }
-#endif /* OC_DYNAMIC_ALLOCATION */
+  #endif
 
-#ifdef OC_DYNAMIC_ALLOCATION
+  #ifdef OC_DYNAMIC_ALLOCATION
   if (core_resources)
   {
-  #endif /* OC_DYNAMIC_ALLOCATION */
+  #endif 
     size_t max_resource =
       1 + (WELLKNOWNCORE * (device_count ? device_count - 1 : 0));
     for (i = 0; i < max_resource; ++i)
@@ -123,7 +123,7 @@ void oc_core_shutdown(void)
     free(core_resources);
     core_resources = NULL;
   }
-#endif /* OC_DYNAMIC_ALLOCATION */
+  #endif 
   device_count = 0;
 }
 

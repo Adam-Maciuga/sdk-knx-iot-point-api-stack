@@ -61,7 +61,6 @@ void store_in_array(int value, int instance)
   g_int_array[0][g_array_size] = value;    // functional block number
   g_int_array[1][g_array_size] = instance; // instance of the functional block
   g_array_size++;
-  // assert(g_array_size == ARRAY_SIZE);
 }
 
 // -----------------------------------------------------------------------------
@@ -408,11 +407,10 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
           }
           else
           {
-            /* add only once, this is not the first entry, so add the ,\n */
             if (*response_length > 0)
             {
-              // close previous record to create a new 
-              *response_length += oc_rep_add_line_to_buffer(",\n");
+              // close previous record to create a new without LF (not found in RFC 6690)
+              *response_length += oc_rep_add_line_to_buffer(",");
             }
             *response_length += oc_rep_add_line_to_buffer("</f/netip>;rt=\":fb.11\";ct=40");
             (*matches)++;
@@ -452,8 +450,8 @@ bool oc_add_function_blocks_to_response(oc_request_t* request, size_t device_ind
     {
       if (*response_length > 0)
       {
-        // close previous record to create a new 
-        *response_length += oc_rep_add_line_to_buffer(",\n");
+        // close previous record to create a new without LF (not found in RFC 6690)
+        *response_length += oc_rep_add_line_to_buffer(",");
       }
 
       // URI

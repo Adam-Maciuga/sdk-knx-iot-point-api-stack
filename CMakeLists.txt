@@ -53,7 +53,7 @@ set(USE_CONSOLE ON CACHE BOOL "Enable to use the console for the logging output,
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option, OFF may be used for debugging reasons.")
 
 ## iot device specific resource variables
-set(KNX_GOT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group object table entries")
+set(KNX_GOT_MAX_ENTRIES "50" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of group security table (auth/at) entries")

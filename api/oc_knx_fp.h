@@ -153,14 +153,11 @@ extern "C" {
    * | iid      | 26            |
    * | fid      | 25            |
    * | grpid    | 13            |
-   * | path     | 112           |
    * | url      | 10            |
    * | ga       | 7             |
    * | non      | -             |
    *
-   * The structure stores the information.
-   * The structure will be used as an array.
-   * There are function to find:
+   * The structure stores the information as an array. There are function to find:
    * - max amount of entries
    * - empty index in the array
    * - find the index with a specific id
@@ -168,21 +165,24 @@ extern "C" {
    * - make the entry persistent
    * - free up the allocated data
    * - return the structure at a specific index
+   *
+   * Note that some (int) integers are tested in the code on their init values '-1' for validity,
+   * this is a problem in case of a 16-bit platforms
+   * - ia : (-1 = 0xFFFF = a valid KNX ia)
+   * - id : (-1 = 0xFFFF = a valid id range)
    */
   typedef struct oc_group_table
   {
-    int id;           /**< contents of id*/
-    int ia;           /**< contents of ia (individual address)*/
-    int64_t iid;      /**< contents of installation id */
-    int64_t fid;      /**< contents of fabric id */
-    uint32_t grpid;   /**< the multicast group id */
-    oc_string_t path; /**< contents of path, default path = ".knx"*/
-    oc_string_t url;  /**< contents of url */
-    oc_string_t at;   /**< Access token id. Reference to the security credentials for unicast subscription encryption. */
-    uint32_t* ga;     /**< array of integers */
-    int ga_len;       /**< length of the array of group addresses identifiers */
-    bool non;         /**< true = non-confirmable unicast request, default = false*/
-    int mt;           /**< The number of maximum retransmissions for CON & NON requests */
+    int id;           // id, specification demands a range of 0 ... 65535 (see note above) 
+    int ia;           // individual address, KNX demands of 16 bit (see note above)  
+    int64_t iid;      // installation id
+    int64_t fid;      // fabric id
+    uint32_t grpid;   // multicast group id, specification demands 32 bit
+    oc_string_t url;  // url
+    oc_string_t at;   // access token id. Reference to the security credentials for unicast subscription encryption.
+    uint32_t* ga;     // group address array of 32 values, specification demands >= 20 entries
+    int ga_len;       // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...) 
+    bool non;         // non-confirmable unicast request, default = false
   } oc_group_table_t;
 
   /**
@@ -202,7 +202,8 @@ extern "C" {
   int oc_print_reduced_group_recipient_table(void);
 
   /**
-   * @brief find id (cbor key 0) in the response
+   * @brief find id (cbor key 0) in the request
+   * @note parameter object is not changed, even if it is a pointer
    *
    * @return int -1 : not found, > -1 : value found
    */
@@ -224,23 +225,23 @@ extern "C" {
    * @return int the total number of entries
    *
    * @note
-   * - defined as extra method, to be used from extern 
+   * - defined as extra method, to be used from extern
    */
   int oc_core_get_group_object_table_total_size(void);
 
-/**
- * @brief retrieve the group object table entry
- *
- * Note that always the group object table is returned.
- * regardless if the data is valid or not.
- *
- * To check if the data is valid, please check if
- * ga_len > 0, if ga_len <= 0 then the group object table does
- * not contain an entry.
- *
- * @param index the index in the group object table
- * @return oc_group_object_table_t* pointer to the entry
- */
+  /**
+   * @brief retrieve the group object table entry
+   *
+   * Note that always the group object table is returned.
+   * regardless if the data is valid or not.
+   *
+   * To check if the data is valid, please check if
+   * ga_len > 0, if ga_len <= 0 then the group object table does
+   * not contain an entry.
+   *
+   * @param index the index in the group object table
+   * @return oc_group_object_table_t* pointer to the entry
+   */
   oc_group_object_table_t* oc_core_get_group_object_table_entry(int index);
 
   /**
@@ -277,15 +278,15 @@ extern "C" {
    */
   void oc_register_group_multicasts(void);
 
-/**
- * @brief find the grpid from the group_address in the publisher table
- *
- * @see oc_register_group_multicasts
- *
- * @param group_address The group_address from the group object table
- * @return the grpid matching the group_address the table publisher table
- *  or 0 if not found
- */
+  /**
+   * @brief find the grpid from the group_address in the publisher table
+   *
+   * @see oc_register_group_multicasts
+   *
+   * @param group_address The group_address from the group object table
+   * @return the grpid matching the group_address the table publisher table
+   *  or 0 if not found
+   */
   uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address);
 
   /**
@@ -308,12 +309,12 @@ extern "C" {
    */
   void oc_init_datapoints_at_initialization(void);
 
-/**
- * @brief find index belonging to the id
- *
- * @param id the identifier of the entry
- * @return int the index in the table or -1
- */
+  /**
+   * @brief find index belonging to the id
+   *
+   * @param id the identifier of the entry
+   * @return int the index in the table or -1
+   */
   int oc_core_find_index_in_group_object_table_from_id(int id);
 
   /**
@@ -439,16 +440,18 @@ extern "C" {
    * @return true is part of the recipient entry
    * @return false is not part of the recipient entry
    */
-  bool oc_core_check_recipient_index_on_group_address(int index,
-                                                      uint32_t group_address);
+  bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_address);
 
   /**
-   * @brief get the destination (path or url) of the recipient table at index
+   * @brief get the destination (url or 'k') of the recipient table at index
    *
-   * @param index the index in the table
-   * @return char* NULL or path or url of the destination
+   * @param index the index in the recipient table
+   * @return char* NULL or url of the destination
+   * @note
+   * - in the case of url is being returned the 'ia' was also valid; e.g > 0
+   * - ia == -1 is the init value; ia == 0 is reserved in KNX 
    */
-  char* oc_core_get_recipient_index_url_or_path(int index);
+  char* oc_core_get_recipient_index_url(int index);
 
   /**
    * @brief retrieve the internal address of the recipient in the table
@@ -462,25 +465,25 @@ extern "C" {
    * @brief return the size of the recipient table
    *
    * @note
-   * - defined as extra method, to be used from extern 
+   * - defined as extra method, to be used from extern
    *
    * @return int the size of the table
    */
   int oc_core_get_recipient_table_size(void);
 
-/**
- * @brief retrieve the recipient table entry
- *
- * Note that always the group object table is returned.
- * regardless if the data is valid or not.
- *
- * To check if the data is valid, please check if
- * ga_len > 0, if ga_len <= 0 then the group object table does
- * not contain an entry.
- *
- * @param index the index in the recipient table
- * @return oc_group_table_t* pointer to the entry
- */
+  /**
+   * @brief retrieve the recipient table entry
+   *
+   * Note that always the group object table is returned.
+   * regardless if the data is valid or not.
+   *
+   * To check if the data is valid, please check if
+   * ga_len > 0, if ga_len <= 0 then the group object table does
+   * not contain an entry.
+   *
+   * @param index the index in the recipient table
+   * @return oc_group_table_t* pointer to the entry
+   */
   oc_group_table_t* oc_core_get_recipient_table_entry(int index);
 
   /**
@@ -513,7 +516,7 @@ extern "C" {
    *
    * @note
    * - returned size depends on if GPT table is present (>0) or not (=0)
-   * - defined as extra method, to be used from extern 
+   * - defined as extra method, to be used from extern
    *
    * @return int the size of the table
    */

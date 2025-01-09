@@ -67,8 +67,8 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
 
   if (*response_length > 0)
   {
-    // close previous record to create a new 
-    *response_length += oc_rep_add_line_to_buffer(",\n");
+    // close previous record to create a new without LF (not found in RFC 6690, also on JSON removed)
+    *response_length += oc_rep_add_line_to_buffer(",");
   }
 
   // <

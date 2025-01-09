@@ -458,8 +458,7 @@ find_access_token_from_payload(oc_rep_t* object)
         if (oc_string_len(object->name) == 0 && object->iname == 0)
         {
           index = &object->value.string;
-          PRINT("find_access_token_from_payload: %s \n",
-                oc_string_checked(*index));
+          PRINT("find_access_token_from_payload: %s ",                oc_string_checked(*index));
           return index;
         }
       } break;
@@ -468,19 +467,16 @@ find_access_token_from_payload(oc_rep_t* object)
         if (oc_string_len(object->name) == 0 && object->iname == 0)
         {
           index = &object->value.string;
-          PRINT("find_access_token_from_payload: %s \n",
-                oc_string_checked(*index));
+          PRINT("find_access_token_from_payload: %s ",                oc_string_checked(*index));
           return index;
         }
       } break;
-      case OC_REP_NIL:
-        break;
       default:
         break;
-    } /* switch */
+    } 
     object = object->next;
-  } /* while */
-  PRINT("find_access_token_from_payload Error \n");
+  } 
+  PRINT("find_access_token_from_payload Error");
   return index;
 }
 
@@ -505,8 +501,7 @@ int oc_core_find_nr_used_in_auth_at_table(void)
 
 // ----------------------------------------------------------------------------
 
-static void oc_core_auth_at_get_handler(oc_request_t* request,
-                                        oc_interface_mask_t iface_mask, void* data)
+static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -553,16 +548,15 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
     more_request_needed = true;
   }
 
-  /* example entry: </auth/at/token-id>;ct=50 */
+  // example </auth/at/token-id>;ct=60
   for (int i = first_entry; i < last_entry; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
-
       if (response_length > 0)
       {
-        // add a new line after the first was inserted
-        response_length += oc_rep_add_line_to_buffer(",\n");
+        // close previous record to create a new without LF (not found in RFC 6690)
+        response_length += oc_rep_add_line_to_buffer(",");
       }
 
       response_length += oc_rep_add_line_to_buffer("</auth/at/");
@@ -584,12 +578,10 @@ static void oc_core_auth_at_get_handler(oc_request_t* request,
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_auth_at_get_handler - end\n");
+  PRINT("oc_core_auth_at_get_handler - end");
 }
 
-static void
-oc_core_auth_at_post_handler(oc_request_t* request,
-                             oc_interface_mask_t iface_mask, void* data)
+static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -624,7 +616,7 @@ oc_core_auth_at_post_handler(oc_request_t* request,
       {
         if (object->type == OC_REP_MIXED_ARRAY)
         {
-          PRINT("mixed array as scope is not allowed!\n");
+          PRINT("mixed array as scope is not allowed!");
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -635,14 +627,14 @@ oc_core_auth_at_post_handler(oc_request_t* request,
       oc_string_t* at = find_access_token_from_payload(object);
       if (at == NULL)
       {
-        PRINT("access token not found!\n");
+        PRINT("access token not found!");
         oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
         return;
       }
       index = find_index_from_at(at);
       if (index != -1)
       {
-        PRINT("entry already exist! \n");
+        PRINT("entry already exist!");
         return_status = OC_STATUS_CHANGED;
       }
       else
@@ -651,7 +643,7 @@ oc_core_auth_at_post_handler(oc_request_t* request,
         return_status = OC_STATUS_CREATED;
         if (index == -1)
         {
-          PRINT("no space left!\n");
+          PRINT("no space left!");
           oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -717,8 +709,7 @@ oc_core_auth_at_post_handler(oc_request_t* request,
                 g_at_entries[index].ga = NULL;
               }
               g_at_entries[index].ga_len = (int) array_size;
-              // always set the group address scope, if there is 1 or more ga
-              // entries
+              // always set the group address scope, if there is 1 or more ga entries
               g_at_entries[index].scope = OC_IF_G;
               int64_t* new_array =
                 (int64_t*) malloc(array_size * sizeof(uint64_t));
@@ -874,13 +865,12 @@ oc_core_auth_at_post_handler(oc_request_t* request,
       } // while (inner object)
       if (id_only)
       {
-        PRINT("only found id in request, deleting entry at index: %d\n",
-              index);
+        PRINT("only found id in request, deleting entry at index: %d", index);
         oc_at_delete_entry(device_index, index);
       }
       else
       {
-        PRINT("storage index: %d (%s)\n", index, oc_string_checked(*at));
+        PRINT("storage index: %d (%s) ", index, oc_string_checked(*at));
         // show the entry on screen
         oc_print_auth_at_entry(device_index, index);
 
@@ -905,17 +895,16 @@ oc_core_auth_at_post_handler(oc_request_t* request,
     // update the oscore context
     oc_init_oscore_from_storage(device_index, false);
   }
-  PRINT("oc_core_auth_at_post_handler - end\n");
+
   oc_send_response_no_format(request, return_status);
+  PRINT("oc_core_auth_at_post_handler - end");
 }
 
-static void
-oc_core_auth_at_delete_handler(oc_request_t* request,
-                               oc_interface_mask_t iface_mask, void* data)
+static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
-  PRINT("oc_core_auth_at_delete_handler\n");
+  PRINT("oc_core_auth_at_delete_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -926,8 +915,8 @@ oc_core_auth_at_delete_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
   oc_delete_at_table(device_index);
 
-  PRINT("oc_core_auth_at_delete_handler - end\n");
   oc_send_response_no_format(request, OC_STATUS_DELETED);
+  PRINT("oc_core_auth_at_delete_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at, knx_auth_at_x, 0, "/auth/at",
@@ -938,8 +927,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at, knx_auth_at_x, 0, "/auth/at",
                                      oc_core_auth_at_delete_handler, NULL,
                                      OC_SIZE_MANY(1), "urn:knx:fb.at");
 
-void
-oc_create_auth_at_resource(int resource_idx, size_t device)
+void oc_create_auth_at_resource(int resource_idx, size_t device)
 {
   oc_core_populate_resource(
     resource_idx, device, "/auth/at", OC_IF_LI | OC_IF_D | OC_IF_B | OC_IF_SEC,
@@ -950,9 +938,7 @@ oc_create_auth_at_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_auth_at_x_get_handler(oc_request_t* request,
-                              oc_interface_mask_t iface_mask, void* data)
+static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -962,7 +948,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
     return;
   }
-  PRINT("oc_core_auth_at_x_get_handler\n");
+  PRINT("oc_core_auth_at_x_get_handler - start");
 
   // - find the id from the URL
   const char* value;
@@ -973,7 +959,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
   if (value_len <= 0)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    PRINT("index (at) not found\n");
+    PRINT("index (at) not found");
     return;
   }
   PRINT("id = %.*s\n", value_len, value);
@@ -983,7 +969,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
   if (index < 0)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-    PRINT("index in structure not found\n");
+    PRINT("index in structure not found");
     return;
   }
   oc_print_auth_at_entry(0, index);
@@ -1002,8 +988,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
   {
     // group object list
     // taking input of int64 array
-    oc_rep_i_set_int_array(root, 9, g_at_entries[index].ga,
-                           g_at_entries[index].ga_len);
+    oc_rep_i_set_int_array(root, 9, g_at_entries[index].ga, g_at_entries[index].ga_len);
   }
   else
   {
@@ -1016,7 +1001,7 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
       oc_new_string_array(&cflags_entries, (size_t) nr_entries);
       int framed = oc_get_interface_in_mask_in_string_array(
         g_at_entries[index].scope, nr_entries, cflags_entries);
-      PRINT("entries in cflags %d framed: %d \n", nr_entries, framed);
+      PRINT("entries in cflags %d framed: %d ", nr_entries, framed);
       oc_rep_i_set_string_array(root, 9, cflags_entries);
       oc_free_string_array(&cflags_entries);
     }
@@ -1080,16 +1065,14 @@ oc_core_auth_at_x_get_handler(oc_request_t* request,
 
   oc_rep_end_root_object();
 
-  PRINT("oc_core_auth_at_x_get_handler - done\n");
   oc_send_cbor_response(request, OC_STATUS_OK);
+  PRINT("oc_core_auth_at_x_get_handler - end");
 }
 
 // probably no post handler needed
 // partial update?
 // how does that look like?
-void
-oc_core_auth_at_x_post_handler(oc_request_t* request,
-                               oc_interface_mask_t iface_mask, void* data)
+void oc_core_auth_at_x_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;

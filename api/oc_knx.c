@@ -279,8 +279,6 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
           value = (int) rep->value.integer;
         }
       } break;
-
-      case OC_REP_NIL:
       default:
         break;
     }
@@ -823,8 +821,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           }
           object = object->next;
         }
-      }
-      case OC_REP_NIL:
+      } break;
       default:
         break;
     }

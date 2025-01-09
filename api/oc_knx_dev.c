@@ -467,7 +467,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   const size_t device_index = request->resource->device;
   const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(device_index);
 
-  // calculate total endpoints from the device
+  // calculate total device endpoints
   while (my_ep != NULL)
   {
     my_ep = my_ep->next;
@@ -494,7 +494,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
       return;
     }
 
-    // skip endpoints and return the requested one (for the requested page) 
+    // skip endpoints and return the requested one (for the requested 'pn' page) 
     for (int i = 0; i < first_entry; i++)
     {
       my_ep = my_ep->next;

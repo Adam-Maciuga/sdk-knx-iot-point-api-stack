@@ -153,13 +153,12 @@ bool check_if_query_pn_exist(oc_request_t* request, int* pn_value)
 
 int add_next_page_indicator(char* url, int next_page_num)
 {
-  // example : </p?pn=1>;rt="p.next";ct=40
-  // 'p.next' is fix and 'p' is not an individual url part
+  // example </p?pn=1>;rt="p.next";ct=40, 'p.next' is fix and 'p' is not an individual url part
   
   char next_page_str[20];
   (void)sprintf(next_page_str, "%d", next_page_num);
 
-  int response_length = oc_rep_add_line_to_buffer(",\n<"); 
+  int response_length = oc_rep_add_line_to_buffer(",<"); 
   response_length += oc_rep_add_line_to_buffer(url);
   response_length += oc_rep_add_line_to_buffer("?pn=");
   response_length += oc_rep_add_line_to_buffer(next_page_str);

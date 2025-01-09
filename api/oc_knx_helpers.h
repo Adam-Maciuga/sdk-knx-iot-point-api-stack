@@ -26,7 +26,8 @@
 extern "C" {
 #endif
 
-#define BATCH_SIZE 1  // see if.b in 2.5.3.8, if ps is not part of the request then this assumes a ps =1
+// see if.b in 2.5.3.8, if ps is not part of the request then this assumes a ps =1 (but ONLY for IPv6 GET request)
+#define BATCH_SIZE 1  
 
   /**
    * @brief helper function to process entire query parameter 'l' handling 
@@ -61,14 +62,16 @@ extern "C" {
    *
    * example: /dev/ipv6?pn=0&ps=3
    * @param request the request
-   * @param pn_value returns '0' if not exist otherwise value
+   * @param pn_value returns '0' if query parameter does not exist otherwise the 'pn' value
    *
    * @note
    * - value '0' is also the default for requests without pn present (pn=0 )
    * - EPs with interface type if.ll or if.b must support pn + ps in a request
    * - page size (ps) is not supported, EPS not supporting it must return a 4.00 
    *
-   * @return true == pn exists
+   * @return
+   * - true: pn exists
+   * - false: pn does not exist
    */
   bool check_if_query_pn_exist(oc_request_t* request, int* pn_value);
 
