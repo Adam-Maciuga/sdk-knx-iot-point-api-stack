@@ -441,7 +441,7 @@ extern "C" {
    * @param interfaces the interface used for this call
    * @param user_data the user data.
    */
-  void get_OnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void get_OnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, void* user_data)
   {
     (void) user_data;
     (void) interfaces; 
@@ -573,7 +573,7 @@ extern "C" {
    * @param interfaces the used interfaces during the request.
    * @param user_data the supplied user data.
    */
-  void put_OnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void put_OnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces,  void* user_data)
   {
     (void) interfaces;
     (void) user_data;
@@ -641,7 +641,7 @@ extern "C" {
    * @param interfaces the interface used for this call
    * @param user_data the user data.
    */
-  void get_InfoOnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void get_InfoOnOff_1(oc_request_t* request, const oc_interface_mask_t interfaces, void* user_data)
   {
     (void) user_data; 
     (void) interfaces;
@@ -765,7 +765,7 @@ extern "C" {
    * @param interfaces the interface used for this call
    * @param user_data the user data.
    */
-  void get_OnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void get_OnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces,  void* user_data)
   {
     (void) interfaces;
     (void) user_data; 
@@ -891,7 +891,7 @@ extern "C" {
    * @param interfaces the used interfaces during the request.
    * @param user_data the supplied user data.
    */
-  void put_OnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void put_OnOff_2(oc_request_t* request, const oc_interface_mask_t interfaces,  void* user_data)
   {
     (void) interfaces;
     (void) user_data;
@@ -1084,7 +1084,7 @@ extern "C" {
   * @param interfaces the interface used for this call
   * @param user_data the user data.
   */
-  void get_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void get_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces,  void* user_data)
   {
     (void) user_data; 
     (void) interfaces;
@@ -1210,7 +1210,7 @@ extern "C" {
   * @param interfaces the used interfaces during the request.
   * @param user_data the supplied user data.
   */
-  void put_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces, const void* user_data)
+  void put_OnOff_3(oc_request_t* request, const oc_interface_mask_t interfaces,  void* user_data)
   {
     (void) interfaces;
     (void) user_data;
@@ -1330,8 +1330,7 @@ extern "C" {
 
     PRINT("Register Resource 'OnOff_2' with local path \"%s\"", URL_ONOFF_2);
     {
-      oc_resource_t* res_OnOff_2 =
-        oc_new_resource("OnOff_2", URL_ONOFF_2, 1, 0);
+      oc_resource_t* res_OnOff_2 =        oc_new_resource("OnOff_2", URL_ONOFF_2, 1, 0);
       oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61");
       oc_resource_bind_dpt(res_OnOff_2, ":dpt.switch");
       oc_resource_bind_content_type(res_OnOff_2, APPLICATION_CBOR);
@@ -1353,8 +1352,7 @@ extern "C" {
 
     PRINT("Register Resource 'InfoOnOff_2' with local path \"%s\"", URL_INFOONOFF_2);
     {
-      oc_resource_t* res_InfoOnOff_2 =
-        oc_new_resource("InfoOnOff_2", URL_INFOONOFF_2, 1, 0);
+      oc_resource_t* res_InfoOnOff_2 =        oc_new_resource("InfoOnOff_2", URL_INFOONOFF_2, 1, 0);
       oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62");
       oc_resource_bind_dpt(res_InfoOnOff_2, ":dpt.switch");
       oc_resource_bind_content_type(res_InfoOnOff_2, APPLICATION_CBOR);

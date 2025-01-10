@@ -76,35 +76,34 @@ enum transport_flags {
  */
 typedef struct oc_endpoint_t
 {
-  struct oc_endpoint_t *next; /**< pointer to the next structure */
-  size_t device;              /**< device index */
-  enum transport_flags flags; /**< the transport flags */
-  // oc_string_t
-  //   oscore_id; /**< OSCORE context (binary), e.g. binary serial number*/
-  char oscore_id[SERIAL_NUM_SIZE + 1]; /**< OSCORE context (binary), e.g.
-                                           binary serial number*/
+  struct oc_endpoint_t *next;           /**< pointer to the next structure */
+  size_t device;                        /**< device index */
+  enum transport_flags flags;           /**< the transport flags */
+  char oscore_id[SERIAL_NUM_SIZE + 1];  /**< OSCORE context (binary), e.g. binary serial number*/
   size_t oscore_id_len;
+
   union dev_addr {
-    oc_ipv6_addr_t ipv6; /**< ipv6 address */
-    oc_ipv4_addr_t ipv4; /**< ipv4 address */
+    oc_ipv6_addr_t ipv6;                /**< ipv6 address */
+    oc_ipv4_addr_t ipv4;                /**< ipv4 address */
   } addr, addr_local;
-  int interface_index;    /**< interface index */
-  uint8_t priority;       /**< priority */
-  uint32_t group_address; /**< group address,
-                       being used to find back the OSCORE
-                  credential to be used for encryption for s-mode messages
-                  e.g. looping over the list of group addresses of the key */
-  int32_t
-    auth_at_index; /**< auth at index +1 [1-max_indexes], 0 == error.
-                    * Used for matching oscore context of response to request.
-                    * Used for upper layers to check access interfaces. */
-  uint8_t request_piv[OSCORE_PIV_LEN]; /**< OSCORE partial iv */
-  uint8_t request_piv_len;             /**< OSCORE partial iv length */
+
+  int interface_index;                  /**< interface index */
+  uint8_t priority;                     /**< priority */
+
+  uint32_t group_address;               /**< group address, being used to find back the OSCORE
+                                             credential to be used for encryption for s-mode messages
+                                             e.g. looping over the list of group addresses of the key */
+
+  int32_t auth_at_index;                /**< auth at index +1 [1-max_indexes], 0 == error.
+                                             * Used for matching oscore context of response to request.
+                                             * Used for upper layers to check access interfaces. */
+
+  uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE partial iv */
+  uint8_t request_piv_len;              /**< OSCORE partial iv length */
   uint8_t kid_len;
   uint8_t kid[OSCORE_CTXID_LEN];
   uint8_t kid_ctx_len;
   uint8_t kid_ctx[OSCORE_IDCTX_LEN];
-  // bool rx_msg_is_response;
 } oc_endpoint_t;
 
 #define oc_make_ipv4_endpoint(__name__, __flags__, __port__, ...)              \

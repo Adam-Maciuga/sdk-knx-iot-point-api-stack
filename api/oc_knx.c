@@ -45,7 +45,7 @@
 
 static oc_group_object_notification_t g_received_notification;
 
-static uint64_t g_fingerprint = 0;
+static uint64_t g_fingerprint = 0;    // covers GO/PUB/SUB table and 'P' parameters
 static uint64_t g_osn = 0;
 
 static oc_pase_t g_pase;
@@ -646,9 +646,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 
 // ----------------------------------------------------------------------------
 
-bool
-oc_s_mode_notification_to_json(char* buffer, size_t buffer_size,
-                               oc_group_object_notification_t notification)
+bool oc_s_mode_notification_to_json(char* buffer, size_t buffer_size, oc_group_object_notification_t notification)
 {
   // { 5: { 6: <st>, 7: <ga>, 1: <value> } }
   // { "s": { "st": <st>,  "ga": <ga>, "value": <value> } }
@@ -664,8 +662,7 @@ oc_s_mode_notification_to_json(char* buffer, size_t buffer_size,
   return true;
 }
 
-bool
-oc_s_mode_notification_to_json_decoded_value(
+bool oc_s_mode_notification_to_json_decoded_value(
   char* buffer, size_t buffer_size, oc_group_object_notification_t notification)
 {
   // { 5: { 6: <st>, 7: <ga>, 1: <value> } }
@@ -688,12 +685,10 @@ oc_s_mode_notification_to_json_decoded_value(
   return true;
 }
 
-void
-oc_reset_g_received_notification()
+void oc_reset_g_received_notification(void)
 {
   g_received_notification.sia = 0;
   g_received_notification.ga = 0;
-  // g_received_notification.value =
 
   oc_free_string(&g_received_notification.st);
   oc_new_string(&g_received_notification.st, "", strlen(""));
@@ -898,14 +893,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   else if (strcmp(oc_string_checked(g_received_notification.st), "a") == 0)
   {
     // Case 2) spec 1.1
-    // Received from bus: -st rp, any ga
-    //@receiver: cflags = u -> overwrite object value
-    st_rep = true;
-  }
-  else if (strcmp(oc_string_checked(g_received_notification.st), "rp") == 0)
-  {
-    // Case 2) spec 1.0
-    // Received from bus: -st a (rp), any ga
+    // Received from bus: -st a, any ga
     //@receiver: cflags = u -> overwrite object value
     st_rep = true;
   }
@@ -963,14 +951,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
         if (my_resource->put_handler.cb)
         {
-          oc_ri_new_request_from_request(&new_request, request,
-                                         &response_buffer, &response_obj);
+          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
           new_request.request_payload = oc_s_mode_get_value(request);
           new_request.uri_path = "k";
           new_request.uri_path_len = 1;
 
-          my_resource->put_handler.cb(&new_request, iface_mask,
-                                      my_resource->put_handler.user_data);
+          my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
           if ((cflags & OC_CFLAG_TRANSMISSION) > 0)
           {
             // Case 3) part 1
@@ -1037,10 +1023,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           my_resource->get_handler.cb(&new_request, iface_mask, NULL);
         }
       #ifdef OC_USE_MULTICAST_SCOPE_2
-        // oc_do_s_mode_with_scope_no_check(2, oc_string(myurl), "rp");
         oc_do_s_mode_with_scope_no_check(2, oc_string(my_url), "a");
       #endif
-        // oc_do_s_mode_with_scope_no_check(5, oc_string(myurl), "rp");
         oc_do_s_mode_with_scope_no_check(5, oc_string(my_url), "a");
       }
     }
@@ -1095,9 +1079,7 @@ oc_knx_knx_ignore_smessage_from_self(bool ignore)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_fingerprint_get_handler(oc_request_t* request,
-                                    oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_fingerprint_get_handler(oc_request_t* request,                                    oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1113,12 +1095,11 @@ oc_core_knx_fingerprint_get_handler(oc_request_t* request,
   size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADED)
   {
-    OC_ERR(" not in loaded state");
+    OC_ERR("not in loaded state");
     oc_send_response_no_format(request, OC_STATUS_SERVICE_UNAVAILABLE);
     return;
   }
 
-  // cbor_encode_uint(&g_encoder, g_fingerprint);
   oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 1, g_fingerprint);
   oc_rep_end_root_object();
@@ -1800,29 +1781,23 @@ oc_knx_set_ldevid(char* idevid, int len)
 
 // ----------------------------------------------------------------------------
 
-void
-oc_knx_load_fingerprint()
+void oc_knx_load_fingerprint(void)
 {
   g_fingerprint = 0;
-  oc_storage_read(FINGERPRINT_STORE, (uint8_t*) &g_fingerprint,
-                  sizeof(g_fingerprint));
+  oc_storage_read(FINGERPRINT_STORE, (uint8_t*) &g_fingerprint, sizeof(g_fingerprint));
 }
 
-void
-oc_knx_dump_fingerprint()
+void oc_knx_dump_fingerprint(void)
 {
-  oc_storage_write(FINGERPRINT_STORE, (uint8_t*) &g_fingerprint,
-                   sizeof(g_fingerprint));
+  oc_storage_write(FINGERPRINT_STORE, (uint8_t*) &g_fingerprint, sizeof(g_fingerprint));
 }
 
-void
-oc_knx_set_fingerprint(uint64_t fingerprint)
+void oc_knx_set_fingerprint(uint64_t fingerprint)
 {
   g_fingerprint = fingerprint;
 }
 
-void
-oc_knx_increase_fingerprint()
+void oc_knx_increase_fingerprint(void)
 {
   g_fingerprint++;
   oc_knx_dump_fingerprint();

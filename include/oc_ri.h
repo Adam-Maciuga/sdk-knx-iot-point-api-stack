@@ -500,7 +500,7 @@ extern "C" {
     oc_properties_cb_t set_properties;    /**< callback for set properties */
     uint16_t observe_period_seconds;      /**< observe period in seconds */
     uint8_t fb_instance;                  /**< function block instance, default = 0 */
-    const bool is_const;                  /**< Whether the associated resource data is readonly */
+    const bool is_const;                  /**< whether the associated resource data is readonly */
     oc_resource_data_t* runtime_data;     /**< Runtime modifiable data*/
   };
 

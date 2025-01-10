@@ -100,20 +100,20 @@ void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code)
 {
   if (request && request->response && request->response->response_buffer)
   {
-    int length = 0;
-    if ((response_code == OC_STATUS_OK) ||
-        (response_code == OC_STATUS_CHANGED))
-    {
-      length = response_length();
-    }
+
+    // check ONLY on OK/CHANGED on a possible payload presence ...
+    const int length = response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED ? response_length() : 0 ;
+
     if (length > 0)
     {
+      // len > 0 => payload present : format OK/CHANGED as CBOR (only these two!)
       request->response->response_buffer->content_format = APPLICATION_CBOR;
       request->response->response_buffer->response_length = length;
       request->response->response_buffer->code = oc_status_code(response_code);
     }
     else
     {
+      // len = 0 => payload NOT present : format OK/CHANGED/BAD_OPTION/... as NO FORMAT
       oc_send_response_no_format(request, response_code);
     }
   }
@@ -248,38 +248,36 @@ oc_send_diagnostic_message(oc_request_t* request, const char* msg,
 }
 
 static void
-oc_populate_resource_object(oc_resource_t* resource, const char* name,
-                            const char* uri, uint8_t num_resource_types,
+oc_populate_resource_object(oc_resource_t* resource, char* name,
+                            char* uri, uint8_t num_resource_types,
                             size_t device)
 {
   if (name)
   {
-    resource->name.ptr = (char*) name;
-    resource->name.size = strlen(name) + 1;
+    resource->name.ptr = name;
+    resource->name.size = strlen(name) + 1; // include null terminator in size
     resource->name.next = NULL;
   }
   oc_check_uri(uri);
   resource->uri.next = NULL;
-  resource->uri.ptr = (char*) uri;
-  resource->uri.size = strlen(uri) + 1; // include null terminator in size
+  resource->uri.ptr = uri;
+  resource->uri.size = strlen(uri) + 1;     // include null terminator in size
   oc_new_string_array(&resource->types, num_resource_types);
   resource->properties = 0;
   resource->device = device;
 
 #ifdef OC_OSCORE
-  resource->properties |= OC_SECURE;
-#endif /* OC_OSCORE */
+  resource->properties |= OC_SECURE;        // each resource is secured
+#endif 
 }
 
-oc_resource_t*
-oc_new_resource(const char* name, const char* uri, uint8_t num_resource_types,
-                size_t device_index)
+oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types, size_t device_index)
 {
   oc_resource_t* resource = NULL;
   oc_resource_data_t* data = NULL;
+
   if (strlen(uri) < OC_MAX_URL_LENGTH)
   {
-
     resource = oc_ri_alloc_resource();
     data = oc_ri_alloc_resource_data();
     if (resource && data)
@@ -289,14 +287,13 @@ oc_new_resource(const char* name, const char* uri, uint8_t num_resource_types,
       resource->runtime_data = data;
       resource->runtime_data->num_observers = 0;
       resource->properties = OC_DISCOVERABLE;
-      *(bool*) &resource->is_const = false;
-      oc_populate_resource_object(resource, name, uri, num_resource_types,
-                                  device_index);
+      *(bool*) &resource->is_const = false;  // TODO never set to true  (maybe removing it)
+      oc_populate_resource_object(resource, name, uri, num_resource_types, device_index);
     }
   }
   else
   {
-    OC_ERR(" resource uri longer than 30 bytes: %d", (int) strlen(uri));
+    OC_ERR("resource uri longer than 30 bytes: %d", (int) strlen(uri));
   }
 
   return resource;

@@ -166,52 +166,55 @@ oc_rep_t *oc_s_mode_get_value(oc_request_t *request);
  * @see oc_do_s_mode_with_scope
  * @param group_address the group address to invoke a read on
  */
-void oc_do_s_mode_read(int64_t group_address);
+void oc_do_s_mode_read(uint32_t group_address);
 
 /**
  * @brief sends (transmits) an s-mode message
- * the value comes from the GET of the resource indicated by the resource_url
- * the path is "k"
- * the sia (sender individual address) is taken from the device
- * the ga is coming from the group address table that is listing the resource
- * url (path) the url of the resource to obtain the value from.
  *
- * only the first group address is used to send the s-mode message
+ *
+ * - the value comes from the GET of the resource indicated by the resource_url
+ * - the path is "k"
+ * - the sia (sender individual address) is taken from the device
+ * - the ga is coming from the group address table that is listing the resource
+ * - the url is the url of the resource to obtain the value from
+ *
+ * Only the first group address is used to send the s-mode message
  * for the recipient table all entries are used to send the unicast
  * communication.
  *
- * Note: function does check the T flag on the resource
+ * Note: The Function does check the T flag on the resource
  *       if the T flag is not set, then the message is NOT send.
  *
  * @param scope the multi-cast scope
  * @param resource_url URI of the resource (e.g. implemented on the device that
  * is calling this function)
- * @param rp the "st" value to send e.g. "w" | "rp" | "r"
+ * @param srv_type the "st" value to send e.g. "w" | "a" | "r"
  */
-void oc_do_s_mode_with_scope(int scope, const char *resource_url, char *rp);
+void oc_do_s_mode_with_scope(int scope, const char *resource_url, char *srv_type);
 
 /**
  * @brief sends (transmits) an s-mode message
- * the value comes from the GET of the resource indicated by the resource_url
- * the path is "k"
- * the sia (sender individual address) is taken from the device
- * the ga is coming from the group address table that is listing the resource
- * url (path) the url of the resource to obtain the value from.
  *
- * only the first group address is used to send the s-mode message
+ * - the value comes from the GET of the resource indicated by the resource_url
+ * - the path is "k"
+ * - the sia (sender individual address) is taken from the device
+ * - the ga is coming from the group address table that is listing the resource
+ * - the url is the url of the resource to obtain the value from
+ *
+ *
+ * Only the first group address is used to send the s-mode message
  * for the recipient table all entries are used to send the unicast
  * communication.
  *
- * Note: function does NOT check the T flag on the resource
- *      e.g. always send the s-mode message
- *      used in case the rp value = "rp", e.g.sending a response on read ("r")
+ * @note The function does NOT check the T flag on the resource
+ *       e.g. always send the s-mode message used in case the srv_type
+ *       value = "a", e.g. sending a response on read ("r")
  *
  * @param scope the multi-cast scope
- * @param resource_url URI of the resource (e.g. implemented on the device that
- * is calling this function)
- * @param rp the "st" value to send e.g. "w" | "rp" | "r"
+ * @param resource_url URI of the resource (e.g. implemented on the device that is calling this function)
+ * @param srv_type the "st" value to send e.g. "w" | "a" | "r"
  */
-void oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url, char *rp);
+void oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url, char *srv_type);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 
@@ -219,4 +222,4 @@ void oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url, char 
 }
 #endif
 
-#endif /* OC_KNX_CLIENT_INTERNAL_H */
+#endif 

@@ -36,13 +36,13 @@ extern "C" {
    */
   typedef enum
   {
-    OC_CFLAG_NONE = 0,                /**< Communication */
-    OC_CFLAG_COMMUNICATION = 1 << 2,  /**< false = Group Object value cannot read or written.*/
-    OC_CFLAG_READ = 1 << 3,           /**< 8 false = Group Object value cannot be read.*/
-    OC_CFLAG_WRITE = 1 << 4,          /**< 16 false = Group Object value cannot be written.*/
-    OC_CFLAG_INIT = 1 << 5,           /**< 32 false = Disable read after initialization.*/
-    OC_CFLAG_TRANSMISSION = 1 << 6,   /**< 64 false = Group Object value is not transmitted.*/
-    OC_CFLAG_UPDATE = 1 << 7,         /**< 128 false = Group Object value is not updated.*/
+    OC_CFLAG_NONE = 0,                // uninitialized communication flags (used on init)
+    OC_CFLAG_COMMUNICATION = 1 << 2,  // if true communication enabled (not used in KNX iot as an explicit flag)
+    OC_CFLAG_READ = 1 << 3,           // if true readable 
+    OC_CFLAG_WRITE = 1 << 4,          // if true writable 
+    OC_CFLAG_INIT = 1 << 5,           // if true read on init 
+    OC_CFLAG_TRANSMISSION = 1 << 6,   // if true can transmit 
+    OC_CFLAG_UPDATE = 1 << 7,         // if true update value on a response (transmission flag don't care)
   } oc_cflag_mask_t;
 
   /**
@@ -111,14 +111,18 @@ extern "C" {
    * - delete an index, e.g. delete the array entry of data (persistent)
    * - make the entry persistent
    * - free the data
+   *
+   * Note that some (int) integers are tested in the code on their init values '-1' for validity,
+   * this is a problem in case of a 16-bit platforms
+   * - id : (-1 = 0xFFFF = a valid id range)
    */
   typedef struct oc_group_object_table_t
   {
-    int id;                 /**< contents of id*/
-    oc_string_t href;       /**< contents of href*/
-    oc_cflag_mask_t cflags; /**< contents of cflags as bitmap*/
-    int ga_len;             /**< length of the array of ga identifiers*/
-    uint32_t* ga;           /**< array of group addresses (unsigned integers) */
+    int id;                 // id, specification demands a range of 16 bit with 0 ... 65535 (see note above) 
+    oc_string_t href;       // href
+    oc_cflag_mask_t cflags; // cflags as in KNX
+    int ga_len;             // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...)
+    uint32_t* ga;           // group address array of 32 bit values, specification demands >= 20 entries
   } oc_group_object_table_t;
 
   /**
@@ -180,7 +184,7 @@ extern "C" {
     uint32_t grpid;   // multicast group id, specification demands 32 bit
     oc_string_t url;  // url
     oc_string_t at;   // access token id. Reference to the security credentials for unicast subscription encryption.
-    uint32_t* ga;     // group address array of 32 values, specification demands >= 20 entries
+    uint32_t* ga;     // group address array of 32 bit values, specification demands >= 20 entries
     int ga_len;       // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...) 
     bool non;         // non-confirmable unicast request, default = false
   } oc_group_table_t;
@@ -449,7 +453,7 @@ extern "C" {
    * @return char* NULL or url of the destination
    * @note
    * - in the case of url is being returned the 'ia' was also valid; e.g > 0
-   * - ia == -1 is the init value; ia == 0 is reserved in KNX 
+   * - ia == -1 is the init value; ia == 0 is reserved in KNX
    */
   char* oc_core_get_recipient_index_url(int index);
 
@@ -608,7 +612,7 @@ extern "C" {
   void oc_free_knx_fp_resources(size_t device_index);
 
   /**
-   * @brief create the group multi cast address
+   * @brief create the group multicast address
    * using the default port 5683
    *
    * @param in the endpoint to adapt
@@ -617,12 +621,10 @@ extern "C" {
    * @param scope the address scope
    * @return oc_endpoint_t the modified endpoint
    */
-  oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in,
-                                                  uint32_t group_nr, int64_t iid,
-                                                  int scope);
+  oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope);
 
   /**
-   * @brief create the group multi cast address with port
+   * @brief create the group multicast address with port
    *
    * create the multicast address from group and scope with a supplied port number
    *\code{.unparsed}
@@ -642,10 +644,7 @@ extern "C" {
    * @param port the port to be used
    * @return oc_endpoint_t the modified endpoint
    */
-  oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in,
-                                                            uint32_t group_nr,
-                                                            int64_t iid,
-                                                            int scope, int port);
+  oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint32_t port);
 
   /**
    * @brief subscribe to a multicast address, defined by group number and
@@ -658,7 +657,7 @@ extern "C" {
    * @param iid the installation id
    * @param scope the address scope
    */
-  void subscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope);
+  void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope);
 
   /**
    * @brief subscribe to a multicast address, defined by group number and
@@ -671,8 +670,7 @@ extern "C" {
    * @param scope the address scope
    * @param port the port
    */
-  void subscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid,
-                                              int scope, int port);
+  void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port);
 
   /**
    * @brief unsubscribe to a multicast address, defined by group number and
@@ -684,7 +682,7 @@ extern "C" {
    * @param iid the installation id
    * @param scope the address scope
    */
-  void unsubscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope);
+  void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope);
 
   /**
    * @brief unsubscribe to a multicast address, defined by group number and
@@ -697,11 +695,10 @@ extern "C" {
    * @param scope the address scope
    * @param port the port
    */
-  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid,
-                                                int scope, int port);
+  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_KNX_FP_INTERNAL_H */
+#endif

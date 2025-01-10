@@ -966,6 +966,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_mport, dev_mid, 0, "/dev/mport",
                                      oc_core_dev_mport_get_handler, 0, 0, 0,
                                      "urn:knx:dpt.value2Ucount",
                                      OC_SIZE_ZERO());
+
 void oc_create_dev_mport_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_mport_resource\n");
@@ -994,37 +995,7 @@ static int oc_core_dump_ap(size_t device_index)
   return -1;
 }
 
-static int oc_core_read_ap(size_t device_index)
-{
-  // KNX_STORAGE_AP
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device != NULL)
-  {
-    int32_t value;
-    long temp_size;
 
-    temp_size =
-      oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*) &value, sizeof(value));
-    if (temp_size > 0)
-    {
-      device->ap.major = value;
-    }
-    temp_size =
-      oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*) &value, sizeof(value));
-    if (temp_size > 0)
-    {
-      device->ap.minor = value;
-    }
-    temp_size =
-      oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*) &value, sizeof(value));
-    if (temp_size > 0)
-    {
-      device->ap.patch = value;
-    }
-    return 0;
-  }
-  return -1;
-}
 
 static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1277,7 +1248,7 @@ void oc_knx_device_storage_read(size_t device_index)
 
   // read host name from storage (on error = 0)
   uint64_t iid;
-  device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*) &iid, sizeof(iid)) > 0 ? iid : 0x00000000;
+  device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*) &iid, sizeof(iid)) > 0 ? iid : 0;
   PRINT("idd (storage) %llu", device->iid);
 
   // read PRG mode from storage (on error = false)
@@ -1295,12 +1266,15 @@ void oc_knx_device_storage_read(size_t device_index)
     PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
   }
 
-  oc_core_read_ap(device_index);
+  // read major/minor/patch version from storage (on error = '0')
+  int value;
+  device->ap.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*) &value, sizeof(value)) > 0 ? value : 0;
+  device->ap.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*) &value, sizeof(value)) > 0 ? value : 0;
+  device->ap.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*) &value, sizeof(value)) > 0 ? value : 0;
 }
 
 void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 {
-
   if (device_index >= oc_core_get_num_devices())
   {
     PRINT("oc_knx_device_storage_reset: device_index %d too large", (int) device_index);
@@ -1327,7 +1301,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // set the other data to KNX defaults
     device->pm = false;
     device->ia = 0x0000FFFF;
-    device->iid = 0;   // checked in 'runtime test'
+    device->iid = 0;
     device->fid = 0;
     device->port = u_port;
     device->mport = m_port;

@@ -41,7 +41,7 @@ static oc_group_table_t        g_gpt[GPT_MAX_ENTRIES];  // pub table (to receive
 
 static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
-static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
+static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table);
 
 static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
@@ -398,7 +398,6 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   {
     if (g_got[i].id > -1)
     {
-
       if (response_length > 0)
       {
         // close previous record to create a new without LF (not found in RFC 6690)
@@ -431,9 +430,12 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   PRINT("oc_core_fp_g_get_handler - end");
 }
 
+// carries the status input over the entire loop 
 static bool oc_fp_g_check_and_save(int index, size_t device_index, bool status_ok)
 {
   bool do_save = true;
+
+  // if status is already 'not ok' don't check and heal it to 'ok' anymore ...
   if (status_ok == false)
   {
     return status_ok;
@@ -453,27 +455,26 @@ static bool oc_fp_g_check_and_save(int index, size_t device_index, bool status_o
   if (oc_string_len(g_got[index].href) > OC_MAX_URL_LENGTH)
   {
     do_save = false;
-    OC_ERR("index %d href is longer than %d", index, (int) OC_MAX_URL_LENGTH);
+    OC_ERR("index %d href is longer than %d", index, OC_MAX_URL_LENGTH);
   }
-  if (oc_belongs_href_to_resource(g_got[index].href, true, device_index) ==
-      false)
+  if (oc_belongs_href_to_resource(g_got[index].href, true, device_index) == false)
   {
     do_save = false;
     OC_ERR("index %d href '%s' does not belong to device", index, oc_string_checked(g_got[index].href));
   }
 
+  // debugging
   oc_print_group_object_table_entry(index);
-  if (do_save)
+
+  if (do_save == false)
   {
-    oc_dump_group_object_table_entry(index);
-  }
-  else
-  {
-    OC_DBG("Deleting Index %d", index);
+    // at least one sanity check failed ... 
+    OC_DBG("... deleting entry at index %d", index);
     oc_delete_group_object_table_entry(index);
-    oc_dump_group_object_table_entry(index);
     status_ok = false;
   }
+
+  oc_dump_group_object_table_entry(index);
   return status_ok;
 }
 
@@ -482,7 +483,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   (void) data;
   (void) iface_mask;
 
-  bool status_ok = true;
+  bool status_ok = true;  // an overall process status
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
   PRINT("oc_core_fp_g_post_handler - start");
@@ -512,7 +513,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
     {
       case OC_REP_OBJECT:
       {
-        // treat request payload value as a single object
+        // treat request payload value as a single GO object
         const oc_rep_t* object = rep->value.object;
 
         // find GO id in request
@@ -544,7 +545,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           }
         }
 
-        bool id_only = true;        // to delete an GO table entry 
+        bool id_only = true;        // used to delete an GO table entry 
         int mandatory_items = 0;    // needs to be 4 for creating new entry, i.e. id, ga, cflag & href
 
         while (object != NULL)
@@ -553,85 +554,69 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           {
             case OC_REP_STRING:
             {
-              id_only = false;
+              // href (11)
               if (object->iname == 11)
               {
-                // href (11)
-                mandatory_items++;
+                // set href
                 oc_free_string(&g_got[index].href);
-                oc_new_string(&g_got[index].href, oc_string(object->value.string),
-                              oc_string_len(object->value.string));
+                oc_new_string(&g_got[index].href, oc_string(object->value.string), oc_string_len(object->value.string));
+
+                // valid item + for sure no 'id only case'
+                id_only = false;
+                mandatory_items++;
+
               }
             } break;
             case OC_REP_INT:
             {
+              // id (0)
               if (oc_string_len(object->name) == 0 && object->iname == 0)
               {
-                // id (0)
-                mandatory_items++;
+                // set id
                 g_got[index].id = (int) object->value.integer;
+
+                // valid item + possibly an 'id only case'
+                mandatory_items++;
               }
+
+              // cflags (8)
               if (oc_string_len(object->name) == 0 && object->iname == 8)
               {
-                // cflags (8)
-                mandatory_items++;
+                // set flags
+                g_got[index].cflags = (int) object->value.integer;
+
+                // valid item + for sure no 'id only case'
                 id_only = false;
-                g_got[index].cflags = object->value.integer;
+                mandatory_items++;
+
               }
             } break;
             case OC_REP_INT_ARRAY:
             {
-              id_only = false;
-              if (object->iname == 8)
-              {
-                // cflags (8)
-                mandatory_items++;
-                g_got[index].cflags = OC_CFLAG_NONE;
-                const int64_t* arr = oc_int_array(object->value.array);
-                for (int i = 0; i < (int) oc_int_array_size(object->value.array);
-                     i++)
-                {
-                  if (arr[i] == 1)
-                  {
-                    g_got[index].cflags += OC_CFLAG_READ;
-                  }
-                  else if (arr[i] == 2)
-                  {
-                    g_got[index].cflags += OC_CFLAG_WRITE;
-                  }
-                  else if (arr[i] == 3)
-                  {
-                    g_got[index].cflags += OC_CFLAG_TRANSMISSION;
-                  }
-                  else if (arr[i] == 4)
-                  {
-                    g_got[index].cflags += OC_CFLAG_UPDATE;
-                  }
-                  else if (arr[i] == 5)
-                  {
-                    g_got[index].cflags += OC_CFLAG_INIT;
-                  }
-                }
-              }
+              // ga array (7)
               if (object->iname == 7)
               {
-                // ga (7)
-                mandatory_items++;
-                const int64_t* arr = oc_int_array(object->value.array);
-                const int array_size = (int) oc_int_array_size(object->value.array);
-                uint32_t* new_array = (uint32_t*) malloc(array_size * sizeof(uint32_t));
+                const int64_t* array_in_payload = oc_int_array(object->value.array);
+                const int array_in_payload_size = oc_int_array_size(object->value.array);
+                uint32_t* new_array = malloc(array_in_payload_size * sizeof(uint32_t));
                 if (new_array)
                 {
-                  for (int i = 0; i < array_size; i++)
+                  for (int i = 0; i < array_in_payload_size; i++)
                   {
-                    new_array[i] = (uint32_t) arr[i];
+                    new_array[i] = (uint32_t) array_in_payload[i];
                   }
-                  if (g_got[index].ga != 0)
+
+                  // release an existing array fully if it will be overwritten (no selective adding) 
+                  if (g_got[index].ga != NULL)
                   {
                     free(g_got[index].ga);
                   }
-                  g_got[index].ga_len = array_size;
+                  g_got[index].ga_len = array_in_payload_size;
                   g_got[index].ga = new_array;
+
+                  // valid item + for sure no 'id only case'
+                  mandatory_items++;
+                  id_only = false;
                 }
                 else
                 {
@@ -642,37 +627,40 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             } break;
             default:
               break;
-          } // switch
+          }
 
           object = object->next;
-        } // next object in array
+        }
+
         if (id_only)
         {
           PRINT("only found id in request, deleting entry at index: %d", index);
           oc_delete_group_object_table_entry(index);
         }
-        else if (return_status == OC_STATUS_CREATED && mandatory_items != 4)
-        {
-          PRINT("Mandatory items missing!");
-          oc_delete_group_object_table_entry(index);
-          oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
         else
         {
-          PRINT("storing at index: %d", index);
+          if (return_status == OC_STATUS_CREATED && mandatory_items != 4)
+          {
+            PRINT("mandatory items missing, no entry created at index: %d", index);
+            oc_delete_group_object_table_entry(index);
+            oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+            return;
+          }
+          // created + 4 items or changed + items don't care 
+
+          PRINT("storing entry at index: %d", index);
+          // a "bad" status will be kept over the entire loop
           status_ok = oc_fp_g_check_and_save(index, device_index, status_ok);
+
         }
-      }
-      break;
+      } break;
       default:
         break;
-    } // object level
+    }
     rep = rep->next;
-  } // top level
+  }
 
-  PRINT("oc_core_fp_g_post_handler status=%d - end", (int) status_ok);
-
+  // no single error occured ...
   if (status_ok)
   {
     oc_knx_increase_fingerprint();
@@ -680,6 +668,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+
+  PRINT("oc_core_fp_g_post_handler status=%d - end", (int) status_ok);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
@@ -762,11 +752,12 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
   }
 
   int id = oc_uri_get_wildcard_value_as_int(
-    oc_string(request->resource->uri), oc_string_len(request->resource->uri),
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len);
   int index = oc_core_find_index_in_group_object_table_from_id(id);
-  PRINT("id=%d index = %d", id, index);
 
+  PRINT("id=%d index = %d", id, index);
   PRINT("deleting %d", index);
 
   if (index == -1)
@@ -775,12 +766,8 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  // delete the entry
   oc_delete_group_object_table_entry(index);
-
-  // make the deletion persistent
   oc_dump_group_object_table_entry(index);
-  // update the finger print
   oc_knx_increase_fingerprint();
 
   PRINT("oc_core_fp_g_x_del_handler - end");
@@ -1143,7 +1130,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
 
           // debugging 
-          oc_print_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+          oc_print_group_table_entry(index, GPT_STORE, g_gpt);
           if (do_save)
           {
             PRINT("storing PUB table at %d", index);
@@ -1601,7 +1588,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
 
           // debugging 
-          oc_print_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+          oc_print_group_table_entry(index, GRT_STORE, g_grt);
           if (do_save)
           {
             PRINT("storing RCV table at %d", index);
@@ -1817,11 +1804,11 @@ char* oc_core_get_recipient_index_url(int index)
       PRINT("oc_core_get_recipient_index_url: url %s", oc_string_checked(g_grt[index].url));
       return oc_string(g_grt[index].url);
     }
-    
+
     PRINT("oc_core_get_recipient_index_url: (default) k");
     return "k";
   }
-  
+
   return NULL;
 }
 
@@ -1926,23 +1913,24 @@ void oc_print_group_object_table_entry(int entry)
 void oc_dump_group_object_table_entry(int entry)
 {
   char filename[20];
-  snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
+  (void) snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
   oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
+
   // write the data
   oc_rep_begin_root_object();
-  // id 0
+  // id - 0
   oc_rep_i_set_int(root, 0, g_got[entry].id);
-  // href- 11
+  // href - 11
   oc_rep_i_set_text_string(root, 11, oc_string(g_got[entry].href));
   // ga - 7
   oc_rep_i_set_int_array(root, 7, g_got[entry].ga, g_got[entry].ga_len);
 
-  // cflags 8 /// this is different than the response on the wire
+  // cflags - 8 (this is different than the response on the wire)
   oc_rep_i_set_int(root, 8, g_got[entry].cflags);
 
   oc_rep_end_root_object();
@@ -1950,14 +1938,11 @@ void oc_dump_group_object_table_entry(int entry)
   int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_dump_group_object_table_entry: dumped current state [%s] [%d]: "
-           "size %d",
-           filename, entry, size);
+    OC_DBG("oc_dump_group_object_table_entry: dumped current state [%s] [%d]: size %d", filename, entry, size);
     long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long) size)
     {
-      PRINT("oc_dump_group_object_table_entry: written %d != %d (towrite)",
-            (int) written_size, size);
+      PRINT("oc_dump_group_object_table_entry: written %d != %d (towrite)", (int) written_size, size);
     }
   }
 
@@ -2060,10 +2045,12 @@ void oc_load_group_object_table(void)
 void oc_free_group_object_table_entry(int entry, bool init)
 {
   g_got[entry].id = -1;
+
+  // free "string" data memory only if already initialized 
   if (init == false)
   {
     oc_free_string(&g_got[entry].href);
-    free(g_got[entry].ga);
+    free(g_got[entry].ga);  // free first with valid ptr and then set prt to NULL (below)
   }
 
   g_got[entry].ga = NULL;
@@ -2074,7 +2061,7 @@ void oc_free_group_object_table_entry(int entry, bool init)
 void oc_delete_group_object_table_entry(int entry)
 {
   char filename[20];
-  snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
+  (void) snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
   oc_storage_erase(filename);
 
   oc_free_group_object_table_entry(entry, false);
@@ -2111,10 +2098,8 @@ int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max
   return -1;
 }
 
-static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
+static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table)
 {
-  (void) max_size;
-
 #ifdef OC_PRINT
 
   if (table[entry].id == -1)
@@ -2217,7 +2202,7 @@ static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* 
     long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long) size)
     {
-      PRINT("oc_dump_group_table_entry: written %d != %d (towrite)",            (int) written_size, size);
+      PRINT("oc_dump_group_table_entry: written %d != %d (towrite)", (int) written_size, size);
     }
   }
 
@@ -2335,7 +2320,7 @@ void oc_load_object_table(void)
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_load_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, GRT_STORE, g_grt);
   }
 
 #ifdef OC_PUBLISHER_TABLE
@@ -2343,7 +2328,7 @@ void oc_load_object_table(void)
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, GPT_STORE, g_gpt);
   }
 #endif
 }
@@ -2357,7 +2342,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].grpid = 0; // init value, used also in code to check on its validity
 
   // free "string" data memory only if already initialized 
-  if (init == false) 
+  if (init == false)
   {
     oc_free_string(&table[entry].url);
     oc_free_string(&table[entry].at);
@@ -2370,6 +2355,8 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
 
 static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
+
+  // TODO why to delete always the table on each entry ?
   char filename[20];
   (void) snprintf(filename, 20, "%s_%d", store, entry);
   oc_storage_erase(filename);
@@ -2383,7 +2370,7 @@ void oc_delete_group_tables(void)
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, GRT_STORE, g_grt);
   }
 
 #ifdef OC_PUBLISHER_TABLE
@@ -2391,7 +2378,7 @@ void oc_delete_group_tables(void)
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-    oc_print_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+    oc_print_group_table_entry(i, GPT_STORE, g_gpt);
   }
 #endif
 }
@@ -2586,10 +2573,9 @@ bool is_in_array(uint32_t value, uint32_t* array, int array_size)
 bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address, size_t* response_length)
 {
 
-
   bool return_value = false;
 
-  PRINT("oc_add_points_in_group_object_table_to_response %d", group_address);
+  PRINT("oc_add_points_in_group_object_table_to_response %u", group_address);
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -2608,7 +2594,7 @@ bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size
   return return_value;
 }
 
-oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, int64_t iid, int scope, int port)
+oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint32_t port)
 {
   // create the multicast address from group and scope
   // FF3_:FD__:____:____:(8-f)___:____
@@ -2660,53 +2646,50 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   return in;
 }
 
-oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr, int64_t iid, int scope)
+oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope)
 {
-  return oc_create_multicast_group_address_with_port(in, group_nr, iid, scope,
-                                                     5683);
+  return oc_create_multicast_group_address_with_port(in, group_nr, iid, scope, 5683);
 }
 
-void subscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid, int scope, int port)
+void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port)
 {
   // create the multicast address from group and scope and port
+  oc_endpoint_t group_mcast = { 0 };
+
+  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, port);
+
+  // subscribe
+  oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
+}
+
+void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
+{
+  // FF35::30: <ULA-routing-prefix>::<group id>
+  //
+  // create the multi cast address from group and scope
+  oc_endpoint_t group_mcast;
+  memset(&group_mcast, 0, sizeof(group_mcast));
+
+  group_mcast =
+    oc_create_multicast_group_address(group_mcast, group_nr, iid, scope);
+
+  // subscribe
+  oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
+}
+
+void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port)
+{
+  // create the multicast address from group and scope
   oc_endpoint_t group_mcast = { 0 };
 
   group_mcast = oc_create_multicast_group_address_with_port(
     group_mcast, group_nr, iid, scope, port);
 
-  // subscribe
-  oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
-}
-
-void subscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
-{
-  // FF35::30: <ULA-routing-prefix>::<group id>
-  //
-  // create the multi cast address from group and scope
-  oc_endpoint_t group_mcast;
-  memset(&group_mcast, 0, sizeof(group_mcast));
-
-  group_mcast =
-    oc_create_multicast_group_address(group_mcast, group_nr, iid, scope);
-
-  // subscribe
-  oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
-}
-
-void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, int64_t iid, int scope, int port)
-{
-  // create the multi cast address from group and scope
-  oc_endpoint_t group_mcast;
-  memset(&group_mcast, 0, sizeof(group_mcast));
-
-  group_mcast = oc_create_multicast_group_address_with_port(
-    group_mcast, group_nr, iid, scope, port);
-
   // un subscribe
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);
 }
 
-void unsubscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
+void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
 {
   // FF35::30: <ULA-routing-prefix>::<group id>
   //
@@ -2721,7 +2704,7 @@ void unsubscribe_group_to_multicast(uint32_t group_nr, int64_t iid, int scope)
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);
 }
 
-uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, uint32_t group_address)
+uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uint32_t group_address)
 {
   for (int index = 0; index < max_size; index++)
   {
@@ -2737,7 +2720,7 @@ uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, uint32_t 
   return 0;
 }
 
-uint32_t oc_find_grpid_in_recipient_table(uint32_t group_address)
+uint32_t oc_find_grpid_in_recipient_table(const uint32_t group_address)
 {
   return oc_find_grpid_in_table(g_grt, GRT_MAX_ENTRIES, group_address);
 }
@@ -2746,8 +2729,7 @@ void oc_register_group_multicasts(void)
 {
 #ifdef OC_PUBLISHER_TABLE
 
-  // register only if publisher is active
-  // installation id will be used as ULA prefix
+  // register only if publisher is active, installation id will be used as ULA prefix
   oc_device_info_t* device = oc_core_get_device_info(0);
   if (!device)
   {
@@ -2776,15 +2758,15 @@ void oc_register_group_multicasts(void)
     for (int index = 0; index < GPT_MAX_ENTRIES; index++)
     {
       const int nr_entries = g_got[index].ga_len;
+      const oc_cflag_mask_t cflags = g_got[index].cflags;
 
-      oc_cflag_mask_t cflags = g_got[index].cflags;
       // check if the GA is used for receiving, e.g. one of r/w/u
       if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
       {
         for (int i = 0; i < nr_entries; i++)
         {
           // check if a 'receiving' GA as part of a GO is in the publisher table (device can receive)
-          uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
+          const uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
 
           PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %d cflags=", index, i, grpid, g_got[index].ga[i]);
           oc_print_cflags(cflags);
@@ -2804,8 +2786,8 @@ void oc_register_group_multicasts(void)
     for (int index = 0; index < GOT_MAX_ENTRIES; index++)
     {
       const int nr_entries = g_got[index].ga_len;
+      const oc_cflag_mask_t cflags = g_got[index].cflags;
 
-      oc_cflag_mask_t cflags = g_got[index].cflags;
       // check if the GA is used for receiving, e.g. one of r/w/u
       if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
       {
@@ -2813,7 +2795,7 @@ void oc_register_group_multicasts(void)
         for (int i = 0; i < nr_entries; i++)
         {
           PRINT("oc_register_group_multicasts index=%d i=%d group: %u  cflags=", index, i, g_got[index].ga[i]);
-          oc_print_cflags(cflags);
+          oc_print_cflags(cflags); // debugging
           subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 2, mport);
           subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 5, mport);
         }
@@ -2829,12 +2811,10 @@ void oc_init_datapoints_at_initialization(void)
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
-    const int nr_of_ga_entries = g_got[index].ga_len;
-
-    if (nr_of_ga_entries > 0)
-    { // at least one GA is assigned (is an array) 
-      oc_cflag_mask_t cflags = g_got[index].cflags;
-      if (cflags & OC_CFLAG_INIT)
+    // at least one GA is assigned (is an array) 
+    if (g_got[index].ga_len > 0)
+    {
+      if (g_got[index].cflags & OC_CFLAG_INIT)
       {
         // read on init cflags is set, fire (after device restart)
         // via the sending association(first assigned ga == sending ga)

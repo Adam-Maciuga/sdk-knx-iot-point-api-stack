@@ -186,7 +186,7 @@ typedef struct oc_device_info_t
   uint32_t mid;                             /**< knx manufacturer id */
   uint64_t fid;                             /**< knx fabric id */
   uint32_t ia;                              /**< knx individual address */
-  uint64_t iid;                             /**< knx installation id */
+  uint64_t iid;                             /**< knx installation id (checked in 'runtime test' */
   uint32_t port;                            /**< coap port number */
   uint32_t mport;                           /**< multicast port number */
   bool pm;                                  /**< knx programming mode */
