@@ -24,8 +24,8 @@
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
-#include "oc_uuid.h"
 #include "util/oc_etimer.h"
+
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 #define oc_ri_internal_expand(...) __VA_ARGS__
 #define oc_ri_internal_expand_call(fn, ...)                                    \
@@ -431,8 +431,7 @@ extern "C" {
    * @brief request callback
    *
    */
-  typedef void (*oc_request_callback_t)(oc_request_t*, oc_interface_mask_t,
-                                        void*);
+  typedef void (*oc_request_callback_t)(oc_request_t*, oc_interface_mask_t, void*);
 
   /**
    * @brief request handler type
@@ -454,8 +453,7 @@ extern "C" {
    * @brief get properties callback
    *
    */
-  typedef void (*oc_get_properties_cb_t)(oc_resource_t*, oc_interface_mask_t,
-                                         void*);
+  typedef void (*oc_get_properties_cb_t)(oc_resource_t*, oc_interface_mask_t, void*);
 
   /**
    * @brief properties callback structure
@@ -489,8 +487,7 @@ extern "C" {
     oc_string_array_t types;              /**< "rt" types of the resource */
     oc_string_t dpt;                      /**< dpt of the resource */
     oc_interface_mask_t interfaces;       /**< supported interfaces */
-    oc_content_format_t content_type;     /**< the content format that the resource
-                                              supports, e.g. only 1 at the moment */
+    oc_content_format_t content_type;     /**< the content format that the resource supports, e.g. only 1 at the moment */
     oc_resource_properties_t properties;  /**< properties (as bit mask) */
     oc_request_handler_t get_handler;     /**< callback for GET */
     oc_request_handler_t put_handler;     /**< callback for PUT */
@@ -507,7 +504,7 @@ extern "C" {
   typedef struct oc_resource_dummy_s
   {
     struct oc_resource_s* next; /**< next resource*/
-    size_t device;              /**< Should ALWAYS be -1 for dummy node*/
+    size_t device;              /**< should ALWAYS be -1 for dummy node*/
   } oc_resource_dummy_t;
 
   typedef struct oc_link_s oc_link_t;
@@ -555,9 +552,7 @@ extern "C" {
    * @param event_callback the callback
    * @param ticks time in ticks
    */
-  void oc_ri_add_timed_event_callback_ticks(void* cb_data,
-                                            oc_trigger_t event_callback,
-                                            oc_clock_time_t ticks);
+  void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_callback, oc_clock_time_t ticks);
 
   /**
    * @brief add timed event callback in seconds
@@ -580,8 +575,7 @@ extern "C" {
     * @param cb_data the timed event callback info
     * @param event_callback the callback
     */
-  void oc_ri_remove_timed_event_callback(void* cb_data,
-                                         oc_trigger_t event_callback);
+  void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback);
 
   /**
    * @brief convert the (internal) status code to coap status as integer
@@ -613,9 +607,7 @@ extern "C" {
    * @param device the device index
    * @return oc_resource_t* the resource structure
    */
-  const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri,
-                                                     size_t uri_len,
-                                                     size_t device);
+  const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device);
 
   /**
    * @brief retrieve list of application resources (excluding device core resources)
@@ -703,9 +695,7 @@ extern "C" {
    * @param n the position to query
    * @return int the position of the next key value pair in the query or NULL
    */
-  int oc_ri_get_query_nth_key_value(const char* query, size_t query_len,
-                                    char** key, size_t* key_len, char** value,
-                                    size_t* value_len, size_t n);
+  int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key, size_t* key_len, char** value, size_t* value_len, size_t n);
 
   /**
    * @brief retrieve the value of the query parameter "key"
@@ -716,8 +706,7 @@ extern "C" {
    * @param value the returned value
    * @return int the length of the value
    */
-  int oc_ri_get_query_value(const char* query, size_t query_len, const char* key,
-                            char** value);
+  int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value);
 
   /**
    * @brief checks if key exist in query
@@ -739,8 +728,7 @@ extern "C" {
    * @param n
    * @return int
    */
-  int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key,
-                                 size_t* key_len, size_t n);
+  int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n);
 
   /**
    * @brief retrieve the interface mask from the interface name
@@ -782,4 +770,4 @@ extern "C" {
 }
 #endif
 
-#endif /* OC_RI_H */
+#endif 

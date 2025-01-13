@@ -45,7 +45,8 @@
 
 static oc_group_object_notification_t g_received_notification;
 
-static uint64_t g_fingerprint = 0;    // covers GO/PUB/SUB table and 'P' parameters
+// covers GO/PUB/SUB table and 'P' parameters
+static uint64_t g_fingerprint = 0;    
 static uint64_t g_osn = 0;
 
 static oc_pase_t g_pase;
@@ -53,6 +54,7 @@ static oc_pase_t g_pase;
 static oc_string_t g_idevid;
 static oc_string_t g_ldevid;
 
+// prevent to handle own send out messages 
 static bool g_ignore_smessage_from_self = false;
 
 static int valid_request = 0;
@@ -700,7 +702,6 @@ void oc_reset_g_received_notification(void)
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
-  oc_rep_t* rep = NULL;
   char ip_address[100];
 
   PRINT("KNX /k POST Handler, decoded payload: ");
@@ -718,13 +719,15 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
+
   if (g_ignore_smessage_from_self)
   {
-    // check if incoming message is from myself.
-    // if so, then return with bad request
-    // Note: The same device can have multiple IP addresses,
-    // so all endpoints for this device need to be compared against.
+    // check if incoming message is from myself, If so, then return with bad request
+    // Note that the same device can have multiple IP addresses, so all endpoints
+    // for this device need to be compared against.
+
     oc_endpoint_t* origin = request->origin;
+
     if (origin != NULL)
     {
       PRINT("k post : origin of message:");
@@ -765,7 +768,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
   /* loop over the request document to parse all the data */
-  rep = request->request_payload;
+  oc_rep_t* rep = request->request_payload;
   while (rep != NULL)
   {
     switch (rep->type)
@@ -825,12 +828,11 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
   // maximum base64 overhead, plus one byte for the null terminator
   size_t base64_max_len = (request->_payload_len / 3 + 1) * 4 + 1;
-  int base64_len;
   uint8_t* base64_buf = malloc(base64_max_len);
 
   oc_free_string(&g_received_notification.value);
-  base64_len = oc_base64_encode(request->_payload, request->_payload_len,
-                                base64_buf, base64_max_len);
+  int base64_len = oc_base64_encode(request->_payload, request->_payload_len,                                    base64_buf, base64_max_len);
+
   if (base64_len < 0)
   {
     char* error_msg = "Base64 encoding error in library!";
@@ -878,11 +880,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   bool st_write = false;
   bool st_rep = false;
   bool st_read = false;
-  // handle the request
-  // loop over the group addresses of the /fp/r
-  PRINT("k : origin:%s sia: %d ga: %d st: %s", ip_address,
-        g_received_notification.sia, g_received_notification.ga,
-        oc_string_checked(g_received_notification.st));
+
+  // handle the request loop over the group addresses of the /fp/r (recipient table)
+  PRINT("k : origin:%s sia: %d ga: %d st: %s", ip_address, g_received_notification.sia, g_received_notification.ga, oc_string_checked(g_received_notification.st));
   if (strcmp(oc_string_checked(g_received_notification.st), "w") == 0)
   {
     // case_1 :
@@ -929,8 +929,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     if (oc_string_len(my_url) > 0)
     {
       // len > 0 = no error, get the resource to do the fake post on
-      const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(
-        oc_string(my_url), oc_string_len(my_url), device_index);
+      const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(oc_string(my_url), oc_string_len(my_url), device_index);
       if (my_resource == NULL)
       {
         return;
@@ -1028,21 +1027,19 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         oc_do_s_mode_with_scope_no_check(5, oc_string(my_url), "a");
       }
     }
-    // get the next index in the table to get the url from.
-    // this stops when the returned index == -1
-    int new_index = oc_core_find_next_group_object_table_index(
-      g_received_notification.ga, index);
-    index = new_index;
+    // get the next index in the table to get the url from, this stops when the returned index == -1
+    index = oc_core_find_next_group_object_table_index(g_received_notification.ga, index);
   }
 
-  // don't send anything back on a multi cast message
+  // don't send anything back on a multicast message
   if (request->origin && (request->origin->flags & MULTICAST))
   {
     PRINT("k : Multicast - not sending response");
     oc_send_cbor_response(request, OC_IGNORE);
     return;
   }
-  // send the response
+
+  // send the response on unicast 
   if (send_payload && oc_rep_get_encoded_payload_size() > 0)
   {
     oc_send_cbor_response(request, OC_STATUS_OK);
@@ -1079,7 +1076,7 @@ oc_knx_knx_ignore_smessage_from_self(bool ignore)
 
 // ----------------------------------------------------------------------------
 
-static void oc_core_knx_fingerprint_get_handler(oc_request_t* request,                                    oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;

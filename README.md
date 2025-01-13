@@ -110,15 +110,18 @@ All configuration data is stored persistently.
 
 **Datapoints**
 
-- S-Mode Messaging Principle
+- S-Mode messaging principle
 - GET/POST access (including the to be used runtime flags read/write/ack)
 - Types (DPT, DPA) 
 
+*** 
 :memo:
-The tables, 'iid', 'ia' or S-Mode Messaging from above are explained in more detail 
-as part of the KNX Point API Scheme Description (also an public repository):
-- [Stack + Resources + Messaging](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/README.md?ref_type=heads#knx-iot-point-api-stack)
+The tables, ('iid', 'ia') ressources or S-Mode messaging from above are explained in more detail 
+as part of the KNX Point API Scheme description:
+- [Stack + Resources + S-Mode messaging](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/README.md?ref_type=heads#knx-iot-point-api-stack)
 - [Rest API Endpoints](https://gitlab.knx.org/public-projects/knx-iot-point-api-schema/-/blob/release/1.1.0/knxiot-point-api-scheme-openapi.yaml?ref_type=heads)
+
+***
 
 # Stack Features
 
@@ -144,18 +147,18 @@ component [Stack]
 component [Platform]
 
 note bottom of Platform 
- Platform abstractions:
- - Clock 
- - Secure Storage 
- - PRNG 
- - Media Connectivity
- - ...
+Platform abstractions:
+- Clock 
+- Secure Storage 
+- PRNG 
+- Media Connectivity
+- ...
 end note 
 
 note right of Platform
- Existing ports: 
- - Linux 
- - Windows
+Existing ports: 
+- Linux 
+- Windows
 end note 
 
 Application -> Stack
@@ -163,6 +166,65 @@ Stack -> Platform
 
 @enduml
 ```
+
+* **Discovery** 
+
+  Devices need to support (multicast) based DNS service discovery and CoAP discovery 
+  (CoAP Endpoints and identifiers, see link on note above). 
+
+  _Service Discovery_
+
+  For this a device needs to advertise its KNX Serial Number (sn), KNX Individual Address (ia)
+  and KNX Installation ID (iid) using PTR Resource records (to enumerate service instances). 
+  This enables KNX IoT devices to be discoverable on the local network with a 'zeroconf' approach.  
+
+  :exclamation: 
+  The device hostname is specified with __knx-serialnumber.knx.local__ , physical end devices must ensure this format. However, 
+  when using the stack with virtual devices on a 'computer' the host name has to be set according to the used OS 
+  (from within a C program is highly intrusive and it requires superuser/admin privileges, 
+  so this stack does not do this by default e.g.; directly, comments how to do this separately see below). 
+
+  _Examples (Linux avahi-utils, command line)_
+
+  A client discovers an **not commissioned** device with the known serial number or by asking for the device in programming mode. 
+
+  **_pm._sub._knx._udp.local** 
+  
+  Client is asking for a device in programming mode.
+  ```
+  avahi-browse -rt _pm._sub._knx._udp
+
+  = IPv6 001caffe1234._sub._knx._udp
+    hostname = [knx-001caffe1234.local]
+    address = [fd11:2222:33a3:0001:6cd9:8ad2:8e88:1f68]
+    port = [5683]
+  ```
+  
+  **_\{sn}._sub._knx._udp.local** 
+  
+  Client is asking for a device with serial number '001caffe1234'.
+  ```
+  avahi-browse -r _001caffe1234._sub._knx._udp
+
+  = IPv6 001caffe1234._sub._knx._udp
+    hostname = [knx-001caffe1234.local]
+    address = [fd11:2222:33a3:0001:6cd9:8ad2:8e88:1f68]
+    port = [5683]
+  ```
+ 
+  A client discovers a **commissioned** device with the known individual address and installation id. 
+ 
+  **_ia\{ia-iid}._sub._knx._udp.local** 
+  
+  Client is asking for a device with ia '33a3' and iid '20a' (omit in both cases leading zeros, all lower case).
+  ```
+  avahi-browse -r _ia22a3-20a._sub._knx._udp
+
+  = IPv6 001caffe1234._sub._knx._udp
+    hostname = [knx-001caffe1234.local]
+    address = [fd11:2222:33a3:0001:6cd9:8ad2:8e88:1f68]
+    port = [5683]
+  ```
 
 # Project Directory Structure
 
@@ -227,9 +289,9 @@ Storage folder is created by the make system.
  This allows copying of the executables to other folders without having to know which folder to create.
 
 __apps/*__  
-contains the sample [application](apps/Readme.md) describeding how to use the stack
+contains the sample [application](apps/Readme.md) describing how to use the stack
 
-# Build instructions
+# Build Instructions
 
 * The build system environment is based on [CMake](https://cmake.org/), various IDEs (or command line tools) can be used for this.
 * The public repository link for the stack on GitLab is https://gitlab.knx.org/public-projects/knx-iot-point-api-stack.git
@@ -243,7 +305,7 @@ respectively the stack certification.
 * Introduction on [EITT](https://support.knx.org/hc/en-us/sections/4409346784146) 
 * Introduction on [ETS](https://www.knx.org/knx-en/for-professionals/software/ets6/), more ETS details can be found [here](https://support.knx.org/hc/en-us/sections/4404423716242)
 
-### Prerequisites
+### Prerequisite
 
  - Windows machine
  - CMake
@@ -253,6 +315,9 @@ respectively the stack certification.
    - [gui/bash](https://git-scm.com/downloads/win) 
    - optionally some preferred git extension/plugin for the IDE
  - Python
+ - Hostname settings 
+   - install Bonjour services as admin, download [here](https://support.apple.com/en-us/106380)
+   - the stack calls the service by handing over expected 'host name' settings
 
  ### Build Steps 
 
@@ -275,15 +340,17 @@ CMake [documentation](https://cmake.org/cmake/help/latest/manual/cmake.1.html).
 
 ## Linux 
 
-This "port" is preferably used to develop a physical device based on a specific (linux based) hardware platform.  
+This "port" is preferably used to develop a physical device based on a specific (Linux based) hardware platform.  
 
-### Prerequisites
+### Prerequisite
 
 - Linux machine
 - CMake
 - git
 - gcc
 - Python (preinstalled)
+- Hostname settings 
+  - overwriting the content in `/etc/hostname` will lasts until the next reboot, [example info](https://www.redhat.com/en/blog/configure-hostname-linux))
 
 ### Build Steps 
 

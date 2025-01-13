@@ -20,8 +20,6 @@
 #ifndef OC_KNX_DEV_INTERNAL_H
 #define OC_KNX_DEV_INTERNAL_H
 
-#include <stddef.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -113,4 +111,4 @@ void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mo
 }
 #endif
 
-#endif /* OC_KNX_DEV_INTERNAL_H */
+#endif 

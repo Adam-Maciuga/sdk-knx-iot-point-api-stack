@@ -26,9 +26,9 @@
 #include "oc_knx_client.h"
 #include "oc_storage.h"
 
-#define GOT_STORE "GOT_STORE"
-#define GPT_STORE "GPUBT_STORE"
-#define GRT_STORE "GRECT_STORE"
+#define GOT_STORE "dev_knx_got_entry"
+#define GPT_STORE "dev_knx_pub_entry"
+#define GRT_STORE "dev_knx_rcv_entry"
 
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
 static oc_group_table_t        g_grt[GRT_MAX_ENTRIES];  // rec table (to send)
@@ -2356,7 +2356,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
 static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
 
-  // TODO why to delete always the table on each entry ?
+  // delete related GOT entry (note, one file per GOT entry)
   char filename[20];
   (void) snprintf(filename, 20, "%s_%d", store, entry);
   oc_storage_erase(filename);

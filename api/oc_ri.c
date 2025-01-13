@@ -61,7 +61,7 @@ OC_LIST(app_resources);
 OC_LIST(observe_callbacks);
 OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);
 OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);
-#endif /* OC_SERVER */
+#endif 
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
@@ -396,6 +396,46 @@ bool oc_ri_is_app_resource_valid(const oc_resource_t* resource)
   }
   return false;
 }
+
+const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device)
+{
+  if (!uri || uri_len == 0)
+    return NULL;
+  int skip = 0;
+  if (uri[0] != '/')
+    skip = 1;
+  const oc_resource_t* res = oc_ri_get_app_resources();
+  while (res != NULL)
+  {
+    if (oc_string_len(res->uri) == (uri_len + skip) &&
+        strncmp(uri, oc_string(res->uri) + skip, uri_len) == 0 &&
+        res->device == device)
+      return res;
+    res = res->next;
+  }
+
+  // here res is NULL
+  return res;
+}
+
+static void oc_ri_delete_all_app_resources(void)
+{
+  const oc_resource_t* res = oc_ri_get_app_resources();
+  while (res)
+  {
+    if (oc_ri_delete_resource(res) == true)
+      ;
+    else if (oc_ri_delete_resource_block(res) == true)
+      ;
+    else
+    {
+      // we'll get stuck in an infinite loop!
+      return;
+    }
+    res = oc_ri_get_app_resources();
+  }
+}
+
 #endif
 
 bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
@@ -411,16 +451,14 @@ bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
   return false;
 }
 
-int
-oc_status_code(oc_status_t key)
+int oc_status_code(oc_status_t key)
 {
   return oc_coap_status_codes[key];
 }
 
-int
-oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key,
-                              size_t* key_len, char** value, size_t* value_len,
-                              size_t n)
+int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key,
+                                  size_t* key_len, char** value, size_t* value_len,
+                                  size_t n)
 {
   int next_pos = -1;
   size_t i = 0;
@@ -484,9 +522,7 @@ oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key,
   return next_pos;
 }
 
-int
-oc_ri_get_query_value(const char* query, size_t query_len, const char* key,
-                      char** value)
+int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value)
 {
   int next_pos = 0, found = -1;
   size_t kl, vl, pos = 0;
@@ -510,9 +546,7 @@ oc_ri_get_query_value(const char* query, size_t query_len, const char* key,
   return found;
 }
 
-int
-oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key,
-                           size_t* key_len, size_t n)
+int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n)
 {
   int next_pos = -1;
   size_t i = 0;
@@ -576,8 +610,7 @@ oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key,
   return next_pos;
 }
 
-int
-oc_ri_query_exists(const char* query, size_t query_len, const char* key)
+int oc_ri_query_exists(const char* query, size_t query_len, const char* key)
 {
   int next_pos = 0, found = -1;
   size_t kl, pos = 0;
@@ -612,8 +645,7 @@ void allocate_events(void)
   }
 }
 
-static void
-start_processes(void)
+static void start_processes(void)
 {
   allocate_events();
   oc_process_start(&oc_etimer_process, NULL);
@@ -635,8 +667,7 @@ start_processes(void)
 #endif /* OC_TCP */
 }
 
-static void
-stop_processes(void)
+static void stop_processes(void)
 {
 #ifdef OC_TCP
   oc_process_exit(&oc_session_events);
@@ -662,50 +693,7 @@ stop_processes(void)
   oc_process_exit(&message_buffer_handler);
 }
 
-#ifdef OC_SERVER
-const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device)
-{
-  if (!uri || uri_len == 0)
-    return NULL;
-  int skip = 0;
-  if (uri[0] != '/')
-    skip = 1;
-  const oc_resource_t* res = oc_ri_get_app_resources();
-  while (res != NULL)
-  {
-    if (oc_string_len(res->uri) == (uri_len + skip) &&
-        strncmp(uri, oc_string(res->uri) + skip, uri_len) == 0 &&
-        res->device == device)
-      return res;
-    res = res->next;
-  }
-
-  // here res is NULL
-  return res;
-}
-
-static void
-oc_ri_delete_all_app_resources(void)
-{
-  const oc_resource_t* res = oc_ri_get_app_resources();
-  while (res)
-  {
-    if (oc_ri_delete_resource(res) == true)
-      ;
-    else if (oc_ri_delete_resource_block(res) == true)
-      ;
-    else
-    {
-      // we'll get stuck in an infinite loop!
-      return;
-    }
-    res = oc_ri_get_app_resources();
-  }
-}
-#endif /* OC_SERVER */
-
-void
-oc_ri_init(void)
+void oc_ri_init(void)
 {
   oc_random_init();
   oc_clock_init();
@@ -869,7 +857,7 @@ oc_ri_add_resource_block(const oc_resource_t* resource)
 
   return valid;
 }
-#endif /* OC_SERVER */
+#endif 
 
 void
 oc_ri_free_resource_properties(oc_resource_t* resource)
@@ -1150,7 +1138,7 @@ oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                  oc_blockwise_state_t** request_state,
                                  oc_blockwise_state_t** response_state,
                                  uint16_t block2_size, oc_endpoint_t* endpoint)
-#else  /* OC_BLOCK_WISE */
+#else  
 bool
 oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* buffer,
                                  oc_endpoint_t* endpoint)
@@ -1885,9 +1873,9 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
       (oc_blockwise_response_state_t*) *response_state;
     client_response.observe_option = bwt_response_state->observe_seq;
   }
-#else  /* OC_BLOCK_WISE */
+#else  
   coap_get_header_observe(pkt, (uint32_t*) &client_response.observe_option);
-#endif /* !OC_BLOCK_WISE */
+#endif 
 
 #if defined(OC_OSCORE)
   if (client_response.observe_option > 1)
@@ -1901,7 +1889,7 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
     }
     cb->notification_num = notification_num;
   }
-#endif /* OC_OSCORE */
+#endif 
 
   bool separate = false;
 
@@ -1999,7 +1987,7 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
   {
     oc_ri_remove_timed_event_callback(cb, oc_remove_ping_handler);
   }
-#endif /* OC_TCP */
+#endif 
 
   if (!oc_ri_is_client_cb_valid(cb))
   {
@@ -2134,33 +2122,31 @@ oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 
   return cb;
 }
-#endif /* OC_CLIENT */
+#endif 
 
-void
-oc_ri_shutdown(void)
+void oc_ri_shutdown(void)
 {
 #ifdef OC_SERVER
   coap_free_all_observers();
-#endif /* OC_SERVER */
+#endif 
   coap_free_all_transactions();
   free_all_event_timers();
 #ifdef OC_CLIENT
   free_all_client_cbs();
-#endif /* OC_CLIENT */
+#endif 
 #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers(true);
-#endif /* OC_BLOCK_WISE */
+#endif 
 
   while (oc_main_poll() != 0)
     ;
 
   stop_processes();
-
   oc_process_shutdown();
 
 #ifdef OC_SERVER
   oc_ri_delete_all_app_resources();
-#endif /* OC_SERVER */
+#endif 
 
   oc_random_destroy();
 }

@@ -300,8 +300,8 @@ extern "C" {
    * The /k resource handles all incoming s-mode messages.
    * This switch can be used to ignore s-mode messages that are send by ourselves.
    *
-   * note for the sniffer, all messages must be handled/reported.
-   * note for a Classic to IoT gateway the self send messages must be ignored
+   * @note  For the sniffer, all messages must be handled/reported.
+   *        For a Classic to IoT gateway the self send messages must be ignored.
    *
    * @param ignore true: ignore, false handle message
    *

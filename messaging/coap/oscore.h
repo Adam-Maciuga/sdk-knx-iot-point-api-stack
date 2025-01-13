@@ -17,9 +17,7 @@
 
 #ifndef OSCORE_H
 #define OSCORE_H
-
 #include "constants.h"
-#include "oscore_constants.h"
 #include "port/oc_connectivity.h"
 
 #ifdef __cplusplus
@@ -51,4 +49,4 @@ size_t oscore_serialize_plaintext(void *packet, uint8_t *buffer);
 }
 #endif
 
-#endif /* OSCORE_H */
+#endif 
