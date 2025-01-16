@@ -77,16 +77,21 @@ extern "C" {
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 
 /**
- * @brief
- * Creates a const CORE resource that is linked to a next resource.
+ * @brief Creates a const CORE resource that is linked to a next resource.
+ *        All resources together defines a linked list with a mandatory final
+ *        (well-known core) resource with a link that points to NULL.
  *
- * All resources together defines a linked list with a mandatory final
- * (well-known) resource with a link that points to NULL.
+ * @note
+ * The order of 'linked' resources matches the core resource numbers
+ * as defined in 'oc_core_resource_t'. Accessing a specific resource
+ * needs to travers the list pointers.
+ * Macro may raise a possible warning of "expect an identifier" ... (ignore it)
+ *        
  * 
  * @param resource_name name of this resource
  * @param next_resource name of next resource
  * 
- * @note may raise a possible warning of "expect an identifier" ...
+ * @note 
  *
  * @related OC_CORE_CREATE_CONST_RESOURCE_FINAL
  * 
@@ -413,11 +418,14 @@ void oc_core_encode_interfaces_mask(CborEncoder *parent,
 /**
  * @brief retrieve the resource by type (e.g. index) on a specific device
  *
- * @param type the index of the resource
+ * @note  Accessing for device 0 a specific resource needs to travers
+ *        the list of predefined core resource pointers.
+ *
+ * @param index the index of the resource
  * @param device the device index
  * @return oc_resource_t* the resource handle
  */
-const oc_resource_t *oc_core_get_resource_by_index(int type, size_t device);
+const oc_resource_t *oc_core_get_resource_by_index(int index, size_t device);
 
 /**
  * @brief retrieve the resource by uri
@@ -430,7 +438,7 @@ const oc_resource_t *oc_core_get_resource_by_uri(const char *uri,
                                                  size_t device);
 
 /**
- * @brief Ensure that the given URI starts with a forward slash
+ * @brief Ensure that the given URI starts with a forward slash '/'.
  *
  * @param uri the URI to check
  */

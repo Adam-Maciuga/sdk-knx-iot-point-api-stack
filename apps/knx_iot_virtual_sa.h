@@ -37,7 +37,7 @@ extern "C" {
 
 #define APPLICATION_NAME   "KNX virtual switch actuator"
 #define FIRMWARE_NAME      "KNX stack image"
-#define SN                 "000010020800"
+#define SN                 "00fa10020800"
 #define HOST_NAME          (SN) // default host name (reset uses SN as default)
 #define PASSWORD           "ABY8B77J50YXMUDW3DG4"
 

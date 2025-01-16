@@ -132,13 +132,14 @@ oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_interface_mask
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0,
-                                     "/auth/o/osndelay", OC_IF_P,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0, "/auth/o/osndelay",
+                                     OC_IF_P,
                                      APPLICATION_CBOR, OC_DISCOVERABLE,
                                      oc_core_knx_auth_o_osndelay_get_handler,
-                                     oc_core_knx_auth_o_osndelay_put_handler, 0,
-                                     0, NULL, OC_SIZE_MANY(1),
-                                     ":dpt:timePeriodMsec");
+                                     oc_core_knx_auth_o_osndelay_put_handler,
+                                     0,
+                                     0,
+                                     NULL, OC_SIZE_MANY(1), ":dpt:timePeriodMsec");
 void
 oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
 {
@@ -206,13 +207,14 @@ oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request,
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_replwdo, knx_auth_o_osndelay, 0,
-                                     "/auth/o/replwdo", OC_IF_P,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_replwdo, knx_auth_o_osndelay, 0, "/auth/o/replwdo",
+                                     OC_IF_P,
                                      APPLICATION_CBOR, OC_DISCOVERABLE,
                                      oc_core_knx_auth_o_replwdo_get_handler,
-                                     oc_core_knx_auth_o_replwdo_put_handler, 0,
-                                     0, NULL, OC_SIZE_MANY(1),
-                                     ":dpt.value2UCount");
+                                     oc_core_knx_auth_o_replwdo_put_handler,
+                                     0,
+                                     0,
+                                     NULL, OC_SIZE_MANY(1), ":dpt.value2UCount");
 void
 oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
 {
@@ -231,14 +233,16 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
-  int query_parameter_kvpair_matches = 0;   // how many (to this device applicable) query parameter key/value pair matches where found 
 
-  int total = OC_KNX_AUTH_O_OSNDELAY - OC_KNX_AUTH_O_REPLWDO;
-  int first_entry = OC_KNX_AUTH_O_REPLWDO;
-  int last_entry = OC_KNX_AUTH_O;
-  int query_pn;                             // page number (page size as request parameter is not used)
-  bool more_request_needed = false;         // If more requests (pages) are needed to get the full list
+  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;
+  int query_pn = PAGE_NUMBER;             
+  int query_ps = PAGE_SIZE;
+
+  int first_entry = OC_KNX_AUTH_O_REPLWDO;// first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_AUTH_O;         // last entry number of a resource that will be placed on a page
+  int total = last_entry - first_entry;   // total entries of this resource
+  bool more_request_needed = false;
 
   PRINT("oc_core_auth_o_get_handler - start");
 
@@ -254,24 +258,24 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
 
-  // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn))
-  {
-    // update only when pn query parameter was present
-    first_entry += query_pn * PAGE_SIZE;
+  // first entry number of a resource that will be placed on a page
+  first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-    // check only when pn query parameter was present ...
-    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
-    if (first_entry >= last_entry)
-    {
-      oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
+  // pn present, requested page will carry at least one resource e.g
+  // - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+  if (first_entry >= last_entry || query_ps == 0)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return;
   }
 
-  if (last_entry > first_entry + PAGE_SIZE)
+  // entries don't fit in a single page -> more pages are needed to get the full list
+  // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page 
+  // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
+  if (last_entry > first_entry + query_ps)
   {
-    last_entry = first_entry + PAGE_SIZE;
+    last_entry = first_entry + query_ps;
     more_request_needed = true;
   }
 
@@ -295,6 +299,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
   }
   else
   {
+    // resources are mandatory, hence this can't be correct here
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 }
@@ -302,7 +307,10 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o, knx_auth_at, 0, "/auth/o",
                                      OC_IF_LI | OC_IF_D,
                                      APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-                                     oc_core_knx_auth_o_get_handler, 0, 0, 0,
+                                     oc_core_knx_auth_o_get_handler,
+                                     0,
+                                     0,
+                                     0,
                                      NULL, OC_SIZE_ZERO());
 void
 oc_create_knx_auth_o_resource(int resource_idx, size_t device)
@@ -335,13 +343,11 @@ a_sen_convert_cmd(char* cmd)
   return 0;
 }
 
-// { 2: "renew" }
-static void
-oc_core_a_sen_post_handler(oc_request_t* request,
-                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
+
   int cmd = 0;
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
@@ -351,14 +357,15 @@ oc_core_a_sen_post_handler(oc_request_t* request,
   }
 
   bool changed = false;
-  /* loop over the request document to check if all inputs are ok */
+
+
   const oc_rep_t* rep = request->request_payload;
   while (rep != NULL)
   {
     PRINT("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name));
     if (rep->type == OC_REP_STRING)
     {
-      if (rep->iname == 2)
+      if (rep->iname == 2) // 2: "renew"
       {
         cmd = a_sen_convert_cmd(oc_string(rep->value.string));
         changed = true;
@@ -368,24 +375,26 @@ oc_core_a_sen_post_handler(oc_request_t* request,
     rep = rep->next;
   }
 
-  /* input was set, so create the response*/
+  // input was set, so create the response
   if (changed == true)
   {
     PRINT("oc_core_a_sen_post_handler cmd %d ", cmd);
-    // renew the credentials.
-    // note: this is optional for now
+    // renew the credentials, note: this is optional for now
 
-    oc_send_response_no_format(request, OC_STATUS_CHANGED);
+    oc_send_cbor_response(request, OC_STATUS_CHANGED);
     return;
   }
   oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_a_sen, knx_auth_o_replwdo, 0, "/a/sen",
-                                     OC_IF_SEC, APPLICATION_CBOR,
-                                     OC_DISCOVERABLE, 0, 0,
-                                     oc_core_a_sen_post_handler, 0, NULL,
-                                     OC_SIZE_ZERO());
+                                     OC_IF_SEC,
+                                     APPLICATION_CBOR, OC_DISCOVERABLE,
+                                     0,
+                                     0,
+                                     oc_core_a_sen_post_handler,
+                                     0,
+                                     NULL, OC_SIZE_ZERO());
 void
 oc_create_a_sen_resource(int resource_idx, size_t device)
 {
@@ -399,7 +408,7 @@ oc_create_a_sen_resource(int resource_idx, size_t device)
 // ----------------------------------------------------------------------------
 
 static int
-find_empty_at_index()
+find_empty_at_index(void)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
@@ -458,7 +467,7 @@ find_access_token_from_payload(oc_rep_t* object)
         if (oc_string_len(object->name) == 0 && object->iname == 0)
         {
           index = &object->value.string;
-          PRINT("find_access_token_from_payload: %s ",                oc_string_checked(*index));
+          PRINT("find_access_token_from_payload: %s ", oc_string_checked(*index));
           return index;
         }
       } break;
@@ -467,15 +476,15 @@ find_access_token_from_payload(oc_rep_t* object)
         if (oc_string_len(object->name) == 0 && object->iname == 0)
         {
           index = &object->value.string;
-          PRINT("find_access_token_from_payload: %s ",                oc_string_checked(*index));
+          PRINT("find_access_token_from_payload: %s ", oc_string_checked(*index));
           return index;
         }
       } break;
       default:
         break;
-    } 
+    }
     object = object->next;
-  } 
+  }
   PRINT("find_access_token_from_payload Error");
   return index;
 }
@@ -486,7 +495,7 @@ int oc_core_get_at_table_size(void)
 }
 
 // TODO use static variable
-int oc_core_find_nr_used_in_auth_at_table(void)
+int oc_core_items_used_in_auth_at_table(void)
 {
   int counter = 0;
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
@@ -506,14 +515,10 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
+  int query_parameter_kvpair_matches = 0;  // how many (to this device applicable) query parameter key/value pair matches where found 
   size_t response_length = 0;
-
-  int total = oc_core_find_nr_used_in_auth_at_table();
-  int first_entry = 0;
-  int last_entry = G_AT_MAX_ENTRIES;
-
-  int query_pn;                     // page number (page size as request parameter is not used)
-  bool more_request_needed = false; // If more requests (pages) are needed to get the full list
+  int query_pn = PAGE_NUMBER;             
+  int query_ps = PAGE_SIZE;
 
   PRINT("oc_core_auth_at_get_handler - start");
 
@@ -523,33 +528,32 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
+  // current resource amount
+  const int total = oc_core_items_used_in_auth_at_table();
+
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
 
-  // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn))
-  {
-    // update only when pn query parameter was present
-    first_entry += query_pn * PAGE_SIZE;
+  // first entry number of a resource that will be placed on a page
+  const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-    // check only when pn query parameter was present ...
-    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
-    if (first_entry >= last_entry)
-    {
-      oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
+  // pn present, requested page will carry at least one resource e.g
+  // - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+  if (first_entry >= total || query_ps == 0)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return;
   }
 
-  if (last_entry > first_entry + PAGE_SIZE)
-  {
-    last_entry = first_entry + PAGE_SIZE;
-    more_request_needed = true;
-  }
+  /// entries don't fit in a single page -> more pages are needed to get the full list
+  // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page 
+  // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
+  const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
-  // example </auth/at/token-id>;ct=60
-  for (int i = first_entry; i < last_entry; i++)
+  // example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly 
+  for (int i = first_entry; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
@@ -562,21 +566,22 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
       response_length += oc_rep_add_line_to_buffer("</auth/at/");
       response_length += oc_rep_add_line_to_buffer(oc_string(g_at_entries[i].id));
       response_length += oc_rep_add_line_to_buffer(">;ct=60");
+
+      query_parameter_kvpair_matches++;
+
+      if (query_parameter_kvpair_matches >= query_ps)
+      { // don't add more than page supports
+        break;
+      }
     }
   }
-  if (response_length > 0)
+
+  if (more_request_needed)
   {
-    if (more_request_needed)
-    {
-      // no page # was in the request (query_p =0) = next page 1 else #+1
-      response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
-    }
-    oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+    // no page # was in the request (query_p =0) = next page 1 else #+1
+    response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
   }
-  else
-  {
-    oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
-  }
+  oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
 
   PRINT("oc_core_auth_at_get_handler - end");
 }
@@ -922,10 +927,11 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at, knx_auth_at_x, 0, "/auth/at",
                                      OC_IF_LI | OC_IF_D | OC_IF_B | OC_IF_SEC,
                                      APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-                                     oc_core_auth_at_get_handler, 0,
+                                     oc_core_auth_at_get_handler,
+                                     0,
                                      oc_core_auth_at_post_handler,
-                                     oc_core_auth_at_delete_handler, NULL,
-                                     OC_SIZE_MANY(1), "urn:knx:fb.at");
+                                     oc_core_auth_at_delete_handler,
+                                     NULL, OC_SIZE_MANY(1), "urn:knx:fb.at");
 
 void oc_create_auth_at_resource(int resource_idx, size_t device)
 {
@@ -1165,11 +1171,13 @@ oc_core_auth_at_x_delete_handler(oc_request_t* request,
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at_x, knx_auth, 0, "/auth/at/*",
-                                     OC_IF_SEC, APPLICATION_CBOR,
-                                     OC_DISCOVERABLE,
-                                     oc_core_auth_at_x_get_handler, 0, 0,
-                                     oc_core_auth_at_x_delete_handler, NULL,
-                                     OC_SIZE_MANY(1), "dpt.a[n]");
+                                     OC_IF_SEC,
+                                     APPLICATION_CBOR, OC_DISCOVERABLE,
+                                     oc_core_auth_at_x_get_handler,
+                                     0,
+                                     0,
+                                     oc_core_auth_at_x_delete_handler,
+                                     NULL, OC_SIZE_MANY(1), "dpt.a[n]");
 
 void
 oc_create_auth_at_x_resource(int resource_idx, size_t device)
@@ -1185,21 +1193,20 @@ oc_create_auth_at_x_resource(int resource_idx, size_t device)
 // ----------------------------------------------------------------------------
 
 static void
-oc_core_knx_auth_get_handler(oc_request_t* request,
-                             oc_interface_mask_t iface_mask, void* data)
+oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
-  size_t response_length = 0;
 
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;
+  int query_pn = PAGE_NUMBER;             
+  int query_ps = PAGE_SIZE;
 
-  int total = OC_KNX_AUTH_AT_X - OC_KNX_AUTH_O;
-  int first_entry = OC_KNX_AUTH_O;
-  int last_entry = OC_KNX_AUTH_AT_X;
-
-  int query_pn;                           // page number (page size as request parameter is not used)
-  bool more_request_needed = false;    // If more requests (pages) are needed to get the full list
+  int first_entry = OC_KNX_AUTH_O;        // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_AUTH_AT_X;      // last entry number of a resource that will be placed on a page
+  int total = last_entry - first_entry;   // total entries of this resource
+  bool more_request_needed = false;
 
   PRINT("oc_core_knx_auth_get_handler - start");
 
@@ -1215,31 +1222,30 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
 
-  // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn))
-  {
-    // update only when pn query parameter was present
-    first_entry += query_pn * PAGE_SIZE;
+  // first entry number of a resource that will be placed on a page
+  first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-    // check only when pn query parameter was present ...
-    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
-    if (first_entry >= last_entry)
-    {
-      oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
+  // pn present, requested page will carry at least one resource e.g
+  // - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+  if (first_entry >= last_entry || query_ps == 0)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return;
   }
 
-  if (last_entry > first_entry + PAGE_SIZE)
+  // entries don't fit in a single page -> more pages are needed to get the full list
+  // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page 
+  // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
+  if (last_entry > first_entry + query_ps)
   {
-    last_entry = first_entry + PAGE_SIZE;
+    last_entry = first_entry + query_ps;
     more_request_needed = true;
   }
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource =
-      oc_core_get_resource_by_index(i, device_index);
+    const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
     if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
@@ -1256,6 +1262,7 @@ oc_core_knx_auth_get_handler(oc_request_t* request,
   }
   else
   {
+    // some resources are mandatory, hence this can't be correct here
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
@@ -1272,7 +1279,10 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, knx_fp_gm, 0, "/auth",
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, well_known_core, 0, "/auth",
                                      OC_IF_LI | OC_IF_D,
                                      APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-                                     oc_core_knx_auth_get_handler, 0, 0, 0,
+                                     oc_core_knx_auth_get_handler,
+                                     0,
+                                     0,
+                                     0,
                                      NULL, OC_SIZE_ZERO());
 #endif
 void
@@ -1807,10 +1817,10 @@ oc_reset_at_table(size_t device_index, int erase_code)
         oc_print_auth_at_entry(device_index, i);
       }
     }
-  #ifdef OC_OSCORE
+#ifdef OC_OSCORE
     // create the oscore contexts that still remain
     oc_init_oscore_from_storage(device_index, true);
-  #endif
+#endif
   }
 }
 

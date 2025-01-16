@@ -964,9 +964,7 @@ extern "C" {
    * @param[in] request the oc_request_t that contains the query parameters
    * @param[in] key the key being searched for
    *
-   * @return
-   *   - 1 exist
-   *   - -1 does not exist
+   * @return 1 exists, -1 does not exist
    */
   int oc_query_value_exists(oc_request_t* request, const char* key);
 
@@ -1000,16 +998,12 @@ extern "C" {
 
   /**
    * @brief Called after the response to a GET, PUT, POST or DELETE call has been
-   * prepared completed.
+   * prepared completed, to inform the caller about the status of the requested action.
    *
-   * - will respond with CBOR as content type in case of OK/CHANGED and payload > 0
-   * - will respond with NO CONTENT as content type in case of OK/CHANGED/XYZ and payload == 0
-   * 
-   * The function oc_send_response is called at the end of a
-   * oc_request_callback_t to inform the caller about the status of the requested
-   * action.
+   * - will respond as CBOR in case of OK/CHANGED and payload > 0
+   * - will respond as NO CONTENT in case of OK/CHANGED/XYZ and payload = 0
    *
-   * @note OC_STATUS_BAD_REQUEST for multicast will not send a response (e.g.
+   * @note OC_BAD_REQUEST for multicast will not send a response (e.g.
    *       treated as OC_IGNORE)
    *
    * @param request the request being responded to
@@ -1045,21 +1039,21 @@ extern "C" {
    * @param response_code the request being responded to
    * @param response_length the framed response length
    */
-  void oc_send_linkformat_response(oc_request_t* request,
-                                   oc_status_t response_code,
-                                   size_t response_length);
+  void oc_send_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length);
 
   /**
    * @brief Called after the response to a GET, PUT, POST or DELETE call has been
-   * prepared completed. Will respond without setting the content format.
+   * prepared completed.
+   *
+   * - respond by setting the 'no content' format
+   * - set the content len to 0
    *
    * Example use case is when the response has an empty payload.
    *
    * @param request the request being responded to
    * @param response_code the request being responded to
    */
-  void oc_send_response_no_format(oc_request_t* request,
-                                  oc_status_t response_code);
+  void oc_send_response_no_format(oc_request_t* request, oc_status_t response_code);
 
   /**
    * @brief retrieve the payload from the request, no processing
@@ -1071,9 +1065,7 @@ extern "C" {
    * @return true
    * @return false
    */
-  bool oc_get_request_payload_raw(oc_request_t* request, const uint8_t** payload,
-                                  size_t* size,
-                                  oc_content_format_t* content_format);
+  bool oc_get_request_payload_raw(oc_request_t* request, const uint8_t** payload, size_t* size, oc_content_format_t* content_format);
 
   /**
    * @brief send the request, no processing
@@ -1084,9 +1076,7 @@ extern "C" {
    * @param content_format the content format
    * @param response_code the response code to send
    */
-  void oc_send_response_raw(oc_request_t* request, const uint8_t* payload,
-                            size_t size, oc_content_format_t content_format,
-                            oc_status_t response_code);
+  void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size, oc_content_format_t content_format, oc_status_t response_code);
 
   /**
    * @brief retrieve the response payload, without processing
@@ -1098,9 +1088,7 @@ extern "C" {
    * @return true - retrieved payload
    * @return false
    */
-  bool oc_get_response_payload_raw(oc_client_response_t* response,
-                                   const uint8_t** payload, size_t* size,
-                                   oc_content_format_t* content_format);
+  bool oc_get_response_payload_raw(oc_client_response_t* response, const uint8_t** payload, size_t* size, oc_content_format_t* content_format);
 
   /**
    * @brief send a diagnostic payload
@@ -1110,8 +1098,7 @@ extern "C" {
    * @param msg_len the length of the message
    * @param response_code the CoAP response code
    */
-  void oc_send_diagnostic_message(oc_request_t* request, const char* msg,
-                                  size_t msg_len, oc_status_t response_code);
+  void oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code);
 
   /**
    * @brief retrieve the diagnostic payload from a response
@@ -1122,8 +1109,7 @@ extern "C" {
    * @return true - retrieved payload
    * @return false
    */
-  bool oc_get_diagnostic_message(oc_client_response_t* response, const char** msg,
-                                 size_t* size);
+  bool oc_get_diagnostic_message(oc_client_response_t* response, const char** msg, size_t* size);
 
   /**
    * Ignore the request
@@ -1186,8 +1172,7 @@ extern "C" {
    * @see oc_set_separate_response_buffer
    * @see oc_send_separate_response
    */
-  void oc_indicate_separate_response(oc_request_t* request,
-                                     oc_separate_response_t* response);
+  void oc_indicate_separate_response(oc_request_t* request, oc_separate_response_t* response);
 
   /**
    * Set a response buffer for holding the response payload.
@@ -1219,8 +1204,7 @@ extern "C" {
    * @see oc_send_response
    * @see oc_ignore_request
    */
-  void oc_send_separate_response(oc_separate_response_t* handle,
-                                 oc_status_t response_code);
+  void oc_send_separate_response(oc_separate_response_t* handle, oc_status_t response_code);
 
   /**
    * Called to send the deferred response to a GET, PUT, POST or DELETE request,
@@ -1239,8 +1223,7 @@ extern "C" {
    * @see oc_send_response
    * @see oc_ignore_request
    */
-  void oc_send_empty_separate_response(oc_separate_response_t* handle,
-                                       oc_status_t response_code);
+  void oc_send_empty_separate_response(oc_separate_response_t* handle, oc_status_t response_code);
 
   /**
    * Notify all observers of a change to a given resource's property

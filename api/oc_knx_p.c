@@ -18,14 +18,13 @@
 #include "api/oc_knx_p.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_helpers.h"
-
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 #include <stdio.h>
 
 
  // add datapoint to response and return true if at least one was added
-static bool oc_add_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
+static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
                                            size_t device_index, size_t* response_length,
                                            const int page_size)
 {
@@ -45,19 +44,15 @@ static bool oc_add_data_points_to_response(oc_request_t* request, const oc_resou
   return matches > 0 ? true : false;
 }
 
-/*
- * return list of parameter handlers
- */
 static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask_t iface_mask, const void* data)
 {
   (void) data;
   (void) iface_mask;
 
-  size_t response_length = 0;       // response payload len
-  bool more_request_needed = false; // if more requests (pages) are needed to get the full list
-  int total = 0;                    // total resources found that matches the request pattern (maybe cut if it does not fit to a page)
-  int first_entry = 0;              // first entry number of a resource that will be placed on a page
-  int query_pn ;                    // page number (page size as request parameter is not used)
+  size_t response_length = 0;       
+  int total = 0;                    // total entries of this resource 
+  int query_pn = PAGE_NUMBER;             
+  int query_ps = PAGE_SIZE;
 
   PRINT("oc_core_p_get_handler - start");
 
@@ -67,11 +62,10 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
     return;
   }
 
-  // get from the request the addressed device as index
   const size_t device_index = request->resource->device;
-  const oc_resource_t* my_p = oc_ri_get_app_resources();
 
   // calculate total properties
+  const oc_resource_t* my_p = oc_ri_get_app_resources();
   for (; my_p; my_p = my_p->next)
   {
     if (my_p->device != device_index)
@@ -86,39 +80,33 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
-      return;
+    return;
 
+  // first entry number of a resource that will be placed on a page
+  const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
+
+  // pn present, requested page will carry at least one resource e.g
+  // - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)n page 5 
+  if (first_entry >= total || query_ps == 0)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return;
+  }
+
+  // calculate first property for the requested page
   my_p = oc_ri_get_app_resources();
-  // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn))
+  for (int i = 0; i < first_entry; i++)
   {
-    // update only when pn query parameter was present
-    first_entry += query_pn * PAGE_SIZE;
-
-    // check only when pn query parameter was present ...
-    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
-    if (first_entry >= total)
-    {
-      oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
-
-    // skip all endpoints 'before' the requested page# and return the next one
-    for (int i = 0; i < first_entry; i++)
-    {
-      my_p = my_p->next;
-    }
+    my_p = my_p->next; // TODO check why correct device is not considered here (fails if > 0 device)
   }
 
-  // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
-  // e.g; first=0, total=300 -> 'more response needed' marker = true
-  if (total > first_entry + PAGE_SIZE)
-  {
-    more_request_needed = true;
-  }
+  // entries don't fit in a single page -> more pages are needed to get the full list
+  // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page 
+  // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
+  const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
-  const bool at_least_one_added = oc_add_data_points_to_response(request, my_p, device_index, &response_length, PAGE_SIZE);
-  if (at_least_one_added)
+  if (oc_was_adding_data_points_to_response(request, my_p, device_index, &response_length, query_ps))
   {
     // add only a page hint if at least one response entry is in
     if (more_request_needed)
@@ -130,7 +118,7 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
   }
   else
   {
-    // no reference found for the request pattern
+    // (> 0 application) resources are mandatory, hence this can't be correct here
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
@@ -247,7 +235,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
     rep = rep->next;
   }
   oc_knx_increase_fingerprint();
-  oc_send_response_no_format(request, OC_STATUS_CHANGED);
+  oc_send_cbor_response(request, OC_STATUS_CHANGED);
   PRINT("oc_core_p_post_handler - end");
 }
 

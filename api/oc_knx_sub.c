@@ -20,26 +20,25 @@
 #include "oc_core_res.h"
 #include "oc_api.h"
 
-static void
-oc_core_sub_delete_handler(oc_request_t *request,
-                           oc_interface_mask_t iface_mask, void *data)
+static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
-  //   OC_DBG("oc_core_sub_delete_handler\n");
-  (void)iface_mask;
-  (void)data;
-  oc_send_linkformat_response(request, OC_STATUS_DELETED, 0);
-  return;
+
+  (void) iface_mask;
+  (void) data;
+  oc_send_response_no_format(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub", OC_IF_P,
                                      APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-                                     0, 0, 0, oc_core_sub_delete_handler, NULL,
+                                     0,
+                                     0,
+                                     0,
+                                     oc_core_sub_delete_handler, NULL,
                                      OC_SIZE_ZERO());
 
 void
 oc_create_sub_resource(int resource_idx, size_t device)
 {
-  //   OC_DBG("oc_create_sub_resource\n");
   oc_core_populate_resource(resource_idx, device, "/sub", OC_IF_P,
                             APPLICATION_CBOR, OC_DISCOVERABLE, 0, 0, 0,
                             oc_core_sub_delete_handler, 1);

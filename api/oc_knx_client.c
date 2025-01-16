@@ -540,7 +540,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
   {
   #else  
 
-  // not sure if it is needed, the endpoint should already have the OSCORE flag set
+  // TODO not sure if it is needed, the endpoint should already have the OSCORE flag set
   endpoint->flags = endpoint->flags | OSCORE;
   if (oc_init_multicast_update(endpoint, path, NULL))
   {
@@ -551,7 +551,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
     oc_rep_begin_root_object();
     oc_rep_i_set_int(root, 4, sia_value);       // 4: <sia> 
 
-    oc_rep_i_set_key(&root_map, 5);             // 5:  
+    oc_rep_i_set_key(&root_map, 5)              // 5:  
 
     CborEncoder value_map;
     cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);

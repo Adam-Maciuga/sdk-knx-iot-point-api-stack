@@ -330,6 +330,9 @@ extern "C" {
 
   /**
    * @brief core resource numbers
+   * @note the numbered order of resources is used to create the 'linked' list
+   *       of resources, hence the pointer to a specific resource matches
+   *       the number in this enum (used for get 'resource by index' functions)
    *
    */
   typedef enum
@@ -714,7 +717,7 @@ extern "C" {
    * @param[in] query the query to inspect
    * @param[in] query_len the length of the query
    * @param[in] key the key to be checked if exist, key is null terminated
-   * @return int -1 = not exist
+   * @return int -1 = not exist, 1 exists
    */
   int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
 

@@ -524,7 +524,7 @@ extern "C" {
           }
 
           // description
-          if (strncmp(m, "desc", m_len) == 0 |
+          if (strncmp(m, "desc", m_len) == 0 ||
               strncmp(m, "*", m_len) == 0)
           {
             oc_rep_set_text_string(root, desc, "On/Off switch 1");
@@ -535,7 +535,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -729,7 +729,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -853,7 +853,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -1048,7 +1048,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -1172,7 +1172,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -1372,7 +1372,7 @@ extern "C" {
     }
 
     PRINT("Register Resource 'OnOff_3' with local path \"%s\"", URL_ONOFF_3);
-    { // used only for EITT tests specification clause 5.10.1 and EITT frame 73
+    { // used only for EITT tests specification clause 5.10.1
       oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
       oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.255"); // EITT requires FB 417 to be in, PID is artificial  
       oc_resource_bind_dpt(res_OnOff_3, ":dpt.value4Count");

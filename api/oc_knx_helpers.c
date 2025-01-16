@@ -37,7 +37,6 @@ bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
   int value_len = -1;
 
   oc_init_query_iterator();
-
   do
   {
     // find out if l=ps and/or l=total exists
@@ -87,13 +86,12 @@ bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
   const int response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, ps, total_exists, total);
   oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
   return true;          
-
 }
 
 int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total)
 {
   // request  .../fp/r?l=total&l=ps
-  // response </fp/r>;l=22;ps=5
+  // response </fp/r>;total=22;ps=5
 
   // open 
   int response_length = oc_rep_add_line_to_buffer("<");
@@ -118,38 +116,40 @@ int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int t
   return response_length;
 }
 
-bool check_if_query_pn_exist(oc_request_t* request, int* pn_value)
+int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
 {
-  
-
   char* value = NULL;
   int value_len = -1;
 
-  if (pn_value == NULL)
-  {
-    // need to have a ref ptr for the parent value
-    return false;
-  }
-
-  *pn_value = 0;
-
   if (!oc_query_values_available(request))
-  { // no query parameter at all exits 
-    return false;
+  { // no query parameter at all exits, first entry = 0 
+    return 0;
   }
 
   oc_init_query_iterator();
-  if (oc_query_value_exists(request, "pn") > -1)
+  if (oc_query_value_exists(request, "pn") == 1)
   {
     // fetch the first, ignore any possible (additional) next pn=xxx
     oc_iterate_query_get_values(request, "pn", &value, &value_len);
     // converts to '0' in case of error conversion 
     *pn_value = atoi(value); 
-    return true;
   }
 
-  return false;
+  oc_init_query_iterator();
+  if (oc_query_value_exists(request, "ps") == 1)
+  {
+    // fetch the first, ignore any possible (additional) next pn=xxx
+    oc_iterate_query_get_values(request, "ps", &value, &value_len);
+    // converts to '0' in case of error conversion 
+    *ps_value = atoi(value);
+  }
+
+  // first entry = pn * ps (optimization possible, but 32-bit platform usually uses hw multiplier)
+  return *pn_value * *ps_value;
 }
+
+
+
 
 int add_next_page_indicator(char* url, int next_page_num)
 {

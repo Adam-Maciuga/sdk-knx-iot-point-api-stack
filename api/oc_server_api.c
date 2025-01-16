@@ -94,7 +94,7 @@ void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code)
 {
   if (request && request->response && request->response->response_buffer)
   {
-    // check ONLY on OK/CHANGED for a possible payload presence ...
+    // ONLY on OK/CHANGED the payload may be > 0
     const int length = response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED ? response_length() : 0;
 
     if (length > 0)
@@ -106,7 +106,7 @@ void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code)
     }
     else
     {
-      // len = 0 => payload NOT present : format OK/CHANGED/BAD_OPTION/... as NO FORMAT
+      // len = 0 => payload NOT present : format all response codes as NO FORMAT
       oc_send_response_no_format(request, response_code);
     }
   }

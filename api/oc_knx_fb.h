@@ -49,7 +49,7 @@ extern "C" {
  * @return true
  * @return false
  */
-bool oc_add_function_blocks_to_response(oc_request_t *request,
+bool oc_was_adding_function_blocks_to_response(oc_request_t *request,
                                         size_t device_index,
                                         size_t *response_length, int *matches,
                                         int *skipped, int first_entry,

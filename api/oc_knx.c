@@ -20,7 +20,7 @@
 #include "oc_knx_client.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
-#include "oc_knx_gm.h"
+#include "oc_knx_gm.h"        // only used on iot router
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "oc_rep.h"
@@ -28,7 +28,6 @@
 #include <oc_storage.h> 
 #include <stdio.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
-#include <inttypes.h>
 
 #include "oc_oscore_context.h"
 #include "port/dns-sd.h"
@@ -37,16 +36,15 @@
 #include "security/oc_spake2plus.h"
 #endif
 
-
 #define FINGERPRINT_STORE "dev_knx_fingerprint"
 
+// ---------------------------Variables --------------------------------------
 
- // ---------------------------Variables --------------------------------------
-
+// used to temp. store in post /k 
 static oc_group_object_notification_t g_received_notification;
 
 // covers GO/PUB/SUB table and 'P' parameters
-static uint64_t g_fingerprint = 0;    
+static uint64_t g_fingerprint = 0;
 static uint64_t g_osn = 0;
 
 static oc_pase_t g_pase;
@@ -619,39 +617,42 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  // g_received_notification
   // { 4: "sia", 5: { 6: "st", 7: "ga", 1: "value" } }
 
   oc_rep_begin_root_object();
   // sia
   oc_rep_i_set_int(root, 4, g_received_notification.sia);
 
+  // s map
   oc_rep_i_set_key(&root_map, 5)
-    CborEncoder value_map;
-  cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
+
+  CborEncoder s_map;
+  cbor_encoder_create_map(&root_map, &s_map, CborIndefiniteLength);
+
+  // st with write = w, read = r, response = a
+  oc_rep_i_set_text_string(s, 6, oc_string(g_received_notification.st));
 
   // ga
-  oc_rep_i_set_int(value, 7, g_received_notification.ga);
-  // st M Service type code(write = w, read = r, response = rp) Enum : w, r, a
-  // (rp)
-  oc_rep_i_set_text_string(value, 6, oc_string(g_received_notification.st));
-  // missing value
+  oc_rep_i_set_int(s, 7, g_received_notification.ga);
 
-  cbor_encoder_close_container_checked(&root_map, &value_map);
+  // TODO missing value
 
+  // close s map
+  cbor_encoder_close_container_checked(&root_map, &s_map);
+
+  // close root
   oc_rep_end_root_object();
 
   oc_send_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_knx_k_get_handler - done\n");
+  PRINT("oc_core_knx_k_get_handler - done");
 }
 
 // ----------------------------------------------------------------------------
 
 bool oc_s_mode_notification_to_json(char* buffer, size_t buffer_size, oc_group_object_notification_t notification)
 {
-  // { 5: { 6: <st>, 7: <ga>, 1: <value> } }
-  // { "s": { "st": <st>,  "ga": <ga>, "value": <value> } }
+  // { 5: { 6: <st>, 7: <ga>, 1: <value> } } as { "s": { "st": <st>,  "ga": <ga>, "value": <value> } }
   int size = snprintf(
     buffer, buffer_size,
     "{\"sia\": %d, \"s\":{\"st\": \"%s\", \"ga\":%d, \"value\": %s } }",
@@ -696,9 +697,7 @@ void oc_reset_g_received_notification(void)
   oc_new_string(&g_received_notification.st, "", strlen(""));
 }
 
-/*
- {sia: 5678, s: {st: write, ga: 1, value: 100 }}
-*/
+// sia: 5678, s: {st: write, ga: 1, value: 100 }, note value can be anything incl. a string
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
@@ -710,15 +709,11 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   PRINT("Full Payload Size: %d", (int) request->_payload_len);
   OC_LOGbytes_OSCORE(request->_payload, (int) request->_payload_len);
 
-
-  if (request->accept != APPLICATION_CBOR &&
-      request->accept != APPLICATION_OSCORE &&
-      request->accept != CONTENT_NONE)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     request->response->response_buffer->code = oc_status_code(OC_IGNORE);
     return;
   }
-
 
   if (g_ignore_smessage_from_self)
   {
@@ -758,7 +753,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device == NULL)
   {
-    oc_send_cbor_response(request, OC_IGNORE);
+    oc_send_response_no_format(request, OC_IGNORE);
     return;
   }
 
@@ -767,7 +762,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   // get sender ip address
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
-  /* loop over the request document to parse all the data */
   oc_rep_t* rep = request->request_payload;
   while (rep != NULL)
   {
@@ -775,7 +769,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     {
       case OC_REP_INT:
       {
-        // sia
+        // sia  
         if (rep->iname == 4)
         {
           g_received_notification.sia = (uint32_t) rep->value.integer;
@@ -783,7 +777,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       } break;
       case OC_REP_OBJECT:
       {
-        // find the storage index, e.g. for this object
+        // s map with st/ga/value
         oc_rep_t* object = rep->value.object;
 
         while (object != NULL)
@@ -792,6 +786,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           {
             case OC_REP_STRING:
             {
+              // st
               if (object->iname == 6)
               {
                 oc_free_string(&g_received_notification.st);
@@ -803,11 +798,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             case OC_REP_INT:
             {
-              // sia
-              if (object->iname == 4)
-              {
-                g_received_notification.sia = (uint32_t) object->value.integer;
-              }
               // ga
               if (object->iname == 7)
               {
@@ -830,8 +820,10 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   size_t base64_max_len = (request->_payload_len / 3 + 1) * 4 + 1;
   uint8_t* base64_buf = malloc(base64_max_len);
 
+  // clear value
   oc_free_string(&g_received_notification.value);
-  int base64_len = oc_base64_encode(request->_payload, request->_payload_len,                                    base64_buf, base64_max_len);
+
+  int base64_len = oc_base64_encode(request->_payload, request->_payload_len, base64_buf, base64_max_len);
 
   if (base64_len < 0)
   {
@@ -873,7 +865,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   if (oc_is_device_in_runtime(device_index) == false)
   {
     PRINT("Device not in runtime state:%d - ignore message", device->lsm_s);
-    oc_send_cbor_response(request, OC_IGNORE);
+    oc_send_response_no_format(request, OC_IGNORE);
     return;
   }
 
@@ -910,8 +902,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   PRINT("k : index %d", index);
   if (index == -1)
   {
-    // if nothing is found (initially) then return a bad request.
-    oc_send_cbor_response(request, OC_IGNORE);
+    // if nothing is found (initially) then ignore
+    oc_send_response_no_format(request, OC_IGNORE);
     return;
   }
 
@@ -1035,18 +1027,20 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   if (request->origin && (request->origin->flags & MULTICAST))
   {
     PRINT("k : Multicast - not sending response");
-    oc_send_cbor_response(request, OC_IGNORE);
+    oc_send_response_no_format(request, OC_IGNORE);
     return;
   }
 
   // send the response on unicast 
   if (send_payload && oc_rep_get_encoded_payload_size() > 0)
   {
+    // payload > 0, ends up in CBOR
     oc_send_cbor_response(request, OC_STATUS_OK);
   }
   else
   {
-    oc_send_response_no_format(request, OC_STATUS_CHANGED);
+    // payload = 0, ends up NO FORMAT
+    oc_send_cbor_response(request, OC_STATUS_CHANGED);
   }
 }
 
@@ -1122,13 +1116,11 @@ oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_ia_post_handler(oc_request_t* request,
-                            oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
-  bool error = false;
+
   bool ia_set = false;
   bool iid_set = false;
 
@@ -1139,16 +1131,15 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
   }
 
   size_t device_index = request->resource->device;
-
   oc_rep_t* rep = request->request_payload;
+
   while (rep != NULL)
   {
     if (rep->type == OC_REP_INT)
     {
       if (rep->iname == 12)
       {
-        PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d",
-              (int) rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d", (int) rep->value.integer);
         oc_core_set_device_ia(device_index, (uint32_t) rep->value.integer);
         int temp = (int) rep->value.integer;
         oc_storage_write(KNX_STORAGE_IA, (uint8_t*) &temp, sizeof(temp));
@@ -1156,14 +1147,14 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
       }
       else if (rep->iname == 25)
       {
-        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %" PRIu64 "", rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %llu" , (uint64_t) rep->value.integer);
         oc_core_set_device_fid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_FID, (uint8_t*) &temp, sizeof(temp));
       }
       else if (rep->iname == 26)
       {
-        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %" PRIu64 "", (uint64_t) rep->value.integer);
+        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %llu" , (uint64_t) rep->value.integer);
         oc_core_set_device_iid(device_index, (uint64_t) rep->value.integer);
         uint64_t temp = (uint64_t) rep->value.integer;
         oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &temp, sizeof(temp));
@@ -1173,18 +1164,17 @@ oc_core_knx_ia_post_handler(oc_request_t* request,
     rep = rep->next;
   }
 
+  // iid/ia are mandatory
   if (iid_set && ia_set)
   {
-    // do the run time installation
     if (oc_is_device_in_runtime(device_index))
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
       oc_device_info_t* device = oc_core_get_device_info(device_index);
-      knx_publish_service(oc_string(device->serialnumber), device->iid,
-                          device->ia, device->pm);
+      knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
-    oc_send_response_no_format(request, OC_STATUS_CHANGED);
+    oc_send_cbor_response(request, OC_STATUS_CHANGED);
   }
   else
   {
@@ -1664,7 +1654,7 @@ oc_core_knx_spake_separate_post_handler(void* req_p)
     uint8_t shared_key_len = sizeof(shared_key);
     oc_spake_calc_K_shared(spake_data.K_main, shared_key);
 
-    // set thet /auth/at entry with the calculated shared key
+    // set the /auth/at entry with the calculated shared key
     // size_t device_index = request->resource->device;
 
     // knx does not have multiple devices per instance (for now), so hardcode

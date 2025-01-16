@@ -14,83 +14,84 @@
 // limitations under the License.
 */
 /**
-  @brief generic knx helpers
-  @file
+	@brief generic knx helpers
+	@file
 */
 #ifndef OC_KNX_HELPERS_H
 #define OC_KNX_HELPERS_H
-
-#include "oc_api.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// see if.b in 2.5.3.8, if ps is not part of the request then this assumes a ps =1 (but ONLY for IPv6 GET request)
-#define BATCH_SIZE 1  
+  // default batch size if ps is not part of the request
+  // (see if.b in clause 2.5.3.8 of iot specification, ONLY GET dev/ipv6)
+  #define BATCH_SIZE 1
+	// default page number if pn is not part of the request
+  #define PAGE_NUMBER 0
 
-  /**
-   * @brief helper function to process entire query parameter 'l' handling 
-   *
-   * @example: /fp/r?l=total&l=ps
-   * @param request the request
-   * @param ps the current page size 
-   * @param total the current total amount of resource items 
-   *
-   * @note 'l' and 'other' query parameters SHALL NOT be combined in a request
-   *
-   * @return false if 'l' doesn't exist (continue to process the message)
-   * @return true if 'l' exists (all 'l' steps are done, stop processing the message)
-   * 
-   */
-  bool query_l_was_processed(oc_request_t* request, int ps, int total);
+/**
+ * @brief helper function to process entire query parameter 'l' handling
+ *
+ * @example: /fp/r?l=total&l=ps
+ * @param request the request
+ * @param ps the current page size
+ * @param total the current total amount of resource items
+ *
+ * @note 'l' and 'other' query parameters SHALL NOT be combined in a request
+ *
+ * @return false if 'l' doesn't exist (continue to process the message)
+ * @return true if 'l' exists (stop processing the message, response was done)
+ *
+ */
+	bool query_l_was_processed(oc_request_t* request, int ps, int total);
 
-  /**
-   * @brief helper function to frame url part of query response:
-   *  *
-   * @param url the url to be framed
-   * @param ps_exists frame ps
-   * @param ps page size
-   * @param total_exists frame total
-   * @param total total items
-   * @return total bytes framed
-   */
-  int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total);
+	/**
+	 * @brief helper function to frame url part of query response:
+	 *  *
+	 * @param url the url to be framed
+	 * @param ps_exists frame ps
+	 * @param ps page size
+	 * @param total_exists frame total
+	 * @param total total items
+	 * @return total bytes framed
+	 */
+	int oc_frame_query_l(char* url, bool ps_exists, int ps, bool total_exists, int total);
 
-  /**
-   * @brief helper function to check if query parameter pn exists
-   *
-   * example: /dev/ipv6?pn=0&ps=3
-   * @param request the request
-   * @param pn_value returns '0' if query parameter does not exist otherwise the 'pn' value
-   *
-   * @note
-   * - value '0' is also the default for requests without pn present (pn=0 )
-   * - EPs with interface type if.ll or if.b must support pn + ps in a request
-   * - page size (ps) is not supported, EPS not supporting it must return a 4.00 
-   *
-   * @return
-   * - true: pn exists
-   * - false: pn does not exist
-   */
-  bool check_if_query_pn_exist(oc_request_t* request, int* pn_value);
 
-  /**
-   * @brief helper function to frame next page indicator, if more requests (pages)
-   * are needed to get the full list
-   *
-   * @param url the url to be framed
-   * @param next_page_num the next page number to be framed
-   * @return total bytes framed
-   */
-  int add_next_page_indicator(char* url, int next_page_num);
+	/**
+	* @brief helper function to check if query parameter pn/ps exists
+	*        and if so calculate the first item (index) that will be placed
+	*        on the page
+	*
+	* example: /f/g?pn=0&ps=3
+	* @param request the request
+	* @param pn_value returns pn or '0' (if query parameter does not exist)
+	* @param ps_value returns ps or 'server default' (if query parameter does not exist)
+	*
+	* @note
+	* - EPs with interface type if.ll must support pn + ps in a request
+	*
+	* @return pn * ps
+	*/
+	int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value);
 
-  /**
-   * @brief helper function to frame an integer in the response:
-   * @param value the value to be framed, max 9 chars
-   * @return total bytes framed
-   */
-  int oc_frame_integer(int value);
+	/**
+	 * @brief helper function to frame next page indicator, if more requests (pages)
+	 * are needed to get the full list
+	 *
+	 * @param url the url to be framed
+	 * @param next_page_num the next page number to be framed
+	 * @return total bytes framed
+	 */
+	int add_next_page_indicator(char* url, int next_page_num);
+
+	/**
+	 * @brief helper function to frame an integer in the response:
+	 * @param value the value to be framed, max 9 chars
+	 * @return total bytes framed
+	 */
+	int oc_frame_integer(int value);
 
 #ifdef __cplusplus
 }

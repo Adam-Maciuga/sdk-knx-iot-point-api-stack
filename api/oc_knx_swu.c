@@ -80,9 +80,11 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
     if (rep->value.integer == CoAP)
     { // allow only CoAP to be written, otherwise bad request
       // value is already set by init ... but store it again and save to storage
-      swu_device.protocol = (int) rep->value.integer;
+
+      swu_device.protocol = CoAP;
       oc_storage_write(KNX_STORAGE_SWU_PROTOCOL, (uint8_t*) &swu_device.protocol, sizeof(swu_device.protocol));
-      oc_send_response_no_format(request, OC_STATUS_CHANGED);
+
+      oc_send_cbor_response(request, OC_STATUS_CHANGED);
       return;
     }
   }
@@ -143,7 +145,7 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
     PRINT("oc_knx_swu_max_defer_put_handler received : %d", (int) rep->value.integer);
     swu_device.max_defer = (int) rep->value.integer;
     oc_storage_write(KNX_STORAGE_SWU_MAX_DEFER, (uint8_t*) &swu_device.max_defer, sizeof(swu_device.max_defer));
-    oc_send_response_no_format(request, OC_STATUS_OK);
+    oc_send_cbor_response(request, OC_STATUS_OK);
     return;
   }
 
@@ -207,12 +209,12 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
     {
       swu_device.update_method = (int) rep->value.integer;
       oc_storage_write(KNX_STORAGE_SWU_METHOD, (uint8_t*) &swu_device.update_method, sizeof(swu_device.update_method));
-      oc_send_response_no_format(request, OC_STATUS_OK);
+      oc_send_cbor_response(request, OC_STATUS_OK);
       return;
     }
   }
 
-  oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+  oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_method, knx_lastupdate, 0,
@@ -363,8 +365,7 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
   if ((rep != NULL) && (rep->type == OC_REP_INT))
   {
     PRINT("oc_knx_swu_update_put_handler received : %d", (int) rep->value.integer);
-    oc_send_response_no_format(request, OC_STATUS_OK);
-    // oc_send_cbor_response(request, OC_STATUS_OK);
+    oc_send_cbor_response(request, OC_STATUS_OK);
     return;
   }
 
@@ -510,15 +511,15 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  // triggers a software update query request (PULL on Software Update Server).
-  // triggers a {cmd:start/cancel} with some add. data. 
+  // triggers a software update query request (PULL on Software Update Server)
+  // triggers a {cmd:start/cancel} with some add. data
   oc_rep_t* rep = request->request_payload;
-  if ((rep != NULL) && (rep->type == OC_REP_INT))
+  if (rep != NULL && rep->type == OC_REP_INT)
   {
     PRINT("oc_knx_swu_a_post_handler received : %d", (int) rep->value.integer);
 
     // not implemented 
-    oc_send_cbor_response(request, OC_STATUS_NOT_IMPLEMENTED);
+    oc_send_response_no_format(request, OC_STATUS_NOT_IMPLEMENTED);
     return;
   }
 
@@ -612,7 +613,7 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
     PRINT("oc_knx_swu_pkg_query_url_put_handler received : %s", oc_string_checked(rep->value.string));
     oc_swu_set_query_url(oc_string_checked(rep->value.string));
     oc_storage_write(KNX_STORAGE_QUERY_URL, (uint8_t*) &swu_device.query_url, oc_string_len(swu_device.query_url));
-    oc_send_response_no_format(request, OC_STATUS_OK);
+    oc_send_cbor_response(request, OC_STATUS_OK);
     return;
   }
 
@@ -682,14 +683,15 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   (void) data;
   (void) iface_mask;
 
-  size_t response_length = 0;             // response payload len
   int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
+  size_t response_length = 0;
+  int query_pn = PAGE_NUMBER;             
+  int query_ps = PAGE_SIZE;
 
-  int total = OC_KNX_SWU - OC_KNX_SWU_PROTOCOL;
-  int first_entry = OC_KNX_SWU_PROTOCOL; 
-  int last_entry = OC_KNX_SWU;           
-  int query_pn ;                          // page number (page size as request parameter is not used)
-  bool more_request_needed = false;       // if more requests (pages) are needed to get the full list
+  int first_entry = OC_KNX_SWU_PROTOCOL;  // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_SWU;            // last entry number of a resource that will be placed on a page
+  int total = last_entry - first_entry;   // total entries of this resource
+  bool more_request_needed = false;
 
   PRINT("oc_core_swu_get_handler - start");
 
@@ -705,26 +707,24 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
 
-  // handle query with page number (pn)
-  if (check_if_query_pn_exist(request, &query_pn))
-  {
-    // update only when pn query parameter was present
-    first_entry += query_pn * PAGE_SIZE;
+  // first entry number of a resource that will be placed on a page
+  first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-    // check only when pn query parameter was present ...
-    // ... that requested page would carry at least one resource e.g; total=10, page=5 -> no data on page 5 
-    if (first_entry >= last_entry)
-    {
-      oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
-      return;
-    }
+  // pn present, requested page will carry at least one resource e.g
+  // - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+  if (first_entry >= last_entry || query_ps == 0)
+  {
+    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    return;
   }
 
-  // check if found entries fits in a single page of n ... n+page size, cut data to page 'n'
-  // e.g; first=0, total=300 -> 'more response needed' marker = true
-  if (last_entry > first_entry + PAGE_SIZE)
+  // entries don't fit in a single page -> more pages are needed to get the full list
+  // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page 
+  // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
+  if (last_entry > first_entry + query_ps)
   {
-    last_entry = first_entry + PAGE_SIZE;
+    last_entry = first_entry + query_ps;
     more_request_needed = true;
   }
 
@@ -749,6 +749,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
   }
   else
   {
+    // resources are mandatory, hence this can't be correct here
     oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
   PRINT("oc_core_swu_get_handler - end");
