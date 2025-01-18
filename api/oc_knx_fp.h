@@ -322,19 +322,26 @@ extern "C" {
   int oc_core_find_index_in_group_object_table_from_id(int id);
 
   /**
-   * @brief find (first) index in the group address table
-   *
-   * @param group_address the group address
-   * @return int the index in the table or -1
-   */
-  int oc_core_find_group_object_table_index(uint32_t group_address);
+  * @brief find 'first' index in the group address table
+  *
+  * @param group_address the group address to find
+  
+  * @return int the index in the table or -1
+  *
+  */
+  int oc_core_find_first_group_object_table_index(uint32_t group_address);
 
   /**
-   * @brief find next index in the group address table
+   * @brief find 'next' index - after the provided one - in the group address table
    *
-   * @param group_address the group address
-   * @param cur_index  the current index to start from.
+   * @param group_address the group address to find
+   * @param cur_index  the index from which to search 
+   *
+   * @note  index is zero based, searching starts
+   *        from 'cur_index' + 1
+   *
    * @return int the index in the table or -1
+   *
    */
   int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_index);
 

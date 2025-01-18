@@ -127,9 +127,7 @@ void oc_core_shutdown(void)
 	device_count = 0;
 }
 
-void
-oc_core_encode_interfaces_mask(CborEncoder* parent,
-															 oc_interface_mask_t iface_mask)
+void oc_core_encode_interfaces_mask(CborEncoder* parent, oc_interface_mask_t iface_mask)
 {
 	oc_rep_set_key((parent), "if");
 	oc_rep_start_array((parent), if);
@@ -717,7 +715,7 @@ void oc_core_populate_resource(int core_resource, size_t device_index,
 															 oc_request_callback_t delete, int num_resource_types,
 															 ...)
 {
-	const oc_resource_t* _r =	oc_core_get_resource_by_index(core_resource, device_index);
+	const oc_resource_t* _r = oc_core_get_resource_by_index(core_resource, device_index);
 	if (!_r)
 	{
 		return;
@@ -735,7 +733,7 @@ void oc_core_populate_resource(int core_resource, size_t device_index,
 	r->uri.size = strlen(uri) + 1; // include null terminator in size
 	r->properties = properties;
 	va_list rt_list;
-  va_start(rt_list, num_resource_types);
+	va_start(rt_list, num_resource_types);
 	if (num_resource_types > 0)
 	{
 		oc_new_string_array(&r->types, num_resource_types);

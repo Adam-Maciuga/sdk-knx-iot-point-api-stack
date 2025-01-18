@@ -186,31 +186,13 @@ int oc_core_find_index_in_group_object_table_from_id(int id)
 	return -1;
 }
 
-int oc_core_find_group_object_table_index(uint32_t group_address)
+int oc_core_find_first_group_object_table_index(uint32_t group_address)
 {
-	for (int i = 0; i < GOT_MAX_ENTRIES; i++)
-	{
-		if (g_got[i].id > -1)
-		{
-			for (int j = 0; j < g_got[i].ga_len; j++)
-			{
-				if (group_address == g_got[i].ga[j])
-				{
-					return i;
-				}
-			}
-		}
-	}
-	return -1;
+	return oc_core_find_next_group_object_table_index(group_address, -1);
 }
 
 int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_index)
 {
-	if (cur_index == -1)
-	{
-		return -1;
-	}
-
 	for (int i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
 	{
 		if (g_got[i].id > -1)
@@ -230,12 +212,7 @@ int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_i
 oc_string_t oc_core_find_group_object_table_url_from_index(int index)
 {
 	const oc_string_t error = { 0 };
-
-	if (index < GOT_MAX_ENTRIES)
-	{
-		return g_got[index].href;
-	}
-	return error;
+	return index < GOT_MAX_ENTRIES ? g_got[index].href : error;
 }
 
 oc_cflag_mask_t oc_core_group_object_table_cflag_entries(int index)

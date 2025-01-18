@@ -88,10 +88,10 @@ extern "C" {
    */
   typedef struct oc_group_object_notification
   {
-    oc_string_t value; /**< generic value received. */
-    uint32_t sia;      /**< (source id) sender individual address */
-    oc_string_t st;    /**< service type code (write=w, read=r, response=a) */
-    uint32_t ga;       /**< group address */
+    oc_string_t value; // generic value received
+    uint32_t sia;      // source individual address
+    oc_string_t st;    // service type code (write=w, read=r, response=a)
+    uint32_t ga;       // group address
   } oc_group_object_notification_t;
 
   /**
@@ -177,10 +177,6 @@ extern "C" {
    *                 call completes.
    */
   void oc_set_lsm_change_cb(oc_lsm_change_cb_t cb, void* data);
-
-  bool oc_s_mode_notification_to_json(
-    char* buffer, size_t buffer_size,
-    oc_group_object_notification_t notification);
 
   /**
    * @brief checks if the device is in "runtime" mode, which is:
@@ -306,7 +302,7 @@ extern "C" {
    * @param ignore true: ignore, false handle message
    *
    */
-  int oc_knx_knx_ignore_smessage_from_self(bool ignore);
+  void oc_knx_knx_ignore_smode_message_from_self(bool ignore);
 
 #ifdef OC_SPAKE
   /**

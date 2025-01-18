@@ -1043,15 +1043,13 @@ extern "C" {
 
   /**
    * @brief Called after the response to a GET, PUT, POST or DELETE call has been
-   * prepared completed.
+   *        prepared completed. 
    *
-   * - respond by setting the 'no content' format
-   * - set the content len to 0
-   *
-   * Example use case is when the response has an empty payload.
+   * @note  Example use case is when the response has an empty payload,
+   *        response is setting the 'no content' format with content len = 0 (= empty payload).
    *
    * @param request the request being responded to
-   * @param response_code the request being responded to
+   * @param response_code the to be used response code
    */
   void oc_send_response_no_format(oc_request_t* request, oc_status_t response_code);
 

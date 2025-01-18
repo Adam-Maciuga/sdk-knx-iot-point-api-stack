@@ -385,7 +385,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   {
     if (request->origin && (request->origin->flags & MULTICAST) == 0)
     {
-      // unicast: query parameter key NOT found = send response
+      // unicast: query parameter key NOT found
       oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
     }
     else
@@ -430,7 +430,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     {
       if (request->origin && (request->origin->flags & MULTICAST) == 0)
       { // on unicast request w/ query parameter and NO hit
-        // TODO ll response with len =0; 
+        // TODO topic will be decided by iot group (#14 clarification list)
         oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
       }
       else
@@ -523,13 +523,13 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
   // handle individual address 
   if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://ia.", 9) == 0)
   {
-
     /* request with IA = ...ia.IID.IA -> knx://ia.d773e094b6.1101
        the IA is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
     */
-  #define EP_STR_LEN_DOT  (9)  // knx://ia.
-  #define IID_STR_LEN_MAX (10) // max IID length
-  #define IA_STR_LEN_MAX  (4)  // max IA length
+
+    #define EP_STR_LEN_DOT  (9)  // knx://ia.
+    #define IID_STR_LEN_MAX (10) // max IID length
+    #define IA_STR_LEN_MAX  (4)  // max IA length
 
     // IID pos is fixed after first '.', IA pos follows after second '.' (start searching after first '.')
     char* ep_iid_pos = ep_request + EP_STR_LEN_DOT;
@@ -541,11 +541,10 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     const uint32_t ia = strtoul(ia_str, NULL, 16);     // string is hex formatted, on conversion error = 0
 
     if (ia == device->ia)
-    { // IA is the same
-
-      char iid_str[IID_STR_LEN_MAX + 1] = ""; // max len IID + \0
-      strncpy(iid_str, ep_iid_pos, ep_ia_pos - ep_iid_pos - 1); // use actual IID size 
-      const uint64_t iid = strtoull(iid_str, NULL, 16);         // string is hex formatted, on conversion error = 0 (performance ...)
+    { 
+      char iid_str[IID_STR_LEN_MAX + 1] = "";                         // max len IID + \0
+      strncpy(iid_str, ep_iid_pos, ep_ia_pos - ep_iid_pos - 1);  // use actual IID size 
+      const uint64_t iid = strtoull(iid_str, NULL, 16);          // string is hex formatted, on conversion error = 0 (performance ...)
 
       if (iid == device->iid)
       {
@@ -556,7 +555,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
 
     }
 
-    // ignore request on no ia match
+    // on unicast/multicast request w/ query parameter and NO hit
+    // TODO topic will be decided by iot group (#14 clarification list)
     oc_ignore_request(request);
     return;
   }
@@ -575,6 +575,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
     }
     else
     {
+      // on unicast/multicast request w/ query parameter and NO hit
+      // TODO topic will be decided by iot group (#14 clarification list)
       oc_ignore_request(request);
     }
     return;

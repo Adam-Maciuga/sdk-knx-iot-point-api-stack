@@ -783,7 +783,7 @@ static void oc_do_s_mode_with_scope_and_check(const int scope, const char* resou
           // Check if any other GOT entries have the same GA with "w" flag
           PRINT("Checking & updating internal group objects");
 
-          int other_index = oc_core_find_group_object_table_index(group_address);
+          int other_index = oc_core_find_first_group_object_table_index(group_address);
 
           while (other_index != -1)
           {
