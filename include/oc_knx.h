@@ -219,27 +219,27 @@ extern "C" {
    * @brief increase the finger print value
    *
    */
-  void oc_knx_increase_fingerprint();
+  void oc_knx_increase_fingerprint(void);
 
-  /**
-   * @brief load the fingerprint value from storage
-   *
-   */
-  void oc_knx_load_fingerprint();
+/**
+ * @brief load the fingerprint value from storage
+ *
+ */
+  void oc_knx_load_fingerprint(void);
 
-  /**
-   * @brief dump the fingerprint value to storage
-   *
-   */
-  void oc_knx_dump_fingerprint();
+/**
+ * @brief dump the fingerprint value to storage
+ *
+ */
+  void oc_knx_dump_fingerprint(void);
 
-  /**
-   * @brief load the state of the device from persistent storage
-   * load data for:
-   * - load state machine (lsm)
-   *
-   * @param device_index the device index to load the data for
-   */
+/**
+ * @brief load the state of the device from persistent storage
+ * load data for:
+ * - load state machine (lsm)
+ *
+ * @param device_index the device index to load the data for
+ */
   void oc_knx_load_state(size_t device_index);
 
   /**

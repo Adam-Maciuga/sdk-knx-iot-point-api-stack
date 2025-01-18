@@ -359,10 +359,9 @@ extern "C" {
     OC_KNX_SPAKE,       /**< spake */
     OC_KNX_IDEVID,      /**< IDevID */
     OC_KNX_LDEVID,      /**< LDevID */
-    OC_KNX_K,           /**< k (renamed) .knx resource */
+    OC_KNX_K,           /**< k */
     OC_KNX_FINGERPRINT, /**< FINGERPRINT value of loaded contents */
     OC_KNX_IA,          /**< .well-known / knx / ia */
-    OC_KNX_OSN,         /**< .well-known / knx / osn */
     OC_KNX,             /**< .well-known / knx */
     OC_KNX_FP_G,        /**< FP/G */
     OC_KNX_FP_G_X,      /**< FP/G/X */

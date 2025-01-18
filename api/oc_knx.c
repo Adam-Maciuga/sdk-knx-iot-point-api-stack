@@ -38,18 +38,11 @@
 
  // ---------------------------Variables --------------------------------------
 
-
-static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
-static uint64_t g_osn = 1000;       // default (ms) defined by specification 
-
+static bool g_ignore_smessage_from_self = false; // prevent to handle own send out messages 
+static uint64_t g_fingerprint = 0;               // covers GO/PUB/SUB table and 'P' parameters
 static oc_pase_t g_pase;
-
 static oc_string_t g_idevid;
 static oc_string_t g_ldevid;
-
-// prevent to handle own send out messages 
-static bool g_ignore_smessage_from_self = false;
-
 static int valid_request = 0;
 
 // ----------------------------------------------------------------------------
@@ -68,13 +61,12 @@ enum SpakeKeys
 	SPAKE_IT = 16,
 };
 
+static int convert_cmd(char* cmd)
+{
 #define RESTART_DEVICE 2
 #define RESET_DEVICE 1
 
-static int
-convert_cmd(char* cmd)
-{
-	if (strncmp(cmd, "reset", strlen("reset")) == 0)
+  if (strncmp(cmd, "reset", strlen("reset")) == 0)
 	{
 		return RESET_DEVICE;
 	}
@@ -1097,7 +1089,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 	}
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ia, knx_osn, 0, "/.well-known/knx/ia",
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ia, knx, 0, "/.well-known/knx/ia",
 																		 OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 NULL, 0, oc_core_knx_ia_post_handler, 0,
 																		 NULL, OC_SIZE_ZERO());
@@ -1109,46 +1101,6 @@ oc_create_knx_ia(int resource_idx, size_t device)
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ia",
 														OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE, NULL, 0,
 														oc_core_knx_ia_post_handler, 0, 0, "");
-}
-
-// ----------------------------------------------------------------------------
-
-static void oc_core_knx_osn_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-	(void) data;
-	(void) iface_mask;
-	PRINT("oc_core_knx_osn_get_handler");
-
-	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
-		return;
-	}
-
-	oc_rep_begin_root_object();
-	oc_rep_i_set_int(root, 1, g_osn);
-	oc_rep_end_root_object();
-
-	PRINT("oc_core_knx_osn_get_handler - done");
-	oc_send_cbor_response(request, OC_STATUS_OK);
-}
-
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_osn, knx, 0, "/.well-known/knx/osn",
-																		 OC_IF_NONE, APPLICATION_CBOR,
-																		 OC_DISCOVERABLE,
-																		 oc_core_knx_osn_get_handler,
-																		 0,
-																		 0,
-																		 0,
-																		 NULL, OC_SIZE_ZERO());
-
-void
-oc_create_knx_osn_resource(int resource_idx, size_t device)
-{
-	OC_DBG("oc_create_knx_osn_resource");
-	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/osn",
-														OC_IF_NONE, APPLICATION_CBOR, OC_DISCOVERABLE,
-														oc_core_knx_osn_get_handler, 0, 0, 0, 0, "");
 }
 
 // ----------------------------------------------------------------------------
@@ -1291,11 +1243,6 @@ is_handshake_blocked(void)
 	return false;
 }
 
-static int get_seconds_until_unblocked(void)
-{
-	return failed_handshake_count * 10;
-}
-
 #endif 
 
 static oc_separate_response_t spake_separate_rsp;
@@ -1331,7 +1278,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request,
 		request->response->response_buffer->code =
 			oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
 
-		request->response->response_buffer->max_age = get_seconds_until_unblocked();
+		request->response->response_buffer->max_age = failed_handshake_count * 10;
 		return;
 	}
 #endif 
@@ -1685,7 +1632,7 @@ oc_knx_set_ldevid(char* idevid, int len)
 
 void oc_knx_load_fingerprint(void)
 {
-	g_fingerprint = 0;
+	g_fingerprint = 0; // set to zero for reading error cases
 	oc_storage_read(FINGERPRINT_STORE, (uint8_t*) &g_fingerprint, sizeof(g_fingerprint));
 }
 
@@ -1701,7 +1648,7 @@ void oc_knx_set_fingerprint(uint64_t fingerprint)
 
 void oc_knx_increase_fingerprint(void)
 {
-	g_fingerprint++;
+	g_fingerprint++; // must be only different
 	oc_knx_dump_fingerprint();
 }
 
@@ -1743,7 +1690,6 @@ void oc_create_knx_resources(size_t device_index)
 	oc_create_knx_k_resource(OC_KNX_K, device_index);
 	oc_create_knx_fingerprint_resource(OC_KNX_FINGERPRINT, device_index);
 	oc_create_knx_ia(OC_KNX_IA, device_index);
-	oc_create_knx_osn_resource(OC_KNX_OSN, device_index);
 	oc_create_knx_ldevid_resource(OC_KNX_LDEVID, device_index);
 	oc_create_knx_idevid_resource(OC_KNX_IDEVID, device_index);
 	oc_create_knx_spake_resource(OC_KNX_SPAKE, device_index);

@@ -308,18 +308,18 @@ void oc_reset_at_table(size_t device_index, int erase_code);
 int oc_at_delete_entry(size_t device_index, int index);
 
 /**
- * @brief retrieve the replay window
+ * @brief retrieve the oscore replay window size
  *
- * @return uint64_t the replay window
+ * @return uint32_t the replay window size
  */
-uint64_t oc_oscore_get_rplwdo();
+uint32_t oc_oscore_get_rplwdo(void);
 
 /**
  * @brief retrieve the oscore sequence number delay value
  *
- * @return uint64_t the osn delay value
+ * @return uint32_t the osn delay value
  */
-uint64_t oc_oscore_get_osndelay();
+uint32_t oc_oscore_get_osndelay(void);
 
 /**
  * @brief Creation of the KNX security resources.
