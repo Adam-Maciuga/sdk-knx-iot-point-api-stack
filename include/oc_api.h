@@ -997,8 +997,9 @@ extern "C" {
   void oc_send_response(oc_request_t* request, oc_status_t response_code);
 
   /**
-   * @brief Called after the response to a GET, PUT, POST or DELETE call has been
-   * prepared completed, to inform the caller about the status of the requested action.
+   * @brief
+   * Called after the response to a GET, PUT, POST or DELETE call has been
+   * prepared completed, to inform the caller about the status on the requested action.
    *
    * - will respond as CBOR in case of OK/CHANGED and payload > 0
    * - will respond as NO CONTENT in case of OK/CHANGED/XYZ and payload = 0

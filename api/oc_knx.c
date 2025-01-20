@@ -66,7 +66,7 @@ static int convert_cmd(char* cmd)
 #define RESTART_DEVICE 2
 #define RESET_DEVICE 1
 
-  if (strncmp(cmd, "reset", strlen("reset")) == 0)
+	if (strncmp(cmd, "reset", strlen("reset")) == 0)
 	{
 		return RESET_DEVICE;
 	}
@@ -859,9 +859,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 						// @sender : updated object value + cflags = t
 						// Sent : -st w, sending association(1st assigned ga)
 						PRINT("(case3) (W-WRITE) sending WRITE due to TRANSMIT flag");
-#ifdef OC_USE_MULTICAST_SCOPE_2
+					#ifdef OC_USE_MULTICAST_SCOPE_2
 						oc_do_s_mode_with_scope(2, oc_string(my_url), "w");
-#endif
+					#endif
 						oc_do_s_mode_with_scope(5, oc_string(my_url), "w");
 					}
 				}
@@ -890,9 +890,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 						// Case 3) part 2
 						// @sender : updated object value + cflags = t
 						// Sent : -st w, sending association(1st assigned ga)
-#ifdef OC_USE_MULTICAST_SCOPE_2
+					#ifdef OC_USE_MULTICAST_SCOPE_2
 						oc_do_s_mode_with_scope(2, oc_string(my_url), "w");
-#endif
+					#endif
 						oc_do_s_mode_with_scope(5, oc_string(my_url), "w");
 					}
 				}
@@ -918,9 +918,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
 					my_resource->get_handler.cb(&new_request, iface_mask, NULL);
 				}
-#ifdef OC_USE_MULTICAST_SCOPE_2
+			#ifdef OC_USE_MULTICAST_SCOPE_2
 				oc_do_s_mode_with_scope_no_check(2, oc_string(my_url), "a");
-#endif
+			#endif
 				oc_do_s_mode_with_scope_no_check(5, oc_string(my_url), "a");
 			}
 		}
@@ -1105,9 +1105,7 @@ oc_create_knx_ia(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_ldevid_get_handler(oc_request_t* request,
-															 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -1151,9 +1149,7 @@ oc_create_knx_ldevid_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_idevid_get_handler(oc_request_t* request,
-															 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -1250,8 +1246,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(
 	void* req_p);
 
 static void
-oc_core_knx_spake_post_handler(oc_request_t* request,
-															 oc_interface_mask_t iface_mask, void* data)
+oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -1397,7 +1392,7 @@ oc_core_knx_spake_separate_post_handler(void* req_p)
 
 	if (valid_request == SPAKE_RND)
 	{
-#ifdef OC_SPAKE
+	#ifdef OC_SPAKE
 		// get random numbers for rnd, salt & it (# of iterations)
 		oc_spake_get_pbkdf_params(g_pase.rnd, g_pase.salt, &g_pase.it);
 		OC_DBG_SPAKE("Rnd:");
@@ -1406,7 +1401,7 @@ oc_core_knx_spake_separate_post_handler(void* req_p)
 		OC_LOGbytes_SPAKE(g_pase.salt, sizeof(g_pase.salt));
 		OC_DBG_SPAKE("Iterations: %d", g_pase.it);
 
-#endif /* OC_SPAKE */
+	#endif /* OC_SPAKE */
 		oc_rep_begin_root_object();
 		// id (0)
 		// oc_rep_i_set_byte_string(root, SPAKE_ID, oc_cast(g_pase.id, uint8_t),

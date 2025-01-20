@@ -415,18 +415,18 @@ extern "C" {
    */
   typedef struct oc_request_t
   {
-    oc_endpoint_t* origin;         /**< origin (endpoint) of the request */
-    const oc_resource_t* resource; /**< resource structure */
-    const char* query;             /**< query (as string) */
-    size_t query_len;              /**< query length */
-    const char* uri_path;          /**< path (as string) */
-    size_t uri_path_len;           /**< path length */
-    oc_rep_t* request_payload;     /**< request payload structure */
-    const uint8_t* _payload;       /**< payload of the request */
-    size_t _payload_len;           /**< payload size */
-    oc_content_format_t content_format;              /**< content format (of the payload in the request) */
-    oc_content_format_t  accept;   /**< accept header, e.g. the format to be returned on the request */
-    oc_response_t* response;       /**< pointer to the response */
+    oc_endpoint_t* origin;                /**< origin (endpoint) of the request */
+    const oc_resource_t* resource;        /**< resource structure */
+    const char* query;                    /**< query (as string) */
+    size_t query_len;                     /**< query length */
+    const char* uri_path;                 /**< path (as string) */
+    size_t uri_path_len;                  /**< path length */
+    oc_rep_t* request_payload;            /**< request payload structure */
+    const uint8_t* _payload;              /**< payload of the request */
+    size_t _payload_len;                  /**< payload size */
+    oc_content_format_t content_format;   /**< content format (of the payload in the request) */
+    oc_content_format_t  accept;          /**< accept header, e.g. the format to be returned on the request */
+    oc_response_t* response;              /**< pointer to the response */
   } oc_request_t;
 
   /**

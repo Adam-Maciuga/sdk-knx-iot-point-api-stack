@@ -272,7 +272,7 @@ void oc_oscore_set_auth_device(char *client_senderid, int client_senderid_size,
 oc_auth_at_t *oc_get_auth_at_entry(size_t device_index, int index);
 
 /**
- * @brief print the auth/at entry
+ * @brief print the auth/at entry (debugging)
  *
  * @param device_index the device index
  * @param index the index in the table to be printed

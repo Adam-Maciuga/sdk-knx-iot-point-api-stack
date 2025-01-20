@@ -143,7 +143,7 @@ int oc_core_set_group_object_table(int index, oc_group_object_table_t entry)
 	{
 		for (int i = 0; i < entry.ga_len; i++)
 		{
-#pragma warning(suppress : 6386)
+		#pragma warning(suppress : 6386)
 			new_array[i] = entry.ga[i];
 		}
 		if (g_got[index].ga != 0)
@@ -333,7 +333,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	int query_parameter_kvpair_matches = 0;  // how many (to this device applicable) query parameter key/value pair matches where found 
 	size_t response_length = 0;
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
 	PRINT("oc_core_fp_g_get_handler - start");
@@ -664,8 +664,7 @@ void oc_create_fp_g_resource(int resource_idx, size_t device)
 														oc_core_fp_g_post_handler, 0, 1, "urn:knx:if.c");
 }
 
-static void oc_core_fp_g_x_get_handler(oc_request_t* request,
-																			 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -845,7 +844,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 	size_t response_length = 0;
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
 	PRINT("oc_core_fp_p_get_handler - start");
@@ -1285,8 +1284,8 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 	(void) iface_mask;
 
 	int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
-	size_t response_length = 0;              
-	int query_pn = PAGE_NUMBER;             
+	size_t response_length = 0;
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
 	PRINT("oc_core_fp_r_get_handler - start");
@@ -1976,7 +1975,7 @@ void oc_load_group_object_table_entry(int entry)
 							{
 								for (int i = 0; i < array_size; i++)
 								{
-#pragma warning(suppress : 6386)
+								#pragma warning(suppress : 6386)
 									new_array[i] = (uint32_t) arr[i];
 								}
 								if (g_got[entry].ga != 0)
@@ -2253,7 +2252,7 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
 							{
 								for (int i = 0; i < array_size; i++)
 								{
-#pragma warning(suppress : 6386)
+								#pragma warning(suppress : 6386)
 									new_array[i] = (uint32_t) arr[i];
 								}
 								// assign only when the new array is allocated correctly
@@ -2406,7 +2405,7 @@ int oc_core_add_entry(int index, oc_group_table_t* table, int table_size, oc_gro
 	{
 		for (int i = 0; i < entry.ga_len; i++)
 		{
-#pragma warning(suppress : 6386)
+		#pragma warning(suppress : 6386)
 			new_array[i] = entry.ga[i];
 		}
 		// copy only when the allocation was done correctly
@@ -2499,10 +2498,10 @@ void oc_create_knx_fp_resources(size_t device_index)
 		oc_create_fp_g_resource(OC_KNX_FP_G, device_index);
 		oc_create_fp_g_x_resource(OC_KNX_FP_G_X, device_index);
 
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 		oc_create_fp_p_resource(OC_KNX_FP_P, device_index);
 		oc_create_fp_p_x_resource(OC_KNX_FP_P_X, device_index);
-#endif
+	#endif
 
 		oc_create_fp_r_resource(OC_KNX_FP_R, device_index);
 		oc_create_fp_r_x_resource(OC_KNX_FP_R_X, device_index);

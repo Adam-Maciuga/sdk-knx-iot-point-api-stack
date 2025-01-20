@@ -24,6 +24,7 @@
 #include "security/oc_oscore_context.h"
 #include "oc_knx.h"
 #include "oc_knx_helpers.h"
+#include "oc_storage.h"
 
 #define AT_STORE "at_store"
 
@@ -173,10 +174,8 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_
 	oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
-static void
-oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request,
-																			 oc_interface_mask_t iface_mask,
-																			 void* data)
+static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
+																									 void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -228,8 +227,7 @@ oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
-																					 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -675,8 +673,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 						for (size_t i = 0; i < str_array_size; i++)
 						{
 							char* if_str = oc_string_array_get_item(str_array, i);
-							oc_interface_mask_t if_mask =
-								oc_ri_get_interface_mask(if_str, strlen(if_str));
+							oc_interface_mask_t if_mask = oc_ri_get_interface_mask(if_str, strlen(if_str));
 							if (if_mask == OC_IF_LI)
 							{
 								OC_ERR("   if.ll is not a valid access scope!\n");
@@ -1118,9 +1115,7 @@ void oc_core_auth_at_x_post_handler(oc_request_t* request, oc_interface_mask_t i
 	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-static void
-oc_core_auth_at_x_delete_handler(oc_request_t* request,
-																 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -1298,6 +1293,8 @@ void
 oc_print_auth_at_entry(size_t device_index, int index)
 {
 	(void) device_index;
+  #ifdef OC_PRINT
+
 	if (index > -1)
 	{
 		if (oc_string_len(g_at_entries[index].id) > 0)
@@ -1365,10 +1362,11 @@ oc_print_auth_at_entry(size_t device_index, int index)
 			}
 		}
 	}
+
+  #endif
 }
 
-oc_interface_mask_t
-oc_at_get_interface_mask(size_t device_index, int index)
+oc_interface_mask_t oc_at_get_interface_mask(size_t device_index, int index)
 {
 	(void) device_index;
 	if (index < 0)
@@ -1382,8 +1380,7 @@ oc_at_get_interface_mask(size_t device_index, int index)
 	return g_at_entries[index].scope;
 }
 
-int
-oc_at_delete_entry(size_t device_index, int index)
+int oc_at_delete_entry(size_t device_index, int index)
 {
 	(void) device_index;
 	if (index < 0)
@@ -2171,9 +2168,7 @@ oc_if_method_allowed_according_to_mask(oc_interface_mask_t iface_mask,
 	return false;
 }
 
-bool
-oc_knx_contains_interface(oc_interface_mask_t calling_interfaces,
-													oc_interface_mask_t resource_interfaces)
+bool oc_knx_contains_interface(oc_interface_mask_t calling_interfaces, oc_interface_mask_t resource_interfaces)
 {
 	if ((calling_interfaces & resource_interfaces) > 0)
 	{
@@ -2183,9 +2178,7 @@ oc_knx_contains_interface(oc_interface_mask_t calling_interfaces,
 	return false;
 }
 
-static bool
-method_allowed(oc_method_t method, const oc_resource_t* resource,
-							 oc_endpoint_t* endpoint)
+static bool method_allowed(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
 {
 	if (oc_is_resource_secure(method, resource) == false)
 	{

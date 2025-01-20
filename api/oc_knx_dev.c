@@ -455,7 +455,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 	(void) iface_mask;
 
 	int total = 0;                    // total entries of this resource 
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = BATCH_SIZE;
 
 	PRINT("oc_core_dev_ipv6_get_handler - start");
@@ -501,10 +501,10 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 		my_ep = my_ep->next;
 	}
 
-  if (query_ps > 1)
+	if (query_ps > 1)
 	{ // return > 1 entries {1: "200..."} within array
 
-    // [ see https://intel.github.io/tinycbor/current/a00046.html
+		// [ see https://intel.github.io/tinycbor/current/a00046.html
 		cbor_encoder_create_array(&g_encoder, &root_map, 3);
 
 		CborEncoder ipv6_map;
@@ -515,7 +515,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 		for (int i = 0; i < query_ps && i < total; i++)
 		{
 			oc_rep_i_set_byte_string(root, 1, my_ep->addr.ipv6.address, sizeof(my_ep->addr.ipv6.address));
-		  my_ep = my_ep->next;
+			my_ep = my_ep->next;
 		}
 
 		// ] 
@@ -657,7 +657,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 
 	int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 	size_t response_length = 0;
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
 	int first_entry = OC_DEV_SN;            // first entry number of a resource that will be placed on a page
@@ -916,8 +916,7 @@ static void oc_create_dev_fid_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-static void oc_core_dev_port_get_handler(oc_request_t* request,
-																				 oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -962,8 +961,7 @@ static void oc_create_dev_port_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
-static void oc_core_dev_mport_get_handler(oc_request_t* request,
-																					oc_interface_mask_t iface_mask, void* data)
+static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -1122,7 +1120,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 
 	int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found
 	size_t response_length = 0;
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
 	int first_entry = OC_APP_X;             // first entry number of a resource that will be placed on a page
@@ -1344,9 +1342,9 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 		oc_delete_group_tables();
 		oc_delete_at_table(device_index);
 
-#ifdef OC_IOT_ROUTER
+	#ifdef OC_IOT_ROUTER
 		oc_delete_group_mapping_table();
-#endif
+	#endif
 
 		// writing the empty values
 		oc_storage_erase(KNX_STORAGE_IA);
@@ -1386,9 +1384,9 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 		oc_delete_group_tables();
 		oc_reset_at_table(device_index, reset_mode);
 
-#ifdef OC_IOT_ROUTER
+	#ifdef OC_IOT_ROUTER
 		oc_delete_group_mapping_table();
-#endif
+	#endif
 
 	}
 }
