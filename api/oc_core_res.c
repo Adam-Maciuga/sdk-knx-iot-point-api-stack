@@ -20,7 +20,6 @@
 #include "messaging/coap/oc_coap.h"
 #include "oc_discovery.h"
 #include "oc_rep.h"
-
 #include "oc_knx.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fb.h"
@@ -44,11 +43,11 @@
 OC_LIST(core_resource_list);
 static oc_resource_t* core_resources = NULL;
 static oc_device_info_t* oc_device_info = NULL;
-#else  /* OC_DYNAMIC_ALLOCATION */
+#else  
  // TODO fix this for static allocation, this is not used at the moment..
 static oc_resource_t core_resources[1 + OCF_D * (OC_MAX_NUM_DEVICES - 1)];
 static oc_device_info_t oc_device_info[OC_MAX_NUM_DEVICES];
-#endif /* !OC_DYNAMIC_ALLOCATION */
+#endif 
 
 
 static oc_platform_info_t oc_platform_info; // platform provider     
@@ -90,7 +89,7 @@ void oc_core_shutdown(void)
 #ifdef OC_DYNAMIC_ALLOCATION
 	if (oc_device_info)
 	{
-#endif 
+	#endif 
 		for (i = 0; i < device_count; ++i)
 		{
 			oc_device_info_t* oc_device_info_item = &oc_device_info[i];
@@ -102,7 +101,7 @@ void oc_core_shutdown(void)
 			oc_free_knx_fp_resources(i);
 		}
 
-#ifdef OC_DYNAMIC_ALLOCATION
+	#ifdef OC_DYNAMIC_ALLOCATION
 		free(oc_device_info);
 		oc_device_info = NULL;
 	}
@@ -111,7 +110,7 @@ void oc_core_shutdown(void)
 #ifdef OC_DYNAMIC_ALLOCATION
 	if (core_resources)
 	{
-#endif 
+	#endif 
 		size_t max_resource =
 			1 + (WELLKNOWNCORE * (device_count ? device_count - 1 : 0));
 		for (i = 0; i < max_resource; ++i)
@@ -119,7 +118,7 @@ void oc_core_shutdown(void)
 			oc_resource_t* core_resource = &core_resources[i];
 			oc_ri_free_resource_properties(core_resource);
 		}
-#ifdef OC_DYNAMIC_ALLOCATION
+	#ifdef OC_DYNAMIC_ALLOCATION
 		free(core_resources);
 		core_resources = NULL;
 	}
@@ -127,83 +126,19 @@ void oc_core_shutdown(void)
 	device_count = 0;
 }
 
-void oc_core_encode_interfaces_mask(CborEncoder* parent, oc_interface_mask_t iface_mask)
-{
-	oc_rep_set_key((parent), "if");
-	oc_rep_start_array((parent), if);
-
-	if (iface_mask & OC_IF_I)
-	{
-		oc_rep_add_text_string(if, "if.i");
-	}
-	if (iface_mask & OC_IF_O)
-	{
-		oc_rep_add_text_string(if, "if.o");
-	}
-	if (iface_mask & OC_IF_G)
-	{
-		oc_rep_add_text_string(if, "if.g.s");
-	}
-	if (iface_mask & OC_IF_C)
-	{
-		oc_rep_add_text_string(if, "if.c");
-	}
-	if (iface_mask & OC_IF_P)
-	{
-		oc_rep_add_text_string(if, "if.p");
-	}
-	if (iface_mask & OC_IF_D)
-	{
-		oc_rep_add_text_string(if, "if.d");
-	}
-	if (iface_mask & OC_IF_A)
-	{
-		oc_rep_add_text_string(if, "if.a");
-	}
-	if (iface_mask & OC_IF_S)
-	{
-		oc_rep_add_text_string(if, "if.s");
-	}
-	if (iface_mask & OC_IF_LI)
-	{
-		oc_rep_add_text_string(if, "if.ll");
-	}
-	if (iface_mask & OC_IF_B)
-	{
-		oc_rep_add_text_string(if, "if.b");
-	}
-	if (iface_mask & OC_IF_SEC)
-	{
-		oc_rep_add_text_string(if, "if.sec");
-	}
-	if (iface_mask & OC_IF_SWU)
-	{
-		oc_rep_add_text_string(if, "if.swu");
-	}
-	if (iface_mask & OC_IF_PM)
-	{
-		oc_rep_add_text_string(if, "if.pm");
-	}
-
-	oc_rep_end_array((parent), if);
-}
-
 int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool truncate)
 {
-	int total_size = 0;
-	//  </point-path-example1>;rt = ":dpa.352.51";if= ":if.i";ct = 50 60,
 
-	// start quote
+	// </point-path-example1>;rt= ":dpa.352.51";if= ":if.i";ct = 50 60
+
+	// start with quote "
 	oc_rep_encode_raw((uint8_t*) "\"", 1);
-	total_size += 1;
+
+	// used to check if more than a starting <"> was framed
+	int total_size = 1;
 
 	if (iface_mask & OC_IF_I)
 	{
-		if (total_size > 1)
-		{
-			oc_rep_encode_raw((uint8_t*) " ", 1);
-			total_size += 1;
-		}
 		if (!truncate)
 		{
 			// add urn 
@@ -389,7 +324,7 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool tr
 		total_size += 6;
 	}
 
-	// end quote
+	// end with quote "
 	oc_rep_encode_raw((uint8_t*) "\"", 1);
 	total_size += 1;
 	return total_size;
@@ -926,11 +861,11 @@ bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* reque
 	bool match = true, more_query_params = false;
 	char* value = NULL;
 	int value_len = -1;
+
 	oc_init_query_iterator();
 	do
 	{
-		more_query_params =
-			oc_iterate_query_get_values(request, "if", &value, &value_len);
+		more_query_params = oc_iterate_query_get_values(request, "if", &value, &value_len);
 
 		if (value_len > 8)
 		{
@@ -944,8 +879,8 @@ bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* reque
 			}
 
 			match = false;
-			const char* resource_interface =
-				get_interface_string(resource->interfaces);
+			const char* resource_interface = get_interface_string(resource->interfaces);
+
 			// the value contains urn:knx:if.xxx; +8 points to the last DOT '.' , -8 is len of all - sizeof(urn:knx:if.) 
 			if (strncmp(resource_interface, value + 8, value_len - 8) == 0)
 			{

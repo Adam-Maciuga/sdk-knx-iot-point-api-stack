@@ -85,9 +85,9 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
   // first entry number of a resource that will be placed on a page
   const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-  // pn present, requested page will carry at least one resource e.g
-  // - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-  // - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)n page 5 
+  // check if requested page will carry at least one resource e.g
+  // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)n page 5 
   if (first_entry >= total || query_ps == 0)
   {
     oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);

@@ -323,9 +323,6 @@ bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t dev
 	return false;
 }
 
-
-
-
 static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
@@ -351,12 +348,19 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 	if (query_l_was_processed(request, PAGE_SIZE, total))
 		return;
 
-	// first entry number of a resource that will be placed on a page
+	// empty table returns an empty link-response
+	if (total == 0)
+	{
+		oc_send_linkformat_response(request, OC_STATUS_OK, 0);
+		return;
+	}
+
+  // first entry number of a resource that will be placed on a page
 	const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-	// pn present, requested page will carry at least one resource e.g
-	// - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+	// check if requested page will carry at least one resource e.g
+	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= total || query_ps == 0)
 	{
 		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -862,12 +866,19 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 	if (query_l_was_processed(request, PAGE_SIZE, total))
 		return;
 
-	// first entry number of a resource that will be placed on a page
+	// empty table returns an empty link-response
+	if (total == 0)
+	{
+		oc_send_linkformat_response(request, OC_STATUS_OK, 0);
+		return;
+	}
+
+  // first entry number of a resource that will be placed on a page
 	const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-	// pn present, requested page will carry at least one resource e.g
-	// - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0) 
+	// check if requested page will carry at least one resource e.g
+	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0) 
 	if (first_entry >= total || query_ps == 0)
 	{
 		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1303,12 +1314,19 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 	if (query_l_was_processed(request, PAGE_SIZE, total))
 		return;
 
-	// first entry number of a resource that will be placed on a page
+	// empty table returns an empty link-response
+	if (total == 0)
+	{
+		oc_send_linkformat_response(request, OC_STATUS_OK, 0);
+		return;
+	}
+
+  // first entry number of a resource that will be placed on a page
 	const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-	// pn present, requested page will carry at least one resource e.g
-	// - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0) 
+	// check if requested page will carry at least one resource e.g
+	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0) 
 	if (first_entry >= total || query_ps == 0)
 	{
 		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);

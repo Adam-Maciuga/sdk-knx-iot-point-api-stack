@@ -361,6 +361,7 @@ void oc_init_oscore_from_storage(size_t device_index, bool from_storage);
  * @param resource_interface list of interfaces.
  * @return true one of the at_interface listed in resource_interface list
  * @return false none of the at_interfaces listed in resource_interface list
+ * @note done as an individual function to use in tests 
  */
 bool oc_knx_contains_interface(oc_interface_mask_t at_interface,
                                oc_interface_mask_t resource_interface);

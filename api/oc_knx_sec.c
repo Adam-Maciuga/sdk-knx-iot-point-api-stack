@@ -259,9 +259,9 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 	// first entry number of a resource that will be placed on a page
 	first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-	// pn present, requested page will carry at least one resource e.g
-	// - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+	// check if requested page will carry at least one resource e.g
+	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
 		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -533,12 +533,19 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 	if (query_l_was_processed(request, PAGE_SIZE, total))
 		return;
 
+	// empty table returns an empty link-response
+	if (total == 0)
+	{
+		oc_send_linkformat_response(request, OC_STATUS_OK, 0);
+		return;
+	}
+
 	// first entry number of a resource that will be placed on a page
 	const int first_entry = evaluate_query_px(request, &query_pn, &query_ps);
 
-	// pn present, requested page will carry at least one resource e.g
-	// - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+	// check if requested page will carry at least one resource e.g
+	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= total || query_ps == 0)
 	{
 		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -996,15 +1003,14 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 	else
 	{
 		// the scope as list of cflags or group object table entries
-		int nr_entries = oc_total_interface_in_mask(g_at_entries[index].scope);
+		const int nr_entries = oc_count_total_interfaces_in_mask(g_at_entries[index].scope);
 		if (nr_entries > 0)
 		{
 			// interface list
 			oc_string_array_t cflags_entries;
-			oc_new_string_array(&cflags_entries, (size_t) nr_entries);
-			int framed = oc_get_interface_in_mask_in_string_array(
-				g_at_entries[index].scope, nr_entries, cflags_entries);
-			PRINT("entries in cflags %d framed: %d ", nr_entries, framed);
+			oc_new_string_array(&cflags_entries, nr_entries);
+			oc_put_interfaces_in_a_mask_in_string_array(g_at_entries[index].scope, cflags_entries);
+			PRINT("%d entries in cflags", nr_entries);
 			oc_rep_i_set_string_array(root, 9, cflags_entries);
 			oc_free_string_array(&cflags_entries);
 		}
@@ -1220,9 +1226,9 @@ oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_ma
 	// first entry number of a resource that will be placed on a page
 	first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
-	// pn present, requested page will carry at least one resource e.g
-	// - total=4, page number 5, page size 20, first entry = 100 -> no data on page 5 (all on page 0)
-	// - total=4, page number 1, page size 04, first entry = 004 -> no data on page 1 (all on page 0)
+	// check if requested page will carry at least one resource e.g
+	// - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
 		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
@@ -1293,7 +1299,7 @@ void
 oc_print_auth_at_entry(size_t device_index, int index)
 {
 	(void) device_index;
-  #ifdef OC_PRINT
+#ifdef OC_PRINT
 
 	if (index > -1)
 	{
@@ -1363,7 +1369,7 @@ oc_print_auth_at_entry(size_t device_index, int index)
 		}
 	}
 
-  #endif
+#endif
 }
 
 oc_interface_mask_t oc_at_get_interface_mask(size_t device_index, int index)
@@ -2021,9 +2027,7 @@ oc_is_resource_secure(oc_method_t method, const oc_resource_t* resource)
 			((oc_string_len(resource->uri) == 17 &&
 			memcmp(oc_string(resource->uri), "/.well-known/core", 17) == 0) ||
 			(oc_string_len(resource->uri) == 16 &&
-			memcmp(oc_string(resource->uri), "/.well-known/knx", 16) == 0) ||
-			(oc_string_len(resource->uri) == 20 &&
-			memcmp(oc_string(resource->uri), "/.well-known/knx/osn", 20) == 0)))
+			memcmp(oc_string(resource->uri), "/.well-known/knx", 16) == 0)))
 	{
 		return false;
 	}
@@ -2037,10 +2041,10 @@ oc_is_resource_secure(oc_method_t method, const oc_resource_t* resource)
 #ifdef OC_OSCORE
 	return true;
 #else
-	PRINT("oc_is_resource_secure: OSCORE is turned off %s\n",
+	PRINT("oc_is_resource_secure: OSCORE is turned off %s",
 				oc_string_checked(resource->uri));
 	return false;
-#endif /* OC_OSCORE*/
+#endif 
 }
 
 bool
@@ -2170,9 +2174,10 @@ oc_if_method_allowed_according_to_mask(oc_interface_mask_t iface_mask,
 
 bool oc_knx_contains_interface(oc_interface_mask_t calling_interfaces, oc_interface_mask_t resource_interfaces)
 {
-	if ((calling_interfaces & resource_interfaces) > 0)
+	if (calling_interfaces & resource_interfaces)
 	{
-		// one of the entries is matching
+		// one of the entries is matching (bitset of 'a and b')
+		// TODO missing if if.ll then one of p/d/c must be set
 		return true;
 	}
 	return false;
@@ -2190,6 +2195,7 @@ static bool method_allowed(oc_method_t method, const oc_resource_t* resource, oc
 #ifdef OC_OSCORE
 	if ((endpoint->flags & OSCORE) == 0)
 	{
+		// debugging (sender without oscore, e.g. plain ) 
 		// not an OSCORE protected message, but OSCORE is enabled
 		// so the is call is unprotected and should not go ahead
 		OC_DBG_OSCORE("unprotected message, access denied for: %s [%s]",
@@ -2198,12 +2204,12 @@ static bool method_allowed(oc_method_t method, const oc_resource_t* resource, oc
 	}
 	if ((endpoint->flags & OSCORE_DECRYPTED) == 0)
 	{
-		// not an decrypted message
+		// not a message that was able to decrypt (CCM, MAC) 
 		OC_DBG_OSCORE("not a decrypted message, access denied for: %s [%s]",
 									get_method_name(method), oc_string_checked(resource->uri));
 		return false;
 	}
-	if (endpoint->auth_at_index > 0)
+	if (endpoint->auth_at_index > 0) // TODO check on == 0 -> false 
 	{
 		// interface of the call, e.g. of the auth/at entry that was used to decrypt
 		// the message
@@ -2211,41 +2217,34 @@ static bool method_allowed(oc_method_t method, const oc_resource_t* resource, oc
 			oc_at_get_interface_mask(0, endpoint->auth_at_index - 1);
 		// interfaces of the resource
 		oc_interface_mask_t resource_interfaces = resource->interfaces;
-		if (oc_knx_contains_interface(calling_interfaces, resource_interfaces) ==
-				false)
+		if (!oc_knx_contains_interface(calling_interfaces, resource_interfaces))
 		{
-			PRINT("method_allowed : not allowed: request  %d : ", calling_interfaces);
+			PRINT("method_allowed : not allowed (unauthorized): request  %d : ", calling_interfaces);
 			oc_print_interface(calling_interfaces);
 
-			PRINT("method_allowed : not allowed: resource %d : ",
-						resource_interfaces);
+			PRINT("method_allowed : not allowed: resource %d : ", resource_interfaces);
 			oc_print_interface(resource_interfaces);
 
-			OC_WRN(" resource %s call denied: %d  %d", oc_string(resource->uri),
-						 calling_interfaces, resource_interfaces);
+			OC_WRN(" resource %s call denied: %d  %d", oc_string(resource->uri), calling_interfaces, resource_interfaces);
 
 			return false;
 		}
 	}
 
 #endif
-
+	// here 
 	return oc_if_method_allowed_according_to_mask(resource->interfaces, method);
 }
 
-bool
-oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
-										 oc_endpoint_t* endpoint)
+bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
 {
 	// first check if the method is allowed on the resource
-	// also checks if the resource is unsecured (public)
-	// and if OSCORE is enabled
-	if (method_allowed(method, resource, endpoint) == true)
+	// also checks if the resource is unsecured (public) and if OSCORE is enabled
+	if (method_allowed(method, resource, endpoint))
 	{
 		return true;
 	}
-	OC_WRN("oc_knx_sec_check_acl: method %s NOT allowed on %s\n",
-				 get_method_name(method), oc_string_checked(resource->uri));
 
+	OC_WRN("oc_knx_sec_check_acl: method %s NOT allowed on %s", get_method_name(method), oc_string_checked(resource->uri));
 	return false;
 }

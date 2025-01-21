@@ -84,7 +84,7 @@ extern "C" {
  * @note
  * The order of 'linked' resources matches the core resource numbers
  * as defined in 'oc_core_resource_t'. Accessing a specific resource
- * needs to travers the list pointers.
+ * needs to travers the list of pointers.
  * Macro may raise a possible warning of "expect an identifier" ... (ignore it)
  *        
  * 
@@ -407,15 +407,6 @@ oc_device_info_t *oc_core_get_device_info(size_t device);
 oc_platform_info_t *oc_core_get_platform_info(void);
 
 /**
- * @brief encode the interfaces with the cbor (payload) encoder
- *
- * @param parent the cbor encoder
- * @param iface_mask the interfaces (as bit mask)
- */
-void oc_core_encode_interfaces_mask(CborEncoder *parent,
-                                    oc_interface_mask_t iface_mask);
-
-/**
  * @brief retrieve the resource by type (e.g. index) on a specific device
  *
  * @note  Accessing for device 0 a specific resource needs to travers
@@ -519,8 +510,9 @@ bool oc_filter_resource_by_if(const oc_resource_t *resource,
 
 /**
  * @brief frame the interface mask in the response, as string in the uri
- * example: full tag if= ":if.i"
- * this function frames ":if.i" (truncated) or "urn:knx:if.i"
+ * example: full tag if= ":if.i" this function frames ":if.i" (truncated)
+ * or "urn:knx:if.i"
+ *
  * @param iface_mask The interface masks to frame
  * @param truncated 1 = do not frame "urn:knx" in the payload
  * @return int 0 = success
@@ -532,4 +524,4 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
 }
 #endif
 
-#endif /* OC_CORE_RES_H */
+#endif 

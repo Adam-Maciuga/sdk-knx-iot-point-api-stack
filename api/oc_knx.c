@@ -1090,8 +1090,12 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ia, knx, 0, "/.well-known/knx/ia",
-																		 OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
-																		 NULL, 0, oc_core_knx_ia_post_handler, 0,
+																		 OC_IF_C,
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 NULL,
+																		 0,
+																		 oc_core_knx_ia_post_handler,
+																		 0,
 																		 NULL, OC_SIZE_ZERO());
 
 void
@@ -1130,11 +1134,12 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
 	PRINT("oc_core_knx_ldevid_get_handler- done\n");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ldevid, knx_k, 0,
-																		 "/.well-known/knx/ldevid", OC_IF_D,
-																		 APPLICATION_PKCS7_CMC_REQUEST,
-																		 OC_DISCOVERABLE,
-																		 oc_core_knx_ldevid_get_handler, 0, 0, 0,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ldevid, knx_k, 0, "/.well-known/knx/ldevid",
+																		 OC_IF_D, APPLICATION_PKCS7_CMC_REQUEST, OC_DISCOVERABLE,
+																		 oc_core_knx_ldevid_get_handler, 
+																		 0, 
+																		 0, 
+																		 0,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.a[n]");
 /* optional resource */
 void
