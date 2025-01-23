@@ -1003,14 +1003,14 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 	else
 	{
 		// the scope as list of cflags or group object table entries
-		const int nr_entries = oc_count_total_interfaces_in_mask(g_at_entries[index].scope);
+		const unsigned int nr_entries = oc_count_total_interfaces_in_mask(g_at_entries[index].scope);
 		if (nr_entries > 0)
 		{
 			// interface list
 			oc_string_array_t cflags_entries;
 			oc_new_string_array(&cflags_entries, nr_entries);
 			oc_put_interfaces_in_a_mask_in_string_array(g_at_entries[index].scope, cflags_entries);
-			PRINT("%d entries in cflags", nr_entries);
+			PRINT("%u entries in cflags", nr_entries);
 			oc_rep_i_set_string_array(root, 9, cflags_entries);
 			oc_free_string_array(&cflags_entries);
 		}
@@ -2198,15 +2198,13 @@ static bool method_allowed(oc_method_t method, const oc_resource_t* resource, oc
 		// debugging (sender without oscore, e.g. plain ) 
 		// not an OSCORE protected message, but OSCORE is enabled
 		// so the is call is unprotected and should not go ahead
-		OC_DBG_OSCORE("unprotected message, access denied for: %s [%s]",
-									get_method_name(method), oc_string_checked(resource->uri));
+		OC_DBG_OSCORE("unprotected message, access denied for: %s [%s]", get_method_name(method), oc_string_checked(resource->uri));
 		return false;
 	}
 	if ((endpoint->flags & OSCORE_DECRYPTED) == 0)
 	{
 		// not a message that was able to decrypt (CCM, MAC) 
-		OC_DBG_OSCORE("not a decrypted message, access denied for: %s [%s]",
-									get_method_name(method), oc_string_checked(resource->uri));
+		OC_DBG_OSCORE("not a decrypted message, access denied for: %s [%s]", get_method_name(method), oc_string_checked(resource->uri));
 		return false;
 	}
 	if (endpoint->auth_at_index > 0) // TODO check on == 0 -> false 

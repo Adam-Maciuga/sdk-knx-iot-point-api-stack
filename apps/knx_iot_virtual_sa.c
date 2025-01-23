@@ -1291,8 +1291,8 @@ extern "C" {
       oc_resource_bind_resource_type(res_OnOff_1, "urn:knx:dpa.417.61");
       oc_resource_bind_dpt(res_OnOff_1, ":dpt.switch");
       oc_resource_bind_content_type(res_OnOff_1, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_OnOff_1, OC_IF_I);     // 1 x if.i, correlates with number o rt's from above
-      oc_resource_set_function_block_instance(res_OnOff_1, 1);        // related to FB instance #1 
+      oc_resource_bind_resource_interface(res_OnOff_1, OC_IF_I);     // correlates with number of rt's from above
+      oc_resource_set_function_block_instance(res_OnOff_1, 1);          // related to FB instance #1 
       oc_resource_set_discoverable(res_OnOff_1, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1310,11 +1310,11 @@ extern "C" {
     PRINT("Register Resource 'InfoOnOff_1' with local path \"%s\"", URL_INFOONOFF_1);
     {
       oc_resource_t* res_InfoOnOff_1 = oc_new_resource("InfoOnOff_1", URL_INFOONOFF_1, 1, 0);
-      oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62"); // was 417.51 - test frame 82
+      oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62");  // EITT test demands this
       oc_resource_bind_dpt(res_InfoOnOff_1, ":dpt.switch");
       oc_resource_bind_content_type(res_InfoOnOff_1, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_InfoOnOff_1, OC_IF_O); // 1 x if.o, correlates with number o rt's from above
-      oc_resource_set_function_block_instance(res_InfoOnOff_1, 1);    // related to FB instance #1
+      oc_resource_bind_resource_interface(res_InfoOnOff_1, OC_IF_O); // correlates with number of rt's from above
+      oc_resource_set_function_block_instance(res_InfoOnOff_1, 1);      // related to FB instance #1
       oc_resource_set_discoverable(res_InfoOnOff_1, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1334,8 +1334,8 @@ extern "C" {
       oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61");
       oc_resource_bind_dpt(res_OnOff_2, ":dpt.switch");
       oc_resource_bind_content_type(res_OnOff_2, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_OnOff_2, OC_IF_O); // 1 x if.o, correlates with number o rt's from above
-      oc_resource_set_function_block_instance(res_OnOff_2, 2);    // related to FB instance #2
+      oc_resource_bind_resource_interface(res_OnOff_2, OC_IF_I); // correlates with number of rt's from above
+      oc_resource_set_function_block_instance(res_OnOff_2, 2);      // related to FB instance #2
       oc_resource_set_discoverable(res_OnOff_2, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1356,8 +1356,8 @@ extern "C" {
       oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62");
       oc_resource_bind_dpt(res_InfoOnOff_2, ":dpt.switch");
       oc_resource_bind_content_type(res_InfoOnOff_2, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_InfoOnOff_2, OC_IF_I); // 1 x if.i, correlates with number o rt's from above
-      oc_resource_set_function_block_instance(res_InfoOnOff_2, 2);    // related to FB instance #2
+      oc_resource_bind_resource_interface(res_InfoOnOff_2, OC_IF_O); // correlates with number o rt's from above
+      oc_resource_set_function_block_instance(res_InfoOnOff_2, 2);      // related to FB instance #2
       oc_resource_set_discoverable(res_InfoOnOff_2, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1374,7 +1374,7 @@ extern "C" {
     PRINT("Register Resource 'OnOff_3' with local path \"%s\"", URL_ONOFF_3);
     { // used only for EITT tests specification clause 5.10.1
       oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
-      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.255"); // EITT requires FB 417 to be in, PID is artificial  
+      oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.255");     // PID is artificial  
       oc_resource_bind_dpt(res_OnOff_3, ":dpt.value4Count");
       oc_resource_bind_content_type(res_OnOff_3, APPLICATION_CBOR);
       oc_resource_bind_resource_interface(res_OnOff_3, OC_IF_A);

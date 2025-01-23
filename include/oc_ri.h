@@ -268,42 +268,36 @@ extern "C" {
 
 	typedef enum oc_interface_mask
 	{
-		OC_IF_NONE = 0 << 0,    // no interface defined, yes it is defined as 0, not 1
-		OC_IF_I = 1 << 1,    // if.i
-		OC_IF_O = 1 << 2,    // if.o 
-		OC_IF_G = 1 << 3,    // if.g.s.[ga] 
-		OC_IF_C = 1 << 4,    // if.c 
-		OC_IF_P = 1 << 5,    // if.p 
-		OC_IF_D = 1 << 6,    // if.d 
-		OC_IF_A = 1 << 7,    // if.a 
-		OC_IF_S = 1 << 8,    // if.s 
-		OC_IF_LI = 1 << 9,    // if.ll 
-		OC_IF_B = 1 << 10,   // if.b 
-		OC_IF_SEC = 1 << 11,   // if.sec 
-		OC_IF_SWU = 1 << 12,   // if.swu 
-		OC_IF_PM = 1 << 13,   // if.pm 
-		OC_IF_M = 1 << 14    // if.m (manufacturer specific)
+		OC_IF_NONE = 0,         // no interface, defined as 0 (not 1) to not count this as an interface
+		OC_IF_I = 1 << 1,       // if.i (logical input)
+		OC_IF_O = 1 << 2,       // if.o (logical output)
+		OC_IF_G = 1 << 3,       // if.g.s.[ga] 
+		OC_IF_C = 1 << 4,       // if.c (configuration)
+		OC_IF_P = 1 << 5,       // if.p (parameter)
+		OC_IF_D = 1 << 6,       // if.d (diagnostic)		
+		OC_IF_A = 1 << 7,       // if.a (HW actuator)
+		OC_IF_S = 1 << 8,       // if.s (HW sensor)
+		OC_IF_LI = 1 << 9,      // if.ll 
+		OC_IF_B = 1 << 10,      // if.b 
+		OC_IF_SEC = 1 << 11,    // if.sec 
+		OC_IF_SWU = 1 << 12,    // if.swu 
+		OC_IF_PM = 1 << 13,     // if.pm 
+		OC_IF_M = 1 << 14       // if.m (manufacturer specific)
 	} oc_interface_mask_t;
 
-	// if text 'interface_strings' must be in order of bit pos from 'oc_interface_mask_t'
-	static const char* interface_strings[16] =
-	{ "", // IF_NONE
-		"", // undefined
-		"if.i",  "if.o",   "if.g.s", "if.c",
-		"if.p",  "if.d",   "if.a",   "if.s",	"if.ll",
-		"if.b",  "if.sec", "if.swu", "if.pm", "if.m.x"
-	};
+  #define NUM_INTERFACES 14 
+	
 
 	/**
 	 * @brief Get the interface string object from a corresponding interface bit
 	 *
-	 * @param mask the interface mask (access scope)
+	 * @param iface_mask the interface mask (access scope)
 	 * @return const char* the interface as string e.g. "if.i"
 	 *
 	 * @note: MUST be called with a single interface as mask only,
-	 *        the first  'bit hit' is returned (from hi to lo)
+	 *        the first  'bit hit' is returned (from lo to hi)
 	 */
-	const char* get_interface_string(oc_interface_mask_t mask);
+	const char* get_interface_string(oc_interface_mask_t iface_mask);
 
 	/**
 	 * @brief Get the method name object
@@ -322,14 +316,14 @@ extern "C" {
 	 * @note calculates the interface if.g.s.<a> only 1
 	 *
 	 */
-	int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask);
+	unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask);
 
 	/**
 	 * @brief sets all interfaces in a mask in a string array
 	 *
 	 * @param iface_mask the interface mask
 	 * @param interface_array the string array to place the individual interface names in
-	 
+
 	 */
 	void oc_put_interfaces_in_a_mask_in_string_array(oc_interface_mask_t iface_mask, oc_string_array_t interface_array);
 
@@ -773,10 +767,9 @@ extern "C" {
 	 * @param request the new request
 	 * @param response_buffer the dummy response buffer for the new request
 	 * @param response_obj the dummy response object
-	 * @return true new request valid
-	 * @return false new request invalid
+	 * 
 	 */
-	bool oc_ri_new_request_from_request(oc_request_t* new_request,
+	void oc_ri_new_request_from_request(oc_request_t* new_request,
 																			oc_request_t* request,
 																			oc_response_buffer_t* response_buffer,
 																			oc_response_t* response_obj);

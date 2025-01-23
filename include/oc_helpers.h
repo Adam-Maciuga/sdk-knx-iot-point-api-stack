@@ -545,8 +545,7 @@ int oc_uri_get_wildcard_value_as_string(const char *uri_resource,
  * @param string the string to be searched
  * @param p the character to be found
  * @param size the size of the string
- * @return NULL = not found, other wise position in string
- * string
+ * @return NULL = not found, otherwise position in string
  */
 char *oc_strnchr(char *string, char p, int size);
 
