@@ -276,7 +276,7 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
       resource->runtime_data = data;
       resource->runtime_data->num_observers = 0;
       resource->properties = OC_DISCOVERABLE;
-      *(bool*) &resource->is_const = false;  // TODO never set to true  (maybe removing it)
+      *(bool*) &resource->is_const = false;  // TODO never set to true, no method ... (maybe removing it)
       oc_populate_resource_object(resource, name, uri, num_resource_types, device_index);
     }
   }

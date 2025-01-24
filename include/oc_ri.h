@@ -27,13 +27,16 @@
 #include "util/oc_etimer.h"
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
-#define oc_ri_internal_expand(...) __VA_ARGS__
+
 #define oc_ri_internal_expand_call(fn, ...)                                    \
-  oc_ri_internal_expand_call2(fn, (__VA_ARGS__))
-#define oc_ri_internal_expand_call2(fn, args) fn args
+        oc_ri_internal_expand_call_expand(fn, (__VA_ARGS__))
+
+#define oc_ri_internal_expand_call_expand(fn, args) fn args
+
 #endif
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
+
 #define oc_ri_create_const_resource_internal(                                  \
   next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
   content_format, properties, get_cb, put_cb, post_cb, delete_cb, ctx,         \
@@ -43,8 +46,8 @@
     /*next*/ (oc_resource_t *)&next_resource,                                  \
     /*device*/ device_index,                                                   \
     /*name*/ oc_string_create_const(name),                                     \
-    /*uri*/ oc_string_create_const(uri), /*types*/                             \
-    oc_ri_internal_expand_call(oc_string_array_create_const, __VA_ARGS__),     \
+    /*uri*/ oc_string_create_const(uri),                                       \
+    /*types*/  oc_ri_internal_expand_call(oc_string_array_create_const, __VA_ARGS__),     \
     /*dpt*/ oc_string_create_const(dpt),                                       \
     /*interfaces*/ iface_mask,                                                 \
     /*content_type*/ content_format,                                           \
@@ -61,6 +64,7 @@
     /*runtime_data*/ &resource_name##_data,                                    \
   };
 #else
+
 #define oc_ri_create_const_resource_internal(                                  \
   next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
   content_format, properties, get_cb, put_cb, post_cb, delete_cb, ctx,         \
@@ -87,32 +91,42 @@
     /*is_const*/ true,                                                         \
     /*runtime_data*/ &resource_name##_data,                                    \
   };
+
 #endif
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
+
 #define oc_ri_create_const_resource_linked(next_resource, ...)                 \
   extern const oc_resource_t next_resource;                                    \
   oc_ri_internal_expand_call(oc_ri_create_const_resource_internal,             \
                              next_resource, __VA_ARGS__)
+
 #else
+
 #define oc_ri_create_const_resource_linked(next_resource, ...)                 \
   extern const oc_resource_t next_resource;                                    \
   oc_ri_create_const_resource_internal(next_resource, __VA_ARGS__)
+
 #endif
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
+
 #define oc_ri_create_const_resource_final(resource_name, ...)                  \
   oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
   oc_ri_internal_expand_call(oc_ri_create_const_resource_internal,             \
                              resource_block_end##resource_name, resource_name, \
                              __VA_ARGS__)
+
 #else
+
 #define oc_ri_create_const_resource_final(resource_name, ...)                  \
   oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
                                                                                \
   oc_ri_create_const_resource_internal(resource_block_end##resource_name,      \
                                        resource_name, __VA_ARGS__)
+
 #endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -215,14 +229,10 @@ extern "C" {
 		APPLICATION_SENSML_CBOR = 113,     /**< application/sensml+cbor */
 		APPLICATION_SENML_EXI = 114,       /**< application/senml-exi */
 		APPLICATION_SENSML_EXI = 115,      /**< application/sensml-exi */
-		APPLICATION_PKCS7_SGK =
-		280, /**< application/pkcs7-mime; smime-type=server-generated-key */
-		APPLICATION_PKCS7_CO =
-		281, ////**<< application/pkcs7-mime; smime-type=certs-only */
-		APPLICATION_PKCS7_CMC_REQUEST =
-		282, /**< application/pkcs7-mime; smime-type=CMC-Request */
-		APPLICATION_PKCS7_CMC_RESPONSE =
-		283, /**< application/pkcs7-mime; smime-type=CMC-Response */
+		APPLICATION_PKCS7_SGK = 280,			 /**< application/pkcs7-mime; smime-type=server-generated-key */
+		APPLICATION_PKCS7_CO =	281,			      /**<< application/pkcs7-mime; smime-type=certs-only */
+		APPLICATION_PKCS7_CMC_REQUEST =	282,    /**< application/pkcs7-mime; smime-type=CMC-Request */
+		APPLICATION_PKCS7_CMC_RESPONSE =283,    /**< application/pkcs7-mime; smime-type=CMC-Response */
 		APPLICATION_PKCS8 = 284,                /**< application/pkcs8 */
 		APPLICATION_CRATTRS = 285,              /**< application/csrattrs */
 		APPLICATION_PKCS10 = 286,               /**< application/pkcs10 */
@@ -285,8 +295,8 @@ extern "C" {
 		OC_IF_M = 1 << 14       // if.m (manufacturer specific)
 	} oc_interface_mask_t;
 
-  #define NUM_INTERFACES 14 
-	
+#define NUM_INTERFACES 14 
+
 
 	/**
 	 * @brief Get the interface string object from a corresponding interface bit
@@ -489,31 +499,31 @@ extern "C" {
 	 */
 	struct oc_resource_s
 	{
-		struct oc_resource_s* next;           /**< next resource */
-		size_t device;                        /**< device index */
-		oc_string_t name;                     /**< name of the resource (e.g. "n") */
-		oc_string_t uri;                      /**< uri of the resource */
-		oc_string_array_t types;              /**< "rt" types of the resource */
-		oc_string_t dpt;                      /**< dpt of the resource */
-		oc_interface_mask_t interfaces;       /**< supported interfaces */
-		oc_content_format_t content_type;     /**< the content format that the resource supports, e.g. only 1 at the moment */
-		oc_resource_properties_t properties;  /**< properties (as bit mask) */
-		oc_request_handler_t get_handler;     /**< callback for GET */
-		oc_request_handler_t put_handler;     /**< callback for PUT */
-		oc_request_handler_t post_handler;    /**< callback for POST */
-		oc_request_handler_t delete_handler;  /**< callback for DELETE */
-		oc_properties_cb_t get_properties;    /**< callback for get properties */
-		oc_properties_cb_t set_properties;    /**< callback for set properties */
-		uint16_t observe_period_seconds;      /**< observe period in seconds */
-		uint8_t fb_instance;                  /**< function block instance, default = 0 */
-		const bool is_const;                  /**< whether the associated resource data is readonly */
-		oc_resource_data_t* runtime_data;     /**< Runtime modifiable data*/
+		struct oc_resource_s* next;           // next resource 
+		size_t device;                        // device index 
+		oc_string_t name;                     // name of the resource (e.g. "n") 
+		oc_string_t uri;                      // uri of the resource 
+		oc_string_array_t types;              // "rt" types of the resource 
+		oc_string_t dpt;                      // dpt of the resource 
+		oc_interface_mask_t interfaces;       // supported interfaces 
+		oc_content_format_t content_type;     // the content format that the resource supports, e.g. only 1 at the moment 
+		oc_resource_properties_t properties;  // properties (as bit mask) 
+		oc_request_handler_t get_handler;     // callback for GET 
+		oc_request_handler_t put_handler;     // callback for PUT 
+		oc_request_handler_t post_handler;    // callback for POST 
+		oc_request_handler_t delete_handler;  // callback for DELETE 
+		oc_properties_cb_t get_properties;    // callback for get properties 
+		oc_properties_cb_t set_properties;    // callback for set properties 
+		uint16_t observe_period_seconds;      // observe period in seconds 
+		uint8_t fb_instance;                  // function block instance, default = 0 
+		const bool is_const;                  // whether the associated resource data is readonly 
+		oc_resource_data_t* runtime_data;     // Runtime modifiable data
 	};
 
 	typedef struct oc_resource_dummy_s
 	{
-		struct oc_resource_s* next; /**< next resource*/
-		size_t device;              /**< should ALWAYS be -1 for dummy node*/
+		struct oc_resource_s* next; // next resource
+		size_t device;              // should ALWAYS be -1 for dummy node
 	} oc_resource_dummy_t;
 
 	typedef struct oc_link_s oc_link_t;
@@ -767,7 +777,7 @@ extern "C" {
 	 * @param request the new request
 	 * @param response_buffer the dummy response buffer for the new request
 	 * @param response_obj the dummy response object
-	 * 
+	 *
 	 */
 	void oc_ri_new_request_from_request(oc_request_t* new_request,
 																			oc_request_t* request,

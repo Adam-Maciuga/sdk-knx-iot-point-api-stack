@@ -652,7 +652,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
-																		 OC_IF_C | OC_IF_B, APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 OC_IF_C | OC_IF_B, 
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_g_get_handler,
 																		 0,
 																		 oc_core_fp_g_post_handler,
@@ -1134,7 +1135,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p, knx_fp_p_x, 0, "/fp/p",
-																		 OC_IF_C | OC_IF_B, APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 OC_IF_C | OC_IF_B, 
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_p_get_handler,
 																		 0,
 																		 oc_core_fp_p_post_handler,
@@ -1594,7 +1596,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r, knx_fp_r_x, 0, "/fp/r",
-																		 OC_IF_C | OC_IF_B, APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 OC_IF_C | OC_IF_B, 
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_r_get_handler,
 																		 0,
 																		 oc_core_fp_r_post_handler,

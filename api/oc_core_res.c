@@ -337,7 +337,7 @@ oc_core_get_num_devices(void)
 }
 
 int
-oc_core_set_device_fwv(size_t device_index, int major, int minor, int minor2)
+oc_core_set_device_fwv(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -346,12 +346,12 @@ oc_core_set_device_fwv(size_t device_index, int major, int minor, int minor2)
 	}
 	oc_device_info[device_index].fwv.major = major;
 	oc_device_info[device_index].fwv.minor = minor;
-	oc_device_info[device_index].fwv.patch = minor2;
+	oc_device_info[device_index].fwv.patch = patch;
 	return 0;
 }
 
 int
-oc_core_set_device_hwv(size_t device_index, int major, int minor, int minor2)
+oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -361,12 +361,12 @@ oc_core_set_device_hwv(size_t device_index, int major, int minor, int minor2)
 
 	oc_device_info[device_index].hwv.major = major;
 	oc_device_info[device_index].hwv.minor = minor;
-	oc_device_info[device_index].hwv.patch = minor2;
+	oc_device_info[device_index].hwv.patch = patch;
 	return 0;
 }
 
 int
-oc_core_set_device_ap(size_t device_index, int major, int minor, int minor2)
+oc_core_set_device_ap(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -376,7 +376,7 @@ oc_core_set_device_ap(size_t device_index, int major, int minor, int minor2)
 
 	oc_device_info[device_index].ap.major = major;
 	oc_device_info[device_index].ap.minor = minor;
-	oc_device_info[device_index].ap.patch = minor2;
+	oc_device_info[device_index].ap.patch = patch;
 	return 0;
 }
 

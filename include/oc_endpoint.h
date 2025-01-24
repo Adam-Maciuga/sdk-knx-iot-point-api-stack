@@ -96,7 +96,7 @@ extern "C" {
                                                credential to be used for encryption for s-mode messages
                                                e.g. looping over the list of group addresses of the key */
 
-    int32_t auth_at_index;                /**< auth at index +1 [1-max_indexes], 0 == error.
+    int32_t auth_at_index;                /**< auth at index +1 [1 ... max_indexes], 0 == error.
                                                * Used for matching oscore context of response to request.
                                                * Used for upper layers to check access interfaces. */
 

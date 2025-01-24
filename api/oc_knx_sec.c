@@ -193,7 +193,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 		{
 			if (rep->iname == 1)
 			{
-				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d\n",
+				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d",
 							rep->type, (int) rep->value.integer);
 				g_oscore_replaywindow = rep->value.integer;
 				oc_send_cbor_response(request, OC_STATUS_CHANGED);
@@ -303,7 +303,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o, knx_auth_at, 0, "/auth/o",
-																		 OC_IF_LI | OC_IF_D,
+																		 OC_IF_LI | OC_IF_D | OC_IF_P | OC_IF_C,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_get_handler,
 																		 0,
@@ -316,7 +316,7 @@ oc_create_knx_auth_o_resource(int resource_idx, size_t device)
 	OC_DBG("oc_create_knx_auth_o_resource\n");
 	// TODO: what is resource type?
 	// none for now
-	oc_core_populate_resource(resource_idx, device, "/auth/o", OC_IF_LI | OC_IF_D,
+	oc_core_populate_resource(resource_idx, device, "/auth/o", OC_IF_LI | OC_IF_D | OC_IF_P | OC_IF_C,
 														APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 														oc_core_knx_auth_o_get_handler, 0, 0, 0, 0);
 }
@@ -1278,7 +1278,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, knx_fp_gm, 0, "/auth",
 																		 NULL, OC_SIZE_ZERO());
 #else
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, well_known_core, 0, "/auth",
-																		 OC_IF_LI | OC_IF_D,
+																		 OC_IF_LI | OC_IF_D | OC_IF_P | OC_IF_C,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		 oc_core_knx_auth_get_handler,
 																		 0,
@@ -2016,40 +2016,40 @@ void oc_init_oscore_from_storage(size_t device_index, const bool from_storage)
 #endif
 }
 
-// ----------------------------------------------------------------------------
-
-bool
-oc_is_resource_secure(oc_method_t method, const oc_resource_t* resource)
+bool oc_is_secure_resource(oc_method_t method, const oc_resource_t* resource)
 {
-	// see table 6.1.3: all resources with methods that do not have
-	// an interface that is not secure
+	// see table 5.1.3, all resources with methods that do not have an interface that is not secure
 	if (method == OC_GET &&
 			((oc_string_len(resource->uri) == 17 &&
 			memcmp(oc_string(resource->uri), "/.well-known/core", 17) == 0) ||
 			(oc_string_len(resource->uri) == 16 &&
 			memcmp(oc_string(resource->uri), "/.well-known/knx", 16) == 0)))
 	{
-		return false;
+		return false; // resource is NOT secured
 	}
 	// not secure: needed for SPAKE handshake
 	if (method == OC_POST &&
 			((oc_string_len(resource->uri) == 22 &&
 			memcmp(oc_string(resource->uri), "/.well-known/knx/spake", 22) == 0)))
 	{
-		return false;
+		return false; // resource is NOT secured
 	}
+
 #ifdef OC_OSCORE
+
+	// resource is secured
 	return true;
+
 #else
-	PRINT("oc_is_resource_secure: OSCORE is turned off %s",
-				oc_string_checked(resource->uri));
+
+	PRINT("oc_is_resource_secure: OSCORE is turned off %s", oc_string_checked(resource->uri));
+	// resource is NOT secured
 	return false;
+
 #endif 
 }
 
-bool
-oc_if_method_allowed_according_to_mask(oc_interface_mask_t iface_mask,
-																			 oc_method_t method)
+bool oc_if_method_allowed_according_to_mask(oc_interface_mask_t iface_mask, oc_method_t method)
 {
 	if (iface_mask & OC_IF_I)
 	{
@@ -2172,9 +2172,9 @@ oc_if_method_allowed_according_to_mask(oc_interface_mask_t iface_mask,
 	return false;
 }
 
-bool oc_knx_contains_interface(oc_interface_mask_t calling_interfaces, oc_interface_mask_t resource_interfaces)
+bool oc_knx_contains_interface(oc_interface_mask_t caller_interface, oc_interface_mask_t called_interface)
 {
-	if (calling_interfaces & resource_interfaces)
+	if (caller_interface & called_interface)
 	{
 		// one of the entries is matching (bitset of 'a and b')
 		// TODO missing if if.ll then one of p/d/c must be set
@@ -2183,66 +2183,55 @@ bool oc_knx_contains_interface(oc_interface_mask_t calling_interfaces, oc_interf
 	return false;
 }
 
-static bool method_allowed(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
+bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
 {
-	if (oc_is_resource_secure(method, resource) == false)
+	if (!oc_is_secure_resource(method, resource))
 	{
-		// not a secure resource
+		// not a secure resource, access allowed
 		return true;
 	}
+
 	PRINT("method allowed flags:");
 	PRINTipaddr_flags(*endpoint);
+
 #ifdef OC_OSCORE
-	if ((endpoint->flags & OSCORE) == 0)
+
+	if ((endpoint->flags & OSCORE + OSCORE_DECRYPTED) != OSCORE + OSCORE_DECRYPTED)
 	{
-		// debugging (sender without oscore, e.g. plain ) 
-		// not an OSCORE protected message, but OSCORE is enabled
-		// so the is call is unprotected and should not go ahead
-		OC_DBG_OSCORE("unprotected message, access denied for: %s [%s]", get_method_name(method), oc_string_checked(resource->uri));
+		// not a OSCORE message that was able to decrypt with given security context (CCM, MAC) 
+		OC_DBG_OSCORE("access denied for: %s [%s] with flags: %d", get_method_name(method), oc_string_checked(resource->uri), endpoint->flags);
 		return false;
 	}
-	if ((endpoint->flags & OSCORE_DECRYPTED) == 0)
+
+	// example for auth/o 
+  // MAC writes - on tool key - if.p/d/c/sec/swu scopes in aut/at table entry (never if.ll or if.b)
+	//
+	// 1. DEV uses a sep. ACL data set =>  if.p/d/c 
+	// 2. DEV uses a sep. RES data set =>  if.ll 
+	// for each GET/... method an 1+2 element must be defined 
+
+	// interface of the caller, e.g. of the auth/at table entry that was used to decrypt the message
+	// on OC_OSCORE defined the 'auth_at_index' is always incremented by  + 1 , so no extra sanity check here is needed
+	const oc_interface_mask_t caller_acl_interface = oc_at_get_interface_mask(0, endpoint->auth_at_index - 1);
+
+	// interfaces of the being called resource
+	const oc_interface_mask_t called_res_interface = resource->interfaces;
+
+	if (!oc_knx_contains_interface(caller_acl_interface, called_res_interface))
 	{
-		// not a message that was able to decrypt (CCM, MAC) 
-		OC_DBG_OSCORE("not a decrypted message, access denied for: %s [%s]", get_method_name(method), oc_string_checked(resource->uri));
+		PRINT("method_allowed : not allowed (unauthorized): request  %d : ", caller_acl_interface);
+		oc_print_interface(caller_acl_interface);
+
+		PRINT("method_allowed : not allowed: resource %d : ", called_res_interface);
+		oc_print_interface(called_res_interface);
+
+		OC_WRN(" resource %s call denied: %d  %d", oc_string(resource->uri), caller_acl_interface, called_res_interface);
+
 		return false;
-	}
-	if (endpoint->auth_at_index > 0) // TODO check on == 0 -> false 
-	{
-		// interface of the call, e.g. of the auth/at entry that was used to decrypt
-		// the message
-		oc_interface_mask_t calling_interfaces =
-			oc_at_get_interface_mask(0, endpoint->auth_at_index - 1);
-		// interfaces of the resource
-		oc_interface_mask_t resource_interfaces = resource->interfaces;
-		if (!oc_knx_contains_interface(calling_interfaces, resource_interfaces))
-		{
-			PRINT("method_allowed : not allowed (unauthorized): request  %d : ", calling_interfaces);
-			oc_print_interface(calling_interfaces);
-
-			PRINT("method_allowed : not allowed: resource %d : ", resource_interfaces);
-			oc_print_interface(resource_interfaces);
-
-			OC_WRN(" resource %s call denied: %d  %d", oc_string(resource->uri), calling_interfaces, resource_interfaces);
-
-			return false;
-		}
 	}
 
 #endif
-	// here 
+
+	// ACL checked, here check finally if services are allowed for the interface 
 	return oc_if_method_allowed_according_to_mask(resource->interfaces, method);
-}
-
-bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
-{
-	// first check if the method is allowed on the resource
-	// also checks if the resource is unsecured (public) and if OSCORE is enabled
-	if (method_allowed(method, resource, endpoint))
-	{
-		return true;
-	}
-
-	OC_WRN("oc_knx_sec_check_acl: method %s NOT allowed on %s", get_method_name(method), oc_string_checked(resource->uri));
-	return false;
 }

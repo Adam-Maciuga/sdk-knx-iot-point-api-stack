@@ -727,9 +727,13 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 	PRINT("oc_core_dev_dev_get_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev, app, 0, "/dev", OC_IF_LI | OC_IF_D,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev, app, 0, "/dev", 
+																		 OC_IF_LI | OC_IF_D,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-																		 oc_core_dev_dev_get_handler, 0, 0, 0, NULL,
+																		 oc_core_dev_dev_get_handler, 
+																		 0, 
+																		 0, 
+																		 0, NULL,
 																		 OC_SIZE_MANY(1), "urn:knx:fb.0");
 
 void oc_create_dev_dev_resource(int resource_idx, size_t device)
