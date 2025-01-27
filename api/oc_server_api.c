@@ -459,6 +459,7 @@ void oc_resource_set_properties_cbs(oc_resource_t* resource,
 
 void oc_resource_set_request_handler(oc_resource_t* resource, oc_method_t method, oc_request_callback_t callback, void* user_data)
 {
+  // used to create a copy of the resource pointer 
   oc_request_handler_t* handler = NULL;
 
   if (resource == NULL)
@@ -486,7 +487,7 @@ void oc_resource_set_request_handler(oc_resource_t* resource, oc_method_t method
     case OC_DELETE:
       handler = &resource->delete_handler;
       break;
-    default:
+    default:  // skip FETCH method for now 
       break;
   }
 

@@ -323,9 +323,11 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx, knx_fp_g, 0, "/.well-known/knx",
 																		 OC_IF_LI | OC_IF_SEC | OC_IF_D,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-																		 oc_core_knx_get_handler, 0,
-																		 oc_core_knx_post_handler, 0, NULL,
-																		 OC_SIZE_ZERO());
+																		 oc_core_knx_get_handler,
+																		 0,
+																		 oc_core_knx_post_handler,
+																		 0,
+																		 NULL, OC_SIZE_ZERO());
 
 void oc_create_knx_resource(int resource_idx, size_t device)
 {
@@ -1136,9 +1138,9 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ldevid, knx_k, 0, "/.well-known/knx/ldevid",
 																		 OC_IF_D, APPLICATION_PKCS7_CMC_REQUEST, OC_DISCOVERABLE,
-																		 oc_core_knx_ldevid_get_handler, 
-																		 0, 
-																		 0, 
+																		 oc_core_knx_ldevid_get_handler,
+																		 0,
+																		 0,
 																		 0,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.a[n]");
 /* optional resource */

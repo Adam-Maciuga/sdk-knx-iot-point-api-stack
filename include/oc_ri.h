@@ -28,18 +28,25 @@
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 
-#define oc_ri_internal_expand_call(fn, ...)                                    \
-        oc_ri_internal_expand_call_expand(fn, (__VA_ARGS__))
+#define oc_ri_expand_call(fn, ...)                                             \
+        oc_ri_expand_call_expand(fn, (__VA_ARGS__))
 
-#define oc_ri_internal_expand_call_expand(fn, args) fn args
+#define oc_ri_expand_call_expand(fn, args) fn args
 
-#endif
+#define oc_ri_create_const_resource_linked(next_resource, ...)                 \
+  extern const oc_resource_t next_resource;                                    \
+  oc_ri_expand_call(oc_ri_create_const_resource_internal,                      \
+                             next_resource, __VA_ARGS__)
 
-#if defined _MSC_VER && !defined __INTEL_COMPILER
+#define oc_ri_create_const_resource_final(resource_name, ...)                  \
+  oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
+  oc_ri_expand_call(oc_ri_create_const_resource_internal,                      \
+                             resource_block_end##resource_name, resource_name, \
+                             __VA_ARGS__)
 
 #define oc_ri_create_const_resource_internal(                                  \
   next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
-  content_format, properties, get_cb, put_cb, post_cb, delete_cb, ctx,         \
+  content_format, properties, get_cb, put_cb, post_cb, delete_cb, cb_ctx,      \
   observe_period, instance, ...)                                               \
   oc_resource_data_t resource_name##_data;                                     \
   const oc_resource_t resource_name = {                                        \
@@ -47,15 +54,15 @@
     /*device*/ device_index,                                                   \
     /*name*/ oc_string_create_const(name),                                     \
     /*uri*/ oc_string_create_const(uri),                                       \
-    /*types*/  oc_ri_internal_expand_call(oc_string_array_create_const, __VA_ARGS__),     \
+    /*types*/ oc_ri_expand_call(oc_string_array_create_const, __VA_ARGS__),    \
     /*dpt*/ oc_string_create_const(dpt),                                       \
     /*interfaces*/ iface_mask,                                                 \
     /*content_type*/ content_format,                                           \
     /*properties*/ properties,                                                 \
-    /*get_handler*/ { get_cb, ctx },                                           \
-    /*put_handler*/ { put_cb, ctx },                                           \
-    /*post_handler*/ { post_cb, ctx },                                         \
-    /*delete_handler*/ { delete_cb, ctx },                                     \
+    /*get_handler*/ { get_cb, cb_ctx },                                        \
+    /*put_handler*/ { put_cb, cb_ctx },                                        \
+    /*post_handler*/ { post_cb, cb_ctx },                                      \
+    /*delete_handler*/ { delete_cb, cb_ctx },                                  \
     /*get_properties*/ { NULL, NULL },                                         \
     /*set_properties*/ { NULL, NULL },                                         \
     /*observe_period_seconds*/ observe_period,                                 \
@@ -63,6 +70,7 @@
     /*is_const*/ true,                                                         \
     /*runtime_data*/ &resource_name##_data,                                    \
   };
+
 #else
 
 #define oc_ri_create_const_resource_internal(                                  \
@@ -92,32 +100,9 @@
     /*runtime_data*/ &resource_name##_data,                                    \
   };
 
-#endif
-
-#if defined _MSC_VER && !defined __INTEL_COMPILER
-
-#define oc_ri_create_const_resource_linked(next_resource, ...)                 \
-  extern const oc_resource_t next_resource;                                    \
-  oc_ri_internal_expand_call(oc_ri_create_const_resource_internal,             \
-                             next_resource, __VA_ARGS__)
-
-#else
-
 #define oc_ri_create_const_resource_linked(next_resource, ...)                 \
   extern const oc_resource_t next_resource;                                    \
   oc_ri_create_const_resource_internal(next_resource, __VA_ARGS__)
-
-#endif
-
-#if defined _MSC_VER && !defined __INTEL_COMPILER
-
-#define oc_ri_create_const_resource_final(resource_name, ...)                  \
-  oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
-  oc_ri_internal_expand_call(oc_ri_create_const_resource_internal,             \
-                             resource_block_end##resource_name, resource_name, \
-                             __VA_ARGS__)
-
-#else
 
 #define oc_ri_create_const_resource_final(resource_name, ...)                  \
   oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
@@ -296,7 +281,6 @@ extern "C" {
 	} oc_interface_mask_t;
 
 #define NUM_INTERFACES 14 
-
 
 	/**
 	 * @brief Get the interface string object from a corresponding interface bit
