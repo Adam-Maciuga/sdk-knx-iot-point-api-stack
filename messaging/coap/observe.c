@@ -46,6 +46,7 @@
  */
 
 #include "oc_config.h"
+#include "separate.h"
 
 #ifdef OC_SERVER
 
@@ -584,7 +585,7 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
   oc_response_t response = { 0 };
   response.separate_response = 0;
   oc_response_buffer_t response_buffer;
-  OC_DBG("coap_notify_observers: Issue GET request to resource %s\n\n",
+  OC_DBG("coap_notify_observers: Issue GET request to resource %s\n",
          oc_string_checked(resource->uri));
   response_buffer.buffer = buffer;
   response_buffer.buffer_size = OC_MAX_APP_DATA_SIZE;
@@ -769,7 +770,6 @@ coap_observe_handler(void *request, void *response,
                      oc_interface_mask_t iface_mask)
 #endif /* !OC_BLOCK_WISE */
 {
-  (void)iface_mask;
   coap_packet_t *const coap_req = (coap_packet_t *)request;
   coap_packet_t *const coap_res = (coap_packet_t *)response;
   int dup = -1;

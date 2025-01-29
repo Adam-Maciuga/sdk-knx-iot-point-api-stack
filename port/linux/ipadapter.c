@@ -1320,7 +1320,7 @@ connectivity_ipv4_init(ip_context_t *dev)
   int on = 1;
   if (setsockopt(dev->server4_sock, IPPROTO_IP, IP_PKTINFO, &on, sizeof(on)) ==
       -1) {
-    OC_ERR("setting pktinfo IPv4 option %d\n", errno);
+    OC_ERR("setting pktinfo IPv4 option %d", errno);
     return -1;
   }
   if (bind(dev->server4_sock, (struct sockaddr *)&dev->server4,
@@ -1344,7 +1344,7 @@ connectivity_ipv4_init(ip_context_t *dev)
 
   if (setsockopt(dev->mcast4_sock, IPPROTO_IP, IP_PKTINFO, &on, sizeof(on)) ==
       -1) {
-    OC_ERR("setting pktinfo IPv4 option %d\n", errno);
+    OC_ERR("setting pktinfo IPv4 option %d", errno);
     return -1;
   }
   if (setsockopt(dev->mcast4_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) ==
@@ -1362,7 +1362,7 @@ connectivity_ipv4_init(ip_context_t *dev)
 #ifdef OC_OSCORE
   if (setsockopt(dev->secure4_sock, IPPROTO_IP, IP_PKTINFO, &on, sizeof(on)) ==
       -1) {
-    OC_ERR("setting pktinfo IPV4 option %d\n", errno);
+    OC_ERR("setting pktinfo IPV4 option %d", errno);
     return -1;
   }
   if (bind(dev->secure4_sock, (struct sockaddr *)&dev->secure4,
@@ -1471,7 +1471,7 @@ oc_connectivity_init(size_t device)
   int on = 1;
   if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d\n", errno);
+    OC_ERR("setting recvpktinfo option %d", errno);
     return -1;
   }
   if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_V6ONLY, &on,
@@ -1508,7 +1508,7 @@ oc_connectivity_init(size_t device)
 
   if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d\n", errno);
+    OC_ERR("setting recvpktinfo option %d", errno);
     return -1;
   }
   if (setsockopt(dev->mcast_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) ==
@@ -1532,7 +1532,7 @@ oc_connectivity_init(size_t device)
 #ifdef OC_OSCORE
   if (setsockopt(dev->secure_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d\n", errno);
+    OC_ERR("setting recvpktinfo option %d", errno);
     return -1;
   }
 #ifdef IPV6_ADDR_PREFERENCES
@@ -1628,7 +1628,7 @@ oc_connectivity_shutdown(size_t device)
 {
   ip_context_t *dev = get_ip_context_for_device(device);
   dev->terminate = 1;
-  if (write(dev->shutdown_pipe[1], "\n", 1) < 0) {
+  if (write(dev->shutdown_pipe[1], "", 1) < 0) {
     OC_WRN("cannot wakeup network thread");
   }
 

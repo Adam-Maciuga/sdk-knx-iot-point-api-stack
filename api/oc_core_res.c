@@ -642,32 +642,41 @@ void oc_check_uri(const char* uri)
 	oc_assert(uri[0] == '/');
 }
 
-void oc_core_populate_resource(int core_resource, size_t device_index,
-															 const char* uri, oc_interface_mask_t iface_mask,
-															 oc_content_format_t content_type, int properties,
-															 oc_request_callback_t get, oc_request_callback_t put,
+void oc_core_populate_resource(int core_resource_index, 
+															 size_t device_index,
+															 char* uri, 
+															 oc_content_format_t content_format, 
+															 int properties,
+															 oc_request_callback_t get, 
+															 oc_request_callback_t put,
 															 oc_request_callback_t post,
-															 oc_request_callback_t delete, int num_resource_types,
+															 oc_request_callback_t delete, 
+															 int num_resource_types,
 															 ...)
 {
-	const oc_resource_t* _r = oc_core_get_resource_by_index(core_resource, device_index);
-	if (!_r)
+	oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index, device_index);
+
+  if (!r)
 	{
 		return;
 	}
-	if (_r->is_const)
+
+	// const are precompiled resources (device 0 or higher)
+  if (r->is_const)
 	{
-		OC_ERR("oc_core_populate_resource: resource is const");
+		OC_ERR("oc_core_populate_resource: resource %d is const", core_resource_index);
 		return;
 	}
-	oc_resource_t* r = (oc_resource_t*) _r;
+
 	r->device = device_index;
 	oc_check_uri(uri);
 	r->uri.next = NULL;
-	r->uri.ptr = (char*) uri;
+	r->uri.ptr = uri;
 	r->uri.size = strlen(uri) + 1; // include null terminator in size
 	r->properties = properties;
-	va_list rt_list;
+
+	// rt types, use variable arguments (stdarg.h)
+  va_list rt_list;
 	va_start(rt_list, num_resource_types);
 	if (num_resource_types > 0)
 	{
@@ -680,18 +689,32 @@ void oc_core_populate_resource(int core_resource, size_t device_index,
 		}
 	}
 	va_end(rt_list);
-	r->interfaces = iface_mask;
-	r->content_type = content_type;
+
+	r->content_type = content_format;
+
+	// caller handler
 	r->get_handler.cb = get;
 	r->put_handler.cb = put;
 	r->post_handler.cb = post;
 	r->delete_handler.cb = delete;
+
+	// scopes/ interfaces
+	// TODO must be set according to resource,
+	// here only initialized, since all resources are const
+	// and hence this they are already defined correctly  
+	r->get_handler.acl_scope_mask = OC_ACL_NONE;
+	r->get_handler.interface_mask = OC_IF_NONE;
+	r->put_handler.acl_scope_mask = OC_ACL_NONE;
+	r->put_handler.interface_mask = OC_IF_NONE;
+	r->post_handler.acl_scope_mask = OC_ACL_NONE;
+	r->post_handler.interface_mask = OC_IF_NONE;
+	r->delete_handler.acl_scope_mask = OC_ACL_NONE;
+	r->delete_handler.interface_mask = OC_IF_NONE;
 }
 
-void oc_core_bind_dpt_resource(int core_resource, size_t device_index, const char* dpt)
+void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt)
 {
-	const oc_resource_t* r =
-		oc_core_get_resource_by_index(core_resource, device_index);
+	const oc_resource_t* r =		oc_core_get_resource_by_index(core_resource_index, device_index);
 	if (!r)
 	{
 		return;
@@ -719,7 +742,7 @@ oc_platform_info_t* oc_core_get_platform_info(void)
 	return &oc_platform_info;
 }
 
-const oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
+oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
 {
 #ifndef OC_DYNAMIC_ALLOCATION
 	if (type == OC_DEV_SN)
@@ -858,7 +881,7 @@ bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* reque
 
 bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
 {
-	bool match = true, more_query_params = false;
+	bool match = true,  more_query_params; // TODO init value wrong, returns always true in case no 'if' ? 
 	char* value = NULL;
 	int value_len = -1;
 
@@ -869,22 +892,22 @@ bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* reque
 
 		if (value_len > 8)
 		{
-
-			/* adapt size when a wild card exists */
-			char* wildcard = memchr(value, '*', value_len);
-			if (wildcard != NULL)
+			// check on wildcard if.* (everything matches)
+			const char* wildcard = memchr(value, '*', value_len);
+			if (wildcard)
 			{
-				/* wild card means that everything matches */
 				return true;
 			}
 
 			match = false;
+
+			// get if string such as if.ll
 			const char* resource_interface = get_interface_string(resource->interfaces);
 
 			// the value contains urn:knx:if.xxx; +8 points to the last DOT '.' , -8 is len of all - sizeof(urn:knx:if.) 
 			if (strncmp(resource_interface, value + 8, value_len - 8) == 0)
 			{
-				return true;
+			  return true;
 			}
 		}
 	}

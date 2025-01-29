@@ -113,7 +113,7 @@ extern "C" {
                              .addr.ipv4 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
 
-#define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)            \
+#define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)              \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .device = 0,                                      \
                              .group_address = 0,                               \

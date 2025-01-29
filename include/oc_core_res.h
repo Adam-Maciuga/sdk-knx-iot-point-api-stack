@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-// define resource_name as extern 
+	// define resource_name as extern 
 #define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern const oc_resource_t core_resource_##resource_name;
 
 // set the internal name of a core const resource
@@ -39,13 +39,22 @@ extern "C" {
 
 #define OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(                                \
   resource_name, next_resource, device_index, uri, iface_mask, content_format, \
-  properties, get_cb, put_cb, post_cb, delete_cb, dpt, num_resource_types,     \
-  ...)                                                                         \
+  properties,																																	 \
+  get_cb,	   get_scope, get_if_mask,																					 \
+  put_cb,		 put_scope, put_if_mask,																					 \
+  post_cb,   post_scope, post_if_mask,	                                       \
+  delete_cb, delete_scope, delete_if_mask,                                     \
+  dpt, num_resource_types, ...)                                                \
   _Pragma("warning(disable:4090)");                                            \
   oc_ri_expand_call(                                                           \
-    oc_ri_create_const_resource_internal, core_resource_##next_resource,       \
+    oc_ri_create_const_resource, core_resource_##next_resource,                \
     core_resource_##resource_name, device_index, NULL, uri, dpt, iface_mask,   \
-    content_format, properties, get_cb, put_cb, post_cb, delete_cb, NULL, 0,   \
+    content_format, properties,                                                \
+    get_cb,    get_scope, get_if_mask,			                                   \
+    put_cb,    put_scope, put_if_mask,	                                       \
+    post_cb,   post_scope, post_if_mask,	                                     \
+    delete_cb, delete_scope, delete_if_mask,                                   \
+    NULL, 0,                                                                   \
     0, num_resource_types, __VA_ARGS__)                                        \
   _Pragma("warning(default:4090)")
 
@@ -94,13 +103,13 @@ extern "C" {
 
 #else
 
-  #define OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(                                \
+#define OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(                                \
   resource_name, next_resource, device_index, uri, iface_mask, content_format, \
   properties, get_cb, put_cb, post_cb, delete_cb, dpt, num_resource_types,     \
   ...)                                                                         \
   _Pragma("GCC diagnostic push");                                              \
   _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"");          \
-  oc_ri_create_const_resource_internal(                                        \
+  oc_ri_create_const_resource(                                                 \
     core_resource_##next_resource, core_resource_##resource_name,              \
     device_index, NULL, uri, dpt, iface_mask, content_format, properties,      \
     get_cb, put_cb, post_cb, delete_cb, NULL, 0, 0, num_resource_types,        \
@@ -394,7 +403,7 @@ extern "C" {
 	 * @param device the device index
 	 * @return oc_resource_t* the resource handle
 	 */
-	const oc_resource_t* oc_core_get_resource_by_index(int index, size_t device);
+	oc_resource_t* oc_core_get_resource_by_index(int index, size_t device);
 
 	/**
 	 * @brief retrieve the resource by uri
@@ -417,12 +426,10 @@ extern "C" {
 	 * @brief populate core resource
 	 * mainly used for creation of core resources
 	 *
-	 * @param core_resource the resource index
+	 * @param core_resource_index the resource index
 	 * @param device_index the device index
 	 * @param uri the URI for the resource
-	 * @param iface_mask interfaces (as mask) to be implemented on the resource
-	 * @param content_format the content type that should be listed as ct in
-	 * link-format responses
+	 * @param content_format the content type that should be listed as ct in link-format responses
 	 * @param properties the properties (as mask)
 	 * @param get_cb get callback function
 	 * @param put_cb put callback function
@@ -433,24 +440,23 @@ extern "C" {
 	 * @param ... Resource types, passed as zero-terminated strings. In order
 	 * to save memory, the maximum length of each resource type is 32 bytes.
 	 */
-	void oc_core_populate_resource(int core_resource, size_t device_index,
-																 const char* uri, oc_interface_mask_t iface_mask,
-																 oc_content_format_t content_format,
-																 int properties, oc_request_callback_t get_cb,
+	void oc_core_populate_resource(int core_resource_index, size_t device_index,
+																 char* uri, oc_content_format_t content_format,
+																 int properties,
+																 oc_request_callback_t get_cb,
 																 oc_request_callback_t put_cb,
 																 oc_request_callback_t post_cb,
 																 oc_request_callback_t delete_cb,
 																 int num_resource_types, ...);
 
 	/**
-	 * @brief bind dpt to a core resource
+	 * @brief bind a dpt to a (already created) core resource
 	 *
-	 * @param core_resource the resource index
+	 * @param core_resource_index the resource index
 	 * @param device_index the device index
 	 * @param dpt the DPT value of the resource
 	 */
-	void oc_core_bind_dpt_resource(int core_resource, size_t device_index,
-																 const char* dpt);
+	void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt);
 
 	/**
 	 * @brief checks for the presence of 'urn:knx' in ANY of the request query parameter value's

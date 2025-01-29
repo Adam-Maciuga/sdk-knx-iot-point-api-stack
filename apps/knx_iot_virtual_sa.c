@@ -1185,7 +1185,7 @@ extern "C" {
     {
       error_state = true;
     }
-    PRINT("CBOR encoder size %d\n", oc_rep_get_encoded_payload_size());
+    PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
     if (error_state == false)
     {
       oc_send_cbor_response(request, OC_STATUS_OK);
@@ -1194,7 +1194,7 @@ extern "C" {
     {
       oc_send_response(request, OC_STATUS_BAD_OPTION);
     }
-    PRINT("-- End get_OnOff_3\n");
+    PRINT("-- End get_OnOff_3");
   }
 
   /**
@@ -1291,8 +1291,7 @@ extern "C" {
       oc_resource_bind_resource_type(res_OnOff_1, "urn:knx:dpa.417.61");
       oc_resource_bind_dpt(res_OnOff_1, ":dpt.switch");
       oc_resource_bind_content_type(res_OnOff_1, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_OnOff_1, OC_IF_I);     // correlates with number of rt's from above
-      oc_resource_set_function_block_instance(res_OnOff_1, 1);          // related to FB instance #1 
+      oc_resource_set_function_block_instance(res_OnOff_1, 1); 
       oc_resource_set_discoverable(res_OnOff_1, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1302,8 +1301,8 @@ extern "C" {
          something is read from the hardware.
       */
       oc_resource_set_observable(res_OnOff_1, true);
-      oc_resource_set_request_handler(res_OnOff_1, OC_GET, get_OnOff_1, NULL);
-      oc_resource_set_request_handler(res_OnOff_1, OC_PUT, put_OnOff_1, NULL);
+      oc_resource_set_request_handler(res_OnOff_1, OC_GET, get_OnOff_1, NULL, OC_ACL_O, OC_IF_O);
+      oc_resource_set_request_handler(res_OnOff_1, OC_PUT, put_OnOff_1, NULL, OC_ACL_I, OC_IF_I);
       oc_add_resource(res_OnOff_1);
     }
 
@@ -1313,8 +1312,7 @@ extern "C" {
       oc_resource_bind_resource_type(res_InfoOnOff_1, "urn:knx:dpa.417.62");  // EITT test demands this
       oc_resource_bind_dpt(res_InfoOnOff_1, ":dpt.switch");
       oc_resource_bind_content_type(res_InfoOnOff_1, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_InfoOnOff_1, OC_IF_O); // correlates with number of rt's from above
-      oc_resource_set_function_block_instance(res_InfoOnOff_1, 1);      // related to FB instance #1
+      oc_resource_set_function_block_instance(res_InfoOnOff_1, 1); 
       oc_resource_set_discoverable(res_InfoOnOff_1, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1324,7 +1322,7 @@ extern "C" {
       something is read from the hardware.
       */
       oc_resource_set_observable(res_InfoOnOff_1, true);
-      oc_resource_set_request_handler(res_InfoOnOff_1, OC_GET, get_InfoOnOff_1, NULL);
+      oc_resource_set_request_handler(res_InfoOnOff_1, OC_GET, get_InfoOnOff_1, NULL, OC_ACL_O, OC_IF_I);
       oc_add_resource(res_InfoOnOff_1);
     }
 
@@ -1334,8 +1332,7 @@ extern "C" {
       oc_resource_bind_resource_type(res_OnOff_2, "urn:knx:dpa.421.61");
       oc_resource_bind_dpt(res_OnOff_2, ":dpt.switch");
       oc_resource_bind_content_type(res_OnOff_2, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_OnOff_2, OC_IF_I); // correlates with number of rt's from above
-      oc_resource_set_function_block_instance(res_OnOff_2, 2);      // related to FB instance #2
+      oc_resource_set_function_block_instance(res_OnOff_2, 2);
       oc_resource_set_discoverable(res_OnOff_2, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1345,8 +1342,8 @@ extern "C" {
       something is read from the hardware.
       */
       oc_resource_set_observable(res_OnOff_2, true);
-      oc_resource_set_request_handler(res_OnOff_2, OC_GET, get_OnOff_2, NULL);
-      oc_resource_set_request_handler(res_OnOff_2, OC_PUT, put_OnOff_2, NULL);
+      oc_resource_set_request_handler(res_OnOff_2, OC_GET, get_OnOff_2, NULL, OC_ACL_O, OC_IF_O);
+      oc_resource_set_request_handler(res_OnOff_2, OC_PUT, put_OnOff_2, NULL, OC_ACL_I, OC_IF_I);
       oc_add_resource(res_OnOff_2);
     }
 
@@ -1356,8 +1353,7 @@ extern "C" {
       oc_resource_bind_resource_type(res_InfoOnOff_2, "urn:knx:dpa.421.62");
       oc_resource_bind_dpt(res_InfoOnOff_2, ":dpt.switch");
       oc_resource_bind_content_type(res_InfoOnOff_2, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_InfoOnOff_2, OC_IF_O); // correlates with number o rt's from above
-      oc_resource_set_function_block_instance(res_InfoOnOff_2, 2);      // related to FB instance #2
+      oc_resource_set_function_block_instance(res_InfoOnOff_2, 2); 
       oc_resource_set_discoverable(res_InfoOnOff_2, true);
 
       /* periodic observable to be used when one wants to send an event per time slice period is 1 second
@@ -1367,7 +1363,7 @@ extern "C" {
       something is read from the hardware.
       */
       oc_resource_set_observable(res_InfoOnOff_2, true);
-      oc_resource_set_request_handler(res_InfoOnOff_2, OC_GET, get_InfoOnOff_2, NULL);
+      oc_resource_set_request_handler(res_InfoOnOff_2, OC_GET, get_InfoOnOff_2, NULL, OC_ACL_O, OC_IF_O);
       oc_add_resource(res_InfoOnOff_2);
     }
 
@@ -1377,12 +1373,11 @@ extern "C" {
       oc_resource_bind_resource_type(res_OnOff_3, "urn:knx:dpa.417.255");     // PID is artificial  
       oc_resource_bind_dpt(res_OnOff_3, ":dpt.value4Count");
       oc_resource_bind_content_type(res_OnOff_3, APPLICATION_CBOR);
-      oc_resource_bind_resource_interface(res_OnOff_3, OC_IF_A);
       oc_resource_set_function_block_instance(res_OnOff_3, 3);
       oc_resource_set_discoverable(res_OnOff_3, true);
       oc_resource_set_observable(res_OnOff_3, true);
-      oc_resource_set_request_handler(res_OnOff_3, OC_GET, get_OnOff_3, NULL);
-      oc_resource_set_request_handler(res_OnOff_3, OC_PUT, put_OnOff_3, NULL);
+      oc_resource_set_request_handler(res_OnOff_3, OC_GET, get_OnOff_3, NULL, OC_ACL_A, OC_IF_A);
+      oc_resource_set_request_handler(res_OnOff_3, OC_PUT, put_OnOff_3, NULL, OC_ACL_A, OC_IF_A);
       oc_add_resource(res_OnOff_3);
     }
   }

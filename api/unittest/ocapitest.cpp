@@ -88,10 +88,10 @@ public:
   {
     s_pResource = oc_new_resource(NULL, RESOURCE_URI, 1, 0);
     oc_resource_bind_resource_type(s_pResource, RESOURCE_TYPE);
-    oc_resource_bind_resource_interface(s_pResource, OC_IF_NONE);
+    oc_resource_bind_resource_interface(s_pResource, OC_IF_NONE, OC_IF_NONE, OC_IF_NONE, OC_IF_NONE);
     oc_resource_set_discoverable(s_pResource, true);
     oc_resource_set_periodic_observable(s_pResource, 1);
-    oc_resource_set_request_handler(s_pResource, OC_GET, onGet, NULL);
+    oc_resource_set_request_handler(s_pResource, OC_GET, onGet, NULL, OC_ACL_NONE, OC_IF_NONE);
     oc_add_resource(s_pResource);
   }
 
@@ -117,7 +117,7 @@ public:
     (void)user_data;
     std::string discoveredResourceUri = std::string(uri);
     if (discoveredResourceUri.compare(RESOURCE_URI) == 0) {
-      PRINT("Light Resource Discovered....\n");
+      PRINT("Light Resource Discovered....");
       s_isCallbackReceived = true;
       return OC_STOP_DISCOVERY;
     }
@@ -176,7 +176,7 @@ public:
     oc_clock_time_t next_event;
     (void)next_event;
     while (waitTime && !s_isCallbackReceived) {
-      PRINT("Waiting for callback....\n");
+      PRINT("Waiting for callback....");
       next_event = oc_main_poll();
       sleep(1);
       waitTime--;

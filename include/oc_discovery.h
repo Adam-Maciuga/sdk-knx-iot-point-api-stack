@@ -30,9 +30,9 @@ extern "C" {
  * @brief create a resource that is discoverable.
  *
  * @param resource_idx the resource index
- * @param device the device to which the resource belongs
+ * @param device_index the device to which the resource belongs
  */
-void oc_create_discovery_resource(int resource_idx, size_t device);
+void oc_create_discovery_resource(int resource_idx, size_t device_index);
 
 /**
  * @brief filter resource if it needs to be included in the response of a
@@ -52,15 +52,15 @@ bool oc_filter_resource(const oc_resource_t *resource, oc_request_t *request,
                         size_t device_index, size_t *response_length,
                         int *skipped, int first_entry, bool truncate);
 /**
- * @brief add the resource to the response in application link format
+ * @brief add the resource (uri, if, rt, ct) to the response in application link format
  *
  * @param resource the resource
  * @param request  the request
  * @param device_index the device index
  * @param response_length the response length (to be increased)
  * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the rt's (resource types)
- * @return true
- * @return false
+ * @return true 
+ * @return false (if resource or resource uri are not present) 
  */
 bool oc_add_resource_to_wk(const oc_resource_t *resource, oc_request_t *request,
                            size_t device_index, size_t *response_length,
