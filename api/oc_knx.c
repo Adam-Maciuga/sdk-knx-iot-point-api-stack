@@ -323,22 +323,22 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx, knx_fp_g, 0, "/.well-known/knx",
 																		 OC_IF_LI | OC_IF_SEC | OC_IF_D,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-																		 oc_core_knx_get_handler,
-																		 0,
-																		 oc_core_knx_post_handler,
-																		 0,
+																		 oc_core_knx_get_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_knx_post_handler, OC_ACL_P | OC_ACL_SEC, OC_IF_P | OC_IF_SEC,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void oc_create_knx_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_resource");
-	oc_core_populate_resource(
-		resource_idx, device, "/.well-known/knx", OC_IF_LI | OC_IF_SEC | OC_IF_D,
-		APPLICATION_LINK_FORMAT, OC_DISCOVERABLE, oc_core_knx_get_handler, 0,
-		oc_core_knx_post_handler, 0, 0);
+	OC_DBG("create /knx resources");
+	oc_core_populate_resource(resource_idx, device, "/.well-known/knx", 
+														APPLICATION_LINK_FORMAT,
+														OC_DISCOVERABLE, oc_core_knx_get_handler, 0, oc_core_knx_post_handler,
+														0, 0);
 }
 
-// ----------------------------------------------------------------------------
+
 
 oc_lsm_state_t oc_a_lsm_state(size_t device_index)
 {
@@ -570,17 +570,19 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(a_lsm, knx_spake, 0, "/a/lsm", OC_IF_C,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
-																		 oc_core_a_lsm_get_handler, 0,
-																		 oc_core_a_lsm_post_handler, 0, NULL,
-																		 OC_SIZE_ZERO());
+																		 oc_core_a_lsm_get_handler, OC_ACL_P, OC_IF_P,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_a_lsm_post_handler, OC_ACL_SEC, OC_IF_SEC,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_SIZE_ZERO());
 
 void oc_create_a_lsm_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_a_lsm_resource");
+	OC_DBG("create /a/lsm resources");
 
-	oc_core_populate_resource(
-		resource_idx, device, "/a/lsm", OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
-		oc_core_a_lsm_get_handler, 0, oc_core_a_lsm_post_handler, 0, 0);
+	oc_core_populate_resource(resource_idx, device, "/a/lsm", 
+														APPLICATION_CBOR, OC_DISCOVERABLE, oc_core_a_lsm_get_handler,
+														0, oc_core_a_lsm_post_handler, 0, 0);
 }
 
 static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -955,18 +957,20 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_k, knx_fingerprint, 0, "/k",
 																		 OC_IF_LI | OC_IF_G | OC_IF_D,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
-																		 oc_core_knx_k_get_handler, 0,
-																		 oc_core_knx_k_post_handler, 0, NULL,
+																		 oc_core_knx_k_get_handler, OC_ACL_G, OC_IF_G,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_knx_k_post_handler, OC_ACL_G, OC_IF_G,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL,
 																		 OC_SIZE_MANY(1), "urn:knx:g.s");
 void
 oc_create_knx_k_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_k_resource (g)");
-
+	OC_DBG("create /k resources");
 	oc_core_populate_resource(resource_idx, device, "/k",
-														OC_IF_LI | OC_IF_G | OC_IF_D, APPLICATION_CBOR,
-														OC_DISCOVERABLE, oc_core_knx_k_get_handler, 0,
-														oc_core_knx_k_post_handler, 0, 1, "urn:knx:g.s");
+														APPLICATION_CBOR, OC_DISCOVERABLE,
+														oc_core_knx_k_get_handler, 0, oc_core_knx_k_post_handler,
+														0, 1, "urn:knx:g.s");
 }
 
 void oc_knx_knx_ignore_smode_message_from_self(bool ignore)
@@ -1008,19 +1012,20 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fingerprint, knx_ia, 0, "/.well-known/knx/f",
 																		 OC_IF_C,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
-																		 oc_core_knx_fingerprint_get_handler,
-																		 0,
-																		 0,
-																		 0,
+																		 oc_core_knx_fingerprint_get_handler, OC_ACL_C, OC_IF_C,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void
 oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_fingerprint_resource");
-	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/f", OC_IF_C,
-														APPLICATION_CBOR, OC_DISCOVERABLE,
-														oc_core_knx_fingerprint_get_handler, 0, 0, 0, 0);
+	OC_DBG("create /k/f resources");
+	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/f", 
+														APPLICATION_CBOR,
+														OC_DISCOVERABLE, oc_core_knx_fingerprint_get_handler,
+														0, 0, 0, 0);
 }
 
 // ----------------------------------------------------------------------------
@@ -1094,22 +1099,21 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ia, knx, 0, "/.well-known/knx/ia",
 																		 OC_IF_C,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
-																		 NULL,
-																		 0,
-																		 oc_core_knx_ia_post_handler,
-																		 0,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_knx_ia_post_handler, OC_ACL_C | OC_ACL_SEC, OC_IF_C | OC_IF_SEC,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void
 oc_create_knx_ia(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_ia");
+	OC_DBG("create /knx/ia resources");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ia",
-														OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE, NULL, 0,
-														oc_core_knx_ia_post_handler, 0, 0, "");
+														APPLICATION_CBOR, OC_DISCOVERABLE, NULL, 0, oc_core_knx_ia_post_handler,
+														0, 0);
 }
 
-// ----------------------------------------------------------------------------
 
 static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1117,7 +1121,7 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
 	(void) iface_mask;
 	size_t response_length = 0;
 
-	PRINT("oc_core_knx_ldevid_get_handler\n");
+	PRINT("oc_core_knx_ldevid_get_handler");
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
 	{
@@ -1133,28 +1137,28 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
 	request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
 	request->response->response_buffer->response_length = response_length;
 
-	PRINT("oc_core_knx_ldevid_get_handler- done\n");
+	PRINT("oc_core_knx_ldevid_get_handler- done");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ldevid, knx_k, 0, "/.well-known/knx/ldevid",
 																		 OC_IF_D, APPLICATION_PKCS7_CMC_REQUEST, OC_DISCOVERABLE,
-																		 oc_core_knx_ldevid_get_handler,
-																		 0,
-																		 0,
-																		 0,
+																		 oc_core_knx_ldevid_get_handler, OC_ACL_D, OC_IF_D,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.a[n]");
 /* optional resource */
 void
 oc_create_knx_ldevid_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_ldevid_resource\n");
+	OC_DBG("oc_create_knx_ldevid_resource");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ldevid",
-														OC_IF_D, APPLICATION_PKCS7_CMC_REQUEST,
-														OC_DISCOVERABLE, oc_core_knx_ldevid_get_handler, 0,
-														0, 0, 1, ":dpt.a[n]");
+														APPLICATION_PKCS7_CMC_REQUEST, OC_DISCOVERABLE,
+														oc_core_knx_ldevid_get_handler, 0, 0,
+														0, 1, ":dpt.a[n]");
 }
 
-// ----------------------------------------------------------------------------
+
 
 static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1162,7 +1166,7 @@ static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_m
 	(void) iface_mask;
 	size_t response_length = 0;
 
-	PRINT("oc_core_knx_idevid_get_handler\n");
+	PRINT("oc_core_knx_idevid_get_handler");
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
 	{
@@ -1178,27 +1182,30 @@ static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_m
 	request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
 	request->response->response_buffer->response_length = response_length;
 
-	PRINT("oc_core_knx_idevid_get_handler- done\n");
+	PRINT("oc_core_knx_idevid_get_handler- done");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_idevid, knx_ldevid, 0,
-																		 "/.well-known/knx/idevid", OC_IF_D,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_idevid, knx_ldevid, 0, "/.well-known/knx/idevid",
+																		 OC_IF_D,
 																		 APPLICATION_PKCS7_CMC_REQUEST,
 																		 OC_DISCOVERABLE,
-																		 oc_core_knx_idevid_get_handler, 0, 0, 0,
+																		 oc_core_knx_idevid_get_handler, OC_ACL_D, OC_IF_D,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.a[n]");
 
 void
 oc_create_knx_idevid_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_idevid_resource\n");
+	OC_DBG("oc_create_knx_idevid_resource");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/idevid",
-														OC_IF_D, APPLICATION_PKCS7_CMC_REQUEST,
-														OC_DISCOVERABLE, oc_core_knx_idevid_get_handler, 0,
-														0, 0, 1, ":dpt.a[n]");
+														APPLICATION_PKCS7_CMC_REQUEST, OC_DISCOVERABLE,
+														oc_core_knx_idevid_get_handler, 0, 0,
+														0, 1, ":dpt.a[n]");
 }
 
-// ----------------------------------------------------------------------------
+
 
 #ifdef OC_SPAKE
 static spake_data_t spake_data = { 0 };
@@ -1358,7 +1365,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 					oc_free_string(&g_pase.id);
 					oc_new_byte_string(&g_pase.id, oc_string(rep->value.string),
 														 oc_string_len(rep->value.string));
-					PRINT("==> CLIENT RECEIVES %d\n",
+					PRINT("==> CLIENT RECEIVES %d",
 								(int) oc_byte_string_len(rep->value.string));
 				}
 			} break;
@@ -1370,7 +1377,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 					oc_free_string(&g_pase.id);
 					oc_new_byte_string(&g_pase.id, oc_string(rep->value.string),
 														 oc_string_len(rep->value.string));
-					PRINT("==> CLIENT RECEIVES %d\n",
+					PRINT("==> CLIENT RECEIVES %d",
 								(int) oc_byte_string_len(rep->value.string));
 				}
 			} break;
@@ -1380,7 +1387,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 		rep = rep->next;
 	}
 
-	PRINT("oc_core_knx_spake_post_handler valid_request: %d\n", valid_request);
+	PRINT("oc_core_knx_spake_post_handler valid_request: %d", valid_request);
 	oc_indicate_separate_response(request, &spake_separate_rsp);
 	oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);
 }
@@ -1525,7 +1532,7 @@ oc_core_knx_spake_separate_post_handler(void* req_p)
 		// the use of the first device
 		oc_device_info_t* device = oc_core_get_device_info(0);
 		// serial number should be supplied as string array
-		PRINT("CLIENT: pase.id length: %d\n", (int) oc_byte_string_len(g_pase.id));
+		PRINT("CLIENT: pase.id length: %d", (int) oc_byte_string_len(g_pase.id));
 		oc_oscore_set_auth_device(oc_string(g_pase.id),
 															oc_byte_string_len(g_pase.id), "", 0, shared_key,
 															shared_key_len);
@@ -1583,19 +1590,22 @@ error:
 	return OC_EVENT_DONE;
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_spake, knx_idevid, 0,
-																		 "/.well-known/knx/spake", OC_IF_NONE,
-																		 APPLICATION_CBOR, OC_DISCOVERABLE, 0, 0,
-																		 oc_core_knx_spake_post_handler, 0, NULL,
-																		 OC_SIZE_ZERO());
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_spake, knx_idevid, 0, "/.well-known/knx/spake",
+																		 OC_IF_NONE,
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_knx_spake_post_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_SIZE_ZERO());
 
 void
 oc_create_knx_spake_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_knx_spake_resource\n");
+	OC_DBG("oc_create_knx_spake_resource");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/spake",
-														OC_IF_NONE, APPLICATION_CBOR, OC_DISCOVERABLE, 0, 0,
-														oc_core_knx_spake_post_handler, 0, 0);
+														APPLICATION_CBOR, OC_DISCOVERABLE, 0, 0, oc_core_knx_spake_post_handler,
+														0, 0);
 }
 
 #ifdef OC_SPAKE
@@ -1664,7 +1674,7 @@ void oc_knx_load_state(size_t device_index)
 	oc_device_info_t* device = oc_core_get_device_info(device_index);
 	if (device == NULL)
 	{
-		OC_ERR(" could not get device %d\n", (int) device_index);
+		OC_ERR(" could not get device %d", (int) device_index);
 		return;
 	}
 
@@ -1672,7 +1682,7 @@ void oc_knx_load_state(size_t device_index)
 	if (temp_size > 0)
 	{
 		device->lsm_s = lsm;
-		PRINT("load state (storage) %ld [%s]\n", (long) lsm,
+		PRINT("load state (storage) %ld [%s]", (long) lsm,
 					oc_core_get_lsm_state_as_string((oc_lsm_state_t) lsm));
 	}
 

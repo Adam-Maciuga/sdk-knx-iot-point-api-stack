@@ -57,43 +57,43 @@
 extern "C" {
 #endif
 
-typedef struct coap_observer
-{
-  struct coap_observer *next; /* for LIST */
+	typedef struct coap_observer
+	{
+		struct coap_observer* next; /* for LIST */
 
-  const oc_resource_t *resource;
+		const oc_resource_t* resource;
 
-  oc_string_t url;
-  oc_endpoint_t endpoint;
-  uint8_t token_len;
-  uint8_t token[COAP_TOKEN_LEN];
-  uint16_t last_mid;
+		oc_string_t url;
+		oc_endpoint_t endpoint;
+		uint8_t token_len;
+		uint8_t token[COAP_TOKEN_LEN];
+		uint16_t last_mid;
 
-#ifdef OC_BLOCK_WISE
-  uint16_t block2_size;
-#endif /* OC_BLOCK_WISE */
+	#ifdef OC_BLOCK_WISE
+		uint16_t block2_size;
+	#endif /* OC_BLOCK_WISE */
 
-  int32_t obs_counter;
-  oc_interface_mask_t iface_mask;
-  struct oc_etimer retrans_timer;
-  uint8_t retrans_counter;
-} coap_observer_t;
+		int32_t obs_counter;
+		oc_interface_mask_t iface_mask;
+		struct oc_etimer retrans_timer;
+		uint8_t retrans_counter;
+	} coap_observer_t;
 
-oc_list_t coap_get_observers(void);
-void coap_remove_observer(coap_observer_t *o);
-int coap_remove_observer_by_client(oc_endpoint_t *endpoint);
-int coap_remove_observer_by_token(oc_endpoint_t *endpoint, uint8_t *token,
-                                  size_t token_len);
-int coap_remove_observer_by_mid(oc_endpoint_t *endpoint, uint16_t mid);
-int coap_remove_observer_by_resource(const oc_resource_t *rsc);
-void coap_free_all_observers(void);
+	oc_list_t coap_get_observers(void);
+	void coap_remove_observer(coap_observer_t* o);
+	int coap_remove_observer_by_client(oc_endpoint_t* endpoint);
+	int coap_remove_observer_by_token(oc_endpoint_t* endpoint, uint8_t* token,
+																		size_t token_len);
+	int coap_remove_observer_by_mid(oc_endpoint_t* endpoint, uint16_t mid);
+	int coap_remove_observer_by_resource(const oc_resource_t* rsc);
+	void coap_free_all_observers(void);
 
-int coap_notify_observers(const oc_resource_t *resource,
-                          oc_response_buffer_t *response_buf,
-                          oc_endpoint_t *endpoint);
-void notify_resource_defaults_observer(const oc_resource_t *resource,
-                                       oc_interface_mask_t iface_mask,
-                                       oc_response_buffer_t *response_buf);
+	int coap_notify_observers(const oc_resource_t* resource,
+														oc_response_buffer_t* response_buf,
+														oc_endpoint_t* endpoint);
+	void notify_resource_defaults_observer(const oc_resource_t* resource,
+																				 oc_interface_mask_t iface_mask,
+																				 oc_response_buffer_t* response_buf);
 
 #ifdef OC_BLOCK_WISE
 int coap_observe_handler(void *request, void *response,
@@ -106,7 +106,7 @@ int coap_observe_handler(void *request, void *response,
                          oc_interface_mask_t iface_mask);
 #endif /* !OC_BLOCK_WISE */
 
-int coap_remove_observers_on_dos_change(size_t device, bool reset);
+	int coap_remove_observers_on_dos_change(size_t device, bool reset);
 
 #ifdef __cplusplus
 }

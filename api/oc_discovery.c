@@ -135,6 +135,7 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
 		*response_length += oc_rep_add_line_to_buffer(";");
 	}
 
+	// ct, if present (single type will be taken)
 	if (resource->content_type)
 	{
 		*response_length += oc_rep_add_line_to_buffer("ct=");
@@ -255,9 +256,12 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint32_
 	return response_length;
 }
 
-void oc_wkcore_discovery_handler(oc_request_t* request)
+void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
-	char* key;             // one key pointer for a key=value 'pair' 
+	(void) iface_mask;
+	(void) data;
+
+  char* key;             // one key pointer for a key=value 'pair' 
 	size_t key_len;
 
 	char* value;           // one value pointer for a key=value 'pair' 
@@ -534,7 +538,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
 		// IID pos is fixed after first '.', IA pos follows after second '.' (distance = max iid + 1)
 		char* ep_iid_start_pos = ep_request + EP_STR_LEN_DOT_IA;
 		char* ep_ia_end_pos = ep_request + ep_len - 1;
-		char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.',  IID_STR_LEN_MAX + 1);
+		char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.', IID_STR_LEN_MAX + 1);
 		char* ep_ia_start_pos = ep_ia_dot_pos + 1; // on error = NULL + 1 = 1
 
 		// max len IA +\0
@@ -542,19 +546,19 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
 
 		if (ep_ia_dot_pos)
 		{
-		  //copy actual IA size
-		  strncpy(ia_str, ep_ia_start_pos, ep_ia_end_pos - ep_ia_dot_pos);  
+			//copy actual IA size
+			strncpy(ia_str, ep_ia_start_pos, ep_ia_end_pos - ep_ia_dot_pos);
 		}
 
 		// string is hex formatted, on conversion error = 0
-		const uint32_t ia = strtoul(ia_str, NULL, 16);          
+		const uint32_t ia = strtoul(ia_str, NULL, 16);
 
 		if (ia == device->ia)
 		{
 			// max len IID + \0
-			char iid_str[IID_STR_LEN_MAX + 1] = "";                                                  
-			strncpy(iid_str, ep_iid_start_pos, ep_ia_dot_pos - ep_iid_start_pos );  
-		  const uint64_t iid = strtoull(iid_str, NULL, 16);             // string is hex formatted, on conversion error = 0 (performance ...)
+			char iid_str[IID_STR_LEN_MAX + 1] = "";
+			strncpy(iid_str, ep_iid_start_pos, ep_ia_dot_pos - ep_iid_start_pos);
+			const uint64_t iid = strtoull(iid_str, NULL, 16);             // string is hex formatted, on conversion error = 0 (performance ...)
 
 			if (iid == device->iid)
 			{
@@ -679,23 +683,30 @@ void oc_wkcore_discovery_handler(oc_request_t* request)
 
 OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
 																		OC_IF_NONE, APPLICATION_LINK_FORMAT,
-																		OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0, 0, 0, NULL,
-																		OC_SIZE_MANY(1), "wk");
+																		OC_DISCOVERABLE,
+																		oc_wkcore_discovery_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP 
+																		0, OC_ACL_NONE, OC_IF_NONE,
+																		0, OC_ACL_NONE, OC_IF_NONE,
+																		0, OC_ACL_NONE, OC_IF_NONE,
+																		NULL, OC_SIZE_MANY(1), "wk");
 
-void oc_create_discovery_resource(const int resource_idx, const size_t device)
+const oc_request_handler_t wk_handler = { oc_wkcore_discovery_handler,
+	NULL,OC_ACL_NONE, OC_IF_NONE };
+
+void oc_create_discovery_resource(const int resource_idx, const size_t device_index)
 {
-	if (resource_idx == WELLKNOWNCORE && device > 0)
+	OC_DBG("create /.well-known/core resources");
+
+	if (device_index == 0)
 	{
-		oc_core_populate_resource(resource_idx, device, "/.well-known/core",
-															OC_IF_NONE, APPLICATION_LINK_FORMAT,
-															OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
-															0, 0, 1, "wk");
+		OC_DBG("device 0: KNX device resources created statically");
+		return;
 	}
-	else
-		if (device == 0)
-		{
-			OC_DBG("device 0: Global 'discovery' resources created statically");
-		}
+
+	oc_core_populate_resource(resource_idx, device_index, "/.well-known/core",
+                            APPLICATION_LINK_FORMAT,
+                            OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
+                            0, 0, 1, "wk");
 }
 
 oc_discovery_flags_t

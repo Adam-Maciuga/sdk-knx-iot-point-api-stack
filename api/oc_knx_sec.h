@@ -129,7 +129,7 @@ extern "C" {
 	typedef struct oc_auth_at_t
 	{
 		oc_string_t id;							// (0) auth / at / {id}, encoding: HEX 
-		oc_interface_mask_t scope;	// (9) the scope (interfaces) 
+		oc_acl_mask_t scope;	      // (9) the acl scope
 		oc_at_profile_t  profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
 		oc_string_t sub;						// (2) DTLS (not used) 2 sub 
 		oc_string_t kid;						// (8:2) DTLS (not used)  cnf:kid
@@ -344,31 +344,20 @@ extern "C" {
 	 * @brief function to check if the at_interface is listed in the resource
 	 * interfaces
 	 *
-	 * @param caller_interface interface to be checked
-	 * @param called_interface interface to be matched (resource).
-	 * @return true one of the at_interface listed in resource_interface list
-	 * @return false none of the at_interfaces listed in resource_interface list
+	 * @param caller_scope interface to be checked
+	 * @param called_scope interface to be matched (resource).
+	 * @return true one of the scopes listed in resource acl list
+	 * @return false none of the scopes listed in resource acl list
 	 * @note done as an individual function to use in tests
 	 */
-	bool oc_knx_contains_interface(oc_interface_mask_t caller_interface,
-																 oc_interface_mask_t called_interface);
-
-	/**
-	 * @brief is the method allowed according to the interface mask
-	 *
-	 * @param iface_mask the interface mask
-	 * @param method the method to be checked
-	 * @return true method allowed
-	 * @return false method not allowed
-	 */
-	bool oc_if_method_allowed_according_to_mask(oc_interface_mask_t iface_mask,
-																							oc_method_t method);
+	bool oc_knx_contains_interface(oc_interface_mask_t caller_scope,
+																 oc_interface_mask_t called_scope);
 
 	/**
 	 * @brief check access control based on:
-	 *        - acl (auth table)
-	 *        - resource interfaces
-	 *        - if the method is allowed on the resource
+	 *        - acl scope (auth table)
+	 *        - resource scope
+	 *        - if the method is available for the resource
 	 *
 	 * @param method invocation method for this call
 	 * @param resource the resource being called
@@ -379,7 +368,7 @@ extern "C" {
 	 * @return true has access (the resource is unsecured/public or the ACL has a match)
 	 * @return false does not have access
 	 */
-	bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint);
+	bool oc_knx_sec_check_acl(oc_method_t method, oc_resource_t* resource, oc_endpoint_t* endpoint);
 
 #ifdef __cplusplus
 }

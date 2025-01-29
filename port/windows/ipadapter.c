@@ -1283,7 +1283,7 @@ connectivity_ipv4_init(ip_context_t *dev)
   int on = 1;
   if (setsockopt(dev->server4_sock, IPPROTO_IP, IP_PKTINFO, (char *)&on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting pktinfo IPv4 option %d\n", WSAGetLastError());
+    OC_ERR("setting pktinfo IPv4 option %d", WSAGetLastError());
     return -1;
   }
   if (setsockopt(dev->server4_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
@@ -1313,7 +1313,7 @@ connectivity_ipv4_init(ip_context_t *dev)
 
   if (setsockopt(dev->mcast4_sock, IPPROTO_IP, IP_PKTINFO, (char *)&on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting pktinfo IPv4 option %d\n", WSAGetLastError());
+    OC_ERR("setting pktinfo IPv4 option %d", WSAGetLastError());
     return -1;
   }
   if (setsockopt(dev->mcast4_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
@@ -1331,7 +1331,7 @@ connectivity_ipv4_init(ip_context_t *dev)
 #ifdef OC_OSCORE
   if (setsockopt(dev->secure4_sock, IPPROTO_IP, IP_PKTINFO, (char *)&on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting pktinfo IPV4 option %d\n", WSAGetLastError());
+    OC_ERR("setting pktinfo IPV4 option %d", WSAGetLastError());
     return -1;
   }
   if (setsockopt(dev->secure4_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
@@ -1558,7 +1558,7 @@ oc_connectivity_init(size_t device)
   int on = 1;
   if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_PKTINFO, (char *)&on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d\n", WSAGetLastError());
+    OC_ERR("setting recvpktinfo option %d", WSAGetLastError());
     return -1;
   }
   if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&on,
@@ -1593,7 +1593,7 @@ oc_connectivity_init(size_t device)
 
   if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_PKTINFO, (char *)&on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d\n", WSAGetLastError());
+    OC_ERR("setting recvpktinfo option %d", WSAGetLastError());
     return -1;
   }
   if (setsockopt(dev->mcast_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
@@ -1611,7 +1611,7 @@ oc_connectivity_init(size_t device)
 #ifdef OC_OSCORE
   if (setsockopt(dev->secure_sock, IPPROTO_IPV6, IPV6_PKTINFO, (char *)&on,
                  sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d\n", WSAGetLastError());
+    OC_ERR("setting recvpktinfo option %d", WSAGetLastError());
     return -1;
   }
   if (setsockopt(dev->secure_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&on,

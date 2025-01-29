@@ -101,7 +101,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 	size_t response_length = 0;
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
 	PRINT("oc_core_fb_x_get_handler - start");
@@ -237,17 +237,21 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f_x, knx_swu_protocol, 0, "/f/*",
 																		 OC_IF_LI | OC_IF_D,
 																		 APPLICATION_LINK_FORMAT, OC_UNDISCOVERABLE,
-																		 oc_core_fb_x_get_handler, 0, 0, 0, NULL,
-																		 OC_SIZE_MANY(1), "urn:knx:fb.0");
+																		 oc_core_fb_x_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.0");
 
 void oc_create_fb_x_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_fb_x_resource\n");
+	OC_DBG("create /f/x resources");
 	// note that this resource is listed in /.well-known/core so it should have
 	// the full rt with urn:knx prefix
-	oc_core_populate_resource(
-		resource_idx, device, "/f/*", OC_IF_LI | OC_IF_D, APPLICATION_LINK_FORMAT,
-		0, oc_core_fb_x_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
+	oc_core_populate_resource(resource_idx, device, "/f/*", 
+														APPLICATION_LINK_FORMAT,
+														OC_DISCOVERABLE, oc_core_fb_x_get_handler, 
+														0, 0, 0, 1, "urn:knx:fb.0");
 }
 
 // -----------------------------------------------------------------------------
@@ -368,9 +372,9 @@ bool oc_filter_functional_blocks(oc_request_t* request)
 
 // add functional blocks to response and return true if at least one was added
 bool oc_was_adding_function_blocks_to_response(oc_request_t* request, size_t device_index,
-																				size_t* response_length, int* matches,
-																				int* skipped, int first_entry,
-																				int last_entry)
+																							 size_t* response_length, int* matches,
+																							 int* skipped, int first_entry,
+																							 int last_entry)
 {
 	(void) request;
 
@@ -509,7 +513,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 
 	int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair matches where found 
 	size_t response_length = 0;
-	int query_pn = PAGE_NUMBER;             
+	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 	int skipped = 0;
 
@@ -566,17 +570,21 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f, knx_f_x, 0, "/f",
 																		 OC_IF_LI | OC_IF_D,
 																		 APPLICATION_LINK_FORMAT, OC_UNDISCOVERABLE,
-																		 oc_core_fb_get_handler, 0, 0, 0, NULL,
-																		 OC_SIZE_MANY(1), "urn:knx:fb.0");
+																		 oc_core_fb_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.0");
 
 void oc_create_fb_resource(int resource_idx, size_t device)
 {
-	OC_DBG("oc_create_fb_resource");
+	OC_DBG("create /f resources");
 	// note that this resource is listed in /.well-known/core so it should have
 	// the full rt with urn:knx prefix
-	oc_core_populate_resource(resource_idx, device, "/f", OC_IF_LI | OC_IF_D,
-														APPLICATION_LINK_FORMAT, 0, oc_core_fb_get_handler,
-														0, 0, 0, 1, "urn:knx:fb.0");
+	oc_core_populate_resource(resource_idx, device, "/f", 
+														APPLICATION_LINK_FORMAT,
+														OC_DISCOVERABLE, oc_core_fb_get_handler, 0,
+														0, 0, 1, "urn:knx:fb.0");
 }
 
 void oc_create_knx_fb_resources(size_t device_index)
@@ -589,7 +597,5 @@ void oc_create_knx_fb_resources(size_t device_index)
 		return;
 	}
 	oc_create_fb_x_resource(OC_KNX_F_X, device_index);
-
-	// should be last of the dev/xxx resources, it will list those.
-	oc_create_fb_resource(OC_KNX_F, device_index);
+	oc_create_fb_resource(OC_KNX_F, device_index);	// should be last of the knx/xxx resources, it will list those.
 }

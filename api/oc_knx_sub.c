@@ -23,23 +23,32 @@
 static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 
-  (void) iface_mask;
-  (void) data;
-  oc_send_response_no_format(request, OC_STATUS_DELETED);
+	(void) iface_mask;
+	(void) data;
+	oc_send_response_no_format(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub", OC_IF_P,
-                                     APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-                                     0,
-                                     0,
-                                     0,
-                                     oc_core_sub_delete_handler, NULL,
-                                     OC_SIZE_ZERO());
+																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_sub_delete_handler, OC_ACL_P, OC_IF_P,
+																		 NULL, OC_SIZE_ZERO());
 
 void
-oc_create_sub_resource(int resource_idx, size_t device)
+oc_create_sub_resource(int resource_idx, size_t device_index)
 {
-  oc_core_populate_resource(resource_idx, device, "/sub", OC_IF_P,
-                            APPLICATION_CBOR, OC_DISCOVERABLE, 0, 0, 0,
-                            oc_core_sub_delete_handler, 1);
+	OC_DBG("create /sub resources");
+
+	if (device_index == 0)
+	{
+		OC_DBG("device 0: KNX device resources created statically");
+		return;
+	}
+
+	oc_core_populate_resource(resource_idx, device_index, "/sub",
+														APPLICATION_CBOR,
+														OC_DISCOVERABLE, 0, 0, 0, oc_core_sub_delete_handler,
+														0);
 }

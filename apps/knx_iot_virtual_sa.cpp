@@ -577,7 +577,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
     oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(index);
 
     if (entry && entry->ga_len > 0) {
-      sprintf(line, "Index %d \n", index);
+      sprintf(line, "Index %d ", index);
       strcat(text, line);
       sprintf(line, "  id: '%d'  ", entry->id);
       strcat(text, line);
@@ -590,7 +590,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
       for (int i = 0; i < entry->ga_len; i++) {
         this->int2gatext(entry->ga[i], line, ga_conversion);
       }
-      strcat(line," ]\n");
+      strcat(line," ]");
       strcat(text, line);
     }
   }
@@ -626,7 +626,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(index);
 
     if (entry && entry->id >= 0) {
-      sprintf(line, "Index %d \n", index);
+      sprintf(line, "Index %d ", index);
       strcat(text, line);
       sprintf(line, "  id: '%d'  ", entry->id);
       strcat(text, line);
@@ -662,7 +662,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
         for (int i = 0; i < entry->ga_len; i++) {
           this->int2gatext(entry->ga[i], line, ga_conversion);
         }
-        strcat(line," ]\n");
+        strcat(line," ]");
         strcat(text, line);
       }
     }
@@ -699,7 +699,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
     oc_group_table_t* entry = oc_core_get_recipient_table_entry(index);
 
     if (entry && entry->id >= 0) {
-      sprintf(line, "Index %d \n", index);
+      sprintf(line, "Index %d ", index);
       strcat(text, line);
       sprintf(line, "  id: '%d'  ", entry->id);
       strcat(text, line);
@@ -734,7 +734,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
         for (int i = 0; i < entry->ga_len; i++) {
           this->int2gatext(entry->ga[i], line, ga_conversion);
         }
-        strcat(line," ]\n");
+        strcat(line," ]");
         strcat(text, line);
       }
     }
@@ -821,18 +821,18 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
     oc_auth_at_t* my_entry = oc_get_auth_at_entry(device_index, index);
     if (my_entry != NULL) {
       if (oc_string_len(my_entry->id)) {
-        sprintf(line, "index : '%d' id = '%s' \n", index, oc_string(my_entry->id));
+        sprintf(line, "index : '%d' id = '%s' ", index, oc_string(my_entry->id));
         strcat(text, line);
-        sprintf(line, "  profile : %d (%s)\n", my_entry->profile,
+        sprintf(line, "  profile : %d (%s)", my_entry->profile,
           oc_at_profile_to_string(my_entry->profile));
         strcat(text, line);
         if (my_entry->profile == OC_PROFILE_COAP_DTLS) {
           if (oc_string_len(my_entry->sub) > 0) {
-            sprintf(line, "    sub           : %s\n", oc_string(my_entry->sub));
+            sprintf(line, "    sub           : %s", oc_string(my_entry->sub));
             strcat(text, line);
           }
           if (oc_string_len(my_entry->kid) > 0) {
-            sprintf(line, "  kid : %s\n", oc_string(my_entry->kid));
+            sprintf(line, "  kid : %s", oc_string(my_entry->kid));
             strcat(text, line);
           }
         }
@@ -846,7 +846,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
-            sprintf(line, "\n");
+            sprintf(line, "");
             strcat(text, line);
           }
 /*
@@ -859,7 +859,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
-            sprintf(line, "\n");
+            sprintf(line, "");
             strcat(text, line);
           }
           */
@@ -872,7 +872,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
-            sprintf(line, "\n");
+            sprintf(line, "");
             strcat(text, line);
           }
           if (oc_byte_string_len(my_entry->osc_contextid) > 0) {
@@ -884,7 +884,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
-            sprintf(line, "\n");
+            sprintf(line, "");
             strcat(text, line);
           }
           /*

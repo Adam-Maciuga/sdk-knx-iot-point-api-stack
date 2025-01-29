@@ -28,25 +28,26 @@
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 
-#define oc_ri_expand_call(fn, ...)                                             \
-        oc_ri_expand_call_expand(fn, (__VA_ARGS__))
-
+#define oc_ri_expand_call(fn, ...) oc_ri_expand_call_expand(fn, (__VA_ARGS__))
 #define oc_ri_expand_call_expand(fn, args) fn args
 
 #define oc_ri_create_const_resource_linked(next_resource, ...)                 \
   extern const oc_resource_t next_resource;                                    \
-  oc_ri_expand_call(oc_ri_create_const_resource_internal,                      \
-                             next_resource, __VA_ARGS__)
+  oc_ri_expand_call(oc_ri_create_const_resource, next_resource, __VA_ARGS__)
 
 #define oc_ri_create_const_resource_final(resource_name, ...)                  \
   oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
-  oc_ri_expand_call(oc_ri_create_const_resource_internal,                      \
-                             resource_block_end##resource_name, resource_name, \
-                             __VA_ARGS__)
+  oc_ri_expand_call(oc_ri_create_const_resource,                               \
+              resource_block_end##resource_name, resource_name, __VA_ARGS__)
 
-#define oc_ri_create_const_resource_internal(                                  \
+#define oc_ri_create_const_resource(                                           \
   next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
-  content_format, properties, get_cb, put_cb, post_cb, delete_cb, cb_ctx,      \
+  content_format, properties,                                                  \
+  get_cb, get_scope, get_if_mask,																							 \
+  put_cb, put_scope, put_if_mask,																							 \
+  post_cb, post_scope, post_if_mask,																					 \
+  delete_cb, delete_scope, delete_if_mask,                                     \
+  cb_ctx,                                                                      \
   observe_period, instance, ...)                                               \
   oc_resource_data_t resource_name##_data;                                     \
   const oc_resource_t resource_name = {                                        \
@@ -59,21 +60,21 @@
     /*interfaces*/ iface_mask,                                                 \
     /*content_type*/ content_format,                                           \
     /*properties*/ properties,                                                 \
-    /*get_handler*/ { get_cb, cb_ctx },                                        \
-    /*put_handler*/ { put_cb, cb_ctx },                                        \
-    /*post_handler*/ { post_cb, cb_ctx },                                      \
-    /*delete_handler*/ { delete_cb, cb_ctx },                                  \
+    /*get_handler*/ { get_cb, cb_ctx, get_scope, get_if_mask },                \
+    /*put_handler*/ { put_cb, cb_ctx, put_scope, put_if_mask },                \
+    /*post_handler*/ { post_cb, cb_ctx, post_scope, post_if_mask },            \
+    /*delete_handler*/ { delete_cb, cb_ctx, delete_scope, delete_if_mask },    \
     /*get_properties*/ { NULL, NULL },                                         \
     /*set_properties*/ { NULL, NULL },                                         \
     /*observe_period_seconds*/ observe_period,                                 \
     /*fb_instance*/ instance,                                                  \
-    /*is_const*/ true,                                                         \
+    /*is_const (for precompiled resources)*/ true,                             \
     /*runtime_data*/ &resource_name##_data,                                    \
   };
 
 #else
 
-#define oc_ri_create_const_resource_internal(                                  \
+#define oc_ri_create_const_resource(                                  \
   next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
   content_format, properties, get_cb, put_cb, post_cb, delete_cb, ctx,         \
   observe_period, instance, ...)                                               \
@@ -102,12 +103,12 @@
 
 #define oc_ri_create_const_resource_linked(next_resource, ...)                 \
   extern const oc_resource_t next_resource;                                    \
-  oc_ri_create_const_resource_internal(next_resource, __VA_ARGS__)
+  oc_ri_create_const_resource(next_resource, __VA_ARGS__)
 
 #define oc_ri_create_const_resource_final(resource_name, ...)                  \
   oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
                                                                                \
-  oc_ri_create_const_resource_internal(resource_block_end##resource_name,      \
+  oc_ri_create_const_resource(resource_block_end##resource_name,      \
                                        resource_name, __VA_ARGS__)
 
 #endif
@@ -122,26 +123,26 @@ extern "C" {
 	 */
 	typedef enum
 	{
-		OC_GET = 1, /**< GET */
-		OC_POST,    /**< POST*/
-		OC_PUT,     /**< PUT*/
-		OC_DELETE,  /**< DELETE*/
-		OC_FETCH    /**< FETCH*/
+    OC_GET = 1, /**< GET */
+    OC_POST,    /**< POST*/
+    OC_PUT,     /**< PUT*/
+    OC_DELETE,  /**< DELETE*/
+    OC_FETCH    /**< FETCH*/
 	} oc_method_t;
 
 	/**
 	 * @brief resource properties (bit mask)
 	 *
 	 */
-	typedef enum
-	{
-		OC_UNDISCOVERABLE = 0,      /**< parameter */
-		OC_DISCOVERABLE = (1 << 0), /**< datapoint */
-		OC_OBSERVABLE = (1 << 1),   /**< observable */
-		OC_SECURE = (1 << 4),       /**< secure */
-		OC_PERIODIC = (1 << 6),     /**< periodical update */
-		OC_SECURE_MCAST = (1 << 8)  /**< secure multi cast (OSCORE) */
-	} oc_resource_properties_t;
+  typedef enum
+  {
+    OC_UNDISCOVERABLE = 0,    /**< parameter */
+    OC_DISCOVERABLE = 1 << 0, /**< datapoint */
+    OC_OBSERVABLE = 1 << 1,   /**< observable */
+    OC_SECURE = 1 << 4,       /**< secure */
+    OC_PERIODIC = 1 << 6,     /**< periodical update */
+    OC_SECURE_MCAST = 1 << 8  /**< secure multi cast (OSCORE) */
+  } oc_resource_properties_t;
 
 	/**
 	 * @brief CoAP status codes
@@ -215,9 +216,9 @@ extern "C" {
 		APPLICATION_SENML_EXI = 114,       /**< application/senml-exi */
 		APPLICATION_SENSML_EXI = 115,      /**< application/sensml-exi */
 		APPLICATION_PKCS7_SGK = 280,			 /**< application/pkcs7-mime; smime-type=server-generated-key */
-		APPLICATION_PKCS7_CO =	281,			      /**<< application/pkcs7-mime; smime-type=certs-only */
-		APPLICATION_PKCS7_CMC_REQUEST =	282,    /**< application/pkcs7-mime; smime-type=CMC-Request */
-		APPLICATION_PKCS7_CMC_RESPONSE =283,    /**< application/pkcs7-mime; smime-type=CMC-Response */
+		APPLICATION_PKCS7_CO = 281,			      /**<< application/pkcs7-mime; smime-type=certs-only */
+		APPLICATION_PKCS7_CMC_REQUEST = 282,    /**< application/pkcs7-mime; smime-type=CMC-Request */
+		APPLICATION_PKCS7_CMC_RESPONSE = 283,    /**< application/pkcs7-mime; smime-type=CMC-Response */
 		APPLICATION_PKCS8 = 284,                /**< application/pkcs8 */
 		APPLICATION_CRATTRS = 285,              /**< application/csrattrs */
 		APPLICATION_PKCS10 = 286,               /**< application/pkcs10 */
@@ -253,14 +254,7 @@ extern "C" {
 	} oc_response_t;
 
 
-#define ENUM_SIZE 0
-
-	/**
-	 * @brief interface masks
-	 * security access scopes defined as interfaces
-	 * note that scope = 1 is not used.
-	 */
-
+	// interface masks 
 	typedef enum oc_interface_mask
 	{
 		OC_IF_NONE = 0,         // no interface, defined as 0 (not 1) to not count this as an interface
@@ -277,10 +271,32 @@ extern "C" {
 		OC_IF_SEC = 1 << 11,    // if.sec 
 		OC_IF_SWU = 1 << 12,    // if.swu 
 		OC_IF_PM = 1 << 13,     // if.pm 
-		OC_IF_M = 1 << 14       // if.m (manufacturer specific)
+		OC_IF_M = 1 << 14       // if.m.x (manufacturer specific)
 	} oc_interface_mask_t;
 
-#define NUM_INTERFACES 14 
+#define NUM_INTERFACES (14) 
+
+	// access control masks, derived from interfaces
+	typedef enum oc_acl_mask
+	{
+		OC_ACL_NONE = OC_IF_NONE, // no scope, defined as 0 (not 1) to not count this as a scope 
+		OC_ACL_I = OC_IF_I,       // if.i (logical input)
+		OC_ACL_O = OC_IF_O,       // if.o (logical output)
+		OC_ACL_G = OC_IF_G,       // if.g.s.[ga] 
+		OC_ACL_C = OC_IF_C,       // if.c (configuration)
+		OC_ACL_P = OC_IF_P,       // if.p (parameter)
+		OC_ACL_D = OC_IF_D,       // if.d (diagnostic)		
+		OC_ACL_A = OC_IF_A,       // if.a (HW actuator)
+		OC_ACL_S = OC_IF_S,       // if.s (HW sensor)
+		                          // if.ll (is not a scope)
+		                          // if.b  (is not a scope)
+		OC_ACL_SEC = OC_IF_SEC,   // if.sec 
+		OC_ACL_SWU = OC_IF_SWU,   // if.swu 
+	                            // if.pm (is not a scope) 
+		                          // if.m.{name} (is not a scope) 
+	} oc_acl_mask_t;
+
+#define NUM_ACL_SCOPES (NUM_INTERFACES - 4) 
 
 	/**
 	 * @brief Get the interface string object from a corresponding interface bit
@@ -322,12 +338,12 @@ extern "C" {
 	void oc_put_interfaces_in_a_mask_in_string_array(oc_interface_mask_t iface_mask, oc_string_array_t interface_array);
 
 	/**
-	 * @brief prints all interfaces in the mask to stdout
+	 * @brief prints all acl scopes in the mask to stdout
 	 *
 	 * @param iface_mask the interface mask
 	 * names in
 	 */
-	void oc_print_interface(oc_interface_mask_t iface_mask);
+	void oc_print_acl_scopes(oc_acl_mask_t iface_mask);
 
 	/**
 	 * @brief core resource numbers
@@ -407,7 +423,6 @@ extern "C" {
 
 #define OC_NUM_CORE_RESOURCES_PER_DEVICE (1 + WELLKNOWNCORE)
 
-	// needed below hence defined here
 	typedef struct oc_resource_s oc_resource_t;
 
 	/**
@@ -428,22 +443,28 @@ extern "C" {
 		oc_content_format_t content_format;   /**< content format (of the payload in the request) */
 		oc_content_format_t  accept;          /**< accept header, e.g. the format to be returned on the request */
 		oc_response_t* response;              /**< pointer to the response */
+		oc_method_t request_method;						/**< the request (CoAP) method */
 	} oc_request_t;
 
 	/**
-	 * @brief request callback
+	 * @brief request callback, containing
+	 * - the request,
+	 * - the query interfaces from the request
+	 * - user data defined by the resource callbacks (if present)
 	 *
 	 */
 	typedef void (*oc_request_callback_t)(oc_request_t*, oc_interface_mask_t, void*);
 
 	/**
-	 * @brief request handler type
+	 * @brief request handler type, including per handler a scope and interface 
 	 *
 	 */
 	typedef struct oc_request_handler_s
 	{
 		oc_request_callback_t cb;
 		void* user_data;
+		oc_acl_mask_t acl_scope_mask;		      // per handler an individual caller acl mask 
+		oc_interface_mask_t interface_mask;		// per handler an individual called interface mask for the resource
 	} oc_request_handler_t;
 
 	/**
@@ -490,7 +511,7 @@ extern "C" {
 		oc_string_array_t types;              // "rt" types of the resource 
 		oc_string_t dpt;                      // dpt of the resource 
 		oc_interface_mask_t interfaces;       // supported interfaces 
-		oc_content_format_t content_type;     // the content format that the resource supports, e.g. only 1 at the moment 
+		oc_content_format_t content_type;     // content format that the - in response included - resources supports (one at the moment)  
 		oc_resource_properties_t properties;  // properties (as bit mask) 
 		oc_request_handler_t get_handler;     // callback for GET 
 		oc_request_handler_t put_handler;     // callback for PUT 
@@ -501,7 +522,7 @@ extern "C" {
 		uint16_t observe_period_seconds;      // observe period in seconds 
 		uint8_t fb_instance;                  // function block instance, default = 0 
 		const bool is_const;                  // whether the associated resource data is readonly 
-		oc_resource_data_t* runtime_data;     // Runtime modifiable data
+		oc_resource_data_t* runtime_data;     // runtime modifiable data
 	};
 
 	typedef struct oc_resource_dummy_s
@@ -716,7 +737,7 @@ extern "C" {
 	 *
 	 * @param[in] query the query to inspect
 	 * @param[in] query_len the length of the query
-	 * @param[in] key the key to be checked if exist, key is null terminated
+	 * @param[in] key the key to be checked if exists, key is null terminated
 	 * @return int -1 = not exist, 1 exists
 	 */
 	int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
@@ -726,7 +747,7 @@ extern "C" {
 	 *
 	 * @param query the query to inspect
 	 * @param query_len the length of the query
-	 * @param key the key to be checked if exist, key is not null terminated
+	 * @param key the key to be checked if exists, key is not null terminated
 	 * @param key_len the key length
 	 * @param n
 	 * @return int
@@ -738,7 +759,7 @@ extern "C" {
 	 *
 	 * @param iface the interface (e.g. "if=if.s")
 	 * @param if_len the interface length
-	 * @return oc_interface_mask_t the mask value of the interface
+	 * @return oc_interface_mask_t the mask value of the interface, also 'none' on no hit
 	 */
 	oc_interface_mask_t oc_ri_get_interface_mask(char* iface, size_t if_len);
 
