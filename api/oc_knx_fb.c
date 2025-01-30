@@ -246,8 +246,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f_x, knx_swu_protocol, 0, "/f/*",
 void oc_create_fb_x_resource(int resource_idx, size_t device)
 {
 	OC_DBG("create /f/x resources");
-	// note that this resource is listed in /.well-known/core so it should have
-	// the full rt with urn:knx prefix
+	// note that this resource is listed in /.well-known/core so it should have 
+	// the full rt with urn:knx prefix.
 	oc_core_populate_resource(resource_idx, device, "/f/*", 
 														APPLICATION_LINK_FORMAT,
 														OC_DISCOVERABLE, oc_core_fb_x_get_handler, 
