@@ -699,17 +699,8 @@ void oc_core_populate_resource(int core_resource_index,
 	r->delete_handler.cb = delete;
 
 	// scopes/ interfaces
-	// TODO must be set according to resource,
-	// here only initialized, since all resources are const
-	// and hence this they are already defined correctly  
-	r->get_handler.acl_scope_mask = OC_ACL_NONE;
-	r->get_handler.interface_mask = OC_IF_NONE;
-	r->put_handler.acl_scope_mask = OC_ACL_NONE;
-	r->put_handler.interface_mask = OC_IF_NONE;
-	r->post_handler.acl_scope_mask = OC_ACL_NONE;
-	r->post_handler.interface_mask = OC_IF_NONE;
-	r->delete_handler.acl_scope_mask = OC_ACL_NONE;
-	r->delete_handler.interface_mask = OC_IF_NONE;
+	// TODO must be set according to 'non const' resource
+	
 }
 
 void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt)
@@ -879,7 +870,7 @@ bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* reque
 	return match;
 }
 
-bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
+bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 {
 	bool match = true,  more_query_params; // TODO init value wrong, returns always true in case no 'if' ? 
 	char* value = NULL;
@@ -890,7 +881,8 @@ bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* reque
 	{
 		more_query_params = oc_iterate_query_get_values(request, "if", &value, &value_len);
 
-		if (value_len > 8)
+		// must be minimal 'urn:knx:'  
+		if (value_len > 8) 
 		{
 			// check on wildcard if.* (everything matches)
 			const char* wildcard = memchr(value, '*', value_len);
@@ -901,13 +893,20 @@ bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* reque
 
 			match = false;
 
-			// get if string such as if.ll
-			const char* resource_interface = get_interface_string(resource->interfaces);
+			// get if's from resource 
+			oc_interface_mask_t interface = OC_IF_NONE;
 
-			// the value contains urn:knx:if.xxx; +8 points to the last DOT '.' , -8 is len of all - sizeof(urn:knx:if.) 
-			if (strncmp(resource_interface, value + 8, value_len - 8) == 0)
+		  if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface )) 
 			{
-			  return true;
+				// get the 'if' string from the 'if' bit mask, such as 'if.ll' 
+				const char* resource_interface = get_interface_string(interface);
+
+				// the value contains urn:knx:if.xxx; +8 points to the last DOT '.' , -8 is len of all - sizeof(urn:knx:if.) 
+				if (strncmp(resource_interface, value + 8, value_len - 8) == 0)
+				{
+					return true;
+				}
+			  
 			}
 		}
 	}

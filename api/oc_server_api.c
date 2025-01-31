@@ -244,21 +244,15 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 
 	if (strlen(uri) < OC_MAX_URL_LENGTH)
 	{
-		resource = oc_ri_alloc_resource();
-		data = oc_ri_alloc_resource_data();
+		resource = oc_ri_alloc_resource();	// content is not cleared
+		data = oc_ri_alloc_resource_data(); // content is not cleared
 
 		if (resource && data)
 		{
-			resource->interfaces = OC_IF_NONE;
-			resource->observe_period_seconds = 0;
-			resource->runtime_data = data;
-			resource->runtime_data->num_observers = 0;
-			resource->properties = OC_DISCOVERABLE;
+			// device
+			resource->device = device_index;
 
-			// for dynamic (application) resources = false,
-			// for const (precompiled) resources = always true
-			*(bool*) &resource->is_const = false;
-
+			// name
 			if (name)
 			{
 				resource->name.ptr = name;
@@ -266,18 +260,45 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 				resource->name.next = NULL;
 			}
 
+			// uri
 			oc_check_uri(uri);                        // is at least one byte, '/'
 			resource->uri.next = NULL;
 			resource->uri.ptr = uri;
 			resource->uri.size = strlen(uri) + 1;     // include null terminator in size
-			oc_new_string_array(&resource->types, num_resource_types);
-			resource->properties = 0;
-			resource->device = device_index;
 
+			// types
+			oc_new_string_array(&resource->types, num_resource_types);
+
+
+
+			
+
+			// properties
+			resource->properties = OC_DISCOVERABLE;
 		#ifdef OC_OSCORE
-			resource->properties |= OC_SECURE;        // each new (app) resource is secured
+			// each new (app) resource is secured
+			resource->properties |= OC_SECURE;
 		#endif 
 
+			// acl scope and interfaces 
+			resource->get_handler.acl_scope_mask = OC_ACL_NONE;
+			resource->get_handler.interface_mask = OC_IF_NONE;
+			resource->put_handler.acl_scope_mask = OC_ACL_NONE;
+			resource->put_handler.interface_mask = OC_IF_NONE;
+			resource->post_handler.acl_scope_mask = OC_ACL_NONE;
+			resource->post_handler.interface_mask = OC_IF_NONE;
+			resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
+			resource->delete_handler.interface_mask = OC_IF_NONE;
+
+			// observe
+			resource->observe_period_seconds = 0;
+			
+			// const; dynamic (application) resources = false, const (precompiled) resources = always true
+			*(bool*) &resource->is_const = false;
+
+			// rt data
+			resource->runtime_data = data;
+			resource->runtime_data->num_observers = 0;
 		}
 	}
 	else
@@ -488,7 +509,7 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
 	}
 }
 
-bool oc_resource_get_acl_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scope)
+bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scope, oc_interface_mask_t* interface)
 {
 	// used to create a copy of the resource pointer 
 	oc_request_handler_t* handler = NULL;
@@ -505,7 +526,7 @@ bool oc_resource_get_acl_mask(oc_resource_t* resource, oc_method_t method, oc_ac
 			handler = &resource->get_handler;
 			break;
 
-	  case OC_POST:
+		case OC_POST:
 			handler = &resource->post_handler;
 
 			break;
@@ -520,14 +541,17 @@ bool oc_resource_get_acl_mask(oc_resource_t* resource, oc_method_t method, oc_ac
 		default:  // skip FETCH method for now 
 			break;
 	}
+
 	if (handler)
 	{
-		*scope = handler->acl_scope_mask;
-	  return true;
+		// don't set if NULL was handed over (value is not of interest)
+	  if (scope) *scope = handler->acl_scope_mask;
+		if (interface) *interface = handler->interface_mask;
+		return true;
 	}
 
 	OC_INF("resource handler not defined for this method");
-  return false;
+	return false;
 }
 
 bool oc_add_resource(oc_resource_t* resource)

@@ -2027,7 +2027,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, oc_resource_t* resource, oc_endpoi
 	oc_acl_mask_t called_res_scope = OC_ACL_NONE;
 
 	// check for scope, considering of CoAP method (GET, ...)
-	if (!oc_resource_get_acl_mask(resource, method, &called_res_scope))
+	if (!oc_resource_get_acl_and_interface_mask(resource, method, &called_res_scope, NULL))
 	{
 		// resource or handler for method does not exist, no access
 		return false;

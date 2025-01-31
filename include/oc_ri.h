@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2016-2019 Intel Corporation
 // Copyright (c) 2021 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -463,8 +464,8 @@ extern "C" {
 	{
 		oc_request_callback_t cb;
 		void* user_data;
-		oc_acl_mask_t acl_scope_mask;		      // per handler an individual caller acl mask 
-		oc_interface_mask_t interface_mask;		// per handler an individual called interface mask for the resource
+		oc_acl_mask_t acl_scope_mask;		      // for the resource, per handler an individual caller acl mask 
+		oc_interface_mask_t interface_mask;		// for the resource, per handler an individual called interface mask 
 	} oc_request_handler_t;
 
 	/**

@@ -1,7 +1,7 @@
 /*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
- Copyright (c) 2024-2024 KNX Association
+ Copyright (c) 2024-2025 KNX Association
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -340,7 +340,7 @@ extern "C" {
   * @param rep the full response
   * @param rep_value the parsed value of the response
   */
-  void oc_add_s_mode_response_cb(char* url, const oc_rep_t* rep, const oc_rep_t* rep_value)
+  void oc_add_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
   {
     (void) rep;
     (void) rep_value;

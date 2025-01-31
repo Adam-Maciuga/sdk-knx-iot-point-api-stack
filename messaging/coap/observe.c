@@ -371,8 +371,7 @@ coap_notify_observers(const oc_resource_t *resource,
       {
         // resource->get_handler.cb(&request, resource->default_interface,
         //                         resource->get_handler.user_data);
-        resource->get_handler.cb(&request, resource->interfaces,
-                                 resource->get_handler.user_data);
+        resource->get_handler.cb(&request, resource->get_handler.interface_mask, resource->get_handler.user_data);
       }
       response_buf = &response_buffer;
       if (response_buf->code == OC_IGNORE) {

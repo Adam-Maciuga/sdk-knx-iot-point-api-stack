@@ -784,15 +784,18 @@ extern "C" {
 																			 oc_interface_mask_t interface);
 
 	/**
-	* Get for a resource method the corresponding scope
+	* Get for a resource method the corresponding scope and interface
 	*
-	* @param[in] resource the resource the callback handler will be registered to
-	* @param[in] method specify if type method the callback is responsible for handling
-	*	@param[in] scope the scope to be set 
+	* @param[in] resource the resource
+	* @param[in] method the requesters method for a specific resource callback
+	*	@param[in/out] scope the method scope, if of no interest NULL
+	*	@param[in/out] interface the method interface, if of no interest NULL 
 	*
-	* @return true if resource and resource method are defined, false otherwise
+	* @return
+	* - true if resource and resource method are defined (scope and interface are set accordingly)
+	* - false otherwise (scope and interface are not touched)
 	*/
-	bool oc_resource_get_acl_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scope);
+	bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scope, oc_interface_mask_t* interface);
 
 	/**
 	 * @brief sets the callback properties for set properties and get properties

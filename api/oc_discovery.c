@@ -16,13 +16,11 @@
 */
 
 #include "oc_client_state.h"
-
 #include "messaging/coap/oc_coap.h"
 #include "oc_api.h"
 #include "oc_discovery.h"
 #include "oc_knx_fb.h"
 #include "oc_knx_fp.h"
-
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
 #include "oc_knx_helpers.h"
@@ -33,7 +31,6 @@
 #include "security/oc_tls.h"
 #endif
 #include <inttypes.h>
-
 #include "oc_knx_dev.h"
 
 /*
@@ -49,7 +46,7 @@ int basic_resources[] =
 // (size of all)/(size of one) : 5 x int (4) / 4 = 20/4 = 5 
 #define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
 
-bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
+bool oc_add_resource_to_wk(oc_resource_t* resource, oc_request_t* request,
 													 const size_t device_index, size_t* response_length,
 													 const bool truncate)
 {
@@ -127,11 +124,13 @@ bool oc_add_resource_to_wk(const oc_resource_t* resource, oc_request_t* request,
 		*response_length += oc_rep_add_line_to_buffer("\";");
 	}
 
-	// if's
-	if (resource->interfaces > 0)
+	// if's, if present
+	oc_interface_mask_t interface = OC_IF_NONE;
+
+	if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface ))
 	{
 		*response_length += oc_rep_add_line_to_buffer("if=");
-		*response_length += oc_frame_interfaces_mask_in_response(resource->interfaces, truncate);
+		*response_length += oc_frame_interfaces_mask_in_response(interface, truncate);
 		*response_length += oc_rep_add_line_to_buffer(";");
 	}
 
@@ -261,7 +260,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	(void) iface_mask;
 	(void) data;
 
-  char* key;             // one key pointer for a key=value 'pair' 
+	char* key;             // one key pointer for a key=value 'pair' 
 	size_t key_len;
 
 	char* value;           // one value pointer for a key=value 'pair' 
@@ -531,9 +530,9 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			 the IA is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
 		*/
 
-	#define EP_STR_LEN_DOT_IA  (9)  // knx://ia.
-	#define IID_STR_LEN_MAX    (10) // max IID length
-	#define IA_STR_LEN_MAX     (4)  // max IA length
+		#define EP_STR_LEN_DOT_IA  (9)  // knx://ia.
+		#define IID_STR_LEN_MAX    (10) // max IID length
+		#define IA_STR_LEN_MAX     (4)  // max IA length
 
 		// IID pos is fixed after first '.', IA pos follows after second '.' (distance = max iid + 1)
 		char* ep_iid_start_pos = ep_request + EP_STR_LEN_DOT_IA;
@@ -578,8 +577,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 	{
 
-	#define EP_STR_LEN_DOT_SN  (9)  // knx://sn.
-	#define SN_STR_LEN_MAX    (12)  // max SN length
+		#define EP_STR_LEN_DOT_SN  (9)  // knx://sn.
+		#define SN_STR_LEN_MAX    (12)  // max SN length
 
 		// SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn size)
 		char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
@@ -704,9 +703,9 @@ void oc_create_discovery_resource(const int resource_idx, const size_t device_in
 	}
 
 	oc_core_populate_resource(resource_idx, device_index, "/.well-known/core",
-                            APPLICATION_LINK_FORMAT,
-                            OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
-                            0, 0, 1, "wk");
+														APPLICATION_LINK_FORMAT,
+														OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
+														0, 0, 1, "wk");
 }
 
 oc_discovery_flags_t
