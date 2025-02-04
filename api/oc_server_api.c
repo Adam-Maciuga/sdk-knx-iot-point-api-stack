@@ -75,17 +75,12 @@ oc_query_values_available(oc_request_t* request)
 	return false;
 }
 
-static int response_length(void)
-{
-	return oc_rep_get_encoded_payload_size();
-}
-
 void oc_send_response(oc_request_t* request, oc_status_t response_code)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
 		request->response->response_buffer->content_format = APPLICATION_CBOR;
-		request->response->response_buffer->response_length = response_length();
+		request->response->response_buffer->response_length = oc_rep_get_encoded_payload_size();
 		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
@@ -95,7 +90,7 @@ void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code)
 	if (request && request->response && request->response->response_buffer)
 	{
 		// ONLY on OK/CHANGED the payload may be > 0
-		const int length = response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED ? response_length() : 0;
+		const int length = response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED ? oc_rep_get_encoded_payload_size() : 0;
 
 		if (length > 0)
 		{
@@ -117,7 +112,7 @@ void oc_send_json_response(oc_request_t* request, oc_status_t response_code)
 	if (request && request->response && request->response->response_buffer)
 	{
 		request->response->response_buffer->content_format = APPLICATION_JSON;
-		request->response->response_buffer->response_length = response_length();
+		request->response->response_buffer->response_length = oc_rep_get_encoded_payload_size();
 		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
@@ -127,7 +122,7 @@ void oc_send_linkformat_response(oc_request_t* request, oc_status_t response_cod
 	if (request && request->response && request->response->response_buffer)
 	{
 		request->response->response_buffer->content_format = APPLICATION_LINK_FORMAT;
-		request->response->response_buffer->response_length = response_length;
+		request->response->response_buffer->response_length = oc_rep_get_encoded_payload_size();
 		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
@@ -463,10 +458,10 @@ void oc_resource_set_properties_cbs(oc_resource_t* resource,
 
 void oc_resource_set_request_handler(oc_resource_t* resource,
 																		 oc_method_t method,
-																		 oc_request_callback_t
-																		 callback, void* user_data,
-																		 oc_acl_mask_t scope,
-																		 oc_interface_mask_t interface)
+																		 oc_request_callback_t callback, 
+																		 void* user_data,
+																		 oc_acl_mask_t scopes,
+																		 oc_interface_mask_t interfaces)
 {
 	// used to create a copy of the resource pointer 
 	oc_request_handler_t* handler = NULL;
@@ -504,12 +499,15 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
 	{
 		handler->cb = callback;
 		handler->user_data = user_data;
-		handler->acl_scope_mask |= scope;
-		handler->interface_mask |= interface;
+		handler->acl_scope_mask |= scopes;
+		handler->interface_mask |= interfaces;
 	}
 }
 
-bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scope, oc_interface_mask_t* interface)
+bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, 
+																						oc_method_t method, 
+																						oc_acl_mask_t* scopes, 
+																						oc_interface_mask_t* interfaces)
 {
 	// used to create a copy of the resource pointer 
 	oc_request_handler_t* handler = NULL;
@@ -545,8 +543,8 @@ bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t
 	if (handler)
 	{
 		// don't set if NULL was handed over (value is not of interest)
-	  if (scope) *scope = handler->acl_scope_mask;
-		if (interface) *interface = handler->interface_mask;
+	  if (scopes) *scopes = handler->acl_scope_mask;
+		if (interfaces) *interfaces = handler->interface_mask;
 		return true;
 	}
 
@@ -722,7 +720,7 @@ void oc_send_separate_response(oc_separate_response_t * handle, oc_status_t resp
 	if (handle->response_state->payload_size != 0)
 		length = handle->response_state->payload_size;
 	else
-		length = response_length();
+		length = oc_rep_get_encoded_payload_size();
 
 	oc_send_separate_response_with_length(handle, response_code, length);
 }

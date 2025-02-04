@@ -681,13 +681,12 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
-																		OC_IF_NONE, APPLICATION_LINK_FORMAT,
-																		OC_DISCOVERABLE,
+																		APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		oc_wkcore_discovery_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP 
 																		0, OC_ACL_NONE, OC_IF_NONE,
 																		0, OC_ACL_NONE, OC_IF_NONE,
 																		0, OC_ACL_NONE, OC_IF_NONE,
-																		NULL, OC_SIZE_MANY(1), "wk");
+																		NULL, OC_SIZE_MANY(1), "well-known-type");
 
 const oc_request_handler_t wk_handler = { oc_wkcore_discovery_handler,
 	NULL,OC_ACL_NONE, OC_IF_NONE };

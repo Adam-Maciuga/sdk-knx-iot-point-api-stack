@@ -22,7 +22,7 @@
 #include <wx/wxprec.h>
 #include <wx/cmdline.h>
 #ifndef WX_PRECOMP
-    #include <wx/wx.h>
+#include <wx/wx.h>
 #endif
 
 #define NO_MAIN

@@ -526,7 +526,7 @@ int oc_core_set_device_fid(size_t device_index, uint64_t fid)
 }
 
 oc_device_info_t* oc_core_add_device(const char* name, const char* version, const char* base,
-																		 char* serialnumber,
+																		 const char* serialnumber,
 																		 oc_core_add_device_cb_t add_device_cb, void* data)
 {
 	(void) data;
@@ -881,7 +881,7 @@ bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 	{
 		more_query_params = oc_iterate_query_get_values(request, "if", &value, &value_len);
 
-		// must be minimal 'urn:knx:'  
+		// must be at least 'urn:knx:'  
 		if (value_len > 8) 
 		{
 			// check on wildcard if.* (everything matches)

@@ -83,25 +83,22 @@
 
 #ifndef OC_API_H
 #define OC_API_H
-
 #include "messaging/coap/oc_coap.h"
-
 #include "oc_knx.h"
 #include "oc_rep.h"
 #include "oc_ri.h"
 #include "oc_client_state.h"
 
 
-
 #ifdef __cplusplus
 extern "C" {
-#endif
+	#endif
 
 	/**
 	 * @brief maximum URL length (as specified by KNX)
 	 *
 	 */
-#define OC_MAX_URL_LENGTH (30)
+	#define OC_MAX_URL_LENGTH (30)
 
 	 /**
 		* Call back handlers that are invoked in response to oc_main_init()
@@ -144,7 +141,7 @@ extern "C" {
 		 */
 		void (*signal_event_loop)(void);
 
-	#ifdef OC_SERVER
+		#ifdef OC_SERVER
 		/**
 		 * Resource registration callback.
 		 *
@@ -185,9 +182,9 @@ extern "C" {
 		 * @see oc_add_resource
 		 */
 		void (*register_resources)(void);
-	#endif /* OC_SERVER */
+		#endif 
 
-	#ifdef OC_CLIENT
+		#ifdef OC_CLIENT
 		/**
 		 * Callback invoked when the stack is ready to issue discovery requests.
 		 *
@@ -208,7 +205,7 @@ extern "C" {
 		 * @see oc_do_realm_local_ipv6_discovery
 		 */
 		void (*requests_entry)(void);
-	#endif /* OC_CLIENT */
+		#endif 
 	} oc_handler_t;
 
 	/**
@@ -525,8 +522,8 @@ extern "C" {
 	 * @see oc_add_device_cb_t for example code using this function
 	 * @see oc_add_device
 	 */
-#define oc_set_custom_device_property(prop, value)                             \
-  oc_rep_set_text_string(root, prop, value)
+	#define oc_set_custom_device_property(prop, value) \
+	        oc_rep_set_text_string(root, prop, value)
 
 	 /**
 		* Initialize the platform.
@@ -548,8 +545,7 @@ extern "C" {
 		* @see init
 		* @see oc_init_platform_cb_t
 		*/
-	int oc_init_platform(const char* mfg_name,
-											 oc_init_platform_cb_t init_platform_cb, void* data);
+	int oc_init_platform(const char* mfg_name, oc_init_platform_cb_t init_platform_cb, void* data);
 
 	/**
 	 * Set custom platform property.
@@ -564,8 +560,8 @@ extern "C" {
 	 * @see oc_init_platform_cb_t for example code using this function
 	 * @see oc_init_platform
 	 */
-#define oc_set_custom_platform_property(prop, value)                           \
-  oc_rep_set_text_string(root, prop, value)
+	#define oc_set_custom_platform_property(prop, value) \
+	        oc_rep_set_text_string(root, prop, value)
 
 	 /* Server side */
 	 /**
@@ -668,8 +664,7 @@ extern "C" {
 	 * @param content_type the content type
 	 * @note only one type can be set at a time
 	 */
-	void oc_resource_bind_content_type(oc_resource_t* resource,
-																		 oc_content_format_t content_type);
+	void oc_resource_bind_content_type(oc_resource_t* resource, oc_content_format_t content_type);
 
 	/**
 	 * Add a Data Point Type "dpt" property to the resource.
@@ -739,8 +734,7 @@ extern "C" {
 	 * @param[in] seconds the frequency in seconds that the resource will send out
 	 *                    an notification of is property values.
 	 */
-	void oc_resource_set_periodic_observable(oc_resource_t* resource,
-																					 uint16_t seconds);
+	void oc_resource_set_periodic_observable(oc_resource_t* resource, uint16_t seconds);
 
 	/**
 	 * Specify a request_callback for GET, PUT, POST, and DELETE methods including their scope and interfaces
@@ -771,8 +765,8 @@ extern "C" {
 	 *                      oc_request_callback_t. The pointer must remain valid as
 	 *                      long as the resource exists.
 	 *
-	 * @param[in] scope the scope of this resource for the given method (will be added, by respect other acl's)
-	 * @param[in] interface the interface of this for the given method (will be added, by respect other if's)
+	 * @param[in] scopes the scope of this resource for the given method (will be added, by respect other acl's)
+	 * @param[in] interfaces the interface of this for the given method (will be added, by respect other if's)
 	 *
 	 * @see oc_new_resource to see example code using this function
 	 */
@@ -780,22 +774,25 @@ extern "C" {
 																			 oc_method_t method,
 																			 oc_request_callback_t callback,
 																			 void* user_data,
-																			 oc_acl_mask_t scope,
-																			 oc_interface_mask_t interface);
+																			 oc_acl_mask_t scopes, 
+																			 oc_interface_mask_t interfaces);
 
 	/**
 	* Get for a resource method the corresponding scope and interface
 	*
 	* @param[in] resource the resource
 	* @param[in] method the requesters method for a specific resource callback
-	*	@param[in/out] scope the method scope, if of no interest NULL
-	*	@param[in/out] interface the method interface, if of no interest NULL 
+	*	@param[in/out] scopes the method scope, if of no interest NULL
+	*	@param[in/out] interfaces the method interface, if of no interest NULL
 	*
 	* @return
 	* - true if resource and resource method are defined (scope and interface are set accordingly)
 	* - false otherwise (scope and interface are not touched)
 	*/
-	bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scope, oc_interface_mask_t* interface);
+	bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, 
+																							oc_method_t method, 
+																							oc_acl_mask_t* scopes, 
+																							oc_interface_mask_t* interfaces);
 
 	/**
 	 * @brief sets the callback properties for set properties and get properties
@@ -1239,7 +1236,8 @@ extern "C" {
 	 */
 	int oc_notify_observers(const oc_resource_t* resource);
 
-#ifdef __cplusplus
+
+	#ifdef __cplusplus
 }
 #endif
 /** @} */ // end of doc_module_tag_server_side
@@ -1274,7 +1272,7 @@ extern "C" {
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+	#endif
 
 	/**
 	 * Discover all servers that have a resource type using the site-local scope
@@ -1639,7 +1637,7 @@ extern "C" {
 	 */
 	void oc_close_session(oc_endpoint_t* endpoint);
 
-#ifdef OC_TCP
+	#ifdef OC_TCP
 	/**
 	 * @brief send CoAP ping over the TCP connection
 	 *
@@ -1654,7 +1652,7 @@ extern "C" {
 	bool oc_send_ping(bool custody, oc_endpoint_t* endpoint,
 										uint16_t timeout_seconds, oc_response_handler_t handler,
 										void* user_data);
-#endif    /* OC_TCP */
+	#endif    /* OC_TCP */
 	/** @} */ // end of doc_module_tag_client_state
 
 	/**  */
@@ -1699,18 +1697,18 @@ extern "C" {
 
 	/** API for setting handlers for interrupts */
 
-#define oc_signal_interrupt_handler(name)                                      \
+	#define oc_signal_interrupt_handler(name)                                      \
   do {                                                                         \
     oc_process_poll(&(name##_interrupt_x));                                    \
     _oc_signal_event_loop();                                                   \
   } while (0)
 
 /** activate the interrupt handler */
-#define oc_activate_interrupt_handler(name)                                    \
+	#define oc_activate_interrupt_handler(name)                                    \
   (oc_process_start(&(name##_interrupt_x), 0))
 
 /** define the interrupt handler */
-#define oc_define_interrupt_handler(name)                                      \
+	#define oc_define_interrupt_handler(name)                                      \
   void name##_interrupt_x_handler(void);                                       \
   OC_PROCESS(name##_interrupt_x, "");                                          \
   OC_PROCESS_THREAD(name##_interrupt_x, ev, data)                              \
@@ -1725,8 +1723,8 @@ extern "C" {
   }                                                                            \
   void name##_interrupt_x_handler(void)
 /** @} */ // end of doc_module_tag_common_operations
-#ifdef __cplusplus
+	#ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_API_H */
+#endif 

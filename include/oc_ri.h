@@ -32,6 +32,8 @@
 #define oc_ri_expand_call(fn, ...) oc_ri_expand_call_expand(fn, (__VA_ARGS__))
 #define oc_ri_expand_call_expand(fn, args) fn args
 
+
+// TODO not used ....
 #define oc_ri_create_const_resource_linked(next_resource, ...)                 \
   extern const oc_resource_t next_resource;                                    \
   oc_ri_expand_call(oc_ri_create_const_resource, next_resource, __VA_ARGS__)
@@ -42,7 +44,7 @@
               resource_block_end##resource_name, resource_name, __VA_ARGS__)
 
 #define oc_ri_create_const_resource(                                           \
-  next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
+  next_resource, resource_name, device_index, name, uri, dpt,					         \
   content_format, properties,                                                  \
   get_cb, get_scope, get_if_mask,																							 \
   put_cb, put_scope, put_if_mask,																							 \
@@ -58,7 +60,6 @@
     /*uri*/ oc_string_create_const(uri),                                       \
     /*types*/ oc_ri_expand_call(oc_string_array_create_const, __VA_ARGS__),    \
     /*dpt*/ oc_string_create_const(dpt),                                       \
-    /*interfaces*/ iface_mask,                                                 \
     /*content_type*/ content_format,                                           \
     /*properties*/ properties,                                                 \
     /*get_handler*/ { get_cb, cb_ctx, get_scope, get_if_mask },                \
@@ -275,7 +276,7 @@ extern "C" {
 		OC_IF_M = 1 << 14       // if.m.x (manufacturer specific)
 	} oc_interface_mask_t;
 
-#define NUM_INTERFACES (14) 
+#define NUM_INTERFACES 14
 
 	// access control masks, derived from interfaces
 	typedef enum oc_acl_mask
@@ -292,7 +293,7 @@ extern "C" {
 		                          // if.ll (is not a scope)
 		                          // if.b  (is not a scope)
 		OC_ACL_SEC = OC_IF_SEC,   // if.sec 
-		OC_ACL_SWU = OC_IF_SWU,   // if.swu 
+		OC_ACL_SWU = OC_IF_SWU    // if.swu 
 	                            // if.pm (is not a scope) 
 		                          // if.m.{name} (is not a scope) 
 	} oc_acl_mask_t;
@@ -460,7 +461,7 @@ extern "C" {
 	 * @brief request handler type, including per handler a scope and interface 
 	 *
 	 */
-	typedef struct oc_request_handler_s
+	typedef struct oc_request_handler
 	{
 		oc_request_callback_t cb;
 		void* user_data;
@@ -509,9 +510,8 @@ extern "C" {
 		size_t device;                        // device index 
 		oc_string_t name;                     // name of the resource (e.g. "n") 
 		oc_string_t uri;                      // uri of the resource 
-		oc_string_array_t types;              // "rt" types of the resource 
+		oc_string_array_t types;              // "rt" types of the resource (e.g. "urn:knx:dpa.0.58" -> dev/da) 
 		oc_string_t dpt;                      // dpt of the resource 
-		oc_interface_mask_t interfaces;       // supported interfaces 
 		oc_content_format_t content_type;     // content format that the - in response included - resources supports (one at the moment)  
 		oc_resource_properties_t properties;  // properties (as bit mask) 
 		oc_request_handler_t get_handler;     // callback for GET 
@@ -625,7 +625,7 @@ extern "C" {
 	bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
 
 	/**
-	 * @brief retrieve the resource by uri and device index
+	 * @brief retrieve the application resource that fits to the given uri (and device index)
 	 *
 	 * @param uri the uri of the resource
 	 * @param uri_len the length of the uri

@@ -183,16 +183,20 @@ void oc_ri_new_request_from_request(oc_request_t* new_request, oc_request_t* req
 																		oc_response_buffer_t* response_buffer,
 																		oc_response_t* response_obj)
 {
-	memcpy(new_request, request, sizeof(request));  // TODO why 8 bytes ?
+	// copy all src request content to new request content
+  memcpy(new_request, request, sizeof(oc_request_t));  
 
+	// init buffer  
 	response_buffer->code = 0;
 	response_buffer->response_length = 0;
 	response_buffer->content_format = 0;
 	response_buffer->max_age = 0;
 
+	// init response
 	response_obj->separate_response = NULL;
 	response_obj->response_buffer = response_buffer;
 
+	// set new response object
 	new_request->response = response_obj;
 
 }
@@ -221,10 +225,12 @@ const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_l
 {
 	if (!uri || uri_len == 0)
 		return NULL;
-	int skip = 0;
-	if (uri[0] != '/')
-		skip = 1;
-	const oc_resource_t* res = oc_ri_get_app_resources();
+
+	// to distinguish /p/x or p/x; tolerate a product 'href' w/wo a "/" 
+	const int skip = uri[0] != '/' ? 1 : 0;
+
+	// never NULL except no application resources at all
+  const oc_resource_t* res = oc_ri_get_app_resources();
 	while (res != NULL)
 	{
 		if (oc_string_len(res->uri) == (uri_len + skip) &&
@@ -235,7 +241,7 @@ const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_l
 	}
 
 	// here res is NULL
-	return res;
+	return NULL;
 }
 
 static void oc_ri_delete_all_app_resources(void)

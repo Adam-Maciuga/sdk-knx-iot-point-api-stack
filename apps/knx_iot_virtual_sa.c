@@ -580,18 +580,22 @@ extern "C" {
 
     PRINT("-- Begin put_OnOff_1");
 
-    /* handle the different requests e.g. via s-mode or normal CoAP call*/
+    // handle the different requests e.g.
     if (oc_is_redirected_request(request))
     {
       PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
-    oc_rep_t* rep = request->request_payload;
+
+    // sets the pointer to 'value' from request
+    // don't change this pointer content, it points to the original request payload 
+    const oc_rep_t* rep = request->request_payload;
     bool error_state = true;
 
-    // loop over all the entries in the request
+    // loop over all 'value' entries from request (ignore any non bool item ...)
     while (rep != NULL)
     {
-      /* handle the type of payload correctly. */
+      // this EP accepts only a bool
+      // a possible faulty value construct such as (1: 2, 1: true would work ...
       if (rep->iname == 1 && rep->type == OC_REP_BOOL)
       {
         PRINT("put_OnOff_1 received : %d", rep->value.boolean);
@@ -602,10 +606,12 @@ extern "C" {
       rep= rep->next;
     }
 
+    // if it was a bool ...
     if (error_state == false)
     {
       oc_send_cbor_response(request, OC_STATUS_CHANGED);
-      /* update the status information of InfoOnOff_1*/
+
+      // update the status information of InfoOnOff_1 
       if (g_fault_OnOff_1 == false)
       {
         PRINT("No Fault update feedback to %d'", g_OnOff_1);

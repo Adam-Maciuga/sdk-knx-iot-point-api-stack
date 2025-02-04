@@ -240,7 +240,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_p, knx_f, 0, "/p",
-																		 OC_IF_LI | OC_IF_D | OC_IF_C | OC_IF_B,
 																		 APPLICATION_LINK_FORMAT, OC_UNDISCOVERABLE,
 																		 oc_core_p_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,

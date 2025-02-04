@@ -134,7 +134,6 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0, "/auth/o/osndelay",
-																		 OC_IF_P,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_osndelay_get_handler, OC_ACL_P, OC_IF_P,
 																		 oc_core_knx_auth_o_osndelay_put_handler, OC_ACL_SEC, OC_IF_SEC,
@@ -205,7 +204,6 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_replwdo, knx_auth_o_osndelay, 0, "/auth/o/replwdo",
-																		 OC_IF_P,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_replwdo_get_handler, OC_ACL_P, OC_IF_P,
 																		 oc_core_knx_auth_o_replwdo_put_handler, OC_ACL_SEC, OC_IF_SEC,
@@ -301,7 +299,6 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o, knx_auth_at, 0, "/auth/o",
-																		 OC_IF_LI | OC_IF_D | OC_IF_P | OC_IF_C,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -383,7 +380,6 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_a_sen, knx_auth_o_replwdo, 0, "/a/sen",
-																		 OC_IF_SEC,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -926,9 +922,8 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at, knx_auth_at_x, 0, "/auth/at",
-																		 OC_IF_LI | OC_IF_D | OC_IF_B | OC_IF_SEC,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
-																		 oc_core_auth_at_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
+																		 oc_core_auth_at_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C | OC_ACL_SEC, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_auth_at_post_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 oc_core_auth_at_delete_handler, OC_ACL_SEC, OC_IF_SEC,
@@ -1168,7 +1163,6 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at_x, knx_auth, 0, "/auth/at/*",
-																		 OC_IF_SEC,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_auth_at_x_get_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -1274,7 +1268,6 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, knx_fp_gm, 0, "/auth",
 																		 NULL, OC_SIZE_ZERO());
 #else
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, well_known_core, 0, "/auth",
-																		 OC_IF_LI | OC_IF_D | OC_IF_P | OC_IF_C,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		 oc_core_knx_auth_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -1835,7 +1828,7 @@ oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
 	oc_new_string(&spake_entry.id, client_senderid, client_senderid_size);
 	spake_entry.ga_len = 0;
 	spake_entry.profile = OC_PROFILE_COAP_PASE;
-	spake_entry.scope = OC_IF_SEC;
+	spake_entry.scope = OC_ACL_SEC;
 	oc_new_byte_string(&spake_entry.osc_ms, (char*) shared_key, shared_key_size);
 	// no context id
 	oc_new_byte_string(&spake_entry.osc_rid, client_recipientid,

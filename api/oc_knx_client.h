@@ -124,8 +124,14 @@ bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
 oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
 
 /**
- * @brief checks if the request is a redirected request from /k or /p
- * when that happened, extra information can be in the CBOR object
+ * @brief  checks if the request is a redirected request from /k or /p
+ *         when that happened, extra information can be in the CBOR object. 
+ *         An endpoint allows a stack 'redirect' call such as:
+ * - from STACK s-mode /k with { 4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
+ * - from STACK CoAP /p/... with { 1: true }
+ * - from internal application, such as call handler "put_OnOff_1"
+ *
+ * @note  this method allows to skip code that may ask for data that are only present on STACK call  
  *
  * @param request the request to be checked
  * @return true

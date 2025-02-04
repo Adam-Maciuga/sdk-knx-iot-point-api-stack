@@ -29,7 +29,7 @@
 
 #include "oc_api.h"
 #include "oc_core_res.h"
-#include "port/oc_clock.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,7 +95,6 @@ int app_initialize_stack(void);
  */
 int app_set_serial_number(const char* serial_number);
 
-
 /**
  * @brief Set a bool
  * 
@@ -103,7 +102,6 @@ int app_set_serial_number(const char* serial_number);
  * @param value value to set
  */
 void app_set_bool_variable(const char* url, bool value);
-
 
 /**
 * @brief Set an int
@@ -128,7 +126,6 @@ bool app_retrieve_bool_variable(const char *url);
 * @return int variable
 */
 int app_retrieve_int_variable(const char *url);
- 
 
 /**
  * @brief checks if the url represents a parameter
@@ -163,7 +160,6 @@ char* app_get_parameter_name(int index);
  */
 void app_set_fault_variable(const char* url, bool value);
 
-
 /**
 * @brief retrieve the fault (boolean) variable at the url
 *
@@ -171,7 +167,6 @@ void app_set_fault_variable(const char* url, bool value);
 * @return the value of the fault variable
 */
 bool app_retrieve_fault_variable(const char* url);
-
 
 /**
  * @brief function to report if the (oscore) security is turn on for this instance

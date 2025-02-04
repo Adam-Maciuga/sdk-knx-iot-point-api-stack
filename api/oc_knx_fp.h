@@ -322,7 +322,7 @@ extern "C" {
   int oc_core_find_index_in_group_object_table_from_id(int id);
 
   /**
-  * @brief find 'first' index in the group address table
+  * @brief find 'first' index in the group object table where a GA is included
   *
   * @param group_address the group address to find
   
@@ -332,7 +332,7 @@ extern "C" {
   int oc_core_find_first_group_object_table_index(uint32_t group_address);
 
   /**
-   * @brief find 'next' index - after the provided one - in the group address table
+   * @brief find 'next' index - after the provided one - in the group object table where a GA is included
    *
    * @param group_address the group address to find
    * @param cur_index  the index from which to search 
@@ -371,12 +371,12 @@ extern "C" {
   oc_cflag_mask_t oc_core_group_object_table_cflag_entries(int index);
 
   /**
-   * @brief find the url (of the resource) that in the group object table entry.
+   * @brief get the 'href' url for a resource form a specific group object table entry.
    *
    * @param index the index in the table
    * @return oc_string_t the url
    */
-  oc_string_t oc_core_find_group_object_table_url_from_index(int index);
+  oc_string_t oc_core_get_href_from_group_object_table_index(int index);
 
   /**
    * @brief retrieve the number of group address entries for index

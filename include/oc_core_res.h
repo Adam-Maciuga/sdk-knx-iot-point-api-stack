@@ -29,17 +29,16 @@
 extern "C" {
 #endif
 
-	// define resource_name as extern 
+	// define resource_name as extern by adding internal 'core_resource' name (not known in other modules)
 #define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern const oc_resource_t core_resource_##resource_name;
 
-// set the internal name of a core const resource
+// set the internal name of a core const resource by adding internal 'core_resource' name (not known in other modules)
 #define OC_CORE_RESOURCE_NAME(name) core_resource_##name
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 
-#define OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(                                \
-  resource_name, next_resource, device_index, uri, iface_mask, content_format, \
-  properties,																																	 \
+#define OC_CORE_CREATE_CONST_RESOURCE(                                         \
+  resource_name, next_resource, device_index, uri, content_format, properties, \
   get_cb,	   get_scope, get_if_mask,																					 \
   put_cb,		 put_scope, put_if_mask,																					 \
   post_cb,   post_scope, post_if_mask,	                                       \
@@ -48,7 +47,7 @@ extern "C" {
   _Pragma("warning(disable:4090)");                                            \
   oc_ri_expand_call(                                                           \
     oc_ri_create_const_resource, core_resource_##next_resource,                \
-    core_resource_##resource_name, device_index, NULL, uri, dpt, iface_mask,   \
+    core_resource_##resource_name, device_index, NULL, uri, dpt,							 \
     content_format, properties,                                                \
     get_cb,    get_scope, get_if_mask,			                                   \
     put_cb,    put_scope, put_if_mask,	                                       \
@@ -79,7 +78,7 @@ extern "C" {
 */
 #define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource, ...)\
   extern const oc_resource_t core_resource_##next_resource;                    \
-  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE_INTERNAL,                    \
+  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                             \
                              resource_name, next_resource, __VA_ARGS__)
 
 /**
@@ -98,12 +97,12 @@ extern "C" {
 */
 #define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
   oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
-  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE_INTERNAL,                    \
+  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                             \
                              resource_name, resource_name##_final, __VA_ARGS__)
 
 #else
 
-#define OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(                                \
+#define OC_CORE_CREATE_CONST_RESOURCE(                                \
   resource_name, next_resource, device_index, uri, iface_mask, content_format, \
   properties, get_cb, put_cb, post_cb, delete_cb, dpt, num_resource_types,     \
   ...)                                                                         \
@@ -119,12 +118,12 @@ extern "C" {
 #define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,     \
                                              ...)                              \
   extern const oc_resource_t core_resource_##next_resource;                    \
-  OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(resource_name, next_resource,         \
+  OC_CORE_CREATE_CONST_RESOURCE(resource_name, next_resource,         \
                                          __VA_ARGS__)
 
 #define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
   oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
-  OC_CORE_CREATE_CONST_RESOURCE_INTERNAL(resource_name, resource_name##_final, \
+  OC_CORE_CREATE_CONST_RESOURCE(resource_name, resource_name##_final, \
                                          __VA_ARGS__)
 
 #endif

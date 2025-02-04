@@ -126,7 +126,7 @@ extern "C" {
 	 * ```
 	 * Note: maps are not stored.
 	 */
-	typedef struct oc_auth_at_t
+	typedef struct oc_auth_at
 	{
 		oc_string_t id;							// (0) auth / at / {id}, encoding: HEX 
 		oc_acl_mask_t scope;	      // (9) the acl scope

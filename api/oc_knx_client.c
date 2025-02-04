@@ -442,21 +442,18 @@ int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid
 
 // ----------------------------------------------------------------------------
 
-bool
-oc_is_redirected_request(const oc_request_t* request)
+bool oc_is_redirected_request(const oc_request_t* request)
 {
   if (request == NULL)
   {
     return false;
   }
 
-  // EP allows a redirect such as {4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
   if (strncmp("k", request->uri_path, request->uri_path_len) == 0)
   {
     return true;
   }
 
-  // EP allows a redirect such as { href:/p/p1, value: 1 }
   if (strncmp("/p", request->uri_path, request->uri_path_len) == 0)
   {
     return true;
@@ -790,7 +787,7 @@ static void oc_do_s_mode_with_scope_and_check(const int scope, const char* resou
             if (other_index != index)
             {
               oc_cflag_mask_t other_cflags = oc_core_group_object_table_cflag_entries(other_index);
-              oc_string_t other_url = oc_core_find_group_object_table_url_from_index(other_index);
+              oc_string_t other_url = oc_core_get_href_from_group_object_table_index(other_index);
               const char* other_url_char = oc_string(other_url);
               const oc_resource_t* other_resource = oc_ri_get_app_resource_by_uri(other_url_char, strlen(other_url_char), 0);
               if (other_resource == NULL)

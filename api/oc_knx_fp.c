@@ -209,7 +209,7 @@ int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_i
 	return -1;
 }
 
-oc_string_t oc_core_find_group_object_table_url_from_index(int index)
+oc_string_t oc_core_get_href_from_group_object_table_index(int index)
 {
 	const oc_string_t error = { 0 };
 	return index < GOT_MAX_ENTRIES ? g_got[index].href : error;
@@ -652,7 +652,6 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
-																		 OC_IF_C | OC_IF_B,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_g_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -756,7 +755,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 #ifdef OC_PUBLISHER_TABLE
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g_x, knx_fp_p, 0, "/fp/g/*",
-																		 OC_IF_D | OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_g_x_get_handler, OC_ACL_P, OC_IF_P,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -1136,7 +1135,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p, knx_fp_p_x, 0, "/fp/p",
-																		 OC_IF_C | OC_IF_B,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_p_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -1272,7 +1270,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p_x, knx_fp_r, 0, "/fp/p/*",
-																		 OC_IF_D | OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
+																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_p_x_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -1597,7 +1595,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r, knx_fp_r_x, 0, "/fp/r",
-																		 OC_IF_C | OC_IF_B,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_r_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -1729,7 +1726,6 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",
-																		 OC_IF_D | OC_IF_C,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_core_fp_r_x_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,

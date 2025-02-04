@@ -93,7 +93,6 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_protocol, knx_swu_maxdefer, 0, "/swu/protocol",
-																		 OC_IF_SWU | OC_IF_D,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_protocol_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_protocol_put_handler, OC_ACL_SWU, OC_IF_SWU,
@@ -155,7 +154,6 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_maxdefer, knx_swu_method, 0, "/swu/maxdefer", 
-																		 OC_IF_LI | OC_IF_D,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_max_defer_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_max_defer_put_handler, OC_ACL_SWU, OC_IF_SWU,
@@ -222,7 +220,6 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_method, knx_lastupdate, 0, "/swu/method",
-																		 OC_IF_SWU | OC_IF_D,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_method_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_method_put_handler, OC_ACL_SWU, OC_IF_SWU,
@@ -269,8 +266,7 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 	oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_lastupdate, knx_swu_result, 0,
-																		 "/swu/lastupdate", OC_IF_D | OC_IF_SWU,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_lastupdate, knx_swu_result, 0, "/swu/lastupdate",
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_last_update_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -310,7 +306,6 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_result, knx_swu_state, 0, "/swu/result",
-																		 OC_IF_D | OC_IF_SWU,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_result_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -348,7 +343,6 @@ static void oc_knx_swu_state_get_handler(oc_request_t* request, oc_interface_mas
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_state, knx_swu_update, 0, "/swu/state",
-																		 OC_IF_D | OC_IF_SWU,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_state_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -391,7 +385,6 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_update, knx_swu_pkgv, 0, "/swu/update",
-																		 OC_IF_D | OC_IF_SWU,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_knx_swu_update_put_handler, OC_ACL_SWU, OC_IF_SWU,
@@ -437,7 +430,6 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgv, knx_swu_pkgcmd, 0, "/swu/pkgv",
-																		 OC_IF_D | OC_IF_SWU,
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_pkg_version_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -550,8 +542,7 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
 	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgcmd, knx_swu_pkgbytes, 0,
-																		 "/a/swu", OC_IF_SWU | OC_IF_D,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgcmd, knx_swu_pkgbytes, 0, "/a/swu",
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_knx_swu_a_put_handler, OC_ACL_P, OC_IF_P,
@@ -588,8 +579,7 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
 	oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgbytes, knx_swu_pkgqurl, 0,
-																		 "/swu/pkgbytes", OC_IF_SWU | OC_IF_D,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgbytes, knx_swu_pkgqurl, 0, "/swu/pkgbytes",
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_bytes_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -649,8 +639,7 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgqurl, knx_swu_pkgnames, 0,
-																		 "/swu/pkgqurl", OC_IF_SWU | OC_IF_D,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgqurl, knx_swu_pkgnames, 0, "/swu/pkgqurl",
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_pkg_query_url_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_pkg_query_url_put_handler, OC_ACL_SWU, OC_IF_SWU,
@@ -694,8 +683,7 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 	oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgnames, knx_swu, 0,
-																		 "/swu/pkgname", OC_IF_SWU | OC_IF_D,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgnames, knx_swu, 0, "/swu/pkgname",
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_pkg_name_get_handler, OC_ACL_D, OC_IF_D,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
@@ -792,7 +780,6 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu, sub, 0, "/swu",
-																		 OC_IF_SWU | OC_IF_LI | OC_IF_D,
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		 oc_core_knx_swu_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
 																		 0, OC_ACL_NONE, OC_IF_NONE,

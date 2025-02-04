@@ -28,7 +28,7 @@ static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_
 	oc_send_response_no_format(request, OC_STATUS_DELETED);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub", OC_IF_P,
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub",
 																		 APPLICATION_LINK_FORMAT, OC_DISCOVERABLE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
 																		 0, OC_ACL_NONE, OC_IF_NONE,
