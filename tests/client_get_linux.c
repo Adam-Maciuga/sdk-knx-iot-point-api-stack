@@ -210,7 +210,7 @@ get_light(oc_request_t *request, oc_interface_mask_t iface_mask,
     break;
   }
   oc_rep_end_root_object();
-  oc_send_response(request, OC_STATUS_OK);
+  oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
 static void

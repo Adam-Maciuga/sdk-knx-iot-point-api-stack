@@ -89,7 +89,7 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 		}
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_protocol, knx_swu_maxdefer, 0, "/swu/protocol",
@@ -150,7 +150,7 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 		return;
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_maxdefer, knx_swu_method, 0, "/swu/maxdefer", 
@@ -216,7 +216,7 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
 		}
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_method, knx_lastupdate, 0, "/swu/method",
@@ -381,7 +381,7 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
 		return;
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_update, knx_swu_pkgv, 0, "/swu/update",
@@ -425,7 +425,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
 		return;
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 
 }
 
@@ -535,11 +535,11 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
 		PRINT("oc_knx_swu_a_post_handler received : %d", (int) rep->value.integer);
 
 		// not implemented 
-		oc_send_response_no_format(request, OC_STATUS_NOT_IMPLEMENTED);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_IMPLEMENTED);
 		return;
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgcmd, knx_swu_pkgbytes, 0, "/a/swu",
@@ -636,7 +636,7 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 		return;
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgqurl, knx_swu_pkgnames, 0, "/swu/pkgqurl",
@@ -680,7 +680,7 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 		return;
 	}
 
-	oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgnames, knx_swu, 0, "/swu/pkgname",
@@ -739,7 +739,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -774,7 +774,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 	else
 	{
 		// resources are mandatory, hence this can't be correct here
-		oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 	PRINT("oc_core_swu_get_handler - end");
 }

@@ -203,7 +203,7 @@ RIHelper::getLightCb(oc_request_t *request, oc_interface_mask_t interface,
     break;
   }
   oc_rep_end_root_object();
-  oc_send_response(request, OC_STATUS_OK);
+  oc_send_cbor_response(request, OC_STATUS_OK);
   PRINT("Light state %d", s_lightState);
 }
 
@@ -230,7 +230,7 @@ RIHelper::postLightCb(oc_request_t *request, oc_interface_mask_t interface,
     }
     rep = rep->next;
   }
-  oc_send_response(request, OC_STATUS_CHANGED);
+  oc_send_cbor_response(request, OC_STATUS_CHANGED);
   s_lightState = state;
 }
 

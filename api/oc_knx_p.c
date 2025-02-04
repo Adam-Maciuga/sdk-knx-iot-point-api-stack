@@ -90,7 +90,7 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)n page 5 
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -119,7 +119,7 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
 	else
 	{
 		// (> 0 application) resources are mandatory, hence this can't be correct here
-		oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	PRINT("oc_core_p_get_handler - end");
@@ -174,7 +174,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 	if (error)
 	{
 		PRINT("oc_core_p_post_handler - end");
-		oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 		return;
 	}
 

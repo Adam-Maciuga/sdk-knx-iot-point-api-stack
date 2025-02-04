@@ -75,35 +75,23 @@ oc_query_values_available(oc_request_t* request)
 	return false;
 }
 
-void oc_send_response(oc_request_t* request, oc_status_t response_code)
-{
-	if (request && request->response && request->response->response_buffer)
-	{
-		request->response->response_buffer->content_format = APPLICATION_CBOR;
-		request->response->response_buffer->response_length = oc_rep_get_encoded_payload_size();
-		request->response->response_buffer->code = oc_status_code(response_code);
-	}
-}
-
 void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
-		// ONLY on OK/CHANGED the payload may be > 0
-		const int length = response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED ? oc_rep_get_encoded_payload_size() : 0;
+		const int length = oc_rep_get_encoded_payload_size();
 
-		if (length > 0)
+		if ((response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED) && length == 0)
 		{
-			// len > 0 => payload present : format OK/CHANGED as CBOR (only these two!)
-			request->response->response_buffer->content_format = APPLICATION_CBOR;
-			request->response->response_buffer->response_length = length;
-			request->response->response_buffer->code = oc_status_code(response_code);
-		}
-		else
-		{
-			// len = 0 => payload NOT present : format all response codes as NO FORMAT
-			oc_send_response_no_format(request, response_code);
-		}
+      // OK/CHANGED + NO payload => format as OK/CHANGED + NO FORMAT + NO payload
+      oc_send_no_format_response_no_payload(request, response_code);
+      return;
+    }
+
+		// all others combinations ...
+		request->response->response_buffer->content_format = APPLICATION_CBOR;
+		request->response->response_buffer->response_length = length;
+		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
 
@@ -127,7 +115,7 @@ void oc_send_linkformat_response(oc_request_t* request, oc_status_t response_cod
 	}
 }
 
-void oc_send_response_no_format(oc_request_t* request, oc_status_t response_code)
+void oc_send_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
@@ -266,14 +254,14 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 
 
 
-			
+
 
 			// properties
 			resource->properties = OC_DISCOVERABLE;
-		#ifdef OC_OSCORE
+			#ifdef OC_OSCORE
 			// each new (app) resource is secured
 			resource->properties |= OC_SECURE;
-		#endif 
+			#endif 
 
 			// acl scope and interfaces 
 			resource->get_handler.acl_scope_mask = OC_ACL_NONE;
@@ -287,7 +275,7 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 
 			// observe
 			resource->observe_period_seconds = 0;
-			
+
 			// const; dynamic (application) resources = false, const (precompiled) resources = always true
 			*(bool*) &resource->is_const = false;
 
@@ -458,7 +446,7 @@ void oc_resource_set_properties_cbs(oc_resource_t* resource,
 
 void oc_resource_set_request_handler(oc_resource_t* resource,
 																		 oc_method_t method,
-																		 oc_request_callback_t callback, 
+																		 oc_request_callback_t callback,
 																		 void* user_data,
 																		 oc_acl_mask_t scopes,
 																		 oc_interface_mask_t interfaces)
@@ -504,9 +492,9 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
 	}
 }
 
-bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, 
-																						oc_method_t method, 
-																						oc_acl_mask_t* scopes, 
+bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource,
+																						oc_method_t method,
+																						oc_acl_mask_t* scopes,
 																						oc_interface_mask_t* interfaces)
 {
 	// used to create a copy of the resource pointer 
@@ -543,7 +531,7 @@ bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource,
 	if (handler)
 	{
 		// don't set if NULL was handed over (value is not of interest)
-	  if (scopes) *scopes = handler->acl_scope_mask;
+		if (scopes) *scopes = handler->acl_scope_mask;
 		if (interfaces) *interfaces = handler->interface_mask;
 		return true;
 	}
@@ -578,7 +566,7 @@ void oc_indicate_separate_response(oc_request_t* request,
 																	 oc_separate_response_t* response)
 {
 	request->response->separate_response = response;
-	oc_send_response(request, OC_STATUS_OK);
+	oc_send_cbor_response(request, OC_STATUS_OK);
 }
 
 void oc_set_separate_response_buffer(oc_separate_response_t* handle)
@@ -587,11 +575,11 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 	handle->response_state = oc_blockwise_alloc_response_buffer(
 		oc_string(cur->uri), oc_string_len(cur->uri), &cur->endpoint, cur->method,
 		OC_BLOCKWISE_SERVER);
-#ifdef OC_BLOCK_WISE
+	#ifdef OC_BLOCK_WISE
 	oc_rep_new(handle->response_state->buffer, OC_MAX_APP_DATA_SIZE);
-#else  
+	#else  
 	oc_rep_new(handle->buffer, OC_BLOCK_SIZE);
-#endif 
+	#endif 
 }
 
 static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
@@ -624,16 +612,16 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 				coap_separate_resume(response, cur, (uint8_t) oc_status_code(response_code), t->mid);
 				coap_set_header_content_format(response, response_buffer.content_format);
 
-			#ifdef OC_BLOCK_WISE
+				#ifdef OC_BLOCK_WISE
 				oc_blockwise_state_t* response_state = NULL;
-			#ifdef OC_TCP
+				#ifdef OC_TCP
 				if (!(cur->endpoint.flags & TCP) &&
 						response_buffer.response_length > cur->block2_size)
 				{
-				#else  
+					#else  
 				if (response_buffer.response_length > cur->block2_size)
 				{
-				#endif 
+					#endif 
 					response_state = oc_blockwise_find_response_buffer(
 						oc_string(cur->uri), oc_string_len(cur->uri), &cur->endpoint,
 						cur->method, NULL, 0, OC_BLOCKWISE_SERVER);
@@ -677,7 +665,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 					}
 				}
 				else
-				#endif 
+					#endif 
 					if (response_buffer.response_length > 0)
 					{
 						coap_set_payload(response, handle->response_state->buffer,
@@ -704,9 +692,9 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 				coap_notify_observers(resource, &response_buffer, &cur->endpoint);
 			}
 		}
-	#ifdef OC_BLOCK_WISE
+		#ifdef OC_BLOCK_WISE
 		next_separate_request :
-	#endif 
+		#endif 
 		coap_separate_clear(handle, cur);
 		cur = next;
 	}

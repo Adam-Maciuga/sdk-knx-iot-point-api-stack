@@ -33,7 +33,7 @@ extern "C" {
 #endif
 
 extern CborEncoder g_encoder, root_map, links_array;
-extern int g_err;
+extern CborError g_err;
 
 /*
   The macros are based on stringizing operator (also known as Stringify)

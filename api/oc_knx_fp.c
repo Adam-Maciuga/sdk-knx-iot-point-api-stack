@@ -363,7 +363,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -469,7 +469,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -477,7 +477,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
 	{
 		OC_ERR("not in loading state");
-		oc_send_response_no_format(request, OC_STATUS_METHOD_NOT_ALLOWED);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
 		return;
 	}
 
@@ -500,7 +500,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 				if (id == -1)
 				{
 					OC_ERR("ERROR: GO table id not found in request, but is a mandatory part");
-					oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 
@@ -519,7 +519,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 					if (index == -1)
 					{
 						OC_ERR("ERROR: GO table has no empty slot to add a new entry");
-						oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+						oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 						return;
 					}
 				}
@@ -622,7 +622,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 					{
 						PRINT("mandatory items missing, no entry created at index: %d", index);
 						oc_delete_group_object_table_entry(index);
-						oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+						oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 						return;
 					}
 					// created + 4 items or changed + items don't care 
@@ -643,10 +643,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 	if (status_ok)
 	{
 		oc_knx_increase_fingerprint();
-		oc_send_response_no_format(request, return_status);
+		oc_send_no_format_response_no_payload(request, return_status);
 		return;
 	}
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 
 	PRINT("oc_core_fp_g_post_handler status=%d - end", (int) status_ok);
 }
@@ -690,14 +690,14 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
 	PRINT("id=%d index = %d", id, index);
 	if (index == -1)
 	{
-		oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		return;
 	}
 
 	if (g_got[index].id == -1)
 	{
 		// it is empty
-		oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 		return;
 	}
 
@@ -726,7 +726,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
 	{
 		OC_ERR("not in loading state");
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -741,7 +741,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	if (index == -1)
 	{
-		oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		return;
 	}
 
@@ -750,7 +750,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 	oc_knx_increase_fingerprint();
 
 	PRINT("oc_core_fp_g_x_del_handler - end");
-	oc_send_response_no_format(request, OC_STATUS_DELETED);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 #ifdef OC_PUBLISHER_TABLE
@@ -882,7 +882,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0) 
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -945,7 +945,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
 	{
 		OC_ERR("not in loading state");
-		oc_send_response_no_format(request, OC_STATUS_METHOD_NOT_ALLOWED);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
 		return;
 	}
 
@@ -968,7 +968,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 				if (id == -1)
 				{
 					OC_ERR("ERROR: PUB table id not found in request, but is a mandatory part");
-					oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 
@@ -987,7 +987,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 					if (index == -1)
 					{
 						PRINT("ERROR: Publisher table has no empty slot to add a new entry");
-						oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+						oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 						return;
 					}
 				}
@@ -1099,7 +1099,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 				{
 					PRINT("Mandatory items missing!");
 					oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-					oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 				else
@@ -1129,7 +1129,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 	}
 
 	oc_knx_increase_fingerprint();
-	oc_send_response_no_format(request, return_status);
+	oc_send_no_format_response_no_payload(request, return_status);
 
 	PRINT("oc_core_fp_p_post_handler - end");
 }
@@ -1175,14 +1175,14 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (index == -1)
 	{
-		oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		return;
 	}
 
 	if (g_gpt[index].id == -1)
 	{
 		// index not present in PUB table
-		oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 		return;
 	}
 
@@ -1242,7 +1242,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
 	{
 		OC_ERR("not in loading state");
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1254,7 +1254,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	if (index == -1)
 	{
-		oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		return;
 	}
 
@@ -1266,7 +1266,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 	oc_knx_increase_fingerprint();
 	PRINT("oc_core_fp_p_x_del_handler - end");
 
-	oc_send_response_no_format(request, OC_STATUS_DELETED);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p_x, knx_fp_r, 0, "/fp/p/*",
@@ -1330,7 +1330,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0) 
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1392,7 +1392,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
 	{
 		OC_ERR("not in loading state");
-		oc_send_response_no_format(request, OC_STATUS_METHOD_NOT_ALLOWED);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
 		return;
 	}
 
@@ -1415,7 +1415,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 				if (id == -1)
 				{
 					OC_ERR("ERROR: RCP table id not found in request, but is a mandatory part");
-					oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 
@@ -1434,7 +1434,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 					if (index == -1)
 					{
 						OC_ERR("ERROR: Recipient table has no empty slot to add a new entry");
-						oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+						oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 						return;
 					}
 
@@ -1560,7 +1560,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 				{
 					PRINT("Mandatory items missing!");
 					oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-					oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 				else
@@ -1589,7 +1589,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 	}
 
 	oc_knx_increase_fingerprint();
-	oc_send_response_no_format(request, return_status);
+	oc_send_no_format_response_no_payload(request, return_status);
 
 	PRINT("oc_core_fp_r_post_handler - end");
 }
@@ -1634,14 +1634,14 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (index == -1)
 	{
-		oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		return;
 	}
 
 	if (g_grt[index].id == -1)
 	{
 		// it is empty
-		oc_send_response_no_format(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 		return;
 	}
 
@@ -1696,7 +1696,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
 	{
 		OC_ERR("not in loading state");
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1708,7 +1708,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	if (index == -1)
 	{
-		oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		return;
 	}
 	PRINT("oc_core_fp_r_x_del_handler: deleting id %d at index %d", id, index);
@@ -1722,7 +1722,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	PRINT("oc_core_fp_r_x_del_handler - end");
 
-	oc_send_response_no_format(request, OC_STATUS_DELETED);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",

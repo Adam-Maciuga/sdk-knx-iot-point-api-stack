@@ -978,29 +978,12 @@ extern "C" {
 	bool oc_query_values_available(oc_request_t* request);
 
 	/**
-	 * Called after the response to a GET, PUT, POST or DELETE call has been
-	 * prepared completed. Will respond with CBOR.
-	 *
-	 * The function oc_send_response is called at the end of a
-	 * oc_request_callback_t to inform the caller about the status of the requested
-	 * action.
-	 *
-	 * @param[in] request the request being responded to
-	 * @param[in] response_code the status of the response
-	 *
-	 * @see oc_request_callback_t
-	 * @see oc_ignore_request
-	 * @see oc_indicate_separate_response
-	 */
-	void oc_send_response(oc_request_t* request, oc_status_t response_code);
-
-	/**
 	 * @brief
 	 * Called after the response to a GET, PUT, POST or DELETE call has been
 	 * prepared completed, to inform the caller about the status on the requested action.
 	 *
-	 * - will respond as CBOR in case of OK/CHANGED and payload > 0
-	 * - will respond as NO CONTENT in case of OK/CHANGED/XYZ and payload = 0
+	 * On OK/CHANGED and no payload it will respond as OK/CHANGED + NO FORMAT + no payload,
+	 * all other combinations will respond as 'response code' + CBOR + payload
 	 *
 	 * @note OC_BAD_REQUEST for multicast will not send a response (e.g.
 	 *       treated as OC_IGNORE)
@@ -1044,13 +1027,13 @@ extern "C" {
 	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
 	 *        prepared completed.
 	 *
-	 * @note  Example use case is when the response has an empty payload,
-	 *        response is setting the 'no content' format with content len = 0 (= empty payload).
+	 * @note  The response has an empty payload (content len = 0 )
+	 *        and setting of 'no content' format
 	 *
 	 * @param request the request being responded to
 	 * @param response_code the to be used response code
 	 */
-	void oc_send_response_no_format(oc_request_t* request, oc_status_t response_code);
+	void oc_send_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
 
 	/**
 	 * @brief retrieve the payload from the request, no processing

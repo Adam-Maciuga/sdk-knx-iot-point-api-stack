@@ -60,25 +60,25 @@ bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
 
   if (!ps_exists && !total_exists)
   { // query l exist but with no 'ps' or 'total' 
-    oc_send_response_no_format(request, OC_STATUS_NOT_FOUND);
+    oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
     return true;        
   }
 
   if (ps_exists && total_exists && request->query_len > sizeof("l=total&l=ps") - 1)
   { // query l exist with 'ps' and 'total' but other query parameter as well 
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return true;        
   }
 
   if (ps_exists && !total_exists && request->query_len > sizeof("l=ps") - 1)
   { // query l exist with 'ps' but other query parameter as well 
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return true;        
   }
 
   if (!ps_exists && total_exists && request->query_len > sizeof("l=total") - 1)
   { // query l exist with 'total' but other query parameter as well 
-    oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+    oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return true;        
   }
 

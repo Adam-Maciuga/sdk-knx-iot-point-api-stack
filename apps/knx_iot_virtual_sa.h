@@ -27,9 +27,7 @@
  
  */
 
-#include "oc_api.h"
 #include "oc_core_res.h"
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,15 +58,6 @@ extern "C" {
  *
  */
 typedef void (*oc_put_cb_t)(char* url);
-
-/**
- * @brief The put callback
- *
- */
-typedef struct oc_put_struct_t
-{
-  oc_put_cb_t cb; /**< the put callback, e.g. when something has changed */
-} oc_put_struct_t;
 
 /**
  * @brief set the put callback (on application level)

@@ -419,7 +419,7 @@ MyFrame::MyFrame(char* str_serial_number)
   }
   m_secured_text = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size,  10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), wxTE_RICH);
   m_secured_text->SetEditable(false);
-  if (app_is_secure() == false) {
+  if (!app_is_secure()) {
     m_secured_text->SetStyle(0, 100, (wxTextAttr(*wxRED)));
   }
   // update the UI

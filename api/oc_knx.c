@@ -124,7 +124,8 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 	// this EP MUST support JSON in addition (KNX IoT specification clause 5.1.3)
 	if (request->accept != APPLICATION_JSON && !oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
+		// keep setting response code only, since response format may be CBOR or JSON
+	  request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -317,7 +318,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 	}
 
 	PRINT("invalid command");
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx, knx_fp_g, 0, "/.well-known/knx",
@@ -474,7 +475,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (device == NULL)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -510,7 +511,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 	if (device == NULL)
 	{
 		PRINT("oc_core_lsm_post_handler - end");
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -564,7 +565,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 		return;
 	}
 	// invalid event
-	oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(a_lsm, knx_spake, 0, "/a/lsm",
@@ -602,7 +603,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 	oc_device_info_t* device = oc_core_get_device_info(device_index);
 	if (device == NULL)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -680,7 +681,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	oc_device_info_t* device = oc_core_get_device_info(device_index);
 	if (device == NULL)
 	{
-		oc_send_response_no_format(request, OC_IGNORE);
+		oc_send_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
@@ -764,10 +765,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	if (oc_is_device_in_runtime(device_index) == false)
 	{
 		PRINT("Device not in runtime state:%d - ignore message", device->lsm_s);
-		oc_send_response_no_format(request, OC_IGNORE);
+		oc_send_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
-
 
 	// debugging ... 
 	char ip_address[100];
@@ -810,12 +810,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	if (go_table_index == -1)
 	{
 		// if nothing is found (initially) then ignore
-		oc_send_response_no_format(request, OC_IGNORE);
+		oc_send_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
 	// default no read ...
-	bool is_allowed_read_request = false;
+	bool is_succeeded_read_request = false;
 
 	// create the dummy request, EACH application callback
 	// handler per GA gets an individual copy 
@@ -917,7 +917,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 			if (cflags & OC_CFLAG_READ && st_read)
 			{
 				PRINT("READ: index %d handled due to flags %d", go_table_index, cflags);
-				is_allowed_read_request = true;
+				is_succeeded_read_request = true;
 				// Case 4)
 				// @sender: cflags = r
 				// Received from bus: -st r
@@ -947,16 +947,16 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 		go_table_index = oc_core_find_next_group_object_table_index(received_notification.ga, go_table_index);
 	}
 
-	// don't send anything back on a multicast message
+	// multicast request: don't send anything back on a multicast 
 	if (request->origin && (request->origin->flags & MULTICAST))
 	{
 		PRINT("k : Multicast - not sending response");
-		oc_send_response_no_format(request, OC_IGNORE);
+		oc_send_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
-	// send the response on unicast after a read 'r' request (and present callback payload)
-	if (is_allowed_read_request && oc_rep_get_encoded_payload_size() > 0)
+	// unicast request: send the response on after a read 'r' request (and present callback payload)
+	if (is_succeeded_read_request && oc_rep_get_encoded_payload_size() > 0)
 	{
 		// payload > 0, ends up in CBOR = OK
 		oc_send_cbor_response(request, OC_STATUS_OK);
@@ -1010,7 +1010,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADED)
 	{
 		OC_ERR("not in loaded state");
-		oc_send_response_no_format(request, OC_STATUS_SERVICE_UNAVAILABLE);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
 		return;
 	}
 
@@ -1052,7 +1052,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1104,7 +1104,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 	}
 	else
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 	}
 }
 
@@ -1287,7 +1287,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 	if (oc_a_lsm_state(device_index) != LSM_S_UNLOADED)
 	{
 		OC_ERR(" not in unloaded state");
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1334,7 +1334,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 
 	if (valid_request == 0)
 	{
-		oc_send_response_no_format(request, OC_STATUS_BAD_REQUEST);
+		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	rep = request->request_payload;

@@ -301,27 +301,28 @@ char* app_get_parameter_name(int index)
 bool app_is_secure(void)
 {
   // may produce a warning if OC_OSCORE is not specified ...
+  // but here it is integral part of CMake
   return OC_OSCORE ? true : false;
 }
 
-static oc_put_struct_t app_put = { NULL };
+static oc_put_cb_t app_put = NULL;
 
 void app_set_put_cb(const oc_put_cb_t cb)
 {
-  app_put.cb = cb;
+  app_put = cb;
 }
 
-oc_put_struct_t* oc_get_put_cb(void)
+oc_put_cb_t oc_get_put_cb(void)
 {
-  return &app_put;
+  return app_put;
 }
 
 void do_put_cb(char* url)
 {
-  const oc_put_struct_t* my_cb = oc_get_put_cb();
-  if (my_cb && my_cb->cb)
-  { // cb (init = null) + url are is assigned 
-    my_cb->cb(url);
+  const oc_put_cb_t my_cb = oc_get_put_cb();
+  if (my_cb)
+  { 
+    my_cb(url);
   }
 }
 
@@ -457,7 +458,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_REQUEST);
+      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -535,7 +536,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
+        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -555,7 +556,7 @@ extern "C" {
     }
     else
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_1");
   }
@@ -580,7 +581,7 @@ extern "C" {
 
     PRINT("-- Begin put_OnOff_1");
 
-    // handle the different requests e.g.
+    // handle the different requests
     if (oc_is_redirected_request(request))
     {
       PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
@@ -595,7 +596,7 @@ extern "C" {
     while (rep != NULL)
     {
       // this EP accepts only a bool
-      // a possible faulty value construct such as (1: 2, 1: true would work ...
+      // a possible faulty value construct such as {1: 2, 1: true} would work ...
       if (rep->iname == 1 && rep->type == OC_REP_BOOL)
       {
         PRINT("put_OnOff_1 received : %d", rep->value.boolean);
@@ -606,8 +607,8 @@ extern "C" {
       rep= rep->next;
     }
 
-    // if it was a bool ...
-    if (error_state == false)
+    // correct data retrieved 
+    if (!error_state)
     {
       oc_send_cbor_response(request, OC_STATUS_CHANGED);
 
@@ -615,24 +616,26 @@ extern "C" {
       if (g_fault_OnOff_1 == false)
       {
         PRINT("No Fault update feedback to %d'", g_OnOff_1);
-        /* no fault hence update the feedback with the current state of the actuator */
         g_InfoOnOff_1 = g_OnOff_1;
       }
       else
       {
-        /* fault hence update the feedback with "false" */
         PRINT("Fault'");
         g_InfoOnOff_1 = false;
       }
-      /* send the status information InfoOnOff_1 to '/p/2' with flag 'w' */
+
+
+      // this is the 'simple' method to trigger a status on a specific EP 
       PRINT("Send status to '/p/2' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_1, "w");
       do_put_cb(URL_ONOFF_1);
+
+
       PRINT("-- End put_OnOff_1");
       return;
     }
-    /* request data was not recognized, so it was a bad request */
-    oc_send_response(request, OC_STATUS_BAD_REQUEST);
+    // no correct data retrieved 
+    oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_1");
   }
 
@@ -663,7 +666,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_REQUEST);
+      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -735,7 +738,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
+        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -755,7 +758,7 @@ extern "C" {
     }
     else
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_InfoOnOff_1");
   }
@@ -787,7 +790,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_REQUEST);
+      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -859,7 +862,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
+        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -879,7 +882,7 @@ extern "C" {
     }
     else
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_2");
   }
@@ -951,7 +954,7 @@ extern "C" {
       return;
     }
     /* request data was not recognized, so it was a bad request */
-    oc_send_response(request, OC_STATUS_BAD_REQUEST);
+    oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_2");
   }
 
@@ -982,7 +985,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_REQUEST);
+      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1054,7 +1057,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
+        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -1074,7 +1077,7 @@ extern "C" {
     }
     else
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_InfoOnOff_2");
   }
@@ -1106,7 +1109,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_response(request, OC_STATUS_BAD_REQUEST);
+      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1178,7 +1181,7 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_response_no_format(request, OC_STATUS_BAD_OPTION);
+        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
       oc_send_cbor_response(request, OC_STATUS_OK);
       return;
@@ -1198,7 +1201,7 @@ extern "C" {
     }
     else
     {
-      oc_send_response(request, OC_STATUS_BAD_OPTION);
+      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_3");
   }
@@ -1270,7 +1273,7 @@ extern "C" {
       return;
     }
     /* request data was not recognized, so it was a bad request */
-    oc_send_response(request, OC_STATUS_BAD_REQUEST);
+    oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_3");
   }
 
