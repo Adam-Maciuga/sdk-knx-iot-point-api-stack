@@ -642,7 +642,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 	// no single error occured ...
 	if (status_ok)
 	{
-		oc_knx_increase_fingerprint();
+		// create fp/g --> update
+	  oc_knx_increase_fingerprint();
 		oc_prepare_no_format_response_no_payload(request, return_status);
 		return;
 	}
@@ -747,10 +748,12 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	oc_delete_group_object_table_entry(index);
 	oc_dump_group_object_table_entry(index);
+
+	// delete fp/g --> update
 	oc_knx_increase_fingerprint();
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
 	PRINT("oc_core_fp_g_x_del_handler - end");
-	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 #ifdef OC_PUBLISHER_TABLE
@@ -1128,6 +1131,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 		rep = rep->next;
 	}
 
+	// create fp/p --> update
 	oc_knx_increase_fingerprint();
 	oc_prepare_no_format_response_no_payload(request, return_status);
 
@@ -1263,7 +1267,10 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	// make the change persistent
 	oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+
+  // delete fp/g --> update
 	oc_knx_increase_fingerprint();
+	
 	PRINT("oc_core_fp_p_x_del_handler - end");
 
 	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
@@ -1565,10 +1572,10 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 				}
 				else
 				{
-					const bool do_save = true;
+					bool do_save = true;
 					if (oc_string_len(g_grt[index].url) > OC_MAX_URL_LENGTH)
 					{
-						// do_save = false;
+						do_save = false;
 						OC_ERR("url is longer than %d ", (int) OC_MAX_URL_LENGTH);
 					}
 
@@ -1588,6 +1595,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 		rep = rep->next;
 	}
 
+	// create fp/r --> update
 	oc_knx_increase_fingerprint();
 	oc_prepare_no_format_response_no_payload(request, return_status);
 
@@ -1718,11 +1726,12 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 	// make the change persistent
 	oc_dump_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+
+	// delete fp/r --> update
 	oc_knx_increase_fingerprint();
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
 	PRINT("oc_core_fp_r_x_del_handler - end");
-
-	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",
