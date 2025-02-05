@@ -75,27 +75,30 @@ oc_query_values_available(oc_request_t* request)
 	return false;
 }
 
-void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code)
+void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
 		const int length = oc_rep_get_encoded_payload_size();
 
-		if ((response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED) && length == 0)
+		if (length == 0 && (response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED))
 		{
-      // OK/CHANGED + NO payload => format as OK/CHANGED + NO FORMAT + NO payload
-      oc_send_no_format_response_no_payload(request, response_code);
-      return;
-    }
+			// OK/CHANGED + NO payload => format as OK/CHANGED + NO FORMAT + NO payload
+			request->response->response_buffer->content_format = CONTENT_NONE;
+		}
+		else
+		{
+			// all others combinations ...
+			request->response->response_buffer->content_format = APPLICATION_CBOR;
 
-		// all others combinations ...
-		request->response->response_buffer->content_format = APPLICATION_CBOR;
-		request->response->response_buffer->response_length = length;
+		}
+
+	  request->response->response_buffer->response_length = length;
 		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
 
-void oc_send_json_response(oc_request_t* request, oc_status_t response_code)
+void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
@@ -105,7 +108,7 @@ void oc_send_json_response(oc_request_t* request, oc_status_t response_code)
 	}
 }
 
-void oc_send_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length)
+void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
@@ -115,7 +118,7 @@ void oc_send_linkformat_response(oc_request_t* request, oc_status_t response_cod
 	}
 }
 
-void oc_send_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code)
+void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code)
 {
 	if (request && request->response && request->response->response_buffer)
 	{
@@ -566,7 +569,7 @@ void oc_indicate_separate_response(oc_request_t* request,
 																	 oc_separate_response_t* response)
 {
 	request->response->separate_response = response;
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
 void oc_set_separate_response_buffer(oc_separate_response_t* handle)

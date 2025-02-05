@@ -291,7 +291,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
 		//handle bad request..., note below layer ignores this message if it is a multicast request
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -333,7 +333,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	if (request->query_len == 0 && request->origin && (request->origin->flags & MULTICAST) != 0)
 	{
 		response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		return;
 	}
 
@@ -374,7 +374,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)no data on page 5 
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -389,7 +389,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		if (request->origin && (request->origin->flags & MULTICAST) == 0)
 		{
 			// unicast: query parameter key NOT found
-			oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+			oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		}
 		else
 		{
@@ -410,14 +410,14 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
 			PRINT("device not at 'runtime'");
-			oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 			return;
 		}
 
 		if (strncmp(d_request, "urn:knx:g.s.*", 13) == 0)
 		{
 			// quote from EITT test 5.1.1.8: "Must fail since the response would likely be excessively large"
-			oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 			return;
 		}
 
@@ -427,14 +427,14 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		if (at_least_one_added)
 		{
 			// unicast or multicast request w/ query parameter and hit
-			oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+			oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		}
 		else
 		{
 			if (request->origin && (request->origin->flags & MULTICAST) == 0)
 			{ // on unicast request w/ query parameter and NO hit
 				// TODO topic will be decided by iot group (#14 clarification list)
-				oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+				oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 			}
 			else
 			{ // on multicast request w/ query parameter and NO hit
@@ -473,7 +473,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 					if (request->origin && (request->origin->flags & MULTICAST) == 0)
 					{
 						// on unicast request w/ query parameter and NO hit
-						oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+						oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 					}
 					else
 					{
@@ -512,7 +512,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			if (request->origin && (request->origin->flags & MULTICAST) == 0)
 			{
 				// unicast request w/ query parameter and NO PRG mode set
-				oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+				oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 			}
 			else
 			{
@@ -562,7 +562,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			if (iid == device->iid)
 			{
 				response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
-				oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+				oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 				return;
 			}
 		}
@@ -601,7 +601,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 				strstr(oc_string(device->serialnumber), sn_substr) != NULL)
 		{
 			response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
-			oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+			oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		}
 		else
 		{
@@ -656,7 +656,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 
 		PRINT("oc_wkcore_discovery_handler send matching response with length = %d", (int) response_length);
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
@@ -669,7 +669,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		{ // unicast request
 
 			PRINT("oc_wkcore_discovery_handler unicast request, no match -> send unicast response with length = 0");
-			oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+			oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		}
 		else
 		{ // multicast request

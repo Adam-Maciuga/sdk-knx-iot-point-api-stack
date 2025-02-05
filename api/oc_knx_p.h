@@ -43,4 +43,4 @@ void oc_create_knx_p_resources(size_t device);
 }
 #endif
 
-#endif /* OC_KNX_FB_INTERNAL_H */
+#endif

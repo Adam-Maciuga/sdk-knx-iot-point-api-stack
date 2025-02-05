@@ -226,12 +226,12 @@ const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_l
 	if (!uri || uri_len == 0)
 		return NULL;
 
-	// to distinguish /p/x or p/x; tolerate a product 'href' w/wo a "/" 
+	// to distinguish /p/x or p/x; tolerate a product 'href' w/wo a '/'
 	const int skip = uri[0] != '/' ? 1 : 0;
 
 	// never NULL except no application resources at all
   const oc_resource_t* res = oc_ri_get_app_resources();
-	while (res != NULL)
+	while (res)
 	{
 		if (oc_string_len(res->uri) == (uri_len + skip) &&
 				strncmp(uri, oc_string(res->uri) + skip, uri_len) == 0 &&

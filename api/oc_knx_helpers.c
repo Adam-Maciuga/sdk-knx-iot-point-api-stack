@@ -60,31 +60,31 @@ bool query_l_was_processed(oc_request_t* request, const int ps, const int total)
 
   if (!ps_exists && !total_exists)
   { // query l exist but with no 'ps' or 'total' 
-    oc_send_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
     return true;        
   }
 
   if (ps_exists && total_exists && request->query_len > sizeof("l=total&l=ps") - 1)
   { // query l exist with 'ps' and 'total' but other query parameter as well 
-    oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return true;        
   }
 
   if (ps_exists && !total_exists && request->query_len > sizeof("l=ps") - 1)
   { // query l exist with 'ps' but other query parameter as well 
-    oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return true;        
   }
 
   if (!ps_exists && total_exists && request->query_len > sizeof("l=total") - 1)
   { // query l exist with 'total' but other query parameter as well 
-    oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return true;        
   }
 
   // good enough
   const int response_length = oc_frame_query_l(oc_string(request->resource->uri), ps_exists, ps, total_exists, total);
-  oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+  oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
   return true;          
 }
 

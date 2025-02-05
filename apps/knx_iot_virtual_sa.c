@@ -458,7 +458,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -536,9 +536,9 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }
     oc_rep_begin_root_object();
@@ -552,11 +552,11 @@ extern "C" {
     PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
     if (error_state == false)
     {
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
     }
     else
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_1");
   }
@@ -581,22 +581,21 @@ extern "C" {
 
     PRINT("-- Begin put_OnOff_1");
 
-    // handle the different requests
-    if (oc_is_redirected_request(request))
+    // handle the different requests, here only included as example to
+    // identify if extra data needs to be processed in the endpoint
+    if (oc_is_redirected_request_from(request) > -1)
     {
       PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
-
-    // sets the pointer to 'value' from request
-    // don't change this pointer content, it points to the original request payload 
+    
+    // sets the pointer to the (/k /p) handed over object
     const oc_rep_t* rep = request->request_payload;
     bool error_state = true;
 
-    // loop over all 'value' entries from request (ignore any non bool item ...)
-    while (rep != NULL)
+    // loop over object
+    while (rep)
     {
-      // this EP accepts only a bool
-      // a possible faulty value construct such as {1: 2, 1: true} would work ...
+      // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true} may need to be skipped
       if (rep->iname == 1 && rep->type == OC_REP_BOOL)
       {
         PRINT("put_OnOff_1 received : %d", rep->value.boolean);
@@ -610,7 +609,7 @@ extern "C" {
     // correct data retrieved 
     if (!error_state)
     {
-      oc_send_cbor_response(request, OC_STATUS_CHANGED);
+      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 
       // update the status information of InfoOnOff_1 
       if (g_fault_OnOff_1 == false)
@@ -635,7 +634,7 @@ extern "C" {
       return;
     }
     // no correct data retrieved 
-    oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_1");
   }
 
@@ -666,7 +665,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -738,9 +737,9 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }
     oc_rep_begin_root_object();
@@ -754,11 +753,11 @@ extern "C" {
     PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
     if (error_state == false)
     {
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
     }
     else
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_InfoOnOff_1");
   }
@@ -790,7 +789,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -862,9 +861,9 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }
     oc_rep_begin_root_object();
@@ -878,11 +877,11 @@ extern "C" {
     PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
     if (error_state == false)
     {
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
     }
     else
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_2");
   }
@@ -906,20 +905,21 @@ extern "C" {
     (void) user_data;
     PRINT("-- Begin put_OnOff_2:");
 
-    /* handle the different requests e.g. via s-mode or normal CoAP call*/
-    if (oc_is_redirected_request(request))
+    // handle the different requests, here only included as example to
+    // identify if extra data needs to be processed in the endpoint 
+    if (oc_is_redirected_request_from(request) > -1)
     {
       PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
 
+    // sets the pointer to the (/k /p) handed over object
     oc_rep_t* rep = request->request_payload;
     bool error_state = true;
     
-    // loop over all the entries in the request
-    
-    while (rep != NULL)
+    // loop over object
+    while (rep)
     {
-      /* handle the type of payload correctly. */
+      // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true} may need to be skipped
       if (rep->iname == 1 && rep->type == OC_REP_BOOL)
       {
         PRINT("put_OnOff_2 received : %d", rep->value.boolean);
@@ -930,9 +930,9 @@ extern "C" {
       rep= rep->next;
     }
 
-    if (error_state == false)
+    if (!error_state)
     {
-      oc_send_cbor_response(request, OC_STATUS_CHANGED);
+      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_2*/
       if (g_fault_OnOff_2 == false)
       {
@@ -954,7 +954,7 @@ extern "C" {
       return;
     }
     /* request data was not recognized, so it was a bad request */
-    oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_2");
   }
 
@@ -985,7 +985,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1057,9 +1057,9 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }
     oc_rep_begin_root_object();
@@ -1073,11 +1073,11 @@ extern "C" {
     PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
     if (error_state == false)
     {
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
     }
     else
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_InfoOnOff_2");
   }
@@ -1109,7 +1109,7 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1181,9 +1181,9 @@ extern "C" {
       else
       {
         /* device is NULL */
-        oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
       }
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }
     oc_rep_begin_root_object();
@@ -1197,11 +1197,11 @@ extern "C" {
     PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
     if (error_state == false)
     {
-      oc_send_cbor_response(request, OC_STATUS_OK);
+      oc_prepare_cbor_response(request, OC_STATUS_OK);
     }
     else
     {
-      oc_send_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_3");
   }
@@ -1226,19 +1226,21 @@ extern "C" {
 
     PRINT("-- Begin put_OnOff_3:");
 
-    /* handle the different requests e.g. via s-mode or normal CoAP call*/
-    if (oc_is_redirected_request(request))
+    // handle the different requests, here only included as example to
+    // identify if extra data needs to be processed in the endpoint 
+    if (oc_is_redirected_request_from(request) > -1)
     {
-      PRINT("-- redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
+      PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
 
+    // sets the pointer to the (/k /p) handed over object
     oc_rep_t* rep = request->request_payload;
     bool error_state = true;
 
-    // loop over all the entries in the request
-    while (rep != NULL)
+    // loop over object
+    while (rep)
     {
-      /* handle the type of payload correctly. */
+      // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true} may need to be skipped
       if (rep->iname == 1 && rep->type == OC_REP_INT)
       {
         PRINT("-- put_OnOff_3 received : %lld", rep->value.integer);
@@ -1249,9 +1251,9 @@ extern "C" {
       rep= rep->next;
     }
 
-    if (error_state == false)
+    if (!error_state)
     {
-      oc_send_cbor_response(request, OC_STATUS_CHANGED);
+      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_3*/
       if (g_fault_OnOff_3 == false)
       {
@@ -1273,7 +1275,7 @@ extern "C" {
       return;
     }
     /* request data was not recognized, so it was a bad request */
-    oc_send_cbor_response(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_3");
   }
 

@@ -512,7 +512,7 @@ extern "C" {
 		oc_string_t uri;                      // uri of the resource 
 		oc_string_array_t types;              // "rt" types of the resource (e.g. "urn:knx:dpa.0.58" -> dev/da) 
 		oc_string_t dpt;                      // dpt of the resource 
-		oc_content_format_t content_type;     // content format that the - in response included - resources supports (one at the moment)  
+		oc_content_format_t content_type;     // content format that the - in response included - resources supports (one at the moment, there is no EP in a LL response that needs to support > 1)  
 		oc_resource_properties_t properties;  // properties (as bit mask) 
 		oc_request_handler_t get_handler;     // callback for GET 
 		oc_request_handler_t put_handler;     // callback for PUT 
@@ -630,7 +630,7 @@ extern "C" {
 	 * @param uri the uri of the resource
 	 * @param uri_len the length of the uri
 	 * @param device the device index
-	 * @return oc_resource_t* the resource structure
+	 * @return oc_resource_t* the resource structure or NULL (request was NULL or no resource found)
 	 */
 	const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device);
 
@@ -774,10 +774,12 @@ extern "C" {
 	bool oc_ri_is_app_resource_valid(const oc_resource_t* resource);
 
 	/**
-	 * @brief create a new request from the old request
-	 * is used internally only for redirection of:
-	 * - k
-	 * - p
+	 * @brief creates a new request from the (old) request by copy 1:1,
+	 *        is used internally for handler calls of /k and /p
+	 *
+	 * @note  take care on editing data when using the new request
+	 *        such as in application, most copied data are pointers,
+	 *        hence a reference to the original src request
 	 *
 	 * @param new_request the original request
 	 * @param request the new request

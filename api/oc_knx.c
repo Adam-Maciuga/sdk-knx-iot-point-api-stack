@@ -125,7 +125,7 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 	if (request->accept != APPLICATION_JSON && !oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
 		// keep setting response code only, since response format may be CBOR or JSON
-	  request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
+		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -136,7 +136,7 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 		response_length += oc_rep_add_line_to_buffer("\"base\": \"/ \"}");
 		response_length += oc_rep_add_line_to_buffer("}");
 
-		oc_send_json_response(request, OC_STATUS_OK);
+		oc_prepare_json_response(request, OC_STATUS_OK);
 		request->response->response_buffer->response_length = response_length;  // overwrite length again (its JSON, not CBOR)
 	}
 	else
@@ -148,7 +148,7 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 		oc_rep_close_object(root, api);
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 	}
 }
 
@@ -312,13 +312,13 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 		oc_rep_set_int(root, time, response_time);
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 		PRINT("oc_core_knx_post_handler - end, reset");
 		return;
 	}
 
 	PRINT("invalid command");
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx, knx_fp_g, 0, "/.well-known/knx",
@@ -475,7 +475,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (device == NULL)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -485,7 +485,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 	oc_rep_i_set_int(root, 3, lsm);
 	oc_rep_end_root_object();
 
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 
 	PRINT("oc_core_a_lsm_get_handler - end");
 }
@@ -511,7 +511,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 	if (device == NULL)
 	{
 		PRINT("oc_core_lsm_post_handler - end");
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -561,11 +561,11 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 		oc_rep_end_root_object();
 
 		// note that also on event 'NOP' a 'changed' is returned 
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 		return;
 	}
 	// invalid event
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(a_lsm, knx_spake, 0, "/a/lsm",
@@ -603,7 +603,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 	oc_device_info_t* device = oc_core_get_device_info(device_index);
 	if (device == NULL)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -613,7 +613,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 	oc_rep_i_set_int(root, 4, device->ia);
 	oc_rep_end_root_object();
 
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 
 	PRINT("oc_core_knx_k_get_handler - done");
 }
@@ -681,7 +681,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	oc_device_info_t* device = oc_core_get_device_info(device_index);
 	if (device == NULL)
 	{
-		oc_send_no_format_response_no_payload(request, OC_IGNORE);
+		oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
@@ -765,7 +765,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	if (oc_is_device_in_runtime(device_index) == false)
 	{
 		PRINT("Device not in runtime state:%d - ignore message", device->lsm_s);
-		oc_send_no_format_response_no_payload(request, OC_IGNORE);
+		oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
@@ -810,15 +810,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	if (go_table_index == -1)
 	{
 		// if nothing is found (initially) then ignore
-		oc_send_no_format_response_no_payload(request, OC_IGNORE);
+		oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
 	// default no read ...
 	bool is_succeeded_read_request = false;
 
-	// create the dummy request, EACH application callback
-	// handler per GA gets an individual copy 
+	// EACH application callback handler gets an own copy of the request + new response buffer  
 	oc_request_t new_request = { 0 };
 	oc_response_buffer_t response_buffer = { 0 };
 	oc_response_t response_obj = { 0 };
@@ -837,7 +836,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 			const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(oc_string(go_href), oc_string_len(go_href), device_index);
 			if (!my_resource)
 			{
-				// silently ignored on unicast ? 
+				// silently ignored on unicast ? (multicast anyhow = IGNORE)
 				return;
 			}
 
@@ -858,15 +857,18 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
 				if (my_resource->put_handler.cb)
 				{
+					// copy request to new request
 					oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
-					// sets the pointer to 'value' from request, used to align data structure
-					// for /p and /k EP to be the same 
-					// take care in application, the  data pointer below is only a reference! 
-					new_request.request_payload = oc_s_mode_get_value(request);
-					new_request.uri_path = "k";
-					new_request.uri_path_len = 1;
+					// sets the payload pointer to the 'value' OBJECT,
+				  // used by /p and /k that calls the same application callback handlers 
+					new_request.request_payload = oc_s_mode_get_value_object(request);
 
+					// set src to /k for a redirect check in application callback handler 
+					new_request.uri_path = "/k";
+					new_request.uri_path_len = 2;
+
+					// use new request (not received one with POST), user data are possible for write
 					my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
 
 					// TODO wrong here 
@@ -893,14 +895,20 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 				// calling the put handler, since datapoints are implementing GET/PUT
 				if (my_resource->put_handler.cb)
 				{
-					oc_ri_new_request_from_request(&new_request, request,
-																				 &response_buffer, &response_obj);
-					new_request.request_payload = oc_s_mode_get_value(request);
-					new_request.uri_path = "k";
-					new_request.uri_path_len = 1;
+					// copy request to new request
+					oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
-					my_resource->put_handler.cb(&new_request, iface_mask,
-																			my_resource->put_handler.user_data);
+					// sets the payload pointer to the 'value' OBJECT,
+					// used by /p and /k that calls the same application callback handlers 
+					new_request.request_payload = oc_s_mode_get_value_object(request);
+
+					// set src to /k for a redirect check in application callback handler 
+				  new_request.uri_path = "/k";
+					new_request.uri_path_len = 2;
+
+				  // use new request (not received one with POST), user data are possible for update
+					my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
+
 					if ((cflags & OC_CFLAG_TRANSMISSION) > 0)
 					{
 						PRINT("(case3) (RP-UPDATE) sending WRITE due to TRANSMIT flag");
@@ -927,11 +935,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
 				if (my_resource->get_handler.cb)
 				{
+					// copy request to new request
 					oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
-					new_request.uri_path = oc_string(go_href);
-					new_request.uri_path_len = oc_string_len(go_href);
-					new_request.accept = request->accept;
 
+					// set src to /k for a redirect check in application callback handler 
+					new_request.uri_path = "/k";
+					new_request.uri_path_len = 2;
+
+					// use new request (not received one with POST), user data are not possible for read
 					my_resource->get_handler.cb(&new_request, iface_mask, NULL);
 				}
 
@@ -951,7 +962,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	if (request->origin && (request->origin->flags & MULTICAST))
 	{
 		PRINT("k : Multicast - not sending response");
-		oc_send_no_format_response_no_payload(request, OC_IGNORE);
+		oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
 		return;
 	}
 
@@ -959,12 +970,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	if (is_succeeded_read_request && oc_rep_get_encoded_payload_size() > 0)
 	{
 		// payload > 0, ends up in CBOR = OK
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 	}
 	else
 	{
 		// payload = 0, ends up in NO FORMAT = CHANGED
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 	}
 }
 
@@ -1010,7 +1021,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 	if (oc_a_lsm_state(device_index) != LSM_S_LOADED)
 	{
 		OC_ERR("not in loaded state");
-		oc_send_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
 		return;
 	}
 
@@ -1019,7 +1030,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 	oc_rep_end_root_object();
 
 	PRINT("oc_core_knx_fingerprint_get_handler - done");
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fingerprint, knx_ia, 0, "/.well-known/knx/f",
@@ -1052,7 +1063,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1100,11 +1111,11 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 			oc_device_info_t* device = oc_core_get_device_info(device_index);
 			knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 		}
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 	}
 	else
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 	}
 }
 
@@ -1287,7 +1298,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 	if (oc_a_lsm_state(device_index) != LSM_S_UNLOADED)
 	{
 		OC_ERR(" not in unloaded state");
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1334,7 +1345,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 
 	if (valid_request == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	rep = request->request_payload;

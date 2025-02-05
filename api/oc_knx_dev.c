@@ -42,7 +42,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -56,11 +56,11 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 		oc_rep_i_set_text_string(root, 1, oc_string(device->serialnumber));
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_sn, dev_hwv, 0, "/dev/sn", 
@@ -93,7 +93,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_dev_hwv_get_handler");
@@ -110,10 +110,10 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
 		oc_rep_begin_root_object();
 		oc_rep_i_set_int_array(root, 1, array, 3);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
-	oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_hwv, dev_fwv, 0, "/dev/hwv", 
@@ -144,7 +144,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -160,11 +160,11 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
 		oc_rep_begin_root_object();
 		oc_rep_i_set_int_array(root, 1, array, 3);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_fwv, dev_hwt, 0, "/dev/fwv", 
@@ -197,7 +197,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -208,10 +208,10 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
 		oc_rep_begin_root_object();
 		oc_rep_i_set_text_string(root, 1, oc_string(device->hwt));
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
-	oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_hwt, dev_model, 0, "/dev/hwt", 
@@ -245,7 +245,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -256,10 +256,10 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
 		oc_rep_begin_root_object();
 		oc_rep_i_set_text_string(root, 1, oc_string(device->model));
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_model, dev_hostname, 0, "/dev/model",
@@ -292,7 +292,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -319,14 +319,14 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
 					my_hostname->cb(device_index, rep->value.string, my_hostname->data);
 				}
 
-				oc_send_cbor_response(request, OC_STATUS_CHANGED);
+				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
 			}
 		}
 		rep = rep->next;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -338,7 +338,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -350,10 +350,10 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 		oc_rep_begin_root_object();
 		oc_rep_i_set_text_string(root, 1, oc_string(device->hostname));
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_hostname, dev_iid, 0, "/dev/hname",
@@ -386,7 +386,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -413,14 +413,14 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 					knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 				}
 
-				oc_send_cbor_response(request, OC_STATUS_CHANGED);
+				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
 			}
 		}
 		rep = rep->next;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -430,7 +430,7 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -442,11 +442,11 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
 		oc_rep_i_set_int(root, 1, device->iid);
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_iid, dev_pm, 0, "/dev/iid",
@@ -487,7 +487,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -513,7 +513,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -556,7 +556,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 	}
 
 	// there must be at least one IPv6 address (otherwise no comm. is possible)
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 
 	PRINT("oc_core_dev_ipv6_get_handler - end");
 }
@@ -591,7 +591,7 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -605,11 +605,11 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request, oc_interface_mask_
 		oc_rep_i_set_boolean(root, 1, device->pm); // knx PRG mode 
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 // internal, can only be used/linked from this file 
@@ -622,7 +622,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -648,14 +648,14 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
 				knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 				oc_storage_write(KNX_STORAGE_PM, (uint8_t*) &(rep->value.boolean), 1);
 
-				oc_send_cbor_response(request, OC_STATUS_CHANGED);
+				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
 			}
 		}
 		rep = rep->next;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_pm, dev_ipv6, 0, "/dev/pm",
@@ -717,7 +717,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -746,12 +746,12 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
 		// resources are mandatory, hence this can't be correct here
-		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	PRINT("oc_core_dev_dev_get_handler - end");
@@ -785,7 +785,7 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -798,11 +798,11 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
 		oc_rep_i_set_int(root, 1, sa);
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_sa, dev_da, 0, "/dev/sna",
@@ -835,7 +835,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -848,11 +848,11 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
 		uint8_t da = device->ia;
 		oc_rep_i_set_int(root, 1, da);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_da, dev_fid, 0, "/dev/da",
@@ -881,7 +881,7 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -893,11 +893,11 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
 		oc_rep_i_set_int(root, 1, device->fid);
 		oc_rep_end_root_object();
 
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -907,7 +907,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -924,14 +924,14 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
 				uint64_t temp = rep->value.integer;
 				oc_storage_write(KNX_STORAGE_FID, (uint8_t*) &temp, sizeof(temp));
 
-				oc_send_cbor_response(request, OC_STATUS_CHANGED);
+				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
 			}
 		}
 		rep = rep->next;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_fid, dev_port, 0, "/dev/fid", 
@@ -963,7 +963,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -974,11 +974,11 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
 		oc_rep_begin_root_object();
 		oc_rep_i_set_int(root, 1, device->port);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_port, dev_mport, 0, "/dev/port",
@@ -1012,7 +1012,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1023,11 +1023,11 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
 		oc_rep_begin_root_object();
 		oc_rep_i_set_int(root, 1, device->mport);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 
@@ -1077,7 +1077,7 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1094,11 +1094,11 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 		oc_rep_begin_root_object();
 		oc_rep_i_set_int_array(root, 1, array, 3);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1108,7 +1108,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1124,7 +1124,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
 		int array_size = oc_int_array_size(rep->value.array);
 		if (array_size != 3)
 		{
-			oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 			return;
 		}
 		device->ap.major = (int) arr[0];
@@ -1134,11 +1134,11 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
 		// write to persistent storage
 		oc_core_dump_ap(device_index);
 
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(app_x, a_lsm, 0, "/ap/pv", 
@@ -1181,7 +1181,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1199,7 +1199,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1228,12 +1228,12 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
 		// resources are mandatory, hence this can't be correct here
-		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	PRINT("oc_core_ap_get_handler - end");
@@ -1268,7 +1268,7 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1279,11 +1279,11 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
 		oc_rep_begin_root_object();
 		oc_rep_i_set_int(root, 1, device->mid);
 		oc_rep_end_root_object();
-		oc_send_cbor_response(request, OC_STATUS_OK);
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
 		return;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(dev_mid, dev, 0, "/dev/mid", 

@@ -440,48 +440,47 @@ int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid
   return 0;
 }
 
-// ----------------------------------------------------------------------------
-
-bool oc_is_redirected_request(const oc_request_t* request)
+int oc_is_redirected_request_from(const oc_request_t* request)
 {
-  if (request == NULL)
+  if (!request)
   {
-    return false;
+    return -1;
   }
 
-  if (strncmp("k", request->uri_path, request->uri_path_len) == 0)
+  // /k handler set 'k' and len = 2
+  if (strncmp("/k", request->uri_path, request->uri_path_len) == 0)
   {
-    return true;
+    return 0;
   }
-
+  // /p handler set '/p' and len = 2
   if (strncmp("/p", request->uri_path, request->uri_path_len) == 0)
   {
-    return true;
+    return 1;
   }
-  return false;
+
+  // anything else 
+  return -1;
 }
 
-oc_rep_t*
-oc_s_mode_get_value(oc_request_t* request)
+oc_rep_t* oc_s_mode_get_value_object(oc_request_t* request)
 {
 
-  /* loop over the request document to parse all the data */
+  // loop over the request 
   oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+  while (rep)
   {
     switch (rep->type)
     {
       case OC_REP_OBJECT:
       {
-        // find the storage index, e.g. for this object
+        // get the storage index for this object
         oc_rep_t* object = rep->value.object;
-
-        object = rep->value.object;
-        while (object != NULL)
+        while (object)
         {
           // search for "value" (1)
           if (object->iname == 1)
           {
+            // returns the object that contains the value
             return object;
           }
           object = object->next;

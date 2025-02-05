@@ -37,7 +37,7 @@ extern "C" {
 #define FIRMWARE_NAME      "KNX stack image"
 #define SN                 "00fa10020800"
 #define HOST_NAME          (SN) // default host name (reset uses SN as default)
-#define PASSWORD           "ABY8B77J50YXMUDW3DG4"
+#define PASSWORD           "2X4W3TE0DFLLS19Y1FCH"
 
 #define MID                (0)  // first 4 digits of sn (EITT tests expects 0)
 

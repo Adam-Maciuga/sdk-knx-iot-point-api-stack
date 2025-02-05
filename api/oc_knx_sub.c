@@ -25,7 +25,7 @@ static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_
 
 	(void) iface_mask;
 	(void) data;
-	oc_send_no_format_response_no_payload(request, OC_STATUS_DELETED);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub",

@@ -162,7 +162,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0) page 5 
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -223,12 +223,12 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
 		// some resources are mandatory, hence this can't be correct here
-		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	PRINT("oc_core_fb_x_get_handler - end");
@@ -539,7 +539,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -555,12 +555,12 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
 		// some resources are mandatory, hence this can't be correct here
-		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	PRINT("oc_core_fb_get_handler - end");

@@ -100,7 +100,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
 	oc_rep_end_root_object();
 
 	PRINT("oc_core_knx_auth_o_osndelay_get_handler - done");
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
 static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -110,7 +110,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -123,14 +123,14 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 			{
 				PRINT("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int) rep->type, (int) rep->value.integer);
 				g_oscore_osndelay = rep->value.integer;
-				oc_send_cbor_response(request, OC_STATUS_CHANGED);
+				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
 			}
 		}
 		rep = rep->next;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0, "/auth/o/osndelay",
@@ -168,7 +168,7 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_
 	oc_rep_end_root_object();
 
 	PRINT("oc_core_knx_auth_o_osndelay_get_handler - done");
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
 static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask,
@@ -179,7 +179,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -193,14 +193,14 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d",
 							rep->type, (int) rep->value.integer);
 				g_oscore_replaywindow = rep->value.integer;
-				oc_send_cbor_response(request, OC_STATUS_CHANGED);
+				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
 			}
 		}
 		rep = rep->next;
 	}
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_replwdo, knx_auth_o_osndelay, 0, "/auth/o/replwdo",
@@ -260,7 +260,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -289,12 +289,12 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
 		// resources are mandatory, hence this can't be correct here
-		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 }
 
@@ -344,7 +344,7 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -373,10 +373,10 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 		PRINT("oc_core_a_sen_post_handler cmd %d ", cmd);
 		// renew the credentials, note: this is optional for now
 
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 		return;
 	}
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_a_sen, knx_auth_o_replwdo, 0, "/a/sen",
@@ -529,7 +529,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 	// empty table returns an empty link-response
 	if (total == 0)
 	{
-		oc_send_linkformat_response(request, OC_STATUS_OK, 0);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, 0);
 		return;
 	}
 
@@ -541,7 +541,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= total || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -579,7 +579,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 		// no page # was in the request (query_p =0) = next page 1 else #+1
 		response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 	}
-	oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+	oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 
 	PRINT("oc_core_auth_at_get_handler - end");
 }
@@ -600,7 +600,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	size_t device_index = request->resource->device;
@@ -620,7 +620,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 				if (object->type == OC_REP_MIXED_ARRAY)
 				{
 					PRINT("mixed array as scope is not allowed!");
-					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+					oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 				object = object->next;
@@ -631,7 +631,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 			if (at == NULL)
 			{
 				PRINT("access token not found!");
-				oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+				oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 				return;
 			}
 			index = find_index_from_at(at);
@@ -647,7 +647,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 				if (index == -1)
 				{
 					PRINT("no space left!");
-					oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+					oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 					return;
 				}
 			}
@@ -677,7 +677,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 							if (if_mask == OC_IF_LI)
 							{
 								OC_ERR("   if.ll is not a valid access scope!");
-								oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+								oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 								return;
 							}
 							interfaces = interfaces + if_mask;
@@ -898,7 +898,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 		oc_init_oscore_from_storage(device_index, false);
 	}
 
-	oc_send_no_format_response_no_payload(request, return_status);
+	oc_prepare_no_format_response_no_payload(request, return_status);
 	PRINT("oc_core_auth_at_post_handler - end");
 }
 
@@ -917,7 +917,7 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 	size_t device_index = request->resource->device;
 	oc_delete_at_table(device_index);
 
-	oc_send_no_format_response_no_payload(request, OC_STATUS_DELETED);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 	PRINT("oc_core_auth_at_delete_handler - end");
 }
 
@@ -946,7 +946,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_auth_at_x_get_handler - start");
@@ -959,7 +959,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 	// - delete the index.
 	if (value_len <= 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		PRINT("index (at) not found");
 		return;
 	}
@@ -969,7 +969,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 	// - delete the index.
 	if (index < 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		PRINT("index in structure not found");
 		return;
 	}
@@ -1065,7 +1065,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 
 	oc_rep_end_root_object();
 
-	oc_send_cbor_response(request, OC_STATUS_OK);
+	oc_prepare_cbor_response(request, OC_STATUS_OK);
 	PRINT("oc_core_auth_at_x_get_handler - end");
 }
 
@@ -1081,7 +1081,7 @@ void oc_core_auth_at_x_post_handler(oc_request_t* request, oc_interface_mask_t i
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_auth_at_x_post_handler - start");
@@ -1106,10 +1106,10 @@ void oc_core_auth_at_x_post_handler(oc_request_t* request, oc_interface_mask_t i
 	if (changed == true)
 	{
 		PRINT("cmd %d", cmd);
-		oc_send_cbor_response(request, OC_STATUS_CHANGED);
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 		return;
 	}
-	oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
 static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1134,7 +1134,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 	// - delete the index.
 	if (value_len <= 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		PRINT("index (at) not found");
 		return;
 	}
@@ -1144,7 +1144,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 	// - delete the index.
 	if (index < 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		PRINT("oc_core_auth_at_x_delete_handler: index in structure not found");
 		return;
 	}
@@ -1159,7 +1159,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 #endif
 
 	PRINT("oc_core_auth_at_x_delete_handler - done");
-	oc_send_no_format_response_no_payload(request, OC_STATUS_DELETED);
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at_x, knx_auth, 0, "/auth/at/*",
@@ -1221,7 +1221,7 @@ oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_ma
 	// - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
 	if (first_entry >= last_entry || query_ps == 0)
 	{
-		oc_send_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1249,12 +1249,12 @@ oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_ma
 			// no page # was in the request (query_p =0) = next page 1 else #+1
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
-		oc_send_linkformat_response(request, OC_STATUS_OK, response_length);
+		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
 	{
 		// some resources are mandatory, hence this can't be correct here
-		oc_send_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	PRINT("oc_core_knx_auth_get_handler - end");

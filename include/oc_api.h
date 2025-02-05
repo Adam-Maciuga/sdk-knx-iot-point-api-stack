@@ -991,7 +991,7 @@ extern "C" {
 	 * @param request the request being responded to
 	 * @param response_code the status of the response
 	 */
-	void oc_send_cbor_response(oc_request_t* request, oc_status_t response_code);
+	void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code);
 
 
 	/**
@@ -1008,7 +1008,7 @@ extern "C" {
 	 * @param request the request being responded to
 	 * @param response_code the request being responded to
 	 */
-	void oc_send_json_response(oc_request_t* request, oc_status_t response_code);
+	void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code);
 
 	/**
 	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
@@ -1021,7 +1021,7 @@ extern "C" {
 	 * @param response_code the request being responded to
 	 * @param response_length the framed response length
 	 */
-	void oc_send_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length);
+	void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length);
 
 	/**
 	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
@@ -1033,7 +1033,7 @@ extern "C" {
 	 * @param request the request being responded to
 	 * @param response_code the to be used response code
 	 */
-	void oc_send_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
+	void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
 
 	/**
 	 * @brief retrieve the payload from the request, no processing

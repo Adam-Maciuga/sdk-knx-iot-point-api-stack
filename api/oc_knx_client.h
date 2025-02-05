@@ -124,20 +124,20 @@ bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
 oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
 
 /**
- * @brief  checks if the request is a redirected request from /k or /p
- *         when that happened, extra information can be in the CBOR object. 
- *         An endpoint allows a stack 'redirect' call such as:
- * - from STACK s-mode /k with { 4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
- * - from STACK CoAP /p/... with { 1: true }
- * - from internal application, such as call handler "put_OnOff_1"
+ * @brief  checks if the request is a redirected request from /k or /p,
+ *         when that happened, extra information can be in the CBOR object.
  *
- * @note  this method allows to skip code that may ask for data that are only present on STACK call  
+ * @note   an endpoint allows a stack 'redirect' call such as:
+ *         - from s-mode /k with { 4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
+ *         - from CoAP /p with { 1: true, 'min': 50, ... }, here extra CBOR data are applied to value  
+ * 
  *
  * @param request the request to be checked
- * @return true
- * @return false
+ * @return 1, call came from /p 
+ * @return 0, call came from /k
+ * @return -1, call came from anything else or request was NULL
  */
-bool oc_is_redirected_request(const oc_request_t *request);
+int oc_is_redirected_request_from(const oc_request_t *request);
 
 /**
   @defgroup doc_module_tag_s_mode_client s-mode client
@@ -154,12 +154,12 @@ bool oc_is_redirected_request(const oc_request_t *request);
 */
 
 /**
- * @brief parses out the value of the s-mode request.
+ * @brief parses out the value OBJECT of the s-mode request.
  *
  * @param request the request
- * @return oc_rep_t* the rep
+ * @return oc_rep_t* the rep object
  */
-oc_rep_t *oc_s_mode_get_value(oc_request_t *request);
+oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
 
 /** @} */ // end of doc_module_tag_s_mode_server
 
