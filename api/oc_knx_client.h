@@ -129,7 +129,8 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
  *
  * @note   an endpoint allows a stack 'redirect' call such as:
  *         - from s-mode /k with { 4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
- *         - from CoAP /p with { 1: true, 'min': 50, ... }, here extra CBOR data are applied to value  
+ *         - from CoAP /p with { 1: true, 'min': 50, ... },
+ *           here extra CBOR data may be applied to the value  
  * 
  *
  * @param request the request to be checked

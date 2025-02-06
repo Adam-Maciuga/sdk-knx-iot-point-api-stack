@@ -290,8 +290,6 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		//handle bad request..., note below layer ignores this message if it is a multicast request
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 

@@ -80,30 +80,16 @@ void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code)
 	if (request && request->response && request->response->response_buffer)
 	{
 		const int length = oc_rep_get_encoded_payload_size();
-
-		if (length == 0 && (response_code == OC_STATUS_OK || response_code == OC_STATUS_CHANGED))
+		if (length == 0)
 		{
-			// OK/CHANGED + NO payload => format as OK/CHANGED + NO FORMAT + NO payload
-			request->response->response_buffer->content_format = CONTENT_NONE;
+			// same as 'oc_prepare_no_format_response_no_payload'
+		  request->response->response_buffer->content_format = CONTENT_NONE;
 		}
 		else
 		{
-			// all others combinations ...
 			request->response->response_buffer->content_format = APPLICATION_CBOR;
-
 		}
-
-	  request->response->response_buffer->response_length = length;
-		request->response->response_buffer->code = oc_status_code(response_code);
-	}
-}
-
-void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code)
-{
-	if (request && request->response && request->response->response_buffer)
-	{
-		request->response->response_buffer->content_format = APPLICATION_JSON;
-		request->response->response_buffer->response_length = oc_rep_get_encoded_payload_size();
+		request->response->response_buffer->response_length = length;
 		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
@@ -113,7 +99,7 @@ void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_
 	if (request && request->response && request->response->response_buffer)
 	{
 		request->response->response_buffer->content_format = APPLICATION_LINK_FORMAT;
-		request->response->response_buffer->response_length = oc_rep_get_encoded_payload_size();
+		request->response->response_buffer->response_length = response_length;
 		request->response->response_buffer->code = oc_status_code(response_code);
 	}
 }
@@ -159,8 +145,7 @@ int oc_iterate_query(oc_request_t* request, char** key, size_t* key_len, char** 
 	return oc_ri_get_query_nth_key_value(request->query, request->query_len, key, key_len, value, value_len, query_iterator);
 }
 
-bool oc_iterate_query_get_values(oc_request_t* request, const char* key,
-																 char** value, int* value_len)
+bool oc_iterate_query_get_values(oc_request_t* request, const char* key,																 char** value, int* value_len)
 {
 	char* current_key = 0;
 	size_t key_len = 0, v_len;
@@ -206,8 +191,7 @@ bool oc_get_request_payload_raw(oc_request_t* request, const uint8_t** payload,
 	return false;
 }
 
-void
-oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size,
+void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size,
 										 oc_content_format_t content_format,
 										 oc_status_t response_code)
 {
@@ -254,10 +238,6 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 
 			// types
 			oc_new_string_array(&resource->types, num_resource_types);
-
-
-
-
 
 			// properties
 			resource->properties = OC_DISCOVERABLE;

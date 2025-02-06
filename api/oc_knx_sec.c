@@ -91,7 +91,6 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -110,7 +109,6 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -159,7 +157,6 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	// cbor_encode_uint(&g_encoder, g_oscore_replaywindow);
@@ -179,7 +176,6 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -242,7 +238,6 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -344,7 +339,6 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -515,7 +509,6 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -600,7 +593,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	size_t device_index = request->resource->device;
@@ -910,7 +902,6 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -946,7 +937,6 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_auth_at_x_get_handler - start");
@@ -1081,7 +1071,6 @@ void oc_core_auth_at_x_post_handler(oc_request_t* request, oc_interface_mask_t i
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_auth_at_x_post_handler - start");
@@ -1121,7 +1110,6 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_auth_at_x_delete_handler - start");
@@ -1203,7 +1191,6 @@ oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 

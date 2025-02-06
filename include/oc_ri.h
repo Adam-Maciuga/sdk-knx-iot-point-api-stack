@@ -620,7 +620,7 @@ extern "C" {
 	 * @param accept the content type of the resource
 	 *
 	 * @return true content type is ok
-	 * @return false content type is not ok
+	 * @return false content type is not ok => response payload is prepared with BAD REQUEST, NO CONTENT, NO PAYLOAD
 	 */
 	bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
 

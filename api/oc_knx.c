@@ -122,10 +122,8 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 	(void) iface_mask;
 
 	// this EP MUST support JSON in addition (KNX IoT specification clause 5.1.3)
-	if (request->accept != APPLICATION_JSON && !oc_accept_header_is_ok(request, APPLICATION_CBOR))
+	if (!oc_accept_header_is_ok(request, APPLICATION_JSON) && !oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		// keep setting response code only, since response format may be CBOR or JSON
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -136,8 +134,10 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 		response_length += oc_rep_add_line_to_buffer("\"base\": \"/ \"}");
 		response_length += oc_rep_add_line_to_buffer("}");
 
-		oc_prepare_json_response(request, OC_STATUS_OK);
-		request->response->response_buffer->response_length = response_length;  // overwrite length again (its JSON, not CBOR)
+		// no own json response method defined, only one occurence so far
+		request->response->response_buffer->content_format = APPLICATION_JSON;
+		request->response->response_buffer->response_length = response_length;
+		request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
 	}
 	else
 	{
@@ -285,8 +285,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 		cached_value = value;
 
 		oc_set_delayed_callback_ms(NULL, restart, 100);
-		PRINT("oc_core_knx_post_handler - end, restart");
-		return;
+		PRINT("oc_core_knx_post_handler - end, restart");		return;
 	}
 	if (cmd == RESET_DEVICE)
 	{
@@ -465,7 +464,6 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -475,8 +473,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (device == NULL)
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-		return;
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);		return;
 	}
 
 	oc_lsm_state_t lsm = oc_a_lsm_state(device_index);
@@ -499,9 +496,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 	PRINT("oc_core_lsm_post_handler - start");
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
-		return;
+	{		return;
 	}
 
 	// get from the request the addressed device as index
@@ -561,8 +556,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 		oc_rep_end_root_object();
 
 		// note that also on event 'NOP' a 'changed' is returned 
-		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-		return;
+		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);		return;
 	}
 	// invalid event
 	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -594,7 +588,6 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -603,8 +596,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 	oc_device_info_t* device = oc_core_get_device_info(device_index);
 	if (device == NULL)
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-		return;
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);		return;
 	}
 
 	// { 4: "ia of device" }, see #32 of KNX clarifications
@@ -618,7 +610,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 	PRINT("oc_core_knx_k_get_handler - done");
 }
 
-// sia: 5678, s: {st: write, ga: 1, value: 100 }, note value can be anything incl. a string
+// { sia: 5678, s: {st: write, ga: 1, value: 100 }}, note : value can be anything incl. a string
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
@@ -639,7 +631,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_IGNORE);
 		return;
 	}
 
@@ -670,8 +661,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 				if (origin->addr.ipv6.port == ep_i->addr.ipv6.port)
 				{
 					request->response->response_buffer->code = oc_status_code(OC_IGNORE);
-					PRINT("same address and port: not handling message");
-					return;
+					PRINT("same address and port: not handling message");					return;
 				}
 			}
 		}
@@ -781,27 +771,19 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
 	if (strcmp(oc_string_checked(received_notification.st), "w") == 0)
 	{
-		// case_1 :
-		// Received from bus: -st w, any ga ==> @receiver:
-		// cflags = w -> overwrite object value
+		// write, any ga => cflags = w -> overwrite object value
 		st_write = true;
 	}
 	else if (strcmp(oc_string_checked(received_notification.st), "a") == 0)
 	{
-		// Case 2) spec 1.1
-		// Received from bus: -st a, any ga
-		//@receiver: cflags = u -> overwrite object value
+		// update, any ga => cflags = w -> overwrite object value
 		st_rep = true;
 	}
 	else if (strcmp(oc_string_checked(received_notification.st), "r") == 0)
 	{
-		// Case 4)
-		// @sender: cflags = r
-		// Received from bus: -st r
-		// Sent: -st rp, sending association (1st assigned ga)
+		/// read, any ga => cflags = r -> read object value (group speaker principle, one 'r' flag should be set ...)
 		st_read = true;
 	}
-
 
 	// get GO with that GA included (one out of 1...n of GO array)
 	int go_table_index = oc_core_find_first_group_object_table_index(received_notification.ga);
@@ -822,6 +804,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	oc_response_buffer_t response_buffer = { 0 };
 	oc_response_t response_obj = { 0 };
 
+	// define summary callback handler status
+	oc_status_t summary_handler_status = OC_STATUS_OK;
+
 	// internal callback handler, updates all to a GO index assigned GAs
 	while (go_table_index != -1)
 	{
@@ -836,7 +821,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 			const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(oc_string(go_href), oc_string_len(go_href), device_index);
 			if (!my_resource)
 			{
-				// silently ignored on unicast ? (multicast anyhow = IGNORE)
+				// TODO silently ignored on unicast ? (multicast anyhow = IGNORE)
 				return;
 			}
 
@@ -846,53 +831,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 			if (cflags & OC_CFLAG_WRITE && st_write)
 			{
 				PRINT("WRITE: index %d handled due to flags %d", go_table_index, cflags);
-
-				// CASE 1:
-				// Received from bus: -st w, any ga
-				// @receiver : cflags = w->overwrite object value
-				// to be discussed:
-				// get value, since the w only should be send if the value is updated
-				// (e.g. different)
-				// calling the put handler, since datapoints are implementing GET/PUT
-
-				if (my_resource->put_handler.cb)
-				{
-					// copy request to new request
-					oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
-
-					// sets the payload pointer to the 'value' OBJECT,
-				  // used by /p and /k that calls the same application callback handlers 
-					new_request.request_payload = oc_s_mode_get_value_object(request);
-
-					// set src to /k for a redirect check in application callback handler 
-					new_request.uri_path = "/k";
-					new_request.uri_path_len = 2;
-
-					// use new request (not received one with POST), user data are possible for write
-					my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
-
-					// TODO wrong here 
-					if ((cflags & OC_CFLAG_TRANSMISSION) > 0)
-					{
-						// Case 3) part 1
-						// @sender : updated object value + cflags = t
-						// Sent : -st w, sending association(1st assigned ga)
-						PRINT("(case3) (W-WRITE) sending WRITE due to TRANSMIT flag");
-						#ifdef OC_USE_MULTICAST_SCOPE_2
-						oc_do_s_mode_with_scope(2, oc_string(go_href), "w");
-						#endif
-						oc_do_s_mode_with_scope(5, oc_string(go_href), "w");
-					}
-				}
-			}
-			if (cflags & OC_CFLAG_UPDATE && st_rep)
-			{
-				PRINT("UPDATE: index %d handled due to flags %d", go_table_index,
-							cflags);
-				// Case 2)
-				// Received from bus: -st rp , any ga
-				// @receiver : cflags = u->overwrite object value
-				// calling the put handler, since datapoints are implementing GET/PUT
+				
+				// call application PUT handler (for /k only a POST is defined,
+				// application handler needs to end up in one (PUT) handler for /k and /p)  
 				if (my_resource->put_handler.cb)
 				{
 					// copy request to new request
@@ -903,35 +844,44 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 					new_request.request_payload = oc_s_mode_get_value_object(request);
 
 					// set src to /k for a redirect check in application callback handler 
-				  new_request.uri_path = "/k";
+					new_request.uri_path = "/k";
 					new_request.uri_path_len = 2;
 
-				  // use new request (not received one with POST), user data are possible for update
+					// use new request (not received one with POST), user data are possible
 					my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
 
-					if ((cflags & OC_CFLAG_TRANSMISSION) > 0)
-					{
-						PRINT("(case3) (RP-UPDATE) sending WRITE due to TRANSMIT flag");
-						// Case 3) part 2
-						// @sender : updated object value + cflags = t
-						// Sent : -st w, sending association(1st assigned ga)
-						#ifdef OC_USE_MULTICAST_SCOPE_2
-						oc_do_s_mode_with_scope(2, oc_string(go_href), "w");
-						#endif
-						oc_do_s_mode_with_scope(5, oc_string(go_href), "w");
-					}
+					// collect the max 'bad' status code (from OC_STATUS_OK up to any error)
+					if (summary_handler_status < new_request.response->response_buffer->code)
+						summary_handler_status = new_request.response->response_buffer->code;
+				}
+			}
+			if (cflags & OC_CFLAG_UPDATE && st_rep)
+			{
+				PRINT("UPDATE: index %d handled due to flags %d", go_table_index, cflags);
+
+			  // call application PUT handler (for /k only a POST is defined,
+				// application handler needs to end up in one (PUT) handler for /k and /p) 
+				if (my_resource->put_handler.cb)
+				{
+					// copy request to new request
+					oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+
+					// sets the payload pointer to the 'value' OBJECT,
+					// used by /p and /k that calls the same application callback handlers 
+					new_request.request_payload = oc_s_mode_get_value_object(request);
+
+					// set src to /k for a redirect check in application callback handler 
+					new_request.uri_path = "/k";
+					new_request.uri_path_len = 2;
+
+					// use new request (not received one with POST), user data are possible
+					my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);					
 				}
 			}
 			if (cflags & OC_CFLAG_READ && st_read)
 			{
 				PRINT("READ: index %d handled due to flags %d", go_table_index, cflags);
 				is_succeeded_read_request = true;
-				// Case 4)
-				// @sender: cflags = r
-				// Received from bus: -st r
-				// Sent: -st rp, sending association (1st assigned ga)
-				// specifically: do not check the transmission flag
-				PRINT("(case3) (RP-UPDATE) sending RP due to READ flag");
 
 				if (my_resource->get_handler.cb)
 				{
@@ -946,7 +896,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 					my_resource->get_handler.cb(&new_request, iface_mask, NULL);
 				}
 
-				// send the read response 
+				// send the read response in multicast
 				#ifdef OC_USE_MULTICAST_SCOPE_2
 				oc_do_s_mode_with_scope_no_check(2, oc_string(go_href), "a");
 				#endif
@@ -954,7 +904,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 			}
 		}
 
-		// get the next index in the table to get the url from, this stops when the returned index == -1
+		// get the next index in the table to get the url from
 		go_table_index = oc_core_find_next_group_object_table_index(received_notification.ga, go_table_index);
 	}
 
@@ -966,16 +916,17 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 		return;
 	}
 
-	// unicast request: send the response on after a read 'r' request (and present callback payload)
-	if (is_succeeded_read_request && oc_rep_get_encoded_payload_size() > 0)
-	{
-		// payload > 0, ends up in CBOR = OK
+	// multicast request
+	if (is_succeeded_read_request)
+	{// read request => send the response WITH callback payload (see iot specification 2.6.9.2 )
+	 // additional multicast read response are issued beforehand
+
 		oc_prepare_cbor_response(request, OC_STATUS_OK);
 	}
 	else
-	{
-		// payload = 0, ends up in NO FORMAT = CHANGED
-		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+	{// write request/ update request
+
+	  oc_prepare_no_format_response_no_payload(request, summary_handler_status);
 	}
 }
 
@@ -1012,7 +963,6 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1063,7 +1013,6 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1147,7 +1096,6 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	response_length = oc_string_len(g_ldevid);
@@ -1192,7 +1140,6 @@ static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_m
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	response_length = oc_string_len(g_idevid);
@@ -1289,9 +1236,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 	PRINT("oc_core_knx_spake_post_handler - start");
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
-		return;
+	{		return;
 	}
 	// check if the state is unloaded
 	size_t device_index = request->resource->device;
@@ -1308,8 +1253,7 @@ oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_
 		request->response->response_buffer->code =
 			oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
 
-		request->response->response_buffer->max_age = failed_handshake_count * 10;
-		return;
+		request->response->response_buffer->max_age = failed_handshake_count * 10;		return;
 	}
 	#endif 
 

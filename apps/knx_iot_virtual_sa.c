@@ -458,7 +458,6 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -556,7 +555,7 @@ extern "C" {
     }
     else
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_1");
   }
@@ -588,7 +587,7 @@ extern "C" {
       PRINT("redirected_request %.*s", (int) request->uri_path_len, request->uri_path);
     }
     
-    // sets the pointer to the (/k /p) handed over object
+    // sets the pointer to the (/k or /p) handed over object
     const oc_rep_t* rep = request->request_payload;
     bool error_state = true;
 
@@ -609,6 +608,7 @@ extern "C" {
     // correct data retrieved 
     if (!error_state)
     {
+      // inform the stack on status  
       oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 
       // update the status information of InfoOnOff_1 
@@ -624,7 +624,7 @@ extern "C" {
       }
 
 
-      // this is the 'simple' method to trigger a status on a specific EP 
+      // this is the 'simple' option to trigger a status on a specific EP 
       PRINT("Send status to '/p/2' with flag: 'w'");
       oc_do_s_mode_with_scope(5, URL_INFOONOFF_1, "w");
       do_put_cb(URL_ONOFF_1);
@@ -633,8 +633,8 @@ extern "C" {
       PRINT("-- End put_OnOff_1");
       return;
     }
-    // no correct data retrieved 
-    oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
+    // inform the stack on status   
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_1");
   }
 
@@ -665,7 +665,6 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -757,7 +756,7 @@ extern "C" {
     }
     else
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_InfoOnOff_1");
   }
@@ -789,7 +788,6 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -881,7 +879,7 @@ extern "C" {
     }
     else
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_2");
   }
@@ -954,7 +952,7 @@ extern "C" {
       return;
     }
     /* request data was not recognized, so it was a bad request */
-    oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_2");
   }
 
@@ -985,7 +983,6 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1077,7 +1074,7 @@ extern "C" {
     }
     else
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_InfoOnOff_2");
   }
@@ -1109,7 +1106,6 @@ extern "C" {
     
     if (!oc_accept_header_is_ok(request, APPLICATION_CBOR) )
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
@@ -1201,7 +1197,7 @@ extern "C" {
     }
     else
     {
-      oc_prepare_cbor_response(request, OC_STATUS_BAD_OPTION);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_OPTION);
     }
     PRINT("-- End get_OnOff_3");
   }
@@ -1275,18 +1271,21 @@ extern "C" {
       return;
     }
     /* request data was not recognized, so it was a bad request */
-    oc_prepare_cbor_response(request, OC_STATUS_BAD_REQUEST);
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     PRINT("-- End put_OnOff_3");
   }
 
   // parameters handling (empty)
 
   /**
-   * @brief register all the data point resources to the stack
-   * this function registers all data point level resources:
-   * - each resource path is bind to a specific function for the supported methods
-   *  (GET, PUT)
-   * - each resource is
+   * @brief register all the data point resources to the stack this function registers
+   * all data point level resources:
+   * each resource path is bind to a specific function for the supported methods:
+   *   - GET (called from /p 
+   *   - PUT (called from /p and /k)
+   *   - POST/DELETE/FETCH  (not supported from stack for application)
+   *
+   * each resource is:
    *   - secure
    *   - observable
    *   - discoverable through well-known/core

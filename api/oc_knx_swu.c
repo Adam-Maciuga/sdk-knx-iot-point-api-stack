@@ -50,7 +50,6 @@ static void oc_knx_swu_protocol_get_handler(oc_request_t* request, oc_interface_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -68,7 +67,6 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -118,7 +116,6 @@ static void oc_knx_swu_max_defer_get_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -136,7 +133,6 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -153,7 +149,7 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_maxdefer, knx_swu_method, 0, "/swu/maxdefer", 
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_maxdefer, knx_swu_method, 0, "/swu/maxdefer",
 																		 APPLICATION_CBOR, OC_DISCOVERABLE,
 																		 oc_knx_swu_max_defer_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_max_defer_put_handler, OC_ACL_SWU, OC_IF_SWU,
@@ -169,7 +165,7 @@ void oc_create_knx_swu_max_defer_resource(int resource_idx, size_t device)
 														APPLICATION_CBOR,
 														OC_DISCOVERABLE, oc_knx_swu_max_defer_get_handler,
 														oc_knx_swu_max_defer_put_handler, 0, 0, 0);
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.timePeriodSec");
 }
 
@@ -180,7 +176,6 @@ static void oc_knx_swu_method_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -198,7 +193,6 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -235,7 +229,7 @@ void oc_create_knx_swu_method_resource(int resource_idx, size_t device)
 														APPLICATION_CBOR, OC_DISCOVERABLE, oc_knx_swu_method_get_handler,
 														oc_knx_swu_method_put_handler, 0,
 														0, 0, 0);
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.transferMethod");
 }
 
@@ -246,7 +240,6 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -283,7 +276,7 @@ void oc_create_knx_swu_last_update_resource(int resource_idx, size_t device)
 														OC_DISCOVERABLE, oc_knx_swu_last_update_get_handler,
 														0, 0, 0, 0);
 
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.varString8859_1");
 }
 
@@ -294,7 +287,6 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -331,7 +323,6 @@ static void oc_knx_swu_state_get_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -367,7 +358,6 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	// note we are not doing anything with the trigger.
@@ -410,7 +400,6 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -476,7 +465,6 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_OCTET_STREAM))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -523,7 +511,6 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -557,7 +544,7 @@ void oc_create_knx_swu_a_resource(int resource_idx, size_t device)
 														APPLICATION_CBOR, OC_DISCOVERABLE, 0,
 														oc_knx_swu_a_put_handler, oc_knx_swu_a_post_handler,
 														0, 0);
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.file");
 }
 
@@ -568,7 +555,6 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -594,7 +580,7 @@ void oc_create_knx_swu_pkg_bytes_resource(int resource_idx, size_t device)
 														APPLICATION_CBOR,
 														OC_DISCOVERABLE, oc_knx_swu_bytes_get_handler, 0, 0,
 														0, 0);
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value4UCount");
 }
 
@@ -605,7 +591,6 @@ static void oc_knx_swu_pkg_query_url_get_handler(oc_request_t* request, oc_inter
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	oc_rep_begin_root_object();
@@ -622,7 +607,6 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -655,7 +639,7 @@ void oc_create_knx_swu_pkg_qurl_resource(int resource_idx, size_t device)
 														OC_DISCOVERABLE, oc_knx_swu_pkg_query_url_get_handler,
 														oc_knx_swu_pkg_query_url_put_handler, 0,
 														0, 0);
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.url");
 }
 
@@ -666,7 +650,6 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -698,7 +681,7 @@ void oc_create_knx_swu_pkg_names_resource(int resource_idx, size_t device)
 	oc_core_populate_resource(resource_idx, device, "/swu/pkgname",
 														APPLICATION_CBOR,
 														OC_DISCOVERABLE, oc_knx_swu_pkg_name_get_handler, 0, 0, 0, 0);
-	
+
 	oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.varString8859_1");
 }
 
@@ -721,7 +704,6 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 

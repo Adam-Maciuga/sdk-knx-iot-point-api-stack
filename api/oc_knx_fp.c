@@ -59,12 +59,12 @@ static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, ui
 
 int oc_print_reduced_group_publisher_table(void)
 {
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 	for (int i = 0; i < GPT_MAX_ENTRIES; i++)
 	{
 		oc_print_reduced_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
 	}
-#endif
+	#endif
 	return 0;
 }
 
@@ -143,7 +143,7 @@ int oc_core_set_group_object_table(int index, oc_group_object_table_t entry)
 	{
 		for (int i = 0; i < entry.ga_len; i++)
 		{
-		#pragma warning(suppress : 6386)
+			#pragma warning(suppress : 6386)
 			new_array[i] = entry.ga[i];
 		}
 		if (g_got[index].ga != 0)
@@ -311,6 +311,7 @@ bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t dev
 			if (resource->device != device_index ||
 					!(resource->properties & OC_DISCOVERABLE))
 			{
+				// skip non discoverable resources 
 				continue;
 			}
 		}
@@ -337,7 +338,6 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -409,16 +409,10 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 	PRINT("oc_core_fp_g_get_handler - end");
 }
 
-// carries the status input over the entire loop 
-static bool oc_fp_g_check_and_save(int index, size_t device_index, bool status_ok)
+// check the GO table at index 
+static bool oc_fp_g_check_and_save(int index)
 {
 	bool do_save = true;
-
-	// if status is already 'not ok' don't check and heal it to 'ok' anymore ...
-	if (status_ok == false)
-	{
-		return status_ok;
-	}
 
 	// do additional sanity checks
 	if (g_got[index].ga_len == 0)
@@ -436,7 +430,7 @@ static bool oc_fp_g_check_and_save(int index, size_t device_index, bool status_o
 		do_save = false;
 		OC_ERR("index %d href is longer than %d", index, OC_MAX_URL_LENGTH);
 	}
-	if (oc_belongs_href_to_resource(g_got[index].href, true, device_index) == false)
+	if (!oc_belongs_href_to_resource(g_got[index].href, true, 0))
 	{
 		do_save = false;
 		OC_ERR("index %d href '%s' does not belong to device", index, oc_string_checked(g_got[index].href));
@@ -445,16 +439,17 @@ static bool oc_fp_g_check_and_save(int index, size_t device_index, bool status_o
 	// debugging
 	oc_print_group_object_table_entry(index);
 
-	if (do_save == false)
+	if (!do_save)
 	{
 		// at least one sanity check failed ... 
 		OC_DBG("... deleting entry at index %d", index);
 		oc_delete_group_object_table_entry(index);
-		status_ok = false;
+		return false;
 	}
 
+	// all ok
 	oc_dump_group_object_table_entry(index);
-	return status_ok;
+	return true;
 }
 
 static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -462,14 +457,13 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 	(void) data;
 	(void) iface_mask;
 
-	bool status_ok = true;  // an overall process status
+	// default assumption
 	oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
 	PRINT("oc_core_fp_g_post_handler - start");
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -600,7 +594,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 								else
 								{
 									OC_ERR("out of memory");
-									return_status = OC_STATUS_INTERNAL_SERVER_ERROR;
+									oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+									return;
 								}
 							}
 						} break;
@@ -628,9 +623,13 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 					// created + 4 items or changed + items don't care 
 
 					PRINT("storing entry at index: %d", index);
-					// a "bad" status will be kept over the entire loop
-					status_ok = oc_fp_g_check_and_save(index, device_index, status_ok);
 
+					// a "bad" status will stop processing
+					if (!oc_fp_g_check_and_save(index))
+					{
+						oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+						return;
+					}
 				}
 			} break;
 			default:
@@ -639,17 +638,14 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 		rep = rep->next;
 	}
 
-	// no single error occured ...
-	if (status_ok)
-	{
-		// create fp/g --> update
-	  oc_knx_increase_fingerprint();
-		oc_prepare_no_format_response_no_payload(request, return_status);
-		return;
-	}
-	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	// create fp/g --> update
+	oc_knx_increase_fingerprint();
 
-	PRINT("oc_core_fp_g_post_handler status=%d - end", (int) status_ok);
+	// only OK/CHANGED is possible here, the last return status from a collection is responded
+	oc_prepare_no_format_response_no_payload(request, return_status);
+
+
+	PRINT("oc_core_fp_g_post_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
@@ -663,7 +659,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
 void oc_create_fp_g_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_fp_g_resource");
-	oc_core_populate_resource(resource_idx, device, "/fp/g", 
+	oc_core_populate_resource(resource_idx, device, "/fp/g",
 														APPLICATION_CBOR, OC_DISCOVERABLE,
 														oc_core_fp_g_get_handler, 0,
 														oc_core_fp_g_post_handler, 0,
@@ -678,7 +674,6 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -776,7 +771,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g_x, knx_fp_r, 0, "/fp/g/*",
 void oc_create_fp_g_x_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_fp_g_x_resource");
-	oc_core_populate_resource(resource_idx, device, "/fp/g/*", 
+	oc_core_populate_resource(resource_idx, device, "/fp/g/*",
 														APPLICATION_CBOR, OC_DISCOVERABLE,
 														oc_core_fp_g_x_get_handler, 0, 0,
 														oc_core_fp_g_x_del_handler, 1, "urn:knx:if.c");
@@ -859,7 +854,6 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -934,13 +928,14 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 {
 	(void) data;
 	(void) iface_mask;
-	oc_status_t return_status = OC_STATUS_BAD_REQUEST;
+
+	// default assumption
+	oc_status_t return_status = OC_STATUS_CREATED;
 
 	PRINT("oc_core_fp_p_post_handler - start");
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -984,8 +979,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 				}
 				else
 				{
-					// no index, so we will create one
-					return_status = OC_STATUS_CREATED;
+					// no index, so we will create one (default)
 					index = find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES);
 					if (index == -1)
 					{
@@ -995,8 +989,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 					}
 				}
 
-				g_gpt[index].id = id;
-
+				g_gpt[index].id = id;							// index is new or an existing one
 				bool id_only = true;              // to delete a publisher table entry 
 				int mandatory_items = 0;          // needs to be 2 for creating entry, i.e. id & ga
 				bool identifier_exists = false;   // one of ia, grpid or url
@@ -1077,7 +1070,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 								else
 								{
 									OC_ERR("out of memory");
-									return_status = OC_STATUS_INTERNAL_SERVER_ERROR;
+									oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+									return;
 								}
 							}
 						} break;
@@ -1093,6 +1087,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 					}
 					object = object->next;
 				}
+
 				if (id_only)
 				{
 					PRINT("only found id in request, deleting entry at index: %d", index);
@@ -1107,22 +1102,21 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 				}
 				else
 				{
-
-					const bool do_save = true;
+					// debugging
 					if (oc_string_len(g_gpt[index].url) > OC_MAX_URL_LENGTH)
 					{
-						// do_save = false;
 						OC_ERR("url is longer than %d ", (int) OC_MAX_URL_LENGTH);
+						oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+						return;
 					}
-
 
 					// debugging 
 					oc_print_group_table_entry(index, GPT_STORE, g_gpt);
-					if (do_save)
-					{
-						PRINT("storing PUB table at %d", index);
-						oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-					}
+					PRINT("storing PUB table at %d", index);
+
+					// store data 
+					oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+
 				}
 			}
 			default:
@@ -1133,6 +1127,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
 	// create fp/p --> update
 	oc_knx_increase_fingerprint();
+
+	// only OK/CHANGED is possible here, the last return status from a collection is responded
 	oc_prepare_no_format_response_no_payload(request, return_status);
 
 	PRINT("oc_core_fp_p_post_handler - end");
@@ -1163,7 +1159,6 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1268,12 +1263,11 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 	// make the change persistent
 	oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
 
-  // delete fp/g --> update
+	// delete fp/g --> update
 	oc_knx_increase_fingerprint();
-	
-	PRINT("oc_core_fp_p_x_del_handler - end");
-
 	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
+
+	PRINT("oc_core_fp_p_x_del_handler - end");
 }
 
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p_x, knx_fp_r, 0, "/fp/p/*",
@@ -1311,7 +1305,6 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1387,11 +1380,12 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 {
 	(void) data;
 	(void) iface_mask;
-	oc_status_t return_status = OC_STATUS_BAD_REQUEST;
+
+	// default assumption
+	oc_status_t return_status = OC_STATUS_CREATED;
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1436,7 +1430,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 				else
 				{
 					// no index, so we will create one
-					return_status = OC_STATUS_CREATED;
 					index = find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES);
 					if (index == -1)
 					{
@@ -1542,7 +1535,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 								else
 								{
 									OC_ERR("out of memory");
-									return_status = OC_STATUS_INTERNAL_SERVER_ERROR;
+									oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+									return;
 								}
 							}
 						} break;
@@ -1572,21 +1566,20 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 				}
 				else
 				{
-					bool do_save = true;
+
+					// debugging
 					if (oc_string_len(g_grt[index].url) > OC_MAX_URL_LENGTH)
 					{
-						do_save = false;
 						OC_ERR("url is longer than %d ", (int) OC_MAX_URL_LENGTH);
+						oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+						return;
 					}
-
 
 					// debugging 
 					oc_print_group_table_entry(index, GRT_STORE, g_grt);
-					if (do_save)
-					{
-						PRINT("storing RCV table at %d", index);
-						oc_dump_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-					}
+
+					PRINT("storing RCV table at %d", index);
+					oc_dump_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
 				}
 			}
 			default:
@@ -1597,7 +1590,9 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
 	// create fp/r --> update
 	oc_knx_increase_fingerprint();
-	oc_prepare_no_format_response_no_payload(request, return_status);
+
+	// only OK/CHANGED is possible here, the last return status from a collection is responded
+	oc_prepare_no_format_response_no_payload(request, return_status); 
 
 	PRINT("oc_core_fp_r_post_handler - end");
 }
@@ -1628,7 +1623,6 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1745,7 +1739,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",
 void oc_create_fp_r_x_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_fp_r_x_resource");
-	oc_core_populate_resource(resource_idx, device, "/fp/r/*", 
+	oc_core_populate_resource(resource_idx, device, "/fp/r/*",
 														APPLICATION_CBOR, OC_DISCOVERABLE,
 														oc_core_fp_r_x_get_handler, 0, 0,
 														oc_core_fp_r_x_del_handler, 1, "urn:knx:if.c");
@@ -1856,7 +1850,7 @@ void oc_cflags_as_string(char* buffer, oc_cflag_mask_t cflags)
 
 void oc_print_cflags(const oc_cflag_mask_t cflags)
 {
-#ifdef OC_PRINT
+	#ifdef OC_PRINT
 
 	if (cflags & OC_CFLAG_READ)
 	{
@@ -1879,12 +1873,12 @@ void oc_print_cflags(const oc_cflag_mask_t cflags)
 		PRINTF("u");
 	}
 
-#endif
+	#endif
 }
 
 void oc_print_group_object_table_entry(int entry)
 {
-#ifdef OC_PRINT
+	#ifdef OC_PRINT
 
 	if (g_got[entry].id == -1)
 	{
@@ -1902,7 +1896,7 @@ void oc_print_group_object_table_entry(int entry)
 	}
 	PRINTF("]");
 
-#endif
+	#endif
 }
 
 void oc_dump_group_object_table_entry(int entry)
@@ -2003,7 +1997,7 @@ void oc_load_group_object_table_entry(int entry)
 							{
 								for (int i = 0; i < array_size; i++)
 								{
-								#pragma warning(suppress : 6386)
+									#pragma warning(suppress : 6386)
 									new_array[i] = (uint32_t) arr[i];
 								}
 								if (g_got[entry].ga != 0)
@@ -2095,7 +2089,7 @@ int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max
 
 static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table)
 {
-#ifdef OC_PRINT
+	#ifdef OC_PRINT
 
 	if (table[entry].id == -1)
 	{
@@ -2123,7 +2117,7 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
 	}
 	PRINTF("]");
 
-#endif
+	#endif
 }
 
 static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
@@ -2280,7 +2274,7 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
 							{
 								for (int i = 0; i < array_size; i++)
 								{
-								#pragma warning(suppress : 6386)
+									#pragma warning(suppress : 6386)
 									new_array[i] = (uint32_t) arr[i];
 								}
 								// assign only when the new array is allocated correctly
@@ -2318,14 +2312,14 @@ void oc_load_object_table(void)
 		oc_print_group_table_entry(i, GRT_STORE, g_grt);
 	}
 
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 	PRINT("Loading Group Publisher Table from persistent storage");
 	for (int i = 0; i < GPT_MAX_ENTRIES; i++)
 	{
 		oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
 		oc_print_group_table_entry(i, GPT_STORE, g_gpt);
 	}
-#endif
+	#endif
 }
 
 static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, const bool init)
@@ -2368,14 +2362,14 @@ void oc_delete_group_tables(void)
 		oc_print_group_table_entry(i, GRT_STORE, g_grt);
 	}
 
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 	PRINT("Deleting Publisher Table from Persistent storage");
 	for (int i = 0; i < GPT_MAX_ENTRIES; i++)
 	{
 		oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
 		oc_print_group_table_entry(i, GPT_STORE, g_gpt);
 	}
-#endif
+	#endif
 }
 
 static void oc_free_group_tables(void)
@@ -2386,13 +2380,13 @@ static void oc_free_group_tables(void)
 		oc_free_group_table_entry(i, g_grt, false);
 	}
 
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 	PRINT("Free Publisher Table from Persistent storage");
 	for (int i = 0; i < GPT_MAX_ENTRIES; i++)
 	{
 		oc_free_group_table_entry(i, g_gpt, false);
 	}
-#endif
+	#endif
 }
 
 int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size)
@@ -2433,7 +2427,7 @@ int oc_core_add_entry(int index, oc_group_table_t* table, int table_size, oc_gro
 	{
 		for (int i = 0; i < entry.ga_len; i++)
 		{
-		#pragma warning(suppress : 6386)
+			#pragma warning(suppress : 6386)
 			new_array[i] = entry.ga[i];
 		}
 		// copy only when the allocation was done correctly
@@ -2465,21 +2459,21 @@ oc_group_table_t* oc_core_get_recipient_table_entry(int index)
 
 int oc_core_get_publisher_table_size(void)
 {
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 	return GPT_MAX_ENTRIES;
-#else
+	#else
 	return 0;
-#endif
+	#endif
 }
 
 oc_group_table_t* oc_core_get_publisher_table_entry(int index)
 {
 
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 	return index < 0 ? NULL : index >= GPT_MAX_ENTRIES ? NULL : &g_gpt[index];
-#else
+	#else
 	return NULL;
-#endif
+	#endif
 }
 
 int oc_core_find_empty_slot_in_recipient_table(int id)
@@ -2494,13 +2488,13 @@ int oc_core_find_index_in_recipient_table_from_id(int id)
 
 static void oc_init_tables(void)
 {
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 
 	for (int i = 0; i < GPT_MAX_ENTRIES; i++)
 	{
 		oc_free_group_table_entry(i, g_gpt, true);
 	}
-#endif
+	#endif
 
 	for (int i = 0; i < GRT_MAX_ENTRIES; i++)
 	{
@@ -2526,10 +2520,10 @@ void oc_create_knx_fp_resources(size_t device_index)
 		oc_create_fp_g_resource(OC_KNX_FP_G, device_index);
 		oc_create_fp_g_x_resource(OC_KNX_FP_G_X, device_index);
 
-	#ifdef OC_PUBLISHER_TABLE
+		#ifdef OC_PUBLISHER_TABLE
 		oc_create_fp_p_resource(OC_KNX_FP_P, device_index);
 		oc_create_fp_p_x_resource(OC_KNX_FP_P_X, device_index);
-	#endif
+		#endif
 
 		oc_create_fp_r_resource(OC_KNX_FP_R, device_index);
 		oc_create_fp_r_x_resource(OC_KNX_FP_R_X, device_index);
@@ -2617,9 +2611,9 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
 	my_transport_flags += IPV6;
 	my_transport_flags += MULTICAST;
 	my_transport_flags += DISCOVERY;
-#ifdef OC_OSCORE
+	#ifdef OC_OSCORE
 	my_transport_flags += OSCORE;
-#endif
+	#endif
 
 	oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 0xff,
 												0x30 + scope, 0, 0x30, //  FF35::30:
@@ -2722,7 +2716,7 @@ uint32_t oc_find_grpid_in_recipient_table(const uint32_t group_address)
 
 void oc_register_group_multicasts(void)
 {
-#ifdef OC_PUBLISHER_TABLE
+	#ifdef OC_PUBLISHER_TABLE
 
 	// register only if publisher is active, installation id will be used as ULA prefix
 	oc_device_info_t* device = oc_core_get_device_info(0);
@@ -2797,7 +2791,7 @@ void oc_register_group_multicasts(void)
 			}
 		}
 	}
-#endif
+	#endif
 }
 
 void oc_init_datapoints_at_initialization(void)

@@ -978,37 +978,18 @@ extern "C" {
 	bool oc_query_values_available(oc_request_t* request);
 
 	/**
-	 * @brief
-	 * Called after the response to a GET, PUT, POST or DELETE call has been
-	 * prepared completed, to inform the caller about the status on the requested action.
+	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
+	 *        prepared completed, to inform the caller about the status on the requested action.
+	 *				Shall only be used to return an OK/CHANGED status, for error responses see <...no_format...>
 	 *
-	 * On OK/CHANGED and no payload it will respond as OK/CHANGED + NO FORMAT + no payload,
-	 * all other combinations will respond as 'response code' + CBOR + payload
-	 *
-	 * @note OC_BAD_REQUEST for multicast will not send a response (e.g.
-	 *       treated as OC_IGNORE)
+	 * @note If NO payload is present (identified by CBOR encoded data size) it will prepare the
+	 *       response as NO FORMAT (with no payload) and response code, otherwise as CBOR
+	 *       (with payload) and response code.
 	 *
 	 * @param request the request being responded to
 	 * @param response_code the status of the response
 	 */
 	void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code);
-
-
-	/**
-	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
-	 * prepared completed. Will respond with JSON.
-	 *
-	 * The function oc_send_response is called at the end of a
-	 * oc_request_callback_t to inform the caller about the status of the requested
-	 * action.
-	 *
-	 * @note OC_STATUS_BAD_REQUEST for multicast will not send a response (e.g.
-	 *       treated as OC_IGNORE)
-	 *
-	 * @param request the request being responded to
-	 * @param response_code the request being responded to
-	 */
-	void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code);
 
 	/**
 	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
@@ -1025,10 +1006,10 @@ extern "C" {
 
 	/**
 	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
-	 *        prepared completed.
+	 *        prepared completed. Method can be used to issue an error (BAD...) or success (OK, ...),
 	 *
-	 * @note  The response has an empty payload (content len = 0 )
-	 *        and setting of 'no content' format
+	 * @note  The response has ALWAYS an empty payload (content len = 0)
+	 *        and a 'no content' format with the response code
 	 *
 	 * @param request the request being responded to
 	 * @param response_code the to be used response code

@@ -58,7 +58,7 @@ static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
+		
 		return;
 	}
 
@@ -135,35 +135,34 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
 	// get from the request the addressed device as index
 	size_t device_index = request->resource->device;
 
-	// check if the url is implemented on the device
+	// check first if the url is implemented on the device (performance)
 	oc_rep_t* rep = request->request_payload;
-  while (rep)
+	while (rep)
 	{
 		if (rep->type == OC_REP_OBJECT)
 		{
-			// scan for objects, note a post may contain in a collection many items 
-			const oc_rep_t* entry = rep->value.object;
+			// scan for objects, a post may contain in the collection many items, each with many attributes  
+			const oc_rep_t* entry_object = rep->value.object;
 
-		  while (entry)
+			while (entry_object)
 			{
 				// href = CBOR KEY 11, value = string 
-				if (entry->iname == 11 && entry->type == OC_REP_STRING)
+				if (entry_object->iname == 11 && entry_object->type == OC_REP_STRING)
 				{
-					if (!oc_belongs_href_to_resource(entry->value.string, false, device_index))
+					if (!oc_belongs_href_to_resource(entry_object->value.string, false, device_index))
 					{
 						// there is no href in all application resources that fist to the request href
-					  error = true;
-						OC_ERR("href '%.*s' does not belong to device",(int) oc_string_len(entry->value.string), oc_string_checked(entry->value.string));
+						error = true;
+						OC_ERR("href '%.*s' does not belong to device", (int) oc_string_len(entry_object->value.string), oc_string_checked(entry_object->value.string));
 					}
 				}
-				entry = entry->next;
+				entry_object = entry_object->next;
 			}
 		}
 		rep = rep->next;
@@ -178,19 +177,27 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 		return;
 	}
 
+	// EACH application callback handler gets an own copy of the request + new response buffer  
+	oc_request_t new_request = { 0 };
+	oc_response_buffer_t response_buffer = { 0 };
+	oc_response_t response_obj = { 0 };
+
+	// define summary callback handler status
+	oc_status_t summary_handler_status = OC_STATUS_OK;
+
 	// get back source payload start
-  rep = request->request_payload;
+	rep = request->request_payload;
 
 	while (rep)
 	{
 		if (rep->type == OC_REP_OBJECT)
 		{
-			// scan for objects, note a post may contain in a collection many items
-			// and per items many attributes 
-		  oc_rep_t* entry_object = rep->value.object;
+			// scan for objects, a post may contain in the collection many items, each with many attributes 
+			oc_rep_t* entry_object = rep->value.object;
 
-		  const oc_string_t* entry_url = NULL;
+			const oc_string_t* entry_url = NULL;
 			oc_rep_t* entry_value = NULL;
+
 
 			while (entry_object)
 			{
@@ -209,11 +216,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 				// do the post only if a href and value is in the request
 				if (entry_value && entry_url)
 				{
-					// EACH application callback handler gets an own copy of the request + new response buffer  
-					oc_request_t new_request = { 0 };
-					oc_response_buffer_t response_buffer = { 0 };
-					oc_response_t response_obj = { 0 };
-
 					// copy request to new request 
 					oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
@@ -222,31 +224,33 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 					new_request.request_payload = rep->value.object;
 
 					// set src to /p for a redirect check in application callback handles
-				  new_request.uri_path = "/p";
+					new_request.uri_path = "/p";
 					new_request.uri_path_len = 2;
 
 					const oc_resource_t* my_resource = oc_ri_get_app_resource_by_uri(oc_string(*entry_url), oc_string_len(*entry_url), device_index);
 
-					if (my_resource)
+					if (my_resource && my_resource->put_handler.cb)
 					{
-						// changing from POST to PUT; POST is not mandatory for parameters & datapoints
-						if (my_resource->put_handler.cb)
-						{
-							// use new request (not received one with POST), user data are not possible for /p
-							my_resource->put_handler.cb(&new_request, iface_mask, NULL);
+						// call application PUT handler
+						// for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p
+						my_resource->put_handler.cb(&new_request, iface_mask, NULL);
 
-							// create /p --> update
-							oc_knx_increase_fingerprint();
-						}
+						// collect the max 'bad' status code (from OC_STATUS_OK up to any error)
+						if (summary_handler_status < new_request.response->response_buffer->code)
+							summary_handler_status = new_request.response->response_buffer->code;
+
+					  // create /p --> update
+						oc_knx_increase_fingerprint();
 					}
+
 				}
 				entry_object = entry_object->next;
 			}
 		}
 		rep = rep->next;
 	}
-	
-	oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+
+	oc_prepare_no_format_response_no_payload(request, summary_handler_status);
 	PRINT("oc_core_p_post_handler - end");
 }
 

@@ -42,7 +42,6 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -93,7 +92,6 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 	PRINT("oc_core_dev_hwv_get_handler");
@@ -144,7 +142,6 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -197,7 +194,6 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -245,7 +241,6 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -292,7 +287,6 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -338,7 +332,6 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -386,7 +379,6 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -430,7 +422,6 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -487,7 +478,6 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -591,7 +581,6 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -622,7 +611,6 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -699,7 +687,6 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -785,7 +772,6 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -835,7 +821,6 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -881,7 +866,6 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -907,7 +891,6 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -963,7 +946,6 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1012,7 +994,6 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1077,7 +1058,6 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1108,7 +1088,6 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1181,7 +1160,6 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -1268,7 +1246,6 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
 	{
-		oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 		return;
 	}
 

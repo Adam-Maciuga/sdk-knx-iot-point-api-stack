@@ -108,7 +108,6 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
@@ -520,7 +519,6 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 
 	if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
 	{
-		request->response->response_buffer->code = oc_status_code(OC_STATUS_BAD_REQUEST);
 		return;
 	}
 
