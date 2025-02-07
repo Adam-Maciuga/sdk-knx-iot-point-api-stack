@@ -385,11 +385,9 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
     return OC_STOP_DISCOVERY;
   }
 
-  value_size =
-    oc_s_mode_get_resource_value(cb_data->resource_url, "r", buffer, 100);
+  value_size =    oc_s_mode_get_resource_value(cb_data->resource_url, "r", buffer, 100);
 
-  oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga,
-                 cb_data->rp_type, buffer, value_size);
+  oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga,                 cb_data->rp_type, buffer, value_size);
 
   if (cb_data)
   {
@@ -607,10 +605,8 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
     return 0;
   }
 
-  oc_request_t request = { 0 };
-  oc_response_t response = { 0 };
-  response.separate_response = 0;
-
+  oc_request_t request;
+  oc_response_t response;
   oc_response_buffer_t response_buffer;
 
   response_buffer.buffer = buffer;
@@ -620,6 +616,7 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
   response_buffer.code = 0;
   response_buffer.response_length = 0;
   response_buffer.content_format = 0;
+  response_buffer.max_age = 0;
 
   response.separate_response = NULL;
   response.response_buffer = &response_buffer;
@@ -632,6 +629,7 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
   request.origin = NULL;
   request._payload = NULL;
   request._payload_len = 0;
+  request.request_method = OC_POST;
 
   request.content_format = APPLICATION_CBOR;
   request.accept = APPLICATION_CBOR;

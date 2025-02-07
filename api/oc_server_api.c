@@ -94,6 +94,25 @@ void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code)
 	}
 }
 
+void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code)
+{
+	if (request && request->response && request->response->response_buffer)
+	{
+		const int length = oc_rep_get_encoded_payload_size();
+		if (length == 0)
+		{
+			// same as 'oc_prepare_no_format_response_no_payload'
+			request->response->response_buffer->content_format = CONTENT_NONE;
+		}
+		else
+		{
+			request->response->response_buffer->content_format = APPLICATION_JSON;
+		}
+		request->response->response_buffer->response_length = length;
+		request->response->response_buffer->code = oc_status_code(response_code);
+	}
+}
+
 void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length)
 {
 	if (request && request->response && request->response->response_buffer)

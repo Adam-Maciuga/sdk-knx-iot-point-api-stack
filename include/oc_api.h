@@ -992,6 +992,20 @@ extern "C" {
 	void oc_prepare_cbor_response(oc_request_t* request, oc_status_t response_code);
 
 	/**
+	* @brief Called after the response to a GET, PUT, POST or DELETE call has been
+	*        prepared completed, to inform the caller about the status on the requested action.
+	*				 Shall only be used to return an OK/CHANGED status, for error responses see <...no_format...>
+	*
+	* @note If NO payload is present (identified by CBOR encoded data size) it will prepare the
+	*       response as NO FORMAT (with no payload) and response code, otherwise as JSON
+	*       (with payload) and response code.
+	*
+	* @param request the request being responded to
+	* @param response_code the status of the response
+	*/
+	void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code);
+
+	/**
 	 * @brief Called after the response to a GET, PUT, POST or DELETE call has been
 	 * prepared completed. Will respond with LINK-FORMAT.
 	 *

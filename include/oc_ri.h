@@ -330,6 +330,18 @@ extern "C" {
 	 */
 	unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask);
 
+
+
+	/**
+	* @brief returns the corresponding oc_status code from coap code
+	*
+	* @param coap_code the coap code
+	* @return the oc_status code or OC_IGNORE if not found
+	*
+	*	@note the oc_status number 0...n from enum is needed, not the actual coap code number 
+	*
+	*/
+	oc_status_t get_oc_status_code_from_coap_code(int coap_code);
 	/**
 	 * @brief sets all interfaces in a mask in a string array
 	 *

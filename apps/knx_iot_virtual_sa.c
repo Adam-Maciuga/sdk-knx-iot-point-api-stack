@@ -609,7 +609,7 @@ extern "C" {
     if (!error_state)
     {
       // inform the stack on status  
-      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
       // update the status information of InfoOnOff_1 
       if (g_fault_OnOff_1 == false)
@@ -930,7 +930,7 @@ extern "C" {
 
     if (!error_state)
     {
-      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_2*/
       if (g_fault_OnOff_2 == false)
       {
@@ -1249,7 +1249,7 @@ extern "C" {
 
     if (!error_state)
     {
-      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
       /* update the status information of InfoOnOff_3*/
       if (g_fault_OnOff_3 == false)
       {

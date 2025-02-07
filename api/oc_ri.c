@@ -140,6 +140,20 @@ const char* get_method_name(oc_method_t method)
 	return "METHOD ERROR";
 }
 
+oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
+{
+	for (oc_status_t i = OC_STATUS_OK; i < NUMBER_OF_OC_STATUS_CODES; i++)
+	{
+		// number 0...n (19) of array is needed, not the actual coap code 
+	  if (oc_coap_status_codes[i] == coap_code)
+		{ 
+			return i;
+		}
+	}
+	// fallback if not found
+	return OC_IGNORE;
+}
+
 unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask)
 {
 	unsigned int total_masks = 0;
@@ -1659,14 +1673,7 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
 	client_response._payload_len = 0;
 	client_response.content_format = cf;
 	client_response.user_data = cb->user_data;
-	for (int i = 0; i < NUMBER_OF_OC_STATUS_CODES; i++)
-	{
-		if (oc_coap_status_codes[i] == pkt->code)
-		{ // number 0...n (19) of array is needed, not the actual coap code 
-			client_response.code = i;
-			break;
-		}
-	}
+	client_response.code = get_oc_status_code_from_coap_code(pkt->code);
 
 	#ifdef OC_BLOCK_WISE
 	if (response_state)
