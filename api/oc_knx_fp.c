@@ -2575,7 +2575,7 @@ bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size
 				// add the resource to response, note, it is not checked if the resource is already there...
 				PRINT("oc_add_points_in_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
 
-				oc_add_resource_to_wk(oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index), request, device_index, response_length, true);
+				oc_add_resource_to_response_payload(oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index), request, device_index, response_length, true);
 				return_value = true;
 			}
 		}

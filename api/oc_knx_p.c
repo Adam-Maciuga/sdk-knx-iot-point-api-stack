@@ -37,7 +37,7 @@ static bool oc_was_adding_data_points_to_response(oc_request_t* request, const o
 		{
 			continue;
 		}
-		oc_add_resource_to_wk(resource, request, device_index, response_length, true);
+		oc_add_resource_to_response_payload(resource, request, device_index, response_length, true);
 		matches++;
 	}
 

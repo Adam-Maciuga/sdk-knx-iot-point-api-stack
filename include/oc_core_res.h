@@ -27,17 +27,17 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+	#endif
 
 	// define resource_name as extern by adding internal 'core_resource' name (not known in other modules)
-#define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern const oc_resource_t core_resource_##resource_name;
+	#define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern const oc_resource_t core_resource_##resource_name;
 
-// set the internal name of a core const resource by adding internal 'core_resource' name (not known in other modules)
-#define OC_CORE_RESOURCE_NAME(name) core_resource_##name
+	// set the internal name of a core const resource by adding internal 'core_resource' name (not known in other modules)
+	#define OC_CORE_RESOURCE_NAME(name) core_resource_##name
 
-#if defined _MSC_VER && !defined __INTEL_COMPILER
+	#if defined _MSC_VER && !defined __INTEL_COMPILER
 
-#define OC_CORE_CREATE_CONST_RESOURCE(                                         \
+	#define OC_CORE_CREATE_CONST_RESOURCE(                                         \
   resource_name, next_resource, device_index, uri, content_format, properties, \
   get_cb,	   get_scope, get_if_mask,																					 \
   put_cb,		 put_scope, put_if_mask,																					 \
@@ -76,9 +76,9 @@ extern "C" {
 * @related OC_CORE_CREATE_CONST_RESOURCE_FINAL
 *
 */
-#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource, ...)\
-  extern const oc_resource_t core_resource_##next_resource;                    \
-  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                             \
+	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource, ...)\
+  extern const oc_resource_t core_resource_##next_resource;                      \
+  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                               \
                              resource_name, next_resource, __VA_ARGS__)
 
 /**
@@ -95,14 +95,14 @@ extern "C" {
 *
 * @related OC_CORE_CREATE_CONST_RESOURCE_LINKED
 */
-#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
-  oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
-  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                             \
+	#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
+  oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };      \
+  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                               \
                              resource_name, resource_name##_final, __VA_ARGS__)
 
-#else
+	#else
 
-#define OC_CORE_CREATE_CONST_RESOURCE(                                \
+	#define OC_CORE_CREATE_CONST_RESOURCE(                                \
   resource_name, next_resource, device_index, uri, iface_mask, content_format, \
   properties, get_cb, put_cb, post_cb, delete_cb, dpt, num_resource_types,     \
   ...)                                                                         \
@@ -115,23 +115,23 @@ extern "C" {
     __VA_ARGS__);                                                              \
   _Pragma("GCC diagnostic pop")
 
-#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,     \
+	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,     \
                                              ...)                              \
   extern const oc_resource_t core_resource_##next_resource;                    \
   OC_CORE_CREATE_CONST_RESOURCE(resource_name, next_resource,         \
                                          __VA_ARGS__)
 
-#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
+	#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
   oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
   OC_CORE_CREATE_CONST_RESOURCE(resource_name, resource_name##_final, \
                                          __VA_ARGS__)
 
-#endif
+	#endif
 
-/**
- * @brief callback for initializing the platform
- *
- */
+	/**
+	 * @brief callback for initializing the platform
+	 *
+	 */
 	typedef void (*oc_core_init_platform_cb_t)(void* data);
 
 	/**
@@ -218,14 +218,14 @@ extern "C" {
 	 * @param name the name of the device
 	 * @param version the version of the KNX spec
 	 * @param base the base url
-	 * @param serial_number the serial number of the device
+	 * @param serialnumber the serial number of the device
 	 * @param add_device_cb device callback
 	 * @param data the supplied user data
 	 * @return oc_device_info_t* the device structure
 	 */
 	oc_device_info_t* oc_core_add_device(const char* name, const char* version,
 																			 const char* base,
-																			 const char* serial_number,
+																			 const char* serialnumber,
 																			 oc_core_add_device_cb_t add_device_cb,
 																			 void* data);
 
@@ -259,7 +259,7 @@ extern "C" {
 	 * @param patch the zzz number of xxx.yyy.zzz
 	 * @return int  error status, 0 = OK
 	 */
-	int oc_core_set_device_ap(size_t device_index, int major, int minor, int patch);
+	int oc_core_set_device_apv(size_t device_index, int major, int minor, int patch);
 
 	/**
 	 * @brief sets the manufacturer id
@@ -405,16 +405,6 @@ extern "C" {
 	oc_resource_t* oc_core_get_resource_by_index(int index, size_t device);
 
 	/**
-	 * @brief retrieve the resource by uri
-	 *
-	 * @param uri the URI
-	 * @param device the device index
-	 * @return oc_resource_t* the resource handle
-	 */
-	const oc_resource_t* oc_core_get_resource_by_uri(const char* uri,
-																									 size_t device);
-
-	/**
 	 * @brief Ensure that the given URI starts with a forward slash '/'.
 	 *
 	 * @param uri the URI to check
@@ -463,7 +453,7 @@ extern "C" {
 	 * @param request the request to scan
 	 * @return true if present, false otherwise
 	 */
-	bool oc_filter_resource_by_urn(oc_request_t* request);
+	bool oc_check_request_query_value_on_urn_knx(oc_request_t* request);
 
 	/**
 	 * @brief filter if the query parameters of the request contains the resource
@@ -475,8 +465,7 @@ extern "C" {
 	 * @return true resource type (or wild card) is in the request
 	 * @return false resource type is not in the request
 	 */
-	bool oc_filter_resource_by_rt(const oc_resource_t* resource,
-																oc_request_t* request);
+	bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief filter if the query parameters of the request contains the resource
@@ -488,8 +477,7 @@ extern "C" {
 	 * @return true interface type of the resource is in the request
 	 * @return false interface type of the resource is not in the request
 	 */
-	bool oc_filter_resource_by_if(const oc_resource_t* resource,
-																oc_request_t* request);
+	bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief frame the interface mask in the response, as string in the uri
@@ -500,10 +488,9 @@ extern "C" {
 	 * @param truncated 1 = do not frame "urn:knx" in the payload
 	 * @return int 0 = success
 	 */
-	int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask,
-																					 bool truncated);
+	int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool truncated);
 
-#ifdef __cplusplus
+	#ifdef __cplusplus
 }
 #endif
 

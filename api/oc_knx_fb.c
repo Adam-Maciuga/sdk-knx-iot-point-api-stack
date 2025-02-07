@@ -204,7 +204,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 			}
 			else
 			{
-				oc_add_resource_to_wk(resource, request, device_index, &response_length, true);
+				oc_add_resource_to_response_payload(resource, request, device_index, &response_length, true);
 				query_parameter_kvpair_matches++;
 
 				if (query_parameter_kvpair_matches >= query_ps)

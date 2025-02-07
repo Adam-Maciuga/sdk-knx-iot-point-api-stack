@@ -366,7 +366,7 @@ oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch)
 }
 
 int
-oc_core_set_device_ap(size_t device_index, int major, int minor, int patch)
+oc_core_set_device_apv(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -768,37 +768,7 @@ oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
 #endif
 }
 
-const oc_resource_t* oc_core_get_resource_by_uri(const char* uri, size_t device)
-{
-	int skip = 0, type = 0;
-	if (uri[0] == '/')
-		skip = 1;
-
-	// TODO: need to add all other KNX resources, not sure though if this function
-	// is being used anywhere
-	if ((strlen(uri) - skip) == 7 &&
-			memcmp(uri + skip, ".well-known/core", 17) == 0)
-	{
-		type = WELLKNOWNCORE;
-	}
-	else if ((strlen(uri) - skip) == 7 &&
-					 memcmp(uri + skip, ".well-known/knx", 15) == 0)
-	{
-		type = OC_KNX;
-	}
-
-#ifdef OC_SECURITY
-
-#endif
-	else
-	{
-		return NULL;
-	}
-	size_t res = WELLKNOWNCORE * device + type;
-	return &core_resources[res];
-}
-
-bool oc_filter_resource_by_urn(oc_request_t* request)
+bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
 {
 	char* value = NULL;
 	char* key;
@@ -806,18 +776,15 @@ bool oc_filter_resource_by_urn(oc_request_t* request)
 	size_t value_len;
 	size_t key_len;
 
-	bool urn_is_present = false;
-
 	oc_init_query_iterator();
-	while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
+	while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > -1)
 	{
 		if (strncmp(value, "urn:knx", 7) == 0)
-		{
-			urn_is_present = true;
-			break;
+		{ // urn:knx present ...
+			return true;
 		}
 	}
-	return urn_is_present;
+	return false;
 }
 
 bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)

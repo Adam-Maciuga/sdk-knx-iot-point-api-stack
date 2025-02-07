@@ -46,7 +46,7 @@ int basic_resources[] =
 // (size of all)/(size of one) : 5 x int (4) / 4 = 20/4 = 5 
 #define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
 
-bool oc_add_resource_to_wk(oc_resource_t* resource, oc_request_t* request,
+bool oc_add_resource_to_response_payload(oc_resource_t* resource, oc_request_t* request,
 													 const size_t device_index, size_t* response_length,
 													 const bool truncate)
 {
@@ -62,9 +62,9 @@ bool oc_add_resource_to_wk(oc_resource_t* resource, oc_request_t* request,
 		return false;
 	}
 
+	// close previous record to create a new without LF (not found in RFC 6690, also on JSON removed)
 	if (*response_length > 0)
 	{
-		// close previous record to create a new without LF (not found in RFC 6690, also on JSON removed)
 		*response_length += oc_rep_add_line_to_buffer(",");
 	}
 
@@ -181,10 +181,10 @@ bool oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
 
 	if (!truncate)
 	{
-		truncate = oc_filter_resource_by_urn(request);
+		truncate = oc_check_request_query_value_on_urn_knx(request);
 	}
 
-	return oc_add_resource_to_wk(resource, request, device_index, response_length, truncate);
+	return oc_add_resource_to_response_payload(resource, request, device_index, response_length, truncate);
 }
 
 static bool oc_process_application_resources(oc_request_t* request, const size_t device_index,

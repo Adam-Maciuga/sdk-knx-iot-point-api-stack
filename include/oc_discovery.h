@@ -62,7 +62,7 @@ bool oc_filter_resource(const oc_resource_t *resource, oc_request_t *request,
  * @return true 
  * @return false (if resource or resource uri are not present) 
  */
-bool oc_add_resource_to_wk(const oc_resource_t *resource, oc_request_t *request,
+bool oc_add_resource_to_response_payload(const oc_resource_t *resource, oc_request_t *request,
                            size_t device_index, size_t *response_length,
                            bool truncate);
 
