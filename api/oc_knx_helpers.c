@@ -148,8 +148,14 @@ int evaluate_query_px(oc_request_t* request, int* pn_value, int* ps_value)
   return *pn_value * *ps_value;
 }
 
+void collect_and_rank_status(int coap_status, oc_status_t* current_oc_status)
+{
+  const oc_status_t new_oc_status = get_oc_status_code_from_coap_code(coap_status);
 
-
+  // the new oc_status code is higher than that before ... 
+  if (new_oc_status > *current_oc_status)
+    *current_oc_status = new_oc_status;
+}
 
 int add_next_page_indicator(char* url, int next_page_num)
 {

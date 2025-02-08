@@ -235,9 +235,8 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 						// for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p
 						my_resource->put_handler.cb(&new_request, iface_mask, NULL);
 
-						// collect the max 'bad' status code (from OC_STATUS_OK up to any error)
-						if (summary_handler_status < new_request.response->response_buffer->code)
-							summary_handler_status = new_request.response->response_buffer->code;
+						// collect the max 'bad' status code 
+						collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
 
 					  // create /p --> update
 						oc_knx_increase_fingerprint();

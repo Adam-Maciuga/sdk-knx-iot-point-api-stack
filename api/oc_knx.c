@@ -24,11 +24,12 @@
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "oc_rep.h"
-#include <oc_storage.h> 
-
-#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
+#include <oc_storage.h>
+#include "api/oc_knx_helpers.h"
 #include "oc_oscore_context.h"
 #include "port/dns-sd.h"
+
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 
 #ifdef OC_SPAKE
 #include "security/oc_spake2plus.h"
@@ -79,30 +80,6 @@ static int convert_cmd(char* cmd)
 	return 0;
 }
 
-/**
- * @brief summarize the (1...n) response status from the different
- *        application callback handler
- *
- * @note  a higher (error) status overwrites a lower (ok) status, the rank
- *        is ordered from lo to hi as defined in oc_status, example as follows:
- *        - 0 : OC_STATUS_OK (2.05)
- *				- 1 : OC_STATUS_CREATED (2.01)
- *				- 2 : OC_STATUS_CHANGED (2.04)
- *				- 3 : OC_STATUS_DELETED (2.02)
- *				- x : ...
- *				- 5 : OC_STATUS_BAD_REQUEST (4.00)
- *				- x : OC_STATUS_XXX (4.xx)
- *
- */
-static void collect_and_rank_status(int coap_status, oc_status_t* current_oc_status)
-{
-	const oc_status_t new_oc_status = get_oc_status_code_from_coap_code(coap_status);
-
-	// the new oc_status code is higher than that before ... 
-	if (new_oc_status > *current_oc_status)
-		*current_oc_status = new_oc_status;
-}
-
 int oc_reset_device(const size_t device_index, const int reset_mode)
 {
 	PRINT("reset device: %d", reset_mode);
@@ -128,7 +105,6 @@ int oc_reset_device(const size_t device_index, const int reset_mode)
 
 	return 0;
 }
-
 
 /*
 	payload example:
@@ -669,7 +645,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 		{
 			PRINT("k post : origin of message:");
 			PRINTipaddr(*origin);
-
 		}
 
 		oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
