@@ -45,7 +45,7 @@
 
 #define oc_ri_create_const_resource(                                           \
   next_resource, resource_name, device_index, name, uri, dpt,					         \
-  content_format, properties,                                                  \
+  content_type, properties,                                                    \
   get_cb, get_scope, get_if_mask,																							 \
   put_cb, put_scope, put_if_mask,																							 \
   post_cb, post_scope, post_if_mask,																					 \
@@ -60,7 +60,7 @@
     /*uri*/ oc_string_create_const(uri),                                       \
     /*types*/ oc_ri_expand_call(oc_string_array_create_const, __VA_ARGS__),    \
     /*dpt*/ oc_string_create_const(dpt),                                       \
-    /*content_type*/ content_format,                                           \
+    /*content_type*/ content_type,                                             \
     /*properties*/ properties,                                                 \
     /*get_handler*/ { get_cb, cb_ctx, get_scope, get_if_mask },                \
     /*put_handler*/ { put_cb, cb_ctx, put_scope, put_if_mask },                \
@@ -437,7 +437,7 @@ extern "C" {
 
 #define OC_NUM_CORE_RESOURCES_PER_DEVICE (1 + WELLKNOWNCORE)
 
-	typedef struct oc_resource_s oc_resource_t;
+	typedef struct oc_resource oc_resource_t;
 
 	/**
 	 * @brief request information structure
@@ -516,15 +516,15 @@ extern "C" {
 	 * @brief resource structure
 	 *
 	 */
-	struct oc_resource_s
+	struct oc_resource
 	{
-		struct oc_resource_s* next;           // next resource 
+		struct oc_resource* next;             // next resource 
 		size_t device;                        // device index 
 		oc_string_t name;                     // name of the resource (e.g. "n") 
 		oc_string_t uri;                      // uri of the resource 
 		oc_string_array_t types;              // "rt" types of the resource (e.g. "urn:knx:dpa.0.58" -> dev/da) 
 		oc_string_t dpt;                      // dpt of the resource 
-		oc_content_format_t content_type;     // content format that the - in response included - resources supports (one at the moment, there is no EP in a LL response that needs to support > 1)  
+		oc_content_format_t content_type;     // content type that the resources supports, usually announced in a response (one at the moment, there is no EP in a LL response that needs to support > 1)  
 		oc_resource_properties_t properties;  // properties (as bit mask) 
 		oc_request_handler_t get_handler;     // callback for GET 
 		oc_request_handler_t put_handler;     // callback for PUT 
@@ -540,7 +540,7 @@ extern "C" {
 
 	typedef struct oc_resource_dummy_s
 	{
-		struct oc_resource_s* next; // next resource
+		struct oc_resource* next;   // next resource
 		size_t device;              // should ALWAYS be -1 for dummy node
 	} oc_resource_dummy_t;
 

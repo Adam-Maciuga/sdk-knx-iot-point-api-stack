@@ -37,8 +37,8 @@ extern "C" {
 
 	#if defined _MSC_VER && !defined __INTEL_COMPILER
 
-	#define OC_CORE_CREATE_CONST_RESOURCE(                                         \
-  resource_name, next_resource, device_index, uri, content_format, properties, \
+	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
+  resource_name, next_resource, device_index, uri, content_type, properties,   \
   get_cb,	   get_scope, get_if_mask,																					 \
   put_cb,		 put_scope, put_if_mask,																					 \
   post_cb,   post_scope, post_if_mask,	                                       \
@@ -48,7 +48,7 @@ extern "C" {
   oc_ri_expand_call(                                                           \
     oc_ri_create_const_resource, core_resource_##next_resource,                \
     core_resource_##resource_name, device_index, NULL, uri, dpt,							 \
-    content_format, properties,                                                \
+    content_type, properties,                                                  \
     get_cb,    get_scope, get_if_mask,			                                   \
     put_cb,    put_scope, put_if_mask,	                                       \
     post_cb,   post_scope, post_if_mask,	                                     \
@@ -418,7 +418,7 @@ extern "C" {
 	 * @param core_resource_index the resource index
 	 * @param device_index the device index
 	 * @param uri the URI for the resource
-	 * @param content_format the content type that should be listed as ct in link-format responses
+	 * @param content_type the content type that should be listed as ct in link-format responses
 	 * @param properties the properties (as mask)
 	 * @param get_cb get callback function
 	 * @param put_cb put callback function
@@ -430,7 +430,7 @@ extern "C" {
 	 * to save memory, the maximum length of each resource type is 32 bytes.
 	 */
 	void oc_core_populate_resource(int core_resource_index, size_t device_index,
-																 char* uri, oc_content_format_t content_format,
+																 char* uri, oc_content_format_t content_type,
 																 int properties,
 																 oc_request_callback_t get_cb,
 																 oc_request_callback_t put_cb,
