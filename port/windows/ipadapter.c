@@ -873,7 +873,7 @@ network_event_thread(void *data)
 #endif /* OC_OSCORE */
       common:
 #ifdef OC_DEBUG
-        PRINT("Incoming message of size %zd bytes from ", message->length);
+        PRINT("Incoming message, %zd bytes, from ", message->length);
         PRINTipaddr(message->endpoint);
 #endif /* OC_DEBUG */
         oc_network_event(message);
@@ -1096,8 +1096,7 @@ int
 oc_send_buffer(oc_message_t *message)
 {
 #ifdef OC_DEBUG
-  PRINT("oc_send_buffer: Outgoing message of size %zd bytes to ",
-        message->length);
+  PRINT("Outgoing message, %zd bytes, to ", message->length);
   PRINTipaddr(message->endpoint);
 #endif /* OC_DEBUG */
   struct sockaddr_storage receiver;

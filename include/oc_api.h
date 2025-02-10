@@ -661,10 +661,11 @@ extern "C" {
 	 * @brief set the content type on the resource
 	 *
 	 * @param resource the resource
-	 * @param content_type the content type
+	 * @param content_type_man the mandatory content type
+	 * @param content_type_man the optional second content type
 	 * @note only one type can be set at a time
 	 */
-	void oc_resource_bind_content_type(oc_resource_t* resource, oc_content_format_t content_type);
+	void oc_resource_bind_content_type(oc_resource_t* resource, oc_content_format_t content_type_man, oc_content_format_t content_type_opt);
 
 	/**
 	 * Add a Data Point Type "dpt" property to the resource.

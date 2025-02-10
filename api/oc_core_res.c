@@ -645,7 +645,8 @@ void oc_check_uri(const char* uri)
 void oc_core_populate_resource(int core_resource_index, 
 															 size_t device_index,
 															 char* uri, 
-															 oc_content_format_t content_type, 
+															 oc_content_format_t content_type0,
+															 oc_content_format_t content_type1, 
 															 int properties,
 															 oc_request_callback_t get, 
 															 oc_request_callback_t put,
@@ -690,7 +691,8 @@ void oc_core_populate_resource(int core_resource_index,
 	}
 	va_end(rt_list);
 
-	r->content_type = content_type;
+	r->content_type[0] = content_type0;
+	r->content_type[1] = content_type1;
 
 	// caller handler
 	r->get_handler.cb = get;

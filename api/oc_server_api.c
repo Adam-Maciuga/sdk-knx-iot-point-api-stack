@@ -329,7 +329,9 @@ void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt)
 	}
 }
 
-void oc_resource_bind_content_type(oc_resource_t* resource, oc_content_format_t content_type)
+void oc_resource_bind_content_type(oc_resource_t* resource, 
+																	 oc_content_format_t content_type_man, 
+																	 oc_content_format_t content_type_opt)
 {
 	if (resource == NULL)
 	{
@@ -341,7 +343,9 @@ void oc_resource_bind_content_type(oc_resource_t* resource, oc_content_format_t 
 		OC_ERR("oc_resource_bind_content_type: resource data is const");
 		return;
 	}
-	resource->content_type = content_type;
+	resource->content_type[0] = content_type_man;
+	resource->content_type[1] = content_type_opt;
+
 }
 
 #ifdef OC_SECURITY
