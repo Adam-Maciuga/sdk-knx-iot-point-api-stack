@@ -328,7 +328,8 @@ void oc_create_knx_resource(int resource_idx, size_t device)
 {
 	OC_DBG("create /knx resources");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx",
-														APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+														APPLICATION_LINK_FORMAT, CONTENT_NONE, 
+														OC_DISCOVERABLE,
 														oc_core_knx_get_handler, 0, oc_core_knx_post_handler,
 														0, 0);
 }

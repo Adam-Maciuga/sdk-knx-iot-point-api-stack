@@ -41,14 +41,6 @@ extern "C" {
 	} oc_at_profile_t;
 
 	/**
-	 * @brief string to access token profile
-	 *
-	 * @param str input string
-	 * @return oc_at_profile_t the token profile
-	 */
-	oc_at_profile_t oc_string_to_at_profile(oc_string_t str);
-
-	/**
 	 * @brief access token profile to string
 	 *
 	 * @param at_profile the access token profile
@@ -293,20 +285,6 @@ extern "C" {
 	 * return 0 == success
 	 */
 	int oc_at_delete_entry(size_t device_index, int index);
-
-	/**
-	 * @brief retrieve the oscore replay window size
-	 *
-	 * @return uint32_t the replay window size
-	 */
-	uint32_t oc_oscore_get_rplwdo(void);
-
-	/**
-	 * @brief retrieve the oscore sequence number delay value
-	 *
-	 * @return uint32_t the osn delay value
-	 */
-	uint32_t oc_oscore_get_osndelay(void);
 
 	/**
 	 * @brief Creation of the KNX security resources.

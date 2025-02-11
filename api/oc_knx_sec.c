@@ -38,26 +38,7 @@ static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
 
 static void oc_at_dump_entry(size_t device_index, int entry);
 
-oc_at_profile_t oc_string_to_at_profile(oc_string_t str)
-{
-	if (strcmp(oc_string(str), "coap_oscore") == 0)
-	{
-		return OC_PROFILE_COAP_OSCORE;
-	}
-	if (strcmp(oc_string(str), "coap_dtls") == 0)
-	{
-		return OC_PROFILE_COAP_DTLS;
-	}
-	if (strcmp(oc_string(str), "coap_tls") == 0)
-	{
-		return OC_PROFILE_COAP_TLS;
-	}
-	if (strcmp(oc_string(str), "coap_pase") == 0)
-	{
-		return OC_PROFILE_COAP_PASE;
-	}
-	return OC_PROFILE_UNKNOWN;
-}
+
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
 {
@@ -160,7 +141,7 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_
 	{
 		return;
 	}
-	// cbor_encode_uint(&g_encoder, g_oscore_replaywindow);
+	
 	oc_rep_begin_root_object();
 	oc_rep_i_set_uint(root, 1, g_oscore_replaywindow);
 	oc_rep_end_root_object();
@@ -187,8 +168,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 		{
 			if (rep->iname == 1)
 			{
-				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d",
-							rep->type, (int) rep->value.integer);
+				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d",							rep->type, (int) rep->value.integer);
 				g_oscore_replaywindow = rep->value.integer;
 				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
@@ -1904,20 +1884,6 @@ oc_get_auth_at_entry(size_t device_index, int index)
 	return &g_at_entries[index];
 }
 
-// ----------------------------------------------------------------------------
-
-uint32_t oc_oscore_get_rplwdo(void)
-{
-	return g_oscore_replaywindow;
-}
-
-uint32_t oc_oscore_get_osndelay(void)
-{
-	return g_oscore_osndelay;
-}
-
-// ----------------------------------------------------------------------------
-
 void oc_create_knx_sec_resources(size_t device_index)
 {
 	OC_DBG("oc_create_knx_sec_resources");
@@ -1940,8 +1906,7 @@ void oc_create_knx_sec_resources(size_t device_index)
 	oc_create_knx_auth_resource(OC_KNX_AUTH, device_index);
 }
 
-void
-oc_init_oscore(size_t device_index)
+void oc_init_oscore(size_t device_index)
 {
 	oc_init_oscore_from_storage(device_index, false);
 }
