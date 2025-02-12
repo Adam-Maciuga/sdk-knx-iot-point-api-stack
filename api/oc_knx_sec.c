@@ -22,7 +22,7 @@
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 #include "security/oc_oscore_context.h"
-#include "oc_knx.h"
+
 #include "oc_knx_helpers.h"
 #include "oc_storage.h"
 
@@ -141,7 +141,7 @@ oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_
 	{
 		return;
 	}
-	
+
 	oc_rep_begin_root_object();
 	oc_rep_i_set_uint(root, 1, g_oscore_replaywindow);
 	oc_rep_end_root_object();
@@ -168,7 +168,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 		{
 			if (rep->iname == 1)
 			{
-				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d",							rep->type, (int) rep->value.integer);
+				PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d", rep->type, (int) rep->value.integer);
 				g_oscore_replaywindow = rep->value.integer;
 				oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 				return;
@@ -289,7 +289,7 @@ oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 	OC_DBG("create /aut/o resources");
 	// TODO: what is resource type, none for now
 	oc_core_populate_resource(resource_idx, device_index, "/auth/o",
-														APPLICATION_LINK_FORMAT, CONTENT_NONE, 
+														APPLICATION_LINK_FORMAT, CONTENT_NONE,
 														OC_DISCOVERABLE,
 														oc_core_knx_auth_o_get_handler, 0, 0, 0, 0);
 }
@@ -369,9 +369,9 @@ void
 oc_create_a_sen_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_a_sen_resource");
-	// "/a/sen"
+
 	oc_core_populate_resource(resource_idx, device, "/a/sen",
-														APPLICATION_CBOR, CONTENT_NONE,  
+														APPLICATION_CBOR, CONTENT_NONE,
 														OC_DISCOVERABLE, 0, 0,
 														oc_core_a_sen_post_handler, 0, 0);
 }
@@ -391,16 +391,14 @@ find_empty_at_index(void)
 	return -1;
 }
 
-static int
-find_index_from_at(oc_string_t* at)
+static int find_index_from_at(const oc_string_t* at)
 {
-	size_t len;
-	size_t len_at = oc_string_len(*at);
+	const size_t len_at = oc_string_len(*at);
+
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
-		len = oc_string_len(g_at_entries[i].id);
-		if (len > 0 && len == len_at &&
-				(strncmp(oc_string(*at), oc_string(g_at_entries[i].id), len) == 0))
+		size_t len = oc_string_len(g_at_entries[i].id);
+		if (len > 0 && len == len_at && strncmp(oc_string(*at), oc_string(g_at_entries[i].id), len) == 0)
 		{
 			return i;
 		}
@@ -408,15 +406,12 @@ find_index_from_at(oc_string_t* at)
 	return -1;
 }
 
-static int
-find_index_from_at_string(const char* at, int len_at)
+static int find_index_from_at_string(const char* at, const int len_at)
 {
-	int len;
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
-		len = (int) oc_string_len(g_at_entries[i].id);
-		if (len > 0 && len == len_at &&
-				(strncmp(at, oc_string(g_at_entries[i].id), len) == 0))
+		const int len = oc_string_len(g_at_entries[i].id);
+		if (len > 0 && len == len_at && (strncmp(at, oc_string(g_at_entries[i].id), len) == 0))
 		{
 			return i;
 		}
@@ -1129,9 +1124,9 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 	// do the persistent storage
 	oc_at_dump_entry(device_index, index);
 	// delete the related oscore contexts
-#ifdef OC_OSCORE
+	#ifdef OC_OSCORE
 	oc_oscore_free_contexts_at_id(index);
-#endif
+	#endif
 
 	PRINT("oc_core_auth_at_x_delete_handler - done");
 	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
@@ -1256,7 +1251,7 @@ oc_create_knx_auth_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_knx_auth_resource");
 	oc_core_populate_resource(resource_idx, device, "/auth",
-														APPLICATION_LINK_FORMAT, CONTENT_NONE, 
+														APPLICATION_LINK_FORMAT, CONTENT_NONE,
 														OC_DISCOVERABLE,
 														oc_core_knx_auth_get_handler, 0, 0, 0, 0);
 }
@@ -1265,7 +1260,7 @@ void
 oc_print_auth_at_entry(size_t device_index, int index)
 {
 	(void) device_index;
-#ifdef OC_PRINT
+	#ifdef OC_PRINT
 
 	if (index > -1)
 	{
@@ -1335,19 +1330,16 @@ oc_print_auth_at_entry(size_t device_index, int index)
 		}
 	}
 
-#endif
+	#endif
 }
 
 oc_acl_mask_t oc_at_get_scope_mask(int index)
 {
-	if (index < 0)
+	if (index < 0 || index > G_AT_MAX_ENTRIES - 1)
 	{
 		return OC_ACL_NONE;
 	}
-	if (index > G_AT_MAX_ENTRIES - 1)
-	{
-		return OC_ACL_NONE;
-	}
+
 	return g_at_entries[index].scope;
 }
 
@@ -1366,8 +1358,9 @@ int oc_at_delete_entry(size_t device_index, int index)
 	// generic
 	oc_free_string(&g_at_entries[index].id);
 	oc_new_string(&g_at_entries[index].id, "", 0);
-	g_at_entries[index].scope = OC_IF_NONE;
+	g_at_entries[index].scope = OC_ACL_NONE;
 	g_at_entries[index].profile = OC_PROFILE_UNKNOWN;
+
 	// oscore object
 	oc_free_string(&g_at_entries[index].osc_ms);
 	oc_new_byte_string(&g_at_entries[index].osc_ms, "", 0);
@@ -1379,6 +1372,7 @@ int oc_at_delete_entry(size_t device_index, int index)
 	oc_new_byte_string(&g_at_entries[index].osc_rid, "", 0);
 	oc_free_string(&g_at_entries[index].osc_id);
 	oc_new_byte_string(&g_at_entries[index].osc_id, "", 0);
+
 	// dtls object
 	oc_free_string(&g_at_entries[index].sub);
 	oc_new_string(&g_at_entries[index].sub, "", 0);
@@ -1396,7 +1390,7 @@ int oc_at_delete_entry(size_t device_index, int index)
 	}
 
 	char filename[20];
-	snprintf(filename, 20, "%s_%d", AT_STORE, index);
+	(void) snprintf(filename, 20, "%s_%d", AT_STORE, index);
 	oc_storage_erase(filename);
 
 	return 0;
@@ -1404,17 +1398,17 @@ int oc_at_delete_entry(size_t device_index, int index)
 
 // Note: storage of the fields is done via the cbor keys in the hierarchy
 // so tag : 842  8.4.2 ==> "cnf":"osc":"ms"
-static void
-oc_at_dump_entry(size_t device_index, int entry)
+static void oc_at_dump_entry(size_t device_index, int entry)
 {
 	(void) device_index;
-#ifndef OC_USE_STORAGE
+	#ifndef OC_USE_STORAGE
 	(void)entry;
 	PRINT("no auth/at storage");
-#else
-	char filename[20];
+	#else
 
-	snprintf(filename, 20, "%s_%d", AT_STORE, entry);
+	char filename[20];
+	(void) snprintf(filename, 20, "%s_%d", AT_STORE, entry);
+
 	uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
 	if (!buf)
 		return;
@@ -1422,69 +1416,72 @@ oc_at_dump_entry(size_t device_index, int entry)
 	oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
 	// write the data
 	oc_rep_begin_root_object();
-	// id 0
+
+	// 0: id
 	oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[entry].id));
-	// interface 9 /// this is different than the response on the wire
+
+	// 9: acl scope  9
 	oc_rep_i_set_int(root, 9, g_at_entries[entry].scope);
+
+	// 38: profile
 	oc_rep_i_set_int(root, 38, g_at_entries[entry].profile);
-	oc_rep_i_set_byte_string(root, 842, oc_string(g_at_entries[entry].osc_ms),
-													 oc_byte_string_len(g_at_entries[entry].osc_ms));
-	oc_rep_i_set_byte_string(
-		root, 846, oc_string(g_at_entries[entry].osc_contextid),
-		oc_byte_string_len(g_at_entries[entry].osc_contextid));
-	oc_rep_i_set_byte_string(root, 847, oc_string(g_at_entries[entry].osc_rid),
-													 oc_byte_string_len(g_at_entries[entry].osc_rid));
-	oc_rep_i_set_byte_string(root, 840, oc_string(g_at_entries[entry].osc_id),
-													 oc_byte_string_len(g_at_entries[entry].osc_id));
+
+	// 842: cnf:osc:xx map , see auth_at
+	oc_rep_i_set_byte_string(root, 842, oc_string(g_at_entries[entry].osc_ms), oc_byte_string_len(g_at_entries[entry].osc_ms));
+	oc_rep_i_set_byte_string(root, 846, oc_string(g_at_entries[entry].osc_contextid), oc_byte_string_len(g_at_entries[entry].osc_contextid));
+	oc_rep_i_set_byte_string(root, 847, oc_string(g_at_entries[entry].osc_rid), oc_byte_string_len(g_at_entries[entry].osc_rid));
+	oc_rep_i_set_byte_string(root, 840, oc_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
+
+	// 82: kid
 	oc_rep_i_set_text_string(root, 82, oc_string(g_at_entries[entry].sub));
+	// 81: kid
 	oc_rep_i_set_text_string(root, 81, oc_string(g_at_entries[entry].kid));
-	oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga,
-												 g_at_entries[entry].ga_len);
+
+	// 777: ga's
+	oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
 
 	oc_rep_end_root_object();
 
-	int size = oc_rep_get_encoded_payload_size();
+	const int size = oc_rep_get_encoded_payload_size();
 	if (size > 0)
 	{
-		OC_DBG("oc_at_dump_entry: dumped current state [%s] [%d]: "
-					 "size %d",
-					 filename, entry, size);
+		OC_DBG("oc_at_dump_entry: dumped current state [%s] [%d]: size %d", filename, entry, size);
+
 		long written_size = oc_storage_write(filename, buf, size);
 		if (written_size != (long) size)
 		{
-			PRINT("oc_at_dump_entry: [%s] written %d != %d (towrite)", filename,
-						(int) written_size, size);
+			PRINT("oc_at_dump_entry: [%s] written %d != %d (towrite)", filename, (int) written_size, size);
 		}
 	}
 	free(buf);
-#endif /* OC_USE_STORAGE */
+	#endif 
 }
 
-static void
-oc_at_load_entry(int entry)
+static void oc_at_load_entry(int entry)
 {
-	int ret;
 	char filename[20];
-	oc_rep_t* rep, * head;
-	snprintf(filename, 20, "%s_%d", AT_STORE, entry);
+	oc_rep_t* rep;
+
+	(void) snprintf(filename, 20, "%s_%d", AT_STORE, entry);
+
 	uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
 	if (!buf)
 		return;
 
-	ret = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+	int ret = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
 	if (ret > 0)
 	{
 		struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
 		oc_rep_set_pool(&rep_objects);
-		int err = oc_parse_rep(buf, ret, &rep);
-		head = rep;
+
+		const int err = oc_parse_rep(buf, ret, &rep);
+		oc_rep_t* head = rep;
 		if (err == 0)
 		{
 			while (rep != NULL)
 			{
 				switch (rep->type)
 				{
-
 					case OC_REP_INT:
 						if (rep->iname == 9)
 						{
@@ -1518,8 +1515,7 @@ oc_at_load_entry(int entry)
 						}
 						break;
 					case OC_REP_BYTE_STRING:
-						// note: reading back the strings should be done with oc_string_len
-						// not with oc_byte_string_len
+						// note: reading back the strings should be done with oc_string_len, not with oc_byte_string_len
 						if (rep->iname == 840)
 						{
 							oc_free_string(&g_at_entries[entry].osc_id);
@@ -1553,32 +1549,38 @@ oc_at_load_entry(int entry)
 					case OC_REP_INT_ARRAY:
 						if (rep->iname == 777)
 						{
-							int64_t* array = oc_int_array(rep->value.array);
-							int array_size = (int) oc_int_array_size(rep->value.array);
+							// storage array + len 
+						  const int64_t* array = oc_int_array(rep->value.array);
+							const int array_size = oc_int_array_size(rep->value.array);
 
 							if (array_size > 0)
 							{
-								// make the deep copy
+								// step 1: clear in AT table present GA entries
 								if (g_at_entries[entry].ga_len > 0)
 								{
-									uint64_t* cur_arr = g_at_entries[entry].ga;
+									int64_t* cur_arr = g_at_entries[entry].ga;
 									if (cur_arr)
 									{
 										free(cur_arr);
 									}
 									g_at_entries[entry].ga = NULL;
-									// free(&g_at_entries[entry].ga);
 								}
+
+								// step 2: make the deep copy
 								g_at_entries[entry].ga_len = array_size;
-								int64_t* new_array =
-									(int64_t*) malloc(array_size * sizeof(uint64_t));
+
+								// one GA = 64 bit ...
+							  int64_t* new_array = malloc(array_size * sizeof(uint64_t));
 
 								if (new_array)
 								{
-									for (int i = 0; i < array_size; i++)
+									// fetch 0..n from storage 
+								  for (int i = 0; i < array_size; i++)
 									{
 										new_array[i] = array[i];
 									}
+
+									// assign array pointer
 									g_at_entries[entry].ga = new_array;
 								}
 								else
@@ -1599,9 +1601,8 @@ oc_at_load_entry(int entry)
 	free(buf);
 }
 
-int
-oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry,
-										 bool store)
+int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry,
+												 bool store)
 {
 	(void) device_index;
 	if (index < G_AT_MAX_ENTRIES)
@@ -1679,8 +1680,7 @@ oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry,
 	return 0;
 }
 
-int
-oc_core_find_at_entry_with_id(size_t device_index, char* id)
+int oc_core_find_at_entry_with_id(size_t device_index, char* id)
 {
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
@@ -1703,9 +1703,8 @@ int oc_core_find_pase_entry(size_t device_index)
 	return -1;
 }
 
-int
-oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id,
-																	size_t osc_id_len)
+int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id,
+																			size_t osc_id_len)
 {
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
@@ -1718,8 +1717,7 @@ oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id,
 	return -1;
 }
 
-int
-oc_core_find_at_entry_empty_slot(size_t device_index)
+int oc_core_find_at_entry_empty_slot(size_t device_index)
 {
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
@@ -1731,10 +1729,9 @@ oc_core_find_at_entry_empty_slot(size_t device_index)
 	return -1;
 }
 
-void
-oc_load_at_table(size_t device_index)
+void oc_load_at_table(size_t device_index)
 {
-	PRINT("Loading AT Table from Persistent storage");
+	PRINT("Loading AT Table from persistent storage");
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
 		oc_at_load_entry(i);
@@ -1747,22 +1744,21 @@ oc_load_at_table(size_t device_index)
 	oc_init_oscore_from_storage(device_index, true);
 }
 
-void
-oc_delete_at_table(size_t device_index)
+void oc_delete_at_table(size_t device_index)
 {
-	PRINT("Deleting AT Object Table from Persistent storage");
+	PRINT("Deleting AT Object Table from persistent storage");
+
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
 		oc_at_delete_entry(device_index, i);
 		oc_print_auth_at_entry(device_index, i);
 	}
-#ifdef OC_OSCORE
+	#ifdef OC_OSCORE
 	oc_oscore_free_all_contexts();
-#endif
+	#endif
 }
 
-void
-oc_reset_at_table(size_t device_index, int erase_code)
+void oc_reset_at_table(size_t device_index, int erase_code)
 {
 	PRINT("Reset AT Object Table: %d", erase_code);
 
@@ -1773,22 +1769,21 @@ oc_reset_at_table(size_t device_index, int erase_code)
 	else if (erase_code == 7)
 	{
 		// reset the entries that are not "if.sec"
-		oc_interface_mask_t scope = OC_IF_NONE;
 		for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 		{
-			scope = oc_at_get_scope_mask(i);
-			// OC_IF_SEC flag not set
-			if ((scope & OC_IF_SEC) == 0)
+			oc_acl_mask_t scope = oc_at_get_scope_mask(i);
+
+			if (!(scope & OC_ACL_SEC))
 			{
-				// reset the entries that are not "if.sec"
+				// reset the entries that are not including "if.sec"
 				oc_at_delete_entry(device_index, i);
 				oc_print_auth_at_entry(device_index, i);
 			}
 		}
-	#ifdef OC_OSCORE
+		#ifdef OC_OSCORE
 		// create the oscore contexts that still remain
 		oc_init_oscore_from_storage(device_index, true);
-	#endif
+		#endif
 	}
 }
 
@@ -1799,8 +1794,8 @@ oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
 													char* client_recipientid, int client_recipientid_size,
 													uint8_t* shared_key, int shared_key_size)
 {
-	oc_auth_at_t spake_entry;
-	memset(&spake_entry, 0, sizeof(spake_entry));
+	oc_auth_at_t spake_entry = { 0 };
+
 	// this is the index in the table, so it is the full string
 	oc_new_string(&spake_entry.id, client_senderid, client_senderid_size);
 	spake_entry.ga_len = 0;
@@ -1913,9 +1908,9 @@ void oc_init_oscore(size_t device_index)
 
 void oc_init_oscore_from_storage(size_t device_index, const bool from_storage)
 {
-#ifndef OC_OSCORE
+	#ifndef OC_OSCORE
 	(void)device_index;
-#else 
+	#else 
 
 	OC_DBG_OSCORE("oc_init_oscore deleting old sender contexts!!");
 	oc_oscore_free_sender_contexts();
@@ -1963,7 +1958,7 @@ void oc_init_oscore_from_storage(size_t device_index, const bool from_storage)
 			}
 		}
 	}
-#endif
+	#endif
 }
 
 bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, oc_interface_mask_t called_scope)
@@ -2000,7 +1995,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, oc_resource_t* resource, oc_endpoi
 	PRINT("method allowed flags:");
 	PRINTipaddr_flags(*endpoint);
 
-#ifdef OC_OSCORE
+	#ifdef OC_OSCORE
 
 	if ((endpoint->flags & OSCORE + OSCORE_DECRYPTED) != OSCORE + OSCORE_DECRYPTED)
 	{
@@ -2034,7 +2029,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, oc_resource_t* resource, oc_endpoi
 		return false;
 	}
 
-#endif
+	#endif
 
 	// acl scopes + method checked or OC_OSCORE is off
 	return true;
