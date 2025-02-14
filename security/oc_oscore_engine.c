@@ -40,21 +40,18 @@ OC_PROCESS(oc_oscore_handler, "OSCORE Process");
 static bool g_ssn_in_use = false;
 static uint64_t g_ssn = 0;
 
-void
-oc_oscore_set_next_ssn(uint64_t ssn)
+void oc_oscore_set_next_ssn(uint64_t ssn)
 {
   g_ssn = ssn;
   g_ssn_in_use = true;
 }
 
-uint64_t
-oc_oscore_get_next_ssn()
+uint64_t oc_oscore_get_next_ssn(void)
 {
   return g_ssn;
 }
 
-bool
-oc_oscore_is_g_ssn_in_use()
+bool oc_oscore_is_g_ssn_in_use(void)
 {
   return g_ssn_in_use;
 }

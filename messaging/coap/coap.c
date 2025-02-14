@@ -735,6 +735,10 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 			#if defined(OC_OSCORE)
 			//&& defined(OC_SECURITY)
 			case COAP_OPTION_OSCORE:
+				// shortcut operator
+				// 0 : x = 4.02
+				// 1 : 1 = parse
+				// 1 : 0 = 4.02
 				if (!outer || !oscore)
 				{
 					return BAD_OPTION_4_02;
@@ -1302,7 +1306,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 	{
 		// TODO outer = false, but inner may be also false => not tested here! 
 
-	  OC_DBG("Inner CoAP code: %d", coap_pkt->code);
+		OC_DBG("Inner CoAP code: %d", coap_pkt->code);
 
 		coap_pkt->buffer[0] = coap_pkt->code;
 		option = coap_pkt->buffer + 1;
@@ -1378,9 +1382,8 @@ coap_serialize_message(void* packet, uint8_t* buffer)
 {
 	return coap_oscore_serialize_message(packet, buffer, true, true, false);
 }
-/*---------------------------------------------------------------------------*/
-coap_status_t
-coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len)
+
+coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len)
 {
 	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 	/* initialize packet */
@@ -1389,9 +1392,9 @@ coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len)
 	coap_pkt->buffer = data;
 	coap_pkt->transport_type = COAP_TRANSPORT_UDP;
 	/* parse header fields */
-	coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >>		COAP_HEADER_VERSION_POSITION;
-	coap_pkt->type =		(COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION;
-	coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >>		COAP_HEADER_TOKEN_LEN_POSITION;
+	coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
+	coap_pkt->type = (COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION;
+	coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
 	coap_pkt->code = coap_pkt->buffer[1];
 	coap_pkt->mid = coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3];
 
@@ -1415,8 +1418,8 @@ coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len)
 
 	current_option += coap_pkt->token_len;
 
-	coap_status_t ret = coap_oscore_parse_options(
-		packet, data, data_len, current_option, true, true, false);
+	// parse inner and outer, on present OSCORE option ... 4.02 bad option (DON'T take over secure content) 
+	coap_status_t ret = coap_oscore_parse_options(packet, data, data_len, current_option, true, true, false);
 	if (COAP_NO_ERROR != ret)
 	{
 		OC_ERR("coap_oscore_parse_options failed! %d", ret);

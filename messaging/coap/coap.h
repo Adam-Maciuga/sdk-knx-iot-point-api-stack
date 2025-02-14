@@ -87,7 +87,7 @@ extern "C" {
 	#define SET_OPTION(packet, opt)                                                \
   ((packet)->options[(opt) / OPTION_MAP_SIZE] |= 1 << ((opt) % OPTION_MAP_SIZE))
 
-  #define IS_OPTION(packet, opt)                                                 \
+	#define IS_OPTION(packet, opt)                                                 \
   ((packet)->options[(opt) / OPTION_MAP_SIZE] & (1 << ((opt) % OPTION_MAP_SIZE)))
 
 	/** enum value for coap transport type  */
@@ -251,8 +251,16 @@ extern "C" {
 																					uint32_t data_len,
 																					uint8_t* current_option, bool inner,
 																					bool outer, bool oscore);
-	coap_status_t coap_udp_parse_message(void* request, uint8_t* data,
-																			 uint16_t data_len);
+
+	/**
+	*
+	* @brief parses *data and copy from it coap header/token/options
+	*        to *packet
+	*
+	* @note  does not copy OSCORE option security content
+	*
+	*/
+	coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len);
 
 	int coap_get_query_variable(void* packet, const char* name,
 															const char** output);
