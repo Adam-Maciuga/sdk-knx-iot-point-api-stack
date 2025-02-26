@@ -29,7 +29,9 @@
 
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 
-#define oc_ri_expand_call(fn, ...) oc_ri_expand_call_expand(fn, (__VA_ARGS__))
+// use ## to remove a trailing comma on a missing variadic argument, see
+// https://learn.microsoft.com/en-us/cpp/preprocessor/preprocessor-experimental-overview?view=msvc-170#comma-elision-in-variadic-macros
+#define oc_ri_expand_call(fn, ...) oc_ri_expand_call_expand(fn, (## __VA_ARGS__)) 
 #define oc_ri_expand_call_expand(fn, args) fn args
 
 #define oc_ri_create_const_resource(                                           \

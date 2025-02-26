@@ -479,7 +479,7 @@ extern "C" {
 				while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
 				{
 					// unique identifier
-					if (strncmp(m, "id", m_len) == 0 |
+					if (strncmp(m, "id", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						char mystring[100];
@@ -488,28 +488,28 @@ extern "C" {
 					}
 
 					// resource types
-					if (strncmp(m, "rt", m_len) == 0 |
+					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
 					}
 
 					// interfaces
-					if (strncmp(m, "if", m_len) == 0 |
+					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, if, "if.a");
 					}
 
 					// dpt
-					if (strncmp(m, "dpt", m_len) == 0 |
+					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 
 					// ga
-					if (strncmp(m, "ga", m_len) == 0 |
+					if (strncmp(m, "ga", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
@@ -686,7 +686,7 @@ extern "C" {
 				while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
 				{
 					// unique identifier
-					if (strncmp(m, "id", m_len) == 0 |
+					if (strncmp(m, "id", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						char mystring[100];
@@ -695,24 +695,24 @@ extern "C" {
 						oc_rep_i_set_text_string(root, 0, mystring);
 					}
 					// resource types
-					if (strncmp(m, "rt", m_len) == 0 |
+					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.51");
 					}
 					// interfaces
-					if (strncmp(m, "if", m_len) == 0 |
+					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, if, "if.s");
 					}
-					if (strncmp(m, "dpt", m_len) == 0 |
+					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
-					if (strncmp(m, "ga", m_len) == 0 |
+					if (strncmp(m, "ga", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
@@ -725,7 +725,7 @@ extern "C" {
 							}
 						}
 					}
-					if (strncmp(m, "desc", m_len) == 0 |
+					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, desc, "Feedback 1");
@@ -809,7 +809,7 @@ extern "C" {
 				while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
 				{
 					// unique identifier
-					if (strncmp(m, "id", m_len) == 0 |
+					if (strncmp(m, "id", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						char mystring[100];
@@ -818,24 +818,24 @@ extern "C" {
 						oc_rep_i_set_text_string(root, 0, mystring);
 					}
 					// resource types
-					if (strncmp(m, "rt", m_len) == 0 |
+					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
 					}
 					// interfaces
-					if (strncmp(m, "if", m_len) == 0 |
+					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, if, "if.a");
 					}
-					if (strncmp(m, "dpt", m_len) == 0 |
+					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
-					if (strncmp(m, "ga", m_len) == 0 |
+					if (strncmp(m, "ga", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
@@ -848,7 +848,7 @@ extern "C" {
 							}
 						}
 					}
-					if (strncmp(m, "desc", m_len) == 0 |
+					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, desc, "On/Off switch 2");
@@ -1004,7 +1004,7 @@ extern "C" {
 				while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
 				{
 					// unique identifier
-					if (strncmp(m, "id", m_len) == 0 |
+					if (strncmp(m, "id", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						char mystring[100];
@@ -1013,24 +1013,24 @@ extern "C" {
 						oc_rep_i_set_text_string(root, 0, mystring);
 					}
 					// resource types
-					if (strncmp(m, "rt", m_len) == 0 |
+					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.51");
 					}
 					// interfaces
-					if (strncmp(m, "if", m_len) == 0 |
+					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, if, "if.s");
 					}
-					if (strncmp(m, "dpt", m_len) == 0 |
+					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
-					if (strncmp(m, "ga", m_len) == 0 |
+					if (strncmp(m, "ga", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
@@ -1043,7 +1043,7 @@ extern "C" {
 							}
 						}
 					}
-					if (strncmp(m, "desc", m_len) == 0 |
+					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
 						oc_rep_set_text_string(root, desc, "Feedback 2");
@@ -1693,7 +1693,7 @@ extern "C" {
 				const oc_clock_time_t now = oc_clock_time();
 				if (now < next_event)
 				{ // next event lays in the future, sleep until next pending event timer is reached (in ticks/ms)
-					SleepConditionVariableCS(&event_is_pending, &critical_section, (next_event - now) * (1000 / OC_CLOCK_SECOND));
+					SleepConditionVariableCS(&event_is_pending, &critical_section, (DWORD)((next_event - now) * (1000 / OC_CLOCK_SECOND)));
 				}
 				// next event is now ...
 			}

@@ -56,7 +56,7 @@ extern "C" {
     delete_cb, delete_scope, delete_if_mask,                                   \
     NULL, 0,                                                                   \
     0, num_resource_types, __VA_ARGS__)                                        \
-  _Pragma("warning(default:4090)")
+  _Pragma("warning(default:4090)") 
 
 /**
 * @brief Creates a const CORE resource that is linked to a next resource.
