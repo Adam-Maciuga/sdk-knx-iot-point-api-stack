@@ -47,8 +47,8 @@ int basic_resources[] =
 #define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
 
 bool oc_add_resource_to_response_payload(oc_resource_t* resource, oc_request_t* request,
-													 const size_t device_index, size_t* response_length,
-													 const bool truncate)
+																				 const size_t device_index, size_t* response_length,
+																				 const bool truncate)
 {
 	(void) device_index;
 
@@ -127,7 +127,7 @@ bool oc_add_resource_to_response_payload(oc_resource_t* resource, oc_request_t* 
 	// if's, if present
 	oc_interface_mask_t interface = OC_IF_NONE;
 
-	if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface ))
+	if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface))
 	{
 		*response_length += oc_rep_add_line_to_buffer("if=");
 		*response_length += oc_frame_interfaces_mask_in_response(interface, truncate);
@@ -138,34 +138,34 @@ bool oc_add_resource_to_response_payload(oc_resource_t* resource, oc_request_t* 
 	if (resource->content_type[0] != CONTENT_NONE)
 	{
 		// space for one type only (max 5 digits up to number of CONTENT_NONE)
-	  char my_ct_value[5]; 
-	  *response_length += oc_rep_add_line_to_buffer("ct=");
+		char my_ct_value[5];
+		*response_length += oc_rep_add_line_to_buffer("ct=");
 
 		// ct, if defined second
-		if (resource->content_type[1] != CONTENT_NONE) 
+		if (resource->content_type[1] != CONTENT_NONE)
 		{// 2 types, ct="60 40"
 
 			// "
 			*response_length += oc_rep_add_line_to_buffer("\"");
 
 			// number
-		  (void) sprintf(my_ct_value, "%d", resource->content_type[0]);
+			(void) sprintf(my_ct_value, "%d", resource->content_type[0]);
 			*response_length += oc_rep_add_line_to_buffer(my_ct_value);
 
 			// space
 			*response_length += oc_rep_add_line_to_buffer(" ");
 
 			// number
-		  (void) sprintf(my_ct_value, "%d", resource->content_type[1]);
+			(void) sprintf(my_ct_value, "%d", resource->content_type[1]);
 			*response_length += oc_rep_add_line_to_buffer(my_ct_value);
 
 			// "
 			*response_length += oc_rep_add_line_to_buffer("\"");
 
 		}
-		else 
+		else
 		{// 1 type, ct=60
-			
+
 			// number 
 			(void) sprintf(my_ct_value, "%d", resource->content_type[0]);
 			*response_length += oc_rep_add_line_to_buffer(my_ct_value);
@@ -584,7 +584,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			char iid_str[IID_STR_LEN_MAX + 1] = "";
 			strncpy(iid_str, ep_iid_start_pos, ep_ia_dot_pos - ep_iid_start_pos);
 			// string is hex formatted, on conversion error = 0 (performance ...)
-			const uint64_t iid = strtoull(iid_str, NULL, 16);             
+			const uint64_t iid = strtoull(iid_str, NULL, 16);
 
 			if (iid == device->iid)
 			{
@@ -711,9 +711,9 @@ OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
 																		APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		OC_DISCOVERABLE,
 																		oc_wkcore_discovery_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP 
-																		0, OC_ACL_NONE, OC_IF_NONE,
-																		0, OC_ACL_NONE, OC_IF_NONE,
-																		0, OC_ACL_NONE, OC_IF_NONE,
+																		NULL, OC_ACL_NONE, OC_IF_NONE,
+																		NULL, OC_ACL_NONE, OC_IF_NONE,
+																		NULL, OC_ACL_NONE, OC_IF_NONE,
 																		NULL, OC_SIZE_MANY(1), "well-known-type");
 
 void oc_create_discovery_resource(const int resource_idx, const size_t device_index)
@@ -727,7 +727,7 @@ void oc_create_discovery_resource(const int resource_idx, const size_t device_in
 	}
 
 	oc_core_populate_resource(resource_idx, device_index, "/.well-known/core",
-														APPLICATION_LINK_FORMAT,CONTENT_NONE,
+														APPLICATION_LINK_FORMAT, CONTENT_NONE,
 														OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
 														0, 0, 1, "wk");
 }

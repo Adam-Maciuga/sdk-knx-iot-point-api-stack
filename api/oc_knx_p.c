@@ -257,9 +257,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_p, knx_f, 0, "/p",
 																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		 OC_UNDISCOVERABLE,
 																		 oc_core_p_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_p_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.0");
 
 void oc_create_p_resource(int resource_idx, size_t device)

@@ -191,38 +191,47 @@ extern "C" {
 	#define oc_free_byte_string_array(ocstringarray)                               \
   (_oc_free_string(ocstringarray))
 
-	#endif /* !OC_MEMORY_TRACE */
-	#define _MAKE_NULL(...) NULL
-	#define _ECHO
-	#define OC_SIZE_ZERO() _MAKE_NULL, 0
-	#define OC_SIZE_MANY(x) _ECHO, x
+	#endif
+
+
+	#define _MAKE_NULL(...) NULL						// invokes always NULL for all content when expanding f((const ...) => see below #define oc_xxx 
+	#define _ECHO	        									// defines an empty parameter, in expansion replaced with 'nothing', hence it ends up in  abc, ,xyz  
+	#define OC_SIZE_ZERO() _MAKE_NULL, 0		// creates an array 'NULL' ptr with '0' elements
+	#define OC_SIZE_MANY(x) _ECHO, x				// creates an array ptr with 'x' elements
+
+
 									/**
-									 * @brief Helper macros to create const versions of oc types
-									 * These are special and need some help to understand things correctly
-									 */
-									 /**
-										* @brief creates a const oc_mmem struct
-										* unlikely to be used outside of the library
-										* @param count number of elements
-										* @param ptr pointer to const data
-										*/
-	#define oc_mmem_create_const(count, ptr)                                       \
+									* @brief Helper macros to create const versions of oc types
+									* These are special and need some help to understand things correctly
+									*/
+									/**
+									* @brief creates a const oc_mmem struct
+									* unlikely to be used outside of the library
+									* @param count number of elements
+									* @param ptr pointer to const data
+									*/
+	#define oc_mmem_create_const(count, ptr)                                     \
   {                                                                            \
     NULL, count, ptr                                                           \
   }
+
 	#define oc_string_create_const(s) oc_mmem_create_const(sizeof(s), s)
 
-	#define oc_string_array_create_const(f, n, ...)                                \
+	#define oc_string_array_create_const(f, n, ...)                              \
   oc_mmem_create_const(                                                        \
     (n * STRING_ARRAY_ITEM_MAX_LEN),                                           \
-    f((const char[n][STRING_ARRAY_ITEM_MAX_LEN]){ __VA_ARGS__ }))
-	#define oc_int_array_create_const(f, n, ...)                                   \
+     f((const char[n][STRING_ARRAY_ITEM_MAX_LEN]){ __VA_ARGS__ }))
+
+	#define oc_int_array_create_const(f, n, ...)                                 \
   oc_mmem_create_const(n, f((const int64_t[n]){ __VA_ARGS__ }))
-	#define oc_bool_array_create_const(f, n, ...)                                  \
+
+	#define oc_bool_array_create_const(f, n, ...)                                \
   oc_mmem_create_const(n, f((const bool[n]){ __VA_ARGS__ }))
-	#define oc_float_array_create_const(f, n, ...)                                 \
+
+	#define oc_float_array_create_const(f, n, ...)                               \
   oc_mmem_create_const(n, f((const float[n]){ __VA_ARGS__ }))
-	#define oc_double_array_create_const(f, n, ...)                                \
+
+	#define oc_double_array_create_const(f, n, ...)                              \
   oc_mmem_create_const(n, f((const double[n]){ __VA_ARGS__ }))
 
 	void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
@@ -700,4 +709,4 @@ extern "C" {
 }
 #endif
 
-#endif /* OC_HELPERS_H */
+#endif 

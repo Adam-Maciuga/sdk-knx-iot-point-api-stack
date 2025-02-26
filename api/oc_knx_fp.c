@@ -652,9 +652,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_fp_g_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_fp_g_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
 
 void oc_create_fp_g_resource(int resource_idx, size_t device)
@@ -757,8 +757,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g_x, knx_fp_p, 0, "/fp/g/*",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_fp_g_x_get_handler, OC_ACL_P, OC_IF_P,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_fp_g_x_del_handler, OC_ACL_C, OC_IF_C,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
 #else
@@ -1140,9 +1140,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p, knx_fp_p_x, 0, "/fp/p",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_fp_p_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_fp_p_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
 
 void oc_create_fp_p_resource(int resource_idx, size_t device)
@@ -1277,8 +1277,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p_x, knx_fp_r, 0, "/fp/p/*",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_fp_p_x_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_fp_p_x_del_handler, OC_ACL_C, OC_IF_C,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
 
@@ -1605,9 +1605,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r, knx_fp_r_x, 0, "/fp/r",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_fp_r_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_fp_r_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
 
 void oc_create_fp_r_resource(int resource_idx, size_t device)
@@ -1737,8 +1737,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_fp_r_x_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_fp_r_x_del_handler, OC_ACL_C, OC_IF_C,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
 

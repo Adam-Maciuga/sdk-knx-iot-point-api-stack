@@ -31,9 +31,9 @@ static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub",
 																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_sub_delete_handler, OC_ACL_P, OC_IF_P,
 																		 NULL, OC_SIZE_ZERO());
 

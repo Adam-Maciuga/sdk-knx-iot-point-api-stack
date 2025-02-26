@@ -117,8 +117,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0, "/auth/
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_osndelay_get_handler, OC_ACL_P, OC_IF_P,
 																		 oc_core_knx_auth_o_osndelay_put_handler, OC_ACL_SEC, OC_IF_SEC,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt:timePeriodMsec");
 void
 oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
@@ -185,8 +185,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_replwdo, knx_auth_o_osndelay, 0,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_replwdo_get_handler, OC_ACL_P, OC_IF_P,
 																		 oc_core_knx_auth_o_replwdo_put_handler, OC_ACL_SEC, OC_IF_SEC,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.value2UCount");
 void
 oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
@@ -279,9 +279,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o, knx_auth_at, 0, "/auth/o",
 																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_auth_o_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 void
 oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
@@ -360,10 +360,10 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_a_sen, knx_auth_o_replwdo, 0, "/a/sen",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_a_sen_post_handler, OC_ACL_SEC, OC_IF_SEC,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 void
 oc_create_a_sen_resource(int resource_idx, size_t device)
@@ -897,7 +897,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at, knx_auth_at_x, 0, "/auth/at",
 																		 APPLICATION_LINK_FORMAT, APPLICATION_CBOR,		// second ct (CBOR)  is wrong, it is used from post (not get) but demanded by certification test ...
 																		 OC_DISCOVERABLE,
 																		 oc_core_auth_at_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C | OC_ACL_SEC, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_auth_at_post_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 oc_core_auth_at_delete_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.at");
@@ -1136,8 +1136,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at_x, knx_auth, 0, "/auth/at/*",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_auth_at_x_get_handler, OC_ACL_SEC, OC_IF_SEC,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_auth_at_x_delete_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 NULL, OC_SIZE_MANY(1), "dpt.a[n]");
 
@@ -1241,9 +1241,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, well_known_core, 0, "/auth",
 																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_auth_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 #endif
 void

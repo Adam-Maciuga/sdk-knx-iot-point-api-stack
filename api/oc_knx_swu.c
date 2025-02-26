@@ -95,8 +95,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_protocol, knx_swu_maxdefer, 0, "/sw
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_protocol_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_protocol_put_handler, OC_ACL_SWU, OC_IF_SWU,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.protocols", OC_SIZE_ZERO());
 
 void oc_create_knx_swu_protocol_resource(int resource_idx, size_t device)
@@ -155,8 +155,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_maxdefer, knx_swu_method, 0, "/swu/
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_max_defer_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_max_defer_put_handler, OC_ACL_SWU, OC_IF_SWU,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.timePeriodSec",
 																		 OC_SIZE_ZERO());
 
@@ -220,8 +220,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_method, knx_lastupdate, 0, "/swu/me
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_method_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_method_put_handler, OC_ACL_SWU, OC_IF_SWU,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.transferMethod",
 																		 OC_SIZE_ZERO());
 
@@ -266,9 +266,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_lastupdate, knx_swu_result, 0, "/swu/la
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_last_update_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.varString8859_1",
 																		 OC_SIZE_ZERO());
 
@@ -305,9 +305,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_result, knx_swu_state, 0, "/swu/res
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_result_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.updateResult",
 																		 OC_SIZE_ZERO());
 
@@ -342,9 +342,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_state, knx_swu_update, 0, "/swu/sta
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_state_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.dldState", OC_SIZE_ZERO());
 
 void oc_create_knx_swu_state_resource(int resource_idx, size_t device)
@@ -383,10 +383,10 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_update, knx_swu_pkgv, 0, "/swu/update",
 																		 APPLICATION_CBOR, CONTENT_NONE, 
 																		 OC_DISCOVERABLE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_knx_swu_update_put_handler, OC_ACL_SWU, OC_IF_SWU,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.timePeriodSecZ",
 																		 OC_SIZE_ZERO());
 
@@ -429,9 +429,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgv, knx_swu_pkgcmd, 0, "/swu/pkgv
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_pkg_version_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.version", OC_SIZE_ZERO());
 
 void oc_create_knx_swu_pkg_version_resource(int resource_idx, size_t device)
@@ -540,10 +540,10 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgcmd, knx_swu_pkgbytes, 0, "/a/swu",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_knx_swu_a_put_handler, OC_ACL_P, OC_IF_P,
 																		 oc_knx_swu_a_post_handler, OC_ACL_SWU, OC_IF_SWU,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.file", OC_SIZE_ZERO());
 
 void oc_create_knx_swu_a_resource(int resource_idx, size_t device)
@@ -579,9 +579,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgbytes, knx_swu_pkgqurl, 0, "/swu
 																		 APPLICATION_CBOR, CONTENT_NONE, 
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_bytes_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.value4UCount",
 																		 OC_SIZE_ZERO());
 void oc_create_knx_swu_pkg_bytes_resource(int resource_idx, size_t device)
@@ -639,8 +639,8 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgqurl, knx_swu_pkgnames, 0, "/swu
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_pkg_query_url_get_handler, OC_ACL_D, OC_IF_D,
 																		 oc_knx_swu_pkg_query_url_put_handler, OC_ACL_SWU, OC_IF_SWU,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.url", OC_SIZE_ZERO());
 
 void oc_create_knx_swu_pkg_qurl_resource(int resource_idx, size_t device)
@@ -682,9 +682,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu_pkgnames, knx_swu, 0, "/swu/pkgname
 																		 APPLICATION_CBOR, CONTENT_NONE, 
 																		 OC_DISCOVERABLE,
 																		 oc_knx_swu_pkg_name_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 "urn:knx:dpt.varString8859_1",
 																		 OC_SIZE_ZERO());
 
@@ -778,9 +778,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_swu, sub, 0, "/swu",
 																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_swu_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.swu");
 
 void oc_create_knx_swu_resource(int resource_idx, size_t device)

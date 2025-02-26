@@ -319,16 +319,16 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx, knx_fp_g, 0, "/.well-known/knx",
 																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_get_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_knx_post_handler, OC_ACL_C | OC_ACL_SEC, OC_IF_C | OC_IF_SEC,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void oc_create_knx_resource(int resource_idx, size_t device)
 {
 	OC_DBG("create /knx resources");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx",
-														APPLICATION_LINK_FORMAT, CONTENT_NONE, 
+														APPLICATION_LINK_FORMAT, CONTENT_NONE,
 														OC_DISCOVERABLE,
 														oc_core_knx_get_handler, 0, oc_core_knx_post_handler,
 														0, 0);
@@ -563,9 +563,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(a_lsm, knx_spake, 0, "/a/lsm",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_a_lsm_get_handler, OC_ACL_C, OC_IF_C,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_a_lsm_post_handler, OC_ACL_C, OC_IF_C,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void oc_create_a_lsm_resource(int resource_idx, size_t device)
@@ -932,15 +932,16 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	PRINT("oc_core_knx_k_post_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_k, knx_fingerprint, 0, "/k",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_knx_k_get_handler, OC_ACL_G, OC_IF_G,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_knx_k_post_handler, OC_ACL_G, OC_IF_G,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL,
-																		 OC_SIZE_MANY(1), "urn:knx:g.s");
+extern const oc_resource_t core_resource_knx_fingerprint; 
+_Pragma("warning(disable:4090)"); 
+oc_resource_data_t core_resource_knx_k_data; const oc_resource_t core_resource_knx_k = 
+
+{ (oc_resource_t*) &core_resource_knx_fingerprint, 0, 
+ { ((void*) 0), sizeof(((void*) 0)), ((void*) 0) }, 
+ { ((void*) 0), sizeof("/k"), "/k" }, 
+	oc_ri_expand_call(oc_string_array_create_const, , 1, "urn:knx:g.s"), {((void*) 0), sizeof(((void*) 0)), ((void*) 0)}, {APPLICATION_CBOR, CONTENT_NONE}, OC_DISCOVERABLE, {oc_core_knx_k_get_handler, ((void*) 0), OC_ACL_G, OC_IF_G}, {0, ((void*) 0), OC_ACL_NONE, OC_IF_NONE}, {oc_core_knx_k_post_handler, ((void*) 0), OC_ACL_G, OC_IF_G}, {0, ((void*) 0), OC_ACL_NONE, OC_IF_NONE}, {((void*) 0), ((void*) 0)}, {((void*) 0), ((void*) 0)}, 0, 0, 1,& core_resource_knx_k_data,}; _Pragma("warning(default:4090)");
+
+
 void
 oc_create_knx_k_resource(int resource_idx, size_t device)
 {
@@ -990,9 +991,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fingerprint, knx_ia, 0, "/.well-known/k
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_fingerprint_get_handler, OC_ACL_C, OC_IF_C,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void
@@ -1075,10 +1076,10 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ia, knx, 0, "/.well-known/knx/ia",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_knx_ia_post_handler, OC_ACL_C | OC_ACL_SEC, OC_IF_C | OC_IF_SEC,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void
@@ -1120,9 +1121,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_ldevid, knx_k, 0, "/.well-known/knx/lde
 																		 APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_ldevid_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.a[n]");
 /* optional resource */
 void
@@ -1130,7 +1131,7 @@ oc_create_knx_ldevid_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_knx_ldevid_resource");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ldevid",
-														APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,OC_DISCOVERABLE,
+														APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE, OC_DISCOVERABLE,
 														oc_core_knx_ldevid_get_handler, 0, 0,
 														0, 1, ":dpt.a[n]");
 }
@@ -1165,9 +1166,9 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_idevid, knx_ldevid, 0, "/.well-known/kn
 																		 APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
 																		 oc_core_knx_idevid_get_handler, OC_ACL_D, OC_IF_D,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.a[n]");
 
 void
@@ -1175,7 +1176,7 @@ oc_create_knx_idevid_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_knx_idevid_resource");
 	oc_core_populate_resource(resource_idx, device, "/.well-known/knx/idevid",
-														APPLICATION_PKCS7_CMC_REQUEST,CONTENT_NONE, OC_DISCOVERABLE,
+														APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE, OC_DISCOVERABLE,
 														oc_core_knx_idevid_get_handler, 0, 0,
 														0, 1, ":dpt.a[n]");
 }
@@ -1565,10 +1566,10 @@ error:
 OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_spake, knx_idevid, 0, "/.well-known/knx/spake",
 																		 APPLICATION_CBOR, CONTENT_NONE,
 																		 OC_DISCOVERABLE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 oc_core_knx_spake_post_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP
-																		 0, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 
 void

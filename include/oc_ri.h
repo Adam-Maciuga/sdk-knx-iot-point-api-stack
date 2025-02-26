@@ -32,17 +32,6 @@
 #define oc_ri_expand_call(fn, ...) oc_ri_expand_call_expand(fn, (__VA_ARGS__))
 #define oc_ri_expand_call_expand(fn, args) fn args
 
-
-// TODO not used ....
-#define oc_ri_create_const_resource_linked(next_resource, ...)                 \
-  extern const oc_resource_t next_resource;                                    \
-  oc_ri_expand_call(oc_ri_create_const_resource, next_resource, __VA_ARGS__)
-
-#define oc_ri_create_const_resource_final(resource_name, ...)                  \
-  oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
-  oc_ri_expand_call(oc_ri_create_const_resource,                               \
-              resource_block_end##resource_name, resource_name, __VA_ARGS__)
-
 #define oc_ri_create_const_resource(                                           \
   next_resource, resource_name, device_index, name, uri, dpt,					         \
   content_type_man, content_type_opt, properties,                              \
