@@ -27,6 +27,7 @@
 #include "oc_rep.h"
 #include "util/oc_etimer.h"
 
+// ... intel aim for compatibility with MSVC, but it does not work for MS pragmas?
 #if defined _MSC_VER && !defined __INTEL_COMPILER
 
 // use ## to remove a trailing comma on a missing variadic argument, see
@@ -42,7 +43,7 @@
   post_cb, post_scope, post_if_mask,																					 \
   delete_cb, delete_scope, delete_if_mask,                                     \
   cb_ctx,                                                                      \
-  observe_period, instance, ...)                                               \
+  observe_period, instance, ...)          /* variadic part hosts 0..n types */ \
   oc_resource_data_t resource_name##_data;                                     \
   const oc_resource_t resource_name = {                                        \
     /*next*/ (oc_resource_t *)&next_resource,                                  \
@@ -62,47 +63,41 @@
     /*observe_period_seconds*/ observe_period,                                 \
     /*fb_instance*/ instance,                                                  \
     /*is_const (for precompiled resources)*/ true,                             \
-    /*runtime_data*/ &resource_name##_data,                                    \
+    /*runtime_data*/ &resource_name##_data                                     \
   };
 
 #else
 
-#define oc_ri_create_const_resource(                                  \
-  next_resource, resource_name, device_index, name, uri, dpt, iface_mask,      \
-  content_format, properties, get_cb, put_cb, post_cb, delete_cb, ctx,         \
-  observe_period, instance, ...)                                               \
+#define oc_ri_create_const_resource(                                           \
+  next_resource, resource_name, device_index, name, uri, dpt,					         \
+  content_type_man, content_type_opt, properties,                              \
+  get_cb, get_scope, get_if_mask,																							 \
+  put_cb, put_scope, put_if_mask,																							 \
+  post_cb, post_scope, post_if_mask,																					 \
+  delete_cb, delete_scope, delete_if_mask,                                     \
+  cb_ctx,                                                                      \
+  observe_period, instance, ...)          /* variadic part hosts 0..n types */ \
   oc_resource_data_t resource_name##_data;                                     \
   const oc_resource_t resource_name = {                                        \
     /*next*/ (oc_resource_t *)&next_resource,                                  \
     /*device*/ device_index,                                                   \
     /*name*/ oc_string_create_const(name),                                     \
-    /*uri*/ oc_string_create_const(uri), /*types*/                             \
-    oc_string_array_create_const(__VA_ARGS__),                                 \
+    /*uri*/ oc_string_create_const(uri),                                       \
+    /*types*/ oc_string_array_create_const(__VA_ARGS__),                       \
     /*dpt*/ oc_string_create_const(dpt),                                       \
-    /*interfaces*/ iface_mask,                                                 \
-    /*content_type*/ content_format,                                           \
+    /*content_type*/ {content_type_man, content_type_opt},                     \
     /*properties*/ properties,                                                 \
-    /*get_handler*/ { get_cb, ctx },                                           \
-    /*put_handler*/ { put_cb, ctx },                                           \
-    /*post_handler*/ { post_cb, ctx },                                         \
-    /*delete_handler*/ { delete_cb, ctx },                                     \
+    /*get_handler*/ { get_cb, cb_ctx, get_scope, get_if_mask },                \
+    /*put_handler*/ { put_cb, cb_ctx, put_scope, put_if_mask },                \
+    /*post_handler*/ { post_cb, cb_ctx, post_scope, post_if_mask },            \
+    /*delete_handler*/ { delete_cb, cb_ctx, delete_scope, delete_if_mask },    \
     /*get_properties*/ { NULL, NULL },                                         \
     /*set_properties*/ { NULL, NULL },                                         \
     /*observe_period_seconds*/ observe_period,                                 \
     /*fb_instance*/ instance,                                                  \
     /*is_const*/ true,                                                         \
-    /*runtime_data*/ &resource_name##_data,                                    \
+    /*runtime_data*/ &resource_name##_data                                     \
   };
-
-#define oc_ri_create_const_resource_linked(next_resource, ...)                 \
-  extern const oc_resource_t next_resource;                                    \
-  oc_ri_create_const_resource(next_resource, __VA_ARGS__)
-
-#define oc_ri_create_const_resource_final(resource_name, ...)                  \
-  oc_resource_dummy_t resource_block_end##resource_name = { NULL, -1 };        \
-                                                                               \
-  oc_ri_create_const_resource(resource_block_end##resource_name,      \
-                                       resource_name, __VA_ARGS__)
 
 #endif
 

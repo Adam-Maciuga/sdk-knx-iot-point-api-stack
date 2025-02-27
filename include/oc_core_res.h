@@ -30,11 +30,12 @@ extern "C" {
 	#endif
 
 	// define resource_name as extern by adding internal 'core_resource' name (not known in other modules)
-	#define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern const oc_resource_t core_resource_##resource_name;
+	#define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern oc_resource_t core_resource_##resource_name;
 
 	// set the internal name of a core const resource by adding internal 'core_resource' name (not known in other modules)
 	#define OC_CORE_RESOURCE_NAME(name) core_resource_##name
 
+	// ... intel aim for compatibility with MSVC, but it does not work for MS pragmas? 
 	#if defined _MSC_VER && !defined __INTEL_COMPILER
 
 	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
@@ -44,10 +45,11 @@ extern "C" {
   put_cb,		 put_scope, put_if_mask,																					 \
   post_cb,   post_scope, post_if_mask,	                                       \
   delete_cb, delete_scope, delete_if_mask,                                     \
-  dpt, num_resource_types, ...)                                                \
+  dpt, num_resource_types, ...)          /* variadic part hosts 0..n types */  \
   _Pragma("warning(disable:4090)");                                            \
   oc_ri_expand_call(                                                           \
-    oc_ri_create_const_resource, core_resource_##next_resource,                \
+    oc_ri_create_const_resource,                                               \
+    core_resource_##next_resource,                                             \
     core_resource_##resource_name, device_index, NULL, uri, dpt,							 \
     content_type_man, content_type_opt, properties,                            \
     get_cb,    get_scope, get_if_mask,			                                   \
@@ -55,7 +57,7 @@ extern "C" {
     post_cb,   post_scope, post_if_mask,	                                     \
     delete_cb, delete_scope, delete_if_mask,                                   \
     NULL, 0,                                                                   \
-    0, num_resource_types, __VA_ARGS__)                                        \
+    0, num_resource_types, __VA_ARGS__)  /* variadic part hosts 0..n types */  \
   _Pragma("warning(default:4090)") 
 
 /**
@@ -103,29 +105,35 @@ extern "C" {
 
 	#else
 
-	#define OC_CORE_CREATE_CONST_RESOURCE(                                \
-  resource_name, next_resource, device_index, uri, iface_mask, content_format, \
-  properties, get_cb, put_cb, post_cb, delete_cb, dpt, num_resource_types,     \
-  ...)                                                                         \
+	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
+  resource_name, next_resource, device_index, uri,														 \
+  content_type_man, content_type_opt, properties,                              \
+  get_cb,	   get_scope, get_if_mask,																					 \
+  put_cb,		 put_scope, put_if_mask,																					 \
+  post_cb,   post_scope, post_if_mask,	                                       \
+  delete_cb, delete_scope, delete_if_mask,                                     \
+  dpt, num_resource_types, ...)           /* variadic part hosts 0..n types */ \
   _Pragma("GCC diagnostic push");                                              \
   _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"");          \
   oc_ri_create_const_resource(                                                 \
-    core_resource_##next_resource, core_resource_##resource_name,              \
-    device_index, NULL, uri, dpt, iface_mask, content_format, properties,      \
-    get_cb, put_cb, post_cb, delete_cb, NULL, 0, 0, num_resource_types,        \
-    __VA_ARGS__);                                                              \
+    core_resource_##next_resource,                                             \
+    core_resource_##resource_name, device_index, NULL, uri, dpt,							 \
+    content_type_man, content_type_opt, properties,                            \
+    get_cb,    get_scope, get_if_mask,			                                   \
+    put_cb,    put_scope, put_if_mask,	                                       \
+    post_cb,   post_scope, post_if_mask,	                                     \
+    delete_cb, delete_scope, delete_if_mask,                                   \
+    NULL, 0,                                                                   \
+    0, num_resource_types, __VA_ARGS__);  /* variadic part hosts 0..n types */ \
   _Pragma("GCC diagnostic pop")
 
-	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,     \
-                                             ...)                              \
-  extern const oc_resource_t core_resource_##next_resource;                    \
-  OC_CORE_CREATE_CONST_RESOURCE(resource_name, next_resource,         \
-                                         __VA_ARGS__)
+	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,...)\
+  extern const oc_resource_t core_resource_##next_resource;                     \
+  OC_CORE_CREATE_CONST_RESOURCE(resource_name, next_resource, __VA_ARGS__)
 
-	#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
-  oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };    \
-  OC_CORE_CREATE_CONST_RESOURCE(resource_name, resource_name##_final, \
-                                         __VA_ARGS__)
+	#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)               \
+  oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };     \
+  OC_CORE_CREATE_CONST_RESOURCE(resource_name, resource_name##_final, __VA_ARGS__)
 
 	#endif
 
@@ -281,16 +289,6 @@ extern "C" {
 	int oc_core_set_device_ia(size_t device_index, uint32_t ia);
 
 	/**
-	 * @brief sets the manufacturer id
-	 *
-	 * @param device_index the device index
-	 * @param mid  the manufacturer id
-	 *
-	 * @return int error status, 0 = OK
-	 */
-	int oc_core_set_mid(size_t device_index, int32_t mid);
-
-	/**
 	 * @brief sets and stores the internal address
 	 *
 	 * @param device_index the device index
@@ -422,25 +420,27 @@ extern "C" {
 	 * @param content_type0 the (first) content type that will be listed as ct in link-format responses (mandatory)
 	 * @param content_type1 the (second) content type that will be listed as ct in link-format responses (optional)
 	 * @param properties the properties (as mask)
-	 * @param get_cb get callback function
-	 * @param put_cb put callback function
-	 * @param post_cb post callback function
-	 * @param delete_cb delete callback function
+	 * @param get get callback function
+	 * @param put put callback function
+	 * @param post post callback function
+	 * @param delete delete callback function
 	 * @param num_resource_types amount of resource types, listed as variable
 	 * arguments after this argument
 	 * @param ... Resource types, passed as zero-terminated strings. In order
 	 * to save memory, the maximum length of each resource type is 32 bytes.
 	 */
-	void oc_core_populate_resource(int core_resource_index, size_t device_index,
-																 char* uri, 
+	void oc_core_populate_resource(int core_resource_index,
+																 size_t device_index,
+																 char* uri,
 																 oc_content_format_t content_type0,
 																 oc_content_format_t content_type1,
 																 int properties,
-																 oc_request_callback_t get_cb,
-																 oc_request_callback_t put_cb,
-																 oc_request_callback_t post_cb,
-																 oc_request_callback_t delete_cb,
-																 int num_resource_types, ...);
+																 oc_request_callback_t get,
+																 oc_request_callback_t put,
+																 oc_request_callback_t post,
+																 oc_request_callback_t delete,
+																 int num_resource_types,
+																 ...);
 
 	/**
 	 * @brief bind a dpt to a (already created) core resource

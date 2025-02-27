@@ -244,8 +244,7 @@ extern "C" {
 	 * @see init
 	 * @see oc_gateway_s_mode_cb_t
 	 */
-	int oc_set_gateway_cb(oc_gateway_s_mode_cb_t oc_gateway_s_mode_cb_t,
-												void* data);
+	int oc_set_gateway_cb(oc_gateway_s_mode_cb_t oc_gateway_s_mode_cb_t, void* data);
 
 	/** @} */ // end of doc_module_tag_gateway
 

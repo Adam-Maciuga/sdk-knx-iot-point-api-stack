@@ -222,8 +222,6 @@ extern "C" {
 
 #define OC_LOG(level, ...)                                   \
   do {                                                       \
-  char func[M_SIZE] = "";                                    \
-  strncpy(func, __func__, M_SIZE-4); strcat(func, "...");    \
   PRINTF("\n"                                                \
          "%-4s: "                                            \
          "%-20s "                                            \
@@ -232,7 +230,7 @@ extern "C" {
          level,                                              \
          __FILENAME__,                                       \
          __LINE__,                                           \
-         strlen(__func__) < M_SIZE ? __func__ : func);       \
+         __func__ );                                         \
   PRINTF(__VA_ARGS__);                                       \
   } while (0)
 

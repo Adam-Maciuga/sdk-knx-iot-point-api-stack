@@ -752,8 +752,7 @@ void oc_create_fp_gm_resource(int resource_idx, size_t device)
                             oc_core_fp_gm_post_handler, 0, 1, "urn:knx:if.c");
 }
 
-static void oc_core_fp_gm_x_get_handler(oc_request_t* request,
-                                        oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_gm_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -817,8 +816,7 @@ static void oc_core_fp_gm_x_get_handler(oc_request_t* request,
   return;
 }
 
-static void oc_core_fp_gm_x_del_handler(oc_request_t* request,
-                                        oc_interface_mask_t iface_mask, void* data)
+static void oc_core_fp_gm_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1015,8 +1013,7 @@ void erase_tol(void)
   oc_storage_erase(GM_STORE_TOL);
 }
 
-static void oc_core_f_netip_tol_get_handler(oc_request_t* request,
-                                            oc_interface_mask_t iface_mask, void* data)
+static void oc_core_f_netip_tol_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;
@@ -1251,7 +1248,7 @@ static void oc_core_f_netip_ttl_get_handler(oc_request_t* request, oc_interface_
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_ttl_get_handler\n");
+  PRINT("oc_core_f_netip_ttl_get_handler");
 
 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
@@ -1374,7 +1371,7 @@ static void oc_core_f_netip_mcast_get_handler(oc_request_t* request, oc_interfac
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_mcast_get_handler\n");
+  PRINT("oc_core_f_netip_mcast_get_handler");
 
 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
@@ -1406,7 +1403,7 @@ static void oc_core_f_netip_mcast_put_handler(oc_request_t* request, oc_interfac
   size_t response_length = 0;
   int i;
   int length = 0;
-  PRINT("oc_core_f_netip_mcast_put_handler\n");
+  PRINT("oc_core_f_netip_mcast_put_handler");
 
 
   if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
@@ -1486,8 +1483,7 @@ void oc_create_f_netip_resource(int resource_idx, size_t device)
 // -----------------------------------------------------------------------------
 
 // to be removed
-void oc_core_f_netip_get_handler(oc_request_t* request,
-                                 oc_interface_mask_t iface_mask, void* data)
+void oc_core_f_netip_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void) data;
   (void) iface_mask;

@@ -932,15 +932,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	PRINT("oc_core_knx_k_post_handler - end");
 }
 
-extern const oc_resource_t core_resource_knx_fingerprint; 
-_Pragma("warning(disable:4090)"); 
-oc_resource_data_t core_resource_knx_k_data; const oc_resource_t core_resource_knx_k = 
-
-{ (oc_resource_t*) &core_resource_knx_fingerprint, 0, 
- { ((void*) 0), sizeof(((void*) 0)), ((void*) 0) }, 
- { ((void*) 0), sizeof("/k"), "/k" }, 
-	oc_ri_expand_call(oc_string_array_create_const, , 1, "urn:knx:g.s"), {((void*) 0), sizeof(((void*) 0)), ((void*) 0)}, {APPLICATION_CBOR, CONTENT_NONE}, OC_DISCOVERABLE, {oc_core_knx_k_get_handler, ((void*) 0), OC_ACL_G, OC_IF_G}, {0, ((void*) 0), OC_ACL_NONE, OC_IF_NONE}, {oc_core_knx_k_post_handler, ((void*) 0), OC_ACL_G, OC_IF_G}, {0, ((void*) 0), OC_ACL_NONE, OC_IF_NONE}, {((void*) 0), ((void*) 0)}, {((void*) 0), ((void*) 0)}, 0, 0, 1,& core_resource_knx_k_data,}; _Pragma("warning(default:4090)");
-
+OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_k, knx_fingerprint, 0, "/k",
+																		 APPLICATION_CBOR, CONTENT_NONE,
+																		 OC_DISCOVERABLE,
+																		 oc_core_knx_k_get_handler, OC_ACL_G, OC_IF_G,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 oc_core_knx_k_post_handler, OC_ACL_G, OC_IF_G,
+																		 NULL, OC_ACL_NONE, OC_IF_NONE,
+																		 NULL, OC_SIZE_MANY(1), "urn:knx:g.s");
 
 void
 oc_create_knx_k_resource(int resource_idx, size_t device)

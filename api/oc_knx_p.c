@@ -44,7 +44,7 @@ static bool oc_was_adding_data_points_to_response(oc_request_t* request, const o
 	return matches > 0 ? true : false;
 }
 
-static void oc_core_p_get_handler(oc_request_t* request, const oc_interface_mask_t iface_mask, const void* data)
+static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;

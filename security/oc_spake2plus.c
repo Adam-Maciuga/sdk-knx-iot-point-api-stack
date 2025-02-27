@@ -23,7 +23,6 @@
 #include "mbedtls/hkdf.h"
 #include "mbedtls/pkcs5.h"
 #include <assert.h>
-
 #include "oc_spake2plus.h"
 #include "port/oc_random.h"
 #include "port/oc_log.h"
@@ -213,16 +212,13 @@ encode_string(const char* str, uint8_t* buffer)
 // encode point as length followed by bytes
 // returns number of bytes written
 size_t
-encode_point(mbedtls_ecp_group* grp, const mbedtls_ecp_point* point,
+encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point,
              uint8_t* buffer)
 {
   size_t len_point = 0;
   size_t len_len = 0;
   uint8_t point_buf[kPubKeySize];
-  int ret;
-  ret =
-    mbedtls_ecp_point_write_binary(grp, point, MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                   &len_point, point_buf, sizeof(point_buf));
+  int ret = mbedtls_ecp_point_write_binary(group, point, MBEDTLS_ECP_PF_UNCOMPRESSED, &len_point, point_buf, sizeof(point_buf));
   assert(ret == 0);
 
   len_len = encode_uint(len_point, buffer);

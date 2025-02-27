@@ -194,10 +194,10 @@ extern "C" {
 	#endif
 
 
-	#define _MAKE_NULL(...) NULL						// invokes always NULL for all content when expanding f((const ...) => see below #define oc_xxx 
-	#define _ECHO	        									// defines an empty parameter, in expansion replaced with 'nothing', hence it ends up in  abc, ,xyz  
-	#define OC_SIZE_ZERO() _MAKE_NULL, 0		// creates an array 'NULL' ptr with '0' elements
-	#define OC_SIZE_MANY(x) _ECHO, x				// creates an array ptr with 'x' elements
+	#define _MAKE_NULL(...) NULL					// invokes always a NULL parameter when expanding f((const ...) = NULL => see below #define oc_xxx 
+	#define _ECHO    											// invokes always a '' (empty) parameter when expanding f((const ...) = (const ...) => see below #define oc_xxx 
+	#define OC_SIZE_ZERO() _MAKE_NULL, 0	// creates an array 'NULL' ptr with '0' elements, results in a parameter list of ..., NULL, 0   
+	#define OC_SIZE_MANY(x) _ECHO, x			// creates an array ptr with 'x' elements, results in a parameter list of ..., , x  
 
 
 									/**
@@ -206,7 +206,7 @@ extern "C" {
 									*/
 									/**
 									* @brief creates a const oc_mmem struct
-									* unlikely to be used outside of the library
+									* unlikely to be used outside the library
 									* @param count number of elements
 									* @param ptr pointer to const data
 									*/

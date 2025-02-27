@@ -57,7 +57,7 @@ void oc_core_init(void)
 {
 	oc_core_shutdown();
 
-#ifdef OC_DYNAMIC_ALLOCATION
+	#ifdef OC_DYNAMIC_ALLOCATION
 	core_resources = (oc_resource_t*) calloc(1, sizeof(oc_resource_t));
 	if (!core_resources)
 	{
@@ -66,7 +66,7 @@ void oc_core_init(void)
 	}
 
 	oc_device_info = NULL;
-#endif 
+	#endif 
 }
 
 static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
@@ -86,10 +86,10 @@ void oc_core_shutdown(void)
 	size_t i;
 	oc_free_string(&(oc_platform_info.mfg_name));
 
-#ifdef OC_DYNAMIC_ALLOCATION
+	#ifdef OC_DYNAMIC_ALLOCATION
 	if (oc_device_info)
 	{
-	#endif 
+		#endif 
 		for (i = 0; i < device_count; ++i)
 		{
 			oc_device_info_t* oc_device_info_item = &oc_device_info[i];
@@ -101,16 +101,16 @@ void oc_core_shutdown(void)
 			oc_free_knx_fp_resources(i);
 		}
 
-	#ifdef OC_DYNAMIC_ALLOCATION
+		#ifdef OC_DYNAMIC_ALLOCATION
 		free(oc_device_info);
 		oc_device_info = NULL;
 	}
-#endif
+	#endif
 
-#ifdef OC_DYNAMIC_ALLOCATION
+	#ifdef OC_DYNAMIC_ALLOCATION
 	if (core_resources)
 	{
-	#endif 
+		#endif 
 		size_t max_resource =
 			1 + (WELLKNOWNCORE * (device_count ? device_count - 1 : 0));
 		for (i = 0; i < max_resource; ++i)
@@ -118,11 +118,11 @@ void oc_core_shutdown(void)
 			oc_resource_t* core_resource = &core_resources[i];
 			oc_ri_free_resource_properties(core_resource);
 		}
-	#ifdef OC_DYNAMIC_ALLOCATION
+		#ifdef OC_DYNAMIC_ALLOCATION
 		free(core_resources);
 		core_resources = NULL;
 	}
-#endif 
+	#endif 
 	device_count = 0;
 }
 
@@ -530,13 +530,13 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 																		 oc_core_add_device_cb_t add_device_cb, void* data)
 {
 	(void) data;
-#ifndef OC_DYNAMIC_ALLOCATION
+	#ifndef OC_DYNAMIC_ALLOCATION
 	if (device_count == OC_MAX_NUM_DEVICES)
 	{
 		OC_ERR("device limit reached");
 		return NULL;
 	}
-#else /* !OC_DYNAMIC_ALLOCATION */
+	#else
 
 	// note, there is always 1 resource present, the initial one in the list
 	// per device 'WELLKNOWNCORE' resources needed 
@@ -568,8 +568,9 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 
 		// define extern for below usage
 		OC_CORE_EXTERN_CONST_RESOURCE(dev_sn)
-			// clear device 0 resources
-			oc_list_add_block(core_resource_list, (oc_resource_t*) &OC_CORE_RESOURCE_NAME(dev_sn));
+
+	  // clear device 0 resources
+	  oc_list_add_block(core_resource_list, &OC_CORE_RESOURCE_NAME(dev_sn));
 	}
 
 	oc_device_info = (oc_device_info_t*) realloc(oc_device_info, (device_count + 1) * sizeof(oc_device_info_t));
@@ -582,7 +583,7 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 	memset(&oc_device_info[device_count], 0, sizeof(oc_device_info_t));
 	oc_device_info[device_count].ia = 0xffff;
 
-#endif /* OC_DYNAMIC_ALLOCATION */
+	#endif /* OC_DYNAMIC_ALLOCATION */
 
 	/* Construct device resource */
 	// int properties = OC_DISCOVERABLE;
@@ -604,9 +605,9 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 	oc_create_knx_swu_resources(device_count);
 	oc_create_sub_resource(OC_KNX_SUB, device_count);
 
-#ifdef OC_IOT_ROUTER
+	#ifdef OC_IOT_ROUTER
 	oc_create_knx_iot_router_resources(device_count);
-#endif 
+	#endif 
 
 	oc_device_info[device_count].data = data;
 
@@ -642,28 +643,28 @@ void oc_check_uri(const char* uri)
 	oc_assert(uri[0] == '/');
 }
 
-void oc_core_populate_resource(int core_resource_index, 
+void oc_core_populate_resource(int core_resource_index,
 															 size_t device_index,
-															 char* uri, 
+															 char* uri,
 															 oc_content_format_t content_type0,
-															 oc_content_format_t content_type1, 
+															 oc_content_format_t content_type1,
 															 int properties,
-															 oc_request_callback_t get, 
+															 oc_request_callback_t get,
 															 oc_request_callback_t put,
 															 oc_request_callback_t post,
-															 oc_request_callback_t delete, 
+															 oc_request_callback_t delete,
 															 int num_resource_types,
 															 ...)
 {
 	oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index, device_index);
 
-  if (!r)
+	if (!r)
 	{
 		return;
 	}
 
 	// const are precompiled resources (device 0 or higher)
-  if (r->is_const)
+	if (r->is_const)
 	{
 		OC_ERR("oc_core_populate_resource: resource %d is const", core_resource_index);
 		return;
@@ -677,7 +678,7 @@ void oc_core_populate_resource(int core_resource_index,
 	r->properties = properties;
 
 	// rt types, use variable arguments (stdarg.h)
-  va_list rt_list;
+	va_list rt_list;
 	va_start(rt_list, num_resource_types);
 	if (num_resource_types > 0)
 	{
@@ -702,12 +703,12 @@ void oc_core_populate_resource(int core_resource_index,
 
 	// scopes/ interfaces
 	// TODO must be set according to 'non const' resource
-	
+
 }
 
 void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt)
 {
-	const oc_resource_t* r =		oc_core_get_resource_by_index(core_resource_index, device_index);
+	const oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index, device_index);
 	if (!r)
 	{
 		return;
@@ -737,13 +738,13 @@ oc_platform_info_t* oc_core_get_platform_info(void)
 
 oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
 {
-#ifndef OC_DYNAMIC_ALLOCATION
+	#ifndef OC_DYNAMIC_ALLOCATION
 	if (type == OC_DEV_SN)
 	{
 		return &core_resources[0];
 	}
 	return &core_resources[WELLKNOWNCORE * device + type];
-#else
+	#else
 	if (index == OC_DEV_SN)
 	{
 		// returns for each device the same SN(0) from device 0
@@ -767,7 +768,7 @@ oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
 	}
 	// returns the nth pointer such as for type OC_KNX_SWU (48) it is the 48' pointer 
 	return res;
-#endif
+	#endif
 }
 
 bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
@@ -841,7 +842,7 @@ bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* reque
 
 bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 {
-	bool match = true,  more_query_params; // TODO init value wrong, returns always true in case no 'if' ? 
+	bool match = true, more_query_params; // TODO init value wrong, returns always true in case no 'if' ? 
 	char* value = NULL;
 	int value_len = -1;
 
@@ -851,7 +852,7 @@ bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 		more_query_params = oc_iterate_query_get_values(request, "if", &value, &value_len);
 
 		// must be at least 'urn:knx:'  
-		if (value_len > 8) 
+		if (value_len > 8)
 		{
 			// check on wildcard if.* (everything matches)
 			const char* wildcard = memchr(value, '*', value_len);
@@ -865,7 +866,7 @@ bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 			// get if's from resource 
 			oc_interface_mask_t interface = OC_IF_NONE;
 
-		  if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface )) 
+			if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface))
 			{
 				// get the 'if' string from the 'if' bit mask, such as 'if.ll' 
 				const char* resource_interface = get_interface_string(interface);
@@ -875,7 +876,7 @@ bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 				{
 					return true;
 				}
-			  
+
 			}
 		}
 	}
