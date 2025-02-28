@@ -311,9 +311,9 @@ oc_oscore_find_context_by_group_address(size_t device, uint32_t group_address)
       oc_print_auth_at_entry(0, ctx->auth_at_index);
       for (int i = 0; i < my_entry->ga_len; i++)
       {
-        const uint64_t group_value = my_entry->ga[i];
-        PRINT("oc_oscore_find_context_by_group_address : find: %u value: %llu", group_address, group_value);
-        if (group_address == group_value)
+        const int64_t group_value = my_entry->ga[i];
+        PRINT("oc_oscore_find_context_by_group_address : find: %u value: %lli", group_address, group_value);
+        if ((int64_t)group_address == group_value)
         {
           ctx->last_used = oc_clock_time();
           return ctx;

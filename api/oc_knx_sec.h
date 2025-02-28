@@ -163,16 +163,6 @@ extern "C" {
 	int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, bool store);
 
 	/**
-	 * @brief find the entry with context_id as id
-	 *
-	 * @param device_index The device index
-	 * @param context_id the context id to search for
-	 * @return int -1 : no entry with that name
-	 * @return int >=0 : index of found entry
-	 */
-	int oc_core_find_at_entry_with_context_id(size_t device_index, char* context_id);
-
-	/**
 	* @brief Find an PASE entry
 	*
 	* @param device_index The device index
@@ -181,17 +171,6 @@ extern "C" {
 	* @return int >=0 : index of found PASE entry
 	*/
 	int oc_core_find_pase_entry(size_t device_index);
-
-	/**
-	 * @brief Find an entry with a given OSCORE ID
-	 *
-	 * @param device_index The device index
-	 * @param osc_id the oscore ID to search for
-	 * @param osc_id_len length of the context
-	 * @return int -1 : no entry with that oscore id
-	 * @return int >= index of found entry
-	 */
-	int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id, size_t osc_id_len);
 
 	/**
 	 * @brief find empty slot
@@ -211,16 +190,15 @@ extern "C" {
 	 * OSCORE context. This value is an ASCII-encoded string representing the
 	 * hexadecimal serial number
 	 * @param client_senderid_size the size of the serial number
-	 * @param clientrecipient_id the clientrecipient_id (delivered during the
+	 * @param client_recipientid the client_recipientid (delivered during the
 	 * handshake). This will become the Sender ID. This value is in HEX
-	 * @param clientrecipient_id_size the size of the clientrecipient_id
+	 * @param client_recipientid_size the size of the client_recipientid
 	 * @param shared_key the master key after SPAKE2 handshake
 	 * @param shared_key_size the key size
 	 */
 	void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
-															char* clientrecipient_id,
-															int clientrecipient_id_size, uint8_t* shared_key,
-															int shared_key_size);
+															char* client_recipientid, int client_recipientid_size, 
+															uint8_t* shared_key,	int shared_key_size);
 
 	/**
 	 * @brief set shared (SPAKE) key to the auth at table, on the Device side

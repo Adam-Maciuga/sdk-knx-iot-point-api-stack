@@ -204,7 +204,7 @@ _oc_alloc_string_array(
 }
 
 bool
-_oc_copy_byte_string_to_array(oc_string_array_t* ocstringarray,
+oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray,
                               const char str[], size_t str_len, size_t index)
 {
   if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN)
@@ -220,7 +220,7 @@ _oc_copy_byte_string_to_array(oc_string_array_t* ocstringarray,
 }
 
 bool
-_oc_byte_string_array_add_item(oc_string_array_t* ocstringarray,
+oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray,
                                const char str[], size_t str_len)
 {
   bool success = false;
@@ -238,7 +238,7 @@ _oc_byte_string_array_add_item(oc_string_array_t* ocstringarray,
 }
 
 bool
-_oc_copy_string_to_array(oc_string_array_t* ocstringarray, const char str[],
+oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[],
                          size_t index)
 {
   if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN)
@@ -253,15 +253,14 @@ _oc_copy_string_to_array(oc_string_array_t* ocstringarray, const char str[],
 }
 
 bool
-_oc_string_array_add_item(oc_string_array_t* ocstringarray, const char str[])
+oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[])
 {
   bool success = false;
-  size_t i;
   if (ocstringarray == NULL)
   {
     return false;
   }
-  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  for (size_t i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
   {
     if (oc_string_array_get_item_size(*ocstringarray, i) == 0)
     {

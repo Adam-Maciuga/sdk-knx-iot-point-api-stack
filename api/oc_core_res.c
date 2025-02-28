@@ -540,7 +540,7 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 
 	// note, there is always 1 resource present, the initial one in the list
 	// per device 'WELLKNOWNCORE' resources needed 
-	size_t new_num = 1 + WELLKNOWNCORE * device_count;
+	const size_t new_num = 1 + WELLKNOWNCORE * device_count;
 
 	// allocate new device resources
 	core_resources = (oc_resource_t*) realloc(core_resources, new_num * sizeof(oc_resource_t));
@@ -649,10 +649,10 @@ void oc_core_populate_resource(int core_resource_index,
 															 oc_content_format_t content_type0,
 															 oc_content_format_t content_type1,
 															 int properties,
-															 oc_request_callback_t get,
-															 oc_request_callback_t put,
-															 oc_request_callback_t post,
-															 oc_request_callback_t delete,
+															 oc_request_callback_t get_cb,
+															 oc_request_callback_t put_cb,
+															 oc_request_callback_t post_cb,
+															 oc_request_callback_t delete_cb,
 															 int num_resource_types,
 															 ...)
 {
@@ -696,10 +696,10 @@ void oc_core_populate_resource(int core_resource_index,
 	r->content_type[1] = content_type1;
 
 	// caller handler
-	r->get_handler.cb = get;
-	r->put_handler.cb = put;
-	r->post_handler.cb = post;
-	r->delete_handler.cb = delete;
+	r->get_handler.cb = get_cb;
+	r->put_handler.cb = put_cb;
+	r->post_handler.cb = post_cb;
+	r->delete_handler.cb = delete_cb;
 
 	// scopes/ interfaces
 	// TODO must be set according to 'non const' resource

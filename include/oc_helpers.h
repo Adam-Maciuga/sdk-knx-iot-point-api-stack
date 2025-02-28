@@ -196,8 +196,8 @@ extern "C" {
 
 	#define MAKE_NULL(...) NULL					// invokes always a NULL parameter when expanding f((const ...) = NULL => see below #define oc_xxx 
 	#define ECHOING    									// invokes always a '' (empty) parameter when expanding f((const ...) = (const ...) => see below #define oc_xxx 
-	#define OC_SIZE_ZERO() MAKE_NULL, 0	// creates an array 'NULL' ptr with '0' elements, results in a parameter list of ..., NULL, 0   
-	#define OC_SIZE_MANY(x) ECHOING, x	// creates an array ptr with 'x' elements, results in a parameter list of ..., , x  
+	#define OC_SIZE_ZERO() 0, MAKE_NULL	// creates an array 'NULL' ptr with '0' elements, results in a parameter list of ..., NULL, 0   
+	#define OC_SIZE_MANY(x) x, ECHOING 	// creates an array ptr with 'x' elements, results in a parameter list of ..., , x  
 
 
 									/**
@@ -217,21 +217,21 @@ extern "C" {
 
 	#define oc_string_create_const(s) oc_mmem_create_const(sizeof(s), s)
 
-	#define oc_string_array_create_const(f, n, ...)                              \
+	#define oc_string_array_create_const(n, f, ...)                              \
   oc_mmem_create_const(                                                        \
     (n * STRING_ARRAY_ITEM_MAX_LEN),                                           \
      f((const char[n][STRING_ARRAY_ITEM_MAX_LEN]){ __VA_ARGS__ }))
 
-	#define oc_int_array_create_const(f, n, ...)                                 \
+	#define oc_int_array_create_const(n, f, ...)                                 \
   oc_mmem_create_const(n, f((const int64_t[n]){ __VA_ARGS__ }))
 
-	#define oc_bool_array_create_const(f, n, ...)                                \
+	#define oc_bool_array_create_const(n, f, ...)                                \
   oc_mmem_create_const(n, f((const bool[n]){ __VA_ARGS__ }))
 
-	#define oc_float_array_create_const(f, n, ...)                               \
+	#define oc_float_array_create_const(n, f, ...)                               \
   oc_mmem_create_const(n, f((const float[n]){ __VA_ARGS__ }))
 
-	#define oc_double_array_create_const(f, n, ...)                              \
+	#define oc_double_array_create_const(n, f, ...)                              \
   oc_mmem_create_const(n, f((const double[n]){ __VA_ARGS__ }))
 
 	void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
@@ -257,27 +257,21 @@ extern "C" {
 	#define STRING_ARRAY_ITEM_MAX_LEN 32
 	#endif 
 
-	bool _oc_copy_string_to_array(oc_string_array_t* ocstringarray,
-																const char str[], size_t index);
-	bool _oc_string_array_add_item(oc_string_array_t* ocstringarray,
-																 const char str[]);
-	void oc_join_string_array(oc_string_array_t* ocstringarray,
-														oc_string_t* ocstring);
+	bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t index);
+	bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[]);
+	void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstring);
+	bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index);
+	bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len);
 
-	bool _oc_copy_byte_string_to_array(oc_string_array_t* ocstringarray,
-																		 const char str[], size_t str_len,
-																		 size_t index);
-	bool _oc_byte_string_array_add_item(oc_string_array_t* ocstringarray,
-																			const char str[], size_t str_len);
-
-	/* Arrays of text strings */
+	/* arrays of text strings */
 	#define oc_string_array_add_item(ocstringarray, str)                           \
-  (_oc_string_array_add_item(&(ocstringarray), str))
+  (oc_string_array_add_item_internal(&(ocstringarray), str))
 
 	#define oc_string_array_get_item(ocstringarray, index)                         \
   (oc_string(ocstringarray) + (index)*STRING_ARRAY_ITEM_MAX_LEN)
+
 	#define oc_string_array_set_item(ocstringarray, str, index)                    \
-  (_oc_copy_string_to_array(&(ocstringarray), str, index))
+  (oc_copy_string_to_array_internal(&(ocstringarray), str, index))
 
 	#define oc_string_array_get_item_size(ocstringarray, index)                    \
   (strlen((const char *)oc_string_array_get_item(ocstringarray, index)))
@@ -285,16 +279,20 @@ extern "C" {
 	#define oc_string_array_get_allocated_size(ocstringarray)                      \
   ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
 
-/* Arrays of byte strings */
+  /* arrays of byte strings */
 	#define oc_byte_string_array_add_item(ocstringarray, str, str_len)             \
-  (_oc_byte_string_array_add_item(&(ocstringarray), str, str_len))
-	#define oc_byte_string_array_get_item(ocstringarray, index)                    \
+  (oc_byte_string_array_add_item_internal(&(ocstringarray), str, str_len))
+
+  #define oc_byte_string_array_get_item(ocstringarray, index)                    \
   (oc_string(ocstringarray) + (index)*STRING_ARRAY_ITEM_MAX_LEN + 1)
-	#define oc_byte_string_array_set_item(ocstringarray, str, str_len, index)      \
-  (_oc_copy_byte_string_to_array(&(ocstringarray), str, str_len, index))
-	#define oc_byte_string_array_get_item_size(ocstringarray, index)               \
+
+  #define oc_byte_string_array_set_item(ocstringarray, str, str_len, index)      \
+  (oc_copy_byte_string_to_array_internal(&(ocstringarray), str, str_len, index))
+
+  #define oc_byte_string_array_get_item_size(ocstringarray, index)               \
   (*(oc_string(ocstringarray) + (index)*STRING_ARRAY_ITEM_MAX_LEN))
-	#define oc_byte_string_array_get_allocated_size(ocstringarray)                 \
+
+  #define oc_byte_string_array_get_allocated_size(ocstringarray)                 \
   ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
 
 /**

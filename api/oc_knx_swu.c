@@ -55,7 +55,7 @@ static void oc_knx_swu_protocol_get_handler(oc_request_t* request, oc_interface_
 	}
 
 	oc_rep_begin_root_object();
-	oc_rep_i_set_int(root, 1, swu_device.protocol, 1);
+	oc_rep_i_set_int(root, 1, swu_device.protocol);
 	oc_rep_end_root_object();
 
 	oc_prepare_cbor_response(request, OC_STATUS_OK);

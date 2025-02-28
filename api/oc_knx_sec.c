@@ -120,8 +120,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_osndelay, knx_auth_o, 0, "/auth/
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt:timePeriodMsec");
-void
-oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
+void oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_knx_auth_o_osndelay_resource");
 	//
@@ -131,8 +130,7 @@ oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
 														oc_core_knx_auth_o_osndelay_put_handler, 0, 0, 1, ":dpt:timePeriodMsec");
 }
 
-static void
-oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -188,8 +186,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o_replwdo, knx_auth_o_osndelay, 0,
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_MANY(1), ":dpt.value2UCount");
-void
-oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
+void oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_knx_auth_o_replwdo_resource");
 	//
@@ -283,8 +280,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_o, knx_auth_at, 0, "/auth/o",
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
-void
-oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
+void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 {
 	OC_DBG("create /aut/o resources");
 	// TODO: what is resource type, none for now
@@ -299,8 +295,7 @@ oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 #define LDEVID_RENEW 1
 #define LDEVID_STOP 2
 
-static int
-a_sen_convert_cmd(char* cmd)
+static int a_sen_convert_cmd(char* cmd)
 {
 	if (strncmp(cmd, "renew", strlen("renew")) == 0)
 	{
@@ -365,8 +360,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_a_sen, knx_auth_o_replwdo, 0, "/a/sen",
 																		 oc_core_a_sen_post_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
-void
-oc_create_a_sen_resource(int resource_idx, size_t device)
+void oc_create_a_sen_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_a_sen_resource");
 
@@ -378,8 +372,7 @@ oc_create_a_sen_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static int
-find_empty_at_index(void)
+static int find_empty_at_index(void)
 {
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{
@@ -665,7 +658,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 					// scope
 					if (object->iname == 9)
 					{
-						g_at_entries[index].scope = OC_IF_NONE;
+						g_at_entries[index].scope = OC_ACL_NONE;
 						int64_t* array = 0;
 						size_t array_size = 0;
 						// not making a deep copy
@@ -673,8 +666,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 						if (array_size > 0)
 						{
 							// make the deep copy
-							if ((g_at_entries[index].ga_len > 0) &&
-									(&g_at_entries[index].ga != NULL))
+							if (g_at_entries[index].ga_len > 0)
 							{
 								int64_t* cur_arr = g_at_entries[index].ga;
 								if (cur_arr)
@@ -685,9 +677,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 							}
 							g_at_entries[index].ga_len = (int) array_size;
 							// always set the group address scope, if there is 1 or more ga entries
-							g_at_entries[index].scope = OC_IF_G;
-							int64_t* new_array =
-								(int64_t*) malloc(array_size * sizeof(uint64_t));
+							g_at_entries[index].scope = OC_ACL_G;
+							int64_t* new_array = malloc(array_size * sizeof(uint64_t));
 							if (new_array)
 							{
 								for (size_t i = 0; i < array_size; i++)
@@ -1141,8 +1132,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth_at_x, knx_auth, 0, "/auth/at/*",
 																		 oc_core_auth_at_x_delete_handler, OC_ACL_SEC, OC_IF_SEC,
 																		 NULL, OC_SIZE_MANY(1), "dpt.a[n]");
 
-void
-oc_create_auth_at_x_resource(int resource_idx, size_t device)
+void oc_create_auth_at_x_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_auth_at_x_resource");
 
@@ -1154,8 +1144,7 @@ oc_create_auth_at_x_resource(int resource_idx, size_t device)
 
 // ----------------------------------------------------------------------------
 
-static void
-oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
 	(void) iface_mask;
@@ -1246,8 +1235,7 @@ OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_auth, well_known_core, 0, "/auth",
 																		 NULL, OC_ACL_NONE, OC_IF_NONE,
 																		 NULL, OC_SIZE_ZERO());
 #endif
-void
-oc_create_knx_auth_resource(int resource_idx, size_t device)
+void oc_create_knx_auth_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_knx_auth_resource");
 	oc_core_populate_resource(resource_idx, device, "/auth",
@@ -1256,8 +1244,7 @@ oc_create_knx_auth_resource(int resource_idx, size_t device)
 														oc_core_knx_auth_get_handler, 0, 0, 0, 0);
 }
 
-void
-oc_print_auth_at_entry(size_t device_index, int index)
+void oc_print_auth_at_entry(size_t device_index, int index)
 {
 	(void) device_index;
 	#ifdef OC_PRINT
@@ -1381,7 +1368,7 @@ int oc_at_delete_entry(size_t device_index, int index)
 
 	if (g_at_entries[index].ga_len > 0)
 	{
-		uint64_t* cur_arr = g_at_entries[index].ga;
+		int64_t* cur_arr = g_at_entries[index].ga;
 		if (cur_arr)
 		{
 			free(cur_arr);
@@ -1550,7 +1537,7 @@ static void oc_at_load_entry(int entry)
 						if (rep->iname == 777)
 						{
 							// storage array + len 
-						  const int64_t* array = oc_int_array(rep->value.array);
+							const int64_t* array = oc_int_array(rep->value.array);
 							const int array_size = oc_int_array_size(rep->value.array);
 
 							if (array_size > 0)
@@ -1570,12 +1557,12 @@ static void oc_at_load_entry(int entry)
 								g_at_entries[entry].ga_len = array_size;
 
 								// one GA = 64 bit ...
-							  int64_t* new_array = malloc(array_size * sizeof(uint64_t));
+								int64_t* new_array = malloc(array_size * sizeof(uint64_t));
 
 								if (new_array)
 								{
 									// fetch 0..n from storage 
-								  for (int i = 0; i < array_size; i++)
+									for (int i = 0; i < array_size; i++)
 									{
 										new_array[i] = array[i];
 									}
@@ -1601,8 +1588,7 @@ static void oc_at_load_entry(int entry)
 	free(buf);
 }
 
-int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry,
-												 bool store)
+int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, bool store)
 {
 	(void) device_index;
 	if (index < G_AT_MAX_ENTRIES)
@@ -1650,12 +1636,12 @@ int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry,
 		// copy the array
 		if (g_at_entries[index].ga_len > 0)
 		{
-			int array_size = g_at_entries[index].ga_len;
-			g_at_entries[index].ga_len = (int) array_size;
-			int64_t* new_array = (int64_t*) malloc(array_size * sizeof(uint64_t));
+			const int array_size = g_at_entries[index].ga_len;
+			g_at_entries[index].ga_len = array_size;
+			int64_t* new_array = malloc(array_size * sizeof(uint64_t));
 			if (new_array)
 			{
-				for (size_t i = 0; i < array_size; i++)
+				for (int i = 0; i < array_size; i++)
 				{
 					new_array[i] = entry.ga[i];
 				}
@@ -1703,8 +1689,7 @@ int oc_core_find_pase_entry(size_t device_index)
 	return -1;
 }
 
-int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id,
-																			size_t osc_id_len)
+int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id, size_t osc_id_len)
 {
 	for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
 	{

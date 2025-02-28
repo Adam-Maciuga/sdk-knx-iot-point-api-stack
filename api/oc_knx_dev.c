@@ -15,14 +15,15 @@
  */
 
 #include "oc_api.h"
-#include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
-#include "api/oc_knx_gm.h"
-#include "api/oc_knx_sec.h"
-#include "api/oc_knx_helpers.h"
-#include "api/oc_main.h"
+#include "oc_knx_dev.h"
+#include "oc_knx_fp.h"
+#include "oc_knx_gm.h"
+#include "oc_knx_sec.h"
+#include "oc_knx_helpers.h"
+#include "oc_main.h"
 #include "port/dns-sd.h"
-#include <oc_storage.h> 
+#include <oc_storage.h>
+#include "include/oc_helpers.h"
 
 #ifdef OC_IOT_ROUTER
 #include "api/oc_knx_gm.h"

@@ -111,7 +111,7 @@ extern "C" {
    *
    * @param time the update time in IETF RFC 3339
    */
-  void oc_swu_set_last_update(char* time);
+  void oc_swu_set_last_update(const char* time);
 
   /**
    * @brief set the current amount of the bytes written
@@ -141,7 +141,7 @@ extern "C" {
    *
    * @param url the url
    */
-  void oc_swu_set_query_url(char* url);
+  void oc_swu_set_query_url(const char* url);
 
   /**
    * @brief sets the result of the download procedure

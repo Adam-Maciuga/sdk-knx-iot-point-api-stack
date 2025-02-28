@@ -420,10 +420,10 @@ extern "C" {
 	 * @param content_type0 the (first) content type that will be listed as ct in link-format responses (mandatory)
 	 * @param content_type1 the (second) content type that will be listed as ct in link-format responses (optional)
 	 * @param properties the properties (as mask)
-	 * @param get get callback function
-	 * @param put put callback function
-	 * @param post post callback function
-	 * @param delete delete callback function
+	 * @param get_cb get callback function
+	 * @param put_cb put callback function
+	 * @param post_cb post callback function
+	 * @param delete_cb delete callback function
 	 * @param num_resource_types amount of resource types, listed as variable
 	 * arguments after this argument
 	 * @param ... Resource types, passed as zero-terminated strings. In order
@@ -435,10 +435,10 @@ extern "C" {
 																 oc_content_format_t content_type0,
 																 oc_content_format_t content_type1,
 																 int properties,
-																 oc_request_callback_t get,
-																 oc_request_callback_t put,
-																 oc_request_callback_t post,
-																 oc_request_callback_t delete,
+																 oc_request_callback_t get_cb,
+																 oc_request_callback_t put_cb,
+																 oc_request_callback_t post_cb,
+																 oc_request_callback_t delete_cb,
 																 int num_resource_types,
 																 ...);
 
@@ -481,7 +481,7 @@ extern "C" {
 	 * @return true interface type of the resource is in the request
 	 * @return false interface type of the resource is not in the request
 	 */
-	bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request);
+	bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief frame the interface mask in the response, as string in the uri
