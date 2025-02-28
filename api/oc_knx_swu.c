@@ -15,13 +15,14 @@
  */
 
 #include "oc_api.h"
-#include "api/oc_knx_swu.h"
-#include "api/oc_main.h"
-#include "api/oc_knx_helpers.h"
+#include "oc_knx_swu.h"
+#include "oc_main.h"
+#include "oc_knx_helpers.h"
 #include "oc_discovery.h"
 #include "oc_core_res.h"
 #include "oc_storage.h"
-
+#include "include/oc_helpers.h"
+#include "include/oc_ri.h"
 
 static oc_device_swu_t swu_device = {
 	0,

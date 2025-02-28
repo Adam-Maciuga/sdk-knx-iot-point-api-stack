@@ -46,7 +46,7 @@ extern "C" {
   post_cb,   post_scope, post_if_mask,	                                       \
   delete_cb, delete_scope, delete_if_mask,                                     \
   dpt, num_resource_types, ...)          /* variadic part hosts 0..n types */  \
-  _Pragma("warning(disable:4090)");                                            \
+  _Pragma("warning(disable:4090)")                                             \
   oc_ri_expand_call(                                                           \
     oc_ri_create_const_resource,                                               \
     core_resource_##next_resource,                                             \
@@ -113,8 +113,8 @@ extern "C" {
   post_cb,   post_scope, post_if_mask,	                                       \
   delete_cb, delete_scope, delete_if_mask,                                     \
   dpt, num_resource_types, ...)           /* variadic part hosts 0..n types */ \
-  _Pragma("GCC diagnostic push");                                              \
-  _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"");          \
+  _Pragma("GCC diagnostic push")                                               \
+  _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"")           \
   oc_ri_create_const_resource(                                                 \
     core_resource_##next_resource,                                             \
     core_resource_##resource_name, device_index, NULL, uri, dpt,							 \

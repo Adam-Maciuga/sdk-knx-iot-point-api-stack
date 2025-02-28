@@ -709,7 +709,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 
 OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
 																		APPLICATION_LINK_FORMAT, CONTENT_NONE,
-																		OC_DISCOVERABLE,
+                                    OC_DISCOVERABLE,
 																		oc_wkcore_discovery_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP 
 																		NULL, OC_ACL_NONE, OC_IF_NONE,
 																		NULL, OC_ACL_NONE, OC_IF_NONE,
@@ -729,7 +729,7 @@ void oc_create_discovery_resource(const int resource_idx, const size_t device_in
 	oc_core_populate_resource(resource_idx, device_index, "/.well-known/core",
 														APPLICATION_LINK_FORMAT, CONTENT_NONE,
 														OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
-														0, 0, 1, "wk");
+														0, 0, 1, "well-known-type");
 }
 
 oc_discovery_flags_t

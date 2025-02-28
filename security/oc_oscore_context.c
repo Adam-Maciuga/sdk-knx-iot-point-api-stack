@@ -301,18 +301,18 @@ oc_oscore_find_context_by_group_address(size_t device, uint32_t group_address)
 {
   (void) device;
 
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_list_head(contexts);
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
 
   while (ctx != NULL)
   {
-    oc_auth_at_t* my_entry = oc_get_auth_at_entry(0, ctx->auth_at_index);
+    const oc_auth_at_t* my_entry = oc_get_auth_at_entry(0, ctx->auth_at_index);
     if (my_entry)
     {
       oc_print_auth_at_entry(0, ctx->auth_at_index);
       for (int i = 0; i < my_entry->ga_len; i++)
       {
-        uint32_t group_value = my_entry->ga[i];
-        PRINT("oc_oscore_find_context_by_group_address : find: %u value: %u", group_address, group_value);
+        const uint64_t group_value = my_entry->ga[i];
+        PRINT("oc_oscore_find_context_by_group_address : find: %u value: %llu", group_address, group_value);
         if (group_address == group_value)
         {
           ctx->last_used = oc_clock_time();
