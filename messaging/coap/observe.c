@@ -166,7 +166,7 @@ coap_remove_observer(coap_observer_t *o)
   const char *query = get_iface_query(o->iface_mask);
   oc_blockwise_state_t *response_state = oc_blockwise_find_response_buffer(
     oc_string(o->resource->uri) + 1, oc_string_len(o->resource->uri) - 1,
-    &o->endpoint, OC_GET, query, (query) ? strlen(query) : 0,
+  &o->endpoint, OC_GET, query, (query) ? strlen(query) : 0,
     OC_BLOCKWISE_SERVER);
   if (response_state) {
     response_state->ref_count = 0;

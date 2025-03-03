@@ -648,14 +648,15 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 	PRINT("oc_core_fp_g_post_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g, knx_fp_g_x, 0, "/fp/g",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_fp_g_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_fp_g_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_fp_g_x;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_data;
+const oc_resource_t core_resource_knx_fp_g = {
+  (oc_resource_t *)&core_resource_knx_fp_g_x, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/fp/g"), "/fp/g" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                        {
+                                          "urn:knx:if.c"
+                                        }) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_g_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_g_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_g_data }; PRAGMA_OUT
 
 void oc_create_fp_g_resource(int resource_idx, size_t device)
 {
@@ -753,23 +754,25 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 }
 
 #ifdef OC_PUBLISHER_TABLE
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g_x, knx_fp_p, 0, "/fp/g/*",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_fp_g_x_get_handler, OC_ACL_P, OC_IF_P,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_fp_g_x_del_handler, OC_ACL_C, OC_IF_C,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_fp_p;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
+const oc_resource_t core_resource_knx_fp_g_x = {
+  (oc_resource_t *)&core_resource_knx_fp_p, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/fp/g/*"), "/fp/g/*" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                            {
+                                              "urn:knx:if.c"
+                                            }) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_g_x_get_handler, NULL, OC_ACL_P, OC_IF_P }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_g_x_del_handler, NULL, OC_ACL_C, OC_IF_C }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_g_x_data }; PRAGMA_OUT
 #else
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_g_x, knx_fp_r, 0, "/fp/g/*",
-																		 OC_IF_D | OC_IF_C, APPLICATION_CBOR, OC_DISCOVERABLE,
-																		 oc_core_fp_g_x_get_handler,
-																		 0,
-																		 0,
-																		 oc_core_fp_g_x_del_handler,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_fp_r; PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data; const oc_resource_t core_resource_knx_fp_g_x = { (oc_resource_t*) &core_resource_knx_fp_r, 0, { NULL, 0, NULL }, { NULL, sizeof("/fp/g/*"), "/fp/g/*" }, { NULL, (size_t)1 * 32, ((char[1][32])
+{
+	"urn:knx:if.c"
+}) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_g_x_get_handler, NULL, OC_ACL_P, OC_IF_P }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_g_x_del_handler, NULL, OC_ACL_C, OC_IF_C }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_g_x_data }; PRAGMA_OUT
 #endif
+
 void oc_create_fp_g_x_resource(int resource_idx, size_t device)
 {
 	OC_DBG("oc_create_fp_g_x_resource");
@@ -1136,14 +1139,15 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 	PRINT("oc_core_fp_p_post_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p, knx_fp_p_x, 0, "/fp/p",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_fp_p_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_fp_p_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_fp_p_x;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
+const oc_resource_t core_resource_knx_fp_p = {
+  (oc_resource_t *)&core_resource_knx_fp_p_x, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/fp/p"), "/fp/p" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                        {
+                                          "urn:knx:if.c"
+                                        }) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_p_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_p_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_p_data }; PRAGMA_OUT
 
 void oc_create_fp_p_resource(int resource_idx, size_t device)
 {
@@ -1273,14 +1277,15 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 	PRINT("oc_core_fp_p_x_del_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_p_x, knx_fp_r, 0, "/fp/p/*",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_fp_p_x_get_handler, OC_ACL_D, OC_IF_D,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_fp_p_x_del_handler, OC_ACL_C, OC_IF_C,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_fp_r;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
+const oc_resource_t core_resource_knx_fp_p_x = {
+  (oc_resource_t *)&core_resource_knx_fp_r, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/fp/p/*"), "/fp/p/*" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                            {
+                                              "urn:knx:if.c"
+                                            }) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_p_x_get_handler, NULL, OC_ACL_D, OC_IF_D }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_p_x_del_handler, NULL, OC_ACL_C, OC_IF_C }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_p_x_data }; PRAGMA_OUT
 
 void oc_create_fp_p_x_resource(int resource_idx, size_t device)
 {
@@ -1601,14 +1606,15 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 	PRINT("oc_core_fp_r_post_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r, knx_fp_r_x, 0, "/fp/r",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_fp_r_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_fp_r_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_fp_r_x;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
+const oc_resource_t core_resource_knx_fp_r = {
+  (oc_resource_t *)&core_resource_knx_fp_r_x, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/fp/r"), "/fp/r" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                        {
+                                          "urn:knx:if.c"
+                                        }) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_r_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_r_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_r_data }; PRAGMA_OUT
 
 void oc_create_fp_r_resource(int resource_idx, size_t device)
 {
@@ -1733,14 +1739,15 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 	PRINT("oc_core_fp_r_x_del_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_r_x, knx_p, 0, "/fp/r/*",
-																		 APPLICATION_CBOR, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 oc_core_fp_r_x_get_handler, OC_ACL_D, OC_IF_D,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_fp_r_x_del_handler, OC_ACL_C, OC_IF_C,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:if.c");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_p;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
+const oc_resource_t core_resource_knx_fp_r_x = {
+  (oc_resource_t *)&core_resource_knx_p, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/fp/r/*"), "/fp/r/*" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                            {
+                                              "urn:knx:if.c"
+                                            }) }, { NULL, 0, NULL }, { APPLICATION_CBOR, CONTENT_NONE }, OC_DISCOVERABLE, { oc_core_fp_r_x_get_handler, NULL, OC_ACL_D, OC_IF_D }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_fp_r_x_del_handler, NULL, OC_ACL_C, OC_IF_C }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_fp_r_x_data }; PRAGMA_OUT
 
 void oc_create_fp_r_x_resource(int resource_idx, size_t device)
 {

@@ -193,13 +193,6 @@ extern "C" {
 
 	#endif
 
-
-	#define MAKE_NULL(...) NULL					// invokes always a NULL parameter when expanding f((const ...) = NULL => see below #define oc_xxx 
-	#define ECHOING    									// invokes always a '' (empty) parameter when expanding f((const ...) = (const ...) => see below #define oc_xxx 
-	#define OC_SIZE_ZERO() 0, MAKE_NULL	// creates an array 'NULL' ptr with '0' elements, results in a parameter list of ..., NULL, 0   
-	#define OC_SIZE_MANY(x) x, ECHOING 	// creates an array ptr with 'x' elements, results in a parameter list of ..., , x  
-
-
 									/**
 									* @brief Helper macros to create const versions of oc types
 									* These are special and need some help to understand things correctly
@@ -279,20 +272,20 @@ extern "C" {
 	#define oc_string_array_get_allocated_size(ocstringarray)                      \
   ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
 
-  /* arrays of byte strings */
+	/* arrays of byte strings */
 	#define oc_byte_string_array_add_item(ocstringarray, str, str_len)             \
   (oc_byte_string_array_add_item_internal(&(ocstringarray), str, str_len))
 
-  #define oc_byte_string_array_get_item(ocstringarray, index)                    \
+	#define oc_byte_string_array_get_item(ocstringarray, index)                    \
   (oc_string(ocstringarray) + (index)*STRING_ARRAY_ITEM_MAX_LEN + 1)
 
-  #define oc_byte_string_array_set_item(ocstringarray, str, str_len, index)      \
+	#define oc_byte_string_array_set_item(ocstringarray, str, str_len, index)      \
   (oc_copy_byte_string_to_array_internal(&(ocstringarray), str, str_len, index))
 
-  #define oc_byte_string_array_get_item_size(ocstringarray, index)               \
+	#define oc_byte_string_array_get_item_size(ocstringarray, index)               \
   (*(oc_string(ocstringarray) + (index)*STRING_ARRAY_ITEM_MAX_LEN))
 
-  #define oc_byte_string_array_get_allocated_size(ocstringarray)                 \
+	#define oc_byte_string_array_get_allocated_size(ocstringarray)                 \
   ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
 
 /**

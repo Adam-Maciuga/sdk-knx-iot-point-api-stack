@@ -233,14 +233,16 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 	PRINT("oc_core_fb_x_get_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f_x, knx_swu_protocol, 0, "/f/*",
-																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
-																		 OC_UNDISCOVERABLE,
-																		 oc_core_fb_x_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.0");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_swu_protocol;
+PRAGMA_IN oc_resource_data_t core_resource_knx_f_x_data;
+const oc_resource_t core_resource_knx_f_x = {
+  (oc_resource_t *)&core_resource_knx_swu_protocol, 0,
+  { NULL, 0, NULL }, { NULL, sizeof("/f/*"), "/f/*" }, {
+    NULL, (size_t)1 * 32, ((char[1][32])
+{
+	"urn:knx:fb.0"
+}) }, { NULL, 0, NULL }, { APPLICATION_LINK_FORMAT, CONTENT_NONE }, OC_UNDISCOVERABLE, { oc_core_fb_x_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_f_x_data }; PRAGMA_OUT
 
 void oc_create_fb_x_resource(int resource_idx, size_t device)
 {
@@ -565,14 +567,11 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 	PRINT("oc_core_fb_get_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_f, knx_f_x, 0, "/f",
-																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
-																		 OC_UNDISCOVERABLE,
-																		 oc_core_fb_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.0");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+PRAGMA_IN oc_resource_data_t core_resource_knx_f_data; const oc_resource_t core_resource_knx_f = { (oc_resource_t*) &core_resource_knx_f_x, 0, { NULL, 0, NULL }, { NULL, sizeof("/f"), "/f" }, { NULL, (size_t)1 * 32, ((char[1][32])
+{
+	"urn:knx:fb.0"
+}) }, { NULL, 0, NULL }, { APPLICATION_LINK_FORMAT, CONTENT_NONE }, OC_UNDISCOVERABLE, { oc_core_fb_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_f_data }; PRAGMA_OUT
 
 void oc_create_fb_resource(int resource_idx, size_t device)
 {

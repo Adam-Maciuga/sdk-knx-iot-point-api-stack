@@ -1023,7 +1023,7 @@ int coap_receive(oc_message_t* incoming_message)
 					{
 						const void* payload = oc_blockwise_dispatch_block(
 							response_buffer, 0, response_buffer->payload_size + 1,
-							&payload_size);
+  &payload_size);
 						if (payload && response_buffer->payload_size > 0)
 						{
 							coap_set_payload(response, payload, payload_size);
@@ -1219,7 +1219,7 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					response_buffer = oc_blockwise_alloc_response_buffer(
 						oc_string(client_cb->uri) + 1, oc_string_len(client_cb->uri) - 1,
-						&incoming_message->endpoint, client_cb->method, OC_BLOCKWISE_CLIENT);
+  &incoming_message->endpoint, client_cb->method, OC_BLOCKWISE_CLIENT);
 					if (response_buffer)
 					{
 						OC_DBG("created new response buffer for uri %s",

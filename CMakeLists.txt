@@ -351,7 +351,7 @@ install(TARGETS mbedcrypto mbedx509 mbedtls
 add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
 add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
 add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
-add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile defintions)
+add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile definitions)
 add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
 
 ## Security 

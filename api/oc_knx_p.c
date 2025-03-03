@@ -253,14 +253,15 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 	PRINT("oc_core_p_post_handler - end");
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_p, knx_f, 0, "/p",
-																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
-																		 OC_UNDISCOVERABLE,
-																		 oc_core_p_get_handler, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_p_post_handler, OC_ACL_C, OC_IF_C | OC_IF_B,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_SIZE_MANY(1), "urn:knx:fb.0");
+// resource definition, details/comments see on 'core_resource_well_known_core_final' 
+extern const oc_resource_t core_resource_knx_f;
+PRAGMA_IN oc_resource_data_t core_resource_knx_p_data;
+const oc_resource_t core_resource_knx_p = {
+  (oc_resource_t *)&core_resource_knx_f, 0, { NULL, 0, NULL },
+  { NULL, sizeof("/p"), "/p" }, { NULL, (size_t)1 * 32, ((char[1][32])
+                                  {
+                                    "urn:knx:fb.0"
+                                  }) }, { NULL, 0, NULL }, { APPLICATION_LINK_FORMAT, CONTENT_NONE }, OC_UNDISCOVERABLE, { oc_core_p_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { oc_core_p_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B }, { NULL, NULL, OC_ACL_NONE, OC_IF_NONE }, { NULL, NULL }, { NULL, NULL }, 0, 0, 1,& core_resource_knx_p_data }; PRAGMA_OUT
 
 void oc_create_p_resource(int resource_idx, size_t device)
 {

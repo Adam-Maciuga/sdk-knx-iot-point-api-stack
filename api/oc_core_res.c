@@ -567,10 +567,10 @@ oc_device_info_t* oc_core_add_device(const char* name, const char* version, cons
 		}
 
 		// define extern for below usage
-		OC_CORE_EXTERN_CONST_RESOURCE(dev_sn)
+		extern oc_resource_t core_resource_dev_sn;
 
 	  // clear device 0 resources
-	  oc_list_add_block(core_resource_list, &OC_CORE_RESOURCE_NAME(dev_sn));
+	  oc_list_add_block(core_resource_list, &core_resource_dev_sn);
 	}
 
 	oc_device_info = (oc_device_info_t*) realloc(oc_device_info, (device_count + 1) * sizeof(oc_device_info_t));

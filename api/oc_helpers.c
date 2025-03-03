@@ -356,12 +356,12 @@ oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 int
 oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
 {
-  char temp_str[17];
+  char temp_str[17] = "";
 
   if (number == 0)
   {
     // an all zero value MUST is defined as a leading zero (incl. \0)
-    snprintf(str, 2, "0");
+    (void)snprintf(str, 2, "0");
     return 0;
   }
 
@@ -369,7 +369,7 @@ oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
   for (uint8_t i = 0; i < 16; ++i)
   {
     uint8_t nibble = (number >> ((16 - (i + 1)) * 4));
-    sprintf(temp_str + i, "%x", nibble & 0xF);
+    (void)sprintf(temp_str + i, "%x", nibble & 0xF);
   }
   temp_str[16] = '\0';
 

@@ -29,92 +29,17 @@
 extern "C" {
 	#endif
 
-	// define resource_name as extern by adding internal 'core_resource' name (not known in other modules)
-	#define OC_CORE_EXTERN_CONST_RESOURCE(resource_name) extern oc_resource_t core_resource_##resource_name;
-
-	// set the internal name of a core const resource by adding internal 'core_resource' name (not known in other modules)
-	#define OC_CORE_RESOURCE_NAME(name) core_resource_##name
-
-	// ... intel aim for compatibility with MSVC, but it does not work for MS pragmas? 
+	// ... intel aim for compatibility with MSVC, but it does not work for pragmas 
 	#if defined _MSC_VER && !defined __INTEL_COMPILER
 
 	#define PRAGMA_IN _Pragma("warning(disable:4090)")
 	#define PRAGMA_OUT _Pragma("warning(default:4090)")
-	
-	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
-  resource_name, next_resource, device_index, uri,														 \
-  content_type_man, content_type_opt, properties,                              \
-  get_cb,	   get_scope, get_if_mask,																					 \
-  put_cb,		 put_scope, put_if_mask,																					 \
-  post_cb,   post_scope, post_if_mask,	                                       \
-  delete_cb, delete_scope, delete_if_mask,                                     \
-  dpt, num_resource_types, ...)          /* variadic part hosts 0..n types */  \
-  _Pragma("warning(disable:4090)")                                             \
-  oc_ri_expand_call(                                                           \
-    oc_ri_create_const_resource,                                               \
-    core_resource_##next_resource,                                             \
-    core_resource_##resource_name, device_index, NULL, uri, dpt,							 \
-    content_type_man, content_type_opt, properties,                            \
-    get_cb,    get_scope, get_if_mask,			                                   \
-    put_cb,    put_scope, put_if_mask,	                                       \
-    post_cb,   post_scope, post_if_mask,	                                     \
-    delete_cb, delete_scope, delete_if_mask,                                   \
-    NULL, 0,                                                                   \
-    0, num_resource_types, __VA_ARGS__)  /* variadic part hosts 0..n types */  \
-  _Pragma("warning(default:4090)") 
-
-/**
-* @brief Creates a const CORE resource that is linked to a next resource.
-*        All resources together defines a linked list with a mandatory final
-*        (well-known core) resource with a link that points to NULL.
-*
-* @note
-* The order of 'linked' resources matches the core resource numbers
-* as defined in 'oc_core_resource_t'. Accessing a specific resource
-* needs to travers the list of pointers.
-* Macro may raise a possible warning of "expect an identifier" ... (ignore it)
-*
-*
-* @param resource_name name of this resource
-* @param next_resource name of next resource
-*
-*/
-	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource, ...)\
-  extern const oc_resource_t core_resource_##next_resource;                      \
-  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                               \
-                             resource_name, next_resource, __VA_ARGS__)
 
 	#else
 
-	#define PRAGMA_IN  _Pragma("GCC diagnostic push")  \                                              \
+	#define PRAGMA_IN  _Pragma("GCC diagnostic push")  \
                      _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"")
 	#define PRAGMA_OUT _Pragma("GCC diagnostic pop")
-
-	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
-  resource_name, next_resource, device_index, uri,														 \
-  content_type_man, content_type_opt, properties,                              \
-  get_cb,	   get_scope, get_if_mask,																					 \
-  put_cb,		 put_scope, put_if_mask,																					 \
-  post_cb,   post_scope, post_if_mask,	                                       \
-  delete_cb, delete_scope, delete_if_mask,                                     \
-  dpt, num_resource_types, ...)           /* variadic part hosts 0..n types */ \
-  _Pragma("GCC diagnostic push")                                               \
-  _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"")           \
-  oc_ri_create_const_resource(                                                 \
-    core_resource_##next_resource,                                             \
-    core_resource_##resource_name, device_index, NULL, uri, dpt,							 \
-    content_type_man, content_type_opt, properties,                            \
-    get_cb,    get_scope, get_if_mask,			                                   \
-    put_cb,    put_scope, put_if_mask,	                                       \
-    post_cb,   post_scope, post_if_mask,	                                     \
-    delete_cb, delete_scope, delete_if_mask,                                   \
-    NULL, 0,                                                                   \
-    0, num_resource_types, __VA_ARGS__);  /* variadic part hosts 0..n types */ \
-  _Pragma("GCC diagnostic pop")
-
-	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,...)\
-  extern const oc_resource_t core_resource_##next_resource;                     \
-  OC_CORE_CREATE_CONST_RESOURCE(resource_name, next_resource, __VA_ARGS__)
 
 	#endif
 

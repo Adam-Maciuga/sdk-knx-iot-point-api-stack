@@ -20,36 +20,52 @@
 #include "oc_core_res.h"
 #include "oc_api.h"
 
-static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+static void
+oc_core_sub_delete_handler(oc_request_t *request,
+                           oc_interface_mask_t iface_mask, void *data)
 {
 
-	(void) iface_mask;
-	(void) data;
-	oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
+  (void)iface_mask;
+  (void)data;
+  oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(sub, knx_a_sen, 0, "/sub",
-																		 APPLICATION_LINK_FORMAT, CONTENT_NONE,
-																		 OC_DISCOVERABLE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 NULL, OC_ACL_NONE, OC_IF_NONE,
-																		 oc_core_sub_delete_handler, OC_ACL_P, OC_IF_P,
-																		 NULL, OC_SIZE_ZERO());
+// resource definition, details/comments see on
+// 'core_resource_well_known_core_final'
+extern const oc_resource_t core_resource_knx_a_sen;
+PRAGMA_IN oc_resource_data_t core_resource_sub_data;
+const oc_resource_t core_resource_sub = {
+  (oc_resource_t *)&core_resource_knx_a_sen,
+  0,
+  { NULL, 0, NULL },
+  { NULL, sizeof("/sub"), "/sub" },
+  { NULL, 0, NULL },
+  { NULL, 0, NULL },
+  { APPLICATION_LINK_FORMAT, CONTENT_NONE },
+  OC_DISCOVERABLE,
+  { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
+  { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
+  { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
+  { oc_core_sub_delete_handler, NULL, OC_ACL_P, OC_IF_P },
+  { NULL, NULL },
+  { NULL, NULL },
+  0,
+  0,
+  true,  &core_resource_sub_data
+};
+PRAGMA_OUT
 
 void
 oc_create_sub_resource(int resource_idx, size_t device_index)
 {
-	OC_DBG("create /sub resources");
+  OC_DBG("create /sub resources");
 
-	if (device_index == 0)
-	{
-		OC_DBG("device 0: KNX device resources created statically");
-		return;
-	}
+  if (device_index == 0) {
+    OC_DBG("device 0: KNX device resources created statically");
+    return;
+  }
 
-	oc_core_populate_resource(resource_idx, device_index, "/sub",
-														APPLICATION_CBOR,CONTENT_NONE, 
-														OC_DISCOVERABLE, 0, 0, 0, oc_core_sub_delete_handler,
-														0);
+  oc_core_populate_resource(resource_idx, device_index, "/sub",
+                            APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE, 0,
+                            0, 0, oc_core_sub_delete_handler, 0);
 }
