@@ -707,14 +707,41 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	}
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_FINAL(well_known_core, 0, "/.well-known/core",
-																		APPLICATION_LINK_FORMAT, CONTENT_NONE,
-                                    OC_DISCOVERABLE,
-																		oc_wkcore_discovery_handler, OC_ACL_NONE, OC_IF_NONE, // unsecured EP 
-																		NULL, OC_ACL_NONE, OC_IF_NONE,
-																		NULL, OC_ACL_NONE, OC_IF_NONE,
-																		NULL, OC_ACL_NONE, OC_IF_NONE,
-																		NULL, OC_SIZE_MANY(1), "well-known-type");
+
+/**
+* Creates a const CORE resource that is linked to a next resource.
+* All resources together defines a linked (respurce) list, the last 
+* resource of the list uses a link that points to NULL (... this one here)
+*
+* - resource fields, see 'oc_resource_t'
+* - 
+* 
+*/
+PRAGMA_IN																																// compiler specific
+oc_resource_dummy_t core_resource_well_known_core_final = { NULL, -1 };	// next resourece
+oc_resource_data_t core_resource_well_known_core_data;									// user runtime data
+const oc_resource_t core_resource_well_known_core =											// the actual resource defintion 
+{
+	(oc_resource_t*) &core_resource_well_known_core_final,								// ptr to next resource
+	0,																																		// device instance
+	{ NULL, sizeof(NULL), NULL },																					// resource name
+	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },						// Endpoint URI
+	{ NULL, (1 * 32), ((const char[1][32]){	"well-known-type"}) },				// types (0...n), if 0 => 3 x NULL
+	{ NULL, sizeof(NULL), NULL },																					// DPT
+	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },														// content formats (max 2)
+	OC_DISCOVERABLE,																											// resource properties
+	{ oc_wkcore_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },				// get callback
+	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },															// put callback
+	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },															// post callback
+	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },															// delete callback
+	{ NULL, NULL },																												// property get callback
+	{ NULL, NULL },																												// property set callback 
+	0,																																		// observe period
+	0,																																		// FB instance
+	true,																																	// is static precompiled resource
+	&core_resource_well_known_core_data																		// ptr to user runtime data					
+};
+PRAGMA_OUT																															// compiler specific
 
 void oc_create_discovery_resource(const int resource_idx, const size_t device_index)
 {

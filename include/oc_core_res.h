@@ -38,6 +38,9 @@ extern "C" {
 	// ... intel aim for compatibility with MSVC, but it does not work for MS pragmas? 
 	#if defined _MSC_VER && !defined __INTEL_COMPILER
 
+	#define PRAGMA_IN _Pragma("warning(disable:4090)")
+	#define PRAGMA_OUT _Pragma("warning(default:4090)")
+	
 	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
   resource_name, next_resource, device_index, uri,														 \
   content_type_man, content_type_opt, properties,                              \
@@ -75,35 +78,17 @@ extern "C" {
 * @param resource_name name of this resource
 * @param next_resource name of next resource
 *
-*
-* @related OC_CORE_CREATE_CONST_RESOURCE_FINAL
-*
 */
 	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource, ...)\
   extern const oc_resource_t core_resource_##next_resource;                      \
   oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                               \
                              resource_name, next_resource, __VA_ARGS__)
 
-/**
-* @brief
-* Creates a const CORE resource that is linked to a final, non-const dummy
-* resource (NULL, -1).
-*
-* All resources together defines a linked list with a mandatory final
-* (well-known) resource with a link that points to NULL.
-*
-* @param resource_name name of this resource
-*
-* @note may raise a possible warning of "expect an identifier" ...
-*
-* @related OC_CORE_CREATE_CONST_RESOURCE_LINKED
-*/
-	#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)                \
-  oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };      \
-  oc_ri_expand_call(OC_CORE_CREATE_CONST_RESOURCE,                               \
-                             resource_name, resource_name##_final, __VA_ARGS__)
-
 	#else
+
+	#define PRAGMA_IN  _Pragma("GCC diagnostic push")  \                                              \
+                     _Pragma("GCC diagnostic ignored \"-Wdiscarded-array-qualifiers\"")
+	#define PRAGMA_OUT _Pragma("GCC diagnostic pop")
 
 	#define OC_CORE_CREATE_CONST_RESOURCE(                                       \
   resource_name, next_resource, device_index, uri,														 \
@@ -130,10 +115,6 @@ extern "C" {
 	#define OC_CORE_CREATE_CONST_RESOURCE_LINKED(resource_name, next_resource,...)\
   extern const oc_resource_t core_resource_##next_resource;                     \
   OC_CORE_CREATE_CONST_RESOURCE(resource_name, next_resource, __VA_ARGS__)
-
-	#define OC_CORE_CREATE_CONST_RESOURCE_FINAL(resource_name, ...)               \
-  oc_resource_dummy_t core_resource_##resource_name##_final = { NULL, -1 };     \
-  OC_CORE_CREATE_CONST_RESOURCE(resource_name, resource_name##_final, __VA_ARGS__)
 
 	#endif
 
