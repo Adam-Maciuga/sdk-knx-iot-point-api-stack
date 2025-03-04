@@ -75,9 +75,6 @@ typedef uint64_t oc_clock_time_t;
 /* Prescriptive lower layers MTU size, enable block-wise transfers */
 #define OC_BLOCK_WISE_SET_MTU (700)
 
-/* Maximum size of request/response payloads */
-#define OC_MAX_APP_DATA_SIZE (2048)
-
 /* Maximum number of concurrent requests */
 #define OC_MAX_NUM_CONCURRENT_REQUESTS (20)
 
