@@ -93,8 +93,8 @@ extern "C" {
 		oc_string_t hostname;                     /**< knx host name */
 		uint32_t mid;                             /**< knx manufacturer id */
 		uint64_t fid;                             /**< knx fabric id */
-		uint32_t ia;                              /**< knx individual address */
-		uint64_t iid;                             /**< knx installation id (checked in 'runtime test' */
+		uint16_t ia;                              /**< 16-bit knx individual address */
+		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test' */
 		uint32_t port;                            /**< coap port number */
 		uint32_t mport;                           /**< multicast port number */
 		bool pm;                                  /**< knx programming mode */
@@ -192,7 +192,7 @@ extern "C" {
 	 * @param ia the internal address
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_ia(size_t device_index, uint32_t ia);
+	int oc_core_set_device_ia(size_t device_index, uint16_t ia);
 
 	/**
 	 * @brief sets and stores the internal address
@@ -201,7 +201,7 @@ extern "C" {
 	 * @param ia the internal address
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_and_store_device_ia(size_t device_index, uint32_t ia);
+	int oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia);
 
 	/**
 	 * @brief sets the hardware type (string)

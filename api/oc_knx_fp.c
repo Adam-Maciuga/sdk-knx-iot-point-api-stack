@@ -1778,14 +1778,14 @@ bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_ad
 	return false;
 }
 
-uint32_t oc_core_get_recipient_ia(int index)
+uint16_t oc_core_get_recipient_ia(int index)
 {
 	if (index >= GRT_MAX_ENTRIES)
 	{
 		return 0;
 	}
 
-	return g_grt[index].ia;
+	return (uint16_t)g_grt[index].ia;
 }
 
 char* oc_core_get_recipient_index_url(int index)

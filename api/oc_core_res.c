@@ -392,7 +392,7 @@ oc_core_set_device_mid(size_t device_index, uint32_t mid)
 	return 0;
 }
 
-int oc_core_set_device_ia(size_t device_index, uint32_t ia)
+int oc_core_set_device_ia(size_t device_index, uint16_t ia)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -404,7 +404,7 @@ int oc_core_set_device_ia(size_t device_index, uint32_t ia)
 }
 
 int
-oc_core_set_and_store_device_ia(size_t device_index, uint32_t ia)
+oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia)
 {
 	const int status = oc_core_set_device_ia(device_index, ia);
 

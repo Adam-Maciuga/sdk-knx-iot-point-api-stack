@@ -29,7 +29,7 @@ char prefixed_serial_no[64];
 static char port_str[7];
 static char sp_text_record[16] = "";
 
-int knx_publish_service(char* serial_no, uint64_t iid, uint32_t ia, bool pm)
+int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
   (void) serial_no;
   (void) iid;

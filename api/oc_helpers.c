@@ -356,6 +356,7 @@ oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 int
 oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
 {
+  // 64 bit = 16 nibbles + '\0'
   char temp_str[17] = "";
 
   if (number == 0)
@@ -365,22 +366,32 @@ oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
     return 0;
   }
 
-  // Convert to hex string, but will include leading zeros
+  // convert to lower hex string, but will include leading zeros 
   for (uint8_t i = 0; i < 16; ++i)
   {
-    uint8_t nibble = (number >> ((16 - (i + 1)) * 4));
+    // example, nibble bits 63..60 = number >> 60
+    const uint8_t nibble = number >> (16 - (i + 1)) * 4;
     (void)sprintf(temp_str + i, "%x", nibble & 0xF);
   }
+  // close string
   temp_str[16] = '\0';
 
-  // Remove leading zeros
-  uint8_t leading_zeros;
-  for (leading_zeros = 0; leading_zeros < 16; ++leading_zeros)
+  // count leading zeros
+  for (int leading_zeros = 0; leading_zeros < 16; ++leading_zeros)
   {
-    if (temp_str[leading_zeros] != '0')
+    // break if byte is not '0' ...
+    if (temp_str[leading_zeros] != '0') 
+    {
+
+      // remove present leading zeros, copy from first non '0' src to dst
+      // 64 bit 0x0000AABBCCDDEEFF => copy from AA
+      strcpy(str, temp_str + leading_zeros);
       break;
+      
+    }
   }
-  strcpy(str, temp_str + leading_zeros);
+
+  
 
   return 0;
 }

@@ -397,7 +397,7 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
   return OC_STOP_DISCOVERY;
 }
 
-int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid, const uint32_t ia, char* destination, char* srv_type)
+int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid, const uint16_t ia, char* destination, char* srv_type)
 {
   char query[50] = "";
 
@@ -839,7 +839,7 @@ static void oc_do_s_mode_with_scope_and_check(const int scope, const char* resou
             if (url)
             {
               PRINT("broker send to url: %s", url);
-              const uint32_t ia = oc_core_get_recipient_ia(jr);
+              const uint16_t ia = oc_core_get_recipient_ia(jr);
               oc_knx_client_do_broker_request(resource_url, iid, ia, url, srv_type);
             }
           }

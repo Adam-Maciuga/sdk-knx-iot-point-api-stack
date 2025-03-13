@@ -635,7 +635,6 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 	}
 
 	// { 4: "ia of device" }, see #32 of KNX clarifications
-
 	oc_rep_begin_root_object();
 	oc_rep_i_set_int(root, 4, device->ia);
 	oc_rep_end_root_object();

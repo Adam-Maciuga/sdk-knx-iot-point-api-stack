@@ -256,7 +256,7 @@ static bool oc_process_basic_resources(oc_request_t* request, const size_t devic
 	return false;
 }
 
-static int frame_sn(const char* serial_number, const uint64_t iid, const uint32_t ia)
+static int frame_sn(const char* serial_number, const uint64_t iid, const uint16_t ia)
 {
 
 	int framed_bytes = oc_rep_add_line_to_buffer("<>;ep=\"knx://sn.");
@@ -576,7 +576,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 
 		// string is hex formatted, on conversion error = 0
-		const uint32_t ia = strtoul(ia_str, NULL, 16);
+		const uint16_t ia = strtoul(ia_str, NULL, 16);
 
 		if (ia == device->ia)
 		{

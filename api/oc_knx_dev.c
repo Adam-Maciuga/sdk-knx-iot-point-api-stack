@@ -945,7 +945,7 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
 	if (device != NULL)
 	{
 		oc_rep_begin_root_object();
-		const uint32_t sa = device->ia >> 8;
+		const uint32_t sa = device->ia >> 8;  // hi byte
 		oc_rep_i_set_int(root, 1, sa);
 		oc_rep_end_root_object();
 
@@ -995,6 +995,7 @@ static void oc_create_dev_sa_resource(int resource_idx, size_t device)
 
 // -----------------------------------------------------------------------------
 
+// 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
 static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
@@ -1011,7 +1012,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
 	{
 		oc_rep_begin_root_object();
 
-		const uint32_t da = device->ia;
+		const uint32_t da = device->ia & 0x0F; // lo byte
 		oc_rep_i_set_int(root, 1, da);
 		oc_rep_end_root_object();
 		oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -1524,8 +1525,8 @@ void oc_knx_device_storage_read(size_t device_index)
 	}
 
 	// read IA from storage (on error = 0xFFFF)
-	uint32_t ia = 0;
-	device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*) &ia, sizeof(ia)) > 0 ? ia : 0x0000FFFF;
+	uint16_t ia = 0;
+	device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*) &ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
 	PRINT("ia (storage) %u", ia);
 
 	// read host name from storage (on error = 0)

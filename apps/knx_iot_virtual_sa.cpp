@@ -505,10 +505,10 @@ void MyFrame::updateTextButtons()
   // ia_0 == AAxxxxxx = AA
   // ia_1 == xxAAxxxx = AA
   // ia_2 == xxxxAAAA = AAAA
-  uint32_t ia = device->ia;
-  uint32_t ia_o = (ia >> 12);
-  uint32_t ia_1 = (ia >> 8) & 0xF;
-  uint32_t ia_2 = (ia & 0x000000FF);
+  uint16_t ia = device->ia;
+  uint16_t ia_o = ia >> 12;
+  uint16_t ia_1 = ia >> 8 & 0xF;
+  uint16_t ia_2 = ia & 0x00FF;
   sprintf(text, "IA: %d.%d.%d   [%d]", ia_o, ia_1, ia_2, device->ia);
   m_ia_text->SetLabelText(text);
   sprintf(text, "LoadState: %s", oc_core_get_lsm_state_as_string(device->lsm_s));
