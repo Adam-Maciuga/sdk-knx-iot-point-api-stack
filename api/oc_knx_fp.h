@@ -114,20 +114,17 @@ void oc_cflags_as_string(char *buffer, oc_cflag_mask_t cflags);
  * - free the data
  *
  * Note that some (int) integers are tested in the code on their init values
- '-1' for validity,
- * this is a problem in case of a 16-bit platforms
+ * '-1' for validity, this is a problem in case of a 16-bit platforms --> hence they were changed to int32_t
+ * - ia : (-1 = 0xFFFF = a valid KNX ia)
  * - id : (-1 = 0xFFFF = a valid id range)
  */
 typedef struct oc_group_object_table_t
 {
-  int id; // id, specification demands a range of 16 bit with 0 ... 65535 (see
-          // note above)
-  oc_string_t href;       // href
-  oc_cflag_mask_t cflags; // cflags as in KNX
-  int ga_len; // length of the group address array (len can only be > 0 but code
-              // loops uses mostly signed int ...)
-  uint32_t *ga; // group address array of 32 bit values, specification demands
-                // >= 20 entries
+  int32_t id;               // id, specification demands a range of 16 bit with 0 ... 65535 (see note above)
+  oc_string_t href;         // href
+  oc_cflag_mask_t cflags;   // cflags as in KNX
+  int ga_len;               // length of the group address array (len can only be > 0 but for loops uses mostly signed int ...)
+  uint32_t *ga;             // group address array of 32 bit values, specification demands >= 20 entries
 } oc_group_object_table_t;
 
 /**
@@ -176,14 +173,14 @@ typedef struct oc_group_object_table_t
  * - return the structure at a specific index
  *
  * Note that some (int) integers are tested in the code on their init values
- * '-1' for validity, this is a problem in case of a 16-bit platforms
+ * '-1' for validity, this is a problem in case of a 16-bit platforms --> hence they were changed to int32_t
  * - ia : (-1 = 0xFFFF = a valid KNX ia)
  * - id : (-1 = 0xFFFF = a valid id range)
  */
 typedef struct oc_group_table
 {
-  int id;           // id, specification demands a range of 0 ... 65535 (see note above)
-    int ia;           // individual address, KNX demands of 16 bit (see note above)  
+  int32_t id;       // id, specification demands a range of 0 ... 65535 (see note above)
+  int32_t ia;       // individual address, KNX specification demands of 16 bit (see note above)  
   int64_t iid;      // installation id
   int64_t fid;      // fabric id
   uint32_t grpid;   // multicast group id, specification demands 32 bit
