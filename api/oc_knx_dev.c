@@ -1012,7 +1012,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
 	{
 		oc_rep_begin_root_object();
 
-		const uint32_t da = device->ia & 0x0F; // lo byte
+		const uint32_t da = device->ia & 0xFF; // lo byte
 		oc_rep_i_set_int(root, 1, da);
 		oc_rep_end_root_object();
 		oc_prepare_cbor_response(request, OC_STATUS_OK);

@@ -710,7 +710,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 
 /**
 * Creates a const CORE resource that is linked to a next resource.
-* All resources together defines a linked (respurce) list, the last 
+* All resources together defines a linked (resource) list, the last 
 * resource of the list uses a link that points to NULL (... this one here)
 *
 * - resource fields, see 'oc_resource_t'
