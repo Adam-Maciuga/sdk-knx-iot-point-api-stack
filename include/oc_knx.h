@@ -303,6 +303,45 @@ extern "C" {
    *
    */
   void oc_knx_knx_ignore_smode_message_from_self(bool ignore);
+  
+  /**
+  	* @delete entry from Group Mapping Table
+  	*
+  	* @param entry the index of the entry in the Group Mapping Table
+  */  
+  void oc_delete_group_mapping_table_entry(int entry);
+  
+  /**
+ 	* @brief print the entry in the Group Mapping Table
+ 	*
+ 	* @param entry the index of the entry in the Group Mapping Table
+  */
+  void oc_print_group_mapping_table_entry(int entry);
+  
+  /**
+  	* @brief load the Group Mapping Table
+  	*
+  */
+  void oc_load_group_mapping_table(void);
+  
+  /**
+  	* @brief delete entry from Group Mapping Table
+  	*
+  	* @param entry then index of the entry in the Group Mapping Table
+  	* @param init if true free the Groups Address for this entry
+  */
+  void oc_free_group_mapping_table_entry(int entry, bool init);
+  
+  /**
+  	* @brief delete the Group Mapping Table
+  */
+  void oc_free_group_mapping_table(void);
+  
+  /**
+  	* @brief find the number of entries in use in the Group Mapping Table
+  	* @return int number of entries in use
+  */
+  int oc_core_find_nr_used_in_group_mapping_table(void);
 
 #ifdef OC_SPAKE
   /**

@@ -182,6 +182,8 @@ static oc_event_callback_retval_t restart(void* context)
 		device->pm = false;
 	}
 
+#ifdef OC_OSCORE
+
 	// PASE key (check only one hit ...) 
 	int auth_at_index_pase = auth_at_index_pase = oc_core_find_pase_entry(cached_device_index);
 	if (auth_at_index_pase < 0)
@@ -194,7 +196,7 @@ static oc_event_callback_retval_t restart(void* context)
 		oc_at_delete_entry(cached_device_index, auth_at_index_pase); // delete from table
 		oc_oscore_free_contexts_at_id(auth_at_index_pase);           // invalidate (usually the data are restored after startup) 
 	}
-
+#endif
 	// CFG parameters
 	oc_init_datapoints_at_initialization();
 
@@ -338,7 +340,8 @@ const oc_resource_t core_resource_knx = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_data
+  true,
+  &core_resource_knx_data
 };
 PRAGMA_OUT
 
@@ -600,7 +603,8 @@ const oc_resource_t core_resource_a_lsm = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_a_lsm_data
+  true,
+  &core_resource_a_lsm_data
 };
 PRAGMA_OUT
 
@@ -648,6 +652,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) data;
+	char ip_address[100];
 
 	PRINT("oc_core_knx_k_post_handler - start");
 
@@ -775,7 +780,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 		if (my_gw->data)
 		{
 			// call the gateway function
-			my_gw->cb(device_index, ip_address, &g_received_notification,
+			my_gw->cb(device_index, ip_address, &received_notification,
 								my_gw->data);
 		}
 		else
@@ -785,7 +790,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 			memset(buffer, 300, 0);
 			oc_rep_to_json(request->request_payload, (char*) &buffer, 300, true);
 
-			my_gw->cb(device_index, ip_address, &g_received_notification, buffer);
+			my_gw->cb(device_index, ip_address, &received_notification, buffer);
 		}
 	}
 	#endif
@@ -798,7 +803,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 	}
 
 	// debugging ... 
-	char ip_address[100];
 	SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 	// handle the request loop over the group addresses of the /fp/r (recipient table)
 	PRINT("k : origin:%s sia: %u ga: %u st: %s", ip_address, received_notification.sia, received_notification.ga, oc_string_checked(received_notification.st));
@@ -990,7 +994,8 @@ const oc_resource_t core_resource_knx_k = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_k_data
+  true,
+  &core_resource_knx_k_data
 };
 
 
@@ -1060,7 +1065,8 @@ const oc_resource_t core_resource_knx_fingerprint = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_fingerprint_data
+  true,
+  &core_resource_knx_fingerprint_data
 };
 PRAGMA_OUT
 
@@ -1156,7 +1162,8 @@ const oc_resource_t core_resource_knx_ia = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_ia_data
+  true,
+  &core_resource_knx_ia_data
 };
 PRAGMA_OUT
 
@@ -1215,7 +1222,8 @@ const oc_resource_t core_resource_knx_ldevid = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_ldevid_data
+  true,
+  &core_resource_knx_ldevid_data
 };
 PRAGMA_OUT
 
@@ -1274,7 +1282,8 @@ const oc_resource_t core_resource_knx_idevid = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_idevid_data
+  true,
+  &core_resource_knx_idevid_data
 };
 PRAGMA_OUT
 
@@ -1692,7 +1701,8 @@ const oc_resource_t core_resource_knx_spake = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_knx_spake_data
+  true,
+  &core_resource_knx_spake_data
 };
 PRAGMA_OUT
 

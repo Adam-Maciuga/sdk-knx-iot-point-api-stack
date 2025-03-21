@@ -19,6 +19,8 @@
 #define OUTPUT_FILE_NAME "stack_print_output.txt"
 static FILE *fptr = NULL;
 
+void oc_file_print(char *format, ...);
+
 void
 oc_file_print(char *format, ...)
 {

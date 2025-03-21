@@ -24,6 +24,7 @@
 #include <stdio.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
+#include "port/oc_storage.h"
 
 #ifdef OC_IOT_ROUTER
 
@@ -51,6 +52,24 @@ static uint32_t g_ttl = 0; // The value defines how many routers a multicast
 static oc_string_t g_key; // IPv4 routing backbone key.
 static uint32_t g_mcast;  // Current IPv4 routing multicast address.
 
+void erase_ttl(void);
+void erase_tol(void);
+void erase_fra(void);
+void erase_mcast(void);
+void erase_key(void);
+void oc_create_fp_gm_resource(int resource_idx, size_t device);
+void oc_create_fp_gm_x_resource(int resource_idx, size_t device);
+void dump_fra(void);
+void load_fra(void);
+void dump_tol(void);
+void load_tol(void);
+void dump_key(void);
+void load_key(void);
+void dump_ttl(void);
+void load_ttl(void);
+void dump_mcast(void);
+void load_mcast(void);
+
 void oc_delete_group_mapping_table(void)
 {
   PRINT("Deleting Group Mapping Table from Persistent storage");
@@ -68,22 +87,7 @@ void oc_delete_group_mapping_table(void)
   erase_key();
 }
 
-void oc_delete_group_mapping_table(void)
-{
-  PRINT("Deleting Group Mapping Table from Persistent storage");
-  for (int i = 0; i < GAMT_MAX_ENTRIES; i++)
-  {
-    oc_delete_group_mapping_table_entry(i);
-    oc_print_group_mapping_table_entry(i);
-  }
-  // delete all data of netip
 
-  erase_ttl();
-  erase_tol();
-  erase_fra();
-  erase_mcast();
-  erase_key();
-}
 
 int oc_core_get_group_mapping_table_size(void)
 {
@@ -121,13 +125,6 @@ uint32_t oc_get_f_netip_mcast(size_t device_index)
 }
 
 // ----------------------------------------------------------------------------
-
-/**
- * @brief print the entry in the Group Mapping Table
- *
- * @param entry the index of the entry in the Group Mapping Table
- */
-void oc_print_group_mapping_table_entry(int entry);
 
 /**
  * @brief dump the entry of the Group Mapping Table (to persistent) storage
@@ -388,7 +385,7 @@ void oc_load_group_mapping_table_entry(int entry)
   free(buf);
 }
 
-void oc_load_group_mapping_table()
+void oc_load_group_mapping_table(void)
 {
   PRINT("Loading Group Mapping Table from persistent storage");
   for (int i = 0; i < GAMT_MAX_ENTRIES; i++)
@@ -422,7 +419,7 @@ void oc_delete_group_mapping_table_entry(int entry)
   oc_free_group_mapping_table_entry(entry, false);
 }
 
-void oc_free_group_mapping_table()
+void oc_free_group_mapping_table(void)
 {
   PRINT("Free Group Mapping Table\n");
   for (int i = 0; i < GAMT_MAX_ENTRIES; i++)
@@ -431,7 +428,7 @@ void oc_free_group_mapping_table()
   }
 }
 
-int oc_core_find_nr_used_in_group_mapping_table()
+int oc_core_find_nr_used_in_group_mapping_table(void)
 {
   int counter = 0;
   for (int i = 0; i < GAMT_MAX_ENTRIES; i++)
@@ -459,7 +456,7 @@ static void oc_core_fp_gm_get_handler(oc_request_t* request, oc_interface_mask_t
   PRINT("oc_core_fp_gm_get_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -538,7 +535,7 @@ static void oc_core_fp_gm_post_handler(oc_request_t* request, oc_interface_mask_
   PRINT("oc_core_fp_gm_post_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -737,11 +734,10 @@ static void oc_core_fp_gm_post_handler(oc_request_t* request, oc_interface_mask_
   oc_prepare_no_format_response_no_payload(request, return_status);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_gm, knx_fp_gm_x, 0, "/fp/gm",
-                                     OC_IF_C | OC_IF_B, APPLICATION_CBOR,
-                                     OC_DISCOVERABLE, oc_core_fp_gm_get_handler,
-                                     0, oc_core_fp_gm_post_handler, 0, NULL,
-                                     OC_SIZE_MANY(1), "urn:knx:if.c");
+extern const oc_resource_t core_resource_knx_fp_gm_x;
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_gm_data;
+const oc_resource_t core_resource_knx_fp_gm = {
+(oc_resource_t *)&core_resource_knx_fp_gm_x, 0, { ((void *)0), sizeof(((void *)0)), ((void *)0) }, { ((void *)0), sizeof("/fp/gm"), "/fp/gm" }, { ((void *)0), (1 * 32), ((const char[1][32]){ "urn:knx:if.c" }) }, { ((void *)0), sizeof(((void *)0)), ((void *)0) }, OC_IF_C | OC_IF_B, APPLICATION_CBOR, OC_DISCOVERABLE, { oc_core_fp_gm_get_handler, ((void *)0) }, { 0, ((void *)0) }, { oc_core_fp_gm_post_handler, ((void *)0) }, { 0, ((void *)0) }, { ((void *)0), ((void *)0) }, { ((void *)0), ((void *)0) }, 0, 0, 1, &core_resource_knx_fp_gm_data, };; PRAGMA_OUT
 
 void oc_create_fp_gm_resource(int resource_idx, size_t device)
 {
@@ -759,7 +755,7 @@ static void oc_core_fp_gm_x_get_handler(oc_request_t* request, oc_interface_mask
   PRINT("oc_core_fp_gm_x_get_handler\n");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -849,12 +845,9 @@ static void oc_core_fp_gm_x_del_handler(oc_request_t* request, oc_interface_mask
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-OC_CORE_CREATE_CONST_RESOURCE_LINKED(knx_fp_gm_x, well_known_core, 0,
-                                     "/fp/gm/*", OC_IF_D, APPLICATION_CBOR,
-                                     OC_DISCOVERABLE,
-                                     oc_core_fp_gm_x_get_handler, 0, 0,
-                                     oc_core_fp_gm_x_del_handler, NULL,
-                                     OC_SIZE_MANY(1), "urn:knx:if.c");
+extern const oc_resource_t core_resource_well_known_core; 
+PRAGMA_IN oc_resource_data_t core_resource_knx_fp_gm_x_data;
+const oc_resource_t core_resource_knx_fp_gm_x = { (oc_resource_t *)&core_resource_well_known_core, 0, { ((void *)0), sizeof(((void *)0)), ((void *)0) }, { ((void *)0), sizeof("/fp/gm/*"), "/fp/gm/*" }, { ((void *)0), (1 * 32), ((const char[1][32]){ "urn:knx:if.c" }) }, { ((void *)0), sizeof(((void *)0)), ((void *)0) }, OC_IF_D, APPLICATION_CBOR, OC_DISCOVERABLE, { oc_core_fp_gm_x_get_handler, ((void *)0) }, { 0, ((void *)0) }, { 0, ((void *)0) }, { oc_core_fp_gm_x_del_handler, ((void *)0) }, { ((void *)0), ((void *)0) }, { ((void *)0), ((void *)0) }, 0, 0, 1, &core_resource_knx_fp_gm_x_data, };; PRAGMA_OUT
 
 void oc_create_fp_gm_x_resource(int resource_idx, size_t device)
 {
@@ -898,7 +891,7 @@ static void oc_core_f_netip_fra_get_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_fra_get_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -929,7 +922,7 @@ static void oc_core_f_netip_fra_put_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_fra_put_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -970,8 +963,7 @@ static void oc_create_f_netip_fra_resource(size_t device)
   oc_resource_bind_resource_type(res, "urn:knx:dpa.11.96");
   oc_resource_bind_resource_type(res, "urn:knx:dpt.Scaling");
   oc_resource_bind_dpt(res, "");
-  oc_resource_bind_content_type(res, APPLICATION_CBOR);
-  oc_resource_bind_resource_interface(res, OC_IF_D + OC_IF_P); /* if.d + if.p*/
+  oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_function_block_instance(res, 1);             /* instance 1 */
   oc_resource_set_discoverable(res, true);
   /* periodic observable
@@ -984,9 +976,9 @@ static void oc_create_f_netip_fra_resource(size_t device)
        an interrupt when something is read from the hardware. */
   oc_resource_set_observable(res, true);
   oc_resource_set_request_handler(res, OC_GET, oc_core_f_netip_fra_get_handler,
-                                  NULL);
+                                  NULL,  OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_resource_set_request_handler(res, OC_PUT, oc_core_f_netip_fra_put_handler,
-                                  NULL);
+                                  NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_add_resource(res);
 }
 
@@ -1023,7 +1015,7 @@ static void oc_core_f_netip_tol_get_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_tol_get_handler\n");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1054,7 +1046,7 @@ static void oc_core_f_netip_tol_put_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_tol_put_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1094,8 +1086,7 @@ static void oc_create_f_netip_tol_resource(size_t device)
   oc_resource_bind_resource_type(res, "urn:knx:dpa.11.95");
   oc_resource_bind_resource_type(res, "urn:knx:dpt.timePeriodMsec");
   oc_resource_bind_dpt(res, "");
-  oc_resource_bind_content_type(res, APPLICATION_CBOR);
-  oc_resource_bind_resource_interface(res, OC_IF_D + OC_IF_P); /* if.d +  if.p*/
+  oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_function_block_instance(res, 1);             /* instance 1 */
   oc_resource_set_discoverable(res, true);
   /* periodic observable
@@ -1108,9 +1099,9 @@ static void oc_create_f_netip_tol_resource(size_t device)
        an interrupt when something is read from the hardware. */
   oc_resource_set_observable(res, true);
   oc_resource_set_request_handler(res, OC_GET, oc_core_f_netip_tol_get_handler,
-                                  NULL);
+                                  NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_resource_set_request_handler(res, OC_PUT, oc_core_f_netip_tol_put_handler,
-                                  NULL);
+                                  NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_add_resource(res);
 }
 
@@ -1155,7 +1146,7 @@ static void oc_core_f_netip_key_put_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_key_put_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1196,8 +1187,7 @@ static void oc_create_f_netip_key_resource(size_t device)
   oc_resource_bind_resource_type(res, "urn:knx:dpa.11.91");
   oc_resource_bind_resource_type(res, "urn:knx:dpt.varOctet");
   oc_resource_bind_dpt(res, "");
-  oc_resource_bind_content_type(res, APPLICATION_CBOR);
-  oc_resource_bind_resource_interface(res, OC_IF_D + OC_IF_P); /* if.d + if.p */
+  oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_function_block_instance(res, 1);             /* instance 1 */
   oc_resource_set_discoverable(res, true);
   /* periodic observable
@@ -1214,7 +1204,7 @@ static void oc_create_f_netip_key_resource(size_t device)
   // oc_core_f_netip_ttl_get_handler,
   //                                NULL);
   oc_resource_set_request_handler(res, OC_PUT, oc_core_f_netip_key_put_handler,
-                                  NULL);
+                                  NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_add_resource(res);
 }
 
@@ -1251,7 +1241,7 @@ static void oc_core_f_netip_ttl_get_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_ttl_get_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1282,7 +1272,7 @@ static void oc_core_f_netip_ttl_put_handler(oc_request_t* request, oc_interface_
   PRINT("oc_core_f_netip_ttl_put_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1324,8 +1314,7 @@ oc_create_f_netip_ttl_resource(size_t device)
   oc_resource_bind_resource_type(res, "urn:knx:dpa.11.67");
   oc_resource_bind_resource_type(res, "urn:knx:dpt.value1Ucount");
   oc_resource_bind_dpt(res, "");
-  oc_resource_bind_content_type(res, APPLICATION_CBOR);
-  oc_resource_bind_resource_interface(res, OC_IF_D + OC_IF_P); /* if.d + if.p */
+  oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_function_block_instance(res, 1);             /* instance 1 */
   oc_resource_set_discoverable(res, true);
   /* periodic observable
@@ -1338,9 +1327,9 @@ oc_create_f_netip_ttl_resource(size_t device)
        an interrupt when something is read from the hardware. */
   oc_resource_set_observable(res, true);
   oc_resource_set_request_handler(res, OC_GET, oc_core_f_netip_ttl_get_handler,
-                                  NULL);
+                                  NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_resource_set_request_handler(res, OC_PUT, oc_core_f_netip_ttl_put_handler,
-                                  NULL);
+                                  NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_add_resource(res);
 }
 
@@ -1374,7 +1363,7 @@ static void oc_core_f_netip_mcast_get_handler(oc_request_t* request, oc_interfac
   PRINT("oc_core_f_netip_mcast_get_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1406,7 +1395,7 @@ static void oc_core_f_netip_mcast_put_handler(oc_request_t* request, oc_interfac
   PRINT("oc_core_f_netip_mcast_put_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_CBOR) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_CBOR) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);
@@ -1446,8 +1435,7 @@ static void oc_create_f_netip_mcast_resource(size_t device)
   oc_resource_bind_resource_type(res, "urn:knx:dpa.11.66");
   oc_resource_bind_resource_type(res, "urn:knx:dpt.IPV4");
   oc_resource_bind_dpt(res, "");
-  oc_resource_bind_content_type(res, APPLICATION_CBOR);
-  oc_resource_bind_resource_interface(res, OC_IF_D + OC_IF_P); /* if.d + if.p */
+  oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_function_block_instance(res, 1);             /* instance 1 */
   oc_resource_set_discoverable(res, true);
   /* periodic observable
@@ -1460,9 +1448,9 @@ static void oc_create_f_netip_mcast_resource(size_t device)
        an interrupt when something is read from the hardware. */
   oc_resource_set_observable(res, true);
   oc_resource_set_request_handler(res, OC_GET,
-                                  oc_core_f_netip_mcast_get_handler, NULL);
+                                  oc_core_f_netip_mcast_get_handler, NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_resource_set_request_handler(res, OC_PUT,
-                                  oc_core_f_netip_mcast_put_handler, NULL);
+                                  oc_core_f_netip_mcast_put_handler, NULL, OC_ACL_D + OC_ACL_P, OC_IF_D + OC_IF_P);
   oc_add_resource(res);
 }
 
@@ -1495,7 +1483,7 @@ void oc_core_f_netip_get_handler(oc_request_t* request, oc_interface_mask_t ifac
   PRINT("oc_core_f_netip_get_handler");
 
 
-  if (oc_check_accept_header(request, APPLICATION_LINK_FORMAT) == false)
+  if (oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT) == false)
   {
     request->response->response_buffer->code =
       oc_status_code(OC_STATUS_BAD_REQUEST);

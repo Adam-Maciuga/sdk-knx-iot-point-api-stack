@@ -46,7 +46,7 @@ int basic_resources[] =
 // (size of all)/(size of one) : 5 x int (4) / 4 = 20/4 = 5 
 #define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
 
-bool oc_add_resource_to_response_payload(oc_resource_t* resource, oc_request_t* request,
+bool oc_add_resource_to_response_payload(const oc_resource_t* resource, oc_request_t* request,
 																				 const size_t device_index, size_t* response_length,
 																				 const bool truncate)
 {

@@ -76,18 +76,15 @@
 #include <signal.h>                     // test purpose only; commandline reset 
 #include <stdlib.h>
 #include <stdio.h>                      // defines FILENAME_MAX
-#include <oc_storage.h>                 
 #include "oc_knx_client.h"
 
-
-#ifdef __linux__
- /** linux specific code */
+#ifdef __linux__			  // linux,mac specific code
 #include <pthread.h>
-#ifndef NO_MAIN
+#ifndef NO_MAIN					
 static pthread_mutex_t mutex;
 static pthread_cond_t event_is_pending;
 static struct timespec ts;
-#endif /* NO_MAIN */
+#endif 
 #endif
 
 #ifdef WIN32                  // windows specific code 
