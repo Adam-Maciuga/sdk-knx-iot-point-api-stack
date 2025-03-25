@@ -79,9 +79,12 @@ oc_storage_read(const char *store, uint8_t *buf, size_t size)
   store_path[store_path_len] = '/';
   strncpy(store_path + store_path_len + 1, store, store_len);
   store_path[1 + store_path_len + store_len] = '\0';
+  OC_DBG("Reading [%s]", store_path);
   fp = fopen(store_path, "rb");
-  if (!fp)
+  if (!fp) {
+    OC_ERR("Invalid storage path: %s", store_path);
     return -EINVAL;
+  }
 
   size = fread(buf, 1, size, fp);
   fclose(fp);
@@ -100,9 +103,12 @@ oc_storage_write(const char *store, uint8_t *buf, size_t size)
   store_path[store_path_len] = '/';
   strncpy(store_path + store_path_len + 1, store, store_len);
   store_path[1 + store_path_len + store_len] = '\0';
+  OC_DBG("Writing [%s]", store_path);
   fp = fopen(store_path, "wb");
-  if (!fp)
+  if (!fp) {
+    OC_ERR("Invalid storage path: %s", store_path);
     return -EINVAL;
+  }
 
   size_t wsize = fwrite(buf, 1, size, fp);
   fflush(fp);

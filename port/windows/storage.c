@@ -94,8 +94,10 @@ oc_storage_read(const char *store, uint8_t *buf, size_t size)
   store_path[store_path_len + store_len] = '\0';
   OC_DBG("Reading [%s]", store_path);
   fp = fopen(store_path, "rb");
-  if (!fp)
+  if (!fp) {
+    OC_ERR("Invalid storage path: %s", store_path);
     return -EINVAL;
+  }
 
   size = fread(buf, 1, size, fp);
   fclose(fp);
