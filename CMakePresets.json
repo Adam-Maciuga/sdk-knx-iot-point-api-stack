@@ -1,32 +1,13 @@
-﻿{
+{
   "version": 3,
   "configurePresets": [
     {
-      "name": "windows-base",
+      "name": "windows-debug",
+      "displayName": "Windows Debug",
       "description": "Target Windows with the Visual Studio development environment.",
-      "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_C_COMPILER": "cl.exe",
-        "CMAKE_CXX_COMPILER": "cl.exe"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "x64-debug",
-      "displayName": "x64 Debug",
-      "description": "Target Windows (64-bit) with the Visual Studio development environment. (Debug)",
-      "inherits": "windows-base",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "OC_DEBUG_ENABLED": {
@@ -41,16 +22,55 @@
           "type": "BOOL",
           "value": "ON"
         }
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     },
     {
-      "name": "x64-release",
-      "displayName": "x64 Release",
-      "description": "Target Windows (64-bit) with the Visual Studio development environment. (RelWithDebInfo)",
-      "inherits": "windows-base",
+      "name": "windows-release",
+      "displayName": "Windows Release",
+      "description": "Target Windows with the Visual Studio development environment.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
-
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux Debug",
+      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OC_DEBUG_ENABLED": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "OC_PRINT_ENABLED": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "OC_DEBUG_OSCORE_ENABLED": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
       }
     }
   ]
