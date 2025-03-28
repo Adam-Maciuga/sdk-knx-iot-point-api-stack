@@ -37,7 +37,7 @@ TEST(TestRep, OCRepEncodedPayloadSizeTooSmall)
 
   oc_rep_begin_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(root, "hello", "world");
+  oc_rep_text_set_text_string(root, "hello", "world");
   EXPECT_EQ(CborErrorOutOfMemory, oc_rep_get_cbor_errno());
   oc_rep_end_root_object();
   EXPECT_EQ(CborErrorOutOfMemory, oc_rep_get_cbor_errno());
@@ -176,11 +176,11 @@ TEST(TestRep, OCRepSetGetInt)
   /* add values to root object */
   oc_rep_begin_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_int(root, ultimate_answer, 10000000000);
+  oc_rep_text_set_int(root, ultimate_answer, 10000000000);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_int(root, negative, -1024);
+  oc_rep_text_set_int(root, negative, -1024);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_int(root, zero, 0);
+  oc_rep_text_set_int(root, zero, 0);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_end_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
@@ -399,10 +399,10 @@ TEST(TestRep, OCRepSetGetTextString)
   /* add text string value "hal9000":"Dave" to root object */
   oc_rep_begin_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(root, hal9000, "Dave");
+  oc_rep_text_set_text_string(root, hal9000, "Dave");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   /* test utf8 character support "hello world" in russian */
-  oc_rep_set_text_string(root, ru_character_set, "Привет, мир");
+  oc_rep_text_set_text_string(root, ru_character_set, "Привет, мир");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_end_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
@@ -477,7 +477,7 @@ TEST(TestRep, OCRepSetGetByteString)
   oc_rep_begin_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   const uint8_t test_byte_string[] = { 0x01, 0x02, 0x03, 0x04, 0x02, 0x00 };
-  oc_rep_set_byte_string(root, test_byte_string, test_byte_string, 6u);
+  oc_rep_text_set_byte_string(root, test_byte_string, test_byte_string, 6u);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_end_root_object();
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
@@ -1193,11 +1193,11 @@ TEST(TestRep, OCRepSetGetObject)
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_set_object(root, my_object);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_int(my_object, a, 1);
+  oc_rep_text_set_int(my_object, a, 1);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_set_boolean(my_object, b, false);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(my_object, c, "three");
+  oc_rep_text_set_text_string(my_object, c, "three");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_close_object(root, my_object);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
@@ -1279,27 +1279,27 @@ TEST(TestRep, OCRepSetGetObjectArray)
 
   oc_rep_object_array_start_item(space_2001);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(space_2001, name, "Dave Bowman");
+  oc_rep_text_set_text_string(space_2001, name, "Dave Bowman");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(space_2001, job, "astronaut");
-  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_object_array_end_item(space_2001);
-  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-
-  oc_rep_object_array_start_item(space_2001);
-  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(space_2001, name, "Frank Poole");
-  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(space_2001, job, "astronaut");
+  oc_rep_text_set_text_string(space_2001, job, "astronaut");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_object_array_end_item(space_2001);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
 
   oc_rep_object_array_start_item(space_2001);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(space_2001, name, "Hal 9000");
+  oc_rep_text_set_text_string(space_2001, name, "Frank Poole");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(space_2001, job, "AI computer");
+  oc_rep_text_set_text_string(space_2001, job, "astronaut");
+  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
+  oc_rep_object_array_end_item(space_2001);
+  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
+
+  oc_rep_object_array_start_item(space_2001);
+  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
+  oc_rep_text_set_text_string(space_2001, name, "Hal 9000");
+  EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
+  oc_rep_text_set_text_string(space_2001, job, "AI computer");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_object_array_end_item(space_2001);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
@@ -1681,7 +1681,7 @@ TEST(TestRep, OCRepRootArrayObject)
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_object_array_start_item(links);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(links, href, "/light/1");
+  oc_rep_text_set_text_string(links, href, "/light/1");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_set_object(links, rep);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
@@ -1693,11 +1693,11 @@ TEST(TestRep, OCRepRootArrayObject)
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_object_array_start_item(links);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_text_string(links, href, "/count/1");
+  oc_rep_text_set_text_string(links, href, "/count/1");
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_set_object(links, rep);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
-  oc_rep_set_int(rep, count, 100);
+  oc_rep_text_set_int(rep, count, 100);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());
   oc_rep_close_object(links, rep);
   EXPECT_EQ(CborNoError, oc_rep_get_cbor_errno());

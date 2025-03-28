@@ -394,10 +394,10 @@ extern "C" {
 		oc_core_set_device_mid(0, MID);
 
 		// set the hardware type -> 12 chars, value used from EITT for testing                        
-		oc_core_set_device_hwt(0, "Windows");
+		oc_core_set_device_hwt(0, HW_TYPE_ETS6);
 
 		// set device model, value used from EITT for testing   
-		oc_core_set_device_model(0, "KNX Certification");
+		oc_core_set_device_model(0, DEV_MODEL_ETS6);
 
 		// set host name, value used from EITT for testing  
 		oc_core_set_device_hostname(0, HOST_NAME);
@@ -488,21 +488,21 @@ extern "C" {
 					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
+						oc_rep_text_set_text_string(root, rt, "urn:knx:dpa.417.61");
 					}
 
 					// interfaces
 					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, if, "if.a");
+						oc_rep_text_set_text_string(root, if, "if.a");
 					}
 
 					// dpt
 					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
+						oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 
 					// ga
@@ -524,7 +524,7 @@ extern "C" {
 					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, desc, "On/Off switch 1");
+						oc_rep_text_set_text_string(root, desc, "On/Off switch 1");
 					}
 				} /* query iterator */
 				oc_rep_end_root_object();
@@ -695,18 +695,18 @@ extern "C" {
 					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.51");
+						oc_rep_text_set_text_string(root, rt, "urn:knx:dpa.417.51");
 					}
 					// interfaces
 					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, if, "if.s");
+						oc_rep_text_set_text_string(root, if, "if.s");
 					}
 					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
+						oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
 					if (strncmp(m, "ga", m_len) == 0 ||
@@ -725,7 +725,7 @@ extern "C" {
 					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, desc, "Feedback 1");
+						oc_rep_text_set_text_string(root, desc, "Feedback 1");
 					}
 				} /* query iterator */
 				oc_rep_end_root_object();
@@ -818,18 +818,18 @@ extern "C" {
 					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.61");
+						oc_rep_text_set_text_string(root, rt, "urn:knx:dpa.417.61");
 					}
 					// interfaces
 					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, if, "if.a");
+						oc_rep_text_set_text_string(root, if, "if.a");
 					}
 					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
+						oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
 					if (strncmp(m, "ga", m_len) == 0 ||
@@ -848,7 +848,7 @@ extern "C" {
 					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, desc, "On/Off switch 2");
+						oc_rep_text_set_text_string(root, desc, "On/Off switch 2");
 					}
 				} /* query iterator */
 				oc_rep_end_root_object();
@@ -1013,18 +1013,18 @@ extern "C" {
 					if (strncmp(m, "rt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, rt, "urn:knx:dpa.417.51");
+						oc_rep_text_set_text_string(root, rt, "urn:knx:dpa.417.51");
 					}
 					// interfaces
 					if (strncmp(m, "if", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, if, "if.s");
+						oc_rep_text_set_text_string(root, if, "if.s");
 					}
 					if (strncmp(m, "dpt", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
+						oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
 					if (strncmp(m, "ga", m_len) == 0 ||
@@ -1043,7 +1043,7 @@ extern "C" {
 					if (strncmp(m, "desc", m_len) == 0 ||
 							strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, desc, "Feedback 2");
+						oc_rep_text_set_text_string(root, desc, "Feedback 2");
 					}
 				} /* query iterator */
 				oc_rep_end_root_object();
@@ -1137,22 +1137,22 @@ extern "C" {
 					// value
 					if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_int(root, value, g_OnOff_3);
+						oc_rep_text_set_int(root, value, g_OnOff_3);
 					}
 					// rt
 					if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, rt, ":dpa.417.255");
+						oc_rep_text_set_text_string(root, rt, ":dpa.417.255");
 					}
 					// if
 					if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, if, ":if.a");
+						oc_rep_text_set_text_string(root, if, ":if.a");
 					}
 					// dpt
 					if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, dpt, oc_string(request->resource->dpt));
+						oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
 					}
 					// ga
 					if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
@@ -1170,7 +1170,7 @@ extern "C" {
 					// description
 					if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
 					{
-						oc_rep_set_text_string(root, desc, "On/Off switch 3");
+						oc_rep_text_set_text_string(root, desc, "On/Off switch 3");
 					}
 				}
 
@@ -1187,7 +1187,7 @@ extern "C" {
 			return;
 		}
 		oc_rep_begin_root_object();
-		oc_rep_set_int(root, 1, g_OnOff_3);
+		oc_rep_i_set_int(root, 1, g_OnOff_3);
 		oc_rep_end_root_object();
 
 		if (g_err)
@@ -1385,7 +1385,7 @@ extern "C" {
 		{ // used only for EITT tests specification clause 5.10.1
 			oc_resource_t* res_OnOff_3 = oc_new_resource("OnOff_3", URL_ONOFF_3, 1, 0);
 			oc_resource_bind_resource_type(res_OnOff_3, ":dpa.417.255");     // PID is artificial  
-			oc_resource_bind_dpt(res_OnOff_3, ":dpt.value4Count");
+			oc_resource_bind_dpt(res_OnOff_3, ":dpt.switch");
 			oc_resource_bind_content_type(res_OnOff_3, APPLICATION_CBOR, CONTENT_NONE);
 			oc_resource_set_function_block_instance(res_OnOff_3, 3);
 			oc_resource_set_discoverable(res_OnOff_3, true);

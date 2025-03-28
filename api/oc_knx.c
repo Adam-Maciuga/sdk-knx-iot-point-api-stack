@@ -138,8 +138,8 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 	{
 		oc_rep_begin_root_object();
 		oc_rep_set_object(root, api);
-		oc_rep_set_text_string(api, version, "1.0.0");
-		oc_rep_set_text_string(api, base, "/");
+		oc_rep_text_set_text_string(api, version, "1.0.0");
+		oc_rep_text_set_text_string(api, base, "/");
 		oc_rep_close_object(root, api);
 		oc_rep_end_root_object();
 
@@ -305,8 +305,8 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 		const unsigned int response_time = 2;
 
 		oc_rep_begin_root_object();
-		oc_rep_set_int(root, code, response_code);
-		oc_rep_set_int(root, time, response_time);
+		oc_rep_text_set_int(root, code, response_code);
+		oc_rep_text_set_int(root, time, response_time);
 		oc_rep_end_root_object();
 
 		oc_prepare_cbor_response(request, OC_STATUS_CHANGED);

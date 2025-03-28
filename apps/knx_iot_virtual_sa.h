@@ -33,24 +33,27 @@
 extern "C" {
 #endif
 
-#define APPLICATION_NAME   "KNX virtual switch actuator"
-#define FIRMWARE_NAME      "KNX stack image"
-#define SN                 "00fa10020800"
-#define SN_STR_LEN_MAX     (12) // max SN length
-#define HOST_NAME          (SN) // default host name (reset uses SN as default)
-#define PASSWORD           "2X4W3TE0DFLLS19Y1FCH"
+#define APPLICATION_NAME  "KNX virtual switch actuator"
+#define FIRMWARE_NAME     "KNX stack image"
+#define SN                "00fa10020800"
+#define HOST_NAME         (SN)      // default host name (reset uses SN as default)
+#define PASSWORD          "2X4W3TE0DFLLS19Y1FCH"
+#define QRCODE_ETS6       "KNX:S:00FA10020800;P:2X4W3TE0DFLLS19Y1FCH"
+#define HW_TYPE_ETS6      "000102030405"  // 12 string chars, MSB = 00 
+#define DEV_MODEL_ETS6    "6800"          // reuse mask version from iot device
 
-#define MID                (0)  // first 4 digits of sn (EITT tests expects 0)
+#define MID               (0x00FA)  // first 4 digits of SN
 
 // URL defines
-#define URL_ONOFF_1     "/p/1"  // define URL OnOff_1     
-#define URL_INFOONOFF_1 "/p/2"  // define URL InfoOnOff_1 
-#define URL_ONOFF_2     "/p/3"  // define URL OnOff_2     
-#define URL_INFOONOFF_2 "/p/4"  // define URL InfoOnOff_2 
-#define URL_ONOFF_3     "/p/p1" // define URL OnOff_3     
-#define URL_INFOONOFF_3 "/p/6"  // define URL InfoOnOff_3 
-#define URL_ONOFF_4     "/p/7"  // define URL OnOff_4     
-#define URL_INFOONOFF_4 "/p/8"  // define URL InfoOnOff_4 
+#define URL_TestParameter "/p/0"    // define URL Parameter Page/ Test Parameter 
+#define URL_ONOFF_1       "/p/1"    // define URL OnOff_1     
+#define URL_INFOONOFF_1   "/p/2"    // define URL InfoOnOff_1 
+#define URL_ONOFF_2       "/p/3"    // define URL OnOff_2     
+#define URL_INFOONOFF_2   "/p/4"    // define URL InfoOnOff_2 
+#define URL_ONOFF_3       "/p/p1"   // define URL OnOff_3     
+#define URL_INFOONOFF_3   "/p/6"    // define URL InfoOnOff_3 
+#define URL_ONOFF_4       "/p/7"    // define URL OnOff_4     
+#define URL_INFOONOFF_4   "/p/8"    // define URL InfoOnOff_4 
 
 /**
  * Callback invoked by the stack when a successful put is done

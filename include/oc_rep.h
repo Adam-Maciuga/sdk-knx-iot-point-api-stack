@@ -240,13 +240,13 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * The following code could be used:
  * ~~~{.c}
  *     oc_rep_begin_root_object();
- *     oc_rep_set_int(root, power, 42);
+ *     oc_rep_text_set_int(root, power, 42);
  *     oc_rep_end_root_object();
  * ~~~
  *
  * @see oc_rep_get_int
  */
-#define oc_rep_set_int(object, key, value)                                     \
+#define oc_rep_text_set_int(object, key, value)                                     \
   do {                                                                         \
     g_err |= cbor_encode_text_string(&object##_map, #key, strlen(#key));       \
     g_err |= cbor_encode_int(&object##_map, value);                            \
@@ -256,7 +256,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an integer `value` to the cbor `object` under the integer `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       5 : 42
@@ -382,10 +382,10 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
   } while (0)
 
 /**
- * Add an string `value` to the cbor `object` under the `key` name
+ * Add a string `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "greeting": "Hello, world!"
@@ -394,11 +394,11 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * The following code could be used:
  * ~~~{.c}
  *     oc_rep_begin_root_object();
- *     oc_rep_set_text_string(root, greeting, "Hello, world!");
+ *     oc_rep_text_set_text_string(root, greeting, "Hello, world!");
  *     oc_rep_end_root_object();
  * ~~~
  */
-#define oc_rep_set_text_string(object, key, value)                             \
+#define oc_rep_text_set_text_string(object, key, value)                             \
   do {                                                                         \
     g_err |= cbor_encode_text_string(&object##_map, #key, strlen(#key));       \
     if ((const char *)(value) != NULL) {                                       \
@@ -421,7 +421,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * The following code could be used:
  * ~~~{.c}
  *     oc_rep_begin_root_object();
- *     oc_rep_set_text_string(root, 4, "Hello, world!");
+ *     oc_rep_text_set_text_string(root, 4, "Hello, world!");
  *     oc_rep_end_root_object();
  * ~~~
  */
@@ -436,10 +436,10 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
   } while (0)
 
 /**
- * Add an string `value` to the cbor `object` under the `key` name
+ * Add a string `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "Hello, world!"
@@ -448,11 +448,11 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * The following code could be used:
  * ~~~{.c}
  *     oc_rep_begin_root_object();
- *     oc_rep_set_text_string(root,  "Hello, world!");
+ *     oc_rep_text_set_text_string(root,  "Hello, world!");
  *     oc_rep_end_root_object();
  * ~~~
  */
-#define oc_rep_set_text_string_no_tag(object, value)                           \
+#define oc_rep_text_set_text_string_no_tag(object, value)                      \
   do {                                                                         \
     if ((const char *)(value) != NULL) {                                       \
       g_err |= cbor_encode_text_string(&object##_map, value, strlen(value));   \
@@ -482,7 +482,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *     oc_rep_end_root_object();
  * ~~~
  */
-#define oc_rep_set_byte_string(object, key, value, length)                     \
+#define oc_rep_text_set_byte_string(object, key, value, length)                \
   do {                                                                         \
     g_err |= cbor_encode_text_string(&object##_map, #key, strlen(#key));       \
     g_err |= cbor_encode_byte_string(&object##_map, value, length);            \
@@ -999,18 +999,18 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *     oc_rep_set_array(root, space2001);
  *
  *     oc_rep_object_array_begin_item(space2001);
- *     oc_rep_set_text_string(space2001, name, "Dave Bowman");
- *     oc_rep_set_text_string(space2001, job, "astronaut");
+ *     oc_rep_text_set_text_string(space2001, name, "Dave Bowman");
+ *     oc_rep_text_set_text_string(space2001, job, "astronaut");
  *     oc_rep_object_array_end_item(space2001);
  *
  *     oc_rep_object_array_begin_item(space2001);
- *     oc_rep_set_text_string(space2001, name, "Frank Poole");
- *     oc_rep_set_text_string(space2001, job, "astronaut");
+ *     oc_rep_text_set_text_string(space2001, name, "Frank Poole");
+ *     oc_rep_text_set_text_string(space2001, job, "astronaut");
  *     oc_rep_object_array_end_item(space2001);
  *
  *     oc_rep_object_array_begin_item(space2001);
- *     oc_rep_set_text_string(space2001, name, "Hal 9000");
- *     oc_rep_set_text_string(space2001, job, "AI computer");
+ *     oc_rep_text_set_text_string(space2001, name, "Hal 9000");
+ *     oc_rep_text_set_text_string(space2001, job, "AI computer");
  *     oc_rep_object_array_end_item(space2001);
  *
  *     oc_rep_close_array(root, space2001);
@@ -1055,9 +1055,9 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * ~~~{.c}
  *     oc_rep_begin_root_object();
  *     oc_rep_set_object(root, my_object);
- *     oc_rep_set_int(my_object, a, 1);
+ *     oc_rep_text_set_int(my_object, a, 1);
  *     oc_rep_set_boolean(my_object, b, false);
- *     oc_rep_set_text_string(my_object, c, "three");
+ *     oc_rep_text_set_text_string(my_object, c, "three");
  *     oc_rep_close_object(root, my_object);
  *     oc_rep_end_root_object();
  * ~~~
@@ -1909,7 +1909,7 @@ bool oc_rep_i_get_byte_string(oc_rep_t *rep, int key, char **value,
  *
  * @return true if key and value are found and returned.
  *
- * @see oc_rep_set_text_string
+ * @see oc_rep_text_set_text_string
  */
 bool oc_rep_get_string(oc_rep_t *rep, const char *key, char **value,
                        size_t *size);

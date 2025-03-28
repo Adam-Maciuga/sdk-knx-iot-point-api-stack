@@ -523,7 +523,7 @@ extern "C" {
 	 * @see oc_add_device
 	 */
 	#define oc_set_custom_device_property(prop, value) \
-	        oc_rep_set_text_string(root, prop, value)
+	        oc_rep_text_set_text_string(root, prop, value)
 
 	 /**
 		* Initialize the platform.
@@ -561,7 +561,7 @@ extern "C" {
 	 * @see oc_init_platform
 	 */
 	#define oc_set_custom_platform_property(prop, value) \
-	        oc_rep_set_text_string(root, prop, value)
+	        oc_rep_text_set_text_string(root, prop, value)
 
 	 /* Server side */
 	 /**
@@ -1124,7 +1124,7 @@ extern "C" {
 	 *   printf("Handle separate response for GET handler:\n");
 	 *   oc_rep_begin_root_object();
 	 *   oc_rep_set_boolean(root, value, true);
-	 *   oc_rep_set_int(root, dimmingSetting, 75);
+	 *   oc_rep_text_set_int(root, dimmingSetting, 75);
 	 *   oc_rep_end_root_object();
 	 *   oc_send_separate_response(&sep_response, OC_STATUS_OK);
 	 * }
