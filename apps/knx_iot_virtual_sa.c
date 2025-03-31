@@ -1109,8 +1109,8 @@ extern "C" {
 		// check the query parameter m with the various values
 		char* m;
 		char* m_key;
-		size_t m_key_len;
-		size_t m_len = oc_get_query_value(request, "m", &m);
+		int m_key_len;
+		int m_len = oc_get_query_value(request, "m", &m);
 
 		if (m_len != -1) //compare problem ...
 		{
