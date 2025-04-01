@@ -1013,13 +1013,13 @@ void MyFrame::OnTimer(wxTimerEvent& event)
 void  MyFrame::updateInfoCheckBoxes()
 {
   bool p;
-  p = app_retrieve_bool_variable(URL_ONOFF_1);
+  p = app_retrieve_bool_variable(_1_url_value);
   m_ONOFF_1->SetValue(p);    
-  p = app_retrieve_bool_variable(URL_ONOFF_2);
+  p = app_retrieve_bool_variable(_2_url_value);
   m_ONOFF_2->SetValue(p);    
-  p = app_retrieve_bool_variable(URL_ONOFF_3);
+  p = app_retrieve_bool_variable(_3_url_value);
   m_ONOFF_3->SetValue(p);    
-  p = app_retrieve_bool_variable(URL_ONOFF_4);
+  p = app_retrieve_bool_variable(_4_url_value);
   m_ONOFF_4->SetValue(p);    
 
 }
@@ -1186,28 +1186,36 @@ void  MyFrame::updateInfoButtons()
   int p_int;
   float f;
   double d;
-  p = app_retrieve_bool_variable(URL_ONOFF_1);  strcpy(text, "OnOff_1");
+  p = app_retrieve_bool_variable(_1_url_value);
+  strcpy(text, "OnOff_1");
   this->bool2text(p, text);
   m_ONOFF_1->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_INFOONOFF_1);  strcpy(text, "InfoOnOff_1");
+  p = app_retrieve_bool_variable(_1_url_status);
+  strcpy(text, "InfoOnOff_1");
   this->bool2text(p, text);
   m_INFOONOFF_1->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_ONOFF_2);  strcpy(text, "OnOff_2");
+  p = app_retrieve_bool_variable(_2_url_value);
+  strcpy(text, "OnOff_2");
   this->bool2text(p, text);
   m_ONOFF_2->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_INFOONOFF_2);  strcpy(text, "InfoOnOff_2");
+  p = app_retrieve_bool_variable(_2_url_status);
+  strcpy(text, "InfoOnOff_2");
   this->bool2text(p, text);
   m_INFOONOFF_2->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_ONOFF_3);  strcpy(text, "OnOff_3");
+  p = app_retrieve_bool_variable(_3_url_value);
+  strcpy(text, "OnOff_3");
   this->bool2text(p, text);
   m_ONOFF_3->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_INFOONOFF_3);  strcpy(text, "InfoOnOff_3");
+  p = app_retrieve_bool_variable(_3_url_status);
+  strcpy(text, "InfoOnOff_3");
   this->bool2text(p, text);
   m_INFOONOFF_3->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_ONOFF_4);  strcpy(text, "OnOff_4");
+  p = app_retrieve_bool_variable(_4_url_value);
+  strcpy(text, "OnOff_4");
   this->bool2text(p, text);
   m_ONOFF_4->SetLabel(text);  
-  p = app_retrieve_bool_variable(URL_INFOONOFF_4);  strcpy(text, "InfoOnOff_4");
+  p = app_retrieve_bool_variable(_4_url_status);
+  strcpy(text, "InfoOnOff_4");
   this->bool2text(p, text);
   m_INFOONOFF_4->SetLabel(text);  
 

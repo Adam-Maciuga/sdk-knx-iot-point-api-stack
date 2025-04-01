@@ -26,6 +26,7 @@
 #define OC_KNX_CLIENT_INTERNAL_H
 
 #include <stddef.h>
+#include "oc_core_res.h"
 
 #ifdef __cplusplus
 extern "C" {
