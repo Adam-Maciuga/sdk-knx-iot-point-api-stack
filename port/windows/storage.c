@@ -36,109 +36,113 @@ static char store_path[STORE_PATH_SIZE];
 static size_t store_path_len;
 static bool path_set = false;
 
-int
-oc_storage_config(const char *store)
+int oc_storage_config(const char* store)
 {
-  char temp_dir[60];
-  if (!store || !*store)
-    return -EINVAL;
-  store_path_len = strlen(store);
-  if (store_path_len >= STORE_PATH_SIZE)
-    return -ENOENT;
+	char temp_dir[60];
+	if (!store || !*store)
+		return -EINVAL;
+	store_path_len = strlen(store);
+	if (store_path_len >= STORE_PATH_SIZE)
+		return -ENOENT;
 
-  strncpy(store_path, store, store_path_len);
-  if (store_path[store_path_len - 1] != '/' &&
-      store_path[store_path_len - 1] != '\\') {
-    ++store_path_len;
-    if (store_path_len >= STORE_PATH_SIZE)
-      return -ENOENT;
-    store_path[store_path_len - 1] = '/';
-  }
-  path_set = true;
+	strncpy(store_path, store, store_path_len);
+	if (store_path[store_path_len - 1] != '/' &&
+			store_path[store_path_len - 1] != '\\')
+	{
+		++store_path_len;
+		if (store_path_len >= STORE_PATH_SIZE)
+			return -ENOENT;
+		store_path[store_path_len - 1] = '/';
+	}
+	path_set = true;
 
-  strcpy(temp_dir, store);
-  if ((strlen(store) > 2) && (store[0] == '.') && (store[1] == '/')) {
-    strcpy(temp_dir, &store[2]);
-  }
-  const size_t dir_len = strlen(temp_dir);
-  if (temp_dir[dir_len - 1] == '/') {
-    temp_dir[dir_len - 1] = 0;
-  }
+	strcpy(temp_dir, store);
+	if ((strlen(store) > 2) && (store[0] == '.') && (store[1] == '/'))
+	{
+		strcpy(temp_dir, &store[2]);
+	}
+	const size_t dir_len = strlen(temp_dir);
+	if (temp_dir[dir_len - 1] == '/')
+	{
+		temp_dir[dir_len - 1] = 0;
+	}
 
-#ifdef OC_USE_STORAGE
-  PRINT("Creating storage directory at %s", temp_dir);
-#ifdef __GNUC__
-  int retval = mkdir(temp_dir);
-  PRINT("Result: %s", retval == 0 ? "..created" : "..error");
-#else
-  int retval = _mkdir(temp_dir);
-  PRINT("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", retval);
-#endif
-#else
-  PRINT("Not Creating storage directory");
-#endif
+	#ifdef OC_USE_STORAGE
+	PRINT("Creating storage directory at %s", temp_dir);
+	#ifdef __GNUC__
+	int ret_val = mkdir(temp_dir);
+	PRINT("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
+	#else
+	int ret_val = _mkdir(temp_dir);
+	PRINT("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
+	#endif
+	#else
+	PRINT("Not Creating storage directory");
+	#endif
 
-  return 0;
+	return 0;
 }
 
 long
-oc_storage_read(const char *store, uint8_t *buf, size_t size)
+oc_storage_read(const char* store, uint8_t* buf, size_t size)
 {
-  FILE *fp = 0;
-  size_t store_len = strlen(store);
+	size_t store_len = strlen(store);
 
-  if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE))
-    return -ENOENT;
+	if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE))
+		return -ENOENT;
 
-  strncpy(store_path + store_path_len, store, store_len);
-  store_path[store_path_len + store_len] = '\0';
-  OC_DBG("Reading [%s]", store_path);
-  fp = fopen(store_path, "rb");
-  if (!fp) {
-    OC_ERR("Invalid storage path: %s", store_path);
-    return -EINVAL;
-  }
+	strncpy(store_path + store_path_len, store, store_len);
+	store_path[store_path_len + store_len] = '\0';
 
-  size = fread(buf, 1, size, fp);
-  fclose(fp);
-  return (long)size;
+	OC_DBG("Reading [%s]", store_path);
+	FILE* fp = fopen(store_path, "rb");
+	if (!fp)
+	{
+		OC_ERR("Missing (or invalid) storage path: %s", store_path);
+		return -EINVAL;
+	}
+
+	size = fread(buf, 1, size, fp);
+	(void) fclose(fp);
+	return (long) size;
 }
 
 long
-oc_storage_write(const char *store, uint8_t *buf, size_t size)
+oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
-  FILE *fp;
-  size_t store_len = strlen(store);
+	size_t store_len = strlen(store);
 
-  if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE))
-    return -ENOENT;
+	if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE))
+		return -ENOENT;
 
-  strncpy(store_path + store_path_len, store, store_len);
-  store_path[store_path_len + store_len] = '\0';
-  OC_DBG("Writing [%s]", store_path);
-  fp = fopen(store_path, "wb");
-  if (!fp) {
-    OC_ERR("Invalid storage path: %s", store_path);
-    return -EINVAL;
-  }
+	strncpy(store_path + store_path_len, store, store_len);
+	store_path[store_path_len + store_len] = '\0';
+	
+	OC_DBG("Writing [%s]", store_path);
+	FILE* fp = fopen(store_path, "wb");
+	if (!fp)
+	{
+		OC_ERR("Missing (or invalid) storage path: %s", store_path);
+		return -EINVAL;
+	}
 
-  size = fwrite(buf, 1, size, fp);
-  fclose(fp);
-  return (long)size;
+	size = fwrite(buf, 1, size, fp);
+	(void) fclose(fp);
+	return (long) size;
 }
 
 int
-oc_storage_erase(const char *store)
+oc_storage_erase(const char* store)
 {
-  size_t store_len = strlen(store);
+	size_t store_len = strlen(store);
 
-  if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE))
-    return -ENOENT;
+	if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE))
+		return -ENOENT;
 
-  store_path[store_path_len] = '/';
-  strncpy(store_path + store_path_len + 1, store, store_len);
-  store_path[1 + store_path_len + store_len] = '\0';
+	store_path[store_path_len] = '/';
+	strncpy(store_path + store_path_len + 1, store, store_len);
+	store_path[1 + store_path_len + store_len] = '\0';
 
-  return remove(store_path);
+	return remove(store_path);
 }
-#endif /* OC_STORAGE */
+#endif
