@@ -135,7 +135,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add a double `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "pi": 3.14159
@@ -158,7 +158,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add a double `value` to the cbor `object` under the integer `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       5 : 3.14159
@@ -183,7 +183,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add a float `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "pi": 3.14159
@@ -206,7 +206,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add a float `value` to the cbor `object` under the integer `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       5 : 3.14159
@@ -231,7 +231,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an integer `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "power": 42
@@ -281,7 +281,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an unsigned integer `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "power": 42
@@ -308,7 +308,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an unsigned integer `value` to the cbor `object` under the integer `key`
  * name Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       5: 42
@@ -335,7 +335,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an boolean `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "door_open": false
@@ -360,7 +360,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an boolean `value` to the cbor `object` under the `integer key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       3: false
@@ -412,7 +412,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an string `value` to the cbor `object` under the integer `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       4 : "Hello, world!"
@@ -465,7 +465,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an byte array `value` to the cbor `object` under the `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  * Note using base64 encoding in the following example string.
  *
  *     {
@@ -492,7 +492,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * Add an byte array `value` to the cbor `object` under the integer `key` name
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  * Note using base64 encoding in the following example string.
  *
  *     {
@@ -536,7 +536,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * likely oc_rep_open_array will be used to create an array object with a key.
  *
  * Example:
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "fibonacci": [ 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ]
@@ -630,7 +630,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  * note, base64 encoding used to represent binary array data
  *
  *     {
@@ -669,7 +669,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "quotes": [
@@ -733,7 +733,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "math_constants": [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -773,7 +773,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "math_constants": [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -812,7 +812,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * be used.
  *
  * Example:
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "fibonacci": [ 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ]
@@ -851,7 +851,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * be used.
  *
  * Example:
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "flip": [ false, false, true, false, false ]
@@ -983,7 +983,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "space2001": [
@@ -1041,7 +1041,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  *Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *         "my_object": {
@@ -1082,7 +1082,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "fibonacci": [ 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ]
@@ -1119,7 +1119,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       3 : [ 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ]
@@ -1157,7 +1157,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "flip": [ false, false, true, false, false ]
@@ -1194,7 +1194,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       4 : [ false, false, true, false, false ]
@@ -1232,7 +1232,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "math_constants": [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -1271,7 +1271,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       6 : [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -1313,7 +1313,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "math_constants": [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -1352,7 +1352,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       6 : [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -1394,7 +1394,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "quotes": [
@@ -1457,7 +1457,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       "math_constants": [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -1496,7 +1496,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       6 : [ 3.14159, 2.71828, 1.414121, 1.61803 ]
@@ -1538,7 +1538,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *
  * Example:
  *
- * To build the an object with the following cbor value
+ * To build an object with the following cbor value
  *
  *     {
  *       4 : [
