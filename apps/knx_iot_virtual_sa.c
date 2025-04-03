@@ -113,8 +113,8 @@ volatile bool g_OnOff_2;
 volatile bool g_InfoOnOff_2;
 
 // additional objects
-volatile int g_OnOff_3;
-volatile int g_InfoOnOff_3;
+volatile uint16_t g_OnOff_3;
+volatile uint16_t g_InfoOnOff_3;
 volatile bool g_OnOff_4;
 volatile bool g_InfoOnOff_4;
 
@@ -122,6 +122,9 @@ volatile bool g_fault_OnOff_1;
 volatile bool g_fault_OnOff_2;
 volatile bool g_fault_OnOff_3;
 volatile bool g_fault_OnOff_4;
+
+// additional parameters
+volatile uint16_t g_test_parameter;
 
 // BOOLEAN code
 
@@ -988,7 +991,7 @@ void put_switch_3(oc_request_t* request, oc_interface_mask_t interfaces, void* u
 		if (rep->iname == 1 && rep->type == OC_REP_INT)
 		{
 			PRINT("-- put_OnOff_3 received : %lld", rep->value.integer);
-			g_OnOff_3 = (int) rep->value.integer;
+			g_OnOff_3 = (uint16_t) rep->value.integer;
 			error_state = false;
 			break;
 		}
@@ -1293,6 +1296,190 @@ void get_status_2(oc_request_t* request, oc_interface_mask_t interfaces, void* u
 
 // parameters handling (empty)
 
+void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+{
+	(void) user_data;
+	(void) interfaces;
+
+	bool error_state = true;
+
+	PRINT("-- Begin GET %s Control at %s ", _0_name, _0_url_value);
+
+	if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+	{
+		return;
+	}
+
+	oc_device_info_t* device = oc_core_get_device_info(0);
+
+	// open CBOR
+	oc_rep_begin_root_object();
+
+	if (device != NULL)
+	{
+		if (oc_query_value_exists(request, "m") != -1)
+		{ // ... query parameter 'm' is present, check the various values
+
+			char* m;
+			char* m_key;
+			size_t m_key_len;
+			size_t m_len = oc_get_query_value(request, "m", &m);
+
+			PRINT("Query Parameter: %.*s", (int) m_len, m);
+
+			oc_init_query_iterator();
+
+			// check query parameter
+			while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+			{
+				// unique identifier
+				if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					// knx://sn: + max len SN + path + \0 = ~ 65
+					char serial_number[65];
+					(void) snprintf(serial_number, 65, "knx://sn:%s%s",
+													oc_string(device->serialnumber),
+													oc_string(request->resource->uri));
+					oc_rep_i_set_text_string(root, 0, serial_number);
+
+					error_state = false;
+				}
+				// value
+				if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					oc_rep_text_set_int(root, value, g_test_parameter);
+
+					error_state = false;
+				}
+				// resource types
+				if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					oc_rep_text_set_text_string(root, rt, _0_dpa_value_short);
+
+					error_state = false;
+				}
+				// interfaces (array of text strings)
+				if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					// key
+					oc_rep_set_key(oc_rep_object(root), "if");
+
+					// one if type only
+					oc_rep_begin_array(oc_rep_object(root), if_types);
+					oc_rep_add_text_string(if_types, _0_if_value);
+					oc_rep_end_array(oc_rep_object(root), if_types);
+
+					error_state = false;
+				}
+				// dpt
+				if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					oc_rep_text_set_text_string(root, dpt,
+																			oc_string(request->resource->dpt));
+
+					error_state = false;
+				}
+				// ga
+				if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					int index = oc_core_find_group_object_table_url(
+						oc_string(request->resource->uri));
+					if (index > -1)
+					{
+						oc_group_object_table_t* got_table_entry =
+							oc_core_get_group_object_table_entry(index);
+						if (got_table_entry)
+						{
+							oc_rep_set_int_array(root, ga, got_table_entry->ga,
+																	 got_table_entry->ga_len);
+						}
+					}
+					error_state = false;
+				}
+				// description
+				if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+				{
+					oc_rep_text_set_text_string(root, desc, _0_des);
+
+					error_state = false;
+				}
+			}
+		}
+		else
+		{ // ... no query parameter 'm' present at all, set value
+			oc_rep_i_set_int(root, 1, g_test_parameter);
+
+			error_state = false;
+		}
+	}
+
+	// close CBOR
+	oc_rep_end_root_object();
+
+	// check CBOR encoding errors
+	if (g_err != CborNoError)
+	{
+		error_state = true;
+	}
+
+	PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
+
+	// wrong device, cbor error or unknown 'm' query parameter value(s)
+	if (error_state)
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+	else
+		oc_prepare_cbor_response(request, OC_STATUS_OK);
+
+	PRINT("-- End GET %s Control at %s ", _0_name, _0_url_value);
+}
+
+void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+{
+	(void) interfaces;
+	(void) user_data;
+
+	PRINT("-- Begin PUT %s Control at %s ", _0_name, _0_url_value);
+
+	// handle the different requests, here only included as example to
+	// identify if extra data needs to be processed in the endpoint
+	if (oc_is_redirected_request_from(request) > -1)
+	{
+		PRINT("redirected_request %.*s", (int) request->uri_path_len,
+					request->uri_path);
+	}
+
+	// sets the pointer to the (/k /p) handed over object
+	oc_rep_t* rep = request->request_payload;
+	bool error_state = true;
+
+	// loop over object
+	while (rep)
+	{
+		// this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
+		// may need to be skipped
+		if (rep->iname == 1 && rep->type == OC_REP_INT)
+		{
+			PRINT("-- put_test parameter received : %lld", rep->value.integer);
+			g_test_parameter = (uint16_t) rep->value.integer;
+			error_state = false;
+			break;
+		}
+		rep = rep->next;
+	}
+
+	if (!error_state)
+	{
+		oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+
+		PRINT("-- End PUT %s Control at %s ", _0_name, _0_url_value);
+		return;
+	}
+
+	// bad request status
+	oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+	PRINT("-- End PUT %s at %s ", _0_name, _0_url_value);
+}
+
 /**
  * @brief register all the data point resources to the stack this function registers
  * all data point level resources:
@@ -1400,6 +1587,28 @@ void register_resources(void)
 		oc_resource_set_request_handler(soo3, OC_PUT, put_switch_3, NULL, OC_ACL_I, OC_IF_I);
 
 		oc_add_resource(soo3);
+	}
+
+	PRINT("Register test parameter");
+	{
+		oc_resource_t* tp0 = oc_new_resource(_0_name, _0_url_value, 1, 0);
+
+		oc_resource_bind_resource_type(tp0, _0_dpa_value_long);
+
+		oc_resource_bind_dpt(tp0, _0_dpt);
+
+		oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
+
+		oc_resource_set_function_block_instance(tp0, 1);
+
+		oc_resource_set_discoverable(tp0, true);
+
+		oc_resource_set_observable(tp0, true);
+
+		oc_resource_set_request_handler(tp0, OC_GET, get_parameter_0, NULL, OC_ACL_O, OC_IF_O);
+		oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_I, OC_IF_I);
+
+		oc_add_resource(tp0);
 	}
 }
 

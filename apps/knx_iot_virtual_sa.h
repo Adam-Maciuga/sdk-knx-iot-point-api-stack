@@ -44,7 +44,16 @@ extern "C" {
 	#define MID (0x00FA) // first 4 digits of SN
 
 	// URL defines
-	#define URL_TestParameter "/p/0" // define URL Parameter Page/ Test Parameter
+
+	// define URL Parameter Page/ Test Parameter
+	#define _0_url_value "/p/0"
+	#define _0_name "Test Parameter"
+	#define _0_dpt ":dpt.value2Ucount"
+	#define _0_dpa_value_long "urn:knx:void"
+	#define _0_dpa_value_short ":dpa.void"
+	#define _0_des "test parameter 16 bit uint"
+	#define _0_if_value ":if.i"
+	#define _0_if_status ":if.o"
 
 	// define channel 1..4 + included EPs control/status
 	#define _1_url_value "/p/1"
