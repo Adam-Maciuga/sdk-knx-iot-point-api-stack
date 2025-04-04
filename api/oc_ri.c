@@ -186,7 +186,7 @@ void oc_print_acl_scopes(oc_acl_mask_t iface_mask)
 	{
 		if (iface_mask & 1)
 		{
-			PRINT("%s ", interface_strings[i]);
+			PRINTF("%s ", interface_strings[i]);
 		}
 	}
 
