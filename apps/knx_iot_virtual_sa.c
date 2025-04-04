@@ -1605,8 +1605,8 @@ void register_resources(void)
 
 		oc_resource_set_observable(tp0, true);
 
-		oc_resource_set_request_handler(tp0, OC_GET, get_parameter_0, NULL, OC_ACL_O, OC_IF_O);
-		oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_I, OC_IF_I);
+		oc_resource_set_request_handler(tp0, OC_GET, get_parameter_0, NULL, OC_ACL_D, OC_IF_D);
+		oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_P, OC_IF_P);
 
 		oc_add_resource(tp0);
 	}
