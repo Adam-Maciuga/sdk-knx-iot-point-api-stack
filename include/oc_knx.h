@@ -25,8 +25,18 @@
 #include "oc_api.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
+
+  // reset status
+#define RESET_NO_ERROR (0)
+#define RESET_UNSUPPORTED_ERASE_CODE (2)
+
+// reset cmd
+#define RESET_TO_DEFAULT_STATE (2)  // factory reset
+#define RESET_IA (3)                // IA reset
+#define RESET_TO_DEFAULT_WO_IA (7)  // factory reset w/o IA
 
   /**
    * @brief Pase Resource Object
@@ -56,13 +66,13 @@ extern "C" {
    */
   typedef struct oc_pase_t
   {
-    oc_string_t id;   /**< recipient id */
+    oc_string_t id; /**< recipient id */
     uint8_t salt[32]; /**< salt */
-    uint8_t pa[65];   /**< pa */
-    uint8_t pb[65];   /**< pb */
-    uint8_t ca[32];   /**< ca */
-    uint8_t cb[32];   /**< cb */
-    uint8_t rnd[32];  /**< rnd */
+    uint8_t pa[65]; /**< pa */
+    uint8_t pb[65]; /**< pb */
+    uint8_t ca[32]; /**< ca */
+    uint8_t cb[32]; /**< cb */
+    uint8_t rnd[32]; /**< rnd */
     int it;
   } oc_pase_t;
 
@@ -89,9 +99,9 @@ extern "C" {
   typedef struct oc_group_object_notification
   {
     oc_string_t value; // generic value received
-    uint32_t sia;      // source individual address
-    oc_string_t st;    // service type code (write=w, read=r, response=a)
-    uint32_t ga;       // group address
+    uint32_t sia; // source individual address
+    oc_string_t st; // service type code (write=w, read=r, response=a)
+    uint32_t ga; // group address
   } oc_group_object_notification_t;
 
   /**
@@ -100,10 +110,10 @@ extern "C" {
    */
   typedef enum oc_lsm_state
   {
-    LSM_S_UNLOADED = 0,      /**< (0) state is unloaded, e.g. ready for loading */
-    LSM_S_LOADED = 1,        /**< (1) state is loaded, e.g. normal operation */
-    LSM_S_LOADING = 2,       /**< (2) state is loading. */
-    LSM_S_UNLOADING = 4,     /**< (4) state is unloading */
+    LSM_S_UNLOADED = 0, /**< (0) state is unloaded, e.g. ready for loading */
+    LSM_S_LOADED = 1, /**< (1) state is loaded, e.g. normal operation */
+    LSM_S_LOADING = 2, /**< (2) state is loading. */
+    LSM_S_UNLOADING = 4, /**< (4) state is unloading */
     LSM_S_LOADCOMPLETING = 5 /**< (5) state is load completing */
   } oc_lsm_state_t;
 
@@ -113,10 +123,10 @@ extern "C" {
    */
   typedef enum oc_lsm_event
   {
-    LSM_E_NOP = 0,           /**< (0) no operation */
-    LSM_E_STARTLOADING = 1,  /**< (1) request to start the loading of the loadable part */
-    LSM_E_LOADCOMPLETE = 2,  /**< (2) cmd loading complete, state will be LOADED */
-    LSM_E_UNLOAD = 4         /**< (4) cmd unload: state will be UNLOADED */
+    LSM_E_NOP = 0, /**< (0) no operation */
+    LSM_E_STARTLOADING = 1, /**< (1) request to start the loading of the loadable part */
+    LSM_E_LOADCOMPLETE = 2, /**< (2) cmd loading complete, state will be LOADED */
+    LSM_E_UNLOAD = 4 /**< (4) cmd unload: state will be UNLOADED */
   } oc_lsm_event_t;
 
   /**
@@ -221,25 +231,25 @@ extern "C" {
    */
   void oc_knx_increase_fingerprint(void);
 
-/**
- * @brief load the fingerprint value from storage
- *
- */
+  /**
+   * @brief load the fingerprint value from storage
+   *
+   */
   void oc_knx_load_fingerprint(void);
 
-/**
- * @brief dump the fingerprint value to storage
- *
- */
+  /**
+   * @brief dump the fingerprint value to storage
+   *
+   */
   void oc_knx_dump_fingerprint(void);
 
-/**
- * @brief load the state of the device from persistent storage
- * load data for:
- * - load state machine (lsm)
- *
- * @param device_index the device index to load the data for
- */
+  /**
+   * @brief load the state of the device from persistent storage
+   * load data for:
+   * - load state machine (lsm)
+   *
+   * @param device_index the device index to load the data for
+   */
   void oc_knx_load_state(size_t device_index);
 
   /**
@@ -303,44 +313,44 @@ extern "C" {
    *
    */
   void oc_knx_knx_ignore_smode_message_from_self(bool ignore);
-  
+
   /**
-  	* @delete entry from Group Mapping Table
-  	*
-  	* @param entry the index of the entry in the Group Mapping Table
-  */  
+   * @delete entry from Group Mapping Table
+   *
+   * @param entry the index of the entry in the Group Mapping Table
+   */
   void oc_delete_group_mapping_table_entry(int entry);
-  
+
   /**
- 	* @brief print the entry in the Group Mapping Table
- 	*
- 	* @param entry the index of the entry in the Group Mapping Table
-  */
+   * @brief print the entry in the Group Mapping Table
+   *
+   * @param entry the index of the entry in the Group Mapping Table
+   */
   void oc_print_group_mapping_table_entry(int entry);
-  
+
   /**
-  	* @brief load the Group Mapping Table
-  	*
-  */
+   * @brief load the Group Mapping Table
+   *
+   */
   void oc_load_group_mapping_table(void);
-  
+
   /**
-  	* @brief delete entry from Group Mapping Table
-  	*
-  	* @param entry then index of the entry in the Group Mapping Table
-  	* @param init if true free the Groups Address for this entry
-  */
+   * @brief delete entry from Group Mapping Table
+   *
+   * @param entry then index of the entry in the Group Mapping Table
+   * @param init if true free the Groups Address for this entry
+   */
   void oc_free_group_mapping_table_entry(int entry, bool init);
-  
+
   /**
-  	* @brief delete the Group Mapping Table
-  */
+   * @brief delete the Group Mapping Table
+   */
   void oc_free_group_mapping_table(void);
-  
+
   /**
-  	* @brief find the number of entries in use in the Group Mapping Table
-  	* @return int number of entries in use
-  */
+   * @brief find the number of entries in use in the Group Mapping Table
+   * @return int number of entries in use
+   */
   int oc_core_find_nr_used_in_group_mapping_table(void);
 
 #ifdef OC_SPAKE
@@ -355,4 +365,4 @@ extern "C" {
 }
 #endif
 
-#endif /* OC_KNX_INTERNAL_H */
+#endif

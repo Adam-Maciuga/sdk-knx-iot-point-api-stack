@@ -8,9 +8,9 @@
 .vs
 
 # dependend subprojects are not visible (user choise)
-deps/gtest**
-deps/mbedtls**
-deps/tinycbor**
+deps/gtest/**
+deps/mbedtls/**
+deps/tinycbor/**
 
 # various
 *.o

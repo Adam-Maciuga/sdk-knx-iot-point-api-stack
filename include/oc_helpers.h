@@ -658,14 +658,15 @@ extern "C" {
 	int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2);
 
 	/**
-	 * @brief url compare
-	 * same as string compare but ignores the leading / of the urls
+	 * @brief url compare - same as string compare - but ignores a possible leading '/'
 	 *
-	 * @param string1 url to be compared
-	 * @param string2 url to be compared
+	 * @note '/' is ignored only if url len is > 1
+	 *
+	 * @param href_string url to be compared (usually the href from a request payload)
+	 * @param resource_string url to be compared (usually the url from a resource)
 	 * @return int 0 == equal
 	 */
-	int oc_url_cmp(oc_string_t string1, oc_string_t string2);
+	int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string);
 
 	/**
 	 * @brief print an uint64_t, in either decimal or hex representation

@@ -690,7 +690,7 @@ const oc_resource_t core_resource_knx_swu_pkgcmd = {
   { APPLICATION_CBOR, CONTENT_NONE },
   OC_DISCOVERABLE,
   { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
-  { oc_knx_swu_a_put_handler, NULL, OC_ACL_P, OC_IF_P },
+                                                    {oc_knx_swu_a_put_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
   { oc_knx_swu_a_post_handler, NULL, OC_ACL_SWU, OC_IF_SWU },
   { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
   { NULL, NULL },

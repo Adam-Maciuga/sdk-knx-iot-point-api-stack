@@ -250,7 +250,7 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 			}
 
 			// uri
-			oc_check_uri(uri);                        // is at least one byte, '/'
+			oc_check_uri(uri);                        
 			resource->uri.next = NULL;
 			resource->uri.ptr = uri;
 			resource->uri.size = strlen(uri) + 1;     // include null terminator in size

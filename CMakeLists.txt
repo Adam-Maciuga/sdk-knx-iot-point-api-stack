@@ -247,8 +247,12 @@ add_library(mbedx509 ${X509_SOURCES})
 add_library(mbedcrypto ${CRYPTO_SOURCES})
 add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
-# physical exe targets, EITT certification NON GUI demo (assumes WIN32/UNIX is in place)
-add_executable(eitt_virtual ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.c)
+# physical exe targets (assumes WIN32/UNIX is in place)
+
+## EITT NON GUI demo (for certification)
+add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
+## LSAB/LSSB NON GUI demo
+add_executable(lsxb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.c)
 
 # Detect the used platform and pick the right port
 if(UNIX)
@@ -300,17 +304,28 @@ if(WIN32)
         message(STATUS "Fetching wxWidgets, kindly wait...")
         FetchContent_MakeAvailable(wxWidgets)
 
-        # physical exe targets, EITT certification GUI demo 
+        # physical exe targets
+        ## EITT GUI (for certification)
         add_executable(eitt_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.cpp
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual_sa.c
+            ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.cpp
+            ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
+        )
+
+        ## LSAB/LSSB GUI 
+        add_executable(lsxb_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.cpp
+            ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.c
         )
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_compile_definitions(eitt_virtual_gui PUBLIC KNX_GUI)
 
+        target_link_libraries(lsxb_virtual_gui wx::net wx::core wx::base kisClientServer)
+        target_compile_definitions(lsxb_virtual_gui PUBLIC KNX_GUI)
+
         if(USE_CONSOLE)
            set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
+           set_target_properties(lsxb_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
         endif()
 endif()
 
@@ -330,7 +345,10 @@ target_include_directories(mbedcrypto PUBLIC
 )
 
 # Specifies linked libraries (dependencies/references) to build a target
-target_link_libraries(eitt_virtual kisClientServer)
+## applications ...
+target_link_libraries(eitt_virtual_cl kisClientServer)
+target_link_libraries(lsxb_virtual_cl kisClientServer)
+## ... from 
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
 target_link_libraries(mbedcrypto ${libs}) 

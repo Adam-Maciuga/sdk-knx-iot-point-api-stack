@@ -357,7 +357,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
   } while (0)
 
 /**
- * Add an boolean `value` to the cbor `object` under the `integer key` name
+ * Add a boolean `value` to the cbor `object` under the `integer key` name
  * Example:
  *
  * To build an object with the following cbor value
@@ -369,7 +369,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * The following code could be used:
  * ~~~{.c}
  *     oc_rep_begin_root_object();
- *     oc_rep_set_boolean(root, 3, false);
+ *     oc_rep_i_set_boolean(root, 3, false);
  *     oc_rep_end_root_object();
  * ~~~
  *
@@ -380,6 +380,33 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
     g_err |= cbor_encode_int(&object##_map, (int64_t)(key));                   \
     g_err |= cbor_encode_boolean(&object##_map, value);                        \
   } while (0)
+
+  /**
+   * Add a boolean `value` to the cbor `object` under the `text key` name
+   * Example:
+   *
+   * To build an object with the following cbor value
+   *
+   *     {
+   *       value: false
+   *     }
+   *
+   * The following code could be used:
+   * ~~~{.c}
+   *     oc_rep_begin_root_object();
+   *     oc_rep_text_set_boolean(root, value, false);
+   *     oc_rep_end_root_object();
+   * ~~~
+   *
+   * @see oc_rep_i_get_bool
+   */
+#define oc_rep_text_set_boolean(object, key, value)                                                                            \
+  do                                                                          \
+  {                                                                           \
+    g_err |= cbor_encode_text_string(&object##_map, #key, strlen(#key));      \
+    g_err |= cbor_encode_boolean(&object##_map, value);                       \
+  }                                                                           \
+  while (0)
 
 /**
  * Add a string `value` to the cbor `object` under the `key` name
@@ -398,7 +425,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  *     oc_rep_end_root_object();
  * ~~~
  */
-#define oc_rep_text_set_text_string(object, key, value)                             \
+#define oc_rep_text_set_text_string(object, key, value)                        \
   do {                                                                         \
     g_err |= cbor_encode_text_string(&object##_map, #key, strlen(#key));       \
     if ((const char *)(value) != NULL) {                                       \
@@ -462,7 +489,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
   } while (0)
 
 /**
- * Add an byte array `value` to the cbor `object` under the `key` name
+ * Add a byte array `value` to the cbor `object` under the `key` name
  * Example:
  *
  * To build an object with the following cbor value

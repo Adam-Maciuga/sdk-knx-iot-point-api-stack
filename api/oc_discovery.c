@@ -652,15 +652,16 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	if (!current_page_is_full)
 	{ // page not full, things can still be added
 
+		// add basic device resources
 		current_page_is_full = oc_process_basic_resources(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, first_entry + query_ps);
 
 		PRINT("oc_wkcore_discovery_handler add common resources on a unicast request ...");
 	}
 
 	if (!current_page_is_full && request->origin && (request->origin->flags & MULTICAST) == 0)
-	{ // page not full, things can still be added
+	{ // unicast: page not full, things can still be added
 
-		// unicast, add FBs
+		// add FBs in case of request contains matching query parameters 
 		if (oc_filter_functional_blocks(request))
 		{
 			oc_was_adding_function_blocks_to_response(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, first_entry + query_ps);

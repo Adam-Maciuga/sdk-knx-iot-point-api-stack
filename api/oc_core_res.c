@@ -670,11 +670,16 @@ void oc_core_populate_resource(int core_resource_index,
 		return;
 	}
 
+	// device index
 	r->device = device_index;
+
+	// uri 
 	oc_check_uri(uri);
 	r->uri.next = NULL;
 	r->uri.ptr = uri;
 	r->uri.size = strlen(uri) + 1; // include null terminator in size
+
+	// properties
 	r->properties = properties;
 
 	// rt types, use variable arguments (stdarg.h)

@@ -22,7 +22,7 @@
 #include "oc_knx_helpers.h"
 #include "oc_main.h"
 #include "port/dns-sd.h"
-#include <oc_storage.h>
+#include <port/oc_storage.h>
 #include "include/oc_helpers.h"
 
 #ifdef OC_IOT_ROUTER
@@ -493,12 +493,12 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
 				// make the value persistent
 				oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &rep->value.integer, sizeof(uint64_t));
 
-				// do the run time installation
+				// if LSM is loaded , e.g; application is running ...
 				if (oc_is_device_in_runtime(device_index))
 				{
 					oc_register_group_multicasts();
 					oc_init_datapoints_at_initialization();
-					const oc_device_info_t* device = oc_core_get_device_info(device_index);
+				  const oc_device_info_t* device = oc_core_get_device_info(device_index);
 					knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 				}
 
@@ -575,8 +575,6 @@ void oc_create_dev_iid_resource(int resource_idx, size_t device)
 }
 
 // -----------------------------------------------------------------------------
-
-
 
 static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1572,7 +1570,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 		return;
 	}
 
-	if (reset_mode == 2)
+	if (reset_mode == RESET_TO_DEFAULT_STATE)
 	{
 		// needed as buffer for the call below
 		uint32_t u_port = COAP_DEFAULT_PORT;  // unicast communication
@@ -1583,7 +1581,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
 		// set the other data to KNX defaults
 		device->pm = false;
-		device->ia = 0x0000FFFF;
+		device->ia = 0xFFFF;
 		device->iid = 0;
 		device->fid = 0;
 		device->port = u_port;
@@ -1616,18 +1614,18 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 		return;
 	}
 
-	if (reset_mode == 3)
+	if (reset_mode == RESET_IA)
 	{
 		oc_storage_erase(KNX_STORAGE_IA);
 
 		// set the ia to KNX defaults
 		device->pm = false;
-		device->ia = 0x0000FFFF;
+		device->ia = 0xFFFF;
 
 		return;
 	}
 
-	if (reset_mode == 7)
+	if (reset_mode == RESET_TO_DEFAULT_WO_IA)
 	{
 		// LSM (first to prevent any runtime messaging in/out)
 		oc_a_lsm_set_state(device_index, LSM_S_UNLOADED);

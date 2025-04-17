@@ -31,12 +31,15 @@ int g_int_array[2][ARRAY_SIZE];
 int g_array_size = 0;
 static int g_nr_functional_blocks = 0;
 
-int get_fp_from_dp(const char* dpt)
+int get_fb_number_from_dp(const char* dpt)
 {
 	// dpa.352.51 or urn:knx:dpa.352.51
 	// returns 352 or -1 ('strtol' error returns FB# 0, better than an 'atoi' crash)
 
+	// first '.'
 	const char* dot = strchr(dpt, '.');
+
+	// number after '.'
 	return dot ? strtol(dot + 1, NULL, 10) : -1;
 }
 
@@ -83,7 +86,7 @@ static int oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_valu
 			if ((strncmp(t, ":dpa", 4) == 0) ||
 					(strncmp(t, "urn:knx:dpa", 11) == 0))
 			{
-				const int fp_int = get_fp_from_dp(t);
+				const int fp_int = get_fb_number_from_dp(t);
 				if (fp_int == fb_value && instance_resource == instance)
 				{
 					counter++;
@@ -189,7 +192,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 			char* t = oc_string_array_get_item(types, i);
 			if (strncmp(t, ":dpa", 4) == 0 || strncmp(t, "urn:knx:dpa", 11) == 0)
 			{
-				int fp_int = get_fp_from_dp(t);
+				int fp_int = get_fb_number_from_dp(t);
 				if (fp_int == fb_value && instance_resource == instance)
 				{
 					frame_resource = true;
@@ -276,32 +279,42 @@ int oc_count_functional_blocks(size_t device_index)
 			continue;
 		}
 
-		oc_string_array_t types = resource->types;
+		// rt array
+		const oc_string_array_t types = resource->types;
 		for (int i = 0; i < (int) oc_string_array_get_allocated_size(types); i++)
 		{
-			char* t = oc_string_array_get_item(types, i);
+			// get single item 
+		  const char* t = oc_string_array_get_item(types, i);
+
+			// check on iot router 
 			if ((strncmp(t, ":dpa.11.", 8) == 0) ||
 					(strncmp(t, "urn:knx:dpa.11.", 15) == 0))
 			{
-				/* specific functional block iot_router : /f/netip */
+				// add if not yet added 
 				if (netip_added == false)
 				{
-					/* add only once */
 					counter++;
+
+          // add only once
 					netip_added = true;
 				}
 			}
 			else
 			{
-				/* regular functional block, framing by functional block numbers & instances
-					 note each FB resource has a 'dpa' type assigned (well-know EP with urn:..., knx specific EP without urn:...
+				/*
+				   regular functional block, framing by functional block numbers & instances
+					 note each FB resource has a 'dpa' type assigned
+					 (well-know EP with urn:..., knx specific EP without urn:...)
 				*/
-				if ((strncmp(t, ":dpa", 4) == 0) || (strncmp(t, "urn:knx:dpa", 11) == 0))
+				if (strncmp(t, ":dpa", 4) == 0 || 
+						strncmp(t, "urn:knx:dpa", 11) == 0)
 				{
-					int fp_int = get_fp_from_dp(t);         // get FB number from dpa.XXX ...
-					int instance = resource->fb_instance;
-					if ((fp_int > 0) && (is_in_g_array(fp_int, instance) == false))
-					{ // check if FB already found. 
+					int fp_int = get_fb_number_from_dp(t);  // get FB number XXX from dpa.XXX ...
+					int instance = resource->fb_instance;   // get 
+
+					// check if FB already found 
+				  if (fp_int > 0 && !is_in_g_array(fp_int, instance))
+					{ 
 						store_in_array(fp_int, instance);
 						counter++;
 					}
@@ -313,6 +326,7 @@ int oc_count_functional_blocks(size_t device_index)
 	return g_nr_functional_blocks;
 }
 
+// check if an FB shall be added according to request and its query parameters 
 bool oc_filter_functional_blocks(oc_request_t* request)
 {
 	char* value = NULL;
@@ -340,22 +354,27 @@ bool oc_filter_functional_blocks(oc_request_t* request)
 			if_len = (int) value_len;
 		}
 	}
+
+	
 	if (rt_len == 0 && if_len == 0)
 	{
-		return true;
+    // no 'rt' and 'if' query parameter --> add FBs (
+	  return true;
 	}
 	if (rt_len > 0)
 	{
 		wildcard = memchr(rt_request, '*', rt_len);
 		if (wildcard != NULL)
 		{
-			return true;
+      // wildcard query parameter --> add FBs 
+		  return true;
 		}
-		else if (strstr(rt_request, "fb") != NULL)
-		{
-			return true;
-		}
-	}
+    if (strstr(rt_request, "fb") != NULL)
+    {
+      // 'fb' query parameter --> add FBs 
+      return true;
+    }
+  }
 	if (if_len > 0)
 	{
 		wildcard = memchr(if_request, '*', if_len);
@@ -363,11 +382,11 @@ bool oc_filter_functional_blocks(oc_request_t* request)
 		{
 			return true;
 		}
-		else if (strstr(if_request, "ll") != NULL)
-		{
-			return true;
-		}
-	}
+    if (strstr(if_request, "ll") != NULL)
+    {
+      return true;
+    }
+  }
 	return false;
 }
 
@@ -427,7 +446,7 @@ bool oc_was_adding_function_blocks_to_response(oc_request_t* request, size_t dev
 				// regular functional block, framing by functional block numbers & instances
 				if (strncmp(t, ":dpa", 4) == 0 || strncmp(t, "urn:knx:dpa", 11) == 0)
 				{
-					const int fp_int = get_fp_from_dp(t);
+					const int fp_int = get_fb_number_from_dp(t);
 					const int instance = resource->fb_instance;
 					if (fp_int > 0 && !is_in_g_array(fp_int, instance))
 					{
