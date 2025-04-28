@@ -386,7 +386,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	}
 
 	// add FBs
-	total += oc_count_functional_blocks(device_index);
+	total += oc_count_functional_blocks();
 
 	// handle query parameters l=ps and/or l=total
 	if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -661,12 +661,13 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	if (!current_page_is_full && request->origin && (request->origin->flags & MULTICAST) == 0)
 	{ // unicast: page not full, things can still be added
 
-		// add FBs in case of request contains matching query parameters 
-		if (oc_filter_functional_blocks(request))
+		// add FBs in case of .../core discovery request contains matching query parameters,
+		// such as query parameter rt=fb 
+		if (oc_check_if_functional_blocks_need_to_add(request))
 		{
-			oc_was_adding_function_blocks_to_response(request, device_index, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, first_entry + query_ps);
+			oc_was_adding_function_blocks_to_response(request, false, &response_length, &query_parameter_kvpair_matches, &skipped, first_entry, first_entry + query_ps);
 
-			PRINT("oc_wkcore_discovery_handler add present FB resources on a unicast request ...");
+			PRINT("oc_wkcore_discovery_handler added present FB resources on a unicast request ...");
 		}
 	}
 

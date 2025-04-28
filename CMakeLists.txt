@@ -61,7 +61,7 @@ set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
 
-# iot router specific resource variables
+# iot router specific resource variables (not completed implementation)
 set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
 set(KNX_GAMT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group address mapping (iot router) table entries")
 

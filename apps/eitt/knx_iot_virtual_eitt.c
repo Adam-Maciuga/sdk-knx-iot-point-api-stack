@@ -68,6 +68,7 @@
 #include "oc_helpers.h"
 
 #include "port/oc_clock.h"
+#include "port/oc_storage.h"
 
 #ifdef OC_SPAKE
 #include "security/oc_spake2plus.h" // security enrollment by password
@@ -885,11 +886,9 @@ int app_set_serial_number(const char* serial_number)
 
 int app_initialize_stack(void)
 {
-/*
- The storage folder depends on the build system the folder is created
- in the makefile, with $target as name with _cred as post fix.
-*/
-#ifdef WIN32
+
+  // The final storage folder depends on the build system/ current directory on Linux/ Windows,
+  // the folder name is defined by the file name + serial number. 
 
   char storage[400];
   char dir[FILENAME_MAX] = "";
@@ -897,16 +896,6 @@ int app_initialize_stack(void)
   (void)sprintf(storage, "./knx_iot_virtual_eitt_%s", g_serial_number);
   PRINT("Current path is: '%s'", dir);
   oc_storage_config(storage);
-
-#else
-
-  char storage[400];
-  char dir[FILENAME_MAX] = "";
-  GetCurrentDir(dir, FILENAME_MAX);
-  PRINT("storage at 'knx_iot_virtual_eitt_creds' "); // TODO
-  oc_storage_config("./knx_iot_virtual_eitt_creds"); // TODO
-
-#endif
 
   // initialize the 'application' runtime variables
   initialize_variables();

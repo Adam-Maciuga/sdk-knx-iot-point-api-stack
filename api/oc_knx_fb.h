@@ -40,17 +40,17 @@ extern "C" {
  * response
  *
  * @param request the request
- * @param device_index the device index
+ * @param short_urn_form if the urn:knx needs to be added as part of response or not (/well-known vs /f)
  * @param response_length the current response length
  * @param matches number of matches (so far)
  * @param skipped number of entries already skipped
  * @param first_entry first entry to be included
  * @param last_entry last entry to be included (exclusive)
- * @return true
- * @return false
+ * @return true (at least one FB was added)
+ * @return false (no FB was added)
+ *
  */
-bool oc_was_adding_function_blocks_to_response(oc_request_t *request,
-                                        size_t device_index,
+bool oc_was_adding_function_blocks_to_response(oc_request_t *request, bool short_urn_form,
                                         size_t *response_length, int *matches,
                                         int *skipped, int first_entry,
                                         int last_entry);
@@ -65,9 +65,8 @@ void oc_create_knx_fb_resources(size_t device);
 
 /**
  *@brief count functional blocks in a device
- * @param device_index the device index
  */
-int oc_count_functional_blocks(size_t device_index);
+int oc_count_functional_blocks(void);
 
 /**
  * @brief check if functional blocks should be added to the response
@@ -75,7 +74,7 @@ int oc_count_functional_blocks(size_t device_index);
  * @return true
  * @return false
  */
-bool oc_filter_functional_blocks(oc_request_t *request);
+bool oc_check_if_functional_blocks_need_to_add(oc_request_t *request);
 
 #ifdef __cplusplus
 }
