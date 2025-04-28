@@ -43,14 +43,14 @@ set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally'' group multicast events with scope 2, e.g.; for PC based applications.")
 
 ## Debug 
-set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "redirect debug messages to a file")
-set(OC_USE_STORAGE ON CACHE BOOL "If enbaled the data are persisted in a (file-based) storage.")
-set(OC_OSCORE_ENABLED ON CACHE BOOL "Enable oscore, OFF may be used for debugging reasons")
-set(OC_PRINT_ENABLED OFF CACHE BOOL "Enable print messages for the stack (and application; if used). OFF will disable virtually all logging.")
-set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enable debug messages for the stack (and application; if used).")
-set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enable security debug messages for the stack, ON may be used for debugging reasons.")
-set(USE_CONSOLE ON CACHE BOOL "Enable to use the console for the logging output, ON is typically used for debugging reasons.")
-set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enable replay protection using the Echo option, OFF may be used for debugging reasons.")
+set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "Enables that all logging messages are redirected to a file, to use it the 'PRINT' option must be also enabled.")
+set(OC_USE_STORAGE ON CACHE BOOL "Enables that the configuration data are persisted in a (file-based) storage.")
+set(OC_OSCORE_ENABLED ON CACHE BOOL "Enables oscore, OFF may be used for debugging reasons")
+set(OC_PRINT_ENABLED OFF CACHE BOOL "Enables print messages for the stack (and application; if used). OFF will disable all logging.")
+set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enables common debug messages for the stack (and application; if used).")
+set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enables security debug messages for the stack.")
+set(USE_CONSOLE ON CACHE BOOL "Enables the console as a logging output also for the GUI applications, typically used for debugging reasons.")
+set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enables security replay protection using the Echo option.")
 
 ## iot device specific resource variables
 set(KNX_GOT_MAX_ENTRIES "50" CACHE STRING "Maximum number of group object table entries")
