@@ -573,7 +573,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     if (oc_is_device_in_runtime(device_index))
     {
       oc_register_group_multicasts();
-      oc_init_datapoints_at_initialization();
+      // oc_init_datapoints_at_initialization();
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
 

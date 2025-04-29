@@ -31,7 +31,7 @@
 #define GRT_STORE "dev_knx_rcv_entry"
 
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES]; // go table
-static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // rec table (to send)
+static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
 static oc_group_table_t g_gpt[GPT_MAX_ENTRIES]; // pub table (to receive)
@@ -407,12 +407,12 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   PRINT("oc_core_fp_g_get_handler - end");
 }
 
-// check the GO table at index
+// check the GO table at index with some additional sanity checks
 static bool oc_fp_g_check_and_save(int index)
 {
   bool do_save = true;
 
-  // do additional sanity checks
+  // note that an empty array ( 7: []) does not end up in setting the GA len
   if (g_got[index].ga_len == 0)
   {
     do_save = false;
@@ -455,6 +455,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   (void)data;
   (void)iface_mask;
 
+
   // default assumption
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
@@ -482,12 +483,13 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   {
     switch (rep->type)
     {
+    // a possible collection of GOs 
     case OC_REP_OBJECT:
     {
-      // treat request payload value as a single GO object
+      // treat request payload value as one GO (that itself defines a chain of objects for id, href,...)
       const oc_rep_t* object = rep->value.object;
 
-      // find GO id in request
+      // find 'id' key in request
       const int id = oc_table_find_id_from_rep(object);
       if (id == -1)
       {
@@ -496,9 +498,9 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         return;
       }
 
-      // find index in GO table
-      int index = oc_core_find_index_in_group_object_table_from_id(id);
-      if (index != -1)
+      // find array index in GO table
+      int array_index = oc_core_find_index_in_group_object_table_from_id(id);
+      if (array_index != -1)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
@@ -507,8 +509,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       {
         // no index, so we will create one
         return_status = OC_STATUS_CREATED;
-        index = find_empty_slot_in_group_object_table(id);
-        if (index == -1)
+
+        // returns a valid index if not -1
+        array_index = find_empty_slot_in_group_object_table(id);
+        if (array_index == -1)
         {
           OC_ERR("ERROR: GO table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -518,6 +522,9 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
       bool id_only = true; // used to delete an GO table entry
       int mandatory_items = 0; // needs to be 4 for creating new entry, i.e. id, ga, cflag & href
+
+      // local tmp GO entry
+      oc_group_object_table_t tmp_got_entry = {0, NULL, 0, NULL, OC_CFLAG_NONE, 0, NULL};
 
       while (object != NULL)
       {
@@ -529,8 +536,12 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 11)
           {
             // set href
-            oc_free_string(&g_got[index].href);
-            oc_new_string(&g_got[index].href, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_free_string(&g_got[array_index].href);
+            oc_new_string(&g_got[array_index].href, oc_string(object->value.string), oc_string_len(object->value.string));
+
+            // free previous and set (new) href in tmp copy
+            oc_free_string(&tmp_got_entry.href);
+            oc_new_string(&tmp_got_entry.href, oc_string(object->value.string), oc_string_len(object->value.string));
 
             // valid item + for sure no 'id only case'
             id_only = false;
@@ -544,7 +555,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (oc_string_len(object->name) == 0 && object->iname == 0)
           {
             // set id
-            g_got[index].id = (int)object->value.integer;
+            g_got[array_index].id = (int)object->value.integer;
+
+            // set id in tmp copy
+            tmp_got_entry.id = (int)object->value.integer;
 
             // valid item + possibly an 'id only case'
             mandatory_items++;
@@ -554,7 +568,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (oc_string_len(object->name) == 0 && object->iname == 8)
           {
             // set flags
-            g_got[index].cflags = (int)object->value.integer;
+            g_got[array_index].cflags = (int)object->value.integer;
+
+            // set flags in tmp copy
+            tmp_got_entry.cflags = (int)object->value.integer;
 
             // valid item + for sure no 'id only case'
             id_only = false;
@@ -568,22 +585,29 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 7)
           {
             const int64_t* array_in_payload = oc_int_array(object->value.array);
-            const int array_in_payload_size = oc_int_array_size(object->value.array);
-            uint32_t* new_array = malloc(array_in_payload_size * sizeof(uint32_t));
+            const int array_size_in_payload = oc_int_array_size(object->value.array);
+
+            uint32_t* new_array = malloc(array_size_in_payload * sizeof(uint32_t));
             if (new_array)
             {
-              for (int i = 0; i < array_in_payload_size; i++)
+              for (int i = 0; i < array_size_in_payload; i++)
               {
                 new_array[i] = (uint32_t)array_in_payload[i];
               }
 
               // release an existing array fully if it will be overwritten (no selective adding)
-              if (g_got[index].ga != NULL)
+              if (g_got[array_index].ga != NULL)
               {
-                free(g_got[index].ga);
+                free(g_got[array_index].ga);
               }
-              g_got[index].ga_len = array_in_payload_size;
-              g_got[index].ga = new_array;
+
+              // assign GA array
+              g_got[array_index].ga_len = array_size_in_payload;
+              g_got[array_index].ga = new_array;
+
+              // assign GA array in tmp copy
+              tmp_got_entry.ga_len = array_size_in_payload;
+              tmp_got_entry.ga = new_array;
 
               // valid item + for sure no 'id only case'
               mandatory_items++;
@@ -599,7 +623,13 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         }
         break;
         default:
-          break;
+
+          // any other invalid type returns a 4.00
+          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
+          PRINT("invalid object type, addressed GOT entry deleted: %d", array_index);
+          oc_delete_group_object_table_entry(array_index);
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
         }
 
         object = object->next;
@@ -607,41 +637,63 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
       if (id_only)
       {
-        PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_object_table_entry(index);
+        PRINT("only found id in request, deleting entry at index: %d", array_index);
+        oc_delete_group_object_table_entry(array_index);
       }
       else
       {
         if (return_status == OC_STATUS_CREATED && mandatory_items != 4)
         {
-          PRINT("mandatory items missing, no entry created at index: %d", index);
-          oc_delete_group_object_table_entry(index);
+          PRINT("mandatory items missing, no entry created at index: %d", array_index);
+          oc_delete_group_object_table_entry(array_index);
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
-        // created + 4 items or changed + items don't care
+        // created + 4 items
+        // or
+        // changed + n items
 
-        PRINT("storing entry at index: %d", index);
+        PRINT("storing entry at index: %d", array_index);
 
-        // a "bad" status will stop processing
-        if (!oc_fp_g_check_and_save(index))
+        // a "bad" return status will stop processing and return a 4.00
+        if (!oc_fp_g_check_and_save(array_index))
         {
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
+
+        // here all ok, assign tmp copy to real GO table entry
+
+        // id, cflags
+        g_got[array_index].id = tmp_got_entry.id;
+        g_got[array_index].cflags = tmp_got_entry.cflags;
+
+        // release a possible href
+        oc_free_string(&g_got[array_index].href);
+        g_got[array_index].href = tmp_got_entry.href;
+
+        // release a possible ga array, it will be overwritten (no selective adding)
+        free(g_got[array_index].ga);
+        g_got[array_index].ga = tmp_got_entry.ga;
+        g_got[array_index].ga_len = tmp_got_entry.ga_len;
+
       }
     }
     break;
     default:
       break;
     }
+
+    // next GO
     rep = rep->next;
   }
 
-  // create fp/g --> update
+
+  // create/update a GO via fp/g --> update in any case (even on error 4.00)
   oc_knx_increase_fingerprint();
 
-  // only OK/CHANGED is possible here, the last return status from a collection is responded
+  // the last return status from a collection with 'n' POST elements is responded (OK/CHANGED)
+  // als 4.00 is possible
   oc_prepare_no_format_response_no_payload(request, return_status);
 
 

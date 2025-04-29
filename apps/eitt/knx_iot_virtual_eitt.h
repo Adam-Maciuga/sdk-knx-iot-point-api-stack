@@ -66,7 +66,7 @@ extern "C"
 #define HW_TYPE_ETS6 "Windows" // 12 string chars, MSB = 00 , here same as eitt test template
 #define DEV_MODEL_ETS6 "KNX Certification" // same as eitt test template
 
-#define MID (0x0298) // first 4 digits of SN_LOWER_CASE (same as eitt test template = 667d) 
+#define MID (667) // first 4 digits of SN_LOWER_CASE (same as eitt test template) 
 
 // URL defines
 
