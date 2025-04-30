@@ -180,7 +180,7 @@ int32_t app_get_channel_and_point(const void* user_data)
     for (uint16_t p = 0; p < NUM_POINTS; p++)
     {
       oc_string_t url_resource;
-      oc_new_string(&url_resource, lsxb[c].point[p].url, strlen(lsxb[c].point[p].url));
+      oc_new_string(&url_resource, lsxb[c].point[p].href, strlen(lsxb[c].point[p].href));
 
       if (oc_url_cmp(href, url_resource) == 0)
       {
@@ -195,7 +195,7 @@ int32_t app_get_channel_and_point(const void* user_data)
 
 char* app_retrieve_url_from_channel(uint16_t channel, uint16_t point)
 {
-  return lsxb[channel].point[point].url;
+  return lsxb[channel].point[point].href;
 }
 
 // need to define prototype, used by an init method
@@ -329,7 +329,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin GET %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- Begin GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -451,7 +451,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("-- End GET %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- End GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 }
 
 void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
@@ -468,7 +468,7 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].href);
 
   // handle the different requests, here only included as example to
   // identify if extra data needs to be processed in the endpoint
@@ -502,16 +502,16 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
 
     // this is the 'simple' option to trigger a status on a specific EP
-    PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].url);
-    oc_do_s_mode_with_scope(5, lsxb[c].point[IOO].url, "w");
+    PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
+    oc_do_s_mode_with_scope(5, lsxb[c].point[IOO].href, "w");
 
-    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 }
 
 // parameters handling
@@ -723,8 +723,8 @@ void register_resources(void)
 
   for (int i = 0; i < NUM_CHANNELS; i++)
   {
-    oc_resource_t* soo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[SOO].url, 1, 0);
-    oc_resource_t* ioo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[IOO].url, 1, 0);
+    oc_resource_t* soo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[SOO].href, 1, 0);
+    oc_resource_t* ioo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[IOO].href, 1, 0);
 
     char soo_t[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_t, lsxb[i].point[SOO].dpa);
     char ioo_t[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_t, lsxb[i].point[IOO].dpa);
@@ -748,8 +748,8 @@ void register_resources(void)
     oc_resource_set_observable(ioo_res, true);
 
     // set user data for PUT/GET  (needed to distinguish the call source 
-    void* soo = lsxb[i].point[SOO].url;
-    void* ioo = lsxb[i].point[IOO].url;
+    void* soo = lsxb[i].point[SOO].href;
+    void* ioo = lsxb[i].point[IOO].href;
 
     oc_resource_set_request_handler(soo_res, OC_GET, get_lsxb, soo, OC_ACL_O, OC_IF_O);
     oc_resource_set_request_handler(soo_res, OC_PUT, put_lsxb, soo, OC_ACL_I, OC_IF_I);

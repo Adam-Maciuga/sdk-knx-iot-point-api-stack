@@ -1707,15 +1707,11 @@ void oc_knx_load_fingerprint(void)
   oc_storage_read(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
-void oc_knx_dump_fingerprint(void) { oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint)); }
-
-void oc_knx_set_fingerprint(uint64_t fingerprint) { g_fingerprint = fingerprint; }
-
 // update on create/delete of fp/p, fp/r, fp/g and /p
 void oc_knx_increase_fingerprint(void)
 {
   g_fingerprint++; // must be only different
-  oc_knx_dump_fingerprint();
+  oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
 // ----------------------------------------------------------------------------

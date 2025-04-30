@@ -219,13 +219,6 @@ extern "C"
   void oc_knx_set_ldevid(char* ldevid, int len);
 
   /**
-   * @brief sets the fingerprint value (of the loaded materials)
-   *
-   * @param fingerprint The fingerprint value
-   */
-  void oc_knx_set_fingerprint(uint64_t fingerprint);
-
-  /**
    * @brief increase the finger print value
    *
    */
@@ -236,12 +229,6 @@ extern "C"
    *
    */
   void oc_knx_load_fingerprint(void);
-
-  /**
-   * @brief dump the fingerprint value to storage
-   *
-   */
-  void oc_knx_dump_fingerprint(void);
 
   /**
    * @brief load the state of the device from persistent storage

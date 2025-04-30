@@ -38,8 +38,7 @@ extern "C"
   typedef enum
   {
     OC_CFLAG_NONE = 0, // uninitialized communication flags (used on init)
-    OC_CFLAG_COMMUNICATION = 1 << 2, // if true communication enabled (not used in
-                                     // KNX iot as an explicit flag)
+    OC_CFLAG_COMMUNICATION = 1 << 2, // if true communication enabled (not used in KNX iot as an explicit flag)
     OC_CFLAG_READ = 1 << 3, // if true readable
     OC_CFLAG_WRITE = 1 << 4, // if true writable
     OC_CFLAG_INIT = 1 << 5, // if true read on init
@@ -413,11 +412,11 @@ extern "C"
   void oc_print_group_object_table_entry(int entry);
 
   /**
-   * @brief dump the entry of the Group Object Table (to persistent) storage
+   * @brief persistent the entry of the Group Object Table storage in CBOR format (hex stream data)
    *
    * @param entry the index of the entry in the Group Object Table
    */
-  void oc_dump_group_object_table_entry(int entry);
+  void oc_store_group_object_table_entry(int entry);
 
   /**
    * @brief load the entry of the Group Object Table (from persistent) storage
@@ -432,9 +431,27 @@ extern "C"
    */
   void oc_load_group_object_table(void);
 
+
   /**
-   * @brief delete entry of the Group Object Table
-   * does not make the change persistent
+   * @brief frees a GO entry element that is (memory) allocated on the on stack
+   *    
+   * @param entry the GO entry
+   * @param allocator which GO entry element to be freed
+   */
+  void oc_free_allocated_go_elements(oc_group_object_table_t* entry, const uint8_t allocator);
+
+  /**
+   * @brief frees a PUB/RCP entry element that is (memory) allocated on the on stack
+   *
+   * @param entry the PUB/RCP entry
+   * @param allocator which PUB entry element to be freed
+   */
+  void oc_free_allocated_table_elements(oc_group_table_t* entry, const uint8_t allocator);
+
+  /**
+   * @brief delete entry of the Group Object Table,
+   * - the GO table entry is invalidated 
+   * - does not make the (delete) change persistent, the storage entry disappears  
    *
    * @param entry the index of the entry in the Group Object Table
    */
@@ -598,7 +615,7 @@ extern "C"
 
   /**
    * @brief checks if the href (url) belongs to the device,
-   *        e.g. such as '/fp/g' or '/p/{property-path}' 
+   *        e.g. such as '/fp/g' or '/p/{property-path}'
    *
    * @param href the url to be checked of the device
    * @param discoverable if true checks the device and its discoverable resources (otherwise all resources)
@@ -607,7 +624,7 @@ extern "C"
    * @return true
    * @return false
    *
-   * @note a href leading forward '/' is ignored when checking, href after the '/' must be non-zero  
+   * @note a href leading forward '/' is ignored when checking, href after the '/' must be non-zero
    */
   bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index);
 

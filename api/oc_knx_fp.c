@@ -30,6 +30,7 @@
 #define GPT_STORE "dev_knx_pub_entry"
 #define GRT_STORE "dev_knx_rcv_entry"
 
+// note static variables are initialized with '0' first time
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES]; // go table
 static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // rcp table (to send)
 
@@ -43,7 +44,7 @@ static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_
 
 static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table);
 
-static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
+static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table);
 
 static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
@@ -92,7 +93,7 @@ int oc_table_find_id_from_rep(const oc_rep_t* object)
       if (oc_string_len(tmpObject->name) == 0 && tmpObject->iname == 0)
       {
         const int id = (int)tmpObject->value.integer;
-        PRINT("oc_table_find_id_from_rep id=%d ", id);
+        PRINT("find id from request: %d ", id);
         return id;
       }
     }
@@ -407,54 +408,11 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   PRINT("oc_core_fp_g_get_handler - end");
 }
 
-// check the GO table at index with some additional sanity checks
-static bool oc_fp_g_check_and_save(int index)
-{
-  bool do_save = true;
-
-  // note that an empty array ( 7: []) does not end up in setting the GA len
-  if (g_got[index].ga_len == 0)
-  {
-    do_save = false;
-    OC_ERR("index %d no groups %d", index, g_got[index].ga_len);
-  }
-  if (g_got[index].cflags == 0)
-  {
-    do_save = false;
-    OC_ERR("index %d no cflags set %d", index, g_got[index].cflags);
-  }
-  if (oc_string_len(g_got[index].href) > OC_MAX_URL_LENGTH)
-  {
-    do_save = false;
-    OC_ERR("index %d href is longer than %d", index, OC_MAX_URL_LENGTH);
-  }
-  if (!oc_belongs_href_to_resource(g_got[index].href, true, 0))
-  {
-    do_save = false;
-    OC_ERR("index %d href '%s' does not belong to device", index, oc_string_checked(g_got[index].href));
-  }
-
-  // debugging
-  oc_print_group_object_table_entry(index);
-
-  if (!do_save)
-  {
-    // at least one sanity check failed ...
-    OC_DBG("... deleting entry at index %d", index);
-    oc_delete_group_object_table_entry(index);
-    return false;
-  }
-
-  // all ok
-  oc_dump_group_object_table_entry(index);
-  return true;
-}
 
 static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
-
 
   // default assumption
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
@@ -477,15 +435,24 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   // debugging info
   oc_print_rep_as_json(request->request_payload, true);
 
+  /*
+    A GO collection is checked per entry, the last return code wins (created/changed).
+    Note that on a 4.00 / 5.00 the previously written entries - from
+    a collection - are not restored (currently to complicate). This is for sure not
+    a problem if a MaC writes only one entry per request. 
+  */
+
+  // set ptr to collection of 1...n GOs in payload
   const oc_rep_t* rep = request->request_payload;
 
+  // no payload -> 4.00
   while (rep != NULL)
   {
     switch (rep->type)
     {
-    // a possible collection of GOs 
+    // a possible collection of GOs
     case OC_REP_OBJECT:
-    {
+
       // treat request payload value as one GO (that itself defines a chain of objects for id, href,...)
       const oc_rep_t* object = rep->value.object;
 
@@ -493,12 +460,12 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       const int id = oc_table_find_id_from_rep(object);
       if (id == -1)
       {
-        OC_ERR("ERROR: GO table id not found in request, but is a mandatory part");
+        OC_ERR("GO table id not found in request, but is a mandatory part");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
 
-      // find array index in GO table
+      // find index in GO table
       int array_index = oc_core_find_index_in_group_object_table_from_id(id);
       if (array_index != -1)
       {
@@ -514,50 +481,31 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         array_index = find_empty_slot_in_group_object_table(id);
         if (array_index == -1)
         {
-          OC_ERR("ERROR: GO table has no empty slot to add a new entry");
+          OC_ERR("GO table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
       }
 
-      bool id_only = true; // used to delete an GO table entry
-      int mandatory_items = 0; // needs to be 4 for creating new entry, i.e. id, ga, cflag & href
+      #define GO_HREF (1 << 0)
+      #define GO_GAS (1 << 1)
 
-      // local tmp GO entry
-      oc_group_object_table_t tmp_got_entry = {0, NULL, 0, NULL, OC_CFLAG_NONE, 0, NULL};
+      uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
+      oc_group_object_table_t tmp_got_entry = g_got[array_index]; // fill with live GO (from a present entry or from an empty entry)
+      bool id_only = true; // used to delete the GO table entry
+      int mandatory_items = 0; // needs to be 4 for creating new entry, i.e. id, ga, cflags & href
 
       while (object != NULL)
       {
         switch (object->type)
         {
-        case OC_REP_STRING:
-        {
-          // href (11)
-          if (object->iname == 11)
-          {
-            // set href
-            oc_free_string(&g_got[array_index].href);
-            oc_new_string(&g_got[array_index].href, oc_string(object->value.string), oc_string_len(object->value.string));
-
-            // free previous and set (new) href in tmp copy
-            oc_free_string(&tmp_got_entry.href);
-            oc_new_string(&tmp_got_entry.href, oc_string(object->value.string), oc_string_len(object->value.string));
-
-            // valid item + for sure no 'id only case'
-            id_only = false;
-            mandatory_items++;
-          }
-        }
-        break;
+        
         case OC_REP_INT:
-        {
-          // id (0)
-          if (oc_string_len(object->name) == 0 && object->iname == 0)
-          {
-            // set id
-            g_got[array_index].id = (int)object->value.integer;
 
-            // set id in tmp copy
+          // id (0)
+          if (object->iname == 0)
+          {
+            // set id in tmp copy 
             tmp_got_entry.id = (int)object->value.integer;
 
             // valid item + possibly an 'id only case'
@@ -565,11 +513,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           // cflags (8)
-          if (oc_string_len(object->name) == 0 && object->iname == 8)
+          if (object->iname == 8)
           {
-            // set flags
-            g_got[array_index].cflags = (int)object->value.integer;
-
             // set flags in tmp copy
             tmp_got_entry.cflags = (int)object->value.integer;
 
@@ -577,57 +522,76 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             id_only = false;
             mandatory_items++;
           }
-        }
-        break;
+
+          break;
+        case OC_REP_STRING:
+
+          // any extra element - even if not valid - causes a "not an id only"
+          id_only = false;
+
+          // href (11)
+          if (object->iname == 11)
+          {
+            // set (new) href in tmp copy (org ptr still valid)
+            oc_new_string(&tmp_got_entry.href, oc_string(object->value.string), oc_string_len(object->value.string));
+
+            mandatory_items++;
+            allocator |= GO_HREF;
+          }
+
+          break;
         case OC_REP_INT_ARRAY:
-        {
+
+          // any extra element - even if not valid - causes a "not an id only"
+          id_only = false;
+
           // ga array (7)
           if (object->iname == 7)
           {
-            const int64_t* array_in_payload = oc_int_array(object->value.array);
-            const int array_size_in_payload = oc_int_array_size(object->value.array);
+            const int64_t* array = oc_int_array(object->value.array);
+            const int array_size = oc_int_array_size(object->value.array);
 
-            uint32_t* new_array = malloc(array_size_in_payload * sizeof(uint32_t));
-            if (new_array)
+            // malloc of 'zero' byte return pointer is undefined
+            // ga size shall be 32 bit
+            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
+            if (new_array && array_size > 0)
             {
-              for (int i = 0; i < array_size_in_payload; i++)
+              for (int i = 0; i < array_size; i++)
               {
-                new_array[i] = (uint32_t)array_in_payload[i];
+                new_array[i] = (uint32_t)array[i];
               }
 
-              // release an existing array fully if it will be overwritten (no selective adding)
-              if (g_got[array_index].ga != NULL)
-              {
-                free(g_got[array_index].ga);
-              }
+              PRINT("ga size %d", array_size);
 
-              // assign GA array
-              g_got[array_index].ga_len = array_size_in_payload;
-              g_got[array_index].ga = new_array;
-
-              // assign GA array in tmp copy
-              tmp_got_entry.ga_len = array_size_in_payload;
+              // assign GA array in tmp copy (org ptr still valid)
+              tmp_got_entry.ga_len = array_size;
               tmp_got_entry.ga = new_array;
 
-              // valid item + for sure no 'id only case'
               mandatory_items++;
-              id_only = false;
+              allocator |= GO_GAS;
             }
             else
             {
-              OC_ERR("out of memory");
+              OC_ERR("out of stack memory");
+
+              // on error: free GO tmp entry (all heap allocations)
+              oc_free_allocated_go_elements(&tmp_got_entry, allocator);
+
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
             }
           }
-        }
-        break;
+
+          break;
         default:
 
           // any other invalid type returns a 4.00
           // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
-          PRINT("invalid object type, addressed GOT entry deleted: %d", array_index);
-          oc_delete_group_object_table_entry(array_index);
+          OC_ERR("invalid object type detected");
+
+          // on error: free GO tmp entry (all heap allocations)
+          oc_free_allocated_go_elements(&tmp_got_entry, allocator);
+
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -637,6 +601,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
       if (id_only)
       {
+        // no tmp elements allocated ...
         PRINT("only found id in request, deleting entry at index: %d", array_index);
         oc_delete_group_object_table_entry(array_index);
       }
@@ -645,55 +610,85 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         if (return_status == OC_STATUS_CREATED && mandatory_items != 4)
         {
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
-          oc_delete_group_object_table_entry(array_index);
+
+          // on error: free GO tmp entry (all heap allocations)
+          oc_free_allocated_go_elements(&tmp_got_entry, allocator);
+
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
         // created + 4 items
         // or
-        // changed + n items
+        // changed + 1..3 items (id cannot be reassigned)
 
-        PRINT("storing entry at index: %d", array_index);
+        bool do_save = true;
+        // check entry with some additional sanity checks
+        // a "bad" status will stop processing and return a 4.00
 
-        // a "bad" return status will stop processing and return a 4.00
-        if (!oc_fp_g_check_and_save(array_index))
+        // note that an empty array ( 7: []) does not end up in setting the GA len, it ends in 4.00
+        if (tmp_got_entry.ga_len == 0)
         {
+          do_save = false;
+          OC_ERR("no groups %d", tmp_got_entry.ga_len);
+        }
+        if (tmp_got_entry.cflags == 0)
+        {
+          do_save = false;
+          OC_ERR("no cflags set %d", tmp_got_entry.cflags);
+        }
+        if (oc_string_len(tmp_got_entry.href) > OC_MAX_URL_LENGTH)
+        {
+          do_save = false;
+          OC_ERR("href is longer than %d", OC_MAX_URL_LENGTH);
+        }
+        if (!oc_belongs_href_to_resource(tmp_got_entry.href, true, 0))
+        {
+          do_save = false;
+          OC_ERR("href '%s' does not belong to device", oc_string_checked(tmp_got_entry.href));
+        }
+
+        if (!do_save)
+        {
+          // on error: free GO tmp entry (all heap allocations)
+          oc_free_allocated_go_elements(&tmp_got_entry, allocator);
+
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
 
-        // here all ok, assign tmp copy to real GO table entry
+        // here all ok, set new GO entry
+        PRINT("storing GO table entry at %d", array_index);
 
-        // id, cflags
-        g_got[array_index].id = tmp_got_entry.id;
-        g_got[array_index].cflags = tmp_got_entry.cflags;
+        /*
+          Free - on stack allocated -  live GO table entry elements that will be overwritten next.
+          - created : 2 elements (GAs, HREF)
+          - changed : 1..2 elements (GAs, HREF) - 0 not possible, would be to delete a GO entry
+        */
+        oc_free_allocated_go_elements(&g_got[array_index], allocator);
 
-        // release a possible href
-        oc_free_string(&g_got[array_index].href);
-        g_got[array_index].href = tmp_got_entry.href;
+        // assign GO table entry with tmp GO (all elements)
+        g_got[array_index] = tmp_got_entry;
 
-        // release a possible ga array, it will be overwritten (no selective adding)
-        free(g_got[array_index].ga);
-        g_got[array_index].ga = tmp_got_entry.ga;
-        g_got[array_index].ga_len = tmp_got_entry.ga_len;
+        // debugging
+        oc_print_group_object_table_entry(array_index);
 
+        // store (includes here an overwrite)
+        oc_store_group_object_table_entry(array_index);
       }
-    }
-    break;
+
+      break;
     default:
       break;
     }
 
-    // next GO
+    // next GO entry
     rep = rep->next;
   }
 
-
-  // create/update a GO via fp/g --> update in any case (even on error 4.00)
+  // create/update a GO --> update
   oc_knx_increase_fingerprint();
 
-  // the last return status from a collection with 'n' POST elements is responded (OK/CHANGED)
-  // als 4.00 is possible
+  // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
 
@@ -755,20 +750,22 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   if (g_got[index].id == -1)
   {
-    // it is empty
+    // GO table entry is not used
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
     return;
   }
 
   oc_rep_begin_root_object();
-  // id 0
+
+  // id - 0
   oc_rep_i_set_int(root, 0, g_got[index].id);
-  // href- 11
+  // href - 11
   oc_rep_i_set_text_string(root, 11, oc_string(g_got[index].href));
   // ga - 7
   oc_rep_i_set_int_array(root, 7, g_got[index].ga, g_got[index].ga_len);
-  // cflags 8
+  // cflags - 8
   oc_rep_i_set_int(root, 8, g_got[index].cflags);
+
   oc_rep_end_root_object();
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
@@ -793,9 +790,6 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
                                             request->uri_path, request->uri_path_len);
   int index = oc_core_find_index_in_group_object_table_from_id(id);
 
-  PRINT("id=%d index = %d", id, index);
-  PRINT("deleting %d", index);
-
   if (index == -1)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
@@ -803,10 +797,10 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
   }
 
   oc_delete_group_object_table_entry(index);
-  oc_dump_group_object_table_entry(index);
 
   // delete fp/g --> update
   oc_knx_increase_fingerprint();
+
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
   PRINT("oc_core_fp_g_x_del_handler - end");
@@ -1017,7 +1011,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   (void)iface_mask;
 
   // default assumption
-  oc_status_t return_status = OC_STATUS_CREATED;
+  oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
   PRINT("oc_core_fp_p_post_handler - start");
 
@@ -1026,7 +1020,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  size_t device_index = request->resource->device;
+  const size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
@@ -1034,190 +1028,300 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  // debugging
+  // debugging info
   oc_print_rep_as_json(request->request_payload, true);
 
-  oc_rep_t* rep = request->request_payload;
+  /*
+    A PUB collection is checked per entry, the last return code wins (created/changed).
+    Note that on a 4.00 / 5.00 the previously written entries - from
+    a collection - are not restored (currently to complicate). This is for sure not
+    a problem if a MaC writes only one entry per request.
+  */
 
+  // set ptr to collection of 1...n PUB entries in payload
+  const oc_rep_t* rep = request->request_payload;
+
+  // no payload -> 4.00
   while (rep != NULL)
   {
     switch (rep->type)
     {
+    // a possible collection of PUB entries
     case OC_REP_OBJECT:
-    {
-      // treat request payload value as a single object
+
+      // treat request payload value as one entry (that itself defines a chain of objects for id, ia,...)
       const oc_rep_t* object = rep->value.object;
 
       // find PUB id in request
       const int id = oc_table_find_id_from_rep(object);
       if (id == -1)
       {
-        OC_ERR("ERROR: PUB table id not found in request, but is a mandatory part");
+        OC_ERR("PUB table id not found in request, but is a mandatory part");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
 
       // find index in PUB table
-      int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
-      if (index != -1)
+      int array_index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+      if (array_index != -1)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
       }
       else
       {
+        // no index, so we will create one
+        return_status = OC_STATUS_CREATED;
+
         // no index, so we will create one (default)
-        index = find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES);
-        if (index == -1)
+        array_index = find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES);
+        if (array_index == -1)
         {
-          PRINT("ERROR: Publisher table has no empty slot to add a new entry");
+          OC_ERR("PUB table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
       }
 
-      g_gpt[index].id = id; // index is new or an existing one
+      #define TABLE_ATREF (1 << 0)
+      #define TABLE_GAS (1 << 1)
+      #define TABLE_URL (1 << 2)
+
+      uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
+      oc_group_table_t tmp_pub_entry = g_gpt[array_index]; // fill with live PUB entry (from a present/empty entry)
       bool id_only = true; // to delete a publisher table entry
-      int mandatory_items = 0; // needs to be 2 for creating entry, i.e. id & ga
-      bool identifier_exists = false; // one of ia, grpid or url
+      int mandatory_items = 0; // needs to be 3 for creating entry, see below
 
       while (object != NULL)
       {
         switch (object->type)
         {
         case OC_REP_INT:
-        {
-          if (object->iname == 0) // resource 'id'
+
+          // id(0)
+          if (object->iname == 0) 
           {
+            // set id in tmp copy
+            tmp_pub_entry.id = (int)object->value.integer;
+
+            // valid item + possibly an 'id only case'
             mandatory_items++;
           }
-          else
+
+          // ia (12)
+          if (object->iname == 12) 
           {
+            tmp_pub_entry.ia = (int)object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            mandatory_items++;
+            id_only = false;
+           
+          }
+
+          // grpid (13)
+          if (object->iname == 13) 
+          {
+            tmp_pub_entry.grpid = (uint32_t)object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            mandatory_items++;
+            id_only = false;
+           
+          }
+
+          // iid (26)
+          if (object->iname == 26) 
+          {
+            tmp_pub_entry.iid = object->value.integer;
+
+            // valid item + for sure no 'id only case'
             id_only = false;
           }
-          if (object->iname == 12) // resource 'ia'
+
+          // fid (25)
+          if (object->iname == 25) 
           {
-            identifier_exists = true;
-            g_gpt[index].ia = (int)object->value.integer;
+            tmp_pub_entry.fid = object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            id_only = false;
           }
-          if (object->iname == 13) // resource 'grpid'
-          {
-            identifier_exists = true;
-            g_gpt[index].grpid = (uint32_t)object->value.integer;
-          }
-          if (object->iname == 26) // resource 'iid'
-          {
-            g_gpt[index].iid = object->value.integer;
-          }
-          if (object->iname == 25) // resource 'fid'
-          {
-            g_gpt[index].fid = object->value.integer;
-          }
-        }
-        break;
+
+          break;
         case OC_REP_STRING:
-        {
+
+          // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          if (object->iname == 10) // resource 'url'
+          // url (10)
+          if (object->iname == 10) 
           {
-            identifier_exists = true;
-            oc_free_string(&g_gpt[index].url);
-            oc_new_string(&g_gpt[index].url, oc_string(object->value.string), oc_string_len(object->value.string));
+            // set (new) url in tmp copy (org ptr still valid)
+            oc_new_string(&tmp_pub_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
+
+            mandatory_items++;
+            allocator |= TABLE_URL;
           }
-          if (object->iname == 14) // resource 'at ref'
+
+          // at (14))
+          if (object->iname == 14)
           {
-            oc_free_string(&g_gpt[index].at);
-            oc_new_string(&g_gpt[index].at, oc_string(object->value.string), oc_string_len(object->value.string));
+            // set (new) at in tmp copy (org ptr still valid)
+            oc_new_string(&tmp_pub_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
+
+            allocator |= TABLE_ATREF;
           }
-        }
-        break;
+
+          break;
         case OC_REP_INT_ARRAY:
-        {
+
+          // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
+
+          // ga array (7) 
           if (object->iname == 7) // resource 'ga array'
           {
-            mandatory_items++;
+            const int64_t* array = oc_int_array(object->value.array);
+            const int array_size = oc_int_array_size(object->value.array);
 
-            int64_t* arr = oc_int_array(object->value.array);
-            int array_size = (int)oc_int_array_size(object->value.array);
-            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t)); // 32 bit size mandated in specification
-            if (new_array)
+            // malloc of 'zero' byte return pointer is undefined
+            // ga size shall be 32 bit
+            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
+            if (new_array && array_size > 0)
             {
               for (int i = 0; i < array_size; i++)
               {
-                new_array[i] = (uint32_t)arr[i];
+                new_array[i] = (uint32_t)array[i];
               }
-              if (g_gpt[index].ga != 0)
-              {
-                free(g_gpt[index].ga);
-              }
-              g_gpt[index].ga_len = array_size;
-              g_gpt[index].ga = new_array;
+
+              PRINT("ga size %d", array_size);
+
+              tmp_pub_entry.ga_len = array_size;
+              tmp_pub_entry.ga = new_array;
+
+              mandatory_items++;
+              allocator |= TABLE_GAS;
             }
             else
             {
-              OC_ERR("out of memory");
+              OC_ERR("out of stack memory");
+
+              // on error: free PUB tmp entry (all heap allocations)
+              oc_free_allocated_table_elements(&tmp_pub_entry, allocator);
+
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
             }
           }
-        }
-        break;
-        case OC_REP_NIL:
-        {
-          if (object->iname == 7) // resource 'ga array' = empty (specification request)
-          {
-            mandatory_items++; // also on empty ga array the items# are satisfied
-          }
-        }
-        break;
-        default:
+
           break;
+        case OC_REP_NIL:
+
+          // any extra element - even if not valid - causes a "not an id only"
+          id_only = false;
+
+          // ga (7) = empty (specification request)
+          if (object->iname == 7) 
+          {
+            tmp_pub_entry.ga_len = 0;
+            tmp_pub_entry.ga = NULL;
+
+            mandatory_items++; // also on empty ga array the items# are satisfied
+            allocator |= TABLE_GAS; // free() ignores NULL ptr
+          }
+
+          break;
+        default:
+
+          // any other invalid type returns a 4.00
+          OC_ERR("invalid object type detected");
+
+          // on error: free PUB tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_pub_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+          
         }
         object = object->next;
       }
 
       if (id_only)
       {
-        PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-      }
-      else if (return_status == OC_STATUS_CREATED && (mandatory_items != 2 || !identifier_exists))
-      {
-        PRINT("Mandatory items missing, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-        return;
+        // no tmp elements allocated ...
+        PRINT("only found id in request, deleting entry at index: %d", array_index);
+        oc_delete_group_table_entry(array_index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
       }
       else
       {
-        // debugging
-        if (oc_string_len(g_gpt[index].url) > OC_MAX_URL_LENGTH)
+        if (return_status == OC_STATUS_CREATED && mandatory_items < 3)
         {
-          OC_ERR("url is longer than %d ", (int)OC_MAX_URL_LENGTH);
+          // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+          PRINT("mandatory items missing, no entry created at index: %d", array_index);
+
+          // on error: free PUB tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_pub_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+        // created + 3 items
+        // or
+        // changed + 1 ... 2 items (id cannot be reassigned)
+
+        bool do_save = true;
+        // check entry with some additional sanity checks
+        // a "bad" status will stop processing and return a 4.00
+
+        if (oc_string_len(tmp_pub_entry.url) > OC_MAX_URL_LENGTH)
+        {
+          do_save = false;
+          OC_ERR("url is longer than %d ", OC_MAX_URL_LENGTH);
+        }
+
+        if (!do_save)
+        {
+          // on error: free PUB tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_pub_entry, allocator);
+
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
 
-        // debugging
-        oc_print_group_table_entry(index, GPT_STORE, g_gpt);
-        PRINT("storing PUB table at %d", index);
+        // here all ok, set new PUB entry
+        PRINT("storing PUB table at %d", array_index);
 
-        // store data
-        oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+        /*
+          Free - on stack allocated -  live PUB table entry elements that will be overwritten next.
+          - created : 2 elements (GAs, URL, AT)
+          - changed : 1..2 elements (GAs, URL, AT) - 0 not possible, would be to delete a PUB entry
+        */
+        oc_free_allocated_table_elements(&g_gpt[array_index], allocator);
+
+        // assign PUB table entry with tmp PUB (all elements)
+        g_gpt[array_index] = tmp_pub_entry;
+
+        // debugging
+        oc_print_group_table_entry(array_index, GPT_STORE, g_gpt);
+
+        // store (includes here an overwrite)
+        oc_store_group_table_entry(array_index, GPT_STORE, g_gpt);
       }
-    }
+
+      break;
     default:
       break;
     }
+
+    // next PUB entry
     rep = rep->next;
   }
 
-  // create fp/p --> update
+  // create/update a PUB entry
   oc_knx_increase_fingerprint();
 
-  // only OK/CHANGED is possible here, the last return status from a collection is responded
+  // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
   PRINT("oc_core_fp_p_post_handler - end");
@@ -1267,7 +1371,7 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
   const int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
                                                   request->uri_path, request->uri_path_len);
 
-  int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+  const int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
 
   PRINT("id:%d index = %d", id, index);
 
@@ -1286,41 +1390,43 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   oc_rep_begin_root_object();
 
-  oc_rep_i_set_int(root, 0, g_gpt[index].id); // id 0
+  // id - 0
+  oc_rep_i_set_int(root, 0, g_gpt[index].id);
 
+  // ia - 12
   if (g_gpt[index].ia > -1)
   {
-    oc_rep_i_set_int(root, 12, g_gpt[index].ia); // id 12
+    oc_rep_i_set_int(root, 12, g_gpt[index].ia);
   }
 
+  // grpid - 13
   if (g_gpt[index].grpid > 0)
   {
-    oc_rep_i_set_int(root, 13, g_gpt[index].grpid); // id 13
+    oc_rep_i_set_int(root, 13, g_gpt[index].grpid);
   }
 
-  if (g_gpt[index].iid > -1)
-  {
-    oc_rep_i_set_int(root, 26, g_gpt[index].iid); // id 26
-  }
-
+  // fid - 25
   if (g_gpt[index].fid > -1)
   {
     oc_rep_i_set_int(root, 25, g_gpt[index].fid); // id 25
   }
 
-  if (g_gpt[index].ia > -1)
+  // iid - 26
+  if (g_gpt[index].iid > -1)
   {
-    // id 10 for url if ia exist
-    oc_rep_i_set_text_string(root, 10, oc_string(g_gpt[index].url));
+    oc_rep_i_set_int(root, 26, g_gpt[index].iid);
   }
 
+  // url- 10
+  oc_rep_i_set_text_string(root, 10, oc_string(g_gpt[index].url));
+
+  // at - 14
   if (oc_string_len(g_gpt[index].at) > 0)
   {
-    // id 14
     oc_rep_i_set_text_string(root, 14, oc_string(g_gpt[index].at));
   }
 
-  // id 7
+  // ga - 7
   oc_rep_i_set_int_array(root, 7, g_gpt[index].ga, g_gpt[index].ga_len);
 
   oc_rep_end_root_object();
@@ -1354,14 +1460,11 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  // delete the entry
   oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
 
-  // make the change persistent
-  oc_dump_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-
-  // delete fp/g --> update
+  // delete fp/p --> update
   oc_knx_increase_fingerprint();
+
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
   PRINT("oc_core_fp_p_x_del_handler - end");
@@ -1493,14 +1596,14 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   (void)iface_mask;
 
   // default assumption
-  oc_status_t return_status = OC_STATUS_CREATED;
+  oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     return;
   }
 
-  size_t device_index = request->resource->device;
+  const size_t device_index = request->resource->device;
   if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
@@ -1508,32 +1611,42 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  // debugging
+  // debugging info
   oc_print_rep_as_json(request->request_payload, true);
 
-  oc_rep_t* rep = request->request_payload;
+  /*
+    An RCP collection is checked per entry, the last return code wins (created/changed).
+    Note that on a 4.00 / 5.00 the previously written entries - from
+    a collection - are not restored (currently to complicate). This is for sure not
+    a problem if a MaC writes only one entry per request.
+  */
 
+  // set ptr to collection of 1...n RCP entries in payload
+  const oc_rep_t* rep = request->request_payload;
+
+  // no payload -> 4.00
   while (rep != NULL)
   {
     switch (rep->type)
     {
+      // a possible collection of RCP entries
     case OC_REP_OBJECT:
-    {
-      // treat request payload value as a single object
+
+      // treat request payload value as one entry (that itself defines a chain of objects for id, ia,...)
       const oc_rep_t* object = rep->value.object;
 
       // find RCP id in request
       const int id = oc_table_find_id_from_rep(object);
       if (id == -1)
       {
-        OC_ERR("ERROR: RCP table id not found in request, but is a mandatory part");
+        OC_ERR("RCP table id not found in request, but is a mandatory part");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
 
       // find index in RCP table
-      int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
-      if (index != -1)
+      int array_index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+      if (array_index != -1)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
@@ -1541,172 +1654,267 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       else
       {
         // no index, so we will create one
-        index = find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES);
-        if (index == -1)
+        return_status = OC_STATUS_CREATED;
+
+        // no index, so we will create one
+        array_index = find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES);
+        if (array_index == -1)
         {
-          OC_ERR("ERROR: Recipient table has no empty slot to add a new entry");
+          OC_ERR("RCP table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
 
-        // init non-confirmable for a new entry ONLY once on creation (not on a possible update)
-        g_grt[index].non = false;
+        // non-confirmable flag for a new entry is init to false ONLY once on creation (not on a possible 'changed' update)
       }
 
-      g_grt[index].id = id;
-
-      bool id_only = true; // to delete a recipient table entry
-      int mandatory_items = 0; // needs to be 2 for creating entry, i.e. id & ga
-      bool one_identifier_for_ia_grpid_url_exists = false; // one of ia, grpid or url
+      uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
+      oc_group_table_t tmp_rcp_entry = g_grt[array_index]; // fill with live RCP entry (from a present/empty entry)
+      bool id_only = true; // used to delete the RCP table entry
+      int mandatory_items = 0; // needs to be 3 for creating entry, see below
 
       while (object != NULL)
       {
         switch (object->type)
         {
-        case OC_REP_BOOL:
-        {
-          // resource 'non' (CBOR/JSON = 'non'/'non')
-          if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
-          {
-            g_grt[index].non = object->value.boolean;
-          }
-        }
-        break;
         case OC_REP_INT:
-        {
-          if (object->iname == 0) // resource 'id'
+
+          // id(0)
+          if (object->iname == 0) 
           {
+
+            // set id in tmp copy
+            tmp_rcp_entry.id = (int)object->value.integer;
+
+            // valid item + possibly an 'id only case'
             mandatory_items++;
           }
-          else
+
+          // ia (12)
+          if (object->iname == 12) 
           {
-            id_only = false; // no resource 'id'
+            
+            tmp_rcp_entry.ia = (int)object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            mandatory_items++;
+            id_only = false;
           }
 
-          if (object->iname == 12) // resource 'ia'
+          // grpid (13)
+          if (object->iname == 13) 
           {
-            one_identifier_for_ia_grpid_url_exists = true;
-            g_grt[index].ia = (int)object->value.integer;
-          }
-          if (object->iname == 13) // resource 'grpid'
-          {
-            one_identifier_for_ia_grpid_url_exists = true;
-            g_grt[index].grpid = (uint32_t)object->value.integer;
+            
+            tmp_rcp_entry.grpid = (uint32_t)object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            mandatory_items++;
+            id_only = false;
           }
 
-          if (object->iname == 26) // resource 'iid'
+          // iid (26)
+          if (object->iname == 26) 
           {
-            g_grt[index].iid = object->value.integer;
+            tmp_rcp_entry.iid = object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            id_only = false;
           }
-          if (object->iname == 25) // resource 'fid'
+
+          // fid (25)
+          if (object->iname == 25) 
           {
-            g_grt[index].fid = object->value.integer;
+            tmp_rcp_entry.fid = object->value.integer;
+
+            // valid item + for sure no 'id only case'
+            id_only = false;
           }
-        }
-        break;
+
+          break;
         case OC_REP_STRING:
-        {
+
+          // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          if (object->iname == 10) // resource 'url'
+          // url (10)
+          if (object->iname == 10) 
           {
-            one_identifier_for_ia_grpid_url_exists = true;
-            oc_free_string(&g_grt[index].url);
-            oc_new_string(&g_grt[index].url, oc_string(object->value.string), oc_string_len(object->value.string));
-          }
-          if (object->iname == 14) // resource 'at ref'
-          {
-            oc_free_string(&g_grt[index].at);
-            oc_new_string(&g_grt[index].at, oc_string(object->value.string), oc_string_len(object->value.string));
-          }
-        }
-        break;
-        case OC_REP_INT_ARRAY:
-        {
-          id_only = false;
+            // set (new) url in tmp copy (org ptr still valid)
+            oc_new_string(&tmp_rcp_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
 
-          if (object->iname == 7) // resource 'ga array'
-          {
             mandatory_items++;
+            allocator |= TABLE_URL;
+          }
 
-            int64_t* arr = oc_int_array(object->value.array);
-            int array_size = oc_int_array_size(object->value.array);
-            uint32_t* new_array = malloc(array_size * sizeof(uint32_t)); // 32 bit size mandated in specification
-            if (new_array)
+          // at (14))
+          if (object->iname == 14)
+          {
+            // set (new) at in tmp copy (org ptr still valid)
+            oc_new_string(&tmp_rcp_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
+
+            allocator |= TABLE_ATREF;
+          }
+
+          break;
+        case OC_REP_INT_ARRAY:
+
+          // any extra element - even if not valid - causes a "not an id only"
+          id_only = false;
+
+          // ga array (7)
+          if (object->iname == 7)
+          {
+            const int64_t* array = oc_int_array(object->value.array);
+            const int array_size = oc_int_array_size(object->value.array);
+
+            // malloc of 'zero' byte return pointer is undefined
+            // ga size shall be 32 bit
+            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
+            if (new_array && array_size > 0)
             {
               for (int i = 0; i < array_size; i++)
               {
-                new_array[i] = (uint32_t)arr[i];
+                new_array[i] = (uint32_t)array[i];
               }
-              if (g_grt[index].ga != 0)
-              {
-                free(g_grt[index].ga);
-              }
-              g_grt[index].ga_len = array_size;
-              g_grt[index].ga = new_array;
+
+              PRINT("ga size %d", array_size);
+
+              tmp_rcp_entry.ga_len = array_size;
+              tmp_rcp_entry.ga = new_array;
+
+              mandatory_items++;
+              allocator |= TABLE_GAS;
             }
             else
             {
-              OC_ERR("out of memory");
+              OC_ERR("out of stack memory");
+
+              // on error: free PUB tmp entry (all heap allocations)
+              oc_free_allocated_table_elements(&tmp_rcp_entry, allocator);
+
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
             }
           }
-        }
-        break;
+
+          break;
+        
         case OC_REP_NIL:
-        {
+
+          // any extra element - even if not valid - causes a "not an id only"
+          id_only = false;
+
           if (object->iname == 7) // resource 'ga array' = empty (specification request)
           {
+            tmp_rcp_entry.ga_len = 0;
+            tmp_rcp_entry.ga = NULL;
+
             mandatory_items++; // also on empty ga array the items# are satisfied
+            allocator |= TABLE_GAS; // free() ignores NULL ptr
           }
-        }
-        break;
+
+          break;
+        case OC_REP_BOOL:
+
+          // any extra element - even if not valid - causes a "not an id only"
+          id_only = false;
+
+          // resource 'non' (CBOR/JSON = 'non'/'non')
+          if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
+          {
+            tmp_rcp_entry.non = object->value.boolean;
+          }
+
+          break;
         default:
+
+          // any other invalid type returns a 4.00
+          OC_ERR("invalid object type detected");
+
+          // on error: free RCP tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_rcp_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           break;
         }
         object = object->next;
       }
+
       if (id_only)
       {
-        PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-      }
-      else if (return_status == OC_STATUS_CREATED && (mandatory_items != 2 || !one_identifier_for_ia_grpid_url_exists))
-      {
-        PRINT("Mandatory items missing!");
-        oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-        return;
+        // no tmp elements allocated ...
+        PRINT("only found id in request, deleting entry at index: %d", array_index);
+        oc_delete_group_table_entry(array_index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
       }
       else
       {
+        if (return_status == OC_STATUS_CREATED && mandatory_items < 3) 
+        { // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+          PRINT("mandatory items missing, no entry created at index: %d", array_index);
 
-        // debugging
-        if (oc_string_len(g_grt[index].url) > OC_MAX_URL_LENGTH)
+          // on error: free RCP tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_rcp_entry, allocator);
+          
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+        // created + 3 items
+        // or
+        // changed + 1 ... 2 items (id cannot be reassigned)
+
+        bool do_save = true;
+        // check entry with some additional sanity checks
+        // a "bad" status will stop processing and return a 4.00
+
+        if (oc_string_len(tmp_rcp_entry.url) > OC_MAX_URL_LENGTH)
         {
-          OC_ERR("url is longer than %d ", (int)OC_MAX_URL_LENGTH);
+          do_save = false;
+          OC_ERR("url is longer than %d ", OC_MAX_URL_LENGTH);
+        }
+
+        if (!do_save)
+        {
+
+          // on error: free RCP tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_rcp_entry, allocator);
+
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
 
-        // debugging
-        oc_print_group_table_entry(index, GRT_STORE, g_grt);
+        // here all ok, set new RCP entry
+        PRINT("storing RCV table at %d", array_index);
 
-        PRINT("storing RCV table at %d", index);
-        oc_dump_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+        /*
+          Free - on stack allocated -  live RCP table entry elements that will be overwritten next.
+          - created : 2 elements (GAs, URL, AT)
+          - changed : 1..2 elements (GAs, URL, AT) - 0 not possible, would be to delete a PUB entry
+        */
+        oc_free_allocated_table_elements(&g_grt[array_index], allocator);
+
+        // assign RCP table entry with tmp RCP (all elements)
+        g_grt[array_index] = tmp_rcp_entry;
+
+        // debugging
+        oc_print_group_table_entry(array_index, GRT_STORE, g_grt);
+
+        // store (includes here an overwrite)
+        oc_store_group_table_entry(array_index, GRT_STORE, g_grt);
       }
-    }
+
+      break;
     default:
       break;
     }
+
+    // next RCP entry
     rep = rep->next;
   }
 
-  // create fp/r --> update
+  // create/update a RCP entry
   oc_knx_increase_fingerprint();
 
-  // only OK/CHANGED is possible here, the last return status from a collection is responded
+  // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
   PRINT("oc_core_fp_r_post_handler - end");
@@ -1754,9 +1962,10 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                            request->uri_path, request->uri_path_len);
-  int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+  const int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
+                                                  request->uri_path, request->uri_path_len);
+
+  const int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 
   PRINT("id:%d index = %d", id, index);
 
@@ -1768,41 +1977,49 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   if (g_grt[index].id == -1)
   {
-    // it is empty
+    // index not present in RCP table
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
     return;
   }
 
   oc_rep_begin_root_object();
-  // id 0
+
+  // id - 0
   oc_rep_i_set_int(root, 0, g_grt[index].id);
+
   // ia - 12
-  if (g_grt[index].ia > 0)
+  if (g_grt[index].ia > -1)
   {
     oc_rep_i_set_int(root, 12, g_grt[index].ia);
   }
+
   // grpid - 13
   if (g_grt[index].grpid > 0)
   {
     oc_rep_i_set_int(root, 13, g_grt[index].grpid);
   }
+
   // fid - 25
-  if (g_grt[index].fid > 0)
+  if (g_grt[index].fid > -1)
   {
     oc_rep_i_set_int(root, 25, g_grt[index].fid);
   }
+
   // iid - 26
-  if (g_grt[index].iid > 0)
+  if (g_grt[index].iid > -1)
   {
     oc_rep_i_set_int(root, 26, g_grt[index].iid);
   }
+
   // url- 10
   oc_rep_i_set_text_string(root, 10, oc_string(g_grt[index].url));
+
   // at - 14
   if (oc_string_len(g_grt[index].at) > 0)
   {
     oc_rep_i_set_text_string(root, 14, oc_string(g_grt[index].at));
   }
+
   // ga - 7
   oc_rep_i_set_int_array(root, 7, g_grt[index].ga, g_grt[index].ga_len);
 
@@ -1811,7 +2028,6 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
   PRINT("oc_core_fp_r_x_get_handler - end");
-  return;
 }
 
 static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1837,16 +2053,12 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
     return;
   }
-  PRINT("oc_core_fp_r_x_del_handler: deleting id %d at index %d", id, index);
 
-  // delete the entry
   oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-
-  // make the change persistent
-  oc_dump_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
 
   // delete fp/r --> update
   oc_knx_increase_fingerprint();
+
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
   PRINT("oc_core_fp_r_x_del_handler - end");
@@ -2036,7 +2248,7 @@ void oc_print_group_object_table_entry(int entry)
 #endif
 }
 
-void oc_dump_group_object_table_entry(int entry)
+void oc_store_group_object_table_entry(int entry)
 {
   char filename[20];
   (void)snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
@@ -2047,28 +2259,28 @@ void oc_dump_group_object_table_entry(int entry)
 
   oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
 
-  // write the data
+  // write the data in CBOR format
   oc_rep_begin_root_object();
+
   // id - 0
   oc_rep_i_set_int(root, 0, g_got[entry].id);
   // href - 11
   oc_rep_i_set_text_string(root, 11, oc_string(g_got[entry].href));
   // ga - 7
   oc_rep_i_set_int_array(root, 7, g_got[entry].ga, g_got[entry].ga_len);
-
-  // cflags - 8 (this is different than the response on the wire)
+  // cflags - 8 (note this is a binary value and different as the response on the wire with r/w/u/t/i)
   oc_rep_i_set_int(root, 8, g_got[entry].cflags);
 
   oc_rep_end_root_object();
 
-  int size = oc_rep_get_encoded_payload_size();
+  const int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_dump_group_object_table_entry: dumped current state [%s] [%d]: size %d", filename, entry, size);
+    OC_DBG("oc_dump_GO_table_entry: [%s] [%d]: size %d", filename, entry, size);
     long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long)size)
     {
-      PRINT("oc_dump_group_object_table_entry: written %d != %d (towrite)", (int)written_size, size);
+      PRINT("written %d != %d (to be written)", (int)written_size, size);
     }
   }
 
@@ -2076,18 +2288,17 @@ void oc_dump_group_object_table_entry(int entry)
 }
 
 #define GOT_ENTRY_MAX_SIZE (1024)
+
 void oc_load_group_object_table_entry(int entry)
 {
   char filename[20];
-  snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
+  (void)snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
 
   oc_rep_t* rep;
 
   uint8_t* buf = malloc(GOT_ENTRY_MAX_SIZE);
   if (!buf)
-  {
     return;
-  }
 
   long ret = oc_storage_read(filename, buf, GOT_ENTRY_MAX_SIZE);
   PRINTF(" ... bytes: %ld", ret < 0 ? 0 : ret);
@@ -2105,47 +2316,65 @@ void oc_load_group_object_table_entry(int entry)
         {
 
         case OC_REP_INT:
+
+          // id (0)
           if (rep->iname == 0)
           {
             g_got[entry].id = (int)rep->value.integer;
           }
+
+          // cflags (8)
           if (rep->iname == 8)
           {
             g_got[entry].cflags = (int)rep->value.integer;
           }
+
           break;
         case OC_REP_STRING:
+
+          // href (11)
           if (rep->iname == 11)
           {
-
             oc_free_string(&g_got[entry].href);
             oc_new_string(&g_got[entry].href, oc_string(rep->value.string), oc_string_len(rep->value.string));
           }
+
           break;
         case OC_REP_INT_ARRAY:
+
+          // ga array (7)
           if (rep->iname == 7)
           {
-            int64_t* arr = oc_int_array(rep->value.array);
-            int array_size = (int)oc_int_array_size(rep->value.array);
-            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
+            const int64_t* array = oc_int_array(rep->value.array);
+            const int array_size = oc_int_array_size(rep->value.array);
+
+            // malloc of 'zero' byte return pointer is undefined
+            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
             if (new_array && array_size > 0)
             {
               for (int i = 0; i < array_size; i++)
               {
-#pragma warning(suppress : 6386)
-                new_array[i] = (uint32_t)arr[i];
+                new_array[i] = (uint32_t)array[i];
               }
-              if (g_got[entry].ga != 0)
-              {
-                free(g_got[entry].ga);
-              }
+
+              // release a possible ga array, it will be overwritten,
+              // no selective adding (note it releases the org ptr)
+              // free ignores NULL ptr
+              free(g_got[entry].ga);
+
               PRINT("ga size %d", array_size);
+
+              // assign GA array in GO table directly
               g_got[entry].ga_len = array_size;
               g_got[entry].ga = new_array;
             }
           }
+
           break;
         default:
+          // any other invalid type prints ...
+          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
+          PRINT("invalid object type detected");
           break;
         }
         rep = rep->next;
@@ -2174,13 +2403,51 @@ void oc_free_group_object_table_entry(int entry, bool init)
   if (init == false)
   {
     oc_free_string(&g_got[entry].href);
-    free(g_got[entry].ga); // free first with valid ptr and then set prt to NULL (below)
+    free(g_got[entry].ga);
   }
 
   g_got[entry].ga = NULL;
   g_got[entry].ga_len = 0;
   g_got[entry].cflags = 0;
 }
+
+void oc_free_allocated_go_elements(oc_group_object_table_t* entry, const uint8_t allocator)
+{
+  if (allocator & GO_HREF)
+  {
+    oc_free_string(&entry->href);
+    
+  }
+
+  if (allocator & GO_GAS)
+  {
+    free(entry->ga);
+    entry->ga_len = 0;
+    entry->ga = NULL;
+  }
+}
+
+void oc_free_allocated_table_elements(oc_group_table_t* entry, const uint8_t allocator)
+{
+  if (allocator & TABLE_ATREF)
+  {
+    oc_free_string(&entry->at);
+  }
+
+  if (allocator & TABLE_GAS)
+  {
+    free(entry->ga);
+    entry->ga_len = 0;
+    entry->ga = NULL;
+  }
+
+  if (allocator & TABLE_URL)
+  {
+    oc_free_string(&entry->url);
+  }
+}
+
+
 
 void oc_delete_group_object_table_entry(int entry)
 {
@@ -2203,7 +2470,7 @@ void oc_delete_group_object_table(void)
 
 void oc_free_group_object_table(void)
 {
-  PRINT("Free Group Object Table");
+  PRINT("Free GO Table");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     oc_free_group_object_table_entry(i, false);
@@ -2280,28 +2547,27 @@ static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_
 }
 
 #define RP_ENTRY_MAX_SIZE (1024)
-static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
+
+// store RCP/PUB table data in CBOR (hex stream data)
+static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table)
 {
-  (void)max_size;
   char filename[20];
   (void)snprintf(filename, 20, "%s_%d", store, entry);
-  PRINT("oc_dump_group_table_entry %s, file name=%s", store, filename);
 
   uint8_t* buf = malloc(RP_ENTRY_MAX_SIZE);
   if (!buf)
-  {
-    PRINT("oc_dump_group_table_entry: no allocated mem");
     return;
-  }
 
   oc_rep_new(buf, RP_ENTRY_MAX_SIZE);
-  // write the data
+
+  // write the data in CBOR format
   oc_rep_begin_root_object();
-  // id 0
+
+  // id - 0
   oc_rep_i_set_int(root, 0, table[entry].id);
-  // ia- 12
+  // ia - 12
   oc_rep_i_set_int(root, 12, table[entry].ia);
-  // iid 26
+  // iid - 26
   oc_rep_i_set_int(root, 26, table[entry].iid);
   // fid - 25
   oc_rep_i_set_int(root, 25, table[entry].fid);
@@ -2309,24 +2575,21 @@ static void oc_dump_group_table_entry(int entry, char* store, oc_group_table_t* 
   oc_rep_i_set_int(root, 13, table[entry].grpid);
   // at - 14
   oc_rep_i_set_text_string(root, 14, oc_string(table[entry].at));
-  // url - 10
-  oc_rep_i_set_text_string(root, 10, oc_string(table[entry].url));
   // ga - 7
   oc_rep_i_set_int_array(root, 7, table[entry].ga, table[entry].ga_len);
-
-  // cflags 8 /// this is different than the response on the wire
-  // oc_rep_i_set_int(root, 8, rp_table[entry].cflags);
+  // non - 'non'
+  oc_rep_text_set_text_string(root, non, oc_string(table[entry].at));
 
   oc_rep_end_root_object();
 
-  int size = oc_rep_get_encoded_payload_size();
+  const int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_dump_group_table_entry: dumped current state [%s] [%s] [%d]: size %d", filename, store, entry, size);
+    OC_DBG("oc_dump_PUB/RCV_table_entry: [%s] [%s] [%d]: size %d", filename, store, entry, size);
     long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long)size)
     {
-      PRINT("oc_dump_group_table_entry: written %d != %d (towrite)", (int)written_size, size);
+      PRINT("written %d != %d (to be written)", (int)written_size, size);
     }
   }
 
@@ -2467,11 +2730,11 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   {
     oc_free_string(&table[entry].url);
     oc_free_string(&table[entry].at);
-    free(table[entry].ga); // free first with valid ptr and then set prt to NULL (below)
+    free(table[entry].ga);
   }
 
-  table[entry].ga = NULL; // not used
-  table[entry].ga_len = 0; // init value
+  table[entry].ga = NULL;
+  table[entry].ga_len = 0;
 }
 
 static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
@@ -2506,14 +2769,14 @@ void oc_delete_group_tables(void)
 
 static void oc_free_group_tables(void)
 {
-  PRINT("Free Recipient Table from Persistent storage");
+  PRINT("Free RCP table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_grt, false);
   }
 
 #ifdef OC_PUBLISHER_TABLE
-  PRINT("Free Publisher Table from Persistent storage");
+  PRINT("Free PUB table from persistent storage");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_gpt, false);
@@ -2525,7 +2788,7 @@ int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size)
 {
   if (id < 0)
   {
-    // should be a positive number
+    // shall be 0...65535
     return -1;
   }
 

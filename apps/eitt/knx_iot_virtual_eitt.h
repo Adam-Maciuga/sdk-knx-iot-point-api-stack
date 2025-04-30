@@ -38,7 +38,7 @@
 typedef struct datapoint
 {
   volatile bool value;
-  char* url;
+  char* href;
   char* dpa;
   char* dpt;
   char* ift;
