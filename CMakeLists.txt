@@ -245,14 +245,17 @@ add_library(tinycbor-master ${CBOR_SOURCES})
 add_library(mbedtls ${TLS_SOURCES})
 add_library(mbedx509 ${X509_SOURCES})
 add_library(mbedcrypto ${CRYPTO_SOURCES})
-add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
-# physical exe targets (assumes WIN32/UNIX is in place)
+if(UNIX OR WIN32)
+    add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
-## EITT NON GUI demo (for certification)
-add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
-## LSAB/LSSB NON GUI demo
-add_executable(lsxb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.c)
+    # physical exe targets (assumes WIN32/UNIX is in place)
+
+    ## EITT NON GUI demo (for certification)
+    add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
+    ## LSAB/LSSB NON GUI demo
+    add_executable(lsxb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.c)
+endif()
 
 # Detect the used platform and pick the right port
 if(UNIX)
@@ -335,7 +338,7 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)          
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
-target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
+
 target_include_directories(mbedcrypto PUBLIC
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
@@ -344,13 +347,17 @@ target_include_directories(mbedcrypto PUBLIC
     ${PORT_DIR}
 )
 
-# Specifies linked libraries (dependencies/references) to build a target
-## applications ...
-target_link_libraries(eitt_virtual_cl kisClientServer)
-target_link_libraries(lsxb_virtual_cl kisClientServer)
-## ... from 
-target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
-target_link_libraries(kis-port PUBLIC kis-common mbedtls)
+if(UNIX OR WIN32)
+    # Specifies linked libraries (dependencies/references) to build a target
+    ## applications ...
+    target_link_libraries(eitt_virtual_cl kisClientServer)
+    target_link_libraries(lsxb_virtual_cl kisClientServer)
+    ## ... from
+    target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
+    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
+    target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
+endif()
+
 target_link_libraries(mbedcrypto ${libs}) 
 target_link_libraries(mbedx509 mbedcrypto)
 target_link_libraries(mbedtls mbedx509)   
@@ -409,11 +416,15 @@ if(OC_PUBLISHER_TABLE_ENABLED)
 endif()
 
 if(OC_LOG_TO_FILE_ENABLED)
-    target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+    if(UNIX OR WIN32)
+        target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+    endif()
 endif()
 
 if (OC_USE_STORAGE)
-    target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+    if(UNIX OR WIN32)
+        target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+    endif()
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
 endif()
 
