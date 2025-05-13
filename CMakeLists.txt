@@ -42,6 +42,8 @@ set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this 
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally'' group multicast events with scope 2, e.g.; for PC based applications.")
 
+set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use MBEDTLS associated with KNX IoT repository")
+
 ## Debug 
 set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "Enables that all logging messages are redirected to a file, to use it the 'PRINT' option must be also enabled.")
 set(OC_USE_STORAGE ON CACHE BOOL "Enables that the configuration data are persisted in a (file-based) storage.")
@@ -242,9 +244,13 @@ add_library(kis-common INTERFACE)
 # physical library targets, with default type STATIC
 add_library(kisClientServer ${CORE_SOURCES} ${COAP_SOURCES} ${API_SOURCES})
 add_library(tinycbor-master ${CBOR_SOURCES})
-add_library(mbedtls ${TLS_SOURCES})
-add_library(mbedx509 ${X509_SOURCES})
-add_library(mbedcrypto ${CRYPTO_SOURCES})
+
+if(OC_USE_KNX_MBEDTLS)
+    add_library(mbedtls ${TLS_SOURCES})
+    add_library(mbedx509 ${X509_SOURCES})
+    add_library(mbedcrypto ${CRYPTO_SOURCES})
+endif()
+
 add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
 # physical exe targets (assumes WIN32/UNIX is in place)
@@ -329,39 +335,52 @@ if(WIN32)
         endif()
 endif()
 
-target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config defined by Intel
+if(OC_USE_KNX_MBEDTLS)
+    target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config defined by Intel
+endif()
+
 target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                      # stack can send + receive
 
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
 target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
-target_include_directories(mbedcrypto PUBLIC
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
-    ${PROJECT_SOURCE_DIR}/security
-    ${PORT_DIR}
-)
+if(OC_USE_KNX_MBEDTLS)
+    target_include_directories(mbedcrypto PUBLIC
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
+        ${PROJECT_SOURCE_DIR}/security
+        ${PORT_DIR}
+    )
+endif()
 
 # Specifies linked libraries (dependencies/references) to build a target
 ## applications ...
 target_link_libraries(eitt_virtual_cl kisClientServer)
 target_link_libraries(lsxb_virtual_cl kisClientServer)
 ## ... from 
-target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
+
+if(OC_USE_KNX_MBEDTLS)
+    target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
+else()
+    target_link_libraries(kisClientServer PUBLIC kis-common tinycbor-master kis-port)
+endif()
+
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)
-target_link_libraries(mbedcrypto ${libs}) 
-target_link_libraries(mbedx509 mbedcrypto)
-target_link_libraries(mbedtls mbedx509)   
 
-set_target_properties(mbedcrypto PROPERTIES OUTPUT_NAME mbedcrypto)
-set_target_properties(mbedx509 PROPERTIES OUTPUT_NAME mbedx509)
-set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
+if(OC_USE_KNX_MBEDTLS)
+    target_link_libraries(mbedcrypto ${libs})
+    target_link_libraries(mbedx509 mbedcrypto)
+    target_link_libraries(mbedtls mbedx509)
 
-install(TARGETS mbedcrypto mbedx509 mbedtls
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    set_target_properties(mbedcrypto PROPERTIES OUTPUT_NAME mbedcrypto)
+    set_target_properties(mbedx509 PROPERTIES OUTPUT_NAME mbedx509)
+    set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
 
+    install(TARGETS mbedcrypto mbedx509 mbedtls
+            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+endif()
 
 # Process individual stack/ (demo)application behavior 
 
