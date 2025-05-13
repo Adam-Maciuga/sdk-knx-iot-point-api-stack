@@ -444,6 +444,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
   // set ptr to collection of 1...n GOs in payload
   const oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
   while (rep != NULL)
@@ -454,7 +455,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
     case OC_REP_OBJECT:
 
       // treat request payload value as one GO (that itself defines a chain of objects for id, href,...)
-      const oc_rep_t* object = rep->value.object;
+      object = rep->value.object;
 
       // find 'id' key in request
       const int id = oc_table_find_id_from_rep(object);
@@ -1040,6 +1041,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
   // set ptr to collection of 1...n PUB entries in payload
   const oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
   while (rep != NULL)
@@ -1050,7 +1052,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
     case OC_REP_OBJECT:
 
       // treat request payload value as one entry (that itself defines a chain of objects for id, ia,...)
-      const oc_rep_t* object = rep->value.object;
+      object = rep->value.object;
 
       // find PUB id in request
       const int id = oc_table_find_id_from_rep(object);
@@ -1623,6 +1625,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
   // set ptr to collection of 1...n RCP entries in payload
   const oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
   while (rep != NULL)
@@ -1633,7 +1636,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
     case OC_REP_OBJECT:
 
       // treat request payload value as one entry (that itself defines a chain of objects for id, ia,...)
-      const oc_rep_t* object = rep->value.object;
+      object = rep->value.object;
 
       // find RCP id in request
       const int id = oc_table_find_id_from_rep(object);
