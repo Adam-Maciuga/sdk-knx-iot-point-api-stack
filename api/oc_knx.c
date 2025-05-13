@@ -855,7 +855,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     // get href for the GO index
     oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index);
 
-    PRINT("k : url  %s", oc_string_checked(go_href));
+    PRINT("k : url %s", oc_string_checked(go_href));
 
     // device EP present (sanity check, GO without href, product problem)?
     if (oc_string_len(go_href) > 0)

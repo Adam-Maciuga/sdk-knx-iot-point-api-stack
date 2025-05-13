@@ -561,6 +561,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
     // the open/close object data. hence this needs to be removed.
     if (value_size > 2)
     {
+      // [0] = open object / [size] = close object
       oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
     }
 
