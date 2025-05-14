@@ -56,7 +56,10 @@ enum : uint16_t
   CHECK_SLEEPY = CHECK_GRPID_DISPLAY + 1, // sleepy check
   CHECK_PM = CHECK_SLEEPY + 1, // programming mode check in menu bar
 
-  EITT_SOO = CHECK_PM + 1
+  LSSB_0_SOO = CHECK_PM + 1, 
+  LSSB_0_IOO = CHECK_PM + 2,
+  LSSB_1_SOO = CHECK_PM + 3,
+  LSSB_1_IOO = CHECK_PM + 4
 };
 
 extern channel_t lsxb[NUM_CHANNELS];
@@ -127,7 +130,8 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_EITT_SOO(wxCommandEvent& event);
+  void OnPressed_LSSB_0_SOO(wxCommandEvent& event);
+  void OnPressed_LSSB_1_SOO(wxCommandEvent& event);
 
   void updateCheckBoxesFromLiveIOOData();
   void updateDeviceData();
@@ -154,8 +158,10 @@ private:
   wxTextCtrl* m_ls_text; // text control for load state
   wxTextCtrl* m_hn_text; // text control for host name
 
-  // eitt
-  wxButton *m_EITT_SOO;
+  // channel 0
+  wxCheckBox *m_LSSB_0_IOO, *m_LSSB_1_IOO;
+  wxButton *m_LSSB_0_SOO, *m_LSSB_1_SOO;
+
 };
 
 wxIMPLEMENT_APP(MyApp);
@@ -192,7 +198,7 @@ bool MyApp::OnInit()
  *
  * @param serial_number
  */
-MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
+MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX virtual sensor (LSSB)")
 {
   m_menuFile = new wxMenu;
   m_menuFile->Append(GOT_TABLE_ID, "List Group Object Table", "List the Group object table", false);
@@ -208,7 +214,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
 
   // display menu
   m_menuDisplay = new wxMenu;
-  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays as GA 3-Level or as integer", true);
+  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays as GA 3-Level or as integer",true);
   m_menuDisplay->Check(CHECK_GA_DISPLAY, true);
   m_menuDisplay->Append(CHECK_GRPID_DISPLAY, "GRPID as partial ipv6 address (ETS)", "Displays the grpid as integer", true);
   m_menuDisplay->Check(CHECK_GRPID_DISPLAY, true);
@@ -232,7 +238,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
   menuBar->Append(menuHelp, "&Help");
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
-  wxFrameBase::SetStatusText("Welcome to EITT certification!");
+  wxFrameBase::SetStatusText("Welcome to KNX virtual sensor!");
 
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
@@ -253,43 +259,84 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
   int row;
   int column;
 
-  // eitt - sensor
+  // channel 0 - sensor
   {
     row = 0;
     column = 0;
 
     wxStaticText* ch0s =
-      new wxStaticText(this, wxID_ANY, "EITT | Sensor", wxPoint(10 + column * x_width, 10 + x_height * row),
+      new wxStaticText(this, wxID_ANY, "Ch 0 | Sensor", 
+                       wxPoint(10 + column * x_width, 10 + x_height * row),
                        wxSize(x_width, x_height), wxALIGN_LEFT);
 
     // control
-    m_EITT_SOO = new wxButton(this, EITT_SOO, _T("SOO, press me ..."),
+    m_LSSB_0_SOO = new wxButton(this, LSSB_0_SOO, _T("SOO, press me ..."),
+                                wxPoint(120 + column * x_width, 10 + x_height * row), 
+                                wxSize(x_width, x_height), 0);
+
+    m_LSSB_0_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSSB_0_SOO, this);
+    m_LSSB_0_SOO->Enable(true);
+
+    row = 0;
+    column = 1;
+
+    // status
+    m_LSSB_0_IOO = new wxCheckBox(this, LSSB_0_IOO, _T("Undefined"), 
+                                  wxPoint(140 + column * x_width, 10 + x_height * row),
+                                  wxSize(x_width, x_height), wxCHK_3STATE);
+
+    m_LSSB_0_IOO->Set3StateValue(wxCHK_UNDETERMINED);
+    m_LSSB_0_IOO->Enable(false);
+  }
+
+  // channel 1 - sensor
+  {
+    row = 1;
+    column = 0;
+
+    wxStaticText* ch1s =
+      new wxStaticText(this, wxID_ANY, "Ch 1 | Sensor", wxPoint(10 + column * x_width, 10 + x_height * row),
+                       wxSize(x_width, x_height), wxALIGN_LEFT);
+
+    // control
+    m_LSSB_1_SOO = new wxButton(this, LSSB_1_SOO, _T("SOO, press me ..."),
                                 wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
 
-    m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_EITT_SOO, this);
-    m_EITT_SOO->Enable(true);
+    m_LSSB_1_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSSB_1_SOO, this);
+    m_LSSB_1_SOO->Enable(true);
+
+    row = 1;
+    column = 1;
+
+    // status
+    m_LSSB_1_IOO = new wxCheckBox(this, LSSB_1_IOO, _T("Undefined"), wxPoint(140 + column * x_width, 10 + x_height * row),
+                                  wxSize(x_width, x_height), wxCHK_3STATE);
+
+    m_LSSB_1_IOO->Set3StateValue(wxCHK_UNDETERMINED);
+    m_LSSB_1_IOO->Enable(false);
   }
 
   // serial number
   if (strlen(serial_number) > 1)
   {
-    // sn was set by command line
+    // sn was set by command line 
     app_set_serial_number(serial_number);
   }
 
-  // call in c-code
+  // call in c-code 
   app_initialize_stack();
 
   constexpr int width_size = 180; // size of the knx info widgets
-  char text[500];
+  char text[500]; 
 
-  // serial number
+  // serial number 
   strcpy(text, "Serial Number : ");
   oc_device_info_t* device = oc_core_get_device_info(0);
   strcat(text, oc_string(device->serialnumber));
 
-  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 1) * x_height)),
-                                            wxSize(width_size * 2, x_height), 0);
+  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, 
+                                          wxPoint(10, 10 + ((max_instances + 1) * x_height)),
+                                          wxSize(width_size * 2, x_height), 0);
   static_text0->SetEditable(false);
 
   /* QR code
@@ -309,41 +356,49 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
   strcat(text, app_get_password());
   app_str_to_upper(text);
 
-  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 2) * x_height)),
+  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, 
+                                            wxPoint(10, 10 + ((max_instances + 2) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);
   static_text1->SetEditable(false);
 
   // individual address, displayed data set/refreshed later
-  m_ia_text =
-    new wxTextCtrl(this, IA_TEXT, "", wxPoint(10, 10 + ((max_instances + 3) * x_height)), wxSize(width_size, x_height), 0);
+  m_ia_text = new wxTextCtrl(this, IA_TEXT, "",
+                             wxPoint(10, 10 + ((max_instances + 3) * x_height)), 
+                             wxSize(width_size, x_height), 0);
   m_ia_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
-  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
+  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", 
+                              wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
                               wxSize(width_size, x_height), 0);
   m_iid_text->SetEditable(false);
 
   // programming mode, displayed data set/refreshed later
-  m_pm_text =
-    new wxTextCtrl(this, PM_TEXT, "", wxPoint(10, 10 + ((max_instances + 4) * x_height)), wxSize(width_size, x_height), 0);
+  m_pm_text = new wxTextCtrl(this, PM_TEXT, "",
+                             wxPoint(10, 10 + ((max_instances + 4) * x_height)), 
+                             wxSize(width_size, x_height), 0);
   m_pm_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
-  m_ls_text =
-    new wxTextCtrl(this, LS_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)), wxSize(width_size, 25), 0);
+  m_ls_text = new wxTextCtrl(this, LS_TEXT, "", 
+                             wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)),
+                             wxSize(width_size, 25), 0);
   m_ls_text->SetEditable(false);
 
   // hostname, displayed data set/refreshed later
-  m_hn_text = new wxTextCtrl(this, LS_TEXT, "", wxPoint(10, 10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), 0);
+  m_hn_text = new wxTextCtrl(this, LS_TEXT, "",
+                                   wxPoint(10, 10 + ((max_instances + 5) * 25)), 
+                                   wxSize(width_size, 25), 0);
   m_hn_text->SetEditable(false);
 
   // SPAKE 2+ pwd
   strcpy(text, app_get_password());
-  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
-                                            wxSize(width_size, 25), wxTE_RICH);
+  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, 
+                                  wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
+                                  wxSize(width_size, 25), wxTE_RICH);
   static_text2->SetEditable(false);
 
-  // update the UI
+    // update the UI
   this->updateDeviceData();
   this->updateCheckBoxesFromLiveIOOData();
 
@@ -417,12 +472,12 @@ void MyFrame::updateDeviceData()
 {
 
   char text[500];
-
+  
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   // get the device data structure
   oc_device_info_t* device = oc_core_get_device_info(0);
-
+  
   const uint16_t ia_a = device->ia >> 12; // area
   const uint16_t ia_l = device->ia >> 8 & 0xF; // line
   const uint16_t ia_d = device->ia & 0x00FF; // device
@@ -966,11 +1021,31 @@ void MyFrame::OnTimer(wxTimerEvent& event)
 void MyFrame::updateCheckBoxesFromLiveIOOData()
 {
 
-  // no check boxes so far
+  char text[200];
+  bool p;
+
+  // update check box
+  p = app_retrieve_bool_variable_from_channel(LSSB0, IOO);
+  m_LSSB_0_IOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
+
+  // update check box text
+  strcpy(text, "IOO = ");
+  this->add_bool_to_text(p, text);
+  m_LSSB_0_IOO->SetLabel(text);
+
+  // update check box
+  p = app_retrieve_bool_variable_from_channel(LSSB1, IOO);
+  m_LSSB_1_IOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
+
+  // update check box text
+  strcpy(text, "IOO = ");
+  this->add_bool_to_text(p, text);
+  m_LSSB_1_IOO->SetLabel(text);
+  
 }
 
 /**
- * @brief convert the boolean to text and appends it to the given text
+ * @brief convert the boolean to text and appends it to the given text 
  *
  * @param on_off the boolean
  * @param text the text to add the boolean as text
@@ -1143,17 +1218,45 @@ void MyFrame::double2text(double value, char* text)
 }
 
 
-void MyFrame::OnPressed_EITT_SOO(wxCommandEvent& event)
+void MyFrame::OnPressed_LSSB_0_SOO(wxCommandEvent& event)
 {
-  // get url from SOO
-  char* url = app_retrieve_href_from_channel(EITT, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(EITT, SOO);
+  // get url from SOO 
+  char* url = app_retrieve_href_from_channel(LSSB0, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(LSSB0, SOO);
 
   // toggle value
   p = !p;
 
   // set value
   app_set_bool_variable_from_channel(LSSB0, SOO, p);
+
+  // send out, multicast, site local
+  oc_do_s_mode_with_scope(5, url, "w");  
+
+  // update button text
+  char text[200];
+  strcpy(text, "SOO = ");
+
+  this->add_bool_to_text(p, text);
+  m_LSSB_0_SOO->SetLabel(text);
+
+  // show in status bar
+  char statusBarText[100];
+  (void)sprintf(statusBarText, "Switch On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
+  SetStatusText(statusBarText);
+}
+
+void MyFrame::OnPressed_LSSB_1_SOO(wxCommandEvent& event)
+{
+  // get url from IOO
+  char* url = app_retrieve_href_from_channel(LSSB1, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(LSSB1, SOO);
+
+  // toggle value
+  p = !p;
+
+  // set value
+  app_set_bool_variable_from_channel(LSSB1, SOO, p);
 
   // send out, multicast, site local
   oc_do_s_mode_with_scope(5, url, "w");
@@ -1163,11 +1266,10 @@ void MyFrame::OnPressed_EITT_SOO(wxCommandEvent& event)
   strcpy(text, "SOO = ");
 
   this->add_bool_to_text(p, text);
-  m_EITT_SOO->SetLabel(text);
+  m_LSSB_1_SOO->SetLabel(text);
 
   // show in status bar
   char statusBarText[100];
   (void)sprintf(statusBarText, "Switch On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
   SetStatusText(statusBarText);
 }
-

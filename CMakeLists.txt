@@ -251,8 +251,10 @@ add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
 ## EITT NON GUI demo (for certification)
 add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
+
 ## LSAB/LSSB NON GUI demo
-add_executable(lsxb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.c)
+add_executable(lssb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c)
+add_executable(lsab_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c)
 
 # Detect the used platform and pick the right port
 if(UNIX)
@@ -294,7 +296,7 @@ if(WIN32)
         # fetch GUI framework
         FetchContent_Declare(
           wxWidgets
-          URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.1.5/wxWidgets-3.1.5.7z
+          URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.8/wxWidgets-3.2.8.7z
         )
 
         # prefer to use extraction timestamp rather than archive timepstamp 
@@ -311,21 +313,31 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
         )
 
-        ## LSAB/LSSB GUI 
-        add_executable(lsxb_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.cpp
-            ${PROJECT_SOURCE_DIR}/apps/lsxb/knx_iot_virtual_lsxb.c
+        ## LSSB GUI 
+        add_executable(lssb_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.cpp
+            ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
+        )
+
+        ## LSAB GUI 
+        add_executable(lsab_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.cpp
+            ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
         )
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_compile_definitions(eitt_virtual_gui PUBLIC KNX_GUI)
 
-        target_link_libraries(lsxb_virtual_gui wx::net wx::core wx::base kisClientServer)
-        target_compile_definitions(lsxb_virtual_gui PUBLIC KNX_GUI)
+        target_link_libraries(lssb_virtual_gui wx::net wx::core wx::base kisClientServer)
+        target_compile_definitions(lssb_virtual_gui PUBLIC KNX_GUI)
+
+        target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
+        target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
 
         if(USE_CONSOLE)
            set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
-           set_target_properties(lsxb_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
+           set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
+           set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
         endif()
 endif()
 
@@ -347,7 +359,8 @@ target_include_directories(mbedcrypto PUBLIC
 # Specifies linked libraries (dependencies/references) to build a target
 ## applications ...
 target_link_libraries(eitt_virtual_cl kisClientServer)
-target_link_libraries(lsxb_virtual_cl kisClientServer)
+target_link_libraries(lssb_virtual_cl kisClientServer)
+target_link_libraries(lsab_virtual_cl kisClientServer)
 ## ... from 
 target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 target_link_libraries(kis-port PUBLIC kis-common mbedtls)

@@ -20,7 +20,7 @@
 /**
  * @file
  *
- * KNX virtual Switching Actuator
+ * KNX virtual actuator
 
  * ## Application Design
  *
@@ -66,7 +66,6 @@
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
-
 #include "port/oc_clock.h"
 
 #ifdef OC_SPAKE
@@ -76,7 +75,7 @@
 #include <signal.h> // test purpose only; commandline reset
 #include <stdio.h> // defines FILENAME_MAX
 #include <stdlib.h>
-#include "knx_iot_virtual_lsxb.h" // application constants
+#include "apps/knx_iot_virtual.h" // application constants
 #include "oc_knx_client.h"
 
 #ifdef __linux__
@@ -103,12 +102,12 @@ static CRITICAL_SECTION critical_section;
 
 volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
-char g_serial_number[] = SN_LOWER_CASE; // startup SN, maybe overwritten by CL option
+char g_serial_number[] = SN_LOWER_CASE_LSAB; // startup SN, maybe overwritten by CL option
 
-// functional block 417 (LSAB) and 421 (LSBB) command/control are needed
-// for certification tests
+// functional block 417 (LSAB) command/control
 
-// define LSAB/LSSB (0...2)/(0..2) + included EPs switch control / status
+
+// define LSAB (0...2)/(0..2) + included EPs switch control / status
 // note that the leading '/' is required, since this application is using an empty base path (checked in fp/g and p/{property-path})
 channel_t lsxb[NUM_CHANNELS] = {
   {"LSAB OnOff 0",
@@ -116,25 +115,12 @@ channel_t lsxb[NUM_CHANNELS] = {
    {
     {false, "/p/lsab/0/soo", ":dpa.417.52", ":dpt.switch", ":if.i"},
     {false, "/p/lsab/0/ioo", ":dpa.417.51", ":dpt.switch", ":if.o"}}},
-  {"LSAB OnOff 2",
-   "LSAB On/Off Channel 2",
+  {"LSAB OnOff 1",
+   "LSAB On/Off Channel 1",
    {
     {false, "/p/lsab/1/soo", ":dpa.417.52", ":dpt.switch", ":if.i"},
-    {false, "/p/lsab/1/ioo", ":dpa.417.51", ":dpt.switch", ":if.o"}}},
-  {
-    "LSBB OnOff 0",
-    "LSBB On/Off Channel 0",
-    {
-     {false, "/p/lssb/0/soo", ":dpa.421.61", ":dpt.switch", ":if.i"},
-     {false, "/p/lssb/0/ioo", ":dpa.421.53", ":dpt.switch", ":if.o"}},
-  },
-  {
-    "LSBB OnOff 1",
-    "LSBB On/Off Channel 1",
-    {
-     {false, "/p/lssb/1/soo", ":dpa.421.61", ":dpt.switch", ":if.i"},
-     {false, "/p/lssb/1/ioo", ":dpa.421.53", ":dpt.switch", ":if.o"}},
-  }};
+    {false, "/p/lsab/1/ioo", ":dpa.417.51", ":dpt.switch", ":if.o"}}}
+  };
 
 // additional parameters
 volatile uint16_t g_test_parameter;
@@ -171,40 +157,43 @@ char* app_get_parameter_url(int index) { return NULL; }
 
 char* app_get_parameter_name(int index) { return NULL; }
 
-bool app_is_secure(void)
-{
-  // may produce a warning if OC_OSCORE is not specified ...
-  // but here it is integral part of CMake
-  return OC_OSCORE ? true : false;
-}
-
 // generic code
 int32_t app_get_channel_and_point(const void* user_data)
 {
-  oc_string_t href;
-  oc_new_string(&href, user_data, strlen(user_data));
+  oc_string_t href_caller;
+  oc_string_t href_resource;
+
+  oc_new_string(&href_caller, user_data, strlen(user_data));
 
   for (uint16_t c = 0; c < NUM_CHANNELS; c++)
   {
     for (uint16_t p = 0; p < NUM_POINTS; p++)
     {
-      oc_string_t url_resource;
-      oc_new_string(&url_resource, lsxb[c].point[p].url, strlen(lsxb[c].point[p].url));
 
-      if (oc_url_cmp(href, url_resource) == 0)
+      oc_new_string(&href_resource, lsxb[c].point[p].href, strlen(lsxb[c].point[p].href));
+
+      if (oc_url_cmp(href_caller, href_resource) == 0)
       {
-        return (int32_t)(c << 16 | p);
+
+        oc_free_string(&href_caller);
+        oc_free_string(&href_resource);
+
+        return c << 16 | p;
       }
+
+      oc_free_string(&href_resource);
     }
   }
+
+  oc_free_string(&href_caller);
 
   // no match
   return -1;
 }
 
-char* app_retrieve_url_from_channel(uint16_t channel, uint16_t point)
+char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)
 {
-  return lsxb[channel].point[point].url;
+  return lsxb[channel].point[point].href;
 }
 
 // need to define prototype, used by an init method
@@ -262,7 +251,7 @@ int app_init(void)
 
   // set the application name, version, base url, device serial number
   // init also the device resources such as /dev, /.well-known/core, ...
-  ret |= oc_add_device(APPLICATION_NAME, "1.0.0", "//", g_serial_number, NULL, NULL);
+  ret |= oc_add_device(APPLICATION_NAME_LSAB, "1.0.0", "//", g_serial_number, NULL, NULL);
 
   // set the hardware version 0.0.1, value used from EITT for testing
   oc_core_set_device_hwv(0, 0, 0, 1);
@@ -280,19 +269,18 @@ int app_init(void)
   oc_core_set_device_model(0, DEV_MODEL_ETS6);
 
   // set host name, value used from EITT for testing
-  oc_core_set_device_hostname(0, HOST_NAME);
+  oc_core_set_device_hostname(0, HOST_NAME_LSAB);
 
   oc_set_s_mode_response_cb(oc_add_s_mode_response_cb);
 
 #ifdef OC_SPAKE
 
-  // if current (negotiated) pwd is not set, use definition from test
-  // application
+  // if current (negotiated) pwd is not set (e.g. on a handover), use application definition
   if (strlen(oc_spake_get_password()) == 0)
     oc_spake_set_password(PASSWORD);
 
   // make lower to upper case
-  char sn_upper[] = SN_LOWER_CASE;
+  char sn_upper[] = SN_LOWER_CASE_LSAB;
   app_str_to_upper(sn_upper);
 
   OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, oc_spake_get_password());
@@ -338,7 +326,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin GET %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- Begin GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -460,7 +448,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("-- End GET %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- End GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 }
 
 void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
@@ -477,7 +465,7 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].href);
 
   // handle the different requests, here only included as example to
   // identify if extra data needs to be processed in the endpoint
@@ -510,17 +498,17 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     PRINT("received no error, update status to %d", lsxb[c].point[SOO].value);
     lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
 
-    // this is the 'simple' option to trigger a status on a specific EP
-    PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].url);
-    oc_do_s_mode_with_scope(5, lsxb[c].point[IOO].url, "w");
+    // this is the 'simple' option to trigger a status on a specific EP, multicast, site local
+    PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
+    oc_do_s_mode_with_scope(5, lsxb[c].point[IOO].href, "w");
 
-    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].url);
+  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 }
 
 // parameters handling
@@ -532,7 +520,7 @@ void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
 
   bool error_state = true;
 
-  PRINT("-- Begin GET %s Control at %s ", _0_name, _0_url_value);
+  PRINT("-- Begin GET %s Control at %s ", _0_name, _0_url_value_lsab);
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -582,7 +570,7 @@ void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
         // resource types
         if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          oc_rep_text_set_text_string(root, rt, _0_dpa_switch_short);
+          oc_rep_text_set_text_string(root, rt, _0_dpa_switch_short_lsab);
 
           error_state = false;
         }
@@ -654,7 +642,7 @@ void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("-- End GET %s Control at %s ", _0_name, _0_url_value);
+  PRINT("-- End GET %s Control at %s ", _0_name, _0_url_value_lsab);
 }
 
 void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
@@ -662,7 +650,7 @@ void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
   (void)interfaces;
   (void)user_data;
 
-  PRINT("-- Begin PUT %s Control at %s ", _0_name, _0_url_value);
+  PRINT("-- Begin PUT %s Control at %s ", _0_name, _0_url_value_lsab);
 
   // handle the different requests, here only included as example to
   // identify if extra data needs to be processed in the endpoint
@@ -694,13 +682,13 @@ void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
-    PRINT("-- End PUT %s Control at %s ", _0_name, _0_url_value);
+    PRINT("-- End PUT %s Control at %s ", _0_name, _0_url_value_lsab);
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", _0_name, _0_url_value);
+  PRINT("-- End PUT %s at %s ", _0_name, _0_url_value_lsab);
 }
 
 /**
@@ -732,8 +720,8 @@ void register_resources(void)
 
   for (int i = 0; i < NUM_CHANNELS; i++)
   {
-    oc_resource_t* soo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[SOO].url, 1, 0);
-    oc_resource_t* ioo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[IOO].url, 1, 0);
+    oc_resource_t* soo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[SOO].href, 1, 0);
+    oc_resource_t* ioo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[IOO].href, 1, 0);
 
     char soo_t[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_t, lsxb[i].point[SOO].dpa);
     char ioo_t[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_t, lsxb[i].point[IOO].dpa);
@@ -757,8 +745,8 @@ void register_resources(void)
     oc_resource_set_observable(ioo_res, true);
 
     // set user data for PUT/GET  (needed to distinguish the call source 
-    void* soo = lsxb[i].point[SOO].url;
-    void* ioo = lsxb[i].point[IOO].url;
+    void* soo = lsxb[i].point[SOO].href;
+    void* ioo = lsxb[i].point[IOO].href;
 
     oc_resource_set_request_handler(soo_res, OC_GET, get_lsxb, soo, OC_ACL_O, OC_IF_O);
     oc_resource_set_request_handler(soo_res, OC_PUT, put_lsxb, soo, OC_ACL_I, OC_IF_I);
@@ -770,11 +758,11 @@ void register_resources(void)
 
   PRINT("Register test parameter");
   {
-    oc_resource_t* tp0 = oc_new_resource(_0_name, _0_url_value, 1, 0);
+    oc_resource_t* tp0 = oc_new_resource(_0_name, _0_url_value_lsab, 1, 0);
 
-    oc_resource_bind_resource_type(tp0, "urn:knx"_0_dpa_switch_short);
+    oc_resource_bind_resource_type(tp0, "urn:knx"_0_dpa_switch_short_lsab);
 
-    oc_resource_bind_dpt(tp0, _0_dpt);
+    oc_resource_bind_dpt(tp0, _0_dpt_lsab);
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
 
@@ -904,7 +892,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_eitt_%s", g_serial_number);
+  (void)sprintf(storage, "./knx_iot_virtual_lsab_%s", g_serial_number);
   PRINT("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
@@ -913,8 +901,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  PRINT("storage at 'knx_iot_virtual_eitt_creds' "); // TODO
-  oc_storage_config("./knx_iot_virtual_eitt_creds"); // TODO
+  oc_storage_config("./knx_iot_virtual_lsab");
 
 #endif
 
@@ -965,7 +952,10 @@ void signal_event_loop(void)
 }
 #endif
 
-// used to run as standalone command line (with main) or embed it in parent code
+/*
+ used to run as standalone command line (with main) or embed it
+ in a parent code (such as the corresponding GUI applications) 
+*/
 #ifndef NO_MAIN
 
 /**
@@ -1041,7 +1031,7 @@ int main(const int argc, char* argv[])
     }
   }
 
-  PRINT("KNX-IOT server name : \"%s\"", APPLICATION_NAME);
+  PRINT("KNX-IOT server name : \"%s\"", APPLICATION_NAME_LSAB);
 
   // ... before this call devices and resources are not existing, return code
   // issued by .init handler
@@ -1069,7 +1059,7 @@ int main(const int argc, char* argv[])
   // used to refresh (and print) IP addresses
   oc_connectivity_get_endpoints(0);
 
-  PRINT("Server '%s' is now running, waiting on incoming connections...", APPLICATION_NAME);
+  PRINT("Server '%s' is now running, waiting on incoming connections...", APPLICATION_NAME_LSAB);
 
 #ifdef WIN32
   while (quit != 1) // check on Ctrl-C

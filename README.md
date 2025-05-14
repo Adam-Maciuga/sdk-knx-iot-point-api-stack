@@ -81,4 +81,3 @@ Contains adaptations per supported OS platform.
 
 __apps/*__  
 Contains the sample [application](apps/Readme.md) describing how to use the stack.
-
