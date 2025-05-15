@@ -564,7 +564,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 
 	if (option)
 	{
-		OC_DBG("-Done serializing at address %p----", option);
+		OC_DBG("Done serializing at address %p", option);
 	}
 
 	return option_length;
@@ -1269,7 +1269,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 				return 0;
 			}
 
-			OC_DBG("-Serializing MID %u to %p", coap_pkt->mid, (void*) coap_pkt->buffer);
+			OC_DBG("Serializing MID %u to address %p", coap_pkt->mid, (void*) coap_pkt->buffer);
 			coap_udp_set_header_fields(coap_pkt);
 		}
 	}
@@ -1277,7 +1277,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 	// empty packet, don't need to do more stuff (code = 0 , means not set)
 	if (outer && !coap_pkt->code && coap_pkt->token_len == 0)
 	{
-		OC_DBG("Done serializing empty message at %p-", (void*) coap_pkt->buffer);
+		OC_DBG("Done serializing empty message at address %p", (void*) coap_pkt->buffer);
 		return token_location;
 	}
 
@@ -1285,10 +1285,10 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 	{
 		if (oscore)
 		{
-			OC_DBG("Outer CoAP code: %d", coap_pkt->code);
+			OC_DBG("Outer CoAP code : %d", coap_pkt->code);
 		}
 
-		OC_DBG("Token (len %u)", coap_pkt->token_len);
+		OC_DBG("Token (len %u) :", coap_pkt->token_len);
 		OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
 		// here the options starts
@@ -1336,7 +1336,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 			// copy payload after the options 
 			memmove(option, coap_pkt->payload, coap_pkt->payload_len);
 		}
-		OC_DBG("Serialized payload:");
+		OC_DBG("Serialized payload :");
 		OC_LOGbytes(option, coap_pkt->payload_len);
 	}
 	else
@@ -1347,7 +1347,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 		return 0;
 	}
 
-	OC_DBG("-Done %u Bytes (header len %u, payload len %u)-",
+	OC_DBG("Done %u Bytes (header len %u, payload len %u) : ",
 				 (unsigned int) (coap_pkt->payload_len + option - buffer),
 				 (unsigned int) (option - buffer), (unsigned int) coap_pkt->payload_len);
 
@@ -1372,7 +1372,7 @@ coap_send_message(oc_message_t* message)
 	}
 	#endif /* OC_TCP */
 
-	OC_DBG("-sending message (%u)-", (unsigned int) message->length);
+	OC_DBG("Sending message (%u)", (unsigned int) message->length);
 
 	oc_send_message(message);
 }

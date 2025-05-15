@@ -308,7 +308,7 @@ oc_oscore_find_context_by_group_address(size_t device, uint32_t group_address)
     const oc_auth_at_t* my_entry = oc_get_auth_at_entry(0, ctx->auth_at_index);
     if (my_entry)
     {
-      oc_print_auth_at_entry(0, ctx->auth_at_index);
+      oc_print_auth_at_entry(ctx->auth_at_index);
       for (int i = 0; i < my_entry->ga_len; i++)
       {
         const int64_t group_value = my_entry->ga[i];
@@ -341,12 +341,14 @@ oc_oscore_free_all_contexts(void)
 void
 oc_oscore_free_sender_contexts(void)
 {
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_list_head(contexts);
-  while (ctx != NULL)
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  while (ctx)
   {
+    // use a tmp copy since below org ctx  will be deleted
     oc_oscore_context_t* next = ctx->next;
     if (ctx->recvid_len == 0)
       oc_oscore_free_context(ctx);
+    // use tmp copy
     ctx = next;
   }
 }
@@ -357,10 +359,10 @@ oc_oscore_free_contexts_at_id(int auth_at_index)
   oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_list_head(contexts);
   while (ctx != NULL)
   {
-    oc_oscore_context_t* next = ctx->next;
+    oc_oscore_context_t* next = ctx->next;  // get temp copy
     if (ctx->auth_at_index == auth_at_index)
       oc_oscore_free_context(ctx);
-    ctx = next;
+    ctx = next; // use tmp copy , original may be NULL
   }
 }
 
@@ -373,6 +375,8 @@ oc_oscore_free_context(oc_oscore_context_t* ctx)
     {
       oc_free_string(&ctx->desc);
     }
+
+    // removes entry fom linked list
     oc_list_remove(contexts, ctx);
     oc_memb_free(&ctx_s, ctx);
   }
@@ -384,7 +388,7 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
                       uint64_t ssn, const char* desc, const char* mastersecret,
                       int mastersecret_size, const char* salt, int salt_size,
                       const char* osc_ctx, int osc_ctx_size, int auth_at_index,
-                      bool from_storage)
+                      bool read_ssn_from_storage)
 {
   PRINT("-----oc_oscore_add_context--SID:");
   oc_char_println_hex(senderid, senderid_size);
@@ -443,10 +447,10 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
   PRINT("salt size : %d", salt_size);
   oc_char_println_hex(salt, salt_size);
 
-  /* To prevent SSN reuse, bump to higher value that could've been previously
-   * used, accounting for any failed writes to nonvolatile storage.
+  /* To prevent SSN reuse, bump the SNN to a higher value that could've been previously
+   * used, considering any possible failed writes to a nonvolatile storage.
    */
-  if (from_storage)
+  if (read_ssn_from_storage)
   {
     ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
   }

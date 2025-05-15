@@ -197,7 +197,8 @@ oc_send_message(oc_message_t* message)
 	if (version == 1 && type == 1 && (code >> 5 == 0) &&
 			message->endpoint.flags & SECURED)
 	{
-		oc_replay_message_track(message, token_len, token);
+    OC_DBG_OSCORE("Track outgoing OSCORE message");
+	  oc_replay_message_track(message, token_len, token);
 	}
 
 	if (oc_process_post(&message_buffer_handler,

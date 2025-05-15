@@ -36,7 +36,7 @@ static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
 
 // ----------------------------------------------------------------------------
 
-static void oc_at_dump_entry(size_t device_index, int entry);
+static void oc_at_store_entry(int entry);
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
 {
@@ -643,7 +643,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   {
     return;
   }
-  size_t device_index = request->resource->device;
 
   /* debugging info */
   oc_print_rep_as_json(request->request_payload, true);
@@ -701,6 +700,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         if (object->type == OC_REP_STRING_ARRAY)
         {
           id_only = false;
+
           // scope
           if (object->iname == 9)
           {
@@ -893,16 +893,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       if (id_only)
       {
         PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_at_delete_entry(device_index, index);
+        oc_at_delete_entry(index);
       }
       else
       {
         PRINT("storage index: %d (%s) ", index, oc_string_checked(*at));
-        // show the entry on screen
-        oc_print_auth_at_entry(device_index, index);
-
-        // dump the entry to persistent storage
-        oc_at_dump_entry(device_index, index);
+        oc_print_auth_at_entry(index);
+        oc_at_store_entry(index);
       }
     } // if type == object
     rep = rep->next;
@@ -919,7 +916,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   else
   {
     // update the oscore context
-    oc_init_oscore_from_storage(device_index, false);
+    oc_init_oscore_from_storage(false);
   }
 
   oc_prepare_no_format_response_no_payload(request, return_status);
@@ -938,7 +935,7 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
   }
 
   size_t device_index = request->resource->device;
-  oc_delete_at_table(device_index);
+  oc_delete_at_table();
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
   PRINT("oc_core_auth_at_delete_handler - end");
@@ -1012,7 +1009,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
     PRINT("index in structure not found");
     return;
   }
-  oc_print_auth_at_entry(0, index);
+  oc_print_auth_at_entry(index);
 
   // return the data
   oc_rep_begin_root_object();
@@ -1156,12 +1153,11 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
     return;
   }
   PRINT("oc_core_auth_at_x_delete_handler - start");
-  size_t device_index = request->resource->device;
 
-  // - find the id from the URL
+  // find the id from the URL
   value_len = oc_uri_get_wildcard_value_as_string(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
                                                   request->uri_path, request->uri_path_len, &value);
-  // - delete the index.
+  // index not found.
   if (value_len <= 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1169,9 +1165,10 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
     return;
   }
   PRINT("id = %.*s", value_len, value);
+
   // get the index
   int index = find_index_from_at_string(value, value_len);
-  // - delete the index.
+
   if (index < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1179,12 +1176,12 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
     return;
   }
 
-  // actual delete of the context id so that this entry is seen as empty
-  oc_at_delete_entry(device_index, index);
-  // do the persistent storage
-  oc_at_dump_entry(device_index, index);
-// delete the related oscore contexts
+  oc_at_delete_entry(index);
+  // store an empty AT file entry 
+  oc_at_store_entry(index);
+
 #ifdef OC_OSCORE
+  // delete the related oscore contexts
   oc_oscore_free_contexts_at_id(index);
 #endif
 
@@ -1374,9 +1371,9 @@ void oc_create_knx_auth_resource(int resource_idx, size_t device)
                             oc_core_knx_auth_get_handler, 0, 0, 0, 0);
 }
 
-void oc_print_auth_at_entry(size_t device_index, int index)
+void oc_print_auth_at_entry(int index)
 {
-  (void)device_index;
+
 #ifdef OC_PRINT
 
   if (index > -1)
@@ -1454,9 +1451,8 @@ oc_acl_mask_t oc_at_get_scope_mask(int index)
   return g_at_entries[index].scope;
 }
 
-int oc_at_delete_entry(size_t device_index, int index)
+int oc_at_delete_entry(int index)
 {
-  (void)device_index;
   if (index < 0)
   {
     return -1;
@@ -1466,7 +1462,7 @@ int oc_at_delete_entry(size_t device_index, int index)
     return -1;
   }
 
-  // generic
+  // generic data
   oc_free_string(&g_at_entries[index].id);
   oc_new_string(&g_at_entries[index].id, "", 0);
   g_at_entries[index].scope = OC_ACL_NONE;
@@ -1484,12 +1480,13 @@ int oc_at_delete_entry(size_t device_index, int index)
   oc_free_string(&g_at_entries[index].osc_id);
   oc_new_byte_string(&g_at_entries[index].osc_id, "", 0);
 
-  // dtls object
+  // DTLS object
   oc_free_string(&g_at_entries[index].sub);
   oc_new_string(&g_at_entries[index].sub, "", 0);
   oc_free_string(&g_at_entries[index].kid);
   oc_new_string(&g_at_entries[index].kid, "", 0);
 
+  // linked GAs
   if (g_at_entries[index].ga_len > 0)
   {
     int64_t* cur_arr = g_at_entries[index].ga;
@@ -1500,6 +1497,7 @@ int oc_at_delete_entry(size_t device_index, int index)
     g_at_entries[index].ga_len = 0;
   }
 
+  // AT file entry
   char filename[20];
   (void)snprintf(filename, 20, "%s_%d", AT_STORE, index);
   oc_storage_erase(filename);
@@ -1507,11 +1505,11 @@ int oc_at_delete_entry(size_t device_index, int index)
   return 0;
 }
 
-// Note: storage of the fields is done via the cbor keys in the hierarchy
+// stores the AT entry to a file
+// storage of the fields is done via the cbor keys in the hierarchy
 // so tag : 842  8.4.2 ==> "cnf":"osc":"ms"
-static void oc_at_dump_entry(size_t device_index, int entry)
+static void oc_at_store_entry(int entry)
 {
-  (void)device_index;
 #ifndef OC_USE_STORAGE
   (void)entry;
   PRINT("no auth/at storage");
@@ -1538,12 +1536,14 @@ static void oc_at_dump_entry(size_t device_index, int entry)
   oc_rep_i_set_int(root, 38, g_at_entries[entry].profile);
 
   // 842: cnf:osc:xx map , see auth_at
-  oc_rep_i_set_byte_string(root, 842, oc_string(g_at_entries[entry].osc_ms), oc_byte_string_len(g_at_entries[entry].osc_ms));
+  oc_rep_i_set_byte_string(root, 842, oc_string(g_at_entries[entry].osc_ms), 
+                           oc_byte_string_len(g_at_entries[entry].osc_ms));
   oc_rep_i_set_byte_string(root, 846, oc_string(g_at_entries[entry].osc_contextid),
                            oc_byte_string_len(g_at_entries[entry].osc_contextid));
   oc_rep_i_set_byte_string(root, 847, oc_string(g_at_entries[entry].osc_rid),
                            oc_byte_string_len(g_at_entries[entry].osc_rid));
-  oc_rep_i_set_byte_string(root, 840, oc_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
+  oc_rep_i_set_byte_string(root, 840, oc_string(g_at_entries[entry].osc_id), 
+                           oc_byte_string_len(g_at_entries[entry].osc_id));
 
   // 82: kid
   oc_rep_i_set_text_string(root, 82, oc_string(g_at_entries[entry].sub));
@@ -1558,12 +1558,12 @@ static void oc_at_dump_entry(size_t device_index, int entry)
   const int size = oc_rep_get_encoded_payload_size();
   if (size > 0)
   {
-    OC_DBG("oc_at_dump_entry: dumped current state [%s] [%d]: size %d", filename, entry, size);
+    OC_DBG("stored current state [%s] [%d]: size %d", filename, entry, size);
 
     long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long)size)
     {
-      PRINT("oc_at_dump_entry: [%s] written %d != %d (towrite)", filename, (int)written_size, size);
+      PRINT("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
     }
   }
   free(buf);
@@ -1703,12 +1703,10 @@ static void oc_at_load_entry(int entry)
   free(buf);
 }
 
-int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, bool store)
+int oc_core_set_at_table(int index, oc_auth_at_t entry)
 {
-  (void)device_index;
   if (index < G_AT_MAX_ENTRIES)
   {
-
     oc_free_string(&g_at_entries[index].id);
     oc_new_string(&g_at_entries[index].id, oc_string(entry.id), oc_string_len(entry.id));
     g_at_entries[index].scope = entry.scope;
@@ -1729,6 +1727,7 @@ int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, boo
     oc_new_byte_string(&g_at_entries[index].osc_rid, oc_string(entry.osc_rid), oc_byte_string_len(entry.osc_rid));
     oc_free_string(&g_at_entries[index].osc_id);
     oc_new_byte_string(&g_at_entries[index].osc_id, oc_string(entry.osc_id), oc_byte_string_len(entry.osc_id));
+
     // clean up existing entry
     if (g_at_entries[index].ga_len > 0)
     {
@@ -1738,9 +1737,11 @@ int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, boo
         free(cur_arr);
       }
     }
+
     // copy initial data
     g_at_entries[index].ga_len = entry.ga_len;
     g_at_entries[index].ga = NULL;
+
     // copy the array
     if (g_at_entries[index].ga_len > 0)
     {
@@ -1762,14 +1763,9 @@ int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, boo
       }
     }
 
-    if (store)
-    {
-      oc_at_dump_entry(device_index, index);
-    }
+    // store 
+    oc_at_store_entry(index);
   }
-  // activate the credentials
-  OC_DBG_OSCORE("oc_core_set_at_table: activating OSCORE credentials");
-  oc_init_oscore_from_storage(device_index, false);
 
   return 0;
 }
@@ -1786,14 +1782,20 @@ int oc_core_find_at_entry_with_id(size_t device_index, char* id)
   return -1;
 }
 
-int oc_core_find_pase_entry(size_t device_index)
+void oc_core_find_and_remove_pase_entry(void)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
-      return i;
+    {
+      oc_at_delete_entry(i); // delete entry from AT table
+      oc_oscore_free_contexts_at_id(i); // removes possible references
+      PRINT("PASE key found, invalidated...");
+      return;
+    }
   }
-  return -1;
+  PRINT("PASE key NOT found, hence NOT invalidated...");
+  return;
 }
 
 int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id, size_t osc_id_len)
@@ -1829,54 +1831,47 @@ void oc_load_at_table(size_t device_index)
     oc_at_load_entry(i);
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
-      oc_print_auth_at_entry(device_index, i);
+      oc_print_auth_at_entry(i);
     }
   }
   // create the oscore contexts
-  oc_init_oscore_from_storage(device_index, true);
+  oc_init_oscore_from_storage(true);
 }
 
-void oc_delete_at_table(size_t device_index)
+void oc_delete_at_table(void)
 {
   PRINT("Deleting AT Object Table from persistent storage");
 
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
-    oc_at_delete_entry(device_index, i);
-    oc_print_auth_at_entry(device_index, i);
+    oc_at_delete_entry(i);
+    oc_print_auth_at_entry(i);
   }
 #ifdef OC_OSCORE
   oc_oscore_free_all_contexts();
 #endif
 }
 
-void oc_reset_at_table(size_t device_index, int erase_code)
+void oc_delete_at_table_except_sec_scope_entries(size_t device_index)
 {
-  PRINT("Reset AT Object Table: %d", erase_code);
+  PRINT("Deleting AT Object Table entries without if.sec from persistent storage");
 
-  if (erase_code == 2)
+  // reset the entries that are not "if.sec"
+  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
-    oc_delete_at_table(device_index);
-  }
-  else if (erase_code == 7)
-  {
-    // reset the entries that are not "if.sec"
-    for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+    oc_acl_mask_t scope = oc_at_get_scope_mask(i);
+
+    if (!(scope & OC_ACL_SEC))
     {
-      oc_acl_mask_t scope = oc_at_get_scope_mask(i);
-
-      if (!(scope & OC_ACL_SEC))
-      {
-        // reset the entries that are not including "if.sec"
-        oc_at_delete_entry(device_index, i);
-        oc_print_auth_at_entry(device_index, i);
-      }
+      // delete the entries that are not including "if.sec"
+      oc_at_delete_entry(i);
+      oc_print_auth_at_entry(i);
     }
-#ifdef OC_OSCORE
-    // create the oscore contexts that still remain
-    oc_init_oscore_from_storage(device_index, true);
-#endif
   }
+#ifdef OC_OSCORE
+  // (re)create the oscore contexts in the table that still remains
+  oc_init_oscore_from_storage(true);
+#endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1892,8 +1887,10 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size, 
   spake_entry.profile = OC_PROFILE_COAP_PASE;
   spake_entry.scope = OC_ACL_SEC;
   oc_new_byte_string(&spake_entry.osc_ms, (char*)shared_key, shared_key_size);
+
   // no context id
   oc_new_byte_string(&spake_entry.osc_rid, client_recipientid, client_recipientid_size);
+
   // note that HEX was NOT on the wire, but the byte string.
   // so we have to store the byte string
   oc_new_byte_string(&spake_entry.osc_id, client_senderid, client_senderid_size);
@@ -1903,16 +1900,16 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size, 
   {
     index = oc_core_find_at_entry_empty_slot(0);
   }
+
   if (index == -1)
   {
     OC_ERR("no space left in auth/at");
   }
   else
   {
-    oc_core_set_at_table(0, index, spake_entry, true);
-    oc_at_dump_entry(0, index);
-    // add the oscore context...
-    oc_init_oscore(0);
+    // write the spake entry always to AT table and file storage
+    oc_core_set_at_table(index, spake_entry);
+    oc_init_oscore_from_storage(false);
   }
 }
 
@@ -1982,37 +1979,42 @@ void oc_create_knx_sec_resources(size_t device_index)
   oc_create_knx_auth_resource(OC_KNX_AUTH, device_index);
 }
 
-void oc_init_oscore(size_t device_index) { oc_init_oscore_from_storage(device_index, false); }
-
-void oc_init_oscore_from_storage(size_t device_index, const bool from_storage)
+void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
-#ifndef OC_OSCORE
-  (void)device_index;
-#else
+#ifdef OC_OSCORE
 
-  OC_DBG_OSCORE("oc_init_oscore deleting old sender contexts!!");
+  OC_DBG_OSCORE("Activating OSCORE credentials");
+  OC_DBG_OSCORE("... deleting all old sender contexts");
   oc_oscore_free_sender_contexts();
 
-  OC_DBG_OSCORE("oc_init_oscore adding OSCORE context...");
+  OC_DBG_OSCORE("... adding new OSCORE context");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
-
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
-      oc_print_auth_at_entry(device_index, i);
+      oc_print_auth_at_entry(i);
 
       if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
-        uint64_t ssn = 0;
         oc_oscore_context_t* ctx = oc_oscore_add_context(
-          device_index, oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
-          oc_string(g_at_entries[i].osc_rid), oc_byte_string_len(g_at_entries[i].osc_rid), ssn, "desc",
-          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
-          oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),
-          oc_byte_string_len(g_at_entries[i].osc_contextid), i, from_storage);
+          0,
+          oc_string(g_at_entries[i].osc_id),
+          oc_byte_string_len(g_at_entries[i].osc_id),
+          oc_string(g_at_entries[i].osc_rid), 
+          oc_byte_string_len(g_at_entries[i].osc_rid),
+          0,
+          "desc",
+          oc_string(g_at_entries[i].osc_ms),
+          oc_byte_string_len(g_at_entries[i].osc_ms),
+          oc_string(g_at_entries[i].osc_salt),
+          oc_byte_string_len(g_at_entries[i].osc_salt),
+          oc_string(g_at_entries[i].osc_contextid),
+          oc_byte_string_len(g_at_entries[i].osc_contextid),
+          i, read_ssn_from_storage);
+
         if (ctx == NULL)
         {
-          OC_ERR("  failed to load index= %d", i);
+          OC_ERR("failed to add a context entry for AT table entry = %d", i);
         }
 
         // contexts for sending have populated sender id and null receive id
@@ -2026,7 +2028,7 @@ void oc_init_oscore_from_storage(size_t device_index, const bool from_storage)
       }
       else
       {
-        OC_DBG_OSCORE("oc_init_oscore: no oscore context");
+        OC_DBG_OSCORE("no oscore context was initialized");
       }
     }
   }

@@ -63,6 +63,9 @@ extern "C" {
 
 #ifdef OC_PRINT
 
+  // for clock function in debug output
+  #include <time.h>
+
   #ifdef __ANDROID__
     #define TAG "OC-JNI"
     #define PRINT(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -218,15 +221,18 @@ extern "C" {
 #define M_SIZE  28             // sizeof method name to be shown
 
 #define STR_(X) #X             // convert to string 
-#define STRS(X) STR_(X)        // expand before convert  
+#define STRS(X) STR_(X)        // expand before convert
 
 #define OC_LOG(level, ...)                                   \
   do {                                                       \
+  int ticks = clock();                                       \
   PRINTF("\n"                                                \
+         "%-6d: "                                            \
          "%-4s: "                                            \
          "%-20s "                                            \
          "%-5d: "                                            \
          "%-"STRS(W_SIZE)"" "."STRS(M_SIZE)"s> ",            \
+         ticks,                                              \
          level,                                              \
          __FILENAME__,                                       \
          __LINE__,                                           \

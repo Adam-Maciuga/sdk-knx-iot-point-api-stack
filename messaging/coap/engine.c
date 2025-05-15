@@ -175,7 +175,7 @@ static void coap_send_unauth_echo_response(const coap_message_type_t type, const
 																					 uint8_t* echo, const size_t echo_len,
 																					 const oc_endpoint_t* endpoint)
 {
-	OC_WRN("CoAP send Unauthorised Echo Response message: mid=%u", mid);
+	OC_WRN("CoAP now sending Unauthorised Echo Response message: mid=%u", mid);
 
 	coap_packet_t coap_msg;
 	coap_udp_init_message(&coap_msg, type, UNAUTHORIZED_4_01, mid);
@@ -627,7 +627,7 @@ int coap_receive(oc_message_t* incoming_message)
 								if (transaction)
 									coap_clear_transaction(transaction);
 
-								OC_ERR("CoAP send 4.01 ACK + Echo Challenge");
+								OC_DBG("CoAP send 4.01 ACK + Echo Challenge");
 								return UNAUTHORIZED_4_01;
 							}
 

@@ -312,7 +312,7 @@ char* app_get_password(void) { return PASSWORD; }
 
 */
 
-//LSxB = LSAB/LSBB with soo/ioo
+//LSxB = LSAB with soo/ioo
 
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {

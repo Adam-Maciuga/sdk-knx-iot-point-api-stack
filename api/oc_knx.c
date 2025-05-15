@@ -149,17 +149,34 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
 
 // cache device_index and reset value, original values may be void when callbacks are executed (due to clean up resources)
 static size_t cached_device_index;
-static int cached_value;
+static int cached_erase_code_value;
 
 static oc_event_callback_retval_t reset(void* context)
 {
   PRINT("reset device");
 
+  // Specification demands
+  // - reset a possible PRG mode
+  // - terminate a possible PASE key
+  
+
   // use cached value
-  oc_reset_device(cached_device_index, cached_value);
+  oc_reset_device(cached_device_index, cached_erase_code_value);
+
+  #ifdef OC_OSCORE
+
+  /* Delete PASE key (check only for one hit ...), comes with erase code
+     - 2 (all already deleted) 
+     - 7 (all if.sec entries remains)
+     An AT table with one PASE key only, after the PASE
+     deletion the AT table is empty (= "default cfg" state)
+  */
+  oc_core_find_and_remove_pase_entry();
+  
+#endif
 
   PRINT("re-register mDNS with new data");
-  // re-register after resetting ia, iid , pm mode 
+  // re-register after resetting ia, iid , pm mode (values are usually changed after a reset)
   const oc_device_info_t* device = oc_core_get_device_info(cached_device_index);
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
@@ -190,18 +207,9 @@ static oc_event_callback_retval_t restart(void* context)
 
 #ifdef OC_OSCORE
 
-  // PASE key (check only one hit ...)
-  int auth_at_index_pase = auth_at_index_pase = oc_core_find_pase_entry(cached_device_index);
-  if (auth_at_index_pase < 0)
-  {
-    PRINT("PASE key NOT found, hence NOT invalidated...");
-  }
-  else
-  {
-    PRINT("PASE key found, invalidated...");
-    oc_at_delete_entry(cached_device_index, auth_at_index_pase); // delete from table
-    oc_oscore_free_contexts_at_id(auth_at_index_pase); // invalidate (usually the data are restored after startup)
-  }
+  // Delete PASE key (check only for one hit ...), comes with nothing else
+  oc_core_find_and_remove_pase_entry();
+  
 #endif
   // CFG parameters
   oc_init_datapoints_at_initialization();
@@ -239,7 +247,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int value = -1; // JSON key
+  int erase_code_value = -1; // JSON key
   int cmd = -1; // JSON key
 
   // all values init to '0', 200 byte size is sufficient for request data
@@ -268,7 +276,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
       if (rep->iname == 1) // CBOR key
       {
         // the value
-        value = (int)rep->value.integer;
+        erase_code_value = (int)rep->value.integer;
       }
     }
     break;
@@ -278,7 +286,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     rep = rep->next;
   }
 
-  PRINT("cmd: %d value: %d", cmd, value);
+  PRINT("cmd: %d value: %d", cmd, erase_code_value);
 
   const size_t device_index = request->resource->device;
 
@@ -287,7 +295,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     // safe device# and '-1' value (restart don't use a value)
     // device_index may be void when using the data again (cleanup resources)
     cached_device_index = device_index;
-    cached_value = value;
+    cached_erase_code_value = erase_code_value;
 
     // restart callback 
     oc_set_delayed_callback_ms(NULL, restart, 100);
@@ -301,7 +309,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     // safe device# and 'erase code' value (reset may use a value)
     // device may be void when using the data again
     cached_device_index = device_index;
-    cached_value = value;
+    cached_erase_code_value = erase_code_value;
 
     // reset callback 
     oc_set_delayed_callback_ms(NULL, reset, 100);
@@ -313,9 +321,8 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 
     // check erase code value for response error (0:no error, 2:unsupported erase code, others not used here)
     const unsigned int response_code =
-      value == RESET_IA || 
-      value == RESET_TO_DEFAULT_STATE || 
-      value == RESET_TO_DEFAULT_WO_IA ? RESET_NO_ERROR : RESET_UNSUPPORTED_ERASE_CODE;
+      erase_code_value == RESET_TO_DEFAULT_STATE || 
+      erase_code_value == RESET_TO_DEFAULT_WO_IA ? RESET_NO_ERROR : RESET_UNSUPPORTED_ERASE_CODE;
 
     // response time (fixed value, need to be set in relation of the used hardware)
     const unsigned int response_time = 2;
@@ -1298,6 +1305,7 @@ static oc_event_callback_retval_t decrement_counter(void* data)
 
 static void increment_counter(void) { ++failed_handshake_count; }
 
+// prevent from brute force handshake attempts
 static bool is_handshake_blocked(void)
 {
   if (is_blocking)
@@ -1332,11 +1340,18 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   {
     return;
   }
-  // check if the state is unloaded
-  size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_UNLOADED)
+
+  // SPAKE2+ is only allowed if a  device is in the "default cfg" state
+  // - use unloaded LSM -> security problem
+  //   If MaC resets the device (LSM = unloaded) and waits n seconds (as the device said ...)
+  //   an attacker can set an own PASE token to read out all data the MaC will write
+  //   later on (including a reconfiguration)
+  // - use empty AT table as criteria
+
+  // check if the AT table is empty (see above)
+  if (oc_core_items_used_in_auth_at_table() > 0)
   {
-    OC_ERR(" not in unloaded state");
+    OC_ERR("device is not in the 'default configuration state'");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -1345,7 +1360,6 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   if (is_handshake_blocked())
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
-
     request->response->response_buffer->max_age = failed_handshake_count * 10;
     return;
   }

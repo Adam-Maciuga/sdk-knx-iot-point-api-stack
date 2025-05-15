@@ -1576,7 +1576,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
   if (reset_mode == RESET_TO_DEFAULT_STATE)
   {
-    // needed as buffer for the call below
+    // needed as buffer for the storage write call below
     uint32_t u_port = COAP_DEFAULT_PORT; // unicast communication
     uint32_t m_port = COAP_DEFAULT_PORT; // multicast communication
 
@@ -1598,7 +1598,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
-    oc_delete_at_table(device_index);
+    oc_delete_at_table();
 
 #ifdef OC_IOT_ROUTER
     oc_delete_group_mapping_table();
@@ -1618,17 +1618,6 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     return;
   }
 
-  if (reset_mode == RESET_IA)
-  {
-    oc_storage_erase(KNX_STORAGE_IA);
-
-    // set the ia to KNX defaults
-    device->pm = false;
-    device->ia = 0xFFFF;
-
-    return;
-  }
-
   if (reset_mode == RESET_TO_DEFAULT_WO_IA)
   {
     // LSM (first to prevent any runtime messaging in/out)
@@ -1640,7 +1629,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
-    oc_reset_at_table(device_index, reset_mode);
+    oc_delete_at_table_except_sec_scope_entries(device_index);
 
 #ifdef OC_IOT_ROUTER
     oc_delete_group_mapping_table();

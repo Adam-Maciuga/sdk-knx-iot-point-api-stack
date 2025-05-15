@@ -35,7 +35,6 @@ extern "C"
 
 // reset cmd
 #define RESET_TO_DEFAULT_STATE (2)  // factory reset
-#define RESET_IA (3)                // IA reset
 #define RESET_TO_DEFAULT_WO_IA (7)  // factory reset w/o IA
 
   /**
@@ -252,8 +251,6 @@ extern "C"
    *   - group object table
    *   - recipient object table
    *   - publisher object table
-   * - reset = 3 (reset ia) :
-   *   - individual address (ia)
    * - reset = 7 (Factory Reset without IA):
    *   - group object table
    *   - recipient object table

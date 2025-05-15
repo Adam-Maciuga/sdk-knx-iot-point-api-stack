@@ -183,7 +183,7 @@ oc_oscore_recv_message(oc_message_t* message)
 		if (oscore_pkt->kid_len > 0)
 		{
 			/* Search for OSCORE context by kid */
-			OC_DBG_OSCORE("--- got kid from incoming message");
+			OC_DBG_OSCORE("--- got kid from incoming message : ");
 			OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
 			OC_DBG_OSCORE("### searching for OSCORE context by kid ###");
 			oscore_ctx = oc_oscore_find_context_by_kid_idctx(
@@ -311,7 +311,7 @@ oc_oscore_recv_message(oc_message_t* message)
 				OC_LOGbytes_OSCORE(AAD, AAD_len);
 			}
 
-			OC_DBG_OSCORE("---got Partial IV from incoming message");
+			OC_DBG_OSCORE("---got Partial IV from incoming message : ");
 			OC_LOGbytes_OSCORE(oscore_pkt->piv, oscore_pkt->piv_len);
 
 			/* Copy received piv into oc_message_t->endpoint for requests */

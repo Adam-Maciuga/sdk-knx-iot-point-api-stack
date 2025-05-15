@@ -128,7 +128,10 @@ void oc_oscore_free_all_contexts(void);
 void oc_oscore_free_sender_contexts(void);
 
 /**
- * @brief Free contexts with a given auth_at index
+ * @brief Free OSCORE context information with a given auth_at index and removes
+ * the entry from the linked list of OSCORE context information entries.
+ *
+ * @note deletes all security context that are referring to the given at token
  *
  * @param auth_at_index the index
  */
@@ -156,18 +159,16 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @param token_id the token
  * @param token_id_size the length of the token_id
  * @param auth_at_index index in the auth at table -1.
- * @param from_storage initialize ssn from storage
+ * @param read_ssn_from_storage initialize ssn with an offset (details see code comments) from storage
  *
- * @return true parameters derived (installed, e.g. can be used for
- * encryption/decryption)
- * @return false parameters NOT derived (NOT installed)
+ * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t *oc_oscore_add_context(
   size_t device, const char *senderid, int senderid_size,
   const char *recipientid, int recipientid_size, uint64_t ssn, const char *desc,
   const char *mastersecret, int mastersecret_size, const char *salt,
   int salt_size, const char *token_id, int token_id_size, int auth_at_index,
-  bool from_storage);
+  bool read_ssn_from_storage);
 
 /**
  * @brief Free the least recently used recipient context
