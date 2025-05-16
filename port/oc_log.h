@@ -215,23 +215,15 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
-#define F_SIZE  15             // sizeof file name to be shown
-#define W_SIZE  30             // sizeof method window
-
-#define M_SIZE  28             // sizeof method name to be shown
-
-#define STR_(X) #X             // convert to string 
-#define STRS(X) STR_(X)        // expand before convert
-
 #define OC_LOG(level, ...)                                   \
   do {                                                       \
   int ticks = clock();                                       \
   PRINTF("\n"                                                \
          "%-6d: "                                            \
          "%-4s: "                                            \
-         "%-20s "                                            \
+         "%-20.18s"                                          \
          "%-5d: "                                            \
-         "%-"STRS(W_SIZE)"" "."STRS(M_SIZE)"s> ",            \
+         "%-30.28s> ",                                       \
          ticks,                                              \
          level,                                              \
          __FILENAME__,                                       \
