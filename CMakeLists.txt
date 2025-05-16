@@ -253,7 +253,8 @@ endif()
 
 add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
-# physical exe targets (assumes WIN32/UNIX is in place)
+if(UNIX OR WIN32)
+    add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
 ## EITT NON GUI demo (for certification)
 add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
@@ -441,11 +442,15 @@ if(OC_PUBLISHER_TABLE_ENABLED)
 endif()
 
 if(OC_LOG_TO_FILE_ENABLED)
-    target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+    if(UNIX OR WIN32)
+        target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+    endif()
 endif()
 
 if (OC_USE_STORAGE)
-    target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+    if(UNIX OR WIN32)
+        target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+    endif()
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
 endif()
 
