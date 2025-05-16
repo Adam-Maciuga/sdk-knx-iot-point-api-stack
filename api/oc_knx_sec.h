@@ -140,7 +140,7 @@ extern "C" {
 	} oc_auth_at_t;
 
 	/**
-	 * @brief returns the size (amount of total entries) of the auth/at table
+	 * @brief returns the amount of total entries of the auth/at table
 	 *
 	 * @note
 	 * - returned size depends on if AT table is present (>0) or not (=0)
@@ -151,26 +151,30 @@ extern "C" {
 	int oc_core_get_at_table_size(void);
 
 	/**
-	 * @brief set an entry in the auth/at table
-	 *
-	 * Note: does not write to persistent storage
-	 * @param device_index index of the device
-	 * @param index the index in the table, will overwrite if something is there
-	 * @param entry the auth/at entry
-	 * @param store the store the entry to persistent storage
-	 * @return int 0 == successful
-	 */
-	int oc_core_set_at_table(size_t device_index, int index, oc_auth_at_t entry, bool store);
+   * @brief returns the amount of used entries of the auth/at table
+   *
+   * @return the allocated amount of entries of the auth/at table
+   */
+	int oc_core_items_used_in_auth_at_table(void);
 
 	/**
-	* @brief Find an PASE entry
+	 * @brief puts the entry in
+	 * - the AT table (RAM)
+	 * - to the storage file system
+	 *
+	 * @param index the index in the table, will overwrite if something is there
+	 * @param entry the auth/at entry
+	 * @return int 0 == successful
+	 */
+	int oc_core_set_at_table(int index, oc_auth_at_t entry);
+
+	/**
+	* @brief Find an PASE entry and removes it from AT table and
+	*        from possible context references
 	*
-	* @param device_index The device index
 	*
-	* @return int -1 : no PASE entry found
-	* @return int >=0 : index of found PASE entry
 	*/
-	int oc_core_find_pase_entry(size_t device_index);
+	void oc_core_find_and_remove_pase_entry(void);
 
 	/**
 	 * @brief find empty slot
@@ -229,40 +233,32 @@ extern "C" {
 	oc_auth_at_t* oc_get_auth_at_entry(size_t device_index, int index);
 
 	/**
-	 * @brief print the auth/at entry (debugging)
+	 * @brief print the AT table entry (debugging)
 	 *
-	 * @param device_index the device index
 	 * @param index the index in the table to be printed
 	 */
-	void oc_print_auth_at_entry(size_t device_index, int index);
+	void oc_print_auth_at_entry(int index);
 
 	/**
 	 * @brief delete the /auth/at table
 	 * will be used in reset of the device
 	 *
-	 * @param device_index the device index
 	 */
-	void oc_delete_at_table(size_t device_index);
+	void oc_delete_at_table(void);
 
 	/**
-	 * @brief reset the /auth/at table
-	 * will be used in reset of the device
-	 *erase_code:
-	 * - 2 : reset all entries (using oc_delete_at_table())
-	 * - 7 : reset all entries without scope = "if.sec"
+	 * @brief reset the /auth/at table entries without scope = "if.sec"
 	 * @param device_index the device index
-	 * @param erase_code the erase code
 	 */
-	void oc_reset_at_table(size_t device_index, int erase_code);
+	void oc_delete_at_table_except_sec_scope_entries(size_t device_index);
 
 	/**
-	 * @brief delete the /auth/at table entry
+	 * @brief deletes the AT table entry (RAM) including the AT file entry 
 	 *
-	 * @param device_index the device index
 	 * @param index the index in the table
 	 * return 0 == success
 	 */
-	int oc_at_delete_entry(size_t device_index, int index);
+	int oc_at_delete_entry(int index);
 
 	/**
 	 * @brief Creation of the KNX security resources.
@@ -281,20 +277,13 @@ extern "C" {
 	void oc_create_knx_sec_resources(size_t device);
 
 	/**
-	 * @brief initialize OSCORE for the device
+	 * @brief initialize all OSCORE context from AT table content
 	 *
-	 * Note: does not read the context from storage
-	 * @param device_index The device index
-	 */
-	void oc_init_oscore(size_t device_index);
-
-	/**
-	 * @brief initialize OSCORE for the device
+	 * @note OSCORE context entries are an internal linked list
 	 *
-	 * @param device_index The device index
-	 * @param from_storage contents read from storage
+	 * @param read_ssn_from_storage if content is read from storage (yes/no), this affects how to handle the SSN
 	 */
-	void oc_init_oscore_from_storage(size_t device_index, bool from_storage);
+	void oc_init_oscore_from_storage(bool read_ssn_from_storage);
 
 	/**
 	 * @brief function to check if the at_interface is listed in the resource

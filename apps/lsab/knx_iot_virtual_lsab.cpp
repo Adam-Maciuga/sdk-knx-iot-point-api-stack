@@ -1,6 +1,7 @@
 /*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
+ Copyright (c) 2024-2025 KNX Association
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,62 +17,55 @@
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
-// 2023-07-31 10:49:06.406279
+
 
 // For compilers that support precompilation, includes "wx/wx.h".
-#include <wx/wxprec.h>
 #include <wx/cmdline.h>
+#include <wx/wxprec.h>
 #ifndef WX_PRECOMP
 #include <wx/wx.h>
 #endif
 
+// main is used from here
 #define NO_MAIN
-#include "knx_iot_virtual_eitt.h"
-#include "oc_knx_client.h"
+
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_sec.h"
 #include "api/oc_knx_fp.h"
+#include "api/oc_knx_sec.h"
+#include "apps/knx_iot_virtual.h"
+#include "oc_knx_client.h"
 #include "port/dns-sd.h"
 
-enum : uint16_t {
-  RESET = wxID_HIGHEST + 1,   // ID for reset button in the menu
-  RESET_TABLE = RESET + 1,    // ID for clear table button in the menu
-  IA_TEXT = RESET_TABLE + 1,  // ID for internal address text 
-  IID_TEXT = IA_TEXT + 1,     // ID for installation id text 
-  PM_TEXT = IID_TEXT + 1,     // ID for programming mode text 
-  LS_TEXT = PM_TEXT + 1,      // ID for load status text 
-  HOSTNAME_TEXT = LS_TEXT + 1, // ID for hostname text 
+enum : uint16_t
+{
+  RESET = wxID_HIGHEST + 1, // ID for reset button in the menu
+  RESET_TABLE = RESET + 1, // ID for clear table button in the menu
+  IA_TEXT = RESET_TABLE + 1, // ID for internal address text
+  IID_TEXT = IA_TEXT + 1, // ID for installation id text
+  PM_TEXT = IID_TEXT + 1, // ID for programming mode text
+  LS_TEXT = PM_TEXT + 1, // ID for load status text
+  HOSTNAME_TEXT = LS_TEXT + 1, // ID for hostname text
   GOT_TABLE_ID = HOSTNAME_TEXT + 1, // ID for the Group object window
   PUB_TABLE_ID = GOT_TABLE_ID + 1, // ID for the publisher table window
   REC_TABLE_ID = PUB_TABLE_ID + 1, // ID for the recipient table window
   PARAMETER_LIST_ID = REC_TABLE_ID + 1, // ID for the parameter window
   AT_TABLE_ID = PARAMETER_LIST_ID + 1, // ID for the auth/at window
-  CHECK_GA_DISPLAY = AT_TABLE_ID + 1 , // ga display check
+  CHECK_GA_DISPLAY = AT_TABLE_ID + 1, // ga display check
   CHECK_IID_DISPLAY = CHECK_GA_DISPLAY + 1, // iid display check
   CHECK_GRPID_DISPLAY = CHECK_IID_DISPLAY + 1, // grpid display check
-  CHECK_SLEEPY = CHECK_GRPID_DISPLAY + 1 , // sleepy check
-  CHECK_PM = CHECK_SLEEPY + 1 , // programming mode check in menu bar
-  DP_FAULT_ID_ONOFF_1 = CHECK_PM + 100 + 1, // OnOff_1 for /p/1 
-  DP_FAULT_ID_ONOFF_2 = CHECK_PM + 100 + 3, // OnOff_2 for /p/3 
-  DP_FAULT_ID_ONOFF_3 = CHECK_PM + 100 + 5, // OnOff_3 for /p/5 
-  DP_FAULT_ID_ONOFF_4 = CHECK_PM + 100 + 7, // OnOff_4 for /p/7 
-  DP_ID_ONOFF_1 = CHECK_PM + 1, // OnOff_1 for /p/1
-  DP_ID_INFOONOFF_1 = CHECK_PM + 2, // InfoOnOff_1 for /p/2
-  DP_ID_ONOFF_2 = CHECK_PM + 3, // OnOff_2 for /p/3
-  DP_ID_INFOONOFF_2 = CHECK_PM + 4, // InfoOnOff_2 for /p/4
-  DP_ID_ONOFF_3 = CHECK_PM + 5, // OnOff_3 for /p/5
-  DP_ID_INFOONOFF_3 = CHECK_PM + 6, // InfoOnOff_3 for /p/6
-  DP_ID_ONOFF_4 = CHECK_PM + 7, // OnOff_4 for /p/7
-  DP_ID_INFOONOFF_4 = CHECK_PM + 8 // InfoOnOff_4 for /p/8
-} ;
+  CHECK_SLEEPY = CHECK_GRPID_DISPLAY + 1, // sleepy check
+  CHECK_PM = CHECK_SLEEPY + 1, // programming mode check in menu bar
+
+  LSAB_0_SOO = CHECK_PM + 1, 
+  LSAB_0_IOO = CHECK_PM + 2,
+  LSAB_1_SOO = CHECK_PM + 3,
+  LSAB_1_IOO = CHECK_PM + 4
+};
 
 extern channel_t lsxb[NUM_CHANNELS];
 
-static const wxCmdLineEntryDesc g_cmdLineDesc[] =
-{
-  { wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING },
-  { wxCMD_LINE_NONE }
-};
+static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
+  {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
 
 wxCmdLineParser* g_cmd;
 
@@ -84,13 +78,10 @@ private:
   void on_close(wxCommandEvent& event);
 };
 
-void CustomDialog::on_close(wxCommandEvent& event)
-{
-  this->Destroy();
-}
+void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text)
-  : wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
+CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
+    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
 {
   int size_x = 520;
   int size_y = 300;
@@ -100,11 +91,9 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text)
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
   wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
 
-  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10),
-    wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
-  wxButton* closeButton = new wxButton(this, -1, wxT("Close"),
-    wxDefaultPosition, wxDefaultSize);
+  wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
@@ -126,7 +115,8 @@ public:
 class MyFrame : public wxFrame
 {
 public:
-  MyFrame(char* serial_number);
+  MyFrame(const char* serial_number);
+
 private:
   void OnGroupObjectTable(wxCommandEvent& event);
   void OnPublisherTable(wxCommandEvent& event);
@@ -140,17 +130,14 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_InfoOnOff_1(wxCommandEvent& event); 
-  void OnPressed_InfoOnOff_2(wxCommandEvent& event); 
-  void OnPressed_InfoOnOff_3(wxCommandEvent& event); 
-  void OnPressed_InfoOnOff_4(wxCommandEvent& event); 
+  void OnPressed_LSAB0_IOO(wxCommandEvent& event);
+  void OnPressed_LSAB1_IOO(wxCommandEvent& event);
 
-  void updateInfoCheckBoxes();
-  void updateInfoButtons();
-  void updateTextButtons();
-  void bool2text(bool on_off, char* text);
+  void updateCheckBoxesFromLiveSOOData();
+  void updateDeviceData();
+  void add_bool_to_text(bool on_off, char* text);
   void int2text(int value, char* text);
-  void int2gatext(uint32_t value, char* text, bool as_ets=false);
+  void int2gatext(uint32_t value, char* text, bool as_ets = false);
   void int2grpidtext(uint64_t value, char* text, bool as_ets);
   void int2scopetext(uint32_t value, char* text);
   void double2text(double value, char* text);
@@ -159,37 +146,21 @@ private:
   wxMenu* m_menuDisplay;
   wxMenu* m_menuOptions;
   wxTimer m_timer;
-  
+
   // sleepy information
   int m_sleep_counter = 0;
-  int m_sleep_seconds = 20;
+  int m_sleep_milliseconds = 20000;
 
-  wxTextCtrl* m_ia_text;  // text control for internal address
+  // non static device properties
+  wxTextCtrl* m_ia_text; // text control for internal address
   wxTextCtrl* m_iid_text; // text control for installation id
-  wxTextCtrl* m_pm_text;  // text control for programming mode
-  wxTextCtrl* m_ls_text;  // text control for load state
-  wxTextCtrl* m_hostname_text; // text control for host name
-  wxTextCtrl* m_secured_text; // text secure/not secure
-  //DP_ID_ONOFF_1 bool
-  wxCheckBox* m_ONOFF_1 ; // OnOff_1 if.a  
-  //DP_ID_INFOONOFF_1 bool
-  wxButton* m_INFOONOFF_1; // InfoOnOff_1 if.s  
-  //DP_ID_ONOFF_2 bool
-  wxCheckBox* m_ONOFF_2 ; // OnOff_2 if.a  
-  //DP_ID_INFOONOFF_2 bool
-  wxButton* m_INFOONOFF_2; // InfoOnOff_2 if.s  
-  //DP_ID_ONOFF_3 bool
-  wxCheckBox* m_ONOFF_3 ; // OnOff_3 if.a  
-  //DP_ID_INFOONOFF_3 bool
-  wxButton* m_INFOONOFF_3; // InfoOnOff_3 if.s  
-  //DP_ID_ONOFF_4 bool
-  wxCheckBox* m_ONOFF_4 ; // OnOff_4 if.a  
-  //DP_ID_INFOONOFF_4 bool
-  wxButton* m_INFOONOFF_4; // InfoOnOff_4 if.s  
-  wxCheckBox* m_fault_ONOFF_1 ; // OnOff_1 if.a 
-  wxCheckBox* m_fault_ONOFF_2 ; // OnOff_2 if.a 
-  wxCheckBox* m_fault_ONOFF_3 ; // OnOff_3 if.a 
-  wxCheckBox* m_fault_ONOFF_4 ; // OnOff_4 if.a 
+  wxTextCtrl* m_pm_text; // text control for programming mode
+  wxTextCtrl* m_ls_text; // text control for load state
+  wxTextCtrl* m_hn_text; // text control for host name
+
+  // channel 0
+  wxCheckBox *m_LSAB_0_SOO, *m_LSAB_1_SOO;
+  wxButton *m_LSAB_0_IOO, *m_LSAB_1_IOO;
 
 };
 
@@ -197,9 +168,9 @@ wxIMPLEMENT_APP(MyApp);
 
 /**
  * @brief initialization of the application
- * 
- * @return true 
- * @return false 
+ *
+ * @return true
+ * @return false
  */
 bool MyApp::OnInit()
 {
@@ -211,10 +182,11 @@ bool MyApp::OnInit()
   g_cmd->Parse(true);
 
   wxString serial_number;
-  if (g_cmd->Found("s", &serial_number)) {
+  if (g_cmd->Found("s", &serial_number))
+  {
   }
 
-  MyFrame* frame = new MyFrame((char*)(serial_number.c_str()).AsChar());
+  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
 
   frame->Fit();
   frame->Show(true);
@@ -223,11 +195,10 @@ bool MyApp::OnInit()
 
 /**
  * @brief Construct a new My Frame:: My Frame object
- * 
- * @param str_serial_number 
+ *
+ * @param serial_number
  */
-MyFrame::MyFrame(char* str_serial_number)
-    : wxFrame(NULL, wxID_ANY, "KNX virtual Switching Actuator")
+MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
 {
   m_menuFile = new wxMenu;
   m_menuFile->Append(GOT_TABLE_ID, "List Group Object Table", "List the Group object table", false);
@@ -240,31 +211,35 @@ MyFrame::MyFrame(char* str_serial_number)
   m_menuFile->Append(RESET, "Reset (2)(ex-factory)", "Reset 2 (Reset to default state)", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
+
   // display menu
-   // display menu
   m_menuDisplay = new wxMenu;
-  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays the group addresses as GA 3-Level or as integer", true);
+  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays as GA 3-Level or as integer",true);
   m_menuDisplay->Check(CHECK_GA_DISPLAY, true);
   m_menuDisplay->Append(CHECK_GRPID_DISPLAY, "GRPID as partial ipv6 address (ETS)", "Displays the grpid as integer", true);
   m_menuDisplay->Check(CHECK_GRPID_DISPLAY, true);
   m_menuDisplay->Append(CHECK_IID_DISPLAY, "IID as partial ipv6 address (ETS)", "Displays the iid as integer", true);
   m_menuDisplay->Check(CHECK_IID_DISPLAY, true);
-  // Option menu
+
+  // option menu
   m_menuOptions = new wxMenu;
   m_menuOptions->Append(CHECK_SLEEPY, "Act as Sleepy Device", "Sleeps for 20 seconds", true);
   m_menuOptions->Check(CHECK_SLEEPY, false);
+
   // help menu
-  wxMenu *menuHelp = new wxMenu;
+  wxMenu* menuHelp = new wxMenu;
   menuHelp->Append(wxID_ABOUT);
+
   // full menu bar
-  wxMenuBar *menuBar = new wxMenuBar;
+  wxMenuBar* menuBar = new wxMenuBar;
   menuBar->Append(m_menuFile, "&File");
   menuBar->Append(m_menuDisplay, "&Display");
   menuBar->Append(m_menuOptions, "&Options");
   menuBar->Append(menuHelp, "&Help");
-  SetMenuBar( menuBar );
-  CreateStatusBar();
-  SetStatusText("Welcome to KNX virtual Switching Actuator!");
+  wxFrameBase::SetMenuBar(menuBar);
+  wxFrameBase::CreateStatusBar();
+  wxFrameBase::SetStatusText("Welcome to KNX virtual switch actuator!");
+
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
   Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
@@ -277,162 +252,175 @@ MyFrame::MyFrame(char* str_serial_number)
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
-  int x_width = 230; /* width of the widgets */
-  int x_height = 25; /* height of the widgets */
-  int max_instances = 4;
-  int max_dp_count = 2;
-  int index;
+
+  int x_width = 100; // width of the widgets
+  int x_height = 25; // height of the widgets
+  int max_instances = 4; // number of channels before the rest is shown
   int row;
   int column;
-  int column_offset = 0;
-  index = 1-1;
-  row = 1 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_ONOFF_1 
-  m_ONOFF_1 = new wxCheckBox(this, DP_ID_ONOFF_1, _T("OnOff_1 ('/p/1')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_ONOFF_1->Enable(false);          
-  index = 2-1;
-  row = 1 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_INFOONOFF_1
-  // if.s  ==> sensor == possible to change value in UI
-  m_INFOONOFF_1 = new wxButton(this, DP_ID_INFOONOFF_1, _T("InfoOnOff_1 ('/p/2')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_INFOONOFF_1->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_InfoOnOff_1, this);
-  m_INFOONOFF_1->Enable(false);            
-  index = 3-1;
-  row = 2 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_ONOFF_2 
-  m_ONOFF_2 = new wxCheckBox(this, DP_ID_ONOFF_2, _T("OnOff_2 ('/p/3')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_ONOFF_2->Enable(false);          
-  index = 4-1;
-  row = 2 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_INFOONOFF_2
-  // if.s  ==> sensor == possible to change value in UI
-  m_INFOONOFF_2 = new wxButton(this, DP_ID_INFOONOFF_2, _T("InfoOnOff_2 ('/p/4')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_INFOONOFF_2->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_InfoOnOff_2, this);
-  m_INFOONOFF_2->Enable(false);            
-  index = 5-1;
-  row = 3 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_ONOFF_3 
-  m_ONOFF_3 = new wxCheckBox(this, DP_ID_ONOFF_3, _T("OnOff_3 ('/p/p1')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); // was p/5
-  m_ONOFF_3->Enable(false);          
-  index = 6-1;
-  row = 3 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_INFOONOFF_3
-  // if.s  ==> sensor == possible to change value in UI
-  m_INFOONOFF_3 = new wxButton(this, DP_ID_INFOONOFF_3, _T("InfoOnOff_3 ('/p/6')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_INFOONOFF_3->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_InfoOnOff_3, this);
-  m_INFOONOFF_3->Enable(false);            
-  index = 7-1;
-  row = 4 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_ONOFF_4 
-  m_ONOFF_4 = new wxCheckBox(this, DP_ID_ONOFF_4, _T("OnOff_4 ('/p/7')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_ONOFF_4->Enable(false);          
-  index = 8-1;
-  row = 4 -1;
-  column = (index % max_dp_count) - column_offset;
-  //DP_ID_INFOONOFF_4
-  // if.s  ==> sensor == possible to change value in UI
-  m_INFOONOFF_4 = new wxButton(this, DP_ID_INFOONOFF_4, _T("InfoOnOff_4 ('/p/8')"), wxPoint(10 + column*x_width, 10 + (x_height*row)), wxSize(x_width, x_height), 0); 
-  m_INFOONOFF_4->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_InfoOnOff_4, this);
-  m_INFOONOFF_4->Enable(false);
 
-  
-  if (strlen(str_serial_number) > 1) {
-    app_set_serial_number(str_serial_number);
+  // channel 0 - actuator
+  {
+    
+    row = 0;
+    column = 0;
+
+    wxStaticText* ch0a =
+      new wxStaticText(this, wxID_ANY, "Ch 0 | Actuator", 
+                       wxPoint(10 + column * x_width, 10 + x_height * row),
+                       wxSize(x_width, x_height), wxALIGN_LEFT);
+
+
+    // status
+    m_LSAB_0_SOO = new wxCheckBox(this, LSAB_0_SOO, _T("Undefined"), 
+                                  wxPoint(120 + column * x_width, 10 + x_height * row),
+                                  wxSize(x_width, x_height), wxCHK_3STATE);
+    m_LSAB_0_SOO->Set3StateValue(wxCHK_UNDETERMINED);
+    m_LSAB_0_SOO->Enable(false);
+
+
+    row = 0;
+    column = 1;
+
+    // control
+    m_LSAB_0_IOO = new wxButton(this, LSAB_0_IOO, _T("IOO, press me ..."),
+                                wxPoint(140 + column * x_width, 10 + x_height * row), 
+                                wxSize(x_width, x_height), 0);
+
+    m_LSAB_0_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB0_IOO, this);
+    m_LSAB_0_IOO->Enable(true);
   }
+
+  // channel 1 - actuator
+  {
+
+    row = 1;
+    column = 0;
+
+    wxStaticText* ch1a =
+      new wxStaticText(this, wxID_ANY, "Ch 1 | Actuator", wxPoint(10 + column * x_width, 10 + x_height * row),
+                       wxSize(x_width, x_height), wxALIGN_LEFT);
+
+
+    // status
+    m_LSAB_1_SOO = new wxCheckBox(this, LSAB_1_SOO, _T("Undefined"), wxPoint(120 + column * x_width, 10 + x_height * row),
+                                  wxSize(x_width, x_height), wxCHK_3STATE);
+    m_LSAB_1_SOO->Set3StateValue(wxCHK_UNDETERMINED);
+    m_LSAB_1_SOO->Enable(false);
+
+
+    row = 1;
+    column = 1;
+
+    // control
+    m_LSAB_1_IOO = new wxButton(this, LSAB_1_IOO, _T("IOO, press me ..."),
+                                wxPoint(140 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
+
+    m_LSAB_1_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB1_IOO, this);
+    m_LSAB_1_IOO->Enable(true);
+  }
+
+  // serial number
+  if (strlen(serial_number) > 1)
+  {
+    // sn was set by command line 
+    app_set_serial_number(serial_number);
+  }
+
+  // call in c-code 
   app_initialize_stack();
 
-  int width_size = 180; /* size of the knx info widgets */
-  // serial number
-  char text[500];
-  strcpy(text, "Device Serial Number: -sn ");
+  constexpr int width_size = 180; // size of the knx info widgets
+  char text[500]; 
+
+  // serial number 
+  strcpy(text, "Serial Number : ");
   oc_device_info_t* device = oc_core_get_device_info(0);
   strcat(text, oc_string(device->serialnumber));
-  wxTextCtrl* Statictext;
-  Statictext = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 1) * x_height)), wxSize(width_size*2, x_height), 0);
-  Statictext->SetEditable(false);
-  
+
+  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, 
+                                          wxPoint(10, 10 + ((max_instances + 1) * x_height)),
+                                          wxSize(width_size * 2, x_height), 0);
+  static_text0->SetEditable(false);
+
   /* QR code
-    KNX:S:serno;P:password
+    KNX:S:serial number;P:password
     where:
     KNX: is a fixed prefix
-    S: means a KNX serial number follows, serno itself is encodced as 
+    S: means a KNX serial number follows, sn itself is encoded as
        12 upper-case hexadecimal characters
-    P: means a password follows, password itself is just 
-       the KNX IoT Point API password; 
-       this works as the allowed password characters do not interfere 
-       with the separator characters colon and semicolon and are in the Alphanumeric range.
+    P: means a password follows, password itself is just
+       the KNX IoT Point API password;
+       this works as the allowed password characters do not interfere
+       with the separator characters colon and semicolon and are in the alphanumeric range.
   */
-  char qrtext[500];
-  strcpy(qrtext, "QR info:   KNX:S:");
-  strcat(qrtext, oc_string(device->serialnumber));
-  strcat(qrtext, ";P:");
-  strcat(qrtext, app_get_password());
-  app_str_to_upper(qrtext);
-  wxTextCtrl* Statictext2;
-  Statictext2 = new wxTextCtrl(this, wxID_ANY, qrtext, wxPoint(10, 10 + ((max_instances + 2) * x_height)), wxSize(width_size*2, x_height), 0);
-  Statictext2->SetEditable(false);
+  strcpy(text, "QR Info:   KNX:S:");
+  strcat(text, oc_string(device->serialnumber));
+  strcat(text, ";P:");
+  strcat(text, app_get_password());
+  app_str_to_upper(text);
 
-  // internal address
-  sprintf(text, "IA: %d", device->ia);
-  m_ia_text = new wxTextCtrl(this, IA_TEXT, text, wxPoint(10, 10 + ((max_instances + 3) * x_height)), wxSize(width_size, x_height), 0);
+  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, 
+                                            wxPoint(10, 10 + ((max_instances + 2) * x_height)),
+                                            wxSize(width_size * 2, x_height), 0);
+  static_text1->SetEditable(false);
+
+  // individual address, displayed data set/refreshed later
+  m_ia_text = new wxTextCtrl(this, IA_TEXT, "",
+                             wxPoint(10, 10 + ((max_instances + 3) * x_height)), 
+                             wxSize(width_size, x_height), 0);
   m_ia_text->SetEditable(false);
-  // installation id
-  sprintf(text, "IID: %lld", device->iid);
-  m_iid_text = new wxTextCtrl(this, IID_TEXT, text, wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)), wxSize(width_size, x_height), 0);
+
+  // installation id, displayed data set/refreshed later
+  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", 
+                              wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
+                              wxSize(width_size, x_height), 0);
   m_iid_text->SetEditable(false);
-  // programming mode
-  sprintf(text, "Programming Mode: %d", device->pm);
-  m_pm_text = new wxTextCtrl(this, PM_TEXT, text, wxPoint(10, 10 + ((max_instances + 4) * x_height)), wxSize(width_size, x_height), 0);
+
+  // programming mode, displayed data set/refreshed later
+  m_pm_text = new wxTextCtrl(this, PM_TEXT, "",
+                             wxPoint(10, 10 + ((max_instances + 4) * x_height)), 
+                             wxSize(width_size, x_height), 0);
   m_pm_text->SetEditable(false);
-  // installation id
-  sprintf(text, "LoadState: %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_ls_text = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)), wxSize(width_size, 25), 0);
+
+  // installation id, displayed data set/refreshed later
+  m_ls_text = new wxTextCtrl(this, LS_TEXT, "", 
+                             wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)),
+                             wxSize(width_size, 25), 0);
   m_ls_text->SetEditable(false);
-  // host name
-  sprintf(text, "host name: %s", oc_string(device->hostname));
-  m_hostname_text = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10, 10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), 0);
-  m_hostname_text->SetEditable(false);
-  if (app_is_secure()) {
-    strcpy(text, app_get_password());
-    //strcpy(text, "secured");
-  }
-  else {
-    strcpy(text, "unsecured");
-  }
-  m_secured_text = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size,  10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), wxTE_RICH);
-  m_secured_text->SetEditable(false);
-  if (!app_is_secure()) {
-    m_secured_text->SetStyle(0, 100, (wxTextAttr(*wxRED)));
-  }
-  // update the UI
-  this->updateInfoCheckBoxes();
-  this->updateTextButtons();
-  this->updateInfoCheckBoxes();
-  // start the timer for UI updates and stack polls
+
+  // hostname, displayed data set/refreshed later
+  m_hn_text = new wxTextCtrl(this, LS_TEXT, "",
+                                   wxPoint(10, 10 + ((max_instances + 5) * 25)), 
+                                   wxSize(width_size, 25), 0);
+  m_hn_text->SetEditable(false);
+
+  // SPAKE 2+ pwd
+  strcpy(text, app_get_password());
+  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, 
+                                  wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
+                                  wxSize(width_size, 25), wxTE_RICH);
+  static_text2->SetEditable(false);
+
+    // update the UI
+  this->updateDeviceData();
+  this->updateCheckBoxesFromLiveSOOData();
+
+  // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
-  m_timer.Start(1, wxTIMER_CONTINUOUS);  // 1 millisecond interval
+  m_timer.Start(1, wxTIMER_CONTINUOUS);
 }
 
 /**
  * @brief exit the application
- * 
+ *
  * @param event command triggered by the framework
  */
-void MyFrame::OnExit(wxCommandEvent& event)
-{
-  Close(true);
-}
+void MyFrame::OnExit(wxCommandEvent& event) { Close(true); }
 
 /**
  * @brief checks/unchecks the programming mode
- * 
+ *
  * @param event command triggered by the menu button
  */
 void MyFrame::OnProgrammingMode(wxCommandEvent& event)
@@ -445,7 +433,7 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   device->pm = my_val;
 
   // update the UI
-  this->updateTextButtons();
+  this->updateDeviceData();
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
@@ -453,20 +441,23 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 
 /**
  * @brief checks/unchecks the sleepy mode
- * 
+ *
  * @param event command triggered by the menu button
  */
 void MyFrame::OnSleepyMode(wxCommandEvent& event)
 {
- int device_index = 0;
+  int device_index = 0;
   SetStatusText("Changing sleepy mode");
 
   bool my_sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
   oc_device_info_t* device = oc_core_get_device_info(0);
-  
-  if (my_sleepy) {
+
+  if (my_sleepy)
+  {
     knx_service_sleep_period(20);
-  } else {
+  }
+  else
+  {
     knx_service_sleep_period(0);
   }
   // update mdns
@@ -481,41 +472,42 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
  * - IID
  * - Hostname
  */
-void MyFrame::updateTextButtons()
+void MyFrame::updateDeviceData()
 {
 
   char text[500];
-  size_t device_index = 0;
+  
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  // update the text labels
-  // ia_0 == AAxxxxxx = AA
-  // ia_1 == xxAAxxxx = AA
-  // ia_2 == xxxxAAAA = AAAA
-  uint16_t ia = device->ia;
-  uint16_t ia_o = ia >> 12;
-  uint16_t ia_1 = ia >> 8 & 0xF;
-  uint16_t ia_2 = ia & 0x00FF;
-  sprintf(text, "IA: %d.%d.%d   [%d]", ia_o, ia_1, ia_2, device->ia);
+  oc_device_info_t* device = oc_core_get_device_info(0);
+  
+  const uint16_t ia_a = device->ia >> 12; // area
+  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
+  const uint16_t ia_d = device->ia & 0x00FF; // device
+  (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
   m_ia_text->SetLabelText(text);
-  sprintf(text, "LoadState: %s", oc_core_get_lsm_state_as_string(device->lsm_s));
+
+  (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
   m_pm_text->SetLabelText(text);
-  sprintf(text, "Programming Mode : % d", device->pm);
+
+  (void)sprintf(text, "Programming Mode : %d", device->pm);
   m_ls_text->SetLabelText(text);
-  strcpy(text, "IID: ");
+
+  strcpy(text, "IID : ");
   this->int2grpidtext(device->iid, text, iid_conversion);
   m_iid_text->SetLabelText(text);
-  sprintf(text, "host name: %s", oc_string(device->hostname));
-  m_hostname_text->SetLabelText(text);
-  // reset the programming mode to what the device has
+
+  (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
+  m_hn_text->SetLabelText(text);
+
+  // set in menu the programming mode to what the device has
   m_menuFile->Check(CHECK_PM, device->pm);
 }
 
 /**
  * @brief clear the tables of the device
- * 
+ *
  * @param event command triggered by button in the menu
  */
 void MyFrame::OnClearTables(wxCommandEvent& event)
@@ -525,12 +517,12 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
   // reset the device
   oc_knx_device_storage_reset(device_index, 7);
   // update the UI
-  this->updateTextButtons();
+  this->updateDeviceData();
 }
 
 /**
  * @brief reset the device
- * 
+ *
  * @param event command triggered by button in the menu
  */
 void MyFrame::OnReset(wxCommandEvent& event)
@@ -540,12 +532,12 @@ void MyFrame::OnReset(wxCommandEvent& event)
   // reset the device
   oc_knx_device_storage_reset(device_index, 2);
   // update the UI
-  this->updateTextButtons();
+  this->updateDeviceData();
 }
 
 /**
  * @brief shows the group object table in a window
- * 
+ *
  * @param event command triggered by a menu button
  */
 void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
@@ -558,14 +550,17 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
 
   strcpy(text, "");
   oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL) {
+  if (device == NULL)
+  {
     return;
   }
   int total = oc_core_get_group_object_table_total_size();
-  for (int index = 0; index < total; index++) {
+  for (int index = 0; index < total; index++)
+  {
     oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(index);
 
-    if (entry && entry->ga_len > 0) {
+    if (entry && entry->ga_len > 0)
+    {
       sprintf(line, "Index %d ", index);
       strcat(text, line);
       sprintf(line, "  id: '%d'  ", entry->id);
@@ -575,13 +570,16 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
       sprintf(line, "  cflags : '%d' ", (int)entry->cflags);
       oc_cflags_as_string(line, entry->cflags);
       strcat(text, line);
-      strcpy(line,"  ga : [");
-      for (int i = 0; i < entry->ga_len; i++) {
+      strcpy(line, "  ga : [");
+      for (int i = 0; i < entry->ga_len; i++)
+      {
         this->int2gatext(entry->ga[i], line, ga_conversion);
       }
-      strcat(line," ]");
+      strcat(line, " ]");
       strcat(text, line);
+      strcat(text, "\n"); // break to next entry 
     }
+    
   }
   strcpy(windowtext, "Group Object Table  ");
   strcat(windowtext, oc_string(device->serialnumber));
@@ -591,7 +589,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
 
 /**
  * @brief shows the Publisher table in a window
- * 
+ *
  * @param event command triggered by a menu button
  */
 void MyFrame::OnPublisherTable(wxCommandEvent& event)
@@ -606,54 +604,66 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
 
   strcpy(text, "");
   oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL) {
+  if (device == NULL)
+  {
     return;
   }
-  
-  int total =  oc_core_get_publisher_table_size();
-  for (int index = 0; index < total; index++) {
+
+  int total = oc_core_get_publisher_table_size();
+  for (int index = 0; index < total; index++)
+  {
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(index);
 
-    if (entry && entry->id >= 0) {
+    if (entry && entry->id >= 0)
+    {
       sprintf(line, "Index %d ", index);
       strcat(text, line);
       sprintf(line, "  id: '%d'  ", entry->id);
       strcat(text, line);
-       if ( entry->ia >= 0) {
+      if (entry->ia >= 0)
+      {
         sprintf(line, "  ia: '%d' ", entry->ia);
         strcat(text, line);
       }
-      if ( entry->iid >= 0) {
+      if (entry->iid >= 0)
+      {
         strcpy(line, "  iid: ");
         this->int2grpidtext(entry->iid, line, iid_conversion);
         strcat(text, line);
       }
-      if ( entry->fid >= 0) {
+      if (entry->fid >= 0)
+      {
         sprintf(line, "  fid: '%lld' ", entry->fid);
         strcat(text, line);
       }
-      if ( entry->grpid > 0) {
-        //sprintf(line, "  grpid: '%u' ", entry->grpid);
+      if (entry->grpid > 0)
+      {
+        // sprintf(line, "  grpid: '%u' ", entry->grpid);
         strcpy(line, "  grpid: ");
         this->int2grpidtext(entry->grpid, line, grpid_conversion);
         strcat(text, line);
       }
-      if (oc_string_len(entry->url) > 0) {
+      if (oc_string_len(entry->url) > 0)
+      {
         sprintf(line, "  url: '%s' ", oc_string(entry->url));
         strcat(text, line);
       }
-      if (oc_string_len(entry->at) > 0){
+      if (oc_string_len(entry->at) > 0)
+      {
         sprintf(line, "  at: '%s' ", oc_string(entry->at));
         strcat(text, line);
       }
-      if ( entry->ga_len > 0) {
-        strcpy(line,"  ga : [");
-        for (int i = 0; i < entry->ga_len; i++) {
+      if (entry->ga_len > 0)
+      {
+        strcpy(line, "  ga : [");
+        for (int i = 0; i < entry->ga_len; i++)
+        {
           this->int2gatext(entry->ga[i], line, ga_conversion);
         }
-        strcat(line," ]");
+        strcat(line, " ]");
         strcat(text, line);
       }
+      strcat(text, "\n"); // break to next entry 
     }
   }
   strcpy(windowtext, "Publisher Table  ");
@@ -664,7 +674,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
 
 /**
  * @brief shows the Recipient table in a window
- * 
+ *
  * @param event command triggered by a menu button
  */
 void MyFrame::OnRecipientTable(wxCommandEvent& event)
@@ -679,53 +689,65 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
 
   strcpy(text, "");
   oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL) {
+  if (device == NULL)
+  {
     return;
   }
 
-  int total =  oc_core_get_recipient_table_size();
-  for (int index = 0; index < total; index++) {
+  int total = oc_core_get_recipient_table_size();
+  for (int index = 0; index < total; index++)
+  {
     oc_group_table_t* entry = oc_core_get_recipient_table_entry(index);
 
-    if (entry && entry->id >= 0) {
+    if (entry && entry->id >= 0)
+    {
       sprintf(line, "Index %d ", index);
       strcat(text, line);
       sprintf(line, "  id: '%d'  ", entry->id);
       strcat(text, line);
-      if ( entry->ia >= 0) {
+      if (entry->ia >= 0)
+      {
         sprintf(line, "  ia: '%d' ", entry->ia);
         strcat(text, line);
       }
-      if ( entry->iid >= 0) {
+      if (entry->iid >= 0)
+      {
         strcpy(line, "  iid: ");
         this->int2grpidtext(entry->iid, line, iid_conversion);
         strcat(text, line);
       }
-      if ( entry->fid >= 0) {
+      if (entry->fid >= 0)
+      {
         sprintf(line, "  fid: '%lld' ", entry->fid);
         strcat(text, line);
       }
-      if ( entry->grpid >= 0) {
+      if (entry->grpid >= 0)
+      {
         strcpy(line, "  grpid: ");
         this->int2grpidtext(entry->grpid, line, grpid_conversion);
         strcat(text, line);
       }
-      if (oc_string_len(entry->url) > 0) {
+      if (oc_string_len(entry->url) > 0)
+      {
         sprintf(line, "  url: '%s' ", oc_string(entry->url));
         strcat(text, line);
       }
-      if (oc_string_len(entry->at) > 0){
+      if (oc_string_len(entry->at) > 0)
+      {
         sprintf(line, "  at: '%s' ", oc_string(entry->at));
         strcat(text, line);
       }
-      if ( entry->ga_len > 0) {
-        strcpy(line,"  ga : [");
-        for (int i = 0; i < entry->ga_len; i++) {
+      if (entry->ga_len > 0)
+      {
+        strcpy(line, "  ga : [");
+        for (int i = 0; i < entry->ga_len; i++)
+        {
           this->int2gatext(entry->ga[i], line, ga_conversion);
         }
-        strcat(line," ]");
+        strcat(line, " ]");
         strcat(text, line);
       }
+      strcat(text, "\n"); // break to next entry 
     }
   }
   strcpy(windowtext, "Recipient Table  ");
@@ -735,58 +757,62 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
 }
 /**
  * @brief shows a window containing the parameters and current values of the application
- * 
+ *
  * @param event command triggered by a menu button
  */
 void MyFrame::OnParameterList(wxCommandEvent& event)
 {
   int device_index = 0;
-  char text[1024 + (200*0)];
+  char text[1024 + (200 * 0)];
   char line[200];
   char windowtext[200];
 
   strcpy(text, "");
 
   oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL) {
+  if (device == NULL)
+  {
     return;
   }
 
   int index = 1;
   char* url = app_get_parameter_url(index);
-  if (url == NULL) {
+  if (url == NULL)
+  {
     strcat(text, "no parameters in this device");
   }
-  while (url) {
+  while (url)
+  {
     sprintf(line, "\nIndex %02d ", index);
     strcat(text, line);
     sprintf(line, "  url : '%s'  ", url);
     strcat(text, line);
     char* name = app_get_parameter_name(index);
-    if (name) {
+    if (name)
+    {
       sprintf(line, "  name: '%s'  ", app_get_parameter_name(index));
       strcat(text, line);
     }
-    
-    
-    //if (app_is_string_url(url)) {
-    //  sprintf(line, "  value : '%s'  ", app_retrieve_string_variable(url));
-    //  strcat(text, line);
-    //}
+
+
+    // if (app_is_string_url(url)) {
+    //   sprintf(line, "  value : '%s'  ", app_retrieve_string_variable(url));
+    //   strcat(text, line);
+    // }
     index++;
     url = app_get_parameter_url(index);
   }
   strcpy(windowtext, "Parameter List ");
   strcat(windowtext, oc_string(device->serialnumber));
-  //wxMessageBox(text, windowtext,
-  //  wxOK | wxICON_NONE);
+  // wxMessageBox(text, windowtext,
+  //   wxOK | wxICON_NONE);
   CustomDialog(windowtext, text);
   SetStatusText("List Parameters and their current set values");
 }
 
 /**
  * @brief shows the (loaded) auth/at table
- * 
+ *
  * @param event command triggered by a menu button
  */
 void MyFrame::OnAuthTable(wxCommandEvent& event)
@@ -800,76 +826,89 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
   int index = 1;
 
   oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL) {
+  if (device == NULL)
+  {
     return;
   }
 
   strcpy(text, "");
-  for (index = 0; index < max_entries; index++) {
+  for (index = 0; index < max_entries; index++)
+  {
 
     oc_auth_at_t* my_entry = oc_get_auth_at_entry(device_index, index);
-    if (my_entry != NULL) {
-      if (oc_string_len(my_entry->id)) {
+    if (my_entry != NULL)
+    {
+      if (oc_string_len(my_entry->id))
+      {
         sprintf(line, "index : '%d' id = '%s' ", index, oc_string(my_entry->id));
         strcat(text, line);
-        sprintf(line, "  profile : %d (%s)", my_entry->profile,
-          oc_at_profile_to_string(my_entry->profile));
+        sprintf(line, "  profile : %d (%s)", my_entry->profile, oc_at_profile_to_string(my_entry->profile));
         strcat(text, line);
-        if (my_entry->profile == OC_PROFILE_COAP_DTLS) {
-          if (oc_string_len(my_entry->sub) > 0) {
+        if (my_entry->profile == OC_PROFILE_COAP_DTLS)
+        {
+          if (oc_string_len(my_entry->sub) > 0)
+          {
             sprintf(line, "    sub           : %s", oc_string(my_entry->sub));
             strcat(text, line);
           }
-          if (oc_string_len(my_entry->kid) > 0) {
+          if (oc_string_len(my_entry->kid) > 0)
+          {
             sprintf(line, "  kid : %s", oc_string(my_entry->kid));
             strcat(text, line);
           }
         }
-        if (my_entry->profile == OC_PROFILE_COAP_OSCORE) {
-          if (oc_byte_string_len(my_entry->osc_id) > 0) {
+        if (my_entry->profile == OC_PROFILE_COAP_OSCORE)
+        {
+          if (oc_byte_string_len(my_entry->osc_id) > 0)
+          {
             sprintf(line, "  osc_id [%d]: ", (int)oc_byte_string_len(my_entry->osc_id));
             strcat(text, line);
             char* ms = oc_string(my_entry->osc_id);
             int length = (int)oc_byte_string_len(my_entry->osc_id);
-            for (int i = 0; i < length; i++) {
+            for (int i = 0; i < length; i++)
+            {
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
             sprintf(line, "");
             strcat(text, line);
           }
-/*
-          if (oc_byte_string_len(my_entry->osc_rid) > 0) {
-            sprintf(line, "  osc_rid [%d]: ", (int)oc_byte_string_len(my_entry->osc_rid));
-            strcat(text, line);
-            char* ms = oc_string(my_entry->osc_rid);
-            int length = (int)oc_byte_string_len(my_entry->osc_rid);
-            for (int i = 0; i < length; i++) {
-              sprintf(line, "%02x", (unsigned char)ms[i]);
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          */
-          if (oc_byte_string_len(my_entry->osc_ms) > 0) {
-            sprintf(line, "  osc_ms [%d]: ",(int)oc_byte_string_len(my_entry->osc_ms));
+          /*
+                    if (oc_byte_string_len(my_entry->osc_rid) > 0) {
+                      sprintf(line, "  osc_rid [%d]: ", (int)oc_byte_string_len(my_entry->osc_rid));
+                      strcat(text, line);
+                      char* ms = oc_string(my_entry->osc_rid);
+                      int length = (int)oc_byte_string_len(my_entry->osc_rid);
+                      for (int i = 0; i < length; i++) {
+                        sprintf(line, "%02x", (unsigned char)ms[i]);
+                        strcat(text, line);
+                      }
+                      sprintf(line, "");
+                      strcat(text, line);
+                    }
+                    */
+          if (oc_byte_string_len(my_entry->osc_ms) > 0)
+          {
+            sprintf(line, "  osc_ms [%d]: ", (int)oc_byte_string_len(my_entry->osc_ms));
             strcat(text, line);
             int length = (int)oc_byte_string_len(my_entry->osc_ms);
             char* ms = oc_string(my_entry->osc_ms);
-            for (int i = 0; i < length; i++) {
+            for (int i = 0; i < length; i++)
+            {
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
             sprintf(line, "");
             strcat(text, line);
           }
-          if (oc_byte_string_len(my_entry->osc_contextid) > 0) {
+          if (oc_byte_string_len(my_entry->osc_contextid) > 0)
+          {
             sprintf(line, "  osc_contextid (o)[%d]: ", (int)oc_byte_string_len(my_entry->osc_contextid));
             strcat(text, line);
             char* ms = oc_string(my_entry->osc_contextid);
             int length = (int)oc_byte_string_len(my_entry->osc_contextid);
-            for (int i = 0; i < length; i++) {
+            for (int i = 0; i < length; i++)
+            {
               sprintf(line, "%02x", (unsigned char)ms[i]);
               strcat(text, line);
             }
@@ -889,15 +928,19 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
             strcat(text, line);
           }
           */
-          if (my_entry->ga_len > 0) {
+          if (my_entry->ga_len > 0)
+          {
             sprintf(line, "  osc_ga : [");
             strcat(text, line);
-            for (int i = 0; i < my_entry->ga_len; i++) {
+            for (int i = 0; i < my_entry->ga_len; i++)
+            {
               this->int2gatext(my_entry->ga[i], text, ga_conversion);
             }
             sprintf(line, " ]\n");
             strcat(text, line);
-          } else {
+          }
+          else
+          {
             sprintf(line, "  scope : ", my_entry->scope);
             this->int2scopetext(my_entry->scope, line);
             strcat(text, line);
@@ -916,37 +959,12 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 
 /**
  * @brief shows static info about the application
- * 
+ *
  * @param event command triggered by a menu button
  */
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
-  char text[500 + (200* 8)];
-  strcpy(text, "KNX virtual Switching Actuator\n");
-  strcat(text, "\nDevice Serial Number: ");
-  oc_device_info_t* device = oc_core_get_device_info(0);
-  strcat(text, oc_string(device->serialnumber));
-  strcat(text,"\n");
-  strcat(text,"manufactorer     : cascoda\n");
-  strcat(text,"model            : KNX virtual - SA\n");
-  strcat(text,"hardware type    : LW0001\n");
-  strcat(text,"hardware version : [0, 1, 3]\n");
-  strcat(text,"firmware version : [0, 2, 0]\n\n");
-  
-  strcat(text, "data points:\n");
-  strcat(text,"url:/p/1 rt:urn:knx:dpa.417.61 if:if.a inst:1 name:OnOff_1\n");
-  strcat(text,"url:/p/2 rt:urn:knx:dpa.417.51 if:if.s inst:1 name:InfoOnOff_1\n");
-  strcat(text,"url:/p/3 rt:urn:knx:dpa.417.61 if:if.a inst:2 name:OnOff_2\n");
-  strcat(text,"url:/p/4 rt:urn:knx:dpa.417.51 if:if.s inst:2 name:InfoOnOff_2\n");
-  strcat(text,"url:/p/p1 rt:urn:knx:dpa.417.61 if:if.a inst:3 name:OnOff_3\n"); // was p/5
-  strcat(text,"url:/p/6 rt:urn:knx:dpa.417.51 if:if.s inst:3 name:InfoOnOff_3\n");
-  strcat(text,"url:/p/7 rt:urn:knx:dpa.417.61 if:if.a inst:4 name:OnOff_4\n");
-  strcat(text,"url:/p/8 rt:urn:knx:dpa.417.51 if:if.s inst:4 name:InfoOnOff_4\n");
-  strcat(text, "\n");
-  
-  strcat(text, "(c) Cascoda Ltd\n");
-  strcat(text, "(c) KNX.org\n");
-  strcat(text, "2023-07-31 10:49:06.406279");
+  constexpr char text[] = "(c) KNX Association, 2025-05-13";
   CustomDialog("About", text);
 }
 
@@ -964,31 +982,36 @@ void MyFrame::OnAbout(wxCommandEvent& event)
 void MyFrame::OnTimer(wxTimerEvent& event)
 {
   bool do_poll = true;
-  bool sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
+
+  const bool sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
+
   // do whatever you want to do every millisecond here
   if (sleepy)
   {
     do_poll = false;
     m_sleep_counter++;
-    if ((m_sleep_counter / 1000) > m_sleep_seconds) {
+
+    if (m_sleep_counter > m_sleep_milliseconds)
+    {
       // only do a poll each x (20) seconds
       do_poll = true;
       m_sleep_counter = 0;
     }
-    if (oc_knx_device_in_programming_mode(0)) {
-      // make sure that the device is reactive in programming mode
-      // e.g. keep on polling
+    if (oc_knx_device_in_programming_mode(0))
+    {
+      // make sure that the device is reactive in programming mode, so keep on polling
       do_poll = true;
     }
   }
 
-  if (do_poll) {
-    oc_clock_time_t next_event;
-   next_event = oc_main_poll();
+  if (do_poll)
+  {
+    (void)oc_main_poll();
   }
-  this->updateInfoCheckBoxes();
-  this->updateInfoButtons(); 
-  this->updateTextButtons();
+
+  // update possible events
+  this->updateCheckBoxesFromLiveSOOData();
+  this->updateDeviceData();
 }
 
 
@@ -996,42 +1019,56 @@ void MyFrame::OnTimer(wxTimerEvent& event)
  * @brief update the UI e.g. check boxes in the UI
  * updates:
  * does a oc_main_poll to give a tick to the stack
- * 
+ *
  * @param event triggered by a timer
  */
-void  MyFrame::updateInfoCheckBoxes()
+void MyFrame::updateCheckBoxesFromLiveSOOData()
 {
-  bool p;
-  p = app_retrieve_bool_variable_from_channel(LSAB0, SOO);
-  m_ONOFF_1->SetValue(p);    
-  p = app_retrieve_bool_variable_from_channel(LSAB1, SOO);
-  m_ONOFF_2->SetValue(p);    
-  p = app_retrieve_bool_variable_from_channel(LSSB0, SOO);
-  m_ONOFF_3->SetValue(p);    
-  p = app_retrieve_bool_variable_from_channel(LSSB1, SOO);
-  m_ONOFF_4->SetValue(p);    
 
+  char text[200];
+  bool p;
+
+  // update check box
+  p = app_retrieve_bool_variable_from_channel(LSAB0, SOO);
+  m_LSAB_0_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
+
+  // update check box text
+  strcpy(text, "SOO = ");
+  this->add_bool_to_text(p, text);
+  m_LSAB_0_SOO->SetLabel(text);
+
+  // update check box
+  p = app_retrieve_bool_variable_from_channel(LSAB1, SOO);
+  m_LSAB_1_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
+
+  // update check box text
+  strcpy(text, "SOO = ");
+  this->add_bool_to_text(p, text);
+  m_LSAB_1_SOO->SetLabel(text);
+  
 }
 
 /**
- * @brief convert the boolean to text for display
- * 
+ * @brief convert the boolean to text and appends it to the given text 
+ *
  * @param on_off the boolean
  * @param text the text to add the boolean as text
  */
-void MyFrame::bool2text(bool on_off, char* text)
+void MyFrame::add_bool_to_text(bool on_off, char* text)
 {
-  if (on_off) {
+  if (on_off)
+  {
     strcat(text, " On");
   }
-  else {
+  else
+  {
     strcat(text, " Off");
   }
 }
 
 /**
  * @brief convert the integer to text for display
- * 
+ *
  * @param value the integer
  * @param text the text to add info to
  */
@@ -1045,7 +1082,7 @@ void MyFrame::int2text(int value, char* text)
 
 /**
  * @brief convert the group address to text for display
- * 
+ *
  * @param value the integer
  * @param text the text to add info to
  * @param as_ets the text as terminology as used in ets
@@ -1054,7 +1091,8 @@ void MyFrame::int2gatext(uint32_t value, char* text, bool as_ets)
 {
   char value_text[50];
 
-  if (as_ets) {
+  if (as_ets)
+  {
     /*
     The so called Group Address structure correlates with its representation style in ETS,
     see also the relevant ETS Professional article.
@@ -1071,7 +1109,9 @@ void MyFrame::int2gatext(uint32_t value, char* text, bool as_ets)
     uint32_t ga_sub = (ga & 0x000000FF);
     sprintf(value_text, " %lu/%lu/%lu", ga_main, ga_middle, ga_sub);
     strcat(text, value_text);
-  } else {
+  }
+  else
+  {
     sprintf(value_text, " %lu", value);
     strcat(text, value_text);
   }
@@ -1079,7 +1119,7 @@ void MyFrame::int2gatext(uint32_t value, char* text, bool as_ets)
 
 /**
  * @brief convert the scope to text for display
- * 
+ *
  * @param value the scope
  * @param text the text to add info too
  */
@@ -1089,26 +1129,40 @@ void MyFrame::int2scopetext(uint32_t value, char* text)
 
   sprintf(value_text, " [%d]", value);
   strcat(text, value_text);
-  // should be the same as 
-  if (value & (1 << 1)) strcat(text, " if.i");
-  if (value & (1 << 2)) strcat(text, " if.o");
-  if (value & (1 << 3)) strcat(text, " if.g.s");
-  if (value & (1 << 4)) strcat(text, " if.c");
-  if (value & (1 << 5)) strcat(text, " if.p");
-  if (value & (1 << 6)) strcat(text, " if.d");
-  if (value & (1 << 7)) strcat(text, " if.a");
-  if (value & (1 << 8)) strcat(text, " if.s");
-  if (value & (1 << 9)) strcat(text, " if.ll");
-  if (value & (1 << 10)) strcat(text, " if.b");
-  if (value & (1 << 11)) strcat(text, " if.sec");
-  if (value & (1 << 12)) strcat(text, " if.swu");
-  if (value & (1 << 13)) strcat(text, " if.pm");
-  if (value & (1 << 14)) strcat(text, " if.m");
+  // should be the same as
+  if (value & (1 << 1))
+    strcat(text, " if.i");
+  if (value & (1 << 2))
+    strcat(text, " if.o");
+  if (value & (1 << 3))
+    strcat(text, " if.g.s");
+  if (value & (1 << 4))
+    strcat(text, " if.c");
+  if (value & (1 << 5))
+    strcat(text, " if.p");
+  if (value & (1 << 6))
+    strcat(text, " if.d");
+  if (value & (1 << 7))
+    strcat(text, " if.a");
+  if (value & (1 << 8))
+    strcat(text, " if.s");
+  if (value & (1 << 9))
+    strcat(text, " if.ll");
+  if (value & (1 << 10))
+    strcat(text, " if.b");
+  if (value & (1 << 11))
+    strcat(text, " if.sec");
+  if (value & (1 << 12))
+    strcat(text, " if.swu");
+  if (value & (1 << 13))
+    strcat(text, " if.pm");
+  if (value & (1 << 14))
+    strcat(text, " if.m");
 }
 
 /**
  * @brief convert the group id to text for display
- * 
+ *
  * @param value the group id
  * @param text the text to add info too
  * @param as_ets the text as terminology as used in ets
@@ -1117,7 +1171,8 @@ void MyFrame::int2grpidtext(uint64_t value, char* text, bool as_ets)
 {
   char value_text[50];
 
-  if (as_ets) {
+  if (as_ets)
+  {
     /*
      create the multicast address from group and scope
      FF3_:FD__:____:____:(8-f)___:____
@@ -1135,161 +1190,77 @@ void MyFrame::int2grpidtext(uint64_t value, char* text, bool as_ets)
     uint8_t byte_4 = (uint8_t)(value >> 24);
     uint8_t byte_5 = (uint8_t)(value >> 32);
 
-    if (byte_5 == 0) {
-       sprintf(value_text, " %02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
+    if (byte_5 == 0)
+    {
+      (void)sprintf(value_text, " %02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
     }
-    else {
-      sprintf(value_text, " %02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
+    else
+    {
+      (void)sprintf(value_text, " %02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
     }
 
     strcat(text, value_text);
   }
-  else {
-    //sprintf(text, "IID: %lld", device->iid);
-    sprintf(value_text, " %lld", value);
+  else
+  {
+    (void)sprintf(value_text, " %llu", value);
     strcat(text, value_text);
   }
 }
 
 /**
  * @brief convert the double (e.g. float)  to text for display
- * 
+ *
  * @param value the vlue
  * @param text the text to add info too
  */
 void MyFrame::double2text(double value, char* text)
 {
   char new_text[200];
-  sprintf(new_text," %f", value);
+  sprintf(new_text, " %f", value);
   strcat(text, new_text);
 }
 
-/**
- * @brief update the buttons
- * 
- */
-void  MyFrame::updateInfoButtons()
+void MyFrame::OnPressed_LSAB0_IOO(wxCommandEvent& event)
 {
-  char text[200];
-  bool p;
-  p = app_retrieve_bool_variable_from_channel(LSAB0, SOO);
-  strcpy(text, "OnOff_1");
-  this->bool2text(p, text);
-  m_ONOFF_1->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSAB0, IOO);
-  strcpy(text, "InfoOnOff_1");
-  this->bool2text(p, text);
-  m_INFOONOFF_1->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSAB1, SOO);
-  strcpy(text, "OnOff_2");
-  this->bool2text(p, text);
-  m_ONOFF_2->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSAB1, IOO);
-  strcpy(text, "InfoOnOff_2");
-  this->bool2text(p, text);
-  m_INFOONOFF_2->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSSB0, SOO);
-  strcpy(text, "OnOff_3");
-  this->bool2text(p, text);
-  m_ONOFF_3->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSSB0, IOO);
-  strcpy(text, "InfoOnOff_3");
-  this->bool2text(p, text);
-  m_INFOONOFF_3->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSSB1, SOO);
-  strcpy(text, "OnOff_4");
-  this->bool2text(p, text);
-  m_ONOFF_4->SetLabel(text);  
-  p = app_retrieve_bool_variable_from_channel(LSSB1, IOO);
-  strcpy(text, "InfoOnOff_4");
-  this->bool2text(p, text);
-  m_INFOONOFF_4->SetLabel(text);  
-
-} 
-void MyFrame::OnPressed_InfoOnOff_1(wxCommandEvent& event)
-{
-  // get url and value
-  char* url = app_retrieve_url_from_channel(LSAB0, IOO);
+  // get url from IOO
+  char* url = app_retrieve_href_from_channel(LSAB0, IOO);
   bool p = app_retrieve_bool_variable_from_channel(LSAB0, IOO);
 
-  // toggle value
-  p = !p;
-
-  // set value
-  app_set_bool_variable_from_channel(LSAB0, IOO, p);
-
-  // send out
-  oc_do_s_mode_with_scope(2, url, "w");
+  // send out current state (do NOT change the state), multicast, site local
   oc_do_s_mode_with_scope(5, url, "w");
 
-  // show 
-  char my_text[100];
-  (void)sprintf(my_text, "Info On/Off @ ('%s') pressed: %d", url, p);
-  SetStatusText(my_text);
-}   
-void MyFrame::OnPressed_InfoOnOff_2(wxCommandEvent& event)
+  // update button text
+  char text[200];
+  strcpy(text, "IOO = ");
+
+  this->add_bool_to_text(p, text);
+  m_LSAB_0_IOO->SetLabel(text);
+
+  // show in status bar
+  char statusBarText[100];
+  (void)sprintf(statusBarText, "Info On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
+  SetStatusText(statusBarText);
+}
+
+void MyFrame::OnPressed_LSAB1_IOO(wxCommandEvent& event)
 {
-  // get url and value
-  char* url = app_retrieve_url_from_channel(LSAB1, IOO);
+  // get url from IOO
+  char* url = app_retrieve_href_from_channel(LSAB1, IOO);
   bool p = app_retrieve_bool_variable_from_channel(LSAB1, IOO);
 
-  // toggle value
-  p = !p;
-
-  // set value
-  app_set_bool_variable_from_channel(LSAB1, IOO, p);
-
-  // send out
-  oc_do_s_mode_with_scope(2, url, "w");
+  // send out current state (do NOT change the state), multicast, site local
   oc_do_s_mode_with_scope(5, url, "w");
 
-  // show
-  char my_text[100];
-  (void)sprintf(my_text, "Info On/Off @ ('%s') pressed: %d", url, p);
-  SetStatusText(my_text);
-}   
-void MyFrame::OnPressed_InfoOnOff_3(wxCommandEvent& event)
-{
-  // get url and value
-  char* url = app_retrieve_url_from_channel(LSSB0, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSSB0, IOO);
+  // update button text
+  char text[200];
+  strcpy(text, "IOO = ");
 
-  // toggle value
-  p = !p;
+  this->add_bool_to_text(p, text);
+  m_LSAB_1_IOO->SetLabel(text);
 
-  // set value
-  app_set_bool_variable_from_channel(LSSB0, IOO, p);
-
-  // send out
-  oc_do_s_mode_with_scope(2, url, "w");
-  oc_do_s_mode_with_scope(5, url, "w");
-
-  // show
-  char my_text[100];
-  (void)sprintf(my_text, "Info On/Off @ ('%s') pressed: %d", url, p);
-  SetStatusText(my_text);
-}   
-void MyFrame::OnPressed_InfoOnOff_4(wxCommandEvent& event)
-{
-  // get url and value
-  char* url = app_retrieve_url_from_channel(LSSB1, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSSB1, IOO);
-
-  // toggle value
-  p = !p;
-
-  // set value
-  app_set_bool_variable_from_channel(LSSB1, IOO, p);
-
-  // send out
-  oc_do_s_mode_with_scope(2, url, "w");
-  oc_do_s_mode_with_scope(5, url, "w");
-
-  // show
-  char my_text[100];
-  (void)sprintf(my_text, "Info On/Off @ ('%s') pressed: %d", url, p);
-  SetStatusText(my_text);
-} 
-
-
-
+  // show in status bar
+  char statusBarText[100];
+  (void)sprintf(statusBarText, "Info On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
+  SetStatusText(statusBarText);
+}

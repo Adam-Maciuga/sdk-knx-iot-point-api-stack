@@ -1,6 +1,7 @@
 /*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
+ Copyright (c) 2024-2025 KNX Association
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,31 +17,73 @@
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
-/**
- * @file
- *
- * header file for the generated application.
- * header file contains functions to use the generated application with an
- external main.
- * e.g. if the c code is compiled without main then
- * these functions can be used to call all generated code
- *
 
- */
+// include file for all CL/GUI applications (EITT/LSAB/LSSB)
 
-#define NUM_CHANNELS (4)
-#define NUM_POINTS   (2)
+// common data
+#ifndef KNX_IOT_VIRTUAL_H
+#define KNX_IOT_VIRTUAL_H
+
+#define NUM_CHANNELS (2)
+#define NUM_POINTS (2)
 #define SOO (0)
 #define IOO (1)
+#define LSSB0 (0)
+#define LSSB1 (1)
 #define LSAB0 (0)
 #define LSAB1 (1)
-#define LSSB0 (2)
-#define LSSB1 (3)
+#define EITT (0)
+
+
+#define FIRMWARE_NAME "KNX stack image"
+#define HW_TYPE_ETS6 "000102030405" // 12 string chars, MSB = 00
+#define DEV_MODEL_ETS6 "6800" // reuse mask version from iot device
+#define MID (0x00FA) // first 4 digits of SN_LOWER_CASE
+#define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
+
+#define _0_name "Global Test Parameter"
+#define _0_des "global test parameter as 16 bit uint"
+#define _0_if_p ":if.p"
+
+// Sensor
+#define APPLICATION_NAME_LSSB "KNX virtual sensor (LSSB)"
+#define SN_LOWER_CASE_LSSB "00fa10020700" // default SN if not overwritten by CL option -s, deliberated incorrect serial numbers
+#define HOST_NAME_LSSB (SN_LOWER_CASE_LSSB) // default host name (reset uses SN_LOWER_CASE as default)
+#define QRCODE_ETS6_LSSB "KNX:S:00FA10020700;P:2X4W3TE0DFLLS19Y1FCH"
+
+#define _0_url_value_lssb "/p/globalTestParameter"
+#define _0_dpt_lssb ":dpt.value2Ucount"
+#define _0_dpa_switch_short_lssb ":dpa.void"
+
+
+// Actuator
+#define APPLICATION_NAME_LSAB "KNX virtual actuator (LSAB)"
+#define SN_LOWER_CASE_LSAB "00fa10020900" // default SN if not overwritten by CL option -s, deliberated incorrect serial numbers
+#define HOST_NAME_LSAB (SN_LOWER_CASE_LSAB) // default host name (reset uses SN_LOWER_CASE as default)
+#define QRCODE_ETS6_LSAB "KNX:S:00FA10020900;P:2X4W3TE0DFLLS19Y1FCH"
+
+#define _0_url_value_lsab "/p/globalTestParameter"
+#define _0_dpt_lsab ":dpt.value2Ucount"
+#define _0_dpa_switch_short_lsab ":dpa.void"
+
+
+// EITT
+#define APPLICATION_NAME_EITT "KNX virtual EITT certification application"
+#define SN_LOWER_CASE_EITT "00fa10020800" // same as eitt test template, deliberated incorrect serial numbers
+#define HOST_NAME_EITT (SN_LOWER_CASE_EITT) // default host name (reset uses SN_LOWER_CASE as default)
+#define QRCODE_ETS6_EITT "KNX:S:00FA10020800;P:2X4W3TE0DFLLS19Y1FCH"
+#define MID_EITT (667) // same as eitt test template
+
+// define URL Parameter Page/ Test Parameter (same as eitt test template)
+#define _0_url_value_eitt "/p/p1"
+#define _0_dpt_eitt ":dpt.propDataType"
+#define _0_dpa_switch_short_eitt ":dpa.65500.201"
+
 
 typedef struct datapoint
 {
   volatile bool value;
-  char* url;
+  char* href;
   char* dpa;
   char* dpt;
   char* ift;
@@ -58,27 +101,6 @@ typedef struct channel
 extern "C"
 {
 #endif
-
-#define APPLICATION_NAME "KNX virtual switch/sensing actuator (LSAB/LSSB)"
-#define FIRMWARE_NAME "KNX stack image"
-#define SN_LOWER_CASE "00fa10020800"
-#define HOST_NAME (SN_LOWER_CASE) // default host name (reset uses SN_LOWER_CASE as default)
-#define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
-#define QRCODE_ETS6 "KNX:S:00FA10020800;P:2X4W3TE0DFLLS19Y1FCH"
-#define HW_TYPE_ETS6 "000102030405" // 12 string chars, MSB = 00
-#define DEV_MODEL_ETS6 "6800" // reuse mask version from iot device
-
-#define MID (0x00FA) // first 4 digits of SN_LOWER_CASE
-
-// URL defines
-
-// define URL Parameter Page/ Test Parameter
-#define _0_url_value "/p/globalTestParameter"
-#define _0_name "Global Test Parameter"
-#define _0_dpt ":dpt.value2Ucount"
-#define _0_dpa_switch_short ":dpa.void"
-#define _0_des "global test parameter as 16 bit uint"
-#define _0_if_p ":if.p"
 
   /**
    * @brief initialize the stack
@@ -131,7 +153,7 @@ extern "C"
    * @param point the point of the channel for the URL to get
    * @return boolean variable
    */
-  char* app_retrieve_url_from_channel(uint16_t channel, uint16_t point);
+  char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point);
 
   /**
    * @brief Get an int
@@ -199,4 +221,5 @@ extern "C"
 
 #ifdef __cplusplus
 }
+#endif
 #endif

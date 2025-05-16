@@ -73,16 +73,12 @@ void oc_knx_device_storage_read(size_t device);
  *   - programming mode (pm)
  *   - device address (da)
  *   - sub address (sa)
- *   - internal address (ia)
- *   - group object table
- *   - recipient object table
- *   - publisher object table
- * - reset = 3 (Reset IA) :
- *   - internal address (ia)
+ *   - individual address (ia)
+ *   - group object / recipient / publisher object table
+ *   - access token table
  * - reset = 7 (Factory Reset without IA):
- *   - group object table
- *   - recipient object table
- *   - publisher object table
+ *   - group object / recipient / publisher object table
+ *   - access token table (except entries with if.sec)
  *
  * @param device_index The device index
  * @param reset_mode the KNX reset mode

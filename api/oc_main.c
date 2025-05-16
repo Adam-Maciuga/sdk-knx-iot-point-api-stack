@@ -30,13 +30,9 @@
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
 
-#ifdef OC_OSCORE
-#endif
-
 #ifdef OC_MEMORY_TRACE
 #include "util/oc_mem_trace.h"
 #endif
-
 #include "oc_main.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION
