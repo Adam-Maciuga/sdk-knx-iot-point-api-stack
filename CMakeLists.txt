@@ -7,7 +7,7 @@ include(FetchContent)
 # compiler options 
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
   # emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
-  add_compile_options(-fPIC)
+  add_compile_options(-fPIC) 
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC)
@@ -42,6 +42,7 @@ set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this 
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally'' group multicast events with scope 2, e.g.; for PC based applications.")
 
+### Allows to use an own security framework, with ON the KNX MBEDTLS framework is used. 
 set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use MBEDTLS associated with KNX IoT repository")
 
 ## Debug 
@@ -347,11 +348,13 @@ if(WIN32)
         endif()
 endif()
 
+# When using KNX standard security source MBTLS -> use config definitions defined by Intel
 if(OC_USE_KNX_MBEDTLS)
-    target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")  # use MBTLS config defined by Intel
+    target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
 endif()
 
-target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                      # stack can send + receive
+# Stack can send + receive
+target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                   
 
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
