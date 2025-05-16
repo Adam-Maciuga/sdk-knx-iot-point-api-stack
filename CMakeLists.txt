@@ -251,17 +251,16 @@ if(OC_USE_KNX_MBEDTLS)
     add_library(mbedcrypto ${CRYPTO_SOURCES})
 endif()
 
-add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
-
 if(UNIX OR WIN32)
     add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
-## EITT NON GUI demo (for certification)
-add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
+    ## EITT NON GUI demo (for certification)
+    add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
 
-## LSAB/LSSB NON GUI demo
-add_executable(lssb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c)
-add_executable(lsab_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c)
+    ## LSAB/LSSB NON GUI demo
+    add_executable(lssb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c)
+    add_executable(lsab_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c)
+endif()
 
 # Detect the used platform and pick the right port
 if(UNIX)
@@ -357,7 +356,7 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)          
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
-target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
+
 if(OC_USE_KNX_MBEDTLS)
     target_include_directories(mbedcrypto PUBLIC
         ${PROJECT_SOURCE_DIR}
@@ -368,20 +367,23 @@ if(OC_USE_KNX_MBEDTLS)
     )
 endif()
 
-# Specifies linked libraries (dependencies/references) to build a target
-## applications ...
-target_link_libraries(eitt_virtual_cl kisClientServer)
-target_link_libraries(lssb_virtual_cl kisClientServer)
-target_link_libraries(lsab_virtual_cl kisClientServer)
-## ... from 
+if(UNIX OR WIN32)
+    # Specifies linked libraries (dependencies/references) to build a target
+    ## applications ...
+    target_link_libraries(eitt_virtual_cl kisClientServer)
+    target_link_libraries(lssb_virtual_cl kisClientServer)
+    target_link_libraries(lsab_virtual_cl kisClientServer)
+
+    ## ... from
+    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
+    target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
+endif()
 
 if(OC_USE_KNX_MBEDTLS)
     target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
 else()
     target_link_libraries(kisClientServer PUBLIC kis-common tinycbor-master kis-port)
 endif()
-
-target_link_libraries(kis-port PUBLIC kis-common mbedtls)
 
 if(OC_USE_KNX_MBEDTLS)
     target_link_libraries(mbedcrypto ${libs})
