@@ -215,21 +215,31 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
-#define OC_LOG(level, ...)                                   \
-  do {                                                       \
-  int ticks = clock();                                       \
-  PRINTF("\n"                                                \
-         "%-6d: "                                            \
-         "%-4s: "                                            \
-         "%-20.18s"                                          \
-         "%-5d: "                                            \
-         "%-30.28s> ",                                       \
-         ticks,                                              \
-         level,                                              \
-         __FILENAME__,                                       \
-         __LINE__,                                           \
-         __func__ );                                         \
-  PRINTF(__VA_ARGS__);                                       \
+#define OC_LOG(level, ...)                                      \
+  do {                                                          \
+  int ticks = clock();                                          \
+  \
+  char fileShort[19] = {0};                                     \
+  strncpy(fileShort, __FILENAME__, 15);                         \
+  strncat(fileShort, "...", 3);                                 \
+  \
+  char funcShort[28] = {0};                                     \
+  strncpy(funcShort, __func__, 24);                             \
+  strncat(funcShort, "...", 3);                                 \
+  \
+  PRINTF("\n"                                                   \
+         "%-6d: "                                               \
+         "%-4s: "                                               \
+         "%-20.18s"                                             \
+         "%-5d: "                                               \
+         "%-30.28s> ",                                          \
+         ticks,                                                 \
+         level,                                                 \
+         strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
+         __LINE__,                                              \
+         strlen(__func__) > 27 ? funcShort : __func__);         \
+  \
+  PRINTF(__VA_ARGS__);                                          \
   } while (0)
 
 
