@@ -59,13 +59,9 @@ typedef struct oc_rwin_t
  */
 typedef struct oc_oscore_context_t
 {
-  struct oc_oscore_context_t
-    *next; /**< pointer to the next, NULL if there is not any */
-  /* Provisioned parameters */
-  int auth_at_index; /**< index of the auth AT table +1, so index = 0 is invalid
-                      */
-  uint8_t
-    token_id[OSCORE_IDCTX_LEN]; /**< Note: the serial number of the device */
+  struct oc_oscore_context_t *next;        // pointer to the next, NULL if there is not any
+  int auth_at_index;                       // index of the auth AT table + 1, so index = 0 is invalid 
+  uint8_t token_id[OSCORE_IDCTX_LEN];      // /**< Note: the serial number of the device */
   uint8_t master_secret[OSCORE_IDCTX_LEN]; /**< OSCORE master secret [bytes ]*/
   size_t device;                           /**< device index */
   uint8_t sendid[OSCORE_CTXID_LEN];        /**< SID [bytes] */
@@ -190,7 +186,7 @@ oc_oscore_context_t *oc_oscore_find_context_by_kid(oc_oscore_context_t *ctx,
                                                    uint8_t kid_len);
 
 oc_oscore_context_t *oc_oscore_find_context_by_kid_idctx(
-  oc_oscore_context_t *ctx, size_t device_index, uint8_t *kid, uint8_t kid_len,
+  oc_oscore_context_t *ctx, uint8_t *kid, uint8_t kid_len,
   uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
 oc_oscore_context_t *oc_oscore_find_context_by_token_mid(

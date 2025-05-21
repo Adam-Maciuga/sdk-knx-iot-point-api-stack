@@ -84,7 +84,7 @@ oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, size_t device_index,
 
 oc_oscore_context_t*
 oc_oscore_find_context_by_kid_idctx(oc_oscore_context_t* ctx,
-                                    size_t device_index, uint8_t* kid,
+                                    uint8_t* kid,
                                     uint8_t kid_len, uint8_t* kid_ctx,
                                     uint8_t kid_ctx_len)
 {
@@ -96,26 +96,33 @@ oc_oscore_find_context_by_kid_idctx(oc_oscore_context_t* ctx,
   if (kid_len == 0)
     return NULL;
 
-  PRINT("oc_oscore_find_context_by_kid : dev=%d  kid:(%d) :", (int) device_index,
-        kid_len);
-  oc_char_println_hex((char*) (kid), kid_len);
+  // print received kid from frame 
+  PRINT("find context - for frame kid:(len=%d) :", kid_len);
+  oc_char_println_hex((char*) kid, kid_len);
 
   while (ctx != NULL)
   {
-    PRINT("---> recvid:");
-    oc_char_println_hex((char*) (ctx->recvid), ctx->recvid_len);
+    // scanning device context list 
+    PRINT("---> scanning oscore context list (rcv) id:");
+    oc_char_println_hex(ctx->recvid_len == 0 ? "empty ...": (char*) ctx->recvid, ctx->recvid_len);
 
-    if (kid_len == ctx->recvid_len && memcmp(kid, ctx->recvid, kid_len) == 0 &&
-        kid_ctx_len == ctx->idctx_len &&
-        memcmp(kid_ctx, ctx->idctx, kid_ctx_len) == 0)
+    // received frame kid (Sender ID) and kid context(ID Context) must both match in size and value to an oscore context 
+    if (kid_len == ctx->recvid_len
+        && memcmp(kid, ctx->recvid, kid_len) == 0 
+        && kid_ctx_len == ctx->idctx_len 
+        && memcmp(kid_ctx, ctx->idctx, kid_ctx_len) == 0)
     {
-      PRINT("oc_oscore_find_context_by_kid_idctx FOUND  auth/at index: %d",
-            ctx->auth_at_index);
+
+      PRINT("find context - found auth/at index: %d",ctx->auth_at_index);
+
+      // update for a release of "least used" if table is full
       ctx->last_used = oc_clock_time();
       return ctx;
     }
     ctx = ctx->next;
   }
+
+  // here ctx is NULL
   return ctx;
 }
 

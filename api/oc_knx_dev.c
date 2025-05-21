@@ -605,7 +605,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   if (query_ps > 1)
-  { // return > 1 entries {1: "200..."} within array = [ {1: "200..."}, {1: "300..."}]
+  { // return > 1 entries {1: "200..."} within array = [ {1: h'200...'}, {1: h'300...'}]
 
     // [ (open) => see https://intel.github.io/tinycbor/current/a00046.html
     cbor_encoder_create_array(&g_encoder, &root_map, CborIndefiniteLength);
@@ -628,7 +628,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 
   }
   else
-  { // return 1 entry {1: "200..."} without array
+  { // return 1 entry {1: h'200...'} without array
     // set by request ps=1 or when missing in request
 
     oc_rep_begin_root_object();

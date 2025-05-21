@@ -187,15 +187,15 @@ oc_oscore_recv_message(oc_message_t* message)
 			OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
 			OC_DBG_OSCORE("### searching for OSCORE context by kid ###");
 			oscore_ctx = oc_oscore_find_context_by_kid_idctx(
-				oscore_ctx, message->endpoint.device, oscore_pkt->kid,
-				oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
+        oscore_ctx, oscore_pkt->kid, oscore_pkt->kid_len,
+        oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
 			if (!oscore_ctx)
 			{
 				// we do not have a cached context, so we have to make one
 
 				// find auth/at entry with corresponding kid
-				int idx = oc_core_find_at_entry_with_osc_id(0, oscore_pkt->kid,
+				int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid,
 																										oscore_pkt->kid_len);
 				if (idx == -1)
 				{
@@ -307,11 +307,11 @@ oc_oscore_recv_message(oc_message_t* message)
 															oscore_pkt->piv, oscore_pkt->piv_len, AAD,
 															&AAD_len);
 				OC_DBG_OSCORE(
-					"---composed AAD using received Partial IV and Recipient ID");
+					"--- composed AAD using received Partial IV and Recipient ID");
 				OC_LOGbytes_OSCORE(AAD, AAD_len);
 			}
 
-			OC_DBG_OSCORE("---got Partial IV from incoming message : ");
+			OC_DBG_OSCORE("--- got Partial IV from incoming message : ");
 			OC_LOGbytes_OSCORE(oscore_pkt->piv, oscore_pkt->piv_len);
 
 			/* Copy received piv into oc_message_t->endpoint for requests */
@@ -320,7 +320,7 @@ oc_oscore_recv_message(oc_message_t* message)
 				memcpy(message->endpoint.request_piv, oscore_pkt->piv,
 							 oscore_pkt->piv_len);
 				message->endpoint.request_piv_len = oscore_pkt->piv_len;
-				OC_DBG_OSCORE("---  Caching PIV for later use...");
+				OC_DBG_OSCORE("--- caching PIV for later use...");
 			}
 
 			/* Compute nonce using received piv and context->recvid */
@@ -329,7 +329,7 @@ oc_oscore_recv_message(oc_message_t* message)
 													 oscore_ctx->commoniv, nonce, OSCORE_AEAD_NONCE_LEN);
 
 			OC_DBG_OSCORE(
-				"---computed AEAD nonce using received Partial IV and Recipient ID");
+				"--- computed AEAD nonce using received Partial IV and Recipient ID");
 			OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 		}
 
@@ -454,9 +454,7 @@ oc_oscore_recv_message(oc_message_t* message)
 		message->endpoint.flags = message->endpoint.flags | IPV6;
 		PRINTipaddr_flags(message->endpoint);
 
-		OC_DBG_OSCORE(
-			"### serialized decrypted CoAP message to dispatch to the CoAP "
-			"layer ###");
+		OC_DBG_OSCORE("### serialized decrypted CoAP message to dispatch to the CoAP layer ###");
 	}
 	OC_DBG_OSCORE("#################################");
 

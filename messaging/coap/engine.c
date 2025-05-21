@@ -573,9 +573,11 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					if (incoming_message->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port)
 					{
-						OC_DBG("same address and port: not handling message ");
+						OC_DBG("handling message: N (same address and port)");
 						is_myself = true;
 					}
+					else 
+					  OC_DBG("handling message: Y ");
 				}
 			}
 

@@ -668,7 +668,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 			}
 			coap_pkt->payload[coap_pkt->payload_len] = '\0';
 
-			OC_DBG("Got payload:");
+			OC_DBG("Got (CBOR) payload:");
 			OC_LOGbytes(coap_pkt->payload, coap_pkt->payload_len);
 			break;
 		}

@@ -300,7 +300,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			oc_message_unref(message);
 		}
 	}
-	OC_PROCESS_END();
+  OC_PROCESS_END()
 }
 
 oc_message_t*

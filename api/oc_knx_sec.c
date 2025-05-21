@@ -1798,7 +1798,7 @@ void oc_core_find_and_remove_pase_entry(void)
   return;
 }
 
-int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id, size_t osc_id_len)
+int oc_core_find_at_entry_with_osc_id(uint8_t* osc_id, size_t osc_id_len)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
