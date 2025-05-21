@@ -215,9 +215,11 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
+// it is recommended to use a console for the output that allows a 'no word wrap' 
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
-  int ticks = clock();                                          \
+  time_t current_time = time(NULL);                             \
+  struct tm* tm_local = localtime(&current_time);               \
   \
   char fileShort[19] = {0};                                     \
   strncpy(fileShort, __FILENAME__, 15);                         \
@@ -228,12 +230,12 @@ extern "C" {
   strncat(funcShort, "...", 3);                                 \
   \
   PRINTF("\n"                                                   \
-         "%-6d: "                                               \
+         "%-2d:%-2d: "                                          \
          "%-4s: "                                               \
          "%-20.18s"                                             \
          "%-5d: "                                               \
          "%-30.28s> ",                                          \
-         ticks,                                                 \
+         tm_local->tm_min, tm_local->tm_sec,                    \
          level,                                                 \
          strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
          __LINE__,                                              \
