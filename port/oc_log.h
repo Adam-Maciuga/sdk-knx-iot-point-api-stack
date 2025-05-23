@@ -230,12 +230,12 @@ extern "C" {
   strncat(funcShort, "...", 3);                                 \
   \
   PRINTF("\n"                                                   \
-         "%-2d:%-2d: "                                          \
+         "%-2d:%-2d:%-2d "                                      \
          "%-4s: "                                               \
          "%-20.18s"                                             \
          "%-5d: "                                               \
          "%-30.28s> ",                                          \
-         tm_local->tm_min, tm_local->tm_sec,                    \
+         tm_local->tm_hour, tm_local->tm_min, tm_local->tm_sec, \
          level,                                                 \
          strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
          __LINE__,                                              \
