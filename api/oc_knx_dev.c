@@ -1512,7 +1512,7 @@ static void oc_create_dev_mid_resource(int resource_idx, size_t device)
 
 void oc_knx_device_storage_read(size_t device_index)
 {
-  PRINT("Loading Device Config from persistent storage");
+  PRINT("Loading device configuration from persistent storage");
 
   if (device_index >= oc_core_get_num_devices())
   {

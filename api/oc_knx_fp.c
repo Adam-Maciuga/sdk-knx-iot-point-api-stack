@@ -26,16 +26,18 @@
 #include "oc_knx_client.h"
 #include "oc_storage.h"
 
-#define GOT_STORE "dev_knx_got_entry"
-#define GPT_STORE "dev_knx_pub_entry"
-#define GRT_STORE "dev_knx_rcv_entry"
+// PUB/RCV/GOT storage data
+#define GPT_STORE "dev_knx_pub_entry"       // PUB table base file name
+#define GRT_STORE "dev_knx_rcv_entry"       // RCV table base file name
+#define GOT_STORE "dev_knx_got_entry"       // GO table base file name
+#define FPT_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' pub/rcp/go FILE entries
 
 // note static variables are initialized with '0' first time
-static oc_group_object_table_t g_got[GOT_MAX_ENTRIES]; // go table
-static oc_group_table_t g_grt[GRT_MAX_ENTRIES]; // rcp table (to send)
+static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
+static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
-static oc_group_table_t g_gpt[GPT_MAX_ENTRIES]; // pub table (to receive)
+static oc_group_table_t g_gpt[GPT_MAX_ENTRIES];         // pub table (to receive)
 #endif
 
 // -externals -
@@ -2253,8 +2255,8 @@ void oc_print_group_object_table_entry(int entry)
 
 void oc_store_group_object_table_entry(int entry)
 {
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
+  char filename[FPT_SIZE];
+  (void)snprintf(filename, FPT_SIZE, "%s_%d", GOT_STORE, entry);
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
@@ -2290,26 +2292,25 @@ void oc_store_group_object_table_entry(int entry)
   free(buf);
 }
 
-#define GOT_ENTRY_MAX_SIZE (1024)
-
 void oc_load_group_object_table_entry(int entry)
 {
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
+  char filename[FPT_SIZE];
+  (void)snprintf(filename, FPT_SIZE, "%s_%d", GOT_STORE, entry);
 
+  // set ptr to 
   oc_rep_t* rep;
 
-  uint8_t* buf = malloc(GOT_ENTRY_MAX_SIZE);
+  uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
-  long ret = oc_storage_read(filename, buf, GOT_ENTRY_MAX_SIZE);
-  PRINTF(" ... bytes: %ld", ret < 0 ? 0 : ret);
-  if (ret > 0)
+  const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+  PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
+  if (bytes_to_read > 0)
   {
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
-    int err = oc_parse_rep(buf, ret, &rep);
+    int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
     if (err == 0)
     {
@@ -2348,14 +2349,15 @@ void oc_load_group_object_table_entry(int entry)
           // ga array (7)
           if (rep->iname == 7)
           {
+            // temp ptr to address the CBOR array 
             const int64_t* array = oc_int_array(rep->value.array);
-            const int array_size = oc_int_array_size(rep->value.array);
+            const int new_array_size = oc_int_array_size(rep->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
-            if (new_array && array_size > 0)
+            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            if (new_array && new_array_size > 0)
             {
-              for (int i = 0; i < array_size; i++)
+              for (int i = 0; i < new_array_size; i++)
               {
                 new_array[i] = (uint32_t)array[i];
               }
@@ -2365,10 +2367,10 @@ void oc_load_group_object_table_entry(int entry)
               // free ignores NULL ptr
               free(g_got[entry].ga);
 
-              PRINT("ga size %d", array_size);
+              PRINT("ga size %d", new_array_size);
 
               // assign GA array in GO table directly
-              g_got[entry].ga_len = array_size;
+              g_got[entry].ga_len = new_array_size;
               g_got[entry].ga = new_array;
             }
           }
@@ -2385,6 +2387,7 @@ void oc_load_group_object_table_entry(int entry)
     }
     oc_free_rep(head);
   }
+
   free(buf);
 }
 
@@ -2406,7 +2409,7 @@ void oc_free_group_object_table_entry(int entry, bool init)
   if (init == false)
   {
     oc_free_string(&g_got[entry].href);
-    free(g_got[entry].ga);
+    free(g_got[entry].ga); // NULL ptr is handled
   }
 
   g_got[entry].ga = NULL;
@@ -2450,12 +2453,10 @@ void oc_free_allocated_table_elements(oc_group_table_t* entry, const uint8_t all
   }
 }
 
-
-
 void oc_delete_group_object_table_entry(int entry)
 {
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", GOT_STORE, entry);
+  char filename[FPT_SIZE];
+  (void)snprintf(filename, FPT_SIZE, "%s_%d", GOT_STORE, entry);
   oc_storage_erase(filename);
 
   oc_free_group_object_table_entry(entry, false);
@@ -2549,19 +2550,19 @@ static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_
   printf(" ]");
 }
 
-#define RP_ENTRY_MAX_SIZE (1024)
 
 // store RCP/PUB table data in CBOR (hex stream data)
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table)
 {
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", store, entry);
+  char filename[FPT_SIZE];
+  (void)snprintf(filename, FPT_SIZE, "%s_%d", store, entry);
 
-  uint8_t* buf = malloc(RP_ENTRY_MAX_SIZE);
+
+  uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
-  oc_rep_new(buf, RP_ENTRY_MAX_SIZE);
+  oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
 
   // write the data in CBOR format
   oc_rep_begin_root_object();
@@ -2602,8 +2603,8 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
 void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_table, int max_size)
 {
   (void)max_size;
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", Store, entry);
+  char filename[FPT_SIZE];
+  (void)snprintf(filename, FPT_SIZE, "%s_%d", Store, entry);
 
   oc_rep_t* rep;
 
@@ -2613,13 +2614,13 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
     return;
   }
 
-  long ret = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
-  PRINTF(" ... bytes: %ld", ret < 0 ? 0 : ret);
-  if (ret > 0)
+  const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+  PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
+  if (bytes_to_read > 0)
   {
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
-    int err = oc_parse_rep(buf, ret, &rep);
+    int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
     if (err == 0)
     {

@@ -435,12 +435,14 @@ _oc_signal_event_loop(void)
   }
 }
 
+// TODO check if still needed, dev > 1 anyhow not work
 void
 oc_set_drop_commands(size_t device, bool drop)
 {
   drop_commands[device] = drop;
 }
 
+// TODO check if still needed, dev > 1 anyhow not work 
 bool
 oc_drop_command(size_t device)
 {
