@@ -26,17 +26,18 @@
 #include "oc_knx_helpers.h"
 #include "oc_storage.h"
 
-#define AT_STORE "at_store"
 
-// ---------------------------Variables --------------------------------------
+// AT storage data
+#define AT_STORE "at_store"
+#define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
 
 static uint32_t g_oscore_replaywindow = 32; // default according to RFC OSCORE
 static uint32_t g_oscore_osndelay = 1000; // default (ms) defined by iot specification
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
+static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // note static variables are initialized with '0' first time
 
 // ----------------------------------------------------------------------------
 
-static void oc_at_store_entry(int entry);
+static void oc_store_at_table_entry(int entry);
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
 {
@@ -893,13 +894,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       if (id_only)
       {
         PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_at_delete_entry(index);
+        oc_delete_at_table_entry(index);
       }
       else
       {
         PRINT("storage index: %d (%s) ", index, oc_string_checked(*at));
         oc_print_auth_at_entry(index);
-        oc_at_store_entry(index);
+        oc_store_at_table_entry(index);
       }
     } // if type == object
     rep = rep->next;
@@ -1176,9 +1177,9 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
     return;
   }
 
-  oc_at_delete_entry(index);
+  oc_delete_at_table_entry(index);
   // store an empty AT file entry 
-  oc_at_store_entry(index);
+  oc_store_at_table_entry(index);
 
 #ifdef OC_OSCORE
   // delete the related oscore contexts
@@ -1373,7 +1374,6 @@ void oc_create_knx_auth_resource(int resource_idx, size_t device)
 
 void oc_print_auth_at_entry(int index)
 {
-
 #ifdef OC_PRINT
 
   if (index > -1)
@@ -1451,78 +1451,75 @@ oc_acl_mask_t oc_at_get_scope_mask(int index)
   return g_at_entries[index].scope;
 }
 
-int oc_at_delete_entry(int index)
+int oc_delete_at_table_entry(int entry)
 {
-  if (index < 0)
-  {
+  if (entry < 0 || entry > G_AT_MAX_ENTRIES - 1)
     return -1;
-  }
-  if (index > G_AT_MAX_ENTRIES - 1)
-  {
-    return -1;
-  }
+
+  // AT file entry
+  char filename[AT_SIZE];
+  (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
+  oc_storage_erase(filename);
 
   // generic data
-  oc_free_string(&g_at_entries[index].id);
-  oc_new_string(&g_at_entries[index].id, "", 0);
-  g_at_entries[index].scope = OC_ACL_NONE;
-  g_at_entries[index].profile = OC_PROFILE_UNKNOWN;
+  oc_free_string(&g_at_entries[entry].id);
+  oc_new_string(&g_at_entries[entry].id, "", 0);
+  g_at_entries[entry].scope = OC_ACL_NONE;
+  g_at_entries[entry].profile = OC_PROFILE_UNKNOWN;
 
   // oscore object
-  oc_free_string(&g_at_entries[index].osc_ms);
-  oc_new_byte_string(&g_at_entries[index].osc_ms, "", 0);
-  oc_free_string(&g_at_entries[index].osc_salt);
-  oc_new_byte_string(&g_at_entries[index].osc_salt, "", 0);
-  oc_free_string(&g_at_entries[index].osc_contextid);
-  oc_new_byte_string(&g_at_entries[index].osc_contextid, "", 0);
-  oc_free_string(&g_at_entries[index].osc_rid);
-  oc_new_byte_string(&g_at_entries[index].osc_rid, "", 0);
-  oc_free_string(&g_at_entries[index].osc_id);
-  oc_new_byte_string(&g_at_entries[index].osc_id, "", 0);
+  oc_free_string(&g_at_entries[entry].osc_ms);
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, "", 0);
+  oc_free_string(&g_at_entries[entry].osc_salt);
+  oc_new_byte_string(&g_at_entries[entry].osc_salt, "", 0);
+  oc_free_string(&g_at_entries[entry].osc_contextid);
+  oc_new_byte_string(&g_at_entries[entry].osc_contextid, "", 0);
+  oc_free_string(&g_at_entries[entry].osc_rid);
+  oc_new_byte_string(&g_at_entries[entry].osc_rid, "", 0);
+  oc_free_string(&g_at_entries[entry].osc_id);
+  oc_new_byte_string(&g_at_entries[entry].osc_id, "", 0);
 
   // DTLS object
-  oc_free_string(&g_at_entries[index].sub);
-  oc_new_string(&g_at_entries[index].sub, "", 0);
-  oc_free_string(&g_at_entries[index].kid);
-  oc_new_string(&g_at_entries[index].kid, "", 0);
+  oc_free_string(&g_at_entries[entry].sub);
+  oc_new_string(&g_at_entries[entry].sub, "", 0);
+  oc_free_string(&g_at_entries[entry].kid);
+  oc_new_string(&g_at_entries[entry].kid, "", 0);
 
   // linked GAs
-  if (g_at_entries[index].ga_len > 0)
+  if (g_at_entries[entry].ga_len > 0)
   {
-    int64_t* cur_arr = g_at_entries[index].ga;
+    int64_t* cur_arr = g_at_entries[entry].ga;
     if (cur_arr)
     {
       free(cur_arr);
     }
-    g_at_entries[index].ga_len = 0;
+    g_at_entries[entry].ga_len = 0;
   }
 
-  // AT file entry
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", AT_STORE, index);
-  oc_storage_erase(filename);
+  
 
   return 0;
 }
 
-// stores the AT entry to a file
+// store AT table data in CBOR (hex stream data)
 // storage of the fields is done via the cbor keys in the hierarchy
 // so tag : 842  8.4.2 ==> "cnf":"osc":"ms"
-static void oc_at_store_entry(int entry)
+static void oc_store_at_table_entry(int entry)
 {
 #ifndef OC_USE_STORAGE
   (void)entry;
-  PRINT("no auth/at storage");
+  PRINT("no at storage");
 #else
 
-  char filename[20];
-  (void)snprintf(filename, 20, "%s_%d", AT_STORE, entry);
+  char filename[AT_SIZE];
+  (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
   oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
+
   // write the data
   oc_rep_begin_root_object();
 
@@ -1570,24 +1567,25 @@ static void oc_at_store_entry(int entry)
 #endif
 }
 
-static void oc_at_load_entry(int entry)
+static void oc_load_at_table_entry(int entry)
 {
-  char filename[20];
-  oc_rep_t* rep;
+  char filename[AT_SIZE];
+  (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
 
-  (void)snprintf(filename, 20, "%s_%d", AT_STORE, entry);
+  oc_rep_t* rep;
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
-  int ret = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
-  if (ret > 0)
+  const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+  PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
+  if (bytes_to_read > 0)
   {
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
 
-    const int err = oc_parse_rep(buf, ret, &rep);
+    int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
     if (err == 0)
     {
@@ -1764,7 +1762,7 @@ int oc_core_set_at_table(int index, oc_auth_at_t entry)
     }
 
     // store 
-    oc_at_store_entry(index);
+    oc_store_at_table_entry(index);
   }
 
   return 0;
@@ -1788,7 +1786,7 @@ void oc_core_find_and_remove_pase_entry(void)
   {
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
     {
-      oc_at_delete_entry(i); // delete entry from AT table
+      oc_delete_at_table_entry(i); // delete entry from AT table
       oc_oscore_free_contexts_at_id(i); // removes possible references
       PRINT("PASE key found, invalidated...");
       return;
@@ -1828,7 +1826,7 @@ void oc_load_at_table(size_t device_index)
   PRINT("Loading AT Table from persistent storage");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
-    oc_at_load_entry(i);
+    oc_load_at_table_entry(i);
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
       oc_print_auth_at_entry(i);
@@ -1844,7 +1842,7 @@ void oc_delete_at_table(void)
 
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
-    oc_at_delete_entry(i);
+    oc_delete_at_table_entry(i);
     oc_print_auth_at_entry(i);
   }
 #ifdef OC_OSCORE
@@ -1864,7 +1862,7 @@ void oc_delete_at_table_except_sec_scope_entries(size_t device_index)
     if (!(scope & OC_ACL_SEC))
     {
       // delete the entries that are not including "if.sec"
-      oc_at_delete_entry(i);
+      oc_delete_at_table_entry(i);
       oc_print_auth_at_entry(i);
     }
   }

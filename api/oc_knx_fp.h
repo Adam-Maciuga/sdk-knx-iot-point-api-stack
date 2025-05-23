@@ -455,7 +455,7 @@ extern "C"
    *
    * @param entry the index of the entry in the Group Object Table
    */
-  void oc_delete_group_object_table_entry(int entry);
+int oc_delete_group_object_table_entry(int entry);
 
   /**
    * @brief delete all entries of the Group Object Table (from persistent) storage

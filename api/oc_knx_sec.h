@@ -255,10 +255,10 @@ extern "C" {
 	/**
 	 * @brief deletes the AT table entry (RAM) including the AT file entry 
 	 *
-	 * @param index the index in the table
+	 * @param entry the index in the table
 	 * return 0 == success
 	 */
-	int oc_at_delete_entry(int index);
+	int oc_delete_at_table_entry(int entry);
 
 	/**
 	 * @brief Creation of the KNX security resources.

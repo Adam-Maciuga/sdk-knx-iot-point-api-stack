@@ -48,7 +48,7 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
 
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table);
 
-static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
+static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
 
 static int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max_size);
 
@@ -2255,6 +2255,11 @@ void oc_print_group_object_table_entry(int entry)
 
 void oc_store_group_object_table_entry(int entry)
 {
+#ifndef OC_USE_STORAGE
+  (void)entry;
+  PRINT("no go storage");
+#else
+
   char filename[FPT_SIZE];
   (void)snprintf(filename, FPT_SIZE, "%s_%d", GOT_STORE, entry);
 
@@ -2288,8 +2293,8 @@ void oc_store_group_object_table_entry(int entry)
       PRINT("written %d != %d (to be written)", (int)written_size, size);
     }
   }
-
   free(buf);
+#endif
 }
 
 void oc_load_group_object_table_entry(int entry)
@@ -2297,7 +2302,6 @@ void oc_load_group_object_table_entry(int entry)
   char filename[FPT_SIZE];
   (void)snprintf(filename, FPT_SIZE, "%s_%d", GOT_STORE, entry);
 
-  // set ptr to 
   oc_rep_t* rep;
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
@@ -2310,6 +2314,7 @@ void oc_load_group_object_table_entry(int entry)
   {
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
+
     int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
     if (err == 0)
@@ -2387,7 +2392,6 @@ void oc_load_group_object_table_entry(int entry)
     }
     oc_free_rep(head);
   }
-
   free(buf);
 }
 
@@ -2453,13 +2457,18 @@ void oc_free_allocated_table_elements(oc_group_table_t* entry, const uint8_t all
   }
 }
 
-void oc_delete_group_object_table_entry(int entry)
+int oc_delete_group_object_table_entry(int entry)
 {
+  if (entry < 0 || entry > GOT_MAX_ENTRIES - 1)
+    return -1;
+
+  // delete GO entry (note, one file per entry)
   char filename[FPT_SIZE];
   (void)snprintf(filename, FPT_SIZE, "%s_%d", GOT_STORE, entry);
   oc_storage_erase(filename);
 
   oc_free_group_object_table_entry(entry, false);
+  return 0;
 }
 
 void oc_delete_group_object_table(void)
@@ -2550,13 +2559,16 @@ static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_
   printf(" ]");
 }
 
-
 // store RCP/PUB table data in CBOR (hex stream data)
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table)
 {
+#ifndef OC_USE_STORAGE
+  (void)entry;
+  PRINT("no go storage");
+#else
+
   char filename[FPT_SIZE];
   (void)snprintf(filename, FPT_SIZE, "%s_%d", store, entry);
-
 
   uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
@@ -2598,11 +2610,11 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   }
 
   free(buf);
+#endif
 }
 
-void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_table, int max_size)
+void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_table)
 {
-  (void)max_size;
   char filename[FPT_SIZE];
   (void)snprintf(filename, FPT_SIZE, "%s_%d", Store, entry);
 
@@ -2620,6 +2632,7 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
   {
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
+
     int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
     if (err == 0)
@@ -2707,7 +2720,7 @@ void oc_load_object_table(void)
   PRINT("Loading Group Recipient Table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+    oc_load_group_table_entry(i, GRT_STORE, g_grt);
     oc_print_group_table_entry(i, GRT_STORE, g_grt);
   }
 
@@ -2715,7 +2728,7 @@ void oc_load_object_table(void)
   PRINT("Loading Group Publisher Table from persistent storage");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+    oc_load_group_table_entry(i, GPT_STORE, g_gpt);
     oc_print_group_table_entry(i, GPT_STORE, g_gpt);
   }
 #endif
@@ -2741,15 +2754,20 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].ga_len = 0;
 }
 
-static void oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
+static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
 
-  // delete related GOT entry (note, one file per GOT entry)
+  // use either GPT or GRT table size
+  if (entry < 0 || entry > max_size - 1)
+    return -1;
+
+  // delete GPT/GRT entry (note, one file per entry)
   char filename[20];
   (void)snprintf(filename, 20, "%s_%d", store, entry);
   oc_storage_erase(filename);
 
   oc_free_group_table_entry(entry, table, false);
+  return 0;
 }
 
 void oc_delete_group_tables(void)
