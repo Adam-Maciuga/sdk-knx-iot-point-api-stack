@@ -1155,8 +1155,8 @@ void MyFrame::OnPressed_EITT_SOO(wxCommandEvent& event)
   // set value
   app_set_bool_variable_from_channel(LSSB0, SOO, p);
 
-  // send out, multicast, site local
-  oc_do_s_mode_with_scope(5, url, "w");
+  // send out, multicast
+  oc_do_s_mode_with_scope(SENDER_SCOPE, url, "w");
 
   // update button text
   char text[200];

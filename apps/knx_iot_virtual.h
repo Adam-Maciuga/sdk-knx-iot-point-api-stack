@@ -18,12 +18,22 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-// include file for all CL/GUI applications (EITT/LSAB/LSSB)
+// include file, used for all CL/GUI applications (EITT/LSAB/LSSB)
 
-// common data
+
 #ifndef KNX_IOT_VIRTUAL_H
 #define KNX_IOT_VIRTUAL_H
 
+// network
+
+/*
+ The network router may not allow to send multicast with scope 5 (site local),
+ hence the DEMO applications use scope 2 instead. If needed,
+ sendout with scope 2 and 5 separately may be an option (2 messages). 
+ */
+#define SENDER_SCOPE (2)
+
+// common data
 #define NUM_CHANNELS (2)
 #define NUM_POINTS (2)
 #define SOO (0)

@@ -501,9 +501,9 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     PRINT("received no error, update status to %d", lsxb[c].point[SOO].value);
     lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
 
-    // this is the 'simple' option to trigger a status on a specific EP, multicast, site local
+    // this is the 'simple' option to trigger a status on a specific EP
     PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
-    oc_do_s_mode_with_scope(5, lsxb[c].point[IOO].href, "w");
+    oc_do_s_mode_with_scope(SENDER_SCOPE, lsxb[c].point[IOO].href, "w");
 
     PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
     return;
