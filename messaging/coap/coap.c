@@ -1205,12 +1205,12 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 		return 0;
 	}
 
-	coap_packet_t* const coap_pkt = packet;	// ptr copy
+	coap_packet_t* const coap_pkt = packet;	// second local ptr copy
 	uint8_t* option;												// ptr to all options 
 	uint8_t token_location = 0;							// location in coap telegram
 
 	// init 
-	coap_pkt->buffer = buffer;
+	coap_pkt->buffer = buffer;							// is a ptr copy from org EP data
 	coap_pkt->version = 1;
 
 	// CoAP header option serialize first to know total length about options 

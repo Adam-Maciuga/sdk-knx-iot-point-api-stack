@@ -75,7 +75,7 @@ extern "C" {
 #define OC_EXCHANGE_LIFETIME (318)
 
 #define COAP_HEADER_LEN                                                        \
-  4 /* | version:0x03 type:0x0C tkl:0xF0 | code | mid:0x00FF | mid:0xFF00 | */
+  4 /* | version:0xC0 type:0x30 tkl:0x0F | code | mid:0xFF00 | mid:0x00FF | */
 #define COAP_TOKEN_LEN 8 /**< The maximum number of bytes for the Token */
 #define COAP_ETAG_LEN 8  /**< The maximum number of bytes for the ETag */
 #define COAP_ECHO_LEN 40 /**< The maximum size of the Echo option */
@@ -121,7 +121,7 @@ typedef enum { COAP_GET = 1, COAP_POST, COAP_PUT, COAP_DELETE } coap_method_t;
 
 /** CoAP response codes */
 typedef enum {
-  COAP_NO_ERROR = 0,
+  COAP_NO_ERROR = 0,  
 
   CREATED_2_01 = 65,  /* CREATED */
   DELETED_2_02 = 66,  /* DELETED */

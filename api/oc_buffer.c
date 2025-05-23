@@ -182,9 +182,11 @@ void
 oc_send_message(oc_message_t* message)
 {
 	// we only want to cache OSCORE-secured requests, as these frames are the
-	// only ones that will be challenged with an Echo option. however, at this
+	// only ones that will be challenged with an Echo option. However, at this
 	// point we only have the encoded CoAP bytes, so we parse just the header
 	// and token.
+
+	// check from *data ptr
 	uint8_t version = (COAP_HEADER_VERSION_MASK & message->data[0]) >>
 		COAP_HEADER_VERSION_POSITION;
 	uint8_t type =
@@ -194,7 +196,9 @@ oc_send_message(oc_message_t* message)
 		COAP_HEADER_TOKEN_LEN_POSITION;
 	uint8_t* token = message->data + COAP_HEADER_LEN;
 
+	// type = NON, code : example 4.01 = 10000001 = CLASS/DETAIL, EP = SECURITY   
 	if (version == 1 && type == 1 && (code >> 5 == 0) &&
+			// only on request ... 
 			message->endpoint.flags & SECURED)
 	{
     OC_DBG_OSCORE("Track outgoing OSCORE message");
@@ -205,7 +209,7 @@ oc_send_message(oc_message_t* message)
 			oc_events[OUTBOUND_NETWORK_EVENT],
 			message) == OC_PROCESS_ERR_FULL)
 	{
-		OC_ERR("oc_send_message  ref_count decrease due to FULL");
+		OC_ERR("oc_send_message ref_count decrease due to FULL");
 		message->ref_count--;
 	}
 

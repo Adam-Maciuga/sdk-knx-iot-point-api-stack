@@ -3188,7 +3188,7 @@ void oc_register_group_multicasts(void)
 
 void oc_init_datapoints_at_initialization(void)
 {
-  PRINT("oc_init_datapoints_at_initialization");
+  PRINT("Scan datapoints for possible initialization...");
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -3199,7 +3199,7 @@ void oc_init_datapoints_at_initialization(void)
       {
         // read on init cflags is set, fire (after device restart)
         // via the sending association(first assigned ga == sending ga)
-        PRINT("oc_init_datapoints_at_initialization: index: %d issue read on group address %u", index, g_got[index].ga[0]);
+        PRINT("Init_datapoint, index: %d issue read on group address %u", index, g_got[index].ga[0]);
         oc_do_s_mode_read(g_got[index].ga[0]);
       }
     }
