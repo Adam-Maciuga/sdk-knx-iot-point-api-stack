@@ -363,7 +363,7 @@ oc_oscore_free_sender_contexts(void)
 void
 oc_oscore_free_contexts_at_id(int auth_at_index)
 {
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_list_head(contexts);
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
   while (ctx != NULL)
   {
     oc_oscore_context_t* next = ctx->next;  // get temp copy
@@ -454,8 +454,10 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
   PRINT("salt size : %d", salt_size);
   oc_char_println_hex(salt, salt_size);
 
-  /* To prevent SSN reuse, bump the SNN to a higher value that could've been previously
-   * used, considering any possible failed writes to a nonvolatile storage.
+  /*
+     To prevent SSN reuse, bump the SNN to a higher value that could've been previously
+     used, considering any possible failed writes to a nonvolatile storage.
+     RFC - Appendix B 1.1
    */
   if (read_ssn_from_storage)
   {

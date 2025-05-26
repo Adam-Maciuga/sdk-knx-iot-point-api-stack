@@ -938,10 +938,10 @@ free_all_event_timers(void)
 	}
 }
 
-oc_interface_mask_t
-oc_ri_get_interface_mask(char* iface, size_t if_len)
+oc_interface_mask_t oc_ri_get_interface_mask(char* iface, size_t if_len)
 {
 	oc_interface_mask_t iface_mask = OC_IF_NONE;
+
 	if (4 == if_len && strncmp(iface, "if.i", if_len) == 0)
 		iface_mask |= OC_IF_I;
 	if (4 == if_len && strncmp(iface, "if.o", if_len) == 0)
@@ -970,6 +970,34 @@ oc_ri_get_interface_mask(char* iface, size_t if_len)
 		iface_mask |= OC_IF_PM;
 
 	return iface_mask;
+}
+
+oc_acl_mask_t oc_ri_get_scope_mask(char* acl_scope, size_t acl_len)
+{
+  oc_acl_mask_t acl_mask = OC_ACL_NONE;
+
+  if (4 == acl_len && strncmp(acl_scope, "if.i", acl_len) == 0)
+    acl_mask |= OC_ACL_I;
+  if (4 == acl_len && strncmp(acl_scope, "if.o", acl_len) == 0)
+    acl_mask |= OC_ACL_O;
+  if (6 == acl_len && strncmp(acl_scope, "if.g.s", acl_len) == 0)
+    acl_mask |= OC_ACL_G;
+  if (4 == acl_len && strncmp(acl_scope, "if.c", acl_len) == 0)
+    acl_mask |= OC_ACL_C;
+  if (4 == acl_len && strncmp(acl_scope, "if.p", acl_len) == 0)
+    acl_mask |= OC_ACL_P;
+  if (4 == acl_len && strncmp(acl_scope, "if.d", acl_len) == 0)
+    acl_mask |= OC_ACL_D;
+  if (4 == acl_len && strncmp(acl_scope, "if.a", acl_len) == 0)
+    acl_mask |= OC_ACL_A;
+  if (4 == acl_len && strncmp(acl_scope, "if.s", acl_len) == 0)
+    acl_mask |= OC_ACL_S;
+  if (6 == acl_len && strncmp(acl_scope, "if.sec", acl_len) == 0)
+    acl_mask |= OC_ACL_SEC;
+  if (6 == acl_len && strncmp(acl_scope, "if.swu", acl_len) == 0)
+    acl_mask |= OC_ACL_SWU;
+
+  return acl_mask;
 }
 
 #ifdef OC_BLOCK_WISE

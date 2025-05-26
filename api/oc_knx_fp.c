@@ -54,8 +54,6 @@ static int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, 
 
 int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size);
 
-static int oc_core_add_entry(int index, oc_group_table_t* table, int table_size, oc_group_table_t entry);
-
 static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, uint32_t group_address);
 
 // ------------
@@ -875,11 +873,6 @@ int oc_core_find_empty_slot_in_publisher_table(int id) { return find_empty_slot_
 int oc_core_find_index_in_publisher_table_from_id(int id)
 {
   return oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
-}
-
-int oc_core_add_publisher_entry(int index, oc_group_table_t entry)
-{
-  return oc_core_add_entry(index, g_gpt, GPT_MAX_ENTRIES, entry);
 }
 
 uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address)
@@ -1770,21 +1763,21 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 7)
           {
             const int64_t* array = oc_int_array(object->value.array);
-            const int array_size = oc_int_array_size(object->value.array);
+            const int new_array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             // ga size shall be 32 bit
-            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
-            if (new_array && array_size > 0)
+            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            if (new_array && new_array_size > 0)
             {
-              for (int i = 0; i < array_size; i++)
+              for (int i = 0; i < new_array_size; i++)
               {
                 new_array[i] = (uint32_t)array[i];
               }
 
-              PRINT("ga size %d", array_size);
+              PRINT("ga size %d", new_array_size);
 
-              tmp_rcp_entry.ga_len = array_size;
+              tmp_rcp_entry.ga_len = new_array_size;
               tmp_rcp_entry.ga = new_array;
 
               mandatory_items++;
@@ -2257,7 +2250,7 @@ void oc_store_group_object_table_entry(int entry)
 {
 #ifndef OC_USE_STORAGE
   (void)entry;
-  PRINT("no go storage");
+  PRINT("no storage for the GO table enabled");
 #else
 
   char filename[FPT_SIZE];
@@ -2374,7 +2367,7 @@ void oc_load_group_object_table_entry(int entry)
 
               PRINT("ga size %d", new_array_size);
 
-              // assign GA array in GO table directly
+              // assign only when the new array is allocated correctly
               g_got[entry].ga_len = new_array_size;
               g_got[entry].ga = new_array;
             }
@@ -2416,6 +2409,8 @@ void oc_free_group_object_table_entry(int entry, bool init)
     free(g_got[entry].ga); // NULL ptr is handled
   }
 
+  // calling with init = true AND allocated GA array keeps memory leak open ...
+  // so careful on use of init flag ...
   g_got[entry].ga = NULL;
   g_got[entry].ga_len = 0;
   g_got[entry].cflags = 0;
@@ -2564,7 +2559,7 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
 {
 #ifndef OC_USE_STORAGE
   (void)entry;
-  PRINT("no go storage");
+  PRINT("no storage for the RCP/PUB table enabled");
 #else
 
   char filename[FPT_SIZE];
@@ -2613,10 +2608,10 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
 #endif
 }
 
-void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_table)
+void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
 {
   char filename[FPT_SIZE];
-  (void)snprintf(filename, FPT_SIZE, "%s_%d", Store, entry);
+  (void)snprintf(filename, FPT_SIZE, "%s_%d", store, entry);
 
   oc_rep_t* rep;
 
@@ -2645,65 +2640,72 @@ void oc_load_group_table_entry(int entry, char* Store, oc_group_table_t* rp_tabl
         case OC_REP_INT:
           if (rep->iname == 0)
           {
-            rp_table[entry].id = (int)rep->value.integer;
+            table[entry].id = (int)rep->value.integer;
           }
           if (rep->iname == 12)
           {
-            rp_table[entry].ia = (int)rep->value.integer;
+            table[entry].ia = (int)rep->value.integer;
           }
           if (rep->iname == 13)
           {
-            rp_table[entry].grpid = (uint32_t)rep->value.integer;
+            table[entry].grpid = (uint32_t)rep->value.integer;
           }
           if (rep->iname == 25)
           {
-            rp_table[entry].fid = rep->value.integer;
+            table[entry].fid = rep->value.integer;
           }
           if (rep->iname == 26)
           {
-            rp_table[entry].iid = rep->value.integer;
+            table[entry].iid = rep->value.integer;
           }
           break;
         case OC_REP_STRING:
           if (rep->iname == 10)
           {
-            oc_free_string(&rp_table[entry].url);
-            oc_new_string(&rp_table[entry].url, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            oc_free_string(&table[entry].url);
+            oc_new_string(&table[entry].url, oc_string(rep->value.string), oc_string_len(rep->value.string));
           }
           if (rep->iname == 14)
           {
-            oc_free_string(&rp_table[entry].at);
-            oc_new_string(&rp_table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            oc_free_string(&table[entry].at);
+            oc_new_string(&table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
           }
           break;
         case OC_REP_INT_ARRAY:
+
+          // ga array (7)
           if (rep->iname == 7)
           {
-            int64_t* arr = oc_int_array(rep->value.array);
-            int array_size = (int)oc_int_array_size(rep->value.array);
-            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
-            if (new_array != NULL && array_size > 0)
+            // temp ptr to address the CBOR array 
+            const int64_t* array = oc_int_array(rep->value.array);
+            const int new_array_size = (int)oc_int_array_size(rep->value.array);
+
+            // malloc of 'zero' byte return pointer is undefined
+            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            if (new_array && new_array_size > 0)
             {
-              for (int i = 0; i < array_size; i++)
+              for (int i = 0; i < new_array_size; i++)
               {
-#pragma warning(suppress : 6386)
-                new_array[i] = (uint32_t)arr[i];
+                new_array[i] = (uint32_t)array[i];
               }
+
+              // release a possible ga array, it will be overwritten,
+              // no selective adding (note it releases the org ptr)
+              // free ignores NULL ptr
+              free(table[entry].ga);
+
+              PRINT("ga size %d", new_array_size);
+
               // assign only when the new array is allocated correctly
-              rp_table[entry].ga_len = array_size;
+              table[entry].ga_len = new_array_size;
+              table[entry].ga = new_array;
             }
-            if (rp_table[entry].ga != 0)
-            {
-              free(rp_table[entry].ga);
-            }
-            PRINT("ga size %d", array_size);
-            // if (rp_table[entry].ga) {
-            //   free(rp_table[entry].ga);
-            // }
-            rp_table[entry].ga = new_array;
           }
           break;
         default:
+          // any other invalid type prints ...
+          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
+          PRINT("invalid object type detected");
           break;
         }
         rep = rep->next;
@@ -2750,13 +2752,14 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
     free(table[entry].ga);
   }
 
+  // calling with init = true AND allocated GA array keeps memory leak open ...
+  // so careful on use of init flag ...
   table[entry].ga = NULL;
   table[entry].ga_len = 0;
 }
 
 static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
-
   // use either GPT or GRT table size
   if (entry < 0 || entry > max_size - 1)
     return -1;
@@ -2824,46 +2827,6 @@ int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size)
   return -1;
 }
 
-int oc_core_add_entry(int index, oc_group_table_t* table, int table_size, oc_group_table_t entry)
-{
-  if (index >= table_size)
-  {
-    OC_ERR("recipient table index is too large: index(%d) max_size(%d)", index, table_size);
-  }
-
-  // Store entries
-  table[index].id = entry.id;
-  table[index].iid = entry.iid;
-  table[index].fid = entry.fid;
-  table[index].grpid = entry.grpid;
-
-  // Copy group addresses
-  table[index].ga_len = 0;
-  uint32_t* new_array = (uint32_t*)malloc(entry.ga_len * sizeof(uint32_t));
-  if (new_array != NULL && entry.id > -1)
-  {
-    for (int i = 0; i < entry.ga_len; i++)
-    {
-#pragma warning(suppress : 6386)
-      new_array[i] = entry.ga[i];
-    }
-    // copy only when the allocation was done correctly
-    table[index].ga_len = entry.ga_len;
-    if (table[index].ga != 0)
-    {
-      free(table[index].ga);
-    }
-    table[index].ga = new_array;
-  }
-
-  return 0;
-}
-
-int oc_core_add_recipient_entry(int index, oc_group_table_t entry)
-{
-  return oc_core_add_entry(index, g_grt, GRT_MAX_ENTRIES, entry);
-}
-
 int oc_core_get_recipient_table_size(void) { return GRT_MAX_ENTRIES; }
 
 oc_group_table_t* oc_core_get_recipient_table_entry(int index)
@@ -2903,17 +2866,20 @@ static void oc_init_tables(void)
 
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
+    // init GPT table and assumes no present allocation 
     oc_free_group_table_entry(i, g_gpt, true);
   }
 #endif
 
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
+    // init GRT table and assumes no present allocation 
     oc_free_group_table_entry(i, g_grt, true);
   }
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
+    // init GO table and assumes no present allocation 
     oc_free_group_object_table_entry(i, true);
   }
 }

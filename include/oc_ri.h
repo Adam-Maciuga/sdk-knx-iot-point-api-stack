@@ -684,11 +684,20 @@ extern "C" {
 	 *
 	 * @param iface the interface (e.g. "if=if.s")
 	 * @param if_len the interface length
-	 * @return oc_interface_mask_t the mask value of the interface, also 'none' on no hit
+	 * @return oc_interface_mask_t the compacted mask value of the interface, also 'none' on no hit
 	 */
 	oc_interface_mask_t oc_ri_get_interface_mask(char* iface, size_t if_len);
 
 	/**
+   * @brief retrieve the interface mask from the interface name
+   *
+   * @param acl_scope the access scope (e.g. "if=if.s")
+   * @param acl_len the access scope length
+   * @return oc_acl_mask_t the compacted mask value of the access scopes, also 'none' on no hit
+   */
+  oc_acl_mask_t oc_ri_get_scope_mask(char* acl_scope, size_t acl_len);
+
+  /**
 	 * @brief checks if the resource is valid
 	 *
 	 * @param resource The resource to be tested

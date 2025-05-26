@@ -98,7 +98,6 @@ oc_storage_read(const char* store, uint8_t* buf, size_t size)
 	FILE* fp = fopen(store_path, "rb");
 	if (!fp)
 	{
-		OC_ERR("Missing (or invalid) storage path: %s", store_path);
 		return -EINVAL;
 	}
 

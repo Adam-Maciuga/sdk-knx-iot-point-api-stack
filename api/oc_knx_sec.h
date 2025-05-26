@@ -100,13 +100,13 @@ extern "C" {
 	 * | name      | CBOR label | CBOR type   | description                        |default value              |
 	 * | ----------| -----------| ------------|------------------------------------|---------------------------|
 	 * | id        | 0          | string      | full ctx identifier                | -                         |
-	 * | ms        | 18:4:2     | byte string | Master Secret value (shall be PSK) | -                         |
-	 * | version   | 18:4:1     | uint        | OSCORE Version                     | 1                         |
-	 * | hkdf      | 18:4:3     | integer     | HKDF value                         | HKDF SHA-256  (-10)       |
-	 * | alg       | 18:4:4     | integer     | AEAD Algorithm                     | AES-CCM-16-64-128 (10)    |
-	 * | salt      | 18:4:5     | byte string | Master Salt                        | Default empty byte string |
-	 * | contextId | 18:4:6     | byte string | OSCORE ID Context value            | omit                      |
-	 * | osc_id    | 18:4:0     | byte string | OSCORE SID                         | -                         |
+	 * | ms        | 8:4:2      | byte string | Master Secret value (shall be PSK) | -                         |
+	 * | version   | 8:4:1      | uint        | OSCORE Version                     | 1                         |
+	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HKDF SHA-256  (-10)       |
+	 * | alg       | 8:4:4      | integer     | AEAD Algorithm                     | AES-CCM-16-64-128 (10)    |
+	 * | salt      | 8:4:5      | byte string | Master Salt                        | Default empty byte string |
+	 * | contextId | 8:4:6      | byte string | OSCORE ID Context value            | omit                      |
+	 * | osc_id    | 8:4:0      | byte string | OSCORE SID                         | -                         |
 	 *
 	 * Example payload:
 	 * ```
@@ -120,22 +120,22 @@ extern "C" {
 	 */
 	typedef struct oc_auth_at
 	{
-		oc_string_t id;							// (0) auth / at / {id}, encoding: HEX 
-		oc_acl_mask_t scope;	      // (9) the acl scope
-		oc_at_profile_t  profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
-		oc_string_t sub;						// (2) DTLS (not used) 2 sub 
-		oc_string_t kid;						// (8:2) DTLS (not used)  cnf:kid
-		oc_string_t osc_version;		// (18:4:1) OSCORE cnf:osc:version (optional) 
-		oc_string_t osc_ms;					// (18:4:2) OSCORE cnf:osc:ms (byte string) 
-		uint8_t osc_hkdf;						// (18:4:3) OSCORE cnf:osc:hkdf (optional-not used)	(decimal value)
-		uint8_t osc_alg;						// (18:4:4) OSCORE cnf:osc:alg (optional- not used) default: decimal value 10
-		oc_string_t osc_salt;				// (18:4:5) OSCORE cnf:osc:salt (optional) empty string 
-		oc_string_t osc_contextid;	// (18:4:6) OSCORE cnf:osc:contextid used as "kid_context" (byte string, 6	* bytes) 
-		oc_string_t osc_id;					// (18:4:0) OSCORE cnf:osc:id  (used as SID & KID) (byte string), max 7 bytes 
-		oc_string_t	osc_rid;				// (18:4:7) OSCORE cnf:osc:rid (recipient ID) (byte string) 
+		oc_string_t id;							// (0) id, hex encoded 
+		oc_acl_mask_t scope;	      // (9) acl scopes
+		oc_at_profile_t profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
+		oc_string_t sub;						// (2) TLS (not used) kid 
+		oc_string_t kid;						// (8:3) TLS (not used) cnf:sub
+		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional) 
+		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
+		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional-not used)	(decimal value)
+		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional- not used) default: decimal value 10
+		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt (optional) empty string 
+		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" (byte string, 6	* bytes) 
+		oc_string_t osc_id;					// (8:4:0) OSCORE cnf:osc:id  (used as SID & KID) (byte string), max 7 bytes 
+		oc_string_t	osc_rid;				// TODO to be removed (8:4:7) OSCORE cnf:osc:rid (recipient ID) (byte string) 
 		int nbf;										// token not valid before (optional) 
 		int ga_len;									// length of the group addresses (ga) in the scope 
-		int64_t* ga;								// (scope) array of group addresses, for the group objects in the scope, int64_t for framing arrays
+		int64_t* ga;								// (777, artificial number) scope array of group addresses OR compacted scopes as integer
 
 	} oc_auth_at_t;
 
@@ -158,15 +158,17 @@ extern "C" {
 	int oc_core_items_used_in_auth_at_table(void);
 
 	/**
-	 * @brief puts the entry in
+	 * @brief puts the SPAKE2+ token in
 	 * - the AT table (RAM)
 	 * - to the storage file system
 	 *
-	 * @param index the index in the table, will overwrite if something is there
+	 * @param index the index in the table, will rlease/overwrite the content if something is there
 	 * @param entry the auth/at entry
 	 * @return int 0 == successful
+	 *
+	 * @note don't set any GA ptr/ GA len in case of SPAKE2+ token
 	 */
-	int oc_core_set_at_table(int index, oc_auth_at_t entry);
+	int oc_core_set_spake_token_in_at_table(int index, oc_auth_at_t entry);
 
 	/**
 	* @brief Find an PASE entry and removes it from AT table and
@@ -179,11 +181,10 @@ extern "C" {
 	/**
 	 * @brief find empty slot
 	 *
-	 * @param device_index The device index
 	 * @return int -1 : no space left
 	 * @return int >=0 : index to place entry
 	 */
-	int oc_core_find_at_entry_empty_slot(size_t device_index);
+	int oc_core_find_at_entry_empty_slot(void);
 
 	/**
 	 * @brief set shared (SPAKE) key to the auth at table, on the Management Client
@@ -253,7 +254,9 @@ extern "C" {
 	void oc_delete_at_table_except_sec_scope_entries(size_t device_index);
 
 	/**
-	 * @brief deletes the AT table entry (RAM) including the AT file entry 
+	 * @brief deletes the AT table entry
+	 * - from RAM
+	 * - from file system 
 	 *
 	 * @param entry the index in the table
 	 * return 0 == success

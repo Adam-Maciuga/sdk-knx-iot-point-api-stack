@@ -541,15 +541,6 @@ int oc_delete_group_object_table_entry(int entry);
   int oc_core_find_index_in_recipient_table_from_id(int id);
 
   /**
-   * @brief add recipient entry
-   *
-   * @param index The index in the table
-   * @param entry The entry to be added
-   * @return 0 : successful
-   */
-  int oc_core_add_recipient_entry(int index, oc_group_table_t entry);
-
-  /**
    * @brief return the size of the publisher table
    *
    * @note
@@ -575,14 +566,6 @@ int oc_delete_group_object_table_entry(int entry);
    */
   oc_group_table_t* oc_core_get_publisher_table_entry(int index);
 
-  /**
-   * @brief add publisher entry
-   *
-   * @param index The index in the table
-   * @param entry The entry to be added
-   * @return 0 : successful
-   */
-  int oc_core_add_publisher_entry(int index, oc_group_table_t entry);
   /**
    * @brief find empty slot in recipient table
    *
