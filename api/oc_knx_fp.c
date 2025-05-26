@@ -42,8 +42,6 @@ static oc_group_table_t g_gpt[GPT_MAX_ENTRIES];         // pub table (to receive
 
 // -externals -
 
-static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size);
-
 static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table);
 
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table);
@@ -58,41 +56,18 @@ static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, ui
 
 // ------------
 
-int oc_print_reduced_group_publisher_table(void)
+int oc_table_find_id_from_payload(oc_rep_t* object)
 {
-#ifdef OC_PUBLISHER_TABLE
-  for (int i = 0; i < GPT_MAX_ENTRIES; i++)
+  while (object != NULL)
   {
-    oc_print_reduced_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
-  }
-#endif
-  return 0;
-}
-
-int oc_print_reduced_group_recipient_table(void)
-{
-  for (int i = 0; i < GRT_MAX_ENTRIES; i++)
-  {
-    oc_print_reduced_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
-  }
-  return 0;
-}
-
-int oc_table_find_id_from_rep(const oc_rep_t* object)
-{
-  // use copy to keep original parameter
-  const oc_rep_t* tmpObject = object;
-
-  while (tmpObject != NULL)
-  {
-    switch (tmpObject->type)
+    switch (object->type)
     {
     case OC_REP_INT:
     {
-      // CBOR key(iname) for 'id' is '0'
-      if (oc_string_len(tmpObject->name) == 0 && tmpObject->iname == 0)
+      // id is only for type integer defined
+      if (oc_string_len(object->name) == 0 && object->iname == 0)
       {
-        const int id = (int)tmpObject->value.integer;
+        int id = (int)object->value.integer;
         PRINT("find id from request: %d ", id);
         return id;
       }
@@ -101,10 +76,10 @@ int oc_table_find_id_from_rep(const oc_rep_t* object)
     default:
       break;
     }
-    tmpObject = tmpObject->next;
+    object = object->next;
   }
 
-  PRINT("oc_table_find_id_from_rep id=-1 (error)");
+  PRINT("no id found (error)");
   return -1;
 }
 
@@ -124,38 +99,6 @@ int find_empty_slot_in_group_object_table(const int id)
     }
   }
   return -1;
-}
-
-int oc_core_set_group_object_table(int index, oc_group_object_table_t entry)
-{
-  if (index >= GOT_MAX_ENTRIES)
-  {
-    OC_ERR("index too large index:%d %d", index, GOT_MAX_ENTRIES);
-  }
-  g_got[index].cflags = entry.cflags;
-  g_got[index].id = entry.id;
-
-  oc_free_string(&g_got[index].href);
-  oc_new_string(&g_got[index].href, oc_string(entry.href), oc_string_len(entry.href));
-  /* copy the ga array */
-  g_got[index].ga_len = 0;
-  uint32_t* new_array = (uint32_t*)malloc(entry.ga_len * sizeof(uint32_t));
-
-  if (new_array != NULL && entry.id > -1)
-  {
-    for (int i = 0; i < entry.ga_len; i++)
-    {
-#pragma warning(suppress : 6386)
-      new_array[i] = entry.ga[i];
-    }
-    if (g_got[index].ga != 0)
-    {
-      free(g_got[index].ga);
-    }
-    g_got[index].ga_len = entry.ga_len;
-    g_got[index].ga = new_array;
-  }
-  return 0;
 }
 
 int oc_core_get_group_object_table_total_size(void) { return GOT_MAX_ENTRIES; }
@@ -457,8 +400,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       // treat request payload value as one GO (that itself defines a chain of objects for id, href,...)
       object = rep->value.object;
 
-      // find 'id' key in request
-      const int id = oc_table_find_id_from_rep(object);
+      // find GO id in request
+      const int id = oc_table_find_id_from_payload(object);
       if (id == -1)
       {
         OC_ERR("GO table id not found in request, but is a mandatory part");
@@ -550,22 +493,22 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 7)
           {
             const int64_t* array = oc_int_array(object->value.array);
-            const int array_size = oc_int_array_size(object->value.array);
+            const int new_array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             // ga size shall be 32 bit
-            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
-            if (new_array && array_size > 0)
+            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            if (new_array && new_array_size > 0)
             {
-              for (int i = 0; i < array_size; i++)
+              for (int i = 0; i < new_array_size; i++)
               {
                 new_array[i] = (uint32_t)array[i];
               }
 
-              PRINT("ga size %d", array_size);
+              PRINT("ga size %d", new_array_size);
 
               // assign GA array in tmp copy (org ptr still valid)
-              tmp_got_entry.ga_len = array_size;
+              tmp_got_entry.ga_len = new_array_size;
               tmp_got_entry.ga = new_array;
 
               mandatory_items++;
@@ -868,8 +811,6 @@ void oc_create_fp_g_x_resource(int resource_idx, size_t device)
 
 #ifdef OC_PUBLISHER_TABLE
 
-int oc_core_find_empty_slot_in_publisher_table(int id) { return find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES); }
-
 int oc_core_find_index_in_publisher_table_from_id(int id)
 {
   return oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
@@ -1050,7 +991,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       object = rep->value.object;
 
       // find PUB id in request
-      const int id = oc_table_find_id_from_rep(object);
+      const int id = oc_table_find_id_from_payload(object);
       if (id == -1)
       {
         OC_ERR("PUB table id not found in request, but is a mandatory part");
@@ -1634,7 +1575,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       object = rep->value.object;
 
       // find RCP id in request
-      const int id = oc_table_find_id_from_rep(object);
+      const int id = oc_table_find_id_from_payload(object);
       if (id == -1)
       {
         OC_ERR("RCP table id not found in request, but is a mandatory part");
@@ -2530,30 +2471,6 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
 #endif
 }
 
-static void oc_print_reduced_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
-{
-  (void)max_size;
-  if (table[entry].id == -1)
-  {
-    return;
-  }
-  printf("  %s [%d] --> [%d]", store, entry, table[entry].ga_len);
-  printf("    id (0)     : %d", table[entry].id);
-
-  printf("    iid (26)   : ");
-  oc_print_uint64_t(table[entry].iid, DEC_REPRESENTATION);
-  printf("");
-
-  printf("    grpid (13) : %u", table[entry].grpid);
-
-  printf("    ga (7)     : [");
-  for (int i = 0; i < table[entry].ga_len; i++)
-  {
-    printf(" %u", table[entry].ga[i]);
-  }
-  printf(" ]");
-}
-
 // store RCP/PUB table data in CBOR (hex stream data)
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table)
 {
@@ -2718,7 +2635,6 @@ void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
 
 void oc_load_object_table(void)
 {
-
   PRINT("Loading Group Recipient Table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
@@ -2853,8 +2769,6 @@ oc_group_table_t* oc_core_get_publisher_table_entry(int index)
 #endif
 }
 
-int oc_core_find_empty_slot_in_recipient_table(int id) { return find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES); }
-
 int oc_core_find_index_in_recipient_table_from_id(int id)
 {
   return oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
@@ -2936,13 +2850,12 @@ bool is_in_array(uint32_t value, uint32_t* array, int array_size)
   return false;
 }
 
-bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
+bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
                                                      size_t* response_length)
 {
-
   bool return_value = false;
 
-  PRINT("oc_add_points_in_group_object_table_to_response %u", group_address);
+  PRINT("oc_add_points_from_group_object_table_to_response %u", group_address);
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -2951,7 +2864,7 @@ bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size
       if (is_in_array(group_address, g_got[index].ga, g_got[index].ga_len))
       {
         // add the resource to response, note, it is not checked if the resource is already there...
-        PRINT("oc_add_points_in_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
+        PRINT("oc_add_points_from_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
 
         oc_add_resource_to_response_payload(
           oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index),

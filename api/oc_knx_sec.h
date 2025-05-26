@@ -121,7 +121,7 @@ extern "C" {
 	typedef struct oc_auth_at
 	{
 		oc_string_t id;							// (0) id, hex encoded 
-		oc_acl_mask_t scope;	      // (9) acl scopes
+		oc_acl_mask_t scope;	      // (9) acl scopes (compacted as bit field)
 		oc_at_profile_t profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
 		oc_string_t sub;						// (2) TLS (not used) kid 
 		oc_string_t kid;						// (8:3) TLS (not used) cnf:sub
@@ -135,7 +135,7 @@ extern "C" {
 		oc_string_t	osc_rid;				// TODO to be removed (8:4:7) OSCORE cnf:osc:rid (recipient ID) (byte string) 
 		int nbf;										// token not valid before (optional) 
 		int ga_len;									// length of the group addresses (ga) in the scope 
-		int64_t* ga;								// (777, artificial number) scope array of group addresses OR compacted scopes as integer
+		int64_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
 
 	} oc_auth_at_t;
 
@@ -234,7 +234,7 @@ extern "C" {
 	oc_auth_at_t* oc_get_auth_at_entry(size_t device_index, int index);
 
 	/**
-	 * @brief print the AT table entry (debugging)
+	 * @brief print the AT table entry (debugging) if present (id > 0)
 	 *
 	 * @param index the index in the table to be printed
 	 */
@@ -249,9 +249,8 @@ extern "C" {
 
 	/**
 	 * @brief reset the /auth/at table entries without scope = "if.sec"
-	 * @param device_index the device index
 	 */
-	void oc_delete_at_table_except_sec_scope_entries(size_t device_index);
+	void oc_delete_at_table_except_sec_scope_entries(void);
 
 	/**
 	 * @brief deletes the AT table entry

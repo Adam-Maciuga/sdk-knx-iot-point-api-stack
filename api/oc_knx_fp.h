@@ -195,37 +195,12 @@ extern "C"
   } oc_group_table_t;
 
   /**
-   * @brief Prints a reduced version of the entries of the group publisher table:
-   *        Only id, iid and grpid are printed for each entry.
-   *
-   * @return int 0 == success
-   */
-  int oc_print_reduced_group_publisher_table(void);
-
-  /**
-   * @brief Prints a reduced version of the entries of the group recipient table:
-   *        Only id, iid and grpid are printed for each entry.
-   *
-   * @return int 0 == success
-   */
-  int oc_print_reduced_group_recipient_table(void);
-
-  /**
    * @brief find id (cbor key 0) in the request
    * @note parameter object is not changed, even if it is a pointer
    *
    * @return int -1 : not found, > -1 : value found
    */
-  int oc_table_find_id_from_rep(const oc_rep_t* object);
-
-  /**
-   * @brief set an entry in the group object table
-   *
-   * @param index the index where to add the entry
-   * @param entry the group object entry
-   * @return int 0 == success
-   */
-  int oc_core_set_group_object_table(int index, oc_group_object_table_t entry);
+  int oc_table_find_id_from_payload(const oc_rep_t* object);
 
   /**
    * @brief retrieve the group object table total size,
@@ -525,14 +500,6 @@ int oc_delete_group_object_table_entry(int entry);
   oc_group_table_t* oc_core_get_recipient_table_entry(int index);
 
   /**
-   * @brief find empty slot in recipient table
-   *
-   * @param id : supply 0
-   * @return -1 : no empty slot, otherwise index of empty slot
-   */
-  int oc_core_find_empty_slot_in_recipient_table(int id);
-
-  /**
    * @brief find index of id in recipient table
    *
    * @param id index to find
@@ -567,14 +534,6 @@ int oc_delete_group_object_table_entry(int entry);
   oc_group_table_t* oc_core_get_publisher_table_entry(int index);
 
   /**
-   * @brief find empty slot in recipient table
-   *
-   * @param id : supply 0
-   * @return -1 : no empty slot, otherwise index of empty slot
-   */
-  int oc_core_find_empty_slot_in_publisher_table(int id);
-
-  /**
    * @brief find index of id in publisher table
    *
    * @param id index to find
@@ -593,7 +552,7 @@ int oc_delete_group_object_table_entry(int entry);
    * @return true
    * @return false
    */
-  bool oc_add_points_in_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
+  bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
                                                        size_t* response_length);
 
   /**

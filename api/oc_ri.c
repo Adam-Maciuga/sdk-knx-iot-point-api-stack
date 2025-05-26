@@ -105,7 +105,7 @@ static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
 
 static const char* interface_strings[15] =
-{ // starts with OC_IF_NONE, names are shared between acl scopes and interfaces 
+{ // starts with OC_IF_NONE, names are shared between acl scopes and interfaces AND MUST be in the same order 
 	"",				"if.i",		"if.o",	"if.g.s",
 	"if.c",		"if.p",		"if.d",	"if.a",
 	"if.s",		"if.ll",	"if.b", "if.sec",
@@ -116,7 +116,7 @@ const char* get_interface_string(oc_interface_mask_t iface_mask)
 {
 	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = 12
 	// 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = 1
-	for (unsigned int i = 0; i <= NUM_INTERFACES; i++, iface_mask >>= 1)
+	for (unsigned int i = 0; i <= MAX_INTERFACE_BIT; i++, iface_mask >>= 1)
 	{
 		if (iface_mask & 1)
 		{
@@ -154,7 +154,7 @@ oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
 	return OC_IGNORE;
 }
 
-unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask)
+unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t iface_mask)
 {
 	unsigned int total_masks = 0;
 
@@ -166,10 +166,10 @@ unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask)
 	return total_masks;
 }
 
-void oc_put_interfaces_in_a_mask_in_string_array(oc_interface_mask_t iface_mask, oc_string_array_t interface_array)
+void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t iface_mask, oc_string_array_t interface_array)
 {
 	// 32-bit if.swu + if.i = 0b00000000 00000000 00010000 00000010
-	for (unsigned int i = 0; i <= NUM_INTERFACES; i++, iface_mask >>= 1)
+	for (unsigned int i = 0; i <= MAX_INTERFACE_BIT; i++, iface_mask >>= 1)
 	{
 		if (iface_mask & 1)
 		{
@@ -182,7 +182,7 @@ void oc_print_acl_scopes(oc_acl_mask_t iface_mask)
 {
 	#ifdef OC_PRINT
 
-	for (unsigned int i = 0; i <= NUM_ACL_SCOPES; i++, iface_mask >>= 1)
+	for (unsigned int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, iface_mask >>= 1)
 	{
 		if (iface_mask & 1)
 		{

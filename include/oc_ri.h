@@ -188,7 +188,7 @@ extern "C" {
 		OC_IF_M = 1 << 14       // if.m.x (manufacturer specific)
 	} oc_interface_mask_t;
 
-#define NUM_INTERFACES 14
+#define MAX_INTERFACE_BIT (14) // the highest defined bit-position
 
 	// access control masks, derived from interfaces
 	typedef enum oc_acl_mask
@@ -210,7 +210,7 @@ extern "C" {
 		                          // if.m.{name} (is not a scope) 
 	} oc_acl_mask_t;
 
-#define NUM_ACL_SCOPES (NUM_INTERFACES - 4) 
+#define MAX_ACL_SCOPE_BIT (12) // the highest defined bit-position 
 
 	/**
 	 * @brief Get the interface string object from a corresponding interface bit
@@ -240,7 +240,7 @@ extern "C" {
 	 * @note calculates the interface if.g.s.<a> only 1
 	 *
 	 */
-	unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t iface_mask);
+  unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t iface_mask);
 
 
 
@@ -261,7 +261,7 @@ extern "C" {
 	 * @param interface_array the string array to place the individual interface names in
 
 	 */
-	void oc_put_interfaces_in_a_mask_in_string_array(oc_interface_mask_t iface_mask, oc_string_array_t interface_array);
+  void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t iface_mask, oc_string_array_t interface_array);
 
 	/**
 	 * @brief prints all acl scopes in the mask to stdout

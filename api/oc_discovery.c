@@ -448,7 +448,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 
 		// create the response
-		bool const at_least_one_added = oc_add_points_in_group_object_table_to_response(request, device_index, group_address, &response_length);
+		bool const at_least_one_added = oc_add_points_from_group_object_table_to_response(request, device_index, group_address, &response_length);
 
 		if (at_least_one_added)
 		{

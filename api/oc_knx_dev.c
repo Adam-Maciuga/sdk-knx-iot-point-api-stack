@@ -1629,7 +1629,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
-    oc_delete_at_table_except_sec_scope_entries(device_index);
+    oc_delete_at_table_except_sec_scope_entries();
 
 #ifdef OC_IOT_ROUTER
     oc_delete_group_mapping_table();
