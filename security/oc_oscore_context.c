@@ -35,8 +35,8 @@ OC_MEMB(ctx_s, oc_oscore_context_t, 20);
 void
 oc_oscore_free_lru_recipient_context(void)
 {
-  oc_oscore_context_t* ctx, * lru_ctx;
-  ctx = lru_ctx = oc_list_head(contexts);
+  oc_oscore_context_t* lru_ctx;
+  oc_oscore_context_t* ctx = lru_ctx = oc_list_head(contexts);
 
   while (ctx != NULL)
   {
@@ -380,6 +380,7 @@ oc_oscore_free_context(oc_oscore_context_t* ctx)
   {
     if (ctx->desc.size > 0)
     {
+      // is the only string in the ctx structure
       oc_free_string(&ctx->desc);
     }
 
@@ -391,7 +392,6 @@ oc_oscore_free_context(oc_oscore_context_t* ctx)
 
 oc_oscore_context_t*
 oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
-                      const char* recipientid, int recipientid_size,
                       uint64_t ssn, const char* desc, const char* mastersecret,
                       int mastersecret_size, const char* salt, int salt_size,
                       const char* osc_ctx, int osc_ctx_size, int auth_at_index,
@@ -399,40 +399,39 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
 {
   PRINT("-----oc_oscore_add_context--SID:");
   oc_char_println_hex(senderid, senderid_size);
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_memb_alloc(&ctx_s);
+
+  //get a free sender context
+  oc_oscore_context_t* ctx = oc_memb_alloc(&ctx_s);
 
   if (!ctx)
   {
-    OC_ERR("No memory for allocating context!!!");
+    OC_ERR("No memory for allocating sender context");
     return NULL;
   }
-  if (!senderid && !recipientid && !mastersecret)
+
+  if (!senderid && !mastersecret)
   {
-    OC_ERR("No sender or recipient ID or Master secret");
-    return NULL;
+    OC_ERR("No sender or master secret");
+    goto add_oscore_context_error;
   }
 
   if (mastersecret_size < OSCORE_KEY_LEN ||
       mastersecret_size > OSCORE_MASTER_SECRET_LEN)
   {
-    OC_ERR("master secret size is incorrect : %d", mastersecret_size);
-    return NULL;
+    OC_ERR("master secret size is must be in range 16 ... 32 : %d", mastersecret_size);
+    goto add_oscore_context_error;
   }
 
-  if (senderid_size > OSCORE_CTXID_LEN)
+  if (senderid_size > OSCORE_CTXID_LEN) // TODO rename to sender id len
   {
-    OC_ERR("senderid_size > %d = %d", OSCORE_CTXID_LEN, senderid_size);
-    return NULL;
+    OC_ERR("sender id size > %d = %d", OSCORE_CTXID_LEN, senderid_size);
+    goto add_oscore_context_error;
   }
-  if (recipientid_size > OSCORE_CTXID_LEN)
+  // TODO rename to ctx_id_size 
+  if (osc_ctx_size > OSCORE_IDCTX_LEN) // TODO ID Context len 
   {
-    OC_ERR("recipientid_size > %d = %d", OSCORE_CTXID_LEN, recipientid_size);
-    return NULL;
-  }
-  if (osc_ctx_size > OSCORE_IDCTX_LEN)
-  {
-    OC_ERR("osc_ctx_size > %d = %d", OSCORE_IDCTX_LEN, osc_ctx_size);
-    return NULL;
+    OC_ERR("osc ctx size > %d = %d", OSCORE_IDCTX_LEN, osc_ctx_size);
+    goto add_oscore_context_error;
   }
 
   ctx->device = device;
@@ -445,11 +444,9 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
   PRINT("index     : %d", auth_at_index);
   PRINT("sid size  : %d", senderid_size);
   oc_char_println_hex(senderid, senderid_size);
-  PRINT("rid size  : %d", recipientid_size);
-  oc_char_println_hex(recipientid, recipientid_size);
-  PRINT("ctx size  : %d", osc_ctx_size);
+  PRINT("ctx size  : %d :", osc_ctx_size);
   oc_char_println_hex(osc_ctx, osc_ctx_size);
-  PRINT("ms size   : %d", mastersecret_size);
+  PRINT("ms size   : %d :", mastersecret_size);
   oc_char_println_hex(mastersecret, mastersecret_size);
   PRINT("salt size : %d", salt_size);
   oc_char_println_hex(salt, salt_size);
@@ -464,50 +461,36 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
     ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
   }
   PRINT("ssn       : %" PRIu64 "", ctx->ssn);
+
   if (desc)
   {
     oc_new_string(&ctx->desc, desc, strlen(desc));
   }
-  size_t id_len = OSCORE_CTXID_LEN;
 
   if (senderid && senderid_size > 0)
   {
-    // if (oc_conv_hex_string_to_byte_array(senderid, senderid_size,
-    //                                      ctx->sendid, &id_len) < 0) {
-    //   goto add_oscore_context_error;
-    // }
+    // set sender id to value from cnf:osc:id (can be the own sending GA, SN (from device, written by MaC ETS)
     memcpy(ctx->sendid, senderid, senderid_size);
-    // explicit token
-    memcpy(ctx->token_id, senderid, senderid_size);
+    // TODO use case ???
+    memcpy(ctx->token_id, senderid, senderid_size); 
     ctx->sendid_len = (uint8_t) senderid_size;
   }
-  PRINT("SendID (%d) : ", ctx->sendid_len);
+  PRINT("Sender ID (%d) : ", ctx->sendid_len);
   OC_LOGbytes_OSCORE(ctx->sendid, ctx->sendid_len);
 
-  id_len = OSCORE_CTXID_LEN;
-
-  if (recipientid && recipientid_size > 0)
-  {
-    // if (oc_conv_hex_string_to_byte_array(recipientid, recipientid_size,
-    //                                      ctx->recvid, &id_len) < 0) {
-    //   goto add_oscore_context_error;
-    // }
-    memcpy(ctx->recvid, recipientid, recipientid_size);
-    ctx->recvid_len = (uint8_t) recipientid_size;
-  }
-  PRINT("RecvID (%d) : ", ctx->recvid_len);
+  
+    memcpy(ctx->recvid, "", 0);
+    ctx->recvid_len = (uint8_t) 0;
+  
+  PRINT("Recipient ID (%d) : ", ctx->recvid_len);
   OC_LOGbytes_OSCORE(ctx->recvid, ctx->recvid_len);
 
   if (osc_ctx && osc_ctx_size > 0)
   {
-    // if (oc_conv_hex_string_to_byte_array(osc_ctx, osc_ctx_size, ctx->idctx,
-    //                                      &id_len) < 0) {
-    //   goto add_oscore_context_error;
-    // }
     memcpy(ctx->idctx, osc_ctx, osc_ctx_size);
     ctx->idctx_len = (uint8_t) osc_ctx_size;
   }
-  PRINT("OSC CTX (%d): ", ctx->idctx_len);
+  PRINT("ID Context (%d): ", ctx->idctx_len);
   OC_LOGbytes_OSCORE(ctx->idctx, ctx->idctx_len);
 
   if (mastersecret)
@@ -515,12 +498,13 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
     memcpy((char*) &ctx->master_secret, mastersecret, mastersecret_size);
   }
 
-  OC_DBG_OSCORE("### reading OSCORE context ...");
-
   OC_DBG_OSCORE("### deriving Sender key ...");
   if (oc_oscore_context_derive_param(
-    ctx->sendid, ctx->sendid_len, ctx->idctx, ctx->idctx_len, "Key",
-    (uint8_t*) mastersecret, mastersecret_size, (uint8_t*) salt, salt_size,
+    ctx->sendid, ctx->sendid_len,
+    ctx->idctx, ctx->idctx_len,
+    "Key",
+    (uint8_t*) mastersecret, mastersecret_size,
+    (uint8_t*) salt, salt_size,
     ctx->sendkey, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Sender key ...");

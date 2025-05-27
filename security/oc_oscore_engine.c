@@ -136,15 +136,13 @@ oc_oscore_recv_message(oc_message_t* message)
 	{
 		OC_DBG_OSCORE("#################################: found OSCORE header");
 		oc_oscore_context_t* oscore_ctx = NULL;
-		// message->endpoint.flags |= SECURED;
 		message->endpoint.flags += OSCORE;
 		uint8_t* key = NULL;
-		int key_len = 0;
 
-		coap_packet_t oscore_pkt[1];
+    coap_packet_t oscore_pkt[1];
 
 		uint8_t AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
-		/* Parse OSCORE message */
+
 		OC_DBG_OSCORE("### parse OSCORE message ###");
 		coap_status_t st = oscore_parse_outer_message(message, oscore_pkt);
 
@@ -195,26 +193,21 @@ oc_oscore_recv_message(oc_message_t* message)
 				// we do not have a cached context, so we have to make one
 
 				// find auth/at entry with corresponding kid
-				int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid,
-																										oscore_pkt->kid_len);
+				int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
 				if (idx == -1)
 				{
-					OC_ERR("***Could not find Access Token matching KID, returning "
-								 "UNAUTHORIZED***");
+					OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
 					oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
 					goto oscore_recv_error;
 				}
-				oc_auth_at_t* at_entry = oc_get_auth_at_entry(0, idx);
 
 				oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
 				// create oscore recipient context from that entry
 				oscore_ctx = oc_oscore_add_context(
-					0, oc_string(at_entry->osc_rid), /* sender id (empty string) */
-					oc_byte_string_len(
-					at_entry->osc_rid),        /* sender id len (ought to be 0)*/
-					oc_string(at_entry->osc_id), /* recipient id */
-					oc_byte_string_len(at_entry->osc_id), /* recipient id len */
+					0, 
+					oc_string(at_entry->osc_id), 
+					oc_byte_string_len(at_entry->osc_id), 
 					0, "desc", oc_string(at_entry->osc_ms),
 					oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt),
 					oc_byte_string_len(at_entry->osc_salt), oscore_pkt->kid_ctx,
@@ -224,21 +217,20 @@ oc_oscore_recv_message(oc_message_t* message)
 				if (!oscore_ctx)
 				{
 					oc_oscore_free_lru_recipient_context();
-					oscore_ctx = oc_oscore_add_context(
-						0, oc_string(at_entry->osc_rid), /* sender id (empty string) */
-						oc_byte_string_len(
-						at_entry->osc_rid),        /* sender id len (ought to be 0)*/
-						oc_string(at_entry->osc_id), /* recipient id */
-						oc_byte_string_len(at_entry->osc_id), /* recipient id len */
+
+				  oscore_ctx = oc_oscore_add_context(
+						0, 
+						oc_string(at_entry->osc_id), 
+						oc_byte_string_len(at_entry->osc_id), 
 						0, "desc", oc_string(at_entry->osc_ms),
 						oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt),
 						oc_byte_string_len(at_entry->osc_salt), oscore_pkt->kid_ctx,
 						oscore_pkt->kid_ctx_len, idx, false);
-					if (!oscore_ctx)
+
+				  if (!oscore_ctx)
 					{
 						OC_ERR("***Could not create oscore recipient context!***");
-						oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01,
-															&message->endpoint);
+						oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01,	&message->endpoint);
 						goto oscore_recv_error;
 					}
 				}
@@ -275,24 +267,14 @@ oc_oscore_recv_message(oc_message_t* message)
 
 		// copy the serial number as return token, so that the reply can find
 		// the context again.
-		OC_DBG_OSCORE(
-			"--- setting endpoint serial number with found token & index");
+		OC_DBG_OSCORE("--- setting endpoint serial number with found token & index");
 
-		// oc_endpoint_set_serial_number(&message->endpoint,
-		//                               (char *)oscore_ctx->token_id);
-		oc_endpoint_set_auth_at_index(&message->endpoint,
-																	(int32_t) oscore_ctx->auth_at_index);
-		// oc_string_copy_from_char(&message->endpoint.serial_number,
-		//                         (char *)oscore_ctx->token_id);
-		oc_endpoint_set_oscore_id(&message->endpoint, oscore_ctx->token_id,
-															SERIAL_NUM_SIZE);
+		oc_endpoint_set_auth_at_index(&message->endpoint,oscore_ctx->auth_at_index);
+		oc_endpoint_set_oscore_id(&message->endpoint, oscore_ctx->token_id,SERIAL_NUM_SIZE);
 
-		// PRINT("using send key!!\n");
-		// key = oscore_ctx->sendkey;
+		
 
 		/* Use recipient key for decryption */
-		// if (key == NULL) {
-		//   PRINT("using receive key!!\n");
 		key = oscore_ctx->recvkey;
 		//}
 
