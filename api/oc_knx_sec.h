@@ -135,7 +135,7 @@ extern "C" {
 		oc_string_t	osc_rid;				// TODO to be removed (8:4:7) OSCORE cnf:osc:rid (recipient ID) (byte string) 
 		int nbf;										// token not valid before (optional) 
 		int ga_len;									// length of the group addresses (ga) in the scope 
-		int64_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
+		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
 
 	} oc_auth_at_t;
 
