@@ -835,8 +835,8 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
   for (index = 0; index < max_entries; index++)
   {
 
-    oc_auth_at_t* my_entry = oc_get_auth_at_entry(device_index, index);
-    if (my_entry != NULL)
+    oc_auth_at_t* my_entry = oc_get_auth_at_entry(index);
+    if (my_entry)
     {
       if (oc_string_len(my_entry->id))
       {

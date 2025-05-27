@@ -312,7 +312,7 @@ oc_oscore_find_context_by_group_address(size_t device, uint32_t group_address)
 
   while (ctx != NULL)
   {
-    const oc_auth_at_t* my_entry = oc_get_auth_at_entry(0, ctx->auth_at_index);
+    const oc_auth_at_t* my_entry = oc_get_auth_at_entry(ctx->auth_at_index);
     if (my_entry)
     {
       oc_print_auth_at_entry(ctx->auth_at_index);

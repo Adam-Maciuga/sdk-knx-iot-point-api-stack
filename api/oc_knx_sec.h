@@ -227,11 +227,10 @@ extern "C" {
 	/**
 	 * @brief retrieve auth/at entry
 	 *
-	 * @param device_index the device index
 	 * @param index the index in the table
 	 * @return oc_auth_at_t* the auth at entry
 	 */
-	oc_auth_at_t* oc_get_auth_at_entry(size_t device_index, int index);
+	oc_auth_at_t* oc_get_auth_at_entry(int index);
 
 	/**
 	 * @brief print the AT table entry (debugging) if present (id > 0)

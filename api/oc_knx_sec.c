@@ -1867,19 +1867,9 @@ void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size, 
                             shared_key_size);
 }
 
-oc_auth_at_t* oc_get_auth_at_entry(size_t device_index, int index)
-{
-  (void)device_index;
-
-  if (index < 0)
+oc_auth_at_t* oc_get_auth_at_entry(int index)
   {
-    return NULL;
-  }
-  if (index >= G_AT_MAX_ENTRIES)
-  {
-    return NULL;
-  }
-  return &g_at_entries[index];
+  return index < 0 || index >= G_AT_MAX_ENTRIES ? NULL : &g_at_entries[index];
 }
 
 void oc_create_knx_sec_resources(size_t device_index)

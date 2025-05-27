@@ -206,6 +206,8 @@ oc_oscore_recv_message(oc_message_t* message)
 				}
 				oc_auth_at_t* at_entry = oc_get_auth_at_entry(0, idx);
 
+				oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
+
 				// create oscore recipient context from that entry
 				oscore_ctx = oc_oscore_add_context(
 					0, oc_string(at_entry->osc_rid), /* sender id (empty string) */
@@ -711,7 +713,7 @@ oc_oscore_send_message(oc_message_t* msg)
 	int index = message->endpoint.auth_at_index - 1;
 
 	// get auth_at table entry at index
-	oc_auth_at_t* entry = oc_get_auth_at_entry(message->endpoint.device, index);
+	oc_auth_at_t* entry = oc_get_auth_at_entry(index);
 	// if found, get the corresponding context
 	if (entry)
 	{
