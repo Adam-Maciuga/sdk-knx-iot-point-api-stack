@@ -1374,11 +1374,6 @@ void oc_print_auth_at_entry(int index)
           PRINT("osc:id (h)    : (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_id));
           oc_string_println_hex(g_at_entries[index].osc_id);
         }
-        if (oc_string_len(g_at_entries[index].osc_rid) > 0)
-        {
-          PRINT("osc:rid (h)   : (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_rid));
-          oc_string_println_hex(g_at_entries[index].osc_rid);
-        }
         if (g_at_entries[index].ga_len > 0)
         {
           PRINT("osc:ga        : [");
@@ -1425,9 +1420,6 @@ int oc_delete_at_table_entry(int entry)
 
   oc_free_string(&g_at_entries[entry].osc_contextid);
   oc_new_byte_string(&g_at_entries[entry].osc_contextid, "", 0);
-
-  oc_free_string(&g_at_entries[entry].osc_rid);
-  oc_new_byte_string(&g_at_entries[entry].osc_rid, "", 0);
 
   oc_free_string(&g_at_entries[entry].osc_id);
   oc_new_byte_string(&g_at_entries[entry].osc_id, "", 0);
@@ -1493,8 +1485,6 @@ static void oc_store_at_table_entry(int entry)
                            oc_byte_string_len(g_at_entries[entry].osc_salt));
   oc_rep_i_set_byte_string(root, 846, oc_string(g_at_entries[entry].osc_contextid),
                            oc_byte_string_len(g_at_entries[entry].osc_contextid));
-  oc_rep_i_set_byte_string(root, 847, oc_string(g_at_entries[entry].osc_rid),
-                           oc_byte_string_len(g_at_entries[entry].osc_rid));
 
   // 777: ga's
   oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
@@ -1608,11 +1598,6 @@ static void oc_load_at_table_entry(int entry)
             oc_new_byte_string(&g_at_entries[entry].osc_contextid, oc_string(rep->value.string),
                                oc_string_len(rep->value.string));
           }
-          if (rep->iname == 847)
-          {
-            oc_free_string(&g_at_entries[entry].osc_rid);
-            oc_new_byte_string(&g_at_entries[entry].osc_rid, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
           break;
         case OC_REP_INT_ARRAY:
 
@@ -1681,9 +1666,6 @@ int oc_core_set_spake_token_in_at_table(int index, oc_auth_at_t entry)
     oc_free_string(&g_at_entries[index].osc_contextid);
     oc_new_byte_string(&g_at_entries[index].osc_contextid, oc_string(entry.osc_contextid),
                        oc_byte_string_len(entry.osc_contextid));
-
-    oc_free_string(&g_at_entries[index].osc_rid);
-    oc_new_byte_string(&g_at_entries[index].osc_rid, oc_string(entry.osc_rid), oc_byte_string_len(entry.osc_rid));
 
     oc_free_string(&g_at_entries[index].osc_id);
     oc_new_byte_string(&g_at_entries[index].osc_id, oc_string(entry.osc_id), oc_byte_string_len(entry.osc_id));
@@ -1799,22 +1781,21 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 
 // ----------------------------------------------------------------------------
 
-void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size, char* client_recipientid,
-                               int client_recipientid_size, uint8_t* shared_key, int shared_key_size)
+void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
+                               uint8_t* shared_key, int shared_key_size)
 {
-  // init all token content to 0
+  // init all spake token content to 0
   oc_auth_at_t spake_token = {0};
 
   // this is the index in the table, so it is the full string
   oc_new_string(&spake_token.id, client_senderid, client_senderid_size);
+
   spake_token.profile = OC_PROFILE_COAP_PASE;
   spake_token.scope = OC_ACL_SEC;
+
   oc_new_byte_string(&spake_token.osc_ms, (char*)shared_key, shared_key_size);
 
-  // no context rid
-  oc_new_byte_string(&spake_token.osc_rid, client_recipientid, client_recipientid_size);
-
-  // note that HEX was NOT on the wire, but the byte string.
+  // note that HEX was NOT on the wire, but the byte string,
   // so we have to store the byte string
   oc_new_byte_string(&spake_token.osc_id, client_senderid, client_senderid_size);
 
@@ -1832,45 +1813,39 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size, 
   }
   else
   {
-    // write the spake entry always to AT table and file storage
+    // write the above defined spake entry always to AT table and file storage
     oc_core_set_spake_token_in_at_table(index, spake_token);
     oc_init_oscore_from_storage(false);
   }
 }
 
-void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size, char* client_recipientid,
-                            int client_recipientid_size, uint8_t* shared_key, int shared_key_size)
+void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
+                            uint8_t* shared_key, int shared_key_size)
 {
-  // create the token & store in at tables at position 0
-  // note there should be no entries.. if there is an entry then overwrite
-  // it..
+  // create the token & store in at table (usually at position 0), note there
+  // should be no entries, if there is an entry then overwrite it.
   PRINT("oc_oscore_set_auth_mac sn       : %s", client_senderid);
-  PRINT("oc_oscore_set_auth_mac rid [%d] : ", client_recipientid_size);
-  oc_char_println_hex(client_recipientid, client_recipientid_size);
   PRINT("oc_oscore_set_auth_mac ms  [%d] : ", shared_key_size);
   oc_char_println_hex(shared_key, shared_key_size);
 
-  oc_oscore_set_auth_shared(client_senderid, client_senderid_size, client_recipientid, client_recipientid_size, shared_key,
-                            shared_key_size);
+  oc_oscore_set_auth_shared(client_senderid, client_senderid_size, shared_key, shared_key_size);
 }
 
-void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size, char* client_recipientid,
-                               int client_recipientid_size, uint8_t* shared_key, int shared_key_size)
+void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
+                               uint8_t* shared_key, int shared_key_size)
 {
-  PRINT("oc_oscore_set_auth_device sn :%s", client_senderid);
-  PRINT("oc_oscore_set_auth_device rid : (%d) ", client_recipientid_size);
-  oc_char_println_hex(client_recipientid, client_recipientid_size);
+  PRINT("oc_oscore_set_auth_device sn : %s", client_senderid); // TODO is only for ETS the SN
   PRINT("oc_oscore_set_auth_device ms : (%d) ", shared_key_size);
   oc_char_println_hex(shared_key, shared_key_size);
 
-  oc_oscore_set_auth_shared(client_senderid, client_senderid_size, client_recipientid, client_recipientid_size, shared_key,
-                            shared_key_size);
+  oc_oscore_set_auth_shared(client_senderid, client_senderid_size, shared_key, shared_key_size);
 }
 
 oc_auth_at_t* oc_get_auth_at_entry(int index)
-  {
+{
   return index < 0 || index >= G_AT_MAX_ENTRIES ? NULL : &g_at_entries[index];
 }
+  
 
 void oc_create_knx_sec_resources(size_t device_index)
 {
@@ -1911,12 +1886,16 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
       if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
-        oc_oscore_context_t* ctx = oc_oscore_add_context(
-          0, oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
-          oc_string(g_at_entries[i].osc_rid), oc_byte_string_len(g_at_entries[i].osc_rid), 0, "desc",
-          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
-          oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),
-          oc_byte_string_len(g_at_entries[i].osc_contextid), i, read_ssn_from_storage);
+        oc_oscore_context_t* ctx = oc_oscore_add_context(  
+          0, 
+          oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
+          "", 0,
+          0, 
+          "desc", // TODO remove it 
+          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
+          oc_string(g_at_entries[i].osc_salt),oc_byte_string_len(g_at_entries[i].osc_salt),
+          oc_string(g_at_entries[i].osc_contextid),oc_byte_string_len(g_at_entries[i].osc_contextid),
+          i, read_ssn_from_storage);
 
         if (ctx == NULL)
         {

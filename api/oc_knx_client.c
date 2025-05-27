@@ -77,8 +77,7 @@ static void update_tokens(uint8_t* secret, const int secret_size)
 {
   PRINT("update_tokens:");
   oc_oscore_set_auth_mac(oc_string(g_spake_ctx.oscore_id),
-                         oc_byte_string_len(g_spake_ctx.oscore_id), "", 0,
-                         secret, secret_size);
+                         oc_byte_string_len(g_spake_ctx.oscore_id), secret, secret_size);
 }
 
 static void finish_spake_handshake(oc_client_response_t* data)
@@ -99,6 +98,7 @@ static void finish_spake_handshake(oc_client_response_t* data)
   uint8_t shared_key_len = sizeof(shared_key);
   oc_spake_calc_K_shared(K_main, shared_key);
 
+  // update spake token in AT table
   update_tokens(shared_key, shared_key_len);
 
   // free up the memory used by the handshake

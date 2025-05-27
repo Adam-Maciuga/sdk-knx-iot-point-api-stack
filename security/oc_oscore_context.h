@@ -61,7 +61,7 @@ typedef struct oc_oscore_context_t
 {
   struct oc_oscore_context_t *next;        // pointer to the next, NULL if there is not any
   int auth_at_index;                       // index of the auth AT table + 1, so index = 0 is invalid 
-  uint8_t token_id[OSCORE_IDCTX_LEN];      // /**< Note: the serial number of the device */
+  uint8_t token_id[OSCORE_IDCTX_LEN];      // copy of sender id TODO possibly can be removed 
   uint8_t master_secret[OSCORE_IDCTX_LEN]; /**< OSCORE master secret [bytes ]*/
   size_t device;                           /**< device index */
   uint8_t sendid[OSCORE_CTXID_LEN];        /**< SID [bytes] */
@@ -159,9 +159,10 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  *
  * @return != NULL context can be used for encryption/decryption, else not
  */
-oc_oscore_context_t *oc_oscore_add_context(
-  size_t device, const char *senderid, int senderid_size,
-  const char *recipientid, int recipientid_size, uint64_t ssn, const char *desc,
+oc_oscore_context_t* oc_oscore_add_context(
+  size_t device, const char *senderid, int senderid_size, 
+  const char* recipientid, int recipientid_size,
+  uint64_t ssn, const char *desc,
   const char *mastersecret, int mastersecret_size, const char *salt,
   int salt_size, const char *token_id, int token_id_size, int auth_at_index,
   bool read_ssn_from_storage);

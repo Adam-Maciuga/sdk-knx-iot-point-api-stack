@@ -57,7 +57,7 @@ extern "C" {
 	 * "id": "OC5BLLhkAG ...",
 	 * "profile": "coap_oscore",
 	 * "aud" : "<iid>.<ia>"
-	 * "scope": ["if.sec", "if.b"],
+	 * "scope": ["if.sec", "if.p"],
 	 * "cnf": {
 	 * "osc": {
 	 * "alg": "AES-CCM-16-64-128", (decimal 10)
@@ -131,8 +131,7 @@ extern "C" {
 		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional- not used) default: decimal value 10
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt (optional) empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" (byte string, 6	* bytes) 
-		oc_string_t osc_id;					// (8:4:0) OSCORE cnf:osc:id  (used as SID & KID) (byte string), max 7 bytes 
-		oc_string_t	osc_rid;				// TODO to be removed (8:4:7) OSCORE cnf:osc:rid (recipient ID) (byte string) 
+		oc_string_t osc_id;					// (8:4:0) OSCORE cnf:osc:id (used as SID & KID) (byte string), max 7 bytes 
 		int nbf;										// token not valid before (optional) 
 		int ga_len;									// length of the group addresses (ga) in the scope 
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
@@ -191,19 +190,14 @@ extern "C" {
 	 * side
 	 *
 	 * @param client_senderid the client_senderid of the device that has been
-	 * negotiated with spake2plus. This will become the Receiver ID within the
-	 * OSCORE context. This value is an ASCII-encoded string representing the
+	 * negotiated with SPAKE2+. This value is an ASCII-encoded string representing the
 	 * hexadecimal serial number
 	 * @param client_senderid_size the size of the serial number
-	 * @param client_recipientid the client_recipientid (delivered during the
-	 * handshake). This will become the Sender ID. This value is in HEX
-	 * @param client_recipientid_size the size of the client_recipientid
 	 * @param shared_key the master key after SPAKE2 handshake
 	 * @param shared_key_size the key size
 	 */
 	void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
-															char* client_recipientid, int client_recipientid_size, 
-															uint8_t* shared_key,	int shared_key_size);
+                              uint8_t* shared_key, int shared_key_size);
 
 	/**
 	 * @brief set shared (SPAKE) key to the auth at table, on the Device side
@@ -213,16 +207,12 @@ extern "C" {
 	 * context. This value is an ASCII-encoded string representing the hexadecimal
 	 * serial number
 	 * @param client_senderid_size the size of the serial number
-	 * @param clientrecipient_id the clientrecipient_id (delivered during the
-	 * handshake). This will become the Receiver ID. This value is in HEX
-	 * @param clientrecipient_id_size the size of the clientrecipient_id
 	 * @param shared_key the master key after SPAKE2 handshake
 	 * @param shared_key_size the key size
 	 */
 	void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
-																 char* clientrecipient_id,
-																 int clientrecipient_id_size, uint8_t* shared_key,
-																 int shared_key_size);
+                                 uint8_t* shared_key,
+                                 int shared_key_size);
 
 	/**
 	 * @brief retrieve auth/at entry
