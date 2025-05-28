@@ -378,12 +378,6 @@ oc_oscore_free_context(oc_oscore_context_t* ctx)
 {
   if (ctx)
   {
-    if (ctx->desc.size > 0)
-    {
-      // is the only string in the ctx structure
-      oc_free_string(&ctx->desc);
-    }
-
     // removes entry fom linked list
     oc_list_remove(contexts, ctx);
     oc_memb_free(&ctx_s, ctx);
@@ -391,9 +385,9 @@ oc_oscore_free_context(oc_oscore_context_t* ctx)
 }
 
 oc_oscore_context_t*
-oc_oscore_add_context(size_t device, const char* senderid, int senderid_size, 
+oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
                       const char* recipientid, int recipientid_size,
-                      uint64_t ssn, const char* desc, const char* mastersecret,
+                      uint64_t ssn, const char* mastersecret,
                       int mastersecret_size, const char* salt, int salt_size,
                       const char* osc_ctx, int osc_ctx_size, int auth_at_index,
                       bool read_ssn_from_storage)
@@ -448,7 +442,6 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
   ctx->last_used = oc_clock_time();
 
   PRINT("device    : %d", (int) device);
-  PRINT("desc      : %s", desc);
   PRINT("index     : %d", auth_at_index);
   PRINT("sid size  : %d = ", senderid_size);  oc_char_println_hex(senderid, senderid_size);
   PRINT("rid size  : %d = ", recipientid_size);  oc_char_println_hex(recipientid, recipientid_size);
@@ -466,11 +459,6 @@ oc_oscore_add_context(size_t device, const char* senderid, int senderid_size,
     ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
   }
   PRINT("ssn       : %" PRIu64 "", ctx->ssn);
-
-  if (desc)
-  {
-    oc_new_string(&ctx->desc, desc, strlen(desc));
-  }
 
   if (senderid && senderid_size > 0)
   {

@@ -141,7 +141,7 @@ extern "C"
    *        "id": "1",
    *        "ia": 5,
    *        "ga":[2305, 2401],
-   *        "path": "k",
+   *        "url": "k",
    *    },
    *    {
    *        "id": "2",
@@ -185,12 +185,9 @@ extern "C"
     int64_t fid; // fabric id
     uint32_t grpid; // multicast group id, specification demands 32 bit
     oc_string_t url; // url
-    oc_string_t at; // access token id. Reference to the security credentials for
-                    // unicast subscription encryption.
-    uint32_t* ga; // group address array of 32 bit values, specification demands
-                  // >= 20 entries
-    int ga_len; // length of the group address array (len can only be > 0 but code
-                // loops uses mostly signed int ...)
+    oc_string_t at; // access token id. Reference to the security credentials for unicast subscription encryption.
+    uint32_t* ga; // group address array of 32 bit values, specification demands >= 20 entries
+    int ga_len; // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...)
     bool non; // non-confirmable unicast request, default = false
   } oc_group_table_t;
 
@@ -409,7 +406,7 @@ extern "C"
 
   /**
    * @brief frees a GO entry element that is (memory) allocated on the on stack
-   *    
+   *
    * @param entry the GO entry
    * @param allocator which GO entry element to be freed
    */
@@ -425,12 +422,12 @@ extern "C"
 
   /**
    * @brief delete entry of the Group Object Table,
-   * - the GO table entry is invalidated 
-   * - does not make the (delete) change persistent, the storage entry disappears  
+   * - the GO table entry is invalidated
+   * - does not make the (delete) change persistent, the storage entry disappears
    *
    * @param entry the index of the entry in the Group Object Table
    */
-int oc_delete_group_object_table_entry(int entry);
+  int oc_delete_group_object_table_entry(int entry);
 
   /**
    * @brief delete all entries of the Group Object Table (from persistent) storage
@@ -553,7 +550,7 @@ int oc_delete_group_object_table_entry(int entry);
    * @return false
    */
   bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
-                                                       size_t* response_length);
+                                                         size_t* response_length);
 
   /**
    * @brief checks if the href (url) belongs to the device,

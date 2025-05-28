@@ -1887,15 +1887,15 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
         oc_oscore_context_t* ctx = oc_oscore_add_context(  
-          0, 
+          0,
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0,
-          0, 
-          "desc", // TODO remove it 
-          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
-          oc_string(g_at_entries[i].osc_salt),oc_byte_string_len(g_at_entries[i].osc_salt),
-          oc_string(g_at_entries[i].osc_contextid),oc_byte_string_len(g_at_entries[i].osc_contextid),
-          i, read_ssn_from_storage);
+          0,
+          oc_string(g_at_entries[i].osc_ms), // TODO remove it 
+          oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
+          oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),
+          oc_byte_string_len(g_at_entries[i].osc_contextid), i,
+          read_ssn_from_storage);
 
         if (ctx == NULL)
         {

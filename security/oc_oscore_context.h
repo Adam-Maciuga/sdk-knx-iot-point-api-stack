@@ -71,9 +71,7 @@ typedef struct oc_oscore_context_t
   uint64_t ssn;                            /**< sender sequence number */
   uint8_t idctx[OSCORE_IDCTX_LEN];         /**< OSCORE context */
   uint8_t idctx_len;                       /**< length of OSCORE context */
-  oc_string_t desc;                        /**< description */
-  /* Derived parameters */
-  /* 128-bit keys */
+  /* Derived parameters, 128-bit keys */
   uint8_t sendkey[OSCORE_KEY_LEN]; /**< derived sender key */
   uint8_t recvkey[OSCORE_KEY_LEN]; /**< derived recipient key */
   /* Common IV */
@@ -146,7 +144,6 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @param recipientid the RID
  * @param recipientid_size the length of RID
  * @param ssn  the sender sequence number
- * @param desc  the description
 
  * @param mastersecret the OSCORE master secret
  * @param mastersecret_size the length of the OSCORE master secret
@@ -160,9 +157,9 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t* oc_oscore_add_context(
-  size_t device, const char *senderid, int senderid_size, 
+  size_t device, const char *senderid, int senderid_size,
   const char* recipientid, int recipientid_size,
-  uint64_t ssn, const char *desc,
+  uint64_t ssn,
   const char *mastersecret, int mastersecret_size, const char *salt,
   int salt_size, const char *token_id, int token_id_size, int auth_at_index,
   bool read_ssn_from_storage);
