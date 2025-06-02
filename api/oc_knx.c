@@ -44,7 +44,7 @@ static uint64_t g_fingerprint = 0; // covers GO/PUB/SUB table and 'P' parameters
 static oc_pase_t g_pase;
 static oc_string_t g_idevid;
 static oc_string_t g_ldevid;
-static int valid_request = 0;
+static int pase_step = 0; // covers the current running pase step 
 
 // ----------------------------------------------------------------------------
 
@@ -1330,6 +1330,7 @@ static bool is_handshake_blocked(void)
 static oc_separate_response_t spake_separate_rsp;
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p);
 
+// handles the MaC requests 
 static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1368,42 +1369,67 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 
   oc_rep_t* rep = request->request_payload;
 
-  // check input to classify step 1..3
+  // check input to classify step 1..3 (no state machine is implemented)
+  // - step 1: 2
+  // - step 2: 1
+  // - step 3: 1
   // no check if there are multiple byte strings in the request payload (first wins)
-  valid_request = 0;
+
+  pase_step = 0;
+  uint8_t members_step_1 = 0;
+  uint8_t members_step_2 = 0;
+  uint8_t members_step_3 = 0;
 
   while (rep != NULL)
   {
     switch (rep->type)
     {
-      // check only identifiers for byte strings
+      // check identifiers for byte strings
       case OC_REP_BYTE_STRING:
-    {
-      if (rep->iname == SPAKE_PA_SHARE_P)
       {
-        // pase credential request (step 2)
-        valid_request = SPAKE_PA_SHARE_P;
+        if (rep->iname == SPAKE_PA_SHARE_P)
+        {
+          // pase credential request (step 2)
+          pase_step = SPAKE_PA_SHARE_P;
+          members_step_2++;
+        }
+        if (rep->iname == SPAKE_CA_CONFIRM_P)
+        {
+          // pase credential verification request (step 3) 
+          pase_step = SPAKE_CA_CONFIRM_P;
+          members_step_3++;
+        }
+        if (rep->iname == SPAKE_RND)
+        {
+          // pase parameter request (step 1) 
+          pase_step = SPAKE_RND;
+          members_step_1++;
+        }
       }
-      if (rep->iname == SPAKE_CA_CONFIRM_P)
-      {
-        // pase credential verification request (step 3) 
-        valid_request = SPAKE_CA_CONFIRM_P;
-      }
-      if (rep->iname == SPAKE_RND)
-      {
-        // pase parameter request (step 1) 
-        valid_request = SPAKE_RND;
-      }
-    }
     break;
+      // check identifiers for text strings
+      case OC_REP_STRING:
+      {
+        if (rep->iname == SPAKE_ID)
+        {
+          // pase parameter request (step 1) 
+          pase_step = SPAKE_RND;
+          members_step_1++;
+        }
+      }
+      break;
     default:
       break;
     }
     rep = rep->next;
   }
 
-  // check if one out of step 1..3 is part of request
-  if (valid_request == 0)
+  bool s1 = members_step_1 == 2 && pase_step == SPAKE_RND;
+  bool s2 = members_step_2 == 1 && pase_step == SPAKE_PA_SHARE_P;
+  bool s3 = members_step_3 == 1 && pase_step == SPAKE_CA_CONFIRM_P;
+
+  // check if one out of step 1..3 is part of request and contains valid data
+  if (!s1 && !s2 && !s3)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -1412,69 +1438,83 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   // reset ptr
   rep = request->request_payload;
 
-  if (valid_request == SPAKE_RND)
-  {
-    // set the default id, in preparation for the response
-    // this gets overwritten if the ID is present in the request payload handled below
-    oc_free_string(&g_pase.id);
-    oc_new_byte_string(&g_pase.id, "rkey", strlen("rkey"));
-  }
   // handle input
   while (rep != NULL)
   {
     switch (rep->type)
     {
-    case OC_REP_BYTE_STRING:
-    {
-      if (rep->iname == SPAKE_CA_CONFIRM_P)
+      case OC_REP_BYTE_STRING:
       {
-        memcpy(g_pase.ca, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.ca));
+        if (rep->iname == SPAKE_CA_CONFIRM_P)
+        {
+          // real string size (excluding '\') from request must match 
+          if (oc_string_len(rep->value.string) != sizeof(g_pase.confirmP))
+          {
+            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+            return;
+          }
+          memcpy(g_pase.confirmP, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.confirmP));
+        }
+        if (rep->iname == SPAKE_PA_SHARE_P)
+        {
+          // real string size (excluding '\') from request must match   
+          if (oc_string_len(rep->value.string) != sizeof(g_pase.shareP))
+          {
+            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+            return;
+          }
+          memcpy(g_pase.shareP, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.shareP));
+        }
+        if (rep->iname == SPAKE_RND)
+        {
+          // real string size (excluding '\') from request must match 
+          if (oc_string_len(rep->value.string) != sizeof(g_pase.rnd))
+          {
+            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+            return;
+          }
+          memcpy(g_pase.rnd, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.rnd));
+        }
+        
       }
-      if (rep->iname == SPAKE_PA_SHARE_P)
-      {
-        memcpy(g_pase.pa, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.pa));
-      }
-      if (rep->iname == SPAKE_RND)
-      {
-        memcpy(g_pase.rnd, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.rnd));
-      }
-      if (rep->iname == SPAKE_ID) // TODO wrong must be a text string 
-      {
-        // if the ID is present, overwrite the default
-        oc_free_string(&g_pase.id);
-        oc_new_byte_string(&g_pase.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
-        PRINT("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
-      }
-    }
-    break;
-    case OC_REP_STRING:
-    {
-      if (rep->iname == SPAKE_ID)
-      {
-        // if the ID is present (is a text string), overwrite the default
-        oc_free_string(&g_pase.id);
-        oc_new_byte_string(&g_pase.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
-        PRINT("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
-      }
-    }
-    break;
+      break;
+      case OC_REP_STRING:
+        {
+          if (rep->iname == SPAKE_ID)
+          {
+            // no empty string id is allowed and no string id larger than 7
+            if (oc_string_len(rep->value.string) == 0 || oc_string_len(rep->value.string) > 7)
+            {
+              oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+              return;
+            }
+
+            // free possible old spake token id
+            oc_free_string(&g_pase.id);
+            oc_new_byte_string(&g_pase.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            PRINT("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
+          }
+        }
+      break;
     default:
       break;
     }
     rep = rep->next;
   }
 
-  PRINT("oc_core_knx_spake_post_handler valid_request: %d", valid_request);
+  PRINT("oc_core_knx_spake_post_handler pase_step: %d", pase_step);
+
   oc_indicate_separate_response(request, &spake_separate_rsp);
   oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);
 }
 
+// handles the Device requests (response to a MaC request)
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p)
 {
   (void)req_p;
   PRINT("oc_core_knx_spake_separate_post_handler");
 
-  // no longer active ...
+  // previous device response is fired and no longer active ...
   if (!spake_separate_rsp.active)
   {
     return OC_EVENT_DONE;
@@ -1483,7 +1523,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   // assign
   oc_set_separate_response_buffer(&spake_separate_rsp);
 
-  if (valid_request == SPAKE_RND)
+  if (pase_step == SPAKE_RND)
   {
 #ifdef OC_SPAKE
     // get random numbers for rnd, salt & it (# of iterations)
@@ -1494,11 +1534,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_LOGbytes_SPAKE(g_pase.salt, sizeof(g_pase.salt));
     OC_DBG_SPAKE("Iterations: %d", g_pase.it);
 
-#endif /* OC_SPAKE */
+#endif 
+
+
     oc_rep_begin_root_object();
-    // id (0)
-    // oc_rep_i_set_byte_string(root, SPAKE_ID, oc_cast(g_pase.id, uint8_t),
-    //                         oc_byte_string_len(g_pase.id));
     // rnd (15)
     oc_rep_i_set_byte_string(root, SPAKE_RND, g_pase.rnd, 32);
     // pbkdf2
@@ -1514,7 +1553,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     return OC_EVENT_DONE;
   }
 #ifdef OC_SPAKE
-  else if (valid_request == SPAKE_PA_SHARE_P)
+  else if (pase_step == SPAKE_PA_SHARE_P)
   {
     // return changed, frame pb (11) & cb (13)
 
@@ -1553,45 +1592,45 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
       goto error;
     }
 
-    if (ret = oc_spake_encode_pubkey(&pB, g_pase.pb))
+    if (ret = oc_spake_encode_pubkey(&pB, g_pase.shareV))
     {
       OC_ERR("oc_spake_encode_pubkey failed with code %d", ret);
       mbedtls_ecp_point_free(&pB);
       goto error;
     }
 
-    if (ret = oc_spake_calc_transcript_responder(&spake_data, g_pase.pa, &pB))
+    if (ret = oc_spake_calc_transcript_responder(&spake_data, g_pase.shareP, &pB))
     {
       OC_ERR("oc_spake_calc_transcript_responder failed with code %d", ret);
       mbedtls_ecp_point_free(&pB);
       goto error;
     }
 
-    oc_spake_calc_confirmV(spake_data.K_main, g_pase.cb, g_pase.pa);
+    oc_spake_calc_confirmV(spake_data.K_main, g_pase.confirmV, g_pase.shareP);
     mbedtls_ecp_point_free(&pB);
 
     oc_rep_begin_root_object();
     // pb (11)
-    oc_rep_i_set_byte_string(root, SPAKE_PB_SHARE_V, g_pase.pb, sizeof(g_pase.pb));
+    oc_rep_i_set_byte_string(root, SPAKE_PB_SHARE_V, g_pase.shareV, sizeof(g_pase.shareV));
     // cb (13)
-    oc_rep_i_set_byte_string(root, SPAKE_CB_CONFIRM_V, g_pase.cb, sizeof(g_pase.cb));
+    oc_rep_i_set_byte_string(root, SPAKE_CB_CONFIRM_V, g_pase.confirmV, sizeof(g_pase.confirmV));
     oc_rep_end_root_object();
     oc_send_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
-  else if (valid_request == SPAKE_CA_CONFIRM_P)
+  else if (pase_step == SPAKE_CA_CONFIRM_P)
   {
     // calculate expected cA
     uint8_t expected_ca[32];
 
     OC_DBG_SPAKE("KaKe & pB Bytes");
     OC_LOGbytes_OSCORE(spake_data.K_main, 32);
-    OC_LOGbytes_OSCORE(g_pase.pb, sizeof(g_pase.pb));
-    oc_spake_calc_confirmP(spake_data.K_main, expected_ca, g_pase.pb);
+    OC_LOGbytes_OSCORE(g_pase.shareV, sizeof(g_pase.shareV));
+    oc_spake_calc_confirmP(spake_data.K_main, expected_ca, g_pase.shareV);
     OC_DBG_SPAKE("cA:");
     OC_LOGbytes_OSCORE(expected_ca, 32);
 
-    if (memcmp(expected_ca, g_pase.ca, sizeof(g_pase.ca)) != 0)
+    if (memcmp(expected_ca, g_pase.confirmP, sizeof(g_pase.confirmP)) != 0)
     {
       OC_ERR("oc_spake_calc_confirmP failed");
       goto error;
@@ -1606,7 +1645,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     // knx does not have multiple devices per instance (for now), so hardcode the use of the first device
 
     // update pase token in AT table
-    OC_DBG_SPAKE("update PASE token for Device after successful negotiation");
+    OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
     oc_oscore_set_auth_device(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, shared_key_len);
 
     // empty payload
@@ -1624,10 +1663,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     mbedtls_mpi_init(&spake_data.w0);
     mbedtls_mpi_init(&spake_data.y);
 
-    memset(g_pase.pa, 0, sizeof(g_pase.pa));
-    memset(g_pase.pb, 0, sizeof(g_pase.pb));
-    memset(g_pase.ca, 0, sizeof(g_pase.ca));
-    memset(g_pase.cb, 0, sizeof(g_pase.cb));
+    memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
+    memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
+    memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
+    memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
     memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
     memset(g_pase.salt, 0, sizeof(g_pase.salt));
     g_pase.it = 100000;
@@ -1645,19 +1684,19 @@ error:
   mbedtls_ecp_point_init(&spake_data.pub_y);
   mbedtls_mpi_init(&spake_data.w0);
   mbedtls_mpi_init(&spake_data.y);
-#endif /* OC_SPAKE */
+#endif 
 
-  memset(g_pase.pa, 0, sizeof(g_pase.pa));
-  memset(g_pase.pb, 0, sizeof(g_pase.pb));
-  memset(g_pase.ca, 0, sizeof(g_pase.ca));
-  memset(g_pase.cb, 0, sizeof(g_pase.cb));
+  memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
+  memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
+  memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
+  memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
   memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
   g_pase.it = 100000;
 
 #ifdef OC_SPAKE
   increment_counter();
-#endif /* OC_SPAKE */
+#endif
   oc_send_separate_response(&spake_separate_rsp, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
 }

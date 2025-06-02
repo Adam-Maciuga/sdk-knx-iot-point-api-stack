@@ -94,7 +94,7 @@ static void pase_credential_verification_response_handler(oc_client_response_t* 
   oc_spake_calc_K_shared(K_main, shared_key);
 
   // update pase token in AT table
-  OC_DBG_SPAKE("update PASE token for MaC after successful negotiation");
+  OC_DBG_SPAKE("update PASE token after successful negotiation with device");
   oc_oscore_set_auth_mac(oc_string(g_spake_ctx.oscore_id), oc_byte_string_len(g_spake_ctx.oscore_id), 
                          shared_key, shared_key_len);
 
@@ -134,7 +134,7 @@ static void pase_credential_response_handler(oc_client_response_t* data)
   {
     if (rep->type == OC_REP_BYTE_STRING)
     {
-      // shareV, pb
+      // shareV, shareV
       if (rep->iname == 11)
       {
         pB_bytes = rep->value.string.ptr;
@@ -179,6 +179,7 @@ static void pase_credential_response_handler(oc_client_response_t* data)
   oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR);
 }
 
+// credential parameter response handler
 static void pase_parameter_response_handler(oc_client_response_t* data)
 {
   OC_DBG_SPAKE("Received Pase Parameter Response!");
@@ -259,8 +260,8 @@ static void pase_parameter_response_handler(oc_client_response_t* data)
 
 #endif 
 
-int
-oc_initiate_spake_parameter_request(oc_endpoint_t* endpoint,
+// credential parameter request handler (not used by server/ client )
+int oc_initiate_spake_parameter_request(oc_endpoint_t* endpoint,
                                     char* serial_number, char* password,
                                     char* recipient_id, const size_t recipient_id_len)
 {
@@ -300,8 +301,7 @@ oc_initiate_spake_parameter_request(oc_endpoint_t* endpoint,
   return -1;
 }
 
-int
-oc_initiate_spake(oc_endpoint_t* endpoint, char* password, char* recipient_id)
+int oc_initiate_spake(oc_endpoint_t* endpoint, char* password, char* recipient_id)
 {
   int return_value = -1;
 

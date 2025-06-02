@@ -55,15 +55,15 @@ typedef void (*oc_spake_cb_t)(int error, char *serial_number, char *oscore_id,
  * @param endpoint the endpoint of the device to be used
  * @param password the spake password to be used
  * @param recipient_id the recipient id (HEX string)
- * @return int success full start up of the handshake
+ * @return int successful start up of the handshake
  */
 int oc_initiate_spake(oc_endpoint_t *endpoint, char *password,
                       char *recipient_id);
 
 /**
- * @brief initiate the spake handshake
+ * @brief initiate the spake handshake from a MaC perspective
  *
- * NOTE: After the successful handshake the OSCORE context should have:
+ * @note After the successful handshake the OSCORE context should have:
  * - SID : serial number as byte array
  * - RID : the recipient ID as given input
  *

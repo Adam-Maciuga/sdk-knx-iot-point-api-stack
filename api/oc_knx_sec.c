@@ -1832,10 +1832,11 @@ void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
 void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
                                uint8_t* shared_key, int shared_key_size)
 {
-  // create the token & store in at table (usually at position 0), note there
-  // should be no entries, if there is an entry then overwrite it.
-  PRINT("oc_oscore_set_auth_device sn : %s", client_senderid); // TODO is only for ETS the SN
-  PRINT("oc_oscore_set_auth_device ms : (%d) ", shared_key_size);
+  // - create the token & store in at table (usually at position 0)
+  // - note there should be no entries, if there is an entry then overwrite it
+  // - MaC freely chosen id 
+  PRINT("set id : %s", client_senderid); 
+  PRINT("set ms : (%d) ", shared_key_size);
   oc_char_println_hex(shared_key, shared_key_size);
 
   oc_oscore_set_auth_shared(client_senderid, client_senderid_size, shared_key, shared_key_size);

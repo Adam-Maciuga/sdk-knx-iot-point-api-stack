@@ -42,10 +42,10 @@ extern "C"
    *
    * Example Json:
    * ```
-   *  { "rnd": x}
-   *  { "pa": x}
-   *  { "pb": x}
-   *  { "ca": x}
+   *  { "rnd"    : x}
+   *  { "shareP" : x}
+   *  { "shareV" : x}
+   *  { "ca"     : x}
    *  { "pbkdf2" : { "salt" : "xxxx", "it" : 5}}}
    * ```
    *
@@ -53,8 +53,8 @@ extern "C"
    * | Json Key | Integer Value |  type       |
    * | -------- | ------------- |-------------|
    * | salt     | 5             | byte string |
-   * | pa       | 10            | byte string |
-   * | pb       | 11            | byte string |
+   * | shareP   | 10            | byte string |
+   * | shareV   | 11            | byte string |
    * | pbkdf2   | 12            | map         |
    * | cb       | 13            | byte string |
    * | ca       | 14            | byte string |
@@ -65,13 +65,13 @@ extern "C"
    */
   typedef struct oc_pase_t
   {
-    oc_string_t id; /**< recipient id */
-    uint8_t salt[32]; /**< salt */
-    uint8_t pa[65]; /**< pa */
-    uint8_t pb[65]; /**< pb */
-    uint8_t ca[32]; /**< ca */
-    uint8_t cb[32]; /**< cb */
-    uint8_t rnd[32]; /**< rnd */
+    oc_string_t id;       // recipient id 
+    uint8_t salt[32];     // salt 
+    uint8_t shareP[65];   // pa from RFC 9382 in Spake2+ = shareP   
+    uint8_t shareV[65];   // pb from RFC 9382 in Spake2+ = shareV
+    uint8_t confirmP[32]; // ca from RFC 9382 in Spake2+ = confirmP
+    uint8_t confirmV[32]; // cb from RFC 9382 in Spake2+ = confirmV
+    uint8_t rnd[32];      // rnd
     int it;
   } oc_pase_t;
 
