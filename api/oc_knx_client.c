@@ -53,7 +53,6 @@ typedef struct oc_spake_context_t
 // ----------------------------------------------------------------------------
 
 oc_s_mode_response_cb_t m_s_mode_cb = NULL;
-oc_spake_cb_t m_spake_cb = NULL;
 
 // SPAKE2
 #ifdef OC_SPAKE
@@ -106,13 +105,6 @@ static void pase_credential_verification_response_handler(oc_client_response_t* 
   mbedtls_ecp_point_free(&pA);
   mbedtls_ecp_point_free(&pubA);
   memset(K_main, 0, sizeof(K_main));
-
-  if (m_spake_cb)
-  {
-    m_spake_cb(
-      0, oc_string(g_spake_ctx.serial_number), oc_string(g_spake_ctx.oscore_id),
-      oc_byte_string_len(g_spake_ctx.oscore_id), shared_key, shared_key_len);
-  }
 }
 
 // credential exchange response handler
@@ -871,14 +863,6 @@ void oc_do_s_mode_with_scope_no_check(const int scope, const char* resource_url,
 void oc_do_s_mode_with_scope(const int scope, const char* resource_url, char* srv_type)
 {
   oc_do_s_mode_with_scope_and_check(scope, resource_url, srv_type, true);
-}
-
-// ----------------------------------------------------------------------------
-
-bool oc_set_spake_response_cb(const oc_spake_cb_t my_func)
-{
-  m_spake_cb = my_func;
-  return true;
 }
 
 // ----------------------------------------------------------------------------

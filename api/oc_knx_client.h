@@ -48,16 +48,6 @@ typedef void (*oc_spake_cb_t)(int error, char *serial_number, char *oscore_id,
                               int secret_size);
 
 /**
- * @brief set the spake response callback
- * e.g. function is called when the spake handshake is finished
- *
- * @param my_func the callback function
- * @return true function set
- * @return false function set failed
- */
-bool oc_set_spake_response_cb(oc_spake_cb_t my_func);
-
-/**
  * @brief initiate the spake handshake
  *
  * NOTE: recipient id in HEX string (e.g. null terminated)
