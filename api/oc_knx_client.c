@@ -374,7 +374,7 @@ void oc_do_s_mode_read(const uint32_t group_address)
   }
 }
 
-static void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* srv_type, bool consider_transmission_flag)
+void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* srv_type, bool consider_transmission_flag)
 {
   PRINT("oc_do_s_mode_with_scope_and_check scope = %d url = %s rp=%s", scope, resource_url, srv_type);
 
@@ -444,7 +444,7 @@ static void oc_do_s_mode_with_scope_and_check(const int scope, const char* resou
     PRINT("index %d service type = %s cflags %d with flags=", index, srv_type, cflags);
     oc_print_cflags(cflags);
 
-    // send always on bool parameter is false
+    // send always on bool parameter is false, otherwise 't' flag must be set
     const bool do_send = consider_transmission_flag == false ? true : cflags & OC_CFLAG_TRANSMISSION;
 
     if (do_send)
@@ -542,20 +542,6 @@ static void oc_do_s_mode_with_scope_and_check(const int scope, const char* resou
     index = oc_core_find_next_group_object_table_url(resource_url, index);
   }
 }
-
-// Note that this function does not check the transmit flag, the caller of this function needs to check if the flag is set.
-void oc_do_s_mode_with_scope_no_check(const int scope, const char* resource_url, char* srv_type)
-{
-  oc_do_s_mode_with_scope_and_check(scope, resource_url, srv_type, false);
-}
-
-// Note that this function DOES check the transmit flag.
-void oc_do_s_mode_with_scope(const int scope, const char* resource_url, char* srv_type)
-{
-  oc_do_s_mode_with_scope_and_check(scope, resource_url, srv_type, true);
-}
-
-// ----------------------------------------------------------------------------
 
 bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func)
 {

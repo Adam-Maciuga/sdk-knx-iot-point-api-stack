@@ -117,29 +117,7 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
  */
 void oc_do_s_mode_read(uint32_t group_address);
 
-/**
- * @brief sends (transmits) an s-mode message
- *
- *
- * - the value comes from the GET of the resource indicated by the resource_url
- * - the path is "k"
- * - the sia (sender individual address) is taken from the device
- * - the ga is coming from the group address table that is listing the resource
- * - the url is the url of the resource to obtain the value from
- *
- * Only the first group address is used to send the s-mode message
- * for the recipient table all entries are used to send the unicast
- * communication.
- *
- * Note: The Function does check the T flag on the resource
- *       if the T flag is not set, then the message is NOT send.
- *
- * @param scope the multi-cast scope
- * @param resource_url URI of the resource (e.g. implemented on the device that
- * is calling this function)
- * @param srv_type the "st" value to send e.g. "w" | "a" | "r"
- */
-void oc_do_s_mode_with_scope(int scope, const char *resource_url, char *srv_type);
+
 
 /**
  * @brief sends (transmits) an s-mode message
@@ -162,8 +140,12 @@ void oc_do_s_mode_with_scope(int scope, const char *resource_url, char *srv_type
  * @param scope the multi-cast scope
  * @param resource_url URI of the resource (e.g. implemented on the device that is calling this function)
  * @param srv_type the "st" value to send e.g. "w" | "a" | "r"
+ * @param consider_transmission_flag
+ *        #false: does not check the transmit flag (the caller of this function needs to check if the flag is set)
+ *        #true: checks transmit flag
  */
-void oc_do_s_mode_with_scope_no_check(int scope, const char *resource_url, char *srv_type);
+ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* srv_type,
+                                              bool consider_transmission_flag);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

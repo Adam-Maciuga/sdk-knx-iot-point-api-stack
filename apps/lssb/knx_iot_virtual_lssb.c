@@ -503,7 +503,7 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
     // this is the 'simple' option to trigger a status on a specific EP
     PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
-    oc_do_s_mode_with_scope(SENDER_SCOPE, lsxb[c].point[IOO].href, "w");
+    oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].href, "w",true);
 
     PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
     return;

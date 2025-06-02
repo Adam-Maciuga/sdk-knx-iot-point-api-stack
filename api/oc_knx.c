@@ -958,9 +958,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 // send from uc/mc read request the read responses in multicast as POST with st='a'
 // data are prepared by application callback handler, c-flag transmit will be ignored
 #ifdef OC_USE_MULTICAST_SCOPE_2
-        oc_do_s_mode_with_scope_no_check(2, oc_string(go_href), "a");
+        oc_do_s_mode_with_scope_and_check(2, oc_string(go_href), "a", false);
 #endif
-        oc_do_s_mode_with_scope_no_check(5, oc_string(go_href), "a");
+        oc_do_s_mode_with_scope_and_check(5, oc_string(go_href), "a", false);
       }
     }
 
