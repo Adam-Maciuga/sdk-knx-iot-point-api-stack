@@ -1330,7 +1330,10 @@ static bool is_handshake_blocked(void)
 static oc_separate_response_t spake_separate_rsp;
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p);
 
-// handles the MaC requests 
+/*
+  - handles the MaC PASE requests from perspective of (server) device 
+  - no PASE workflow to issue a server based PASE enrolment is implemented 
+ */
 static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1367,20 +1370,20 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   }
 #endif
 
+  // set ptr
   oc_rep_t* rep = request->request_payload;
-
-  // check input to classify step 1..3 (no state machine is implemented)
-  // - step 1: 2
-  // - step 2: 1
-  // - step 3: 1
-  // no check if there are multiple byte strings in the request payload (first wins)
 
   pase_step = 0;
   uint8_t members_step_1 = 0;
   uint8_t members_step_2 = 0;
   uint8_t members_step_3 = 0;
 
-  while (rep != NULL)
+  // check input to classify step 1..3 (no state machine is implemented)
+  // - step 1: 2
+  // - step 2: 1
+  // - step 3: 1
+  // no check if there are multiple byte strings in the request payload (first wins)
+  while (rep)
   {
     switch (rep->type)
     {
@@ -1439,7 +1442,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   rep = request->request_payload;
 
   // handle input
-  while (rep != NULL)
+  while (rep)
   {
     switch (rep->type)
     {
@@ -1508,7 +1511,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);
 }
 
-// handles the Device requests (response to a MaC request)
+// handles the device PASE requests (responses to a MaC PASE request)
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p)
 {
   (void)req_p;
@@ -1523,9 +1526,11 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   // assign
   oc_set_separate_response_buffer(&spake_separate_rsp);
 
+  // step 1
   if (pase_step == SPAKE_RND)
   {
-#ifdef OC_SPAKE
+    #ifdef OC_SPAKE
+
     // get random numbers for rnd, salt & it (# of iterations)
     oc_spake_get_pbkdf_params(g_pase.rnd, g_pase.salt, &g_pase.it);
     OC_DBG_SPAKE("Rnd:");
@@ -1534,26 +1539,30 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_LOGbytes_SPAKE(g_pase.salt, sizeof(g_pase.salt));
     OC_DBG_SPAKE("Iterations: %d", g_pase.it);
 
-#endif 
-
+    #endif 
 
     oc_rep_begin_root_object();
+
     // rnd (15)
     oc_rep_i_set_byte_string(root, SPAKE_RND, g_pase.rnd, 32);
     // pbkdf2
     oc_rep_i_set_key(&root_map, SPAKE_PBKDF2);
     oc_rep_begin_object(&root_map, pbkdf2);
-    // it 16
+    // it (16)
     oc_rep_i_set_int(pbkdf2, SPAKE_IT, g_pase.it);
-    // salt 5
+    // salt (5)
     oc_rep_i_set_byte_string(pbkdf2, SPAKE_SALT, g_pase.salt, 32);
     oc_rep_end_object(&root_map, pbkdf2);
+
     oc_rep_end_root_object();
+
     oc_send_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
-#ifdef OC_SPAKE
-  else if (pase_step == SPAKE_PA_SHARE_P)
+
+  #ifdef OC_SPAKE
+  // step 2
+  if (pase_step == SPAKE_PA_SHARE_P)
   {
     // return changed, frame pb (11) & cb (13)
 
@@ -1610,15 +1619,17 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     mbedtls_ecp_point_free(&pB);
 
     oc_rep_begin_root_object();
-    // pb (11)
+    // shareV (11)
     oc_rep_i_set_byte_string(root, SPAKE_PB_SHARE_V, g_pase.shareV, sizeof(g_pase.shareV));
-    // cb (13)
+    // confirmV (13)
     oc_rep_i_set_byte_string(root, SPAKE_CB_CONFIRM_V, g_pase.confirmV, sizeof(g_pase.confirmV));
     oc_rep_end_root_object();
     oc_send_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
-  else if (pase_step == SPAKE_CA_CONFIRM_P)
+
+  // step 3
+  if (pase_step == SPAKE_CA_CONFIRM_P)
   {
     // calculate expected cA
     uint8_t expected_ca[32];
@@ -1672,7 +1683,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     g_pase.it = 100000;
     return OC_EVENT_DONE;
   }
-error:
+
+  error:
   // be paranoid: wipe all global data after an error
   memset(spake_data.K_main, 0, sizeof(spake_data.K_main));
   mbedtls_ecp_point_free(&spake_data.L);
@@ -1697,6 +1709,7 @@ error:
 #ifdef OC_SPAKE
   increment_counter();
 #endif
+
   oc_send_separate_response(&spake_separate_rsp, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
 }
@@ -1735,8 +1748,7 @@ void oc_create_knx_spake_resource(int resource_idx, size_t device)
 void oc_initialise_spake_data(void)
 {
   // can fail if initialization of the RNG does not work
-  int ret = oc_spake_init();
-  assert(ret == 0);
+  assert(oc_spake_init() == 0);
   mbedtls_mpi_init(&spake_data.w0);
   mbedtls_ecp_point_init(&spake_data.L);
   mbedtls_mpi_init(&spake_data.y);

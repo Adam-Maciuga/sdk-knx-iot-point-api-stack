@@ -93,19 +93,6 @@ int oc_spake_get_parameters(uint8_t rnd[32], uint8_t salt[32], int *it,
                             mbedtls_mpi *w0, mbedtls_ecp_point *L);
 
 /**
- * @brief Set the pre-loaded fields needed for PASE and SPAKE
- *
- * @param rnd Random number
- * @param salt The salt to be used fo PBKDF2
- * @param it The number of iterations to be used for PBKDF2
- * @param w0 omega0 value for SPAKE2+
- * @param L L ecp point for SPAKE2+
- * @return int 0 on success
- */
-int oc_spake_set_parameters(uint8_t rnd[32], uint8_t salt[32], int it,
-                            mbedtls_mpi w0, mbedtls_ecp_point L);
-
-/**
  * @brief get the PBKDF params for OC SPAKE
  *
  * @param rnd Random number
@@ -145,20 +132,6 @@ const char *oc_spake_get_password(void);
  * @param new_pass Null-terminated string containing the password
  */
 void oc_spake_set_password(char *new_pass);
-
-/**
- * @brief Generate a 16-byte number, suitable for use as a masterkey within
- * OSCORE secure communication.
- *
- * oc_spake_init() MUST be called before this function can be used. If it is not
- * called, the RNG context will be uninitialised & this function should return
- * an error.
- *
- * @param array Array into which the masterkey will be written. Must be of
- * length OSCORE_KEY_LEN
- * @return int Zero on success, negative MBEDTLS error code on failure.
- */
-int oc_gen_masterkey(uint8_t array[OSCORE_KEY_LEN]);
 
 /**
  * @brief Calculate the w0 & L parameter
@@ -292,15 +265,10 @@ int oc_spake_calc_confirmV(uint8_t *K_main, uint8_t confirmV[32],
  */
 int oc_spake_calc_K_shared(uint8_t *K_main, uint8_t K_shared[16]);
 
-// Private declarations (only for testing)
-void oc_spake_print_point(mbedtls_ecp_point *p);
-
-void oc_spake_print_mpi(mbedtls_mpi *m);
-
 int oc_spake_calc_K_shared_256(uint8_t *K_main, uint8_t K_shared[32]);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // OC_SPAKE2PLUS_H
+#endif 

@@ -102,26 +102,7 @@ oc_spake_set_password(char* new_pass)
   strncpy(password, new_pass, sizeof(password));
 }
 
-int
-oc_spake_set_parameters(uint8_t rand[32], uint8_t salt[32], int it,
-                        mbedtls_mpi w0, mbedtls_ecp_point L)
-{
-  int ret;
-  g_spake_parameters.loaded = 0;
-  memcpy(g_spake_parameters.rand, rand, 32);
-  memcpy(g_spake_parameters.salt, salt, 32);
-  g_spake_parameters.iter = it;
-  MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&g_spake_parameters.w0, &w0));
-  MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&g_spake_parameters.L.X, &L.X));
-  MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&g_spake_parameters.L.Y, &L.Y));
-  MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&g_spake_parameters.L.Z, &L.Z));
-  g_spake_parameters.loaded = 1;
-  return 0;
-cleanup:
-  mbedtls_mpi_free(&g_spake_parameters.w0);
-  mbedtls_ecp_point_free(&g_spake_parameters.L);
-  return ret;
-}
+
 
 int
 oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* w0,
@@ -234,46 +215,15 @@ encode_mpi(mbedtls_mpi* mpi, uint8_t* buffer)
   size_t len_mpi = 0;
   size_t len_len = 0;
   uint8_t mpi_buf[64];
-  int ret;
 
   len_mpi = mbedtls_mpi_size(mpi);
 
-  ret = mbedtls_mpi_write_binary(mpi, mpi_buf, len_mpi);
+  int ret = mbedtls_mpi_write_binary(mpi, mpi_buf, len_mpi);
   assert(ret == 0);
 
   len_len = encode_uint(len_mpi, buffer);
   memcpy(buffer + len_len, mpi_buf, len_mpi);
   return len_len + len_mpi;
-}
-
-void
-oc_spake_print_point(mbedtls_ecp_point* p)
-{
-  uint8_t buf[kPubKeySize];
-  size_t len = 0;
-
-  len = encode_point(&grp, p, buf);
-
-  for (size_t i = 0; i < len; i++)
-  {
-    PRINT("%02x", buf[i]);
-  }
-
-}
-
-void
-oc_spake_print_mpi(mbedtls_mpi* m)
-{
-  uint8_t buf[64];
-  size_t len = 0;
-
-  len = encode_mpi(m, buf);
-
-  for (size_t i = 0; i < len; i++)
-  {
-    PRINT("%02x", buf[i]);
-  }
-
 }
 
 int
@@ -369,12 +319,6 @@ oc_spake_gen_keypair(mbedtls_mpi* y, mbedtls_ecp_point* pub_y)
 {
   return mbedtls_ecp_gen_keypair(&grp, y, pub_y, mbedtls_ctr_drbg_random,
                                  ctr_drbg_ctx);
-}
-
-int
-oc_gen_masterkey(uint8_t* array)
-{
-  return mbedtls_ctr_drbg_random(ctr_drbg_ctx, array, OSCORE_KEY_LEN);
 }
 
 // generic formula for
