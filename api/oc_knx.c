@@ -171,7 +171,7 @@ static oc_event_callback_retval_t reset(void* context)
      An AT table with one PASE key only, after the PASE
      deletion the AT table is empty (= "default cfg" state)
   */
-  oc_core_find_and_remove_pase_entry();
+  oc_core_find_and_remove_pase_token_in_at_table();
   
 #endif
 
@@ -208,7 +208,7 @@ static oc_event_callback_retval_t restart(void* context)
 #ifdef OC_OSCORE
 
   // Delete PASE key (check only for one hit ...), comes with nothing else
-  oc_core_find_and_remove_pase_entry();
+  oc_core_find_and_remove_pase_token_in_at_table();
   
 #endif
   // CFG parameters

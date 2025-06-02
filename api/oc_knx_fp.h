@@ -197,7 +197,7 @@ extern "C"
    *
    * @return int -1 : not found, > -1 : value found
    */
-  int oc_table_find_id_from_payload(const oc_rep_t* object);
+  int oc_table_find_id_from_payload(oc_rep_t* object);
 
   /**
    * @brief retrieve the group object table total size,

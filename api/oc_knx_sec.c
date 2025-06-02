@@ -33,7 +33,7 @@
 
 static uint32_t g_oscore_replaywindow = 32; // default according to RFC OSCORE
 static uint32_t g_oscore_osndelay = 1000; // default (ms) defined by iot specification
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // note static variables are initialized with '0' first time
+static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // static inits with '0', included strings next/ptr/size are '0' are not valid
 
 // ----------------------------------------------------------------------------
 
@@ -1644,41 +1644,6 @@ static void oc_load_at_table_entry(int entry)
   free(buf);
 }
 
-int oc_core_set_spake_token_in_at_table(int index, oc_auth_at_t entry)
-{
-  if (index < G_AT_MAX_ENTRIES)
-  {
-    oc_free_string(&g_at_entries[index].id);
-    oc_new_string(&g_at_entries[index].id, oc_string(entry.id), oc_string_len(entry.id));
-
-    g_at_entries[index].scope = entry.scope;
-    g_at_entries[index].profile = entry.profile;
-
-    oc_free_string(&g_at_entries[index].sub);
-    oc_new_string(&g_at_entries[index].sub, oc_string(entry.sub), oc_string_len(entry.sub));
-
-    oc_free_string(&g_at_entries[index].kid);
-    oc_new_string(&g_at_entries[index].kid, oc_string(entry.kid), oc_string_len(entry.kid));
-
-    oc_free_string(&g_at_entries[index].osc_ms);
-    oc_new_byte_string(&g_at_entries[index].osc_ms, oc_string(entry.osc_ms), oc_byte_string_len(entry.osc_ms));
-
-    oc_free_string(&g_at_entries[index].osc_contextid);
-    oc_new_byte_string(&g_at_entries[index].osc_contextid, oc_string(entry.osc_contextid),
-                       oc_byte_string_len(entry.osc_contextid));
-
-    oc_free_string(&g_at_entries[index].osc_id);
-    oc_new_byte_string(&g_at_entries[index].osc_id, oc_string(entry.osc_id), oc_byte_string_len(entry.osc_id));
-
-    // store
-    oc_store_at_table_entry(index);
-
-    // no GA/GA len is assigned when defining a spake token ...
-  }
-
-  return 0;
-}
-
 int oc_core_find_at_entry_with_id(char* id)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
@@ -1691,7 +1656,7 @@ int oc_core_find_at_entry_with_id(char* id)
   return -1;
 }
 
-void oc_core_find_and_remove_pase_entry(void)
+void oc_core_find_and_remove_pase_token_in_at_table(void)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
@@ -1784,39 +1749,72 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
                                uint8_t* shared_key, int shared_key_size)
 {
-  // init all spake token content to 0
-  oc_auth_at_t spake_token = {0};
+  // local tmp token id
+  oc_string_t pase_token_id = {NULL,0,NULL};
 
-  // this is the index in the table, so it is the full string
-  oc_new_string(&spake_token.id, client_senderid, client_senderid_size);
+  // id
+  oc_new_string(&pase_token_id, client_senderid, client_senderid_size);
 
-  spake_token.profile = OC_PROFILE_COAP_PASE;
-  spake_token.scope = OC_ACL_SEC;
-
-  oc_new_byte_string(&spake_token.osc_ms, (char*)shared_key, shared_key_size);
-
-  // note that HEX was NOT on the wire, but the byte string,
-  // so we have to store the byte string
-  oc_new_byte_string(&spake_token.osc_id, client_senderid, client_senderid_size);
-
-  int index = oc_core_find_at_entry_with_id(oc_string(spake_token.id));
+  int index = oc_core_find_at_entry_with_id(oc_string(pase_token_id));
 
   if (index == -1)
   {
-    // no spake token present (normal case)
+    // no pase token present in AT table (normal case)
     index = oc_core_find_at_entry_empty_slot();
   }
 
   if (index == -1)
   {
-    OC_ERR("no space left in auth/at table");
+    OC_ERR("no space left in AT table");
   }
   else
   {
-    // write the above defined spake entry always to AT table and file storage
-    oc_core_set_spake_token_in_at_table(index, spake_token);
+    // write (OR overwrite) the above defined pase entry to AT table (RAM) and file storage
+    // here the 'id' cannot be >= G_AT_MAX_ENTRIES 
+
+    // id (use local temp id)
+    oc_free_string(&g_at_entries[index].id);
+    oc_new_string(&g_at_entries[index].id, oc_string(pase_token_id), oc_string_len(pase_token_id));
+
+    // pase token owns only if.sec scope 
+    g_at_entries[index].scope = OC_ACL_SEC;
+    g_at_entries[index].profile = OC_PROFILE_COAP_PASE;
+
+    // no sub
+    oc_free_string(&g_at_entries[index].sub);
+    oc_new_string(&g_at_entries[index].sub,"",0);
+
+    // no kid
+    oc_free_string(&g_at_entries[index].kid);
+    oc_new_string(&g_at_entries[index].kid, "" ,0);
+
+    // secret
+    oc_free_string(&g_at_entries[index].osc_ms);
+    oc_new_byte_string(&g_at_entries[index].osc_ms, (char*)shared_key, shared_key_size);
+
+    // no kid context
+    oc_free_string(&g_at_entries[index].osc_contextid);
+    oc_new_byte_string(&g_at_entries[index].osc_contextid, "",0);
+
+    // kid (on the wire it was a byte string, so we have to store the byte string)
+    oc_free_string(&g_at_entries[index].osc_id);
+    oc_new_byte_string(&g_at_entries[index].osc_id, client_senderid, client_senderid_size);
+
+    // release a possible ga array, it will be overwritten
+    // free ignores NULL ptr
+    free(g_at_entries[index].ga);
+    g_at_entries[index].ga_len = 0;
+    g_at_entries[index].ga = NULL;
+
+    // store
+    oc_store_at_table_entry(index);
+
+    // init
     oc_init_oscore_from_storage(false);
   }
+
+  // free allocated memory from local pase token id
+  oc_free_string(&pase_token_id);
 }
 
 void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
@@ -1845,7 +1843,6 @@ oc_auth_at_t* oc_get_auth_at_entry(int index)
 {
   return index < 0 || index >= G_AT_MAX_ENTRIES ? NULL : &g_at_entries[index];
 }
-  
 
 void oc_create_knx_sec_resources(size_t device_index)
 {
@@ -1891,10 +1888,10 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0,
           0,
-          oc_string(g_at_entries[i].osc_ms), // TODO remove it 
-          oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
-          oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),
-          oc_byte_string_len(g_at_entries[i].osc_contextid), i,
+          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
+          oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
+          oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
+          i,
           read_ssn_from_storage);
 
         if (ctx == NULL)
@@ -1902,9 +1899,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           OC_ERR("failed to add a context entry for AT table entry = %d", i);
         }
 
-        // contexts for sending have populated sender id and null receive id
-        // the spake key, however, is for receiving only, and the osc_id is
-        // already inside receiver_id.
+        // - contexts for sending have populated sender id and null receive id
+        // - the spake key, however, is for receiving only, and the osc_id is already inside receiver_id.
 
         // posts to auth/at set id into the sender id, so the created contexts
         // are only usable for sending. recipient contexts are created

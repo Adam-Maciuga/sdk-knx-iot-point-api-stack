@@ -56,7 +56,6 @@ extern "C" {
 	 *{
 	 * "id": "OC5BLLhkAG ...",
 	 * "profile": "coap_oscore",
-	 * "aud" : "<iid>.<ia>"
 	 * "scope": ["if.sec", "if.p"],
 	 * "cnf": {
 	 * "osc": {
@@ -130,8 +129,8 @@ extern "C" {
 		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional-not used)	(decimal value)
 		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional- not used) default: decimal value 10
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt (optional) empty string 
-		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" (byte string, 6	* bytes) 
-		oc_string_t osc_id;					// (8:4:0) OSCORE cnf:osc:id (used as SID & KID) (byte string), max 7 bytes 
+		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" / "ID Context" - max 6 byte string 
+		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id used as "kid" / "Sender ID" - max 7 byte string 
 		int nbf;										// token not valid before (optional) 
 		int ga_len;									// length of the group addresses (ga) in the scope 
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
@@ -157,25 +156,12 @@ extern "C" {
 	int oc_core_items_used_in_auth_at_table(void);
 
 	/**
-	 * @brief puts the SPAKE2+ token in
-	 * - the AT table (RAM)
-	 * - to the storage file system
-	 *
-	 * @param index the index in the table, will rlease/overwrite the content if something is there
-	 * @param entry the auth/at entry
-	 * @return int 0 == successful
-	 *
-	 * @note don't set any GA ptr/ GA len in case of SPAKE2+ token
-	 */
-	int oc_core_set_spake_token_in_at_table(int index, oc_auth_at_t entry);
-
-	/**
 	* @brief Find an PASE entry and removes it from AT table and
 	*        from possible context references
 	*
 	*
 	*/
-	void oc_core_find_and_remove_pase_entry(void);
+	void oc_core_find_and_remove_pase_token_in_at_table(void);
 
 	/**
 	 * @brief find empty slot

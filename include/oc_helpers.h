@@ -103,6 +103,8 @@ extern "C" {
 
 		 /**
 			* @brief create new string from string (null terminated)
+			*	@note even an empty string will allocate one byte for the string terminator "" (NULL);
+			*	      with a resulting string size of '1' 
 			*
 			*/
 	#define oc_new_string(ocstring, str, str_len)                                  \
@@ -116,7 +118,11 @@ extern "C" {
   _oc_new_byte_string(ocstring, str, str_len)
 
 			 /**
-				* @brief free ocstring
+				* @brief frees an 'ocstring'
+				*	@note
+				*	- as result next/ptr/size are set to '0', which is not a valid string definition
+				*	- an empty string is also freed (its size is '1')
+				*	- a call to a size '0' (invalid) string from above is not freed 
 				*
 				*/
 	#define oc_free_string(ocstring) _oc_free_string(ocstring)
