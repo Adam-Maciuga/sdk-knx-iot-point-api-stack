@@ -1097,13 +1097,13 @@ extern "C"
   void oc_ignore_request(oc_request_t* request);
 
   /**
-   * Respond to an incoming request asynchronously.
+   * Prepare a response to respond to an incoming request asynchronously.
    *
-   * If for some reason the response to a request would take a
-   * long time or is not immediately available, then this function may be used
-   * defer responding to the request.
+   * @note If for some reason the response to a request would take a
+   *       long time or is not immediately available, then this function may be used
+   *       defer responding to the request.
    *
-   * Example:
+   * Example
    * ```
    * static oc_separate_response_t sep_response;
    *

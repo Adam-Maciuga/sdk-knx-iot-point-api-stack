@@ -1770,7 +1770,7 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
   else
   {
     // write (OR overwrite) the above defined pase entry to AT table (RAM) and file storage
-    // here the 'id' cannot be >= G_AT_MAX_ENTRIES 
+    // here the 'index' cannot be >= G_AT_MAX_ENTRIES 
 
     // id (use local temp id)
     oc_free_string(&g_at_entries[index].id);
@@ -1832,6 +1832,8 @@ void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
 void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
                                uint8_t* shared_key, int shared_key_size)
 {
+  // create the token & store in at table (usually at position 0), note there
+  // should be no entries, if there is an entry then overwrite it.
   PRINT("oc_oscore_set_auth_device sn : %s", client_senderid); // TODO is only for ETS the SN
   PRINT("oc_oscore_set_auth_device ms : (%d) ", shared_key_size);
   oc_char_println_hex(shared_key, shared_key_size);

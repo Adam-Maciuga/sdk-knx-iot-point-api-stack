@@ -73,15 +73,11 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
 
 #ifdef OC_SPAKE
 
-static void update_tokens(uint8_t* secret, const int secret_size)
+// credential verification response handler 
+static void pase_credential_verification_response_handler(oc_client_response_t* data)
 {
-  PRINT("update_tokens:");
-  oc_oscore_set_auth_mac(oc_string(g_spake_ctx.oscore_id),
-                         oc_byte_string_len(g_spake_ctx.oscore_id), secret, secret_size);
-}
+  OC_DBG_SPAKE("Received Pase Credential Verification Response!");
 
-static void finish_spake_handshake(oc_client_response_t* data)
-{
   if (data->code != OC_STATUS_CHANGED)
   {
     OC_DBG_SPAKE("Error in Credential Verification!");
@@ -93,13 +89,15 @@ static void finish_spake_handshake(oc_client_response_t* data)
     return;
   }
 
-  // shared_key is 32-byte array - NOT NULL TERMINATED
+  // shared_key is 16-byte array - NOT NULL TERMINATED 
   uint8_t shared_key[16];
   uint8_t shared_key_len = sizeof(shared_key);
   oc_spake_calc_K_shared(K_main, shared_key);
 
-  // update spake token in AT table
-  update_tokens(shared_key, shared_key_len);
+  // update pase token in AT table
+  OC_DBG_SPAKE("update PASE token for MaC after successful negotiation");
+  oc_oscore_set_auth_mac(oc_string(g_spake_ctx.oscore_id), oc_byte_string_len(g_spake_ctx.oscore_id), 
+                         shared_key, shared_key_len);
 
   // free up the memory used by the handshake
   mbedtls_mpi_free(&w0);
@@ -117,12 +115,12 @@ static void finish_spake_handshake(oc_client_response_t* data)
   }
 }
 
-static void
-do_credential_verification(oc_client_response_t* data)
+// credential exchange response handler
+static void pase_credential_response_handler(oc_client_response_t* data)
 {
-  OC_DBG_SPAKE("\nReceived Credential Response!");
+  OC_DBG_SPAKE("Received Pase Credential Response!");
 
-  OC_DBG_SPAKE("  code: %d\n", data->code);
+  OC_DBG_SPAKE("  code: %d ", data->code);
   if (data->code != OC_STATUS_CHANGED)
   {
     OC_DBG_SPAKE("Error in Credential Response!");
@@ -144,12 +142,12 @@ do_credential_verification(oc_client_response_t* data)
   {
     if (rep->type == OC_REP_BYTE_STRING)
     {
-      // pb
+      // shareV, pb
       if (rep->iname == 11)
       {
         pB_bytes = rep->value.string.ptr;
       }
-      // cb
+      // confirmV, cb
       if (rep->iname == 13)
       {
         cB_bytes = rep->value.string.ptr;
@@ -171,31 +169,36 @@ do_credential_verification(oc_client_response_t* data)
   oc_spake_calc_transcript_initiator(&w0, &w1, &privA, &pA, pB_bytes, K_main);
   oc_spake_calc_confirmP(K_main, cA, pB_bytes);
 
-  mbedtls_ecp_point_write_binary(&grp, &pA, MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                 &len_pA, pA_bytes, kPubKeySize);
+  mbedtls_ecp_point_write_binary(&grp, &pA, MBEDTLS_ECP_PF_UNCOMPRESSED, &len_pA, pA_bytes, kPubKeySize);
   oc_spake_calc_confirmV(K_main, local_cB, pA_bytes);
 
   mbedtls_ecp_group_free(&grp);
 
-  oc_init_post("/.well-known/knx/spake", data->endpoint, NULL,
-               &finish_spake_handshake, HIGH_QOS, NULL);
+  // issue pase credential verification request, include the response handler 
+  oc_init_post("/.well-known/knx/spake", data->endpoint, NULL, &pase_credential_verification_response_handler, HIGH_QOS, NULL);
+
+  // payload confirmP {14: h'12345...9'} 
   oc_rep_begin_root_object();
   oc_rep_i_set_byte_string(root, 14, cA, 32);
   oc_rep_end_root_object();
+
+  // send request
+  OC_DBG_SPAKE("Send Pase Credential Verification Request!");
   oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR);
 }
 
-static void
-do_credential_exchange(oc_client_response_t* data)
+static void pase_parameter_response_handler(oc_client_response_t* data)
 {
-  OC_DBG_SPAKE("\nReceived Parameter Response!");
+  OC_DBG_SPAKE("Received Pase Parameter Response!");
 
-  OC_DBG_SPAKE("  code: %d\n", data->code);
+  OC_DBG_SPAKE("  code: %d ", data->code);
   if (data->code != OC_STATUS_CHANGED)
   {
     OC_DBG_SPAKE("Error in Parameter Response! %d ", data->code);
     return;
   }
+
+  // debugging
   oc_print_rep_as_json(data->payload, true);
 
   char buffer[300];
@@ -241,6 +244,7 @@ do_credential_exchange(oc_client_response_t* data)
   mbedtls_mpi_init(&privA);
   mbedtls_ecp_point_init(&pA);
   mbedtls_ecp_point_init(&pubA);
+
   // use the global variable that comes with the input of the handshake
   oc_spake_calc_w0_w1(g_spake_ctx.spake_password, 32, salt, it, &w0, &w1);
 
@@ -249,33 +253,39 @@ do_credential_exchange(oc_client_response_t* data)
   uint8_t bytes_pA[kPubKeySize];
   oc_spake_encode_pubkey(&pA, bytes_pA);
 
-  oc_init_post("/.well-known/knx/spake", data->endpoint, NULL,
-               &do_credential_verification, HIGH_QOS, NULL);
+  // issue pase credential request, include the response handler 
+  oc_init_post("/.well-known/knx/spake", data->endpoint, NULL, &pase_credential_response_handler, HIGH_QOS, NULL);
 
+  // payload shareP {10: h'12345...9'} 
   oc_rep_begin_root_object();
   oc_rep_i_set_byte_string(root, 10, bytes_pA, kPubKeySize);
   oc_rep_end_root_object();
 
+  OC_DBG_SPAKE("Send Pase Credential Request!");
   oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR);
 }
 
-#endif /* OC_SPAKE */
+#endif 
 
 int
 oc_initiate_spake_parameter_request(oc_endpoint_t* endpoint,
                                     char* serial_number, char* password,
                                     char* recipient_id, const size_t recipient_id_len)
 {
-  int return_value = -1;
 
 #ifndef OC_SPAKE
   (void)endpoint;
-#else /* OC_SPAKE*/
-  // do parameter exchange
-  oc_init_post("/.well-known/knx/spake", endpoint, NULL, &do_credential_exchange, HIGH_QOS, NULL);
+#else 
 
-  // TODO fill with actual random data
-  uint8_t    rnd[32]; // not actually used by the server, so just send some gibberish
+  OC_DBG_SPAKE("Send Pase Parameter Request!");
+
+  // issue pase parameter request, include the response handler 
+  oc_init_post("/.well-known/knx/spake", endpoint, NULL, &pase_parameter_response_handler, HIGH_QOS, NULL);
+
+  // not actually used by the server, so just send some gibberish (TODO randomize it!)
+  uint8_t rnd[32]; 
+
+  // payload id + random {0: '1234', 15: h'123...345'} 
   oc_rep_begin_root_object();
 
   oc_rep_i_set_text_string(root, 0, recipient_id);
@@ -284,23 +294,18 @@ oc_initiate_spake_parameter_request(oc_endpoint_t* endpoint,
   oc_rep_i_set_byte_string(root, 15, rnd, 32);
   oc_rep_end_root_object();
 
+  // copy password + serial number
   strncpy((char*) &g_spake_ctx.spake_password, password, MAX_PASSWORD_LEN);
-
   oc_string_copy_from_char(&g_spake_ctx.serial_number, serial_number);
 
-  // oc_conv_hex_string_to_oc_string(endpoint->oscore_id,
-  //                                 strlen(endpoint->oscore_id),
-  //                                     &(g_spake_ctx.serial_number));
-  // oc_string_copy_from_char(&g_spake_ctx.serial_number,
-  // endpoint->serial_number);
-
+  // send request 
   if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR))
   {
-    return_value = 0;
+    return 0;
   }
 
 #endif 
-  return return_value;
+  return -1;
 }
 
 int
@@ -316,7 +321,7 @@ oc_initiate_spake(oc_endpoint_t* endpoint, char* password, char* recipient_id)
 #else 
   // do parameter exchange
   oc_init_post("/.well-known/knx/spake", endpoint, NULL,
-               &do_credential_exchange, HIGH_QOS, NULL);
+               &pase_parameter_response_handler, HIGH_QOS, NULL);
 
   // TODO fill with actual random data
   uint8_t

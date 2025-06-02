@@ -1368,25 +1368,30 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 
   oc_rep_t* rep = request->request_payload;
 
-  // check input
-  // note: no check if there are multiple byte strings in the request payload
+  // check input to classify step 1..3
+  // no check if there are multiple byte strings in the request payload (first wins)
   valid_request = 0;
+
   while (rep != NULL)
   {
     switch (rep->type)
     {
-    case OC_REP_BYTE_STRING:
+      // check only identifiers for byte strings
+      case OC_REP_BYTE_STRING:
     {
       if (rep->iname == SPAKE_PA_SHARE_P)
       {
+        // pase credential request (step 2)
         valid_request = SPAKE_PA_SHARE_P;
       }
       if (rep->iname == SPAKE_CA_CONFIRM_P)
       {
+        // pase credential verification request (step 3) 
         valid_request = SPAKE_CA_CONFIRM_P;
       }
       if (rep->iname == SPAKE_RND)
       {
+        // pase parameter request (step 1) 
         valid_request = SPAKE_RND;
       }
     }
@@ -1397,18 +1402,20 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     rep = rep->next;
   }
 
+  // check if one out of step 1..3 is part of request
   if (valid_request == 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
+
+  // reset ptr
   rep = request->request_payload;
 
   if (valid_request == SPAKE_RND)
   {
     // set the default id, in preparation for the response
-    // this gets overwritten if the ID is present in the
-    // request payload handled below
+    // this gets overwritten if the ID is present in the request payload handled below
     oc_free_string(&g_pase.id);
     oc_new_byte_string(&g_pase.id, "rkey", strlen("rkey"));
   }
@@ -1431,7 +1438,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
       {
         memcpy(g_pase.rnd, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.rnd));
       }
-      if (rep->iname == SPAKE_ID)
+      if (rep->iname == SPAKE_ID) // TODO wrong must be a text string 
       {
         // if the ID is present, overwrite the default
         oc_free_string(&g_pase.id);
@@ -1444,7 +1451,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     {
       if (rep->iname == SPAKE_ID)
       {
-        // if the ID is present, overwrite the default
+        // if the ID is present (is a text string), overwrite the default
         oc_free_string(&g_pase.id);
         oc_new_byte_string(&g_pase.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
         PRINT("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
@@ -1467,10 +1474,13 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   (void)req_p;
   PRINT("oc_core_knx_spake_separate_post_handler");
 
+  // no longer active ...
   if (!spake_separate_rsp.active)
   {
     return OC_EVENT_DONE;
   }
+
+  // assign
   oc_set_separate_response_buffer(&spake_separate_rsp);
 
   if (valid_request == SPAKE_RND)
@@ -1593,13 +1603,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_spake_calc_K_shared(spake_data.K_main, shared_key);
 
     // set the /auth/at entry with the calculated shared key
-    // size_t device_index = request->resource->device;
+    // knx does not have multiple devices per instance (for now), so hardcode the use of the first device
 
-    // knx does not have multiple devices per instance (for now), so hardcode
-    // the use of the first device
-    oc_device_info_t* device = oc_core_get_device_info(0);
-    // serial number should be supplied as string array
-    PRINT("CLIENT: pase.id length: %d", (int)oc_byte_string_len(g_pase.id));
+    // update pase token in AT table
+    OC_DBG_SPAKE("update PASE token for Device after successful negotiation");
     oc_oscore_set_auth_device(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, shared_key_len);
 
     // empty payload
