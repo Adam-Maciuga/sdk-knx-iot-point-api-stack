@@ -155,9 +155,7 @@ static oc_event_callback_retval_t reset(void* context)
 {
   PRINT("reset device");
 
-  // Specification demands
-  // - reset a possible PRG mode
-  // - terminate a possible PASE key
+  // 
   
 
   // use cached value
@@ -165,11 +163,14 @@ static oc_event_callback_retval_t reset(void* context)
 
   #ifdef OC_OSCORE
 
-  /* Delete PASE key (check only for one hit ...), comes with erase code
-     - 2 (all already deleted) 
-     - 7 (all if.sec entries remains)
-     An AT table with one PASE key only, after the PASE
-     deletion the AT table is empty (= "default cfg" state)
+  /* Specification demands
+     - reset a possible PRG mode
+     - terminate a possible PASE token (it checks only for one hit ...)
+   
+     Erase code
+     - 2 (all is deleted) 
+     - 7 (all is deleted, entries with if.sec remains)
+
   */
   oc_core_find_and_remove_pase_token_in_at_table();
   
@@ -207,7 +208,7 @@ static oc_event_callback_retval_t restart(void* context)
 
 #ifdef OC_OSCORE
 
-  // Delete PASE key (check only for one hit ...), comes with nothing else
+  // Delete PASE token (check only for one hit ...), comes with nothing else
   oc_core_find_and_remove_pase_token_in_at_table();
   
 #endif
@@ -1346,12 +1347,20 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-  // SPAKE2+ is only allowed if a  device is in the "default cfg" state
-  // - use unloaded LSM -> security problem
-  //   If MaC resets the device (LSM = unloaded) and waits n seconds (as the device said ...)
-  //   an attacker can set an own PASE token to read out all data the MaC will write
-  //   later on (including a reconfiguration)
-  // - use empty AT table as criteria
+  /* SPAKE2+ is only allowed if a  device is in the "default cfg" state
+   - use unloaded LSM -> security problem
+
+     If MaC resets the device (LSM = unloaded) and waits n seconds (as the device said ...)
+     an attacker can set an own PASE token to read out all data the MaC will write
+     later on (including a reconfiguration)
+
+   - use empty AT table as criteria
+
+     On a reset code 7, the 'if.sec' entries remains (but not the PASE token)
+     --> this results in a nonempty AT table which is NOT a default cfg state (see security leak above).
+ 
+  */
+
 
   // check if the AT table is empty (see above)
   if (oc_core_items_used_in_auth_at_table() > 0)

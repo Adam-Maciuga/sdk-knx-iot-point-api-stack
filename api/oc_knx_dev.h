@@ -74,9 +74,11 @@ void oc_knx_device_storage_read(size_t device);
  *   - device address (da)
  *   - sub address (sa)
  *   - individual address (ia)
+ *   - load state machine 
  *   - group object / recipient / publisher object table
  *   - access token table
  * - reset = 7 (Factory Reset without IA):
+ *   - load state machine 
  *   - group object / recipient / publisher object table
  *   - access token table (except entries with if.sec)
  *

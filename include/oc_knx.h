@@ -251,10 +251,12 @@ extern "C"
    *   - group object table
    *   - recipient object table
    *   - publisher object table
+   *   - access token table
    * - reset = 7 (Factory Reset without IA):
    *   - group object table
    *   - recipient object table
    *   - publisher object table
+   *   - access token table (all token that do not contain if.sec)
    *
    * @note
    * Before the actual reset actions the factory preset callback handler is called ,

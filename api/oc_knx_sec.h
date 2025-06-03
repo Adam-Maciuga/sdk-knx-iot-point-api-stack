@@ -156,10 +156,10 @@ extern "C" {
 	int oc_core_items_used_in_auth_at_table(void);
 
 	/**
-	* @brief Find an PASE entry and removes it from AT table and
-	*        from possible context references
-	*
-	*
+	* @brief Find an PASE entry and deletes it from AT table
+	*	       - from RAM
+	*				 - from storage (file system)
+	*        - from possible context references
 	*/
 	void oc_core_find_and_remove_pase_token_in_at_table(void);
 
@@ -219,21 +219,28 @@ extern "C" {
 	void oc_print_auth_at_entry(int index);
 
 	/**
-	 * @brief delete the /auth/at table
-	 * will be used in reset of the device
+	 * @brief delete the AT table
+	 * - from RAM
+	 * - from storage (file system)
+	 *
+	 *@note will be used in reset of the device
 	 *
 	 */
 	void oc_delete_at_table(void);
 
 	/**
-	 * @brief reset the /auth/at table entries without scope = "if.sec"
+	 * @brief delete the AT table, except entries with scope = "if.sec"
+	 * - from RAM
+	 * - from storage (file system)
+	 *
+	 *@note will be used in reset of the device
 	 */
 	void oc_delete_at_table_except_sec_scope_entries(void);
 
 	/**
-	 * @brief deletes the AT table entry
+	 * @brief deletes an AT table entry
 	 * - from RAM
-	 * - from file system 
+	 * - from storage (file system)
 	 *
 	 * @param entry the index in the table
 	 * return 0 == success

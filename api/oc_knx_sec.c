@@ -1710,7 +1710,7 @@ void oc_load_at_table(void)
 
 void oc_delete_at_table(void)
 {
-  PRINT("Deleting AT Object Table from persistent storage");
+  PRINT("Deleting 'all' AT Object Table entries from RAM and storage");
 
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
@@ -1724,7 +1724,7 @@ void oc_delete_at_table(void)
 
 void oc_delete_at_table_except_sec_scope_entries(void)
 {
-  PRINT("Deleting AT Object Table entries without if.sec from persistent storage");
+  PRINT("Deleting 'non if.sec' AT Object Table entries from RAM and storage");
 
   // reset the entries that are not "if.sec"
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
