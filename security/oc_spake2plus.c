@@ -22,6 +22,7 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/hkdf.h"
 #include "mbedtls/pkcs5.h"
+#include "mbedtls/sha256.h"
 #include <assert.h>
 #include "oc_spake2plus.h"
 #include "port/oc_random.h"

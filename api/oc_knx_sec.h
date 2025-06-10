@@ -286,6 +286,18 @@ extern "C" {
 	 */
 	bool oc_knx_sec_check_acl(oc_method_t method, oc_resource_t* resource, oc_endpoint_t* endpoint);
 
+	/**
+	 * @brief returns AT entry with OSCORE ID
+	 *
+	 * @param device_index the device index
+	 * @param osc_id OSCORE ID
+	 * @param osc_id_len OSCORE ID length
+	 *
+	 * @return int -1 : AT entry not found
+	 * @return int >=0 : index to place entry
+	 */
+    int oc_core_find_at_entry_with_osc_id(size_t device_index, uint8_t* osc_id, size_t osc_id_len);
+
 #ifdef __cplusplus
 }
 #endif
