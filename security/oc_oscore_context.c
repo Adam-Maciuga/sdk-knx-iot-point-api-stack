@@ -333,7 +333,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
                                            const char* osc_ctx, int osc_ctx_size, int auth_at_index,
                                            bool read_ssn_from_storage)
 {
-  PRINT("... adding oscore context for Sender ID :");
+  PRINT("... adding oscore context for Sender ID : ");
   oc_char_println_hex(senderid, senderid_size);
 
   //get a free sender context
@@ -418,13 +418,13 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     memcpy((char*) &ctx->master_secret, mastersecret, mastersecret_size);
   }
 
-  PRINT("Index         : %2d  = ", auth_at_index);
-  PRINT("Sender ID     : %2d  = ", ctx->sendid_len); OC_LOGbytes_OSCORE(ctx->sendid, ctx->sendid_len);
-  PRINT("Recipient ID  : %2d  = ", ctx->recvid_len); OC_LOGbytes_OSCORE(ctx->recvid, ctx->recvid_len);
-  PRINT("ID Context    : %2d  = ", ctx->idctx_len);  OC_LOGbytes_OSCORE(ctx->idctx, ctx->idctx_len);
-  PRINT("Master Secret : %2d  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("Salt          : %2d  = ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : %llu = ", ctx->ssn);
+  PRINT("Index         : (%2d)  = ", auth_at_index);
+  PRINT("Sender ID     : (%2d)  = ", ctx->sendid_len); OC_LOGbytes_OSCORE(ctx->sendid, ctx->sendid_len);
+  PRINT("Recipient ID  : (%2d)  = ", ctx->recvid_len); OC_LOGbytes_OSCORE(ctx->recvid, ctx->recvid_len);
+  PRINT("ID Context    : (%2d)  = ", ctx->idctx_len);  OC_LOGbytes_OSCORE(ctx->idctx, ctx->idctx_len);
+  PRINT("Master Secret : (%2d)  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
+  PRINT("Salt          : (%2d)  = ", salt_size);  oc_char_println_hex(salt, salt_size);
+  PRINT("SSN           : (%2llu)= ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sendid, ctx->sendid_len,
@@ -463,9 +463,9 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     goto add_oscore_context_error;
   }
 
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Sender Key   : ", ctx->sendkey));
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Recipient Key: ", ctx->recvkey));
-  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV    : ", ctx->commoniv));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Sender Key    : ", ctx->sendkey));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Recipient Key : ", ctx->recvkey));
+  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV     : ", ctx->commoniv));
 
   oc_list_add(contexts, ctx);
 

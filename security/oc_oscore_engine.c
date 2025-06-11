@@ -186,10 +186,10 @@ static int oc_oscore_receive_message(oc_message_t* message)
         oscore_ctx = oc_oscore_add_context("", 0, 
                                            oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                            0, 
-                                           oc_string(at_entry->osc_ms),
-                                           oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt),
-                                           oc_byte_string_len(at_entry->osc_salt), oscore_pkt->kid_ctx,
-                                           oscore_pkt->kid_ctx_len, idx,
+                                           oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
+                                           oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
+                                           oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len, 
+                                           idx,
                                            false);
 
         // if context is null, free one & try adding again
@@ -200,10 +200,11 @@ static int oc_oscore_receive_message(oc_message_t* message)
           oscore_ctx = oc_oscore_add_context("", 0, 
                                              oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                              0, 
-                                             oc_string(at_entry->osc_ms),
-                                             oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
+                                             oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
+                                             oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
                                              oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len,
-                                             idx, false);
+                                             idx,
+                                             false);
 
           if (!oscore_ctx)
           {

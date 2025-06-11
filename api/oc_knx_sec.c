@@ -1863,11 +1863,11 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
 #ifdef OC_OSCORE
 
-  OC_DBG_OSCORE("Activating OSCORE credentials");
-  OC_DBG_OSCORE("... deleting all old sender contexts");
+  OC_DBG_OSCORE("... activating OSCORE credentials");
+  OC_DBG_OSCORE("... removing all present OSCORE contexts");
   oc_oscore_free_sender_contexts();
 
-  OC_DBG_OSCORE("... adding new OSCORE context");
+  OC_DBG_OSCORE("... adding OSCORE contexts from AT table");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
