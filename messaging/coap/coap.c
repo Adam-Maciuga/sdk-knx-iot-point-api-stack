@@ -249,8 +249,7 @@ coap_serialize_array_option(unsigned int number, unsigned int current_number,
 
 	if (buffer)
 	{
-		OC_DBG("ARRAY type %u, len %zu, full [%.*s]", number, length, (int) length,
-					 array);
+		OC_DBG("ARRAY type %u, len %zu", number, length);
 	}
 
 	if (split_char != '\0')
@@ -511,7 +510,10 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 		COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_URI_PATH, uri_path, '/', "Uri-Path");
 		if (option)
 		{
-			OC_DBG("Serialize content format: %d", coap_pkt->content_format);
+      if (coap_pkt->content_format == 0)
+		  OC_DBG("Serialize content format: none");
+       else
+      OC_DBG("Serialize content format: %d", coap_pkt->content_format);
 		}
 		COAP_SERIALIZE_INT_OPTION(COAP_OPTION_CONTENT_FORMAT, content_format, "Content-Format");
 	}

@@ -196,16 +196,16 @@ oc_send_message(oc_message_t* message)
 		COAP_HEADER_TOKEN_LEN_POSITION;
 	uint8_t* token = message->data + COAP_HEADER_LEN;
 
-	// type = NON, code : example 4.01 = 10000001 = CLASS/DETAIL, EP = SECURITY   
-	if (version == 1 && type == 1 && (code >> 5 == 0) &&
-			// only on request ... 
-			message->endpoint.flags & SECURED)
+	// type = NON, code : example 4.01 (129) = 10000001 = CLASS/DETAIL, EP = SECURITY
+	// CLASS = >> 5 = 0 are GET/PUT/POST ...
+	// is it a secured, non-confirmable request .... 
+	if (version == 1 && type == 1 && (code >> 5 == 0) && message->endpoint.flags & SECURED)
 	{
     OC_DBG_OSCORE("Track outgoing OSCORE message");
 	  oc_replay_message_track(message, token_len, token);
 	}
 
-	// forward plain message
+	// forward message (any other type such as plain/ secured, CON request, ... )
 	if (oc_process_post(&message_buffer_handler,
 			oc_events[OUTBOUND_NETWORK_EVENT],
 			message) == OC_PROCESS_ERR_FULL)
@@ -245,13 +245,13 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			#ifdef OC_OSCORE
 			if (oscore_is_oscore_message(data))
 			{
-				OC_DBG_OSCORE("Inbound network event: oscore request");
+				OC_DBG_OSCORE("Inbound network event: oscore message (request or response)");
 				oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
 			}
 			else
 			#endif 
 			{
-				OC_DBG_OSCORE("Inbound network event: plain request");
+				OC_DBG_OSCORE("Inbound network event: plain message (request or response)");
 				oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
 			}
 
@@ -261,7 +261,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 
 		  oc_message_t* message = data;
 
-		  // handle OSCORE first
+		  // handle OSCORE first (and use a separate process handler)
 			#if OC_OSCORE
 			if ((message->endpoint.flags & MULTICAST) &&
 					(message->endpoint.flags & OSCORE) &&
@@ -273,7 +273,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			else if ((message->endpoint.flags & OSCORE) &&
 							 ((message->endpoint.flags & OSCORE_ENCRYPTED) == 0))
 			{
-				OC_DBG_OSCORE("Outbound network event: secure unicast request, forwarding to OSCORE");
+				OC_DBG_OSCORE("Outbound network event: secure unicast message (request or response), forwarding to OSCORE");
 				oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_OSCORE_EVENT], data);
 			}
 			else
@@ -288,17 +288,17 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 				else
 				{
 					OC_DBG("Outbound network event: plain unicast message");
-					oc_message_t* message = (oc_message_t*) data;
-					oc_send_buffer(message);
-					oc_message_unref(message);
+					oc_message_t* type_cast_message = data;
+          oc_send_buffer(type_cast_message);
+          oc_message_unref(type_cast_message);
 				}
 		}
 		else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED])
 		{
 			OC_DBG("Outbound network event:OUTBOUND_NETWORK_EVENT_ENCRYPTED");
-			oc_message_t* message = (oc_message_t*) data;
-			oc_send_buffer(message);
-			oc_message_unref(message);
+      oc_message_t* type_cast_message = data;
+      oc_send_buffer(type_cast_message);
+      oc_message_unref(type_cast_message);
 		}
 	}
   OC_PROCESS_END()

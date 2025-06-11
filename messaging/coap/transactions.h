@@ -68,7 +68,10 @@ extern "C" {
           0.5) +                                                               \
          1)
 
-/* container for transactions with message buffer and retransmission info */
+/*
+   Container for transactions with message buffer and retransmission info,
+   a transaction is an individual CON/NON request/response cycle. 
+ */
 typedef struct coap_transaction
 {
   struct coap_transaction *next; /* for LIST */

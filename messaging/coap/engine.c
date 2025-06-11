@@ -244,8 +244,12 @@ int coap_receive(oc_message_t* incoming_message)
 {
 	coap_status_code = COAP_NO_ERROR;
 
-	OC_DBG("CoAP Engine: received data len=%u from ", (unsigned int) incoming_message->length);
-	PRINTipaddr(incoming_message->endpoint);
+	if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
+   OC_DBG("CoAP Engine: forwarded data from OSCORE layer with len=%u from ", (unsigned int)incoming_message->length);
+  else
+   OC_DBG("CoAP Engine: received data from network layer with len=%u from ", (unsigned int) incoming_message->length);
+
+  PRINTipaddr(incoming_message->endpoint);
   OC_DBG(" = ");
 	OC_LOGbytes(incoming_message->data, incoming_message->length);
 
@@ -333,13 +337,16 @@ int coap_receive(oc_message_t* incoming_message)
 		{
 
 			// assume inbound request of a former outbound request, check mid ...
+			// - duplicates
+			// - ack for CON/NON message type (including piggyback message)
 		  transaction = coap_get_transaction_by_mid(coap_packet_request->mid);
 
 			// assume inbound request of a former outbound request, check token ...
+			// - response from extern to match with beforehand send out request
 		  if (!transaction)
 				transaction =	coap_get_transaction_by_token(coap_packet_request->token, coap_packet_request->token_len);
 
-			// if transaction is present by mid/token
+			// if transaction is present by mid or token
 		  if (transaction)
 			{
 				#ifdef OC_CLIENT
@@ -351,23 +358,12 @@ int coap_receive(oc_message_t* incoming_message)
 		    uint8_t echo_value[COAP_ECHO_LEN];
 				size_t echo_len = coap_get_header_echo(coap_packet_request, echo_value);
 
+				// received echo challenge from extern 
 		    if (coap_packet_request->code == UNAUTHORIZED_4_01 && echo_len != 0)
 				{
 					OC_DBG("Received unauthorised response with echo option, retransmitting with included echo...");
 
-					// TODO g_ssn should be incremented for echo retransmissions,
-					// or the SSN is reused leading to unnecessary echo requests
-					// and vulnerability to nonce reuse attacks
-
-		      #ifdef OC_OSCORE
-					if (oc_oscore_is_g_ssn_in_use())
-					{
-						uint64_t ssn = oc_oscore_get_next_ssn();
-						ssn++;
-						oc_oscore_set_next_ssn(ssn);
-					}
-					#endif
-
+					// 
 		      coap_packet_t retransmitted_pkt[1];
 					coap_udp_parse_message(retransmitted_pkt, transaction->message->data,
 																 (uint16_t) transaction->message->length);
@@ -378,16 +374,17 @@ int coap_receive(oc_message_t* incoming_message)
 					// copy the echo from the unauthorised response into the new request
 					coap_set_header_echo(retransmitted_pkt, echo_value, echo_len);
 
-		      // Create a new transaction and send the request. New transaction has
-					// different  MID & (randomized) token, but should use the same client callback
+					// sets 0..2 x 4 byte random, actual token may be less than the amount of random bytes
 		      uint8_t i = 0;
-					while (i < retransmitted_pkt->token_len)
+		      while (i < retransmitted_pkt->token_len)
 					{
 						unsigned int r = oc_random_value();
 						memcpy(retransmitted_pkt->token + i, &r, sizeof(r));
 						i += sizeof(r);
 					}
 
+					// Create a new transaction and send the request. New transaction has
+          // different  MID & (randomized) token, but should use the same client callback
 		      retransmitted_pkt->mid = coap_get_mid();
 					coap_transaction_t* new_transaction = coap_new_transaction(
 						retransmitted_pkt->mid, retransmitted_pkt->token,
@@ -397,8 +394,7 @@ int coap_receive(oc_message_t* incoming_message)
 					// the new (retransmitted) packet
 					client_cb->mid = retransmitted_pkt->mid;
 					client_cb->token_len = retransmitted_pkt->token_len;
-					memcpy(client_cb->token, retransmitted_pkt->token,
-								 client_cb->token_len);
+					memcpy(client_cb->token, retransmitted_pkt->token, client_cb->token_len);
 
 					new_transaction->message = oc_internal_allocate_outgoing_message();
 					new_transaction->message->endpoint = transaction->message->endpoint;
@@ -455,17 +451,7 @@ int coap_receive(oc_message_t* incoming_message)
 						}
 						retransmitted_pkt->mid = coap_get_mid();
 
-						// g_ssn should be incremented for echo retransmissions,
-						// or the SSN is reused leading to unnecessary echo requests
-						// and vulnerability to nonce reuse attacks
-						#ifdef OC_OSCORE
-						if (oc_oscore_is_g_ssn_in_use())
-						{
-							uint64_t ssn = oc_oscore_get_next_ssn();
-							ssn++;
-							oc_oscore_set_next_ssn(ssn);
-						}
-						#endif
+						
 
 						// a little bit naughty - modify the old client callback to refer to
 						// the new (retransmitted) packet
@@ -633,7 +619,7 @@ int coap_receive(oc_message_t* incoming_message)
 							{
 								OC_DBG("Request from unsycned client, sending 4.01 ACK + Echo Challenge");
 
-								// TODO check CON use same mid, NON use diff mid (check if code is present from own EP ). 
+								// TODO check for CON use same mid, for NON use diff mid (check if code is present from own EP )
 
 							  // send unicast NONEMPTY echo response (use type from request)
 								coap_send_unauth_echo_response(coap_packet_request->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
@@ -641,6 +627,7 @@ int coap_receive(oc_message_t* incoming_message)
 																							 (uint8_t*) &current_time, sizeof(current_time),
 																							 &incoming_message->endpoint);
 
+								// server sends out a response, no own transaction needed
 								if (transaction)
                 {
                   coap_clear_transaction(transaction);
@@ -675,7 +662,7 @@ int coap_receive(oc_message_t* incoming_message)
 							{
 								OC_DBG("Request from unsycned client with bad 'Echo' size %d, sending 4.02", (int) echo_len);
 
-								// TODO check CON use same mid, NON use diff mid (check if code is present from own EP ).
+								// TODO check for CON use same mid, for NON use diff mid (check if code is present from own EP )
 
 								coap_send_empty_response(
 									coap_packet_request->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,

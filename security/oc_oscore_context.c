@@ -333,8 +333,6 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
                                            const char* osc_ctx, int osc_ctx_size, int auth_at_index,
                                            bool read_ssn_from_storage)
 {
-  PRINT("... adding oscore context for Sender ID : ");
-  oc_char_println_hex(senderid, senderid_size);
 
   //get a free sender context
   oc_oscore_context_t* ctx = oc_memb_alloc(&ctx_s);

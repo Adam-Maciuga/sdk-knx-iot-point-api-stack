@@ -34,19 +34,6 @@
 
 OC_PROCESS(oc_oscore_handler, "OSCORE Process");
 
-static bool g_ssn_in_use = false;
-static uint64_t g_ssn = 0;
-
-void oc_oscore_set_next_ssn(uint64_t ssn)
-{
-  g_ssn = ssn;
-  g_ssn_in_use = true;
-}
-
-uint64_t oc_oscore_get_next_ssn(void) { return g_ssn; }
-
-bool oc_oscore_is_g_ssn_in_use(void) { return g_ssn_in_use; }
-
 static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 {
   ctx->ssn++;
@@ -58,15 +45,25 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   */
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   {
-    // save ssn to storage, using kid as part of the key
+
+    // TODO Sender ID + ID Context must be used --> in hex encoded ascii
+    // max 10 from client 
+
+    // save ssn to storage, using Sender ID as part of the key
     uint8_t key_buf[OSCORE_STORAGE_KEY_LEN];
+
+    // create storage name 'ssn+sender_id'
     memcpy(key_buf, OSCORE_STORAGE_PREFIX, OSCORE_STORAGE_PREFIX_LEN);
+
+    // add storage name 'Sender ID' as ascii coded values 
     memcpy(key_buf + OSCORE_STORAGE_PREFIX_LEN, ctx->sendid, ctx->sendid_len);
+
+    // add string termination 
     key_buf[OSCORE_STORAGE_KEY_LEN - 1] = '\0';
 
     #ifdef OC_USE_STORAGE
     oc_storage_write(key_buf, (uint8_t*)&ctx->ssn, sizeof(ctx->ssn));
-#endif
+    #endif
   }
 }
 
@@ -182,7 +179,9 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
         oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
-        // create oscore recipient context from that entry
+        // SERVER SIDE on request: create oscore REQUEST recipient context + RESPONSE  sender context from that entry
+        OC_DBG_OSCORE("... server incoming request: adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
+        oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
         oscore_ctx = oc_oscore_add_context("", 0, 
                                            oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                            0, 
@@ -197,6 +196,9 @@ static int oc_oscore_receive_message(oc_message_t* message)
         {
           oc_oscore_free_lru_recipient_context();
 
+          // SERVER SIDE on request: create oscore REQUEST recipient context + RESPONSE sender context from that entry
+          OC_DBG_OSCORE("... server incoming request: adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
+          oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
           oscore_ctx = oc_oscore_add_context("", 0, 
                                              oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                              0, 
@@ -479,18 +481,12 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
 
     OC_DBG_OSCORE("### protecting multicast request ###");
 
-    if (g_ssn_in_use)
-    {
-      oscore_ctx->ssn = g_ssn;
-      g_ssn_in_use = false;
-    }
-
     /* Use context->SSN as Partial IV */
     oscore_store_piv(oscore_ctx->ssn, piv, &piv_len);
     // OC_DBG_OSCORE("---using SSN as Partial IV: %lu", oscore_ctx->ssn);
     OC_LOGbytes_OSCORE(piv, piv_len);
+
     /* Increment SSN */
-    // oscore_ctx->ssn++;
     increment_ssn_in_context(oscore_ctx);
 
     /* Use context-sendid as kid */
@@ -629,7 +625,8 @@ static int oc_oscore_send_message(oc_message_t* msg)
    * Dispatch oc_message_t to the (TLS or) network layer
    */
 
-  // no response to a secure multicast request message 
+  // no multicast response to a (previous) secure multicast request message 
+  // TODO cannot happen here, check to remove 
   if (msg->endpoint.flags & MULTICAST)
   {
     OC_DBG_OSCORE("### secure multicast requests do not elicit a response, discard ###");
@@ -637,15 +634,18 @@ static int oc_oscore_send_message(oc_message_t* msg)
     return 0;
   }
 
-  // most common case for unicast: we just get the cached index
+  // most common case for unicast response to a (uc/mc) request 
+  // - we just get the cached index from the original (multicast) request
   int index = msg->endpoint.auth_at_index - 1;
   oc_auth_at_t* entry = oc_get_auth_at_entry(index);
 
   oc_oscore_context_t* oscore_ctx = NULL;
 
-  // if found, get the corresponding context
+  // if found, get the corresponding context for the access token
+  // will be found only in case of a response 
   if (entry)
   {
+    // TODO do we need also ID Context ?
     OC_DBG_OSCORE("### Found auth at entry, getting context ###");
     oscore_ctx = oc_oscore_find_context_by_kid(NULL, 
                                                msg->endpoint.device,
@@ -654,6 +654,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
   }
 
   // search for OSCORE context using addressing information
+  // usually on request 
   PRINT("oc_oscore_send_message : SID ");
   oc_char_println_hex(msg->endpoint.oscore_id, (int)msg->endpoint.oscore_id_len);
 
@@ -711,7 +712,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
 
   OC_DBG_OSCORE("### parsed CoAP message ###");
 
-  // search for context using transaction data
+  // search for context using token/mid 
   if (oscore_ctx == NULL)
   {
     oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len,
@@ -746,11 +747,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
     {
 
       OC_DBG_OSCORE("### protecting outgoing request ###");
-      if (g_ssn_in_use)
-      {
-        oscore_ctx->ssn = g_ssn;
-        g_ssn_in_use = false;
-      }
+      
       /* Request */
       /* Use context->SSN as Partial IV */
       oscore_store_piv(oscore_ctx->ssn, piv, &piv_len);
@@ -758,9 +755,10 @@ static int oc_oscore_send_message(oc_message_t* msg)
       // OC_DBG_OSCORE("---using SSN as Partial IV: %lu", oscore_ctx->ssn);
       OC_LOGbytes_OSCORE(piv, piv_len);
 
-      /* Increment SSN for the original request, retransmissions use the same
-       * SSN */
+      // increment SSN for the original request, retransmissions use the same SSN
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
+
+      // TODO this is outdated ?? 
       if (transaction && transaction->retrans_counter == 0)
         increment_ssn_in_context(oscore_ctx);
       else if (!transaction)
@@ -1067,7 +1065,7 @@ OC_PROCESS_THREAD(oc_oscore_handler, ev, data)
     }
     else if (ev == oc_events[OUTBOUND_OSCORE_EVENT])
     {
-      OC_DBG_OSCORE("Outbound OSCORE event: protecting message");
+      OC_DBG_OSCORE("Outbound OSCORE event: protecting unicast message");
       oc_oscore_send_message(data);
     }
 #ifdef OC_CLIENT

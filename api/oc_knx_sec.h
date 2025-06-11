@@ -130,7 +130,7 @@ extern "C" {
 		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional- not used) default: decimal value 10
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt (optional) empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" / "ID Context" - max 6 byte string 
-		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id used as "kid" / "Sender ID" - max 7 byte string 
+		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id used as "kid" / "Client Sender ID" - max 7 byte string 
 		int nbf;										// token not valid before (optional) 
 		int ga_len;									// length of the group addresses (ga) in the scope 
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
@@ -250,9 +250,11 @@ extern "C" {
 	/**
 	 * @brief initialize all OSCORE context from AT table content
 	 *
-	 * @note OSCORE context entries are an internal linked list
+	 * @note
+	 * - OSCORE context entries are an internal linked list
+	 * - after device reset or post on auth/at table 
 	 *
-	 * @param read_ssn_from_storage if content is read from storage (yes/no), this affects how to handle the SSN
+	 * @param read_ssn_from_storage if content is read from storage (yes/no), this affects how to handle the SSN (true usually after device reset)
 	 */
 	void oc_init_oscore_from_storage(bool read_ssn_from_storage);
 

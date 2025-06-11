@@ -1876,10 +1876,17 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
       if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
+
+        // TODO read ssn from storage and pass to add ctx below 
+
+        // CLIENT SIDE for request: create oscore REQUEST sender context + RESPONSE recipient context from that entry
+        OC_DBG_OSCORE("... client for outgoing request: adding oscore REQUEST sender context + RESPONSE recipient context with Sender ID : ");
+        oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
+
         oc_oscore_context_t* ctx = oc_oscore_add_context(
           oc_string(g_at_entries[i].osc_id),
           oc_byte_string_len(g_at_entries[i].osc_id), "",
-          0, 0,
+          0, 0, 
           oc_string(g_at_entries[i].osc_ms),
           oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
           oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),

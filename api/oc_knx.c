@@ -155,9 +155,6 @@ static oc_event_callback_retval_t reset(void* context)
 {
   PRINT("reset device");
 
-  // 
-  
-
   // use cached value
   oc_reset_device(cached_device_index, cached_erase_code_value);
 

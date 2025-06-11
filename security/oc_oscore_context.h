@@ -52,15 +52,18 @@ typedef struct oc_rwin_t
 } oc_rwin_t;
 
 /**
- * @brief the oscore context information
- *
- * This is the data for the encryption/decryption
- * the data is created from an auth/at entry.
+  @brief Oscore context information as data for the encryption/decryption, created from an auth/at entry.
+ 
+  @note An oscore context shares the client and server side context
+   - Message  | Client            | Server            | Derived Key 
+   - Request  | Sender Context    | Recipient Context | Request Key
+   - Response | Recipient Context | Sender Context    | Response Key 
+
  */
 typedef struct oc_oscore_context_t
 {
   struct oc_oscore_context_t *next;        // pointer to the next, NULL if there is not any
-  int auth_at_index;                       // index of the auth AT table + 1, so index = 0 is invalid 
+  int auth_at_index;                       // access token which is used to decrypt a received message as index of the auth AT table + 1, so index = 0 is invalid 
   uint8_t token_id[OSCORE_IDCTX_LEN];      // copy of sender id TODO possibly can be removed 
   uint8_t master_secret[OSCORE_IDCTX_LEN]; /**< OSCORE master secret [bytes ]*/
   
@@ -71,13 +74,12 @@ typedef struct oc_oscore_context_t
   uint64_t ssn;                            /**< sender sequence number */
   uint8_t idctx[OSCORE_IDCTX_LEN];         /**< OSCORE context */
   uint8_t idctx_len;                       /**< length of OSCORE context */
-  /* Derived parameters, 128-bit keys */
-  uint8_t sendkey[OSCORE_KEY_LEN]; /**< derived sender key */
-  uint8_t recvkey[OSCORE_KEY_LEN]; /**< derived recipient key */
-  /* Common IV */
-  uint8_t commoniv[OSCORE_COMMON_IV_LEN];
-  /* Time of last use, for runtime caching of recipient contexts */
-  oc_clock_time_t last_used;
+
+  // derived parameters
+  uint8_t sendkey[OSCORE_KEY_LEN]; // 128-bit sender key 
+  uint8_t recvkey[OSCORE_KEY_LEN]; // 128-bit recipient key
+  uint8_t commoniv[OSCORE_COMMON_IV_LEN]; // Common IV
+  oc_clock_time_t last_used; // Time of last use, for runtime caching of recipient contexts
 } oc_oscore_context_t;
 
 /**
