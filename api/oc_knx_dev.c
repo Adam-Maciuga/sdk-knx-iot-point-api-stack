@@ -1127,7 +1127,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
   if (device != NULL)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 1, device->port);
+    oc_rep_i_set_int(root, 1, device->coap_port);
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
@@ -1187,7 +1187,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
   if (device != NULL)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 1, device->mport);
+    oc_rep_i_set_int(root, 1, device->multicast_port);
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
@@ -1203,7 +1203,7 @@ PRAGMA_IN oc_resource_data_t core_resource_dev_mport_data;
 const oc_resource_t core_resource_dev_mport = {(oc_resource_t*)&core_resource_dev_mid,
                                                0,
                                                {NULL, 0, NULL},
-                                               {NULL, sizeof("/dev/mport"), "/dev/mport"},
+                                               {NULL, sizeof("/dev/multicast_port"), "/dev/multicast_port"},
                                                {NULL, 0, NULL},
                                                {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
                                                {APPLICATION_CBOR, CONTENT_NONE},
@@ -1223,7 +1223,7 @@ PRAGMA_OUT
 void oc_create_dev_mport_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_mport_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/mport", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, device, "/dev/multicast_port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_mport_get_handler, 0, 0, 0, 0);
 
   oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
@@ -1510,7 +1510,7 @@ static void oc_create_dev_mid_resource(int resource_idx, size_t device)
   oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
 }
 
-void oc_knx_device_storage_read(size_t device_index)
+void oc_knx_load_device(size_t device_index)
 {
   PRINT("Loading device configuration from persistent storage");
 
@@ -1531,12 +1531,12 @@ void oc_knx_device_storage_read(size_t device_index)
   device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
   PRINT("ia (storage) %u", ia);
 
-  // read host name from storage (on error = 0)
+  // read iid name from storage (on error = 0)
   uint64_t iid = 0;
   device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
   PRINT("idd (storage) %llu", device->iid);
 
-  // read PRG mode from storage (on error = false)
+  // read prg mode from storage (on error = false)
   bool pm = false;
   device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*)&pm, sizeof(pm)) > 0 ? pm : false;
   PRINT("pm (storage) %d", pm);
@@ -1577,8 +1577,8 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
   if (reset_mode == RESET_TO_DEFAULT_STATE)
   {
     // needed as buffer for the storage write call below
-    uint32_t u_port = COAP_DEFAULT_PORT; // unicast communication
-    uint32_t m_port = COAP_DEFAULT_PORT; // multicast communication
+    uint16_t u_port = COAP_DEFAULT_PORT; // unicast communication
+    uint16_t m_port = COAP_DEFAULT_PORT; // multicast communication
 
     // LSM (first to prevent any runtime messaging in/out)
     oc_a_lsm_set_state(device_index, LSM_S_UNLOADED);
@@ -1588,8 +1588,8 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     device->ia = 0xFFFF;
     device->iid = 0;
     device->fid = 0;
-    device->port = u_port;
-    device->mport = m_port;
+    device->coap_port = u_port;
+    device->multicast_port = m_port;
 
     // set default host name to device '0' SN
     oc_free_string(&device->hostname);
@@ -1611,8 +1611,8 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_storage_erase(KNX_STORAGE_PM);
 
     // writing the default values (default host name = serial number)
-    oc_storage_write(KNX_STORAGE_PORT, (uint8_t*)&u_port, sizeof(device->port));
-    oc_storage_write(KNX_STORAGE_MPORT, (uint8_t*)&m_port, sizeof(device->mport));
+    oc_storage_write(KNX_STORAGE_PORT, (uint8_t*)&u_port, sizeof(device->coap_port));
+    oc_storage_write(KNX_STORAGE_MPORT, (uint8_t*)&m_port, sizeof(device->multicast_port));
     oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->serialnumber), oc_string_len(device->serialnumber));
 
     return;

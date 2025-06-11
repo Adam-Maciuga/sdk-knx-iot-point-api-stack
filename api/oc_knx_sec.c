@@ -1817,26 +1817,16 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
   oc_free_string(&pase_token_id);
 }
 
-void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
-                            uint8_t* shared_key, int shared_key_size)
-{
-  // create the token & store in at table (usually at position 0), note there
-  // should be no entries, if there is an entry then overwrite it.
-  PRINT("oc_oscore_set_auth_mac sn       : %s", client_senderid);
-  PRINT("oc_oscore_set_auth_mac ms  [%d] : ", shared_key_size);
-  oc_char_println_hex(shared_key, shared_key_size);
-
-  oc_oscore_set_auth_shared(client_senderid, client_senderid_size, shared_key, shared_key_size);
-}
-
 void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
                                uint8_t* shared_key, int shared_key_size)
 {
   // - create the token & store in at table (usually at position 0)
   // - note there should be no entries, if there is an entry then overwrite it
-  // - MaC freely chosen id 
-  PRINT("set id : %s", client_senderid); 
-  PRINT("set ms : (%d) ", shared_key_size);
+  // - it is a by MaC freely chosen id 
+  PRINT("set id : (%2d) ", client_senderid_size);
+  oc_char_println_hex(client_senderid, client_senderid_size);
+
+  PRINT("set ms : (%2d) ", shared_key_size);
   oc_char_println_hex(shared_key, shared_key_size);
 
   oc_oscore_set_auth_shared(client_senderid, client_senderid_size, shared_key, shared_key_size);
@@ -1886,15 +1876,14 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
       if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
-        oc_oscore_context_t* ctx = oc_oscore_add_context(  
-          0,
-          oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
-          "", 0,
-          0,
-          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
-          oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
-          oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
-          i,
+        oc_oscore_context_t* ctx = oc_oscore_add_context(
+          oc_string(g_at_entries[i].osc_id),
+          oc_byte_string_len(g_at_entries[i].osc_id), "",
+          0, 0,
+          oc_string(g_at_entries[i].osc_ms),
+          oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
+          oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),
+          oc_byte_string_len(g_at_entries[i].osc_contextid), i,
           read_ssn_from_storage);
 
         if (ctx == NULL)

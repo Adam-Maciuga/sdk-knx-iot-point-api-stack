@@ -21,17 +21,16 @@
 #include "coap_signal.h"
 #include "oc_ri.h"
 
-void
-oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
+void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 {
-	// if (endpoint->flags & OSCORE) {
-	//  return;
-	//}
-
+	// retype pointer
 	coap_packet_t const* oscore_pkt = (coap_packet_t*) packet;
 
-	uint16_t mid = oscore_pkt->mid;
+
+  uint16_t mid = oscore_pkt->mid;
 	coap_message_type_t type = COAP_TYPE_NON;
+
+
 	if (oscore_pkt->type == COAP_TYPE_CON)
 	{
 		type = COAP_TYPE_ACK;
@@ -41,22 +40,31 @@ oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 		mid = coap_get_mid();
 	}
 
+	// one message
 	coap_packet_t msg[1];
 	coap_udp_init_message(msg, type, code, mid);
 	msg->transport_type = oscore_pkt->transport_type;
+
+
 	oc_message_t* message = oc_internal_allocate_outgoing_message();
 	if (message)
 	{
 		memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 		OC_ERR("removing OSCORE flag for error return code");
-		// remove the oscore flag..
+
+	  // remove the oscore flag
 		message->endpoint.flags -= OSCORE;
-		// memset(&message->endpoint.di, 0, sizeof(oc_uuid_t));
+
+		// copy token
 		if (oscore_pkt->token_len > 0)
 		{
 			coap_set_token(msg, oscore_pkt->token, oscore_pkt->token_len);
 		}
+
+		// no max age = no caching 
 		coap_set_header_max_age(msg, 0);
+
+		// 
 		size_t len = coap_serialize_message(msg, message->data);
 		if (len > 0)
 		{
@@ -439,7 +447,7 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 	return COAP_NO_ERROR;
 }
 
-int
+bool
 oscore_is_oscore_message(oc_message_t* msg)
 {
 	uint8_t* current_option = NULL;
@@ -518,7 +526,7 @@ oscore_is_oscore_message(oc_message_t* msg)
 		{
 			case COAP_OPTION_OSCORE:
 				/* Found the OSCORE option, return success */
-				return 0;
+				return true;
 			default:
 				break;
 		}
@@ -526,7 +534,7 @@ oscore_is_oscore_message(oc_message_t* msg)
 		current_option += option_length;
 	}
 
-	return -1;
+	return false;
 }
 
 coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)

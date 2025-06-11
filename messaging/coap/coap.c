@@ -491,7 +491,8 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 	// COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
 	//  add data if OSCORE option is enabled
-	#if defined(OC_OSCORE)	//&& defined(OC_SECURITY)
+	#if defined(OC_OSCORE)
+
 	if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE))
 	{
 		// count length ...
@@ -502,6 +503,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 			option = option_array + option_length;
 		}
 	}
+
 	#endif 
 
 	if (inner)

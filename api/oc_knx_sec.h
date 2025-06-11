@@ -171,23 +171,7 @@ extern "C" {
 	 */
 	int oc_core_find_at_entry_empty_slot(void);
 
-	/**
-	 * @brief set shared (SPAKE) key to the auth at table, for the role being a 'Management Client'
-	 *
-	 * @note done when PASE credential verification was successful (response received) 
-	 *
-	 * @param client_senderid the client_senderid of the device that has been
-	 *                        negotiated with SPAKE2+.
-	 *                        This value is an ASCII-encoded string representing the
-	 *                        hexadecimal serial number
-	 *
-	 * @param client_senderid_size the size of the serial number
-	 * @param shared_key the master key after SPAKE2 handshake
-	 * @param shared_key_size the master key size
-	 */
-	void oc_oscore_set_auth_mac(char* client_senderid, int client_senderid_size,
-                              uint8_t* shared_key, int shared_key_size);
-
+	
 	/**
 	 * @brief set shared (SPAKE) key to the auth at table, on the Device side
 	 *

@@ -50,7 +50,9 @@ struct list
  * This function initializes a list. The list will be empty after this
  * function has been called.
  *
- * \param list The list to be initialized.
+ * @note don't forget to free the list before call this function
+ *
+ * \param list the list to be initialized
  */
 void
 oc_list_init(oc_list_t list)

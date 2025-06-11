@@ -535,17 +535,13 @@ oc_string_print_hex(oc_string_t hex_string)
 int
 oc_string_println_hex(oc_string_t hex_string)
 {
-  int retval = oc_string_print_hex(hex_string);
-
-  return retval;
+  return oc_string_print_hex(hex_string);
 }
 
 int
 oc_char_println_hex(const char* str, int str_len)
 {
-  int retval;
-  retval = oc_char_print_hex(str, str_len);
-  return retval;
+  return oc_char_print_hex(str, str_len);
 }
 
 int

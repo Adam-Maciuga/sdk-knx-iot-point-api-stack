@@ -911,7 +911,7 @@ int app_initialize_stack(void)
   // set the stack handler callbacks
   static oc_handler_t handler = {.init = app_init, // called always
                                  .signal_event_loop = signal_event_loop, // called always
-                                 .register_resources = register_resources, // called for a server
+                                 .register_resources = register_resources, // called for a server (one time)
                                  .requests_entry = NULL}; // called for a client
 
   // set the application handler callbacks

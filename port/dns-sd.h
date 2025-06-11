@@ -47,7 +47,7 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
  * @param sp The period, in milliseconds. A value of 0 removes the
  * advertisement, signalling that the device is wakeful.
  */
-void knx_service_sleep_period(uint32_t sp);
+void knx_service_sleep_period(int sp);
 
 #ifdef __cplusplus
 }

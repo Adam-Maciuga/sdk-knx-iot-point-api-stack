@@ -80,8 +80,8 @@ extern "C" {
     struct oc_endpoint_t* next;           /**< pointer to the next structure */
     size_t device;                        /**< device index */
     enum transport_flags flags;           /**< the transport flags */
-    char oscore_id[SERIAL_NUM_SIZE + 1];  /**< OSCORE context (binary), e.g. binary serial number*/
-    size_t oscore_id_len;
+    char oscore_id[SERIAL_NUM_SIZE + 1];  // cnf:osc:id, max 7 bytes
+    size_t oscore_id_len;                 // len 
 
     union dev_addr
     {

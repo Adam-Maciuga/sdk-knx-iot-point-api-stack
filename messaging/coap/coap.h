@@ -105,10 +105,10 @@ extern "C" {
 		uint8_t version;
 		coap_message_type_t type;
 		uint8_t code;
-		uint16_t mid;
+		uint16_t mid;	// used in coap to detect duplicate messages 
 
 		uint8_t token_len;
-		uint8_t token[COAP_TOKEN_LEN];
+		uint8_t token[COAP_TOKEN_LEN]; // used in coap to match a request with a response 
 
 		uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE +
 			1]; /* bitmap to check if option is set */

@@ -51,23 +51,26 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 {
   ctx->ssn++;
 
-  /* Store current SSN with frequency OSCORE_WRITE_FREQ_K
-   * Based on recommendations in RFC 8613, Appendix B.1. to prevent SSN reuse
-   */
+  /*
+   store current SSN with frequency OSCORE_WRITE_FREQ_K,
+   based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse
+
+  */
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   {
-    // save ssn to persistent memory, using kid as part of the key
+    // save ssn to storage, using kid as part of the key
     uint8_t key_buf[OSCORE_STORAGE_KEY_LEN];
     memcpy(key_buf, OSCORE_STORAGE_PREFIX, OSCORE_STORAGE_PREFIX_LEN);
     memcpy(key_buf + OSCORE_STORAGE_PREFIX_LEN, ctx->sendid, ctx->sendid_len);
     key_buf[OSCORE_STORAGE_KEY_LEN - 1] = '\0';
-#ifdef OC_USE_STORAGE
+
+    #ifdef OC_USE_STORAGE
     oc_storage_write(key_buf, (uint8_t*)&ctx->ssn, sizeof(ctx->ssn));
 #endif
   }
 }
 
-static int oc_oscore_recv_message(oc_message_t* message)
+static int oc_oscore_receive_message(oc_message_t* message)
 {
   /* OSCORE layer receive path pseudocode
    * ------------------------------------
@@ -111,9 +114,10 @@ static int oc_oscore_recv_message(oc_message_t* message)
    * Dispatch oc_message_t to the CoAP layer
    */
 
-  if (oscore_is_oscore_message(message) >= 0)
+  if (oscore_is_oscore_message(message))
   {
-    OC_DBG_OSCORE("#################################: found OSCORE header");
+    OC_DBG_OSCORE("### found OSCORE header ###");
+
     oc_oscore_context_t* oscore_ctx = NULL;
     message->endpoint.flags += OSCORE;
     uint8_t* key = NULL;
@@ -139,28 +143,27 @@ static int oc_oscore_recv_message(oc_message_t* message)
       if (oc_coap_check_if_duplicate(oscore_pkt->mid, message->endpoint.device, message->endpoint.addr.ipv6.port,
                                      message->endpoint.addr.ipv6.address))
       {
-        OC_DBG("dropping duplicate request");
+        OC_DBG("request is duplicate: dropping...");
         goto oscore_recv_error;
       }
+      OC_DBG("request is new: processing...");
     }
-
-    // needed for encrypting final ack of separate response
-    /*
-    if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_DELETE)
-      message->endpoint.rx_msg_is_response = false;
-    else
-      message->endpoint.rx_msg_is_response = true;
-    */
 
     uint8_t *request_piv = NULL, request_piv_len = 0;
 
-    /* If OSCORE packet contains kid... */
+    /*
+      OSCORE packet kid len
+      > 0 : 
+      < 0 : 
+      
+    */
     if (oscore_pkt->kid_len > 0)
     {
       /* Search for OSCORE context by kid */
       OC_DBG_OSCORE("--- got kid from incoming message : ");
       OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
       OC_DBG_OSCORE("### searching for OSCORE context by kid ###");
+
       oscore_ctx = oc_oscore_find_context_by_kid_idctx(oscore_ctx, oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx,
                                                        oscore_pkt->kid_ctx_len);
 
@@ -180,25 +183,27 @@ static int oc_oscore_recv_message(oc_message_t* message)
         oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
         // create oscore recipient context from that entry
-        oscore_ctx = oc_oscore_add_context(0, 
-                                           "", 0,
-                                           oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 0,
-                                           oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
-                                           oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-                                           oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len, 
-                                           idx, false);
+        oscore_ctx = oc_oscore_add_context("", 0, 
+                                           oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
+                                           0, 
+                                           oc_string(at_entry->osc_ms),
+                                           oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt),
+                                           oc_byte_string_len(at_entry->osc_salt), oscore_pkt->kid_ctx,
+                                           oscore_pkt->kid_ctx_len, idx,
+                                           false);
 
         // if context is null, free one & try adding again
         if (!oscore_ctx)
         {
           oc_oscore_free_lru_recipient_context();
 
-          oscore_ctx = oc_oscore_add_context(0,
-                                             "", 0,
-                                             oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 0,
-                                             oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt),
-                                             oc_byte_string_len(at_entry->osc_salt), oscore_pkt->kid_ctx,
-                                             oscore_pkt->kid_ctx_len, idx, false);
+          oscore_ctx = oc_oscore_add_context("", 0, 
+                                             oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
+                                             0, 
+                                             oc_string(at_entry->osc_ms),
+                                             oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
+                                             oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len,
+                                             idx, false);
 
           if (!oscore_ctx)
           {
@@ -214,9 +219,9 @@ static int oc_oscore_recv_message(oc_message_t* message)
       /* If message is response */
       if (oscore_pkt->code > OC_FETCH)
       {
-        /* Search for OSCORE context by token */
+        // search for OSCORE context by token
         OC_DBG_OSCORE("### searching for OSCORE context by token ###");
-        oscore_ctx = oc_oscore_find_context_by_token_mid(message->endpoint.device, oscore_pkt->token, oscore_pkt->token_len,
+        oscore_ctx = oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len,
                                                          oscore_pkt->mid, &request_piv, &request_piv_len,
                                                          message->endpoint.flags & TCP);
       }
@@ -445,12 +450,12 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     goto oscore_group_send_error;
   }
 
-  oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(0, group_address);
+  oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(group_address);
   PRINT("oc_oscore_send_multicast_message : group_address = %u", group_address);
   if (oscore_ctx)
   {
     OC_DBG_OSCORE("#################################");
-    OC_DBG_OSCORE("found group OSCORE context for GA %d", (int)group_address);
+    OC_DBG_OSCORE("found group OSCORE context for GA %u", group_address);
 
     /* Use sender key for encryption */
     uint8_t* key = oscore_ctx->sendkey;
@@ -654,19 +659,16 @@ static int oc_oscore_send_message(oc_message_t* msg)
   if (oscore_ctx == NULL)
   {
     // search the oscore id, e.g. the SID
-    oscore_ctx = oc_oscore_find_context_by_oscore_id(msg->endpoint.device,
-                                                     msg->endpoint.oscore_id,
+    oscore_ctx = oc_oscore_find_context_by_oscore_id(msg->endpoint.oscore_id,
                                                      msg->endpoint.oscore_id_len);
   }
 
   // search for OSCORE context using addressing information
   if (oscore_ctx == NULL)
   {
-    oscore_ctx = oc_oscore_find_context_by_group_address(msg->endpoint.device, 
-                                                         msg->endpoint.group_address);
+    oscore_ctx = oc_oscore_find_context_by_group_address(msg->endpoint.group_address);
   }
 
-  
   oc_message_t*  message = oc_internal_allocate_outgoing_message();
   if (message == NULL)
   {
@@ -711,7 +713,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
   // search for context using transaction data
   if (oscore_ctx == NULL)
   {
-    oscore_ctx = oc_oscore_find_context_by_token_mid(message->endpoint.device, coap_pkt->token, coap_pkt->token_len,
+    oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len,
                                                      coap_pkt->mid, NULL, NULL, false);
   }
   // we haven't found a context, so we free the message we just created
@@ -1060,7 +1062,7 @@ OC_PROCESS_THREAD(oc_oscore_handler, ev, data)
     if (ev == oc_events[INBOUND_OSCORE_EVENT])
     {
       OC_DBG_OSCORE("Inbound OSCORE event: encrypted request");
-      oc_oscore_recv_message(data);
+      oc_oscore_receive_message(data);
     }
     else if (ev == oc_events[OUTBOUND_OSCORE_EVENT])
     {

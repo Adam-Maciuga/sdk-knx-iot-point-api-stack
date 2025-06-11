@@ -63,7 +63,7 @@ typedef struct oc_oscore_context_t
   int auth_at_index;                       // index of the auth AT table + 1, so index = 0 is invalid 
   uint8_t token_id[OSCORE_IDCTX_LEN];      // copy of sender id TODO possibly can be removed 
   uint8_t master_secret[OSCORE_IDCTX_LEN]; /**< OSCORE master secret [bytes ]*/
-  size_t device;                           /**< device index */
+  
   uint8_t sendid[OSCORE_CTXID_LEN];        /**< SID [bytes] */
   uint8_t sendid_len;                      /** length of SID */
   uint8_t recvid[OSCORE_CTXID_LEN];        /**< RID [bytes] */
@@ -137,7 +137,6 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  *
  * Note: OSCORE context is also a field.
  *
- * @param device the device index
  *
  * @param senderid the SID
  * @param senderid_size the length of SID
@@ -157,7 +156,7 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t* oc_oscore_add_context(
-  size_t device, const char *senderid, int senderid_size,
+  const char *senderid, int senderid_size,
   const char* recipientid, int recipientid_size,
   uint64_t ssn,
   const char *mastersecret, int mastersecret_size, const char *salt,
@@ -177,7 +176,7 @@ oc_oscore_context_t *oc_oscore_find_context_by_serial_number(
   size_t device, char *serial_number);
 
 oc_oscore_context_t *oc_oscore_find_context_by_group_address(
-  size_t device, uint32_t group_address);
+  uint32_t group_address);
 
 oc_oscore_context_t *oc_oscore_find_context_by_kid(oc_oscore_context_t *ctx,
                                                    size_t device, uint8_t *kid,
@@ -188,16 +187,11 @@ oc_oscore_context_t *oc_oscore_find_context_by_kid_idctx(
   uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
 oc_oscore_context_t *oc_oscore_find_context_by_token_mid(
-  size_t device, uint8_t *token, uint8_t token_len, uint16_t mid,
+  uint8_t *token, uint8_t token_len, uint16_t mid,
   uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
-oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(size_t device,
-                                                         char *oscore_id,
+oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id,
                                                          size_t oscore_id_len);
-
-oc_oscore_context_t *oc_oscore_find_context_by_rid(size_t device, char *rid,
-                                                   size_t rid_len);
-
 #ifdef __cplusplus
 }
 #endif

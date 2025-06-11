@@ -2824,7 +2824,7 @@ void oc_create_knx_fp_resources(size_t device_index)
   oc_load_object_table();
 }
 
-void oc_free_knx_fp_resources(size_t device_index)
+void oc_free_knx_fp_resources(void)
 {
   oc_free_group_tables();
   oc_free_group_object_table();
@@ -2877,7 +2877,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, si
 }
 
 oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope,
-                                                          uint32_t port)
+                                                          uint16_t port)
 {
   // create the multicast address from group and scope
   // FF3_:FD__:____:____:(8-f)___:____
@@ -2932,7 +2932,7 @@ oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group
   return oc_create_multicast_group_address_with_port(in, group_nr, iid, scope, 5683);
 }
 
-void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port)
+void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope and port
   oc_endpoint_t group_mcast = {0};
@@ -2957,7 +2957,7 @@ void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
   oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
 }
 
-void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port)
+void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope
   oc_endpoint_t group_mcast = {0};
@@ -3015,9 +3015,9 @@ void oc_register_group_multicasts(void)
     return;
   }
   const uint64_t installation_id = device->iid;
-  const uint32_t mport = device->mport;
+  const uint16_t multicast_port = device->multicast_port;
 
-  PRINT("oc_register_group_multicasts: mport %u", mport);
+  PRINT("multicast port %u", multicast_port);
 
   bool pub_table_grpid_entry_present = false;
 
@@ -3046,14 +3046,14 @@ void oc_register_group_multicasts(void)
           // check if a 'receiving' GA as part of a GO is in the publisher table (device can receive)
           const uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
 
-          PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %d cflags=", index, i, grpid,
+          PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid,
                 g_got[index].ga[i]);
           oc_print_cflags(cflags);
 
           if (grpid > 0)
           { // found
-            subscribe_group_to_multicast_with_port(grpid, installation_id, 2, mport);
-            subscribe_group_to_multicast_with_port(grpid, installation_id, 5, mport);
+            subscribe_group_to_multicast_with_port(grpid, installation_id, 2, multicast_port);
+            subscribe_group_to_multicast_with_port(grpid, installation_id, 5, multicast_port);
           }
         }
       }
@@ -3075,8 +3075,8 @@ void oc_register_group_multicasts(void)
         {
           PRINT("oc_register_group_multicasts index=%d i=%d group: %u  cflags=", index, i, g_got[index].ga[i]);
           oc_print_cflags(cflags); // debugging
-          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 2, mport);
-          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 5, mport);
+          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 2, multicast_port);
+          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 5, multicast_port);
         }
       }
     }

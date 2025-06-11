@@ -871,8 +871,8 @@ int app_initialize_stack(void)
   // set the stack handler callbacks
   static oc_handler_t handler = {.init = app_init, // called always
                                  .signal_event_loop = signal_event_loop, // called always
-                                 .register_resources = register_resources, // called for a server
-                                 .requests_entry = NULL}; // called for a client
+                                 .register_resources = register_resources, // called for a server (one time)
+                                 .requests_entry = NULL}; // called for a client (one time)
 
   // set the application handler callbacks
   oc_set_hostname_cb(hostname_cb, NULL);
@@ -1028,7 +1028,7 @@ int main(const int argc, char* argv[])
     next_event = oc_main_poll();
 
     if (next_event == 0)
-    { // no event (timer) is pending, all done
+    { // no event (timer) is pending, all done, goto sleep
       SleepConditionVariableCS(&event_is_pending, &critical_section, INFINITE);
     }
     else

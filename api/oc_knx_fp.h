@@ -579,10 +579,8 @@ extern "C"
    * @brief free the fp resources
    * e.g. frees up all allocated memory.
    *
-   * @param device_index index of the device to which the resource are to be
-   * freed.
    */
-  void oc_free_knx_fp_resources(size_t device_index);
+  void oc_free_knx_fp_resources(void);
 
   /**
    * @brief create the group multicast address
@@ -618,7 +616,7 @@ extern "C"
    * @return oc_endpoint_t the modified endpoint
    */
   oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope,
-                                                            uint32_t port);
+                                                            uint16_t port);
 
   /**
    * @brief subscribe to a multicast address, defined by group number and
@@ -644,7 +642,7 @@ extern "C"
    * @param scope the address scope
    * @param port the port
    */
-  void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port);
+  void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port);
 
   /**
    * @brief unsubscribe to a multicast address, defined by group number and

@@ -53,7 +53,8 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
   // stringify subtypes
   (void) snprintf(subtypes, 63, "_knx._udp,_ia%" PRIx64 "-%x%s,_%s", iid, ia, pm_subtype, serial_no);
 
-  // creates/executes a new process
+  // creates/executes a new process (may need to install a dns client)
+  // <arg0> see function, rest: -R <Name> <Type> <Domain> <Port> [<TXT>...] -> Register a service
   process_handle = _spawnlp(_P_NOWAIT, "dns-sd", "dns-sd", "-R", serial_no, subtypes, "local", port_str, sp_text_record, NULL);
 
 #endif 
@@ -61,10 +62,13 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
   return 0;
 }
 
-void knx_service_sleep_period(uint32_t sp)
+void knx_service_sleep_period(int sp)
 {
   if (sp)
-    (void) sprintf(sp_text_record, "SP=%d", sp);
+    // string includes "SP=xx"
+    (void)sprintf(sp_text_record, "SP=%d", sp);
   else
+    // empty string 
     memset(sp_text_record, 0, sizeof(sp_text_record));
+    
 }

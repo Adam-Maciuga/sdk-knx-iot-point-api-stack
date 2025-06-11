@@ -224,19 +224,17 @@ extern "C"
   void oc_knx_increase_fingerprint(void);
 
   /**
-   * @brief load the fingerprint value from storage
+   * @brief load the fingerprint value from storage (file system)
    *
    */
   void oc_knx_load_fingerprint(void);
 
   /**
-   * @brief load the state of the device from persistent storage
-   * load data for:
-   * - load state machine (lsm)
+   * @brief load the device LSM state from storage (file system)
    *
    * @param device_index the device index to load the data for
    */
-  void oc_knx_load_state(size_t device_index);
+  void oc_knx_load_lsm_state(size_t device_index);
 
   /**
    * @brief reset the device

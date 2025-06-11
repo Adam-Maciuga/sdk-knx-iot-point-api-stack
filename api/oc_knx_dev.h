@@ -37,8 +37,7 @@ extern "C" {
 #define KNX_STORAGE_AP_PATCH  "knx_ap_p"
 
 /**
- * @brief Creation of the KNX device resources.
- * e.g. the dev resources:
+ * @brief create device resources.
  *  - sn (serial number)
  *  - hwv (hardware version)
  *  - fwv (firmware version)
@@ -57,12 +56,18 @@ extern "C" {
 void oc_create_knx_device_resources(size_t device);
 
 /**
-@brief read the contents from disk during start up
-for the resources implemented / dev / *
+@brief load the device from storage (file system)
+ *  
+ *  - hname (host name)
+ *  - ia (individual address)
+ *  - pm (prg mode)
+ *  - iid (installation id)
+ *  - port
+ *  - ap (application version)
 
 @param device index of the device to which the data is to be read
 */
-void oc_knx_device_storage_read(size_t device);
+void oc_knx_load_device(size_t device);
 
 /**
  * @brief clear the persistent storage

@@ -95,8 +95,8 @@ extern "C" {
 		uint64_t fid;                             /**< knx fabric id */
 		uint16_t ia;                              /**< 16-bit knx individual address */
 		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test' */
-		uint32_t port;                            /**< coap port number */
-		uint32_t mport;                           /**< multicast port number */
+		uint16_t coap_port;                       // coap port number
+		uint16_t multicast_port;                  // multicast port number
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
 		oc_core_add_device_cb_t add_device_cb;    /**< callback when device is changed */

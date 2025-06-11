@@ -62,7 +62,7 @@ void oc_core_init(void)
 	if (!core_resources)
 	{
 		printf("COULD NOT ALLOCATE CORE RESOURCE\n\n\n\n\n");
-		oc_abort("Insufficient memory");
+		oc_abort("Insufficient stack memory to allocate device resources");
 	}
 
 	oc_device_info = NULL;
@@ -95,11 +95,10 @@ void oc_core_shutdown(void)
 			oc_device_info_t* oc_device_info_item = &oc_device_info[i];
 			oc_core_free_device_info_properties(oc_device_info_item);
 		}
-		//
-		for (i = 0; i < device_count; ++i)
-		{
-			oc_free_knx_fp_resources(i);
-		}
+
+	  //
+		oc_free_knx_fp_resources();
+		
 
 		#ifdef OC_DYNAMIC_ALLOCATION
 		free(oc_device_info);

@@ -265,13 +265,14 @@ static void oc_shutdown_all_devices(void)
 
 int oc_main_init(const oc_handler_t* handler)
 {
-  int ret;
 
+  // prevent multiple init calls --> already done ...
   if (initialized)
-  { // already done ...
+  { 
     return 0;
   }
 
+  // set application handlers
   app_callbacks = handler;
 
 #ifdef OC_MEMORY_TRACE
@@ -281,27 +282,31 @@ int oc_main_init(const oc_handler_t* handler)
   oc_ri_init();
   oc_core_init();
   oc_network_event_handler_mutex_init();
-#ifdef OC_SPAKE
+
+  #ifdef OC_SPAKE
   oc_initialise_spake_data();
 #endif
 
-  ret = app_callbacks->init();
-  if (ret < 0)
+  // call one time on startup (must be successful)
+  if (app_callbacks->init() < 0)
   {
     oc_ri_shutdown();
     oc_shutdown_all_devices();
-    goto err;
+
+    OC_ERR("Error in stack initialization, application init handler failed");
+
+   return -1;
+    
   }
 #ifdef OC_DYNAMIC_ALLOCATION
   drop_commands = (bool*) calloc(oc_core_get_num_devices(), sizeof(bool));
   if (!drop_commands)
   {
-    oc_abort("Insufficient memory");
+    oc_abort("Insufficient stack memory");
   }
 #endif
 
 #ifdef OC_SECURITY
-  //#ifdef OC_OSCORE
 
   ret = oc_tls_init_context();
   if (ret < 0)
@@ -314,9 +319,9 @@ int oc_main_init(const oc_handler_t* handler)
 
   for (size_t device = 0; device < oc_core_get_num_devices(); device++)
   {
-    oc_knx_device_storage_read(device);
-    oc_knx_load_state(device);
-    // add here more
+    oc_knx_load_device(device);
+    oc_knx_load_lsm_state(device);
+    oc_knx_load_fingerprint();
   }
 
 #ifdef OC_SECURITY
@@ -332,6 +337,8 @@ int oc_main_init(const oc_handler_t* handler)
 #endif
 
 #ifdef OC_SERVER
+
+  // called one time on startup
   if (app_callbacks->register_resources)
   {
     app_callbacks->register_resources();
@@ -343,7 +350,7 @@ int oc_main_init(const oc_handler_t* handler)
 
 #endif 
 
-  OC_DBG("oc_main: stack initialized");
+  OC_DBG("Stack initialized...");
 
   initialized = true;
 
@@ -354,12 +361,14 @@ int oc_main_init(const oc_handler_t* handler)
 #endif
 
 #ifdef OC_CLIENT
+
+  // called one time on startup
   if (app_callbacks->requests_entry)
   {
     app_callbacks->requests_entry();
   }
-  // do initialization of the data points according the 'I' flag
-  // in the group object table
+
+  // do initialization of the data points according the 'I' flag in group object table
   oc_init_datapoints_at_initialization();
 #endif
 
@@ -369,14 +378,6 @@ int oc_main_init(const oc_handler_t* handler)
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return 0;
-
-err:
-  OC_ERR("oc_main: error in stack initialization");
-#ifdef OC_DYNAMIC_ALLOCATION
-  free(drop_commands);
-  drop_commands = NULL;
-#endif
-  return ret;
 }
 
 oc_clock_time_t

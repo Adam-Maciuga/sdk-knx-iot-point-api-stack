@@ -1765,7 +1765,7 @@ void oc_initialise_spake_data(void)
   // start SPAKE brute force protection timer
   oc_set_delayed_callback(NULL, decrement_counter, 10);
 }
-#endif /* OC_SPAKE */
+#endif 
 
 // ----------------------------------------------------------------------------
 
@@ -1798,10 +1798,10 @@ void oc_knx_increase_fingerprint(void)
 
 // ----------------------------------------------------------------------------
 
-void oc_knx_load_state(size_t device_index)
+void oc_knx_load_lsm_state(size_t device_index)
 {
   oc_lsm_state_t lsm = LSM_S_UNLOADED;
-  PRINT("oc_knx_load_state: Loading Device Config from Persistent storage");
+  PRINT("Loading device LSM from persistent storage");
 
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device == NULL)
@@ -1816,8 +1816,6 @@ void oc_knx_load_state(size_t device_index)
     device->lsm_s = lsm;
     PRINT("load state (storage) %ld [%s]", (long)lsm, oc_core_get_lsm_state_as_string((oc_lsm_state_t)lsm));
   }
-
-  oc_knx_load_fingerprint();
 }
 
 void oc_create_knx_resources(size_t device_index)
@@ -1853,6 +1851,7 @@ bool oc_is_device_in_runtime(size_t device_index)
 
   if (device->lsm_s != LSM_S_LOADED)
   {
+
     return false;
   }
 

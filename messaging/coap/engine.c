@@ -125,11 +125,11 @@ oc_coap_check_if_duplicate(uint16_t mid, uint8_t device, uint16_t port,
 				history[i].port == port &&
 				(memcmp(history[i].address, address, 16) == 0))
 		{
-			OC_DBG("dropping duplicate request");
-			OC_DBG("message ID: %d, history[%d]: %d", mid, (int) i, history[i]);
+      OC_DBG("dropping request: is duplicate -> message ID: %d, history[%d]: %d", mid, (int) i, history[i]);
 			return true;
 		}
 	}
+  OC_DBG("processing request: is new");
 	return false;
 }
 #endif
@@ -246,6 +246,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 	OC_DBG("CoAP Engine: received data len=%u from ", (unsigned int) incoming_message->length);
 	PRINTipaddr(incoming_message->endpoint);
+  OC_DBG(" = ");
 	OC_LOGbytes(incoming_message->data, incoming_message->length);
 
 	/* static declaration reduces stack peaks and program code size */
@@ -274,7 +275,7 @@ int coap_receive(oc_message_t* incoming_message)
 			coap_tcp_parse_message(message, incoming_message->data, (uint32_t) incoming_message->length);
 	}
 	else
-		#endif 
+	#endif 
 	{
 	  coap_status_code = coap_udp_parse_message(coap_packet_request, incoming_message->data, (uint16_t) incoming_message->length);
 	}
@@ -288,7 +289,8 @@ int coap_receive(oc_message_t* incoming_message)
 		OC_DBG("Parsed: CoAP version: %u, token: 0x%02X%02X, mid: %u",
 					 coap_packet_request->version, coap_packet_request->token[0], coap_packet_request->token[1],
 					 coap_packet_request->mid);
-		switch (coap_packet_request->type)
+
+	  switch (coap_packet_request->type)
 		{
 			case COAP_TYPE_CON:
 				OC_DBG("type: CON");
@@ -327,17 +329,17 @@ int coap_receive(oc_message_t* incoming_message)
 
 		#ifdef OC_TCP
 		if (!(incoming_message->endpoint.flags & TCP))
-			#endif 
+		#endif 
 		{
 
-			// assume non fresh request ...
+			// assume inbound request of a former outbound request, check mid ...
 		  transaction = coap_get_transaction_by_mid(coap_packet_request->mid);
 
-			// no transaction by mid...
+			// assume inbound request of a former outbound request, check token ...
 		  if (!transaction)
 				transaction =	coap_get_transaction_by_token(coap_packet_request->token, coap_packet_request->token_len);
 
-			// transaction by token ...
+			// if transaction is present by mid/token
 		  if (transaction)
 			{
 				#ifdef OC_CLIENT
@@ -353,10 +355,11 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					OC_DBG("Received unauthorised response with echo option, retransmitting with included echo...");
 
-					// g_ssn should be incremented for echo retransmissions,
+					// TODO g_ssn should be incremented for echo retransmissions,
 					// or the SSN is reused leading to unnecessary echo requests
 					// and vulnerability to nonce reuse attacks
-					#ifdef OC_OSCORE
+
+		      #ifdef OC_OSCORE
 					if (oc_oscore_is_g_ssn_in_use())
 					{
 						uint64_t ssn = oc_oscore_get_next_ssn();
@@ -376,11 +379,11 @@ int coap_receive(oc_message_t* incoming_message)
 					coap_set_header_echo(retransmitted_pkt, echo_value, echo_len);
 
 		      // Create a new transaction and send the request. New transaction has
-					// different MID & token, but should use the same client callback
-					int i = 0;
+					// different  MID & (randomized) token, but should use the same client callback
+		      uint8_t i = 0;
 					while (i < retransmitted_pkt->token_len)
 					{
-						int r = oc_random_value();
+						unsigned int r = oc_random_value();
 						memcpy(retransmitted_pkt->token + i, &r, sizeof(r));
 						i += sizeof(r);
 					}
@@ -533,7 +536,7 @@ int coap_receive(oc_message_t* incoming_message)
 				coap_tcp_init_message(response, CONTENT_2_05);
 			}
 			else
-				#endif 
+			#endif 
 			{
 				if (coap_packet_request->type == COAP_TYPE_CON)
 				{
@@ -554,7 +557,7 @@ int coap_receive(oc_message_t* incoming_message)
 					history[idx].port = incoming_message->endpoint.addr.ipv6.port;
 					memcpy(history[idx].address, incoming_message->endpoint.addr.ipv6.address, 16);
 					idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
-					#endif /* OC_REQUEST_HISTORY */
+					#endif 
 					// TODO
 					//          if (href_len == 7 && memcmp(href, "oic/res", 7) == 0) {
 					//            coap_udp_init_message(response, COAP_TYPE_CON,
@@ -1466,8 +1469,7 @@ send_message:
 	return coap_status_code;
 }
 /*---------------------------------------------------------------------------*/
-void
-coap_init_engine(void)
+void coap_init_engine(void)
 {
 	coap_register_as_transaction_handler();
 }

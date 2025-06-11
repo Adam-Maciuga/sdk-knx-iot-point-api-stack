@@ -28,7 +28,7 @@ void oscore_send_error(void *packet, uint8_t code, oc_endpoint_t *endpoint);
 int oscore_read_piv(uint8_t *piv, uint8_t piv_len, uint64_t *ssn);
 int oscore_store_piv(uint64_t ssn, uint8_t *piv, uint8_t *piv_len);
 uint32_t oscore_get_outer_code(void *packet);
-int oscore_is_oscore_message(oc_message_t *msg);
+bool oscore_is_oscore_message(oc_message_t *msg);
 int coap_parse_oscore_option(void *packet, uint8_t *current_option,
                              size_t option_length);
 size_t coap_serialize_oscore_option(unsigned int *current_number, void *packet,
