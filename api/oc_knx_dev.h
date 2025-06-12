@@ -28,13 +28,12 @@ extern "C" {
 #define KNX_STORAGE_IID       "dev_knx_iid"
 #define KNX_STORAGE_FID       "dev_knx_fid"
 #define KNX_STORAGE_HOSTNAME  "dev_knx_hostname"
+#define FINGERPRINT_STORE     "dev_knx_fingerprint"
 #define KNX_STORAGE_PM        "dev_knx_pm"
 #define KNX_STORAGE_LSM       "dev_knx_lsm"
-#define KNX_STORAGE_PORT      "dev_knx_port"
-#define KNX_STORAGE_MPORT     "dev_knx_mport"
-#define KNX_STORAGE_AP_MAJOR  "knx_ap_maj"
-#define KNX_STORAGE_AP_MINOR  "knx_ap_min"
-#define KNX_STORAGE_AP_PATCH  "knx_ap_p"
+#define KNX_STORAGE_AP_MAJOR  "knx_ap_major"
+#define KNX_STORAGE_AP_MINOR  "knx_ap_minor"
+#define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
 
 /**
  * @brief create device resources.
@@ -62,8 +61,9 @@ void oc_create_knx_device_resources(size_t device);
  *  - ia (individual address)
  *  - pm (prg mode)
  *  - iid (installation id)
- *  - port
+ *  - fid (fabric id)
  *  - ap (application version)
+ *  - lsm (load state)
 
 @param device index of the device to which the data is to be read
 */

@@ -476,7 +476,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
 
     OC_DBG_OSCORE("### parsed CoAP message ###");
 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_CTXID_LEN], kid_len = 0, nonce[OSCORE_AEAD_NONCE_LEN],
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, nonce[OSCORE_AEAD_NONCE_LEN],
                                  AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
 
     OC_DBG_OSCORE("### protecting multicast request ###");
@@ -726,23 +726,24 @@ static int oc_oscore_send_message(oc_message_t* msg)
     goto oscore_send_error;
   }
 
+  // TODO cannot be NULL , to be removed 
   if (oscore_ctx)
   {
     OC_DBG_OSCORE("#################################");
-    OC_DBG_OSCORE("found OSCORE context corresponding to the peer serial "
-                  "number or group_address id=%s",
-                  oscore_ctx->token_id);
+    OC_DBG_OSCORE("found OSCORE context id=%s", oscore_ctx->token_id);
+
     /* Use sender key for encryption */
     uint8_t* key = oscore_ctx->sendkey;
 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_CTXID_LEN], kid_len = 0, ctx_id[OSCORE_IDCTX_LEN], ctx_id_len = 0,
+    // names from RFC OSCORE option 
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, kid_context[OSCORE_IDCTX_LEN], kid_context_len = 0,
                                  nonce[OSCORE_AEAD_NONCE_LEN], AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
 
     /* If CoAP message is request */
     if ((coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE)
 #ifdef OC_TCP
         || coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01
-#endif /* OC_TCP */
+#endif
     )
     {
 
@@ -755,14 +756,15 @@ static int oc_oscore_send_message(oc_message_t* msg)
       // OC_DBG_OSCORE("---using SSN as Partial IV: %lu", oscore_ctx->ssn);
       OC_LOGbytes_OSCORE(piv, piv_len);
 
-      // increment SSN for the original request, retransmissions use the same SSN
+      // increment SSN for the original request, retransmissions below max retransmits (4) use the same SSN
+      // if present (token) the request/response cycle is issued 
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
 
-      // TODO this is outdated ?? 
+      // TODO Coding style  AND assumption that payload is teh same 
       if (transaction && transaction->retrans_counter == 0)
-        increment_ssn_in_context(oscore_ctx);
+        increment_ssn_in_context(oscore_ctx); // fresh request, CON ???
       else if (!transaction)
-        increment_ssn_in_context(oscore_ctx);
+        increment_ssn_in_context(oscore_ctx); // fresh request, NON ??? 
 
 #ifdef OC_CLIENT
       if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE)
@@ -787,8 +789,8 @@ static int oc_oscore_send_message(oc_message_t* msg)
       kid_len = oscore_ctx->sendid_len;
 
       /* use idctx as context_id */
-      memcpy(ctx_id, oscore_ctx->idctx, oscore_ctx->idctx_len);
-      ctx_id_len = oscore_ctx->idctx_len;
+      memcpy(kid_context, oscore_ctx->idctx, oscore_ctx->idctx_len);
+      kid_context_len = oscore_ctx->idctx_len;
 
       /* Compute nonce using partial IV and context->sendid */
       oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, piv, piv_len, oscore_ctx->commoniv, nonce,
@@ -821,11 +823,12 @@ static int oc_oscore_send_message(oc_message_t* msg)
         OC_DBG("request was not protected by OSCORE");
         goto oscore_send_dispatch;
       }
+
       OC_DBG("### protecting outgoing response ###");
 
       /* Use context->SSN as partial IV */
       oscore_store_piv(oscore_ctx->ssn, piv, &piv_len);
-      OC_DBG_OSCORE("---using SSN as Partial IV");
+      OC_DBG_OSCORE("---using SSN as Partial IV : ");
       OC_LOGbytes_OSCORE(piv, piv_len);
       OC_DBG_OSCORE("---");
       /* Increment SSN for the original request, retransmissions use the same
@@ -837,33 +840,45 @@ static int oc_oscore_send_message(oc_message_t* msg)
       bool is_separate_response = coap_pkt->type == COAP_TYPE_CON;
       bool is_not_transaction = !transaction;
 
+      // 
       if (is_initial_transmission || is_empty_ack || is_separate_response || is_not_transaction)
         increment_ssn_in_context(oscore_ctx);
 
+      // RFC 8613, 8.3 or KNX IoT 3.6.5 (# 2870)
+      // TODO empty ack is not encrypted
+      // sep response goes to lower path (check implications)
+      // echo challenge needs to be in upper path (see 3.6.5 point api ) otherwise it may cause nonce reuse
       if (is_empty_ack || is_separate_response)
       {
-        // empty acks and separate responses use a new PIV
-        OC_DBG_OSCORE("---piv");
+        // RFC 8613, 8.3, point 3 lower * 
+        // ack and separate responses use a new PIV 
+        OC_DBG_OSCORE("---piv : ");
         OC_LOGbytes_OSCORE(piv, piv_len);
-        oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, piv, piv_len, oscore_ctx->commoniv, nonce,
-                             OSCORE_AEAD_NONCE_LEN);
+        oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, 
+                             piv, piv_len,
+                             oscore_ctx->commoniv, 
+                             nonce, OSCORE_AEAD_NONCE_LEN);
         /* Compute nonce using partial IV and sender ID of the sender ( =
          * receiver ID )*/
-        OC_DBG_OSCORE("---computed AEAD nonce using new Partial IV (SSN) and Sender ID");
+        OC_DBG_OSCORE("---computed AEAD nonce using new Partial IV (SSN) and Response Sender ID : ");
         OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
       }
       else
       {
-        // other responses reuse the PIV from the request
-        OC_DBG_OSCORE("---request_piv");
+        // RFC 8613, 8.3, point 3 upper *
+        // other responses reuse the PIV and Sender ID from the request to compute the same AEAD nonce as used for the request
+        OC_DBG_OSCORE("---request_piv : ");
         OC_LOGbytes_OSCORE(message->endpoint.request_piv, message->endpoint.request_piv_len);
-        oc_oscore_AEAD_nonce(oscore_ctx->recvid, oscore_ctx->recvid_len, message->endpoint.request_piv,
-                             message->endpoint.request_piv_len, oscore_ctx->commoniv, nonce, OSCORE_AEAD_NONCE_LEN);
+        oc_oscore_AEAD_nonce(oscore_ctx->recvid, oscore_ctx->recvid_len, 
+                             message->endpoint.request_piv, message->endpoint.request_piv_len,
+                             oscore_ctx->commoniv, 
+                             nonce, OSCORE_AEAD_NONCE_LEN);
         /* Compute nonce using partial IV and sender ID of the sender ( =
          * receiver ID )*/
-        OC_DBG_OSCORE("---computed AEAD nonce using new Partial IV (SSN) and Sender ID");
+        OC_DBG_OSCORE("---computed AEAD nonce using Partial IV (SSN) and Request Sender ID : ");
         OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
       }
+
       // AAD always uses the request PIV
 
       // This block, alongside endpoint.rx_msg_is_response, is needed for
@@ -896,14 +911,16 @@ static int oc_oscore_send_message(oc_message_t* msg)
       else
       */
       {
+        // Request sender ID = Req Recipient ID + REQUEST PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
         oc_oscore_compose_AAD(oscore_ctx->recvid, oscore_ctx->recvid_len, message->endpoint.request_piv,
                               message->endpoint.request_piv_len, AAD, &AAD_len);
       }
-      OC_DBG_OSCORE("---composed AAD using request piv and Recipient ID");
+      OC_DBG_OSCORE("---composed AAD using request piv and Recipient ID : ");
       OC_LOGbytes_OSCORE(AAD, AAD_len);
 
       /* Copy partial IV into incoming oc_message_t (*msg), if valid and if
        * message is request */
+      // TODO check if unreachable code because of upper IF 
       if (msg_valid && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE)
       {
         memcpy(msg->endpoint.request_piv, piv, piv_len);
@@ -983,14 +1000,15 @@ static int oc_oscore_send_message(oc_message_t* msg)
     bool is_separate_response = coap_pkt->type == COAP_TYPE_CON;
 
     /* Set the OSCORE option */
+    // TODO update according to changes above 
     if (is_request || is_empty_ack || is_separate_response)
     {
-      coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, ctx_id, ctx_id_len);
+      coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, kid_context, kid_context_len);
     }
     else
     {
       // other responses use the (cached) piv of the matching request, stored in the ep/client_cb
-      coap_set_header_oscore(coap_pkt, NULL, 0, kid, kid_len, ctx_id, ctx_id_len);
+      coap_set_header_oscore(coap_pkt, NULL, 0, kid, kid_len, kid_context, kid_context_len);
     }
 
     /* Reflect the Observe option (if present in the CoAP packet) */
@@ -1018,7 +1036,6 @@ oscore_send_dispatch:
 
 #ifdef OC_CLIENT
   /* Dispatch oc_message_t to the message buffer layer */
-  OC_DBG_OSCORE("Outbound network event: OUTBOUND_NETWORK_EVENT_ENCRYPTED");
   if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], message) == OC_PROCESS_ERR_FULL)
   {
     OC_ERR(" could not send message");

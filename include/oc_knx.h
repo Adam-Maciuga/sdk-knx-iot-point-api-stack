@@ -129,23 +129,23 @@ extern "C"
   } oc_lsm_event_t;
 
   /**
-   * @brief retrieve the current lsm state
+   * @brief retrieve the current LSM state
    *
    * @param device_index index of the device to which the resource is to be
    * created
-   * @return the lsm state
+   * @return the LSM state
    */
-  oc_lsm_state_t oc_a_lsm_state(size_t device_index);
+  oc_lsm_state_t oc_knx_get_lsm(size_t device_index);
 
   /**
-   * @brief retrieve the current lsm state
+   * @brief sets the current LSM state
    *
    * @param device_index index of the device to which the resource is to be
    * created
-   * @param new_state the new lsm_state
+   * @param new_state the new LSM
    * @return 0 == success
    */
-  int oc_a_lsm_set_state(size_t device_index, oc_lsm_state_t new_state);
+  int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state);
 
   /**
    * @brief convert the load state machine (lsm) event to string
@@ -218,7 +218,9 @@ extern "C"
   void oc_knx_set_ldevid(char* ldevid, int len);
 
   /**
-   * @brief increase the finger print value
+   * @brief increase the fingerprint value and writes the value to storage (file system)
+   *
+   * @note updated on create/delete of fp/p, fp/r, fp/g and /p
    *
    */
   void oc_knx_increase_fingerprint(void);
@@ -229,14 +231,7 @@ extern "C"
    */
   void oc_knx_load_fingerprint(void);
 
-  /**
-   * @brief load the device LSM state from storage (file system)
-   *
-   * @param device_index the device index to load the data for
-   */
-  void oc_knx_load_lsm_state(size_t device_index);
-
-  /**
+    /**
    * @brief reset the device
    * the reset value according to the specification:
    * - reset = 2 (Factory Reset) :

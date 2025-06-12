@@ -36,14 +36,14 @@ typedef enum {
   RI_TO_TLS_EVENT,
   INBOUND_RI_EVENT,
   OUTBOUND_NETWORK_EVENT,           // outbound network event, payload is not encrypted
-  OUTBOUND_NETWORK_EVENT_ENCRYPTED, // outbound network event, payload is encrypted, not used for OSCORE
+  OUTBOUND_NETWORK_EVENT_ENCRYPTED, // outbound network event, payload is encrypted, received from OSCORE layer
   TLS_READ_DECRYPTED_DATA,
   TLS_WRITE_APPLICATION_DATA,
   INTERFACE_DOWN, /**< network interface down*/
   INTERFACE_UP,   /**< network interface up */
   TLS_CLOSE_ALL_SESSIONS,
-  INBOUND_OSCORE_EVENT,  // inbound network event, payload is encrypted with oscore
-  OUTBOUND_OSCORE_EVENT, // outbound network event, payload is encrypted with oscore
+  INBOUND_OSCORE_EVENT,  // inbound network event, payload WILL BE decrypted with oscore
+  OUTBOUND_OSCORE_EVENT, // outbound network event, payload WILL BE encrypted with oscore
   OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload is encrypted with oscore
   __NUM_OC_EVENT_TYPES__
 } oc_events_t;

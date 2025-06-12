@@ -35,8 +35,6 @@
 #include "security/oc_spake2plus.h"
 #endif
 
-#define FINGERPRINT_STORE "dev_knx_fingerprint"
-
 // ---------------------------Variables --------------------------------------
 
 static bool g_ignore_smessage_from_self = false; // prevent to handle own send out messages
@@ -372,7 +370,7 @@ void oc_create_knx_resource(int resource_idx, size_t device)
 }
 
 
-oc_lsm_state_t oc_a_lsm_state(size_t device_index)
+oc_lsm_state_t oc_knx_get_lsm(size_t device_index)
 {
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device == NULL)
@@ -384,10 +382,7 @@ oc_lsm_state_t oc_a_lsm_state(size_t device_index)
   return device->lsm_s;
 }
 
-/*
- * function will store the new state
- */
-int oc_a_lsm_set_state(size_t device_index, oc_lsm_state_t new_state)
+int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state)
 {
   oc_device_info_t* device = oc_core_get_device_info(device_index);
   if (device == NULL)
@@ -395,9 +390,9 @@ int oc_a_lsm_set_state(size_t device_index, oc_lsm_state_t new_state)
     OC_ERR("device not found %d", (int)device_index);
     return -1;
   }
-  device->lsm_s = new_state;
 
-  oc_storage_write(KNX_STORAGE_LSM, (uint8_t*)&device->lsm_s, sizeof(device->lsm_s));
+  device->lsm_s = new_state;
+  oc_storage_write(KNX_STORAGE_LSM, (uint8_t*)&new_state, sizeof(new_state));
 
   return 0;
 }
@@ -463,19 +458,18 @@ bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
   }
   if (lsm_e == LSM_E_STARTLOADING)
   {
-    oc_a_lsm_set_state(device_index, LSM_S_LOADING);
+    oc_knx_set_and_store_lsm(device_index, LSM_S_LOADING);
     return true;
   }
   if (lsm_e == LSM_E_LOADCOMPLETE)
   {
-    oc_a_lsm_set_state(device_index, LSM_S_LOADED);
+    oc_knx_set_and_store_lsm(device_index, LSM_S_LOADED);
     return true;
   }
   if (lsm_e == LSM_E_UNLOAD)
   {
-
     // LSM (first to prevent any runtime messaging in/out)
-    oc_a_lsm_set_state(device_index, LSM_S_UNLOADED);
+    oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
 
     // do a reset like erase code 2 but not the AT table, ia, iid, fid -> EITT test
     oc_delete_group_tables();
@@ -508,7 +502,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  oc_lsm_state_t lsm = oc_a_lsm_state(device_index);
+  oc_lsm_state_t lsm = oc_knx_get_lsm(device_index);
 
   oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 3, lsm);
@@ -571,7 +565,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     // application LSM mode callback handler
     if (my_cb && my_cb->cb)
     {
-      my_cb->cb(device_index, oc_a_lsm_state(device_index), my_cb->data);
+      my_cb->cb(device_index, oc_knx_get_lsm(device_index), my_cb->data);
     }
 
     // if LSM is loaded , e.g; application is running ...
@@ -585,7 +579,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     // create response
     oc_rep_new(request->response->response_buffer->buffer, (int)request->response->response_buffer->buffer_size);
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 3, oc_a_lsm_state(device_index));
+    oc_rep_i_set_int(root, 3, oc_knx_get_lsm(device_index));
     oc_rep_end_root_object();
 
     // note that also on event 'NOP' a 'changed' is returned
@@ -1032,7 +1026,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 
   // check if the state is loaded
   size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADED)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADED)
   {
     OC_ERR("not in loaded state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
@@ -1096,31 +1090,25 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
   size_t device_index = request->resource->device;
   oc_rep_t* rep = request->request_payload;
 
-  while (rep != NULL)
+  while (rep)
   {
     if (rep->type == OC_REP_INT)
     {
       if (rep->iname == 12)
       {
         PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d", (int)rep->value.integer);
-        oc_core_set_device_ia(device_index, (uint32_t)rep->value.integer);
-        int temp = (int)rep->value.integer;
-        oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&temp, sizeof(temp));
+        oc_core_set_and_store_device_ia(device_index, (uint16_t)rep->value.integer);
         ia_set = true;
       }
       else if (rep->iname == 25)
       {
         PRINT("oc_core_knx_ia_post_handler received 25 (fid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_device_fid(device_index, (uint64_t)rep->value.integer);
-        uint64_t temp = (uint64_t)rep->value.integer;
-        oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&temp, sizeof(temp));
+        oc_core_set_and_store_device_fid(device_index, rep->value.integer);
       }
       else if (rep->iname == 26)
       {
         PRINT("oc_core_knx_ia_post_handler received 26 (iid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_device_iid(device_index, (uint64_t)rep->value.integer);
-        uint64_t temp = (uint64_t)rep->value.integer;
-        oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&temp, sizeof(temp));
+        oc_core_set_and_store_device_iid(device_index, rep->value.integer);
         iid_set = true;
       }
     }
@@ -1764,21 +1752,17 @@ void oc_initialise_spake_data(void)
 }
 #endif 
 
-// ----------------------------------------------------------------------------
-
 void oc_knx_set_idevid(const char* idevid, int len)
 {
   oc_free_string(&g_idevid);
   oc_new_string(&g_idevid, idevid, len);
 }
 
-void oc_knx_set_ldevid(char* idevid, int len)
+void oc_knx_set_ldevid(char* ldevid, int len)
 {
   oc_free_string(&g_ldevid);
-  oc_new_string(&g_ldevid, idevid, len);
+  oc_new_string(&g_ldevid, ldevid, len);
 }
-
-// ----------------------------------------------------------------------------
 
 void oc_knx_load_fingerprint(void)
 {
@@ -1786,33 +1770,10 @@ void oc_knx_load_fingerprint(void)
   oc_storage_read(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
-// update on create/delete of fp/p, fp/r, fp/g and /p
 void oc_knx_increase_fingerprint(void)
 {
   g_fingerprint++; // must be only different
   oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
-}
-
-// ----------------------------------------------------------------------------
-
-void oc_knx_load_lsm_state(size_t device_index)
-{
-  oc_lsm_state_t lsm = LSM_S_UNLOADED;
-  PRINT("Loading device LSM from persistent storage");
-
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL)
-  {
-    OC_ERR(" could not get device %d", (int)device_index);
-    return;
-  }
-
-  int temp_size = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*)&lsm, sizeof(lsm));
-  if (temp_size > 0)
-  {
-    device->lsm_s = lsm;
-    PRINT("load state (storage) %ld [%s]", (long)lsm, oc_core_get_lsm_state_as_string((oc_lsm_state_t)lsm));
-  }
 }
 
 void oc_create_knx_resources(size_t device_index)
@@ -1833,8 +1794,6 @@ void oc_create_knx_resources(size_t device_index)
   oc_create_knx_spake_resource(OC_KNX_SPAKE, device_index);
   oc_create_knx_resource(OC_KNX, device_index);
 }
-
-// ----------------------------------------------------------------------------
 
 bool oc_is_device_in_runtime(size_t device_index)
 {

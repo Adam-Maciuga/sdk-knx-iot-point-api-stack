@@ -422,22 +422,25 @@ extern "C"
 
   /**
    * @brief delete entry of the Group Object Table,
-   * - the GO table entry is invalidated
-   * - does not make the (delete) change persistent, the storage entry disappears
+   * - the GO table entry in RAM is invalidated
+   * - the GO table entry on storage disappears
    *
    * @param entry the index of the entry in the Group Object Table
    */
   int oc_delete_group_object_table_entry(int entry);
 
   /**
-   * @brief delete all entries of the Group Object Table (from persistent) storage
+   *@brief delete the GO table
+	 * - from RAM
+	 * - from storage (file system)
    *
    */
   void oc_delete_group_object_table(void);
 
   /**
-   * @brief delete all entries of the Recipient and Publisher Object Table (from
-   * persistent) storage
+   * @brief delete the PUB/RCP table
+	 * - from RAM
+	 * - from storage (file system)
    *
    */
   void oc_delete_group_tables(void);
@@ -576,11 +579,10 @@ extern "C"
   void oc_create_knx_fp_resources(size_t device_index);
 
   /**
-   * @brief free the fp resources
-   * e.g. frees up all allocated memory.
+   * @brief free the GO/PUB/SUB tables in RAM
    *
    */
-  void oc_free_knx_fp_resources(void);
+  void oc_free_knx_table_resources(void);
 
   /**
    * @brief create the group multicast address

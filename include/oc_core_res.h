@@ -85,9 +85,9 @@ extern "C" {
 	typedef struct oc_device_info_t
 	{
 		oc_string_t serialnumber;                 /**< knx serial number */
-		oc_knx_version_info_t hwv;                /**< knx hardware version */
-		oc_knx_version_info_t fwv;                /**< fwv firmware version */
-		oc_knx_version_info_t ap;                 /**< fwv application version */
+		oc_knx_version_info_t hwv;                // knx hardware version as U5U5U6 TODO 3 x 16 bit and check 0... xxx
+		oc_knx_version_info_t fwv;                // fwv firmware version as U5U5U6 TODO 3 x 16 bit and check 0... xxx
+		oc_knx_version_info_t ap;                 // fwv application version as U16U16U8  TODO 3 x 16 bit and check 0... xxx
 		oc_string_t hwt;                          /**< knx hardware type, should not be larger than 6 chars */
 		oc_string_t model;                        /**< knx model */
 		oc_string_t hostname;                     /**< knx host name */
@@ -95,8 +95,6 @@ extern "C" {
 		uint64_t fid;                             /**< knx fabric id */
 		uint16_t ia;                              /**< 16-bit knx individual address */
 		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test' */
-		uint16_t coap_port;                       // coap port number
-		uint16_t multicast_port;                  // multicast port number
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
 		oc_core_add_device_cb_t add_device_cb;    /**< callback when device is changed */
@@ -186,19 +184,10 @@ extern "C" {
 	int oc_core_set_device_mid(size_t device_index, uint32_t mid);
 
 	/**
-	 * @brief sets the internal address
+	 * @brief sets and stores the individual address
 	 *
 	 * @param device_index the device index
-	 * @param ia the internal address
-	 * @return int error status, 0 = OK
-	 */
-	int oc_core_set_device_ia(size_t device_index, uint16_t ia);
-
-	/**
-	 * @brief sets and stores the internal address
-	 *
-	 * @param device_index the device index
-	 * @param ia the internal address
+	 * @param ia the individual address
 	 * @return int error status, 0 = OK
 	 */
 	int oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia);
@@ -212,15 +201,6 @@ extern "C" {
 	 * @return int error status, 0 = OK
 	 */
 	int oc_core_set_device_hwt(size_t device_index, const char* hardware_type);
-
-	/**
-	 * @brief sets the programming mode (boolean)
-	 *
-	 * @param device_index the device index
-	 * @param pm the programming mode
-	 * @return int error status, 0 = OK
-	 */
-	int oc_core_set_device_pm(size_t device_index, bool pm);
 
 	/**
 	 * @brief sets the model (string)
@@ -241,15 +221,6 @@ extern "C" {
 	int oc_core_set_device_hostname(size_t device_index, const char* host_name);
 
 	/**
-	 * @brief sets the installation identifier (iid) (unsigned int)
-	 *
-	 * @param device_index the device index
-	 * @param iid the KNX installation id
-	 * @return int error status, 0 = OK
-	 */
-	int oc_core_set_device_iid(size_t device_index, uint64_t iid);
-
-	/**
 	 * @brief sets the installation identifier (iid) and store it
 	 *
 	 * @param device_index the device index
@@ -265,7 +236,7 @@ extern "C" {
 	 * @param fid the fabric id
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_fid(size_t device_index, uint64_t fid);
+	int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid);
 
 	/**
 	 * @brief sets the installation identifier (iid) (unsigned int)
@@ -274,6 +245,17 @@ extern "C" {
 	 * @return The KNX installation id
 	 */
 	uint64_t oc_core_get_device_iid(size_t device_index);
+
+	/**
+   * @brief sets the application version identifier
+   *
+   * @param device_index the device index
+   * @param major major version
+   * @param minor minor version
+   * @param patch patch version 
+   * @return The KNX installation id
+   */
+	int oc_core_set_and_store_device_application_version(size_t device_index, int major, int minor, int patch);
 
 	/**
 	 * @brief retrieve the amount of devices

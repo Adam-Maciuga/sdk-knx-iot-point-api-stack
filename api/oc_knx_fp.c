@@ -30,7 +30,7 @@
 #define GPT_STORE "dev_knx_pub_entry"       // PUB table base file name
 #define GRT_STORE "dev_knx_rcv_entry"       // RCV table base file name
 #define GOT_STORE "dev_knx_got_entry"       // GO table base file name
-#define FPT_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' pub/rcp/go FILE entries
+#define FPT_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' PUB/RCP/GO FILE entries
 
 // note static variables are initialized with '0' first time
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
@@ -368,7 +368,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   }
 
   const size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
@@ -723,7 +723,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
   PRINT("oc_core_fp_g_x_del_handler - start");
 
   size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -958,7 +958,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   }
 
   const size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
@@ -1381,7 +1381,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
   PRINT("oc_core_fp_p_x_del_handler - start");
 
   size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1542,7 +1542,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   }
 
   const size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
@@ -1976,7 +1976,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
   PRINT("oc_core_fp_r_x_del_handler");
 
   size_t device_index = request->resource->device;
-  if (oc_a_lsm_state(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -2674,6 +2674,16 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].ga_len = 0;
 }
 
+/**
+ * @brief delete entry of the Group Table,
+ * - the GO table entry in RAM is invalidated
+ * - the GO table entry on storage disappears
+ *
+ * @param entry the index of the entry in the Group Table
+ * @param store store name (PUB/RCP table)
+ * @param table PUB/RCP table pointer
+ * @param max_size the size of the table 
+ */
 static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   // use either GPT or GRT table size
@@ -2681,7 +2691,7 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
     return -1;
 
   // delete GPT/GRT entry (note, one file per entry)
-  char filename[20];
+  char filename[FPT_SIZE];
   (void)snprintf(filename, 20, "%s_%d", store, entry);
   oc_storage_erase(filename);
 
@@ -2691,7 +2701,7 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
 
 void oc_delete_group_tables(void)
 {
-  PRINT("Deleting Recipient Table from Persistent storage");
+  PRINT("Deleting Recipient Table from RAM and storage (file system)");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
@@ -2699,7 +2709,7 @@ void oc_delete_group_tables(void)
   }
 
 #ifdef OC_PUBLISHER_TABLE
-  PRINT("Deleting Publisher Table from Persistent storage");
+  PRINT("Deleting Publisher Table from RAM and storage (file system)");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
@@ -2710,14 +2720,14 @@ void oc_delete_group_tables(void)
 
 static void oc_free_group_tables(void)
 {
-  PRINT("Free RCP table from persistent storage");
+  PRINT("Free RCP table from RAM");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_grt, false);
   }
 
 #ifdef OC_PUBLISHER_TABLE
-  PRINT("Free PUB table from persistent storage");
+  PRINT("Free PUB table from RAM");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_gpt, false);
@@ -2824,7 +2834,7 @@ void oc_create_knx_fp_resources(size_t device_index)
   oc_load_object_table();
 }
 
-void oc_free_knx_fp_resources(void)
+void oc_free_knx_table_resources(void)
 {
   oc_free_group_tables();
   oc_free_group_object_table();
@@ -3015,7 +3025,7 @@ void oc_register_group_multicasts(void)
     return;
   }
   const uint64_t installation_id = device->iid;
-  const uint16_t multicast_port = device->multicast_port;
+  const uint16_t multicast_port = COAP_DEFAULT_PORT;
 
   PRINT("multicast port %u", multicast_port);
 

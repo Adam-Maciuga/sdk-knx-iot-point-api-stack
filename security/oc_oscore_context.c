@@ -155,7 +155,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
     {
       if (!tcp)
       {
-        // on TCP search by mid 
+        // on NOT TCP search by mid 
         t = coap_get_transaction_by_mid(mid);
       }
       if (!t)
@@ -356,15 +356,15 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     goto add_oscore_context_error;
   }
 
-  if (senderid_size > OSCORE_CTXID_LEN) // TODO rename to sender id len
+  if (senderid_size > OSCORE_SENDER_ID_LEN) // TODO rename to sender id len
   {
-    OC_ERR("sender id size > %d = %d", OSCORE_CTXID_LEN, senderid_size);
+    OC_ERR("sender id size > %d = %d", OSCORE_SENDER_ID_LEN, senderid_size);
     goto add_oscore_context_error;
   }
 
-  if (recipientid_size > OSCORE_CTXID_LEN)
+  if (recipientid_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("recipient id size > %d = %d", OSCORE_CTXID_LEN, recipientid_size);
+    OC_ERR("recipient id size > %d = %d", OSCORE_SENDER_ID_LEN, recipientid_size);
     goto add_oscore_context_error;
   }
 

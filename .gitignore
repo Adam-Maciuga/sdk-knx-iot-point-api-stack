@@ -18,3 +18,4 @@ deps/tinycbor/**
 *.tmp
 *.gcda
 *.gcno
+/Folder.DotSettings.user

@@ -320,7 +320,6 @@ int oc_main_init(const oc_handler_t* handler)
   for (size_t device = 0; device < oc_core_get_num_devices(); device++)
   {
     oc_knx_load_device(device);
-    oc_knx_load_lsm_state(device);
     oc_knx_load_fingerprint();
   }
 

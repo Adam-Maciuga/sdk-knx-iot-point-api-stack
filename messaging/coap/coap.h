@@ -167,7 +167,7 @@ extern "C" {
 		uint8_t piv_len;
 		uint8_t kid_ctx[OSCORE_IDCTX_LEN];
 		uint8_t kid_ctx_len;
-		uint8_t kid[OSCORE_CTXID_LEN];
+		uint8_t kid[OSCORE_SENDER_ID_LEN];
 		uint8_t kid_len;
 		#endif /* OC_OSCORE */
 

@@ -19,7 +19,7 @@
 
 #define OSCORE_AEAD_NONCE_LEN (13) /* Nonce length for AES-CCM-16-64-128 */
 #define OSCORE_PIV_LEN (5)         /* Partial IV length */
-#define OSCORE_CTXID_LEN (7)       /* Length of AEAD Nonce - 6 */
+#define OSCORE_SENDER_ID_LEN (7)       /* Length of AEAD Nonce - 6 */
 #define OSCORE_OPTION_LEN                                                      \
   (2 + 21 + 43) /* Option header + Option length + Proxy-uri */
 #define OSCORE_MASTER_SECRET_LEN (256 / 8)
@@ -35,7 +35,7 @@
 #define OSCORE_STORAGE_PREFIX "ssn"
 #define OSCORE_STORAGE_PREFIX_LEN (3)
 #define OSCORE_STORAGE_KEY_LEN                                                 \
-  (OSCORE_CTXID_LEN + OSCORE_STORAGE_PREFIX_LEN + 1)
+  (OSCORE_SENDER_ID_LEN + OSCORE_STORAGE_PREFIX_LEN + 1)
 
 #define OSCORE_INFO_MAX_LEN (128)
 #define OSCORE_AAD_MAX_LEN (128)

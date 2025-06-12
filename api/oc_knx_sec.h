@@ -207,8 +207,6 @@ extern "C" {
 	 * - from RAM
 	 * - from storage (file system)
 	 *
-	 *@note will be used in reset of the device
-	 *
 	 */
 	void oc_delete_at_table(void);
 

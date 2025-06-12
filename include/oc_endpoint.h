@@ -103,7 +103,7 @@ extern "C" {
     uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE partial iv */
     uint8_t request_piv_len;              /**< OSCORE partial iv length */
     uint8_t kid_len;
-    uint8_t kid[OSCORE_CTXID_LEN];
+    uint8_t kid[OSCORE_SENDER_ID_LEN];
     uint8_t kid_ctx_len;
     uint8_t kid_ctx[OSCORE_IDCTX_LEN];
   } oc_endpoint_t;

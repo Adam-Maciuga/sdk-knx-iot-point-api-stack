@@ -24,6 +24,7 @@
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "port/dns-sd.h"
+#include "ipadapter.h"
 
 #ifdef OC_IOT_ROUTER
 #include "api/oc_knx_gm.h"
@@ -468,9 +469,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_iid_put_handler received : %lld", rep->value.integer);
-        oc_core_set_device_iid(device_index, rep->value.integer);
-        // make the value persistent
-        oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&rep->value.integer, sizeof(uint64_t));
+        oc_core_set_and_store_device_iid(device_index, rep->value.integer);
 
         // do the run time installation
         if (oc_is_device_in_runtime(device_index))
@@ -1064,10 +1063,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_fid_put_handler received : %lld", rep->value.integer);
-        oc_core_set_device_fid(device_index, rep->value.integer);
-        uint64_t temp = rep->value.integer;
-        oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&temp, sizeof(temp));
-
+        oc_core_set_and_store_device_fid(device_index, rep->value.integer);
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }
@@ -1127,7 +1123,8 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
   if (device != NULL)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 1, device->coap_port);
+    // use actual used port from ip adapter 
+    oc_rep_i_set_int(root, 1, get_ip_context_for_device(0)->port); 
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
@@ -1168,10 +1165,6 @@ static void oc_create_dev_port_resource(int resource_idx, size_t device)
   oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
 }
 
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-
 static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1187,7 +1180,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
   if (device != NULL)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 1, device->multicast_port);
+    oc_rep_i_set_int(root, 1, COAP_DEFAULT_PORT);
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
@@ -1229,24 +1222,6 @@ void oc_create_dev_mport_resource(int resource_idx, size_t device)
   oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
 }
 
-static int oc_core_dump_ap(size_t device_index)
-{
-  // KNX_STORAGE_AP
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device != NULL)
-  {
-    int32_t value = device->ap.major;
-    oc_storage_write(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value));
-    value = device->ap.minor;
-    oc_storage_write(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value));
-    value = device->ap.patch;
-    oc_storage_write(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value));
-    return 0;
-  }
-  return -1;
-}
-
-
 static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1285,26 +1260,21 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
   }
 
   size_t device_index = request->resource->device;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
   oc_rep_t* rep = request->request_payload;
 
   OC_DBG("oc_core_ap_x_put_handler type: %d", rep ? rep->type : OC_REP_NIL);
 
   if (rep != NULL && rep->type == OC_REP_INT_ARRAY)
   {
-    int64_t* arr = oc_int_array(rep->value.array);
+    int64_t* array = oc_int_array(rep->value.array);
     size_t array_size = oc_int_array_size(rep->value.array);
     if (array_size != 3)
     {
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
       return;
     }
-    device->ap.major = (int)arr[0];
-    device->ap.minor = (int)arr[1];
-    device->ap.patch = (int)arr[2];
-
-    // write to persistent storage
-    oc_core_dump_ap(device_index);
+    
+    oc_core_set_and_store_device_application_version(device_index, (int)array[0], (int)array[1], (int)array[1]);
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
     return;
@@ -1527,35 +1497,47 @@ void oc_knx_load_device(size_t device_index)
   }
 
   // read IA from storage (on error = 0xFFFF)
-  uint16_t ia = 0;
+  uint16_t ia;
   device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
   PRINT("ia (storage) %u", ia);
 
   // read iid name from storage (on error = 0)
-  uint64_t iid = 0;
+  uint64_t iid;
   device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
-  PRINT("idd (storage) %llu", device->iid);
+  PRINT("iid (storage) %llu", device->iid);
+
+  // read fid name from storage (on error = 0)
+  uint64_t fid;
+  device->fid = oc_storage_read(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
+  PRINT("fid (storage) %llu", device->fid);
 
   // read prg mode from storage (on error = false)
-  bool pm = false;
+  bool pm;
   device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*)&pm, sizeof(pm)) > 0 ? pm : false;
   PRINT("pm (storage) %d", pm);
 
-  // read host name from storage (on error = '0')
-  char hostname[255] = {0};
-  int temp_size = oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hostname, 255);
-  if (temp_size > 1)
-  {
-    // '0' terminated host name, used from oc_string
-    oc_core_set_device_hostname(device_index, hostname);
-    PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
-  }
+  // read host name from storage (on error = empty string "" else '0' terminated oc_string)
+  char hostname[255] = "";
+  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hostname, 255);
+  oc_core_set_device_hostname(device_index, hostname);
+  PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
 
-  // read major/minor/patch version from storage (on error = '0')
-  int value = 0;
+  // read major/minor/patch version from storage (on error = '0.0.0')
+  int value;
   device->ap.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->ap.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->ap.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  PRINT("app ver (storage) %d.%d.%d", device->ap.major, device->ap.minor, device->ap.patch);
+
+  // read lsm mode from storage (on error = unloaded)
+  oc_lsm_state_t lsm;
+  device->lsm_s = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*)&lsm, sizeof(lsm)) > 0 ? lsm : LSM_S_UNLOADED;
+  PRINT("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm));
+
+  /*
+    - note that the used uc port will be advertised with each mDNS such as on every startup, so no need to store and read here
+    - note that the used mc port for discovery is fixed, so no need to store and read here
+  */
 }
 
 void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
@@ -1576,20 +1558,14 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
   if (reset_mode == RESET_TO_DEFAULT_STATE)
   {
-    // needed as buffer for the storage write call below
-    uint16_t u_port = COAP_DEFAULT_PORT; // unicast communication
-    uint16_t m_port = COAP_DEFAULT_PORT; // multicast communication
-
     // LSM (first to prevent any runtime messaging in/out)
-    oc_a_lsm_set_state(device_index, LSM_S_UNLOADED);
+    oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
 
-    // set the other data to KNX defaults
+    // set to KNX defaults (ports see below)
     device->pm = false;
     device->ia = 0xFFFF;
     device->iid = 0;
     device->fid = 0;
-    device->coap_port = u_port;
-    device->multicast_port = m_port;
 
     // set default host name to device '0' SN
     oc_free_string(&device->hostname);
@@ -1604,15 +1580,15 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_delete_group_mapping_table();
 #endif
 
-    // writing the empty values
-    oc_storage_erase(KNX_STORAGE_IA);
-    oc_storage_erase(KNX_STORAGE_IID);
-    oc_storage_erase(KNX_STORAGE_FID);
-    oc_storage_erase(KNX_STORAGE_PM);
-
-    // writing the default values (default host name = serial number)
-    oc_storage_write(KNX_STORAGE_PORT, (uint8_t*)&u_port, sizeof(device->coap_port));
-    oc_storage_write(KNX_STORAGE_MPORT, (uint8_t*)&m_port, sizeof(device->multicast_port));
+    /*
+       writing all above reset values to storage (LSM already written)
+       - note that the used uc port will be advertised with each mDNS such as on every startup, so no need to store 
+       - note that the used mc port for discovery is fixed, so no need to store 
+    */
+    oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&device->ia, sizeof(device->ia));
+    oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
+    oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
+    oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
     oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->serialnumber), oc_string_len(device->serialnumber));
 
     return;
@@ -1621,7 +1597,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
   if (reset_mode == RESET_TO_DEFAULT_WO_IA)
   {
     // LSM (first to prevent any runtime messaging in/out)
-    oc_a_lsm_set_state(device_index, LSM_S_UNLOADED);
+    oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
 
     // set the ia to KNX defaults
     device->pm = false;
@@ -1634,6 +1610,9 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 #ifdef OC_IOT_ROUTER
     oc_delete_group_mapping_table();
 #endif
+
+    // writing all above reset values to storage (LSM already written)
+    oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
   }
 }
 

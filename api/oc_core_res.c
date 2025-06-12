@@ -49,7 +49,6 @@ static oc_resource_t core_resources[1 + OCF_D * (OC_MAX_NUM_DEVICES - 1)];
 static oc_device_info_t oc_device_info[OC_MAX_NUM_DEVICES];
 #endif 
 
-
 static oc_platform_info_t oc_platform_info; // platform provider     
 static size_t device_count = 0;             // holds the current number of allocated devices 
 
@@ -96,8 +95,7 @@ void oc_core_shutdown(void)
 			oc_core_free_device_info_properties(oc_device_info_item);
 		}
 
-	  //
-		oc_free_knx_fp_resources();
+		oc_free_knx_table_resources();
 		
 
 		#ifdef OC_DYNAMIC_ALLOCATION
@@ -329,14 +327,12 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool tr
 	return total_size;
 }
 
-size_t
-oc_core_get_num_devices(void)
+size_t oc_core_get_num_devices(void)
 {
 	return device_count;
 }
 
-int
-oc_core_set_device_fwv(size_t device_index, int major, int minor, int patch)
+int oc_core_set_device_fwv(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -349,8 +345,7 @@ oc_core_set_device_fwv(size_t device_index, int major, int minor, int patch)
 	return 0;
 }
 
-int
-oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch)
+int oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -364,8 +359,7 @@ oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch)
 	return 0;
 }
 
-int
-oc_core_set_device_apv(size_t device_index, int major, int minor, int patch)
+int oc_core_set_device_apv(size_t device_index, int major, int minor, int patch)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -379,8 +373,7 @@ oc_core_set_device_apv(size_t device_index, int major, int minor, int patch)
 	return 0;
 }
 
-int
-oc_core_set_device_mid(size_t device_index, uint32_t mid)
+int oc_core_set_device_mid(size_t device_index, uint32_t mid)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -391,33 +384,21 @@ oc_core_set_device_mid(size_t device_index, uint32_t mid)
 	return 0;
 }
 
-int oc_core_set_device_ia(size_t device_index, uint16_t ia)
+int oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia)
 {
 	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_device_info[device_index].ia = ia;
-	return 0;
+  {
+    OC_ERR("device_index %d too large", (int)device_index);
+    return -1;
+  }
+
+  oc_device_info[device_index].ia = ia;
+  oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia));
+
+  return 0;
 }
 
-int
-oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia)
-{
-	const int status = oc_core_set_device_ia(device_index, ia);
-
-	// If successful write to storage
-	if (status == 0)
-	{
-		oc_storage_write(KNX_STORAGE_IA, (uint8_t*) &ia, sizeof(ia));
-	}
-
-	return status;
-}
-
-int
-oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
+int oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -428,19 +409,6 @@ oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
 
 	oc_free_string(&oc_device_info[device_index].hwt);
 	oc_new_string(&oc_device_info[device_index].hwt, hardware_type, hwt_len);
-
-	return 0;
-}
-
-int oc_core_set_device_pm(const size_t device_index, const bool pm)
-{
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-
-	oc_device_info[device_index].pm = pm;
 
 	return 0;
 }
@@ -471,22 +439,6 @@ int oc_core_set_device_hostname(const size_t device_index, const char* host_name
 	return 0;
 }
 
-int oc_core_set_device_iid(const size_t device_index, const uint64_t iid)
-{
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_device_info[device_index].iid = iid;
-
-	printf("iid set: ");
-	oc_print_uint64_t(iid, DEC_REPRESENTATION);
-	printf("\n");
-
-	return 0;
-}
-
 uint64_t oc_core_get_device_iid(const size_t device_index)
 {
 	if (device_index >= oc_core_get_num_devices())
@@ -498,21 +450,40 @@ uint64_t oc_core_get_device_iid(const size_t device_index)
 	return oc_device_info[device_index].iid;
 }
 
-int
-oc_core_set_and_store_device_iid(const size_t device_index, uint64_t iid)
+int oc_core_set_and_store_device_iid(size_t device_index, uint64_t iid)
 {
-	const int status = oc_core_set_device_iid(device_index, iid);
+  if (device_index >= oc_core_get_num_devices())
+  {
+    OC_ERR("device_index %d too large", (int)device_index);
+    return -1;
+  }
 
-	// If successful write to storage
-	if (status == 0)
-	{
-		oc_storage_write(KNX_STORAGE_IID, (uint8_t*) &iid, sizeof(iid));
-	}
+  oc_device_info[device_index].iid = iid;
+  oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid));
 
-	return status;
+  return 0;
 }
 
-int oc_core_set_device_fid(size_t device_index, uint64_t fid)
+int oc_core_set_and_store_device_application_version(size_t device_index, int major, int minor, int patch)
+{
+  if (device_index >= oc_core_get_num_devices())
+  {
+    OC_ERR("device_index %d too large", (int)device_index);
+    return -1;
+  }
+
+	oc_device_info[device_index].ap.major = major;
+  oc_device_info[device_index].ap.minor = minor;
+  oc_device_info[device_index].ap.patch = patch;
+
+	oc_storage_write(KNX_STORAGE_AP_MAJOR, (uint8_t*)&major, sizeof(major));
+  oc_storage_write(KNX_STORAGE_AP_MINOR, (uint8_t*)&minor, sizeof(minor));
+  oc_storage_write(KNX_STORAGE_AP_PATCH, (uint8_t*)&patch, sizeof(patch));
+
+  return 0;
+}
+
+int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
@@ -520,6 +491,7 @@ int oc_core_set_device_fid(size_t device_index, uint64_t fid)
 		return -1;
 	}
 	oc_device_info[device_index].fid = fid;
+  oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
 
 	return 0;
 }

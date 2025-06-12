@@ -67,9 +67,9 @@ typedef struct oc_oscore_context_t
   uint8_t token_id[OSCORE_IDCTX_LEN];      // copy of sender id TODO possibly can be removed 
   uint8_t master_secret[OSCORE_IDCTX_LEN]; /**< OSCORE master secret [bytes ]*/
   
-  uint8_t sendid[OSCORE_CTXID_LEN];        /**< SID [bytes] */
+  uint8_t sendid[OSCORE_SENDER_ID_LEN];        /**< SID [bytes] */
   uint8_t sendid_len;                      /** length of SID */
-  uint8_t recvid[OSCORE_CTXID_LEN];        /**< RID [bytes] */
+  uint8_t recvid[OSCORE_SENDER_ID_LEN];        /**< RID [bytes] */
   uint8_t recvid_len;                      /**< length of RID */
   uint64_t ssn;                            /**< sender sequence number */
   uint8_t idctx[OSCORE_IDCTX_LEN];         /**< OSCORE context */
