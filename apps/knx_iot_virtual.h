@@ -83,6 +83,8 @@
 #define HOST_NAME_EITT (SN_LOWER_CASE_EITT) // default host name (reset uses SN_LOWER_CASE as default)
 #define QRCODE_ETS6_EITT "KNX:S:00FA10020800;P:2X4W3TE0DFLLS19Y1FCH"
 #define MID_EITT (667) // same as eitt test template
+#define HW_TYPE_EITT "Windows" // 12 string chars, same as eitt test template
+#define DEV_MODEL_EITT "KNX Certification" // same as eitt test template
 
 // define URL Parameter Page/ Test Parameter (same as eitt test template)
 #define _0_url_value_eitt "/p/p1"

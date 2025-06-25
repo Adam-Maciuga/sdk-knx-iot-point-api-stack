@@ -778,12 +778,14 @@ extern "C"
    *
    * @param[in] resource the resource
    * @param[in] method the requesters method for a specific resource callback
-   *	@param[in/out] scopes the method scope, if of no interest NULL
-   *	@param[in/out] interfaces the method interface, if of no interest NULL
+   *	@param[in/out] scopes the method scope(s), if of no interest NULL
+   *	@param[in/out] interfaces the method interface(s), if of no interest NULL
    *
    * @return
-   * - true if resource and resource method are defined (scope and interface are set accordingly)
-   * - false otherwise (scope and interface are not touched)
+   * - true if resource and resource method are defined (scopes and interfaces are set accordingly)
+   * - false otherwise (scopes and interfaces are not touched)
+   *
+   * @note scopes and interfaces should not both be NULL - useless call
    */
   bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes,
                                               oc_interface_mask_t* interfaces);
@@ -920,8 +922,8 @@ extern "C"
    *
    * @param[in] request the oc_request_t that contains the query parameters
    * @param[in] key the key being searched for
-   * @param[out] value pointer to the value string for to the key=value pair
-   * @param[out] value_len the length of the value string
+   * @param[out] value pointer to the value string from the key=value pair
+   * @param[out] value_len length of the value string
    *
    * @return True if there are more query parameters to iterate through
    */

@@ -37,7 +37,7 @@ void oc_oscore_free_lru_recipient_context(void)
 
   while (ctx != NULL)
   {
-    if (ctx->sendid_len == 0 && ctx->last_used < lru_ctx->last_used)
+    if (ctx->sender_id_len == 0 && ctx->last_used < lru_ctx->last_used)
       lru_ctx = ctx;
 
     ctx = ctx->next;
@@ -63,10 +63,10 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, siz
 
   while (ctx != NULL)
   {
-    PRINT("---> recvid:");
-    oc_char_println_hex((char*) (ctx->recvid), ctx->recvid_len);
+    PRINT("---> recipient_id:");
+    oc_char_println_hex((char*) (ctx->recipient_id), ctx->recipient_id_len);
 
-    if (kid_len == ctx->recvid_len && memcmp(kid, ctx->recvid, kid_len) == 0)
+    if (kid_len == ctx->recipient_id_len && memcmp(kid, ctx->recipient_id, kid_len) == 0)
     {
       PRINT("oc_oscore_find_context_by_kid FOUND  auth/at index: %d",
             ctx->auth_at_index);
@@ -99,13 +99,13 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_idctx(oc_oscore_context_t* ct
   {
     // scanning device context list 
     PRINT("---> scanning oscore context list (rcv) id:");
-    oc_char_println_hex(ctx->recvid_len == 0 ? "empty ...": (char*) ctx->recvid, ctx->recvid_len);
+    oc_char_println_hex(ctx->recipient_id_len == 0 ? "empty ...": (char*) ctx->recipient_id, ctx->recipient_id_len);
 
     // received frame kid (Sender ID) and kid context(ID Context) must both match in size and value to an oscore context 
-    if (kid_len == ctx->recvid_len
-        && memcmp(kid, ctx->recvid, kid_len) == 0 
-        && kid_ctx_len == ctx->idctx_len 
-        && memcmp(kid_ctx, ctx->idctx, kid_ctx_len) == 0)
+    if (kid_len == ctx->recipient_id_len
+        && memcmp(kid, ctx->recipient_id, kid_len) == 0 
+        && kid_ctx_len == ctx->id_context_len 
+        && memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0)
     {
 
       PRINT("find context - found auth/at index: %d",ctx->auth_at_index);
@@ -187,7 +187,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
 
   while (ctx)
   {
-    if (memcmp(oscore_id, ctx->sendid, oscore_id_len) == 0)
+    if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0)
     {
       PRINT("oc_oscore_find_context_by_token_mid FOUND auth/at index: %d", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
@@ -236,7 +236,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t
       PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index: %d",
             ctx->auth_at_index);
       OC_DBG_OSCORE("    Common IV:");
-      OC_LOGbytes_OSCORE(ctx->commoniv, OSCORE_COMMON_IV_LEN);
+      OC_LOGbytes_OSCORE(ctx->common_iv, OSCORE_COMMON_IV_LEN);
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -246,22 +246,30 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t
   return ctx;
 }
 
+// find access token for a given group address
 oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address)
 {
+  // get first context of list
   oc_oscore_context_t* ctx = oc_list_head(contexts);
 
   while (ctx)
   {
+    // find AT for context that hosts the GA
     const oc_auth_at_t* my_entry = oc_get_auth_at_entry(ctx->auth_at_index);
     if (my_entry)
     {
+      // debugging 
       oc_print_auth_at_entry(ctx->auth_at_index);
+
       for (int i = 0; i < my_entry->ga_len; i++)
       {
         const uint32_t group_value = my_entry->ga[i];
-        PRINT("oc_oscore_find_context_by_group_address : find: %u value: %u", group_address, group_value);
+        
         if (group_address == group_value)
         {
+          PRINT("found access token for GA %u", group_address);
+
+          // refresh time of last use
           ctx->last_used = oc_clock_time();
           return ctx;
         }
@@ -275,7 +283,9 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
 
 void oc_oscore_free_all_contexts(void)
 {
+  // get first context of list
   oc_oscore_context_t* ctx = oc_list_head(contexts);
+
   while (ctx)
   {
     // tmp copy of next (if released its gone)
@@ -290,14 +300,15 @@ void oc_oscore_free_all_contexts(void)
 
 void oc_oscore_free_sender_contexts(void)
 {
+  // get first context of list
   oc_oscore_context_t* ctx = oc_list_head(contexts);
   while (ctx)
   {
     // tmp copy of next (if released its gone)
     oc_oscore_context_t* next = ctx->next;
 
-    //
-    if (ctx->recvid_len == 0)
+    // release if context is not used as a "recipient" context
+    if (ctx->recipient_id_len == 0)
       oc_oscore_free_context(ctx);
     // restore next ptr
     ctx = next;
@@ -306,13 +317,19 @@ void oc_oscore_free_sender_contexts(void)
 
 void oc_oscore_free_contexts_at_id(int auth_at_index)
 {
+  // get first context of list
   oc_oscore_context_t* ctx = oc_list_head(contexts);
-  while (ctx != NULL)
+
+  while (ctx)
   {
-    oc_oscore_context_t* next = ctx->next;  // get temp copy
+    // get temp copy
+    oc_oscore_context_t* next = ctx->next;  
+
     if (ctx->auth_at_index == auth_at_index)
       oc_oscore_free_context(ctx);
-    ctx = next; // use tmp copy , original may be NULL
+
+    // use tmp copy, original may be NULL if released beforehand
+    ctx = next; 
   }
 }
 
@@ -322,6 +339,7 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
   {
     // removes entry fom linked list
     oc_list_remove(contexts, ctx);
+    // use global variable for the removal
     oc_memb_free(&ctx_s, ctx);
   }
 }
@@ -356,7 +374,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     goto add_oscore_context_error;
   }
 
-  if (senderid_size > OSCORE_SENDER_ID_LEN) // TODO rename to sender id len
+  if (senderid_size > OSCORE_SENDER_ID_LEN)
   {
     OC_ERR("sender id size > %d = %d", OSCORE_SENDER_ID_LEN, senderid_size);
     goto add_oscore_context_error;
@@ -368,10 +386,9 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     goto add_oscore_context_error;
   }
 
-  // TODO rename to ctx_id_size 
-  if (osc_ctx_size > OSCORE_IDCTX_LEN) // TODO ID Context len 
+  if (osc_ctx_size > OSCORE_ID_CONTEXT_LEN) 
   {
-    OC_ERR("osc ctx size > %d = %d", OSCORE_IDCTX_LEN, osc_ctx_size);
+    OC_ERR("osc ctx size > %d = %d", OSCORE_ID_CONTEXT_LEN, osc_ctx_size);
     goto add_oscore_context_error;
   }
 
@@ -393,22 +410,22 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
   if (senderid && senderid_size > 0)
   {
     // set sender id to value from cnf:osc:id (can be the own sending GA, SN (from device, written by MaC ETS)
-    memcpy(ctx->sendid, senderid, senderid_size);
-    ctx->sendid_len = (uint8_t)senderid_size;
+    memcpy(ctx->sender_id, senderid, senderid_size);
+    ctx->sender_id_len = (uint8_t)senderid_size;
     // TODO use case ???
     memcpy(ctx->token_id, senderid, senderid_size); 
   }
 
   if (recipientid && recipientid_size > 0)
   {
-    memcpy(ctx->recvid, recipientid, recipientid_size);
-    ctx->recvid_len = (uint8_t)recipientid_size;
+    memcpy(ctx->recipient_id, recipientid, recipientid_size);
+    ctx->recipient_id_len = (uint8_t)recipientid_size;
   }
 
   if (osc_ctx && osc_ctx_size > 0)
   {
-    memcpy(ctx->idctx, osc_ctx, osc_ctx_size);
-    ctx->idctx_len = (uint8_t) osc_ctx_size;
+    memcpy(ctx->id_context, osc_ctx, osc_ctx_size);
+    ctx->id_context_len = (uint8_t)osc_ctx_size;
   }
   
   if (mastersecret)
@@ -417,20 +434,19 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
   }
 
   PRINT("Index         : (%2d)  = ", auth_at_index);
-  PRINT("Sender ID     : (%2d)  = ", ctx->sendid_len); OC_LOGbytes_OSCORE(ctx->sendid, ctx->sendid_len);
-  PRINT("Recipient ID  : (%2d)  = ", ctx->recvid_len); OC_LOGbytes_OSCORE(ctx->recvid, ctx->recvid_len);
-  PRINT("ID Context    : (%2d)  = ", ctx->idctx_len);  OC_LOGbytes_OSCORE(ctx->idctx, ctx->idctx_len);
+  PRINT("Sender ID     : (%2d)  = ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
+  PRINT("Recipient ID  : (%2d)  = ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
+  PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
   PRINT("Master Secret : (%2d)  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
   PRINT("Salt          : (%2d)  = ", salt_size);  oc_char_println_hex(salt, salt_size);
   PRINT("SSN           : (%2llu)= ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
-    ctx->sendid, ctx->sendid_len,
-    ctx->idctx, ctx->idctx_len,
+    ctx->sender_id, ctx->sender_id_len, ctx->id_context, ctx->id_context_len,
     "Key",
     (uint8_t*) mastersecret, mastersecret_size,
     (uint8_t*) salt, salt_size,
-    ctx->sendkey, OSCORE_KEY_LEN) < 0)
+    ctx->sender_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Sender Key ...");
     goto add_oscore_context_error;
@@ -438,12 +454,12 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
   
 
   if (oc_oscore_context_derive_param(
-    ctx->recvid, ctx->recvid_len, 
-    ctx->idctx, ctx->idctx_len,
+    ctx->recipient_id, ctx->recipient_id_len, 
+    ctx->id_context, ctx->id_context_len,
     "Key",
     (uint8_t*) mastersecret, mastersecret_size,
     (uint8_t*) salt, salt_size,
-    ctx->recvkey, OSCORE_KEY_LEN) < 0)
+    ctx->recipient_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Recipient Key ...");
     goto add_oscore_context_error;
@@ -451,19 +467,19 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
 
   if (oc_oscore_context_derive_param(
     NULL, 0,
-    ctx->idctx, ctx->idctx_len,
+    ctx->id_context, ctx->id_context_len,
     "IV",
     (uint8_t*) mastersecret, mastersecret_size,
     (uint8_t*) salt, salt_size,
-    ctx->commoniv, OSCORE_COMMON_IV_LEN) < 0)
+    ctx->common_iv, OSCORE_COMMON_IV_LEN) < 0)
   {
     OC_ERR("*** error deriving Common IV ###");
     goto add_oscore_context_error;
   }
 
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Sender Key    : ", ctx->sendkey));
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Recipient Key : ", ctx->recvkey));
-  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV     : ", ctx->commoniv));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Sender Key    : ", ctx->sender_key));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Recipient Key : ", ctx->recipient_key));
+  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV     : ", ctx->common_iv));
 
   oc_list_add(contexts, ctx);
 

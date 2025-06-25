@@ -165,7 +165,7 @@ extern "C" {
 		uint8_t oscore_flags;
 		uint8_t piv[OSCORE_PIV_LEN];
 		uint8_t piv_len;
-		uint8_t kid_ctx[OSCORE_IDCTX_LEN];
+		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN];
 		uint8_t kid_ctx_len;
 		uint8_t kid[OSCORE_SENDER_ID_LEN];
 		uint8_t kid_len;

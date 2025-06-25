@@ -62,24 +62,24 @@ typedef struct oc_rwin_t
  */
 typedef struct oc_oscore_context_t
 {
-  struct oc_oscore_context_t *next;        // pointer to the next, NULL if there is not any
-  int auth_at_index;                       // access token which is used to decrypt a received message as index of the auth AT table + 1, so index = 0 is invalid 
-  uint8_t token_id[OSCORE_IDCTX_LEN];      // copy of sender id TODO possibly can be removed 
-  uint8_t master_secret[OSCORE_IDCTX_LEN]; /**< OSCORE master secret [bytes ]*/
+  struct oc_oscore_context_t *next;             // pointer to the next, NULL if there is not any
+  int auth_at_index;                            // access token which is used to decrypt a received message as index of the auth AT table + 1, so index = 0 is invalid 
+  uint8_t token_id[OSCORE_ID_CONTEXT_LEN];      // copy of sender id TODO possibly can be removed 
+  uint8_t master_secret[OSCORE_ID_CONTEXT_LEN]; // OSCORE master secret
   
-  uint8_t sendid[OSCORE_SENDER_ID_LEN];        /**< SID [bytes] */
-  uint8_t sendid_len;                      /** length of SID */
-  uint8_t recvid[OSCORE_SENDER_ID_LEN];        /**< RID [bytes] */
-  uint8_t recvid_len;                      /**< length of RID */
-  uint64_t ssn;                            /**< sender sequence number */
-  uint8_t idctx[OSCORE_IDCTX_LEN];         /**< OSCORE context */
-  uint8_t idctx_len;                       /**< length of OSCORE context */
+  uint8_t sender_id[OSCORE_SENDER_ID_LEN];      // OSCORE Sender ID
+  uint8_t sender_id_len;                        // length
+  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];   // OSCORE Recipient ID
+  uint8_t recipient_id_len;                     // length
+  uint64_t ssn;                                 // sender sequence number
+  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];    // OSCORE ID Context
+  uint8_t id_context_len;                       // length
 
   // derived parameters
-  uint8_t sendkey[OSCORE_KEY_LEN]; // 128-bit sender key 
-  uint8_t recvkey[OSCORE_KEY_LEN]; // 128-bit recipient key
-  uint8_t commoniv[OSCORE_COMMON_IV_LEN]; // Common IV
-  oc_clock_time_t last_used; // Time of last use, for runtime caching of recipient contexts
+  uint8_t sender_key[OSCORE_KEY_LEN];           // 128-bit sender key 
+  uint8_t recipient_key[OSCORE_KEY_LEN];        // 128-bit recipient key
+  uint8_t common_iv[OSCORE_COMMON_IV_LEN];      // Common IV
+  oc_clock_time_t last_used;                    // Time of last use, for runtime caching of recipient contexts
 } oc_oscore_context_t;
 
 /**
@@ -112,7 +112,7 @@ int oc_oscore_context_derive_param(const uint8_t *id, uint8_t id_len,
 void oc_oscore_free_context(oc_oscore_context_t *ctx);
 
 /**
- * @brief free all OSCORE contexts
+ * @brief free all OSCORE sender and recipient contexts
  *
  */
 void oc_oscore_free_all_contexts(void);
@@ -120,12 +120,15 @@ void oc_oscore_free_all_contexts(void);
 /**
  * @brief free all OSCORE sender contexts
  *
+ * @note sender context is released only if recipient context is not used
+ *
  */
 void oc_oscore_free_sender_contexts(void);
 
 /**
- * @brief Free OSCORE context information with a given auth_at index and removes
- * the entry from the linked list of OSCORE context information entries.
+ * @brief Free OSCORE context information with a given auth_at index
+ *        and removes the entry from the linked list of OSCORE context
+ *        information entries.
  *
  * @note deletes all security context that are referring to the given at token
  *

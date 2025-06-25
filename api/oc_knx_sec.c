@@ -1005,6 +1005,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 {
   (void)data;
   (void)iface_mask;
+  const char* value;
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1012,26 +1013,29 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   }
   PRINT("oc_core_auth_at_x_get_handler - start");
 
-  // - find the id from the URL
-  const char* value;
+  // find the id part from the invoked URL auth/at/xyz...123
   int value_len =
-    oc_uri_get_wildcard_value_as_string(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                        request->uri_path, request->uri_path_len, &value);
-  // no index found
+    oc_uri_get_wildcard_value_as_string(
+      oc_string(request->resource->uri), oc_string_len(request->resource->uri),
+      request->uri_path, request->uri_path_len, 
+      &value);
+
+  // no access token string found
   if (value_len <= 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("index (at) not found");
+    PRINT("AT string not found");
     return;
   }
+
   PRINT("id = %.*s", value_len, value);
 
-  // get the index
+  // get the AT index from access string token 
   int index = find_index_from_at_string(value, value_len);
   if (index < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("index in structure not found");
+    PRINT("AT index not found");
     return;
   }
 
@@ -1058,13 +1062,13 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
     const unsigned int nr_entries = oc_count_total_scopes_in_mask(g_at_entries[index].scope);
     if (nr_entries > 0)
     {
+      PRINT("%u scope entries", nr_entries);
+
       // scope list
       oc_string_array_t scopes;
+
       oc_new_string_array(&scopes, nr_entries);
-
       oc_put_scopes_from_mask_in_string_array(g_at_entries[index].scope, scopes);
-      PRINT("%u entries in cflags", nr_entries);
-
       oc_rep_i_set_string_array(root, 9, scopes);
 
       oc_free_string_array(&scopes);
@@ -1083,20 +1087,23 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 
     if (oc_string_len(g_at_entries[index].osc_ms) > 0)
     {
-      oc_rep_i_set_byte_string(osc, 2, oc_string(g_at_entries[index].osc_ms),
-                               oc_byte_string_len(g_at_entries[index].osc_ms)); // root::cnf::osc::ms
+      // root::cnf::osc::ms
+      oc_rep_i_set_byte_string(osc, 2, oc_byte_string(g_at_entries[index].osc_ms),
+                               oc_byte_string_len(g_at_entries[index].osc_ms)); 
     }
 
     if (oc_string_len(g_at_entries[index].osc_contextid) > 0)
     {
-      oc_rep_i_set_byte_string(osc, 6, oc_string(g_at_entries[index].osc_contextid),
-                               oc_byte_string_len(g_at_entries[index].osc_contextid)); // root::cnf::osc::contextid
+      // root::cnf::osc::contextid
+      oc_rep_i_set_byte_string(osc, 6, oc_byte_string(g_at_entries[index].osc_contextid),
+                               oc_byte_string_len(g_at_entries[index].osc_contextid)); 
     }
 
     if (oc_string_len(g_at_entries[index].osc_id) > 0)
     {
-      oc_rep_i_set_byte_string(osc, 0, oc_string(g_at_entries[index].osc_id),
-                               oc_byte_string_len(g_at_entries[index].osc_id)); // root::cnf::osc::osc_id
+      // root::cnf::osc::osc_id
+      oc_rep_i_set_byte_string(osc, 0, oc_byte_string(g_at_entries[index].osc_id),
+                               oc_byte_string_len(g_at_entries[index].osc_id)); 
     }
 
     cbor_encoder_close_container_checked(&cnf_map, &osc_map);
@@ -1113,7 +1120,6 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 {
   (void)data;
   (void)iface_mask;
-
   const char* value;
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
@@ -1122,30 +1128,32 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   }
   PRINT("oc_core_auth_at_x_delete_handler - start");
 
-  // find the id from the URL
-  int value_len =
-    oc_uri_get_wildcard_value_as_string(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                        request->uri_path, request->uri_path_len, &value);
-  // index not found
+  // find the id part from the invoked URL auth/at/xyz...123
+  int value_len = oc_uri_get_wildcard_value_as_string(
+    oc_string(request->resource->uri), oc_string_len(request->resource->uri),
+    request->uri_path, request->uri_path_len, 
+    &value);
+
+  // no access token string found
   if (value_len <= 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("index (at) not found");
+    PRINT("AT string not found");
     return;
   }
   PRINT("id = %.*s", value_len, value);
 
-  // get the index
+  // get the AT index from access string token 
   int index = find_index_from_at_string(value, value_len);
 
   if (index < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("oc_core_auth_at_x_delete_handler: index in structure not found");
+    PRINT("AT index not found");
     return;
   }
 
-  PRINT("delete index");
+  PRINT("delete AT table index");
   oc_delete_at_table_entry(index);
 
 #ifdef OC_OSCORE
@@ -1864,7 +1872,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 #ifdef OC_OSCORE
 
   OC_DBG_OSCORE("... activating OSCORE credentials");
-  OC_DBG_OSCORE("... removing all present OSCORE contexts");
+  OC_DBG_OSCORE("... removing all present OSCORE sender contexts");
+
   oc_oscore_free_sender_contexts();
 
   OC_DBG_OSCORE("... adding OSCORE contexts from AT table");
@@ -1879,18 +1888,20 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
         // TODO read ssn from storage and pass to add ctx below 
 
-        // CLIENT SIDE for request: create oscore REQUEST sender context + RESPONSE recipient context from that entry
+        // REQUEST CLIENT SIDE
+        // create oscore REQUEST sender context
+        // create oscore RESPONSE recipient context
         OC_DBG_OSCORE("... client for outgoing request: adding oscore REQUEST sender context + RESPONSE recipient context with Sender ID : ");
         oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
 
         oc_oscore_context_t* ctx = oc_oscore_add_context(
-          oc_string(g_at_entries[i].osc_id),
-          oc_byte_string_len(g_at_entries[i].osc_id), "",
-          0, 0, 
-          oc_string(g_at_entries[i].osc_ms),
-          oc_byte_string_len(g_at_entries[i].osc_ms), oc_string(g_at_entries[i].osc_salt),
-          oc_byte_string_len(g_at_entries[i].osc_salt), oc_string(g_at_entries[i].osc_contextid),
-          oc_byte_string_len(g_at_entries[i].osc_contextid), i,
+          oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
+          "", 0, 
+          0, 
+          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms), 
+          oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
+          oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
+          i,
           read_ssn_from_storage);
 
         if (ctx == NULL)

@@ -181,14 +181,20 @@ bool oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
 {
 	(void) device_index;
 
+	// note, matches also when 'rt' key is not part of request query parameter
 	if (!oc_filter_resource_by_rt(resource, request))
 	{
-		return false;
+		// key 'rt' is part of query, but value was not found,
+		// leave since any chain of additional query parameters will never match (and-ed!)
+	  return false;
 	}
 
+	// note, matches also when 'if' key is not part of request query parameter
 	if (!oc_filter_resource_by_if(resource, request))
 	{
-		return false;
+    // key 'if' is part of query, but value was not found,
+    // leave since any chain of additional query parameters will never match (and-ed!)
+	  return false;
 	}
 
 	if (!(resource->properties & OC_DISCOVERABLE))
@@ -205,7 +211,7 @@ bool oc_filter_resource(const oc_resource_t* resource, oc_request_t* request,
 	// 'urn:knx' truncation expected? | 'urn:knx' part is present?  | will be cut?
 	// y                              | don't care                  | y  (request belongs to a KNX EP, cut it always)
 	// n (used only on wk request)    | y                           | y  (requester was using urn:knx, so cut it)
-	// n (used only on wk request)    | n                           | n  (requester wasd NOT using of urn:knx, so put it in)
+	// n (used only on wk request)    | n                           | n  (requester was NOT using urn:knx, so put it in)
 
 	if (!truncate)
 	{

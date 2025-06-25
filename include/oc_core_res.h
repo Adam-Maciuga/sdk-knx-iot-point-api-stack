@@ -348,28 +348,42 @@ extern "C" {
 	bool oc_check_request_query_value_on_urn_knx(oc_request_t* request);
 
 	/**
-	 * @brief filter if the query parameters of the request contains the resource
-	 * (determined by resource type "rt")
-	 * including wild carts
-	 *
-	 * @param resource the resource to look for
-	 * @param request the request to scan
-	 * @return true resource type (or wild card) is in the request
-	 * @return false resource type is not in the request
-	 */
+   * @brief filter if the query parameter key 'rt' is part of the request
+   *        and if the value is contained in a resource (including wildcards)
+   *
+   * @param resource the resource to look for
+   * @param request the request to scan
+   *
+   * @return true
+   * - key 'rt' is present and resource interface type DO match the value from the request
+   * - key 'rt' is present and the value from the request is a '*' wildcard (at least one type must be assigned to a resource)
+   * - key 'rt' is NOT present
+   * @return false
+   * - key 'if' is present and resource interface type DO NOT match the value from the request
+   *
+   * @note according to RFC 6690 a value may contain more than one string to search for (separated by spaces) 
+   *
+   */
 	bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request);
 
 	/**
-	 * @brief filter if the query parameters of the request contains the resource
-	 * (determined by resource type "if")
-	 * including wild carts
+	 * @brief filter if the query parameter key 'if' is part of the request
+   *        and if the value is contained in a resource (including wildcards)
 	 *
 	 * @param resource the resource to look for
 	 * @param request the request to scan
-	 * @return true interface type of the resource is in the request
-	 * @return false interface type of the resource is not in the request
+	 *
+	 * @return true
+	 * - key 'if' is present and resource interface type DO match the value from the request 
+	 * - key 'if' is present and the value from the request is a '*' wildcard (at least one type must be assigned to a resource)
+	 * - key 'if' is NOT present
+	 * @return false
+	 * - key 'if' is present and resource interface type DO NOT match the value from the request
+	 *
+	 * @note according to RFC 6690 a value may contain more than one string to search for (separated by spaces) 
+	 * 
 	 */
-	bool oc_filter_resource_by_if(oc_resource_t* resource, oc_request_t* request);
+  bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief frame the interface mask in the response, as string in the uri

@@ -105,7 +105,7 @@ extern "C" {
     uint8_t kid_len;
     uint8_t kid[OSCORE_SENDER_ID_LEN];
     uint8_t kid_ctx_len;
-    uint8_t kid_ctx[OSCORE_IDCTX_LEN];
+    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN];
   } oc_endpoint_t;
 
 #define oc_make_ipv4_endpoint(__name__, __flags__, __port__, ...)              \

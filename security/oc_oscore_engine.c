@@ -41,28 +41,37 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   /*
    store current SSN with frequency OSCORE_WRITE_FREQ_K,
    based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse
-
   */
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   {
 
-    // TODO Sender ID + ID Context must be used --> in hex encoded ascii
-    // max 10 from client 
+    // TODO Sender OR Recipient ID + ID Context must be used
+    // in hex encoded ascii
+    // ID Context may be empty 
 
-    // save ssn to storage, using Sender ID as part of the key
-    uint8_t key_buf[OSCORE_STORAGE_KEY_LEN];
+    // save ssn per (hex) sender id and (hex) id context as storage name 'ssn+id+context'
+    char storage_name[OSCORE_STORAGE_KEY_LEN] = {OSCORE_STORAGE_PREFIX};
+    size_t storage_name_len;
 
-    // create storage name 'ssn+sender_id'
-    memcpy(key_buf, OSCORE_STORAGE_PREFIX, OSCORE_STORAGE_PREFIX_LEN);
+    // claim that buffer is big enough
+    storage_name_len = sizeof(storage_name);
+    // add 'id'
+    oc_conv_byte_array_to_hex_string(ctx->sender_id, 
+                                     ctx->sender_id_len,
+                                     storage_name + (int)OSCORE_STORAGE_PREFIX_LEN, 
+                                     &storage_name_len);
 
-    // add storage name 'Sender ID' as ascii coded values 
-    memcpy(key_buf + OSCORE_STORAGE_PREFIX_LEN, ctx->sendid, ctx->sendid_len);
+    // claim that buffer is big enough 
+    storage_name_len = sizeof(storage_name);
+    // add 'context'
+    oc_conv_byte_array_to_hex_string(ctx->id_context, 
+                                     ctx->id_context_len,
+                                     storage_name + (int)(OSCORE_STORAGE_PREFIX_LEN + OSCORE_SENDER_ID_LEN * 2), 
+                                     &storage_name_len);
 
-    // add string termination 
-    key_buf[OSCORE_STORAGE_KEY_LEN - 1] = '\0';
 
     #ifdef OC_USE_STORAGE
-    oc_storage_write(key_buf, (uint8_t*)&ctx->ssn, sizeof(ctx->ssn));
+    oc_storage_write(storage_name, (uint8_t*)&ctx->ssn, sizeof(ctx->ssn));
     #endif
   }
 }
@@ -88,19 +97,19 @@ static int oc_oscore_receive_message(oc_message_t* message)
    *   If OSCORE context is nil, return error
    *   If unicast message protected using group OSCORE context, silently ignore
    *   Copy subjectuuid of OSCORE cred entry into oc_message_t->endpoint
-   *   Set context->recvkey as the decryption key
+   *   Set context->recipient_key as the decryption key
    *   If received partial IV:
    *     If message is request:
    *       Check if replayed request and discard
-   *       Compose AAD using received piv and context->recvid
+   *       Compose AAD using received piv and context->recipient_id
    *     Copy received piv into oc_message_t->endpoint
-   *     Compute nonce using received piv and context->recvid
+   *     Compute nonce using received piv and context->recipient_id
    *   If message is response:
    *     if oc_message_t->endpoint.piv is 0:
    *       Copy request_piv from client cb/transaction into
    oc_message_t->endpoint
-   *       Compute nonce using request_piv and sendid
-   *     Compose AAD using request_piv and sendid
+   *       Compute nonce using request_piv and sender_id
+   *     Compose AAD using request_piv and sender_id
    *   Decrypt OSCORE payload
    *   Parse inner/protected CoAP options/payload
    *   If non-UPDATE mcast message protected using OSCORE group context,
@@ -253,7 +262,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
 
     /* Use recipient key for decryption */
-    key = oscore_ctx->recvkey;
+    key = oscore_ctx->recipient_key;
     //}
 
     /* If received Partial IV in message */
@@ -264,8 +273,8 @@ static int oc_oscore_receive_message(oc_message_t* message)
       {
         uint64_t piv = 0;
         oscore_read_piv(oscore_pkt->piv, oscore_pkt->piv_len, &piv);
-        /* Compose AAD using received piv and context->recvid */
-        oc_oscore_compose_AAD(oscore_ctx->recvid, oscore_ctx->recvid_len, oscore_pkt->piv, oscore_pkt->piv_len, AAD,
+        /* Compose AAD using received piv and context->recipient_id */
+        oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, oscore_pkt->piv, oscore_pkt->piv_len, AAD,
                               &AAD_len);
         OC_DBG_OSCORE("--- composed AAD using received Partial IV and Recipient ID");
         OC_LOGbytes_OSCORE(AAD, AAD_len);
@@ -282,9 +291,9 @@ static int oc_oscore_receive_message(oc_message_t* message)
         OC_DBG_OSCORE("--- caching PIV for later use...");
       }
 
-      /* Compute nonce using received piv and context->recvid */
-      oc_oscore_AEAD_nonce(oscore_ctx->recvid, oscore_ctx->recvid_len, oscore_pkt->piv, oscore_pkt->piv_len,
-                           oscore_ctx->commoniv, nonce, OSCORE_AEAD_NONCE_LEN);
+      /* Compute nonce using received piv and context->recipient_id */
+      oc_oscore_AEAD_nonce(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, oscore_pkt->piv, oscore_pkt->piv_len,
+                           oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
       OC_DBG_OSCORE("--- computed AEAD nonce using received Partial IV and Recipient ID");
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
@@ -311,16 +320,16 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
       if (oscore_pkt->piv_len == 0)
       {
-        /* Compute nonce using request_piv and context->sendid */
-        oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, request_piv, request_piv_len, oscore_ctx->commoniv,
+        /* Compute nonce using request_piv and context->sender_id */
+        oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, request_piv, request_piv_len, oscore_ctx->common_iv,
                              nonce, OSCORE_AEAD_NONCE_LEN);
 
         OC_DBG_OSCORE("---use AEAD nonce from request");
         OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
       }
 
-      /* Compose AAD using request_piv and context->sendid */
-      oc_oscore_compose_AAD(oscore_ctx->sendid, oscore_ctx->sendid_len, request_piv, request_piv_len, AAD, &AAD_len);
+      /* Compose AAD using request_piv and context->sender_id */
+      oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, request_piv, request_piv_len, AAD, &AAD_len);
 
       OC_DBG_OSCORE("---composed AAD using request_piv and Sender ID");
       OC_LOGbytes_OSCORE(AAD, AAD_len);
@@ -428,13 +437,13 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
    * ----------------------------------------
    * Search for group OSCORE context
    * If found OSCORE context:
-   *   Set context->sendkey as the encryption key
+   *   Set context->sender_key as the encryption key
    *   Parse CoAP message
    *   If parse unsuccessful, return error
    *   Use context->SSN as partial IV
-   *   Use context-sendid as kid
-   *   Compute nonce using partial IV and context->sendid
-   *   Compute AAD using partial IV and context->sendid
+   *   Use context-sender_id as kid
+   *   Compute nonce using partial IV and context->sender_id
+   *   Compute AAD using partial IV and context->sender_id
    *   Make room for inner options and payload by moving CoAP payload to offset
    *    2 * COAP_MAX_HEADER_SIZE
    *   Serialize OSCORE plain text at offset COAP_MAX_HEADER_SIZE
@@ -461,7 +470,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     OC_DBG_OSCORE("found group OSCORE context for GA %u", group_address);
 
     /* Use sender key for encryption */
-    uint8_t* key = oscore_ctx->sendkey;
+    uint8_t* key = oscore_ctx->sender_key;
 
     OC_DBG_OSCORE("### parse CoAP message ###");
     /* Parse CoAP message */
@@ -476,12 +485,14 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
 
     OC_DBG_OSCORE("### parsed CoAP message ###");
 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, nonce[OSCORE_AEAD_NONCE_LEN],
-                                 AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0,
+            kid[OSCORE_SENDER_ID_LEN], kid_len = 0,
+            nonce[OSCORE_AEAD_NONCE_LEN],
+            AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
 
     OC_DBG_OSCORE("### protecting multicast request ###");
 
-    /* Use context->SSN as Partial IV */
+    // use SSN as Partial IV
     oscore_store_piv(oscore_ctx->ssn, piv, &piv_len);
     // OC_DBG_OSCORE("---using SSN as Partial IV: %lu", oscore_ctx->ssn);
     OC_LOGbytes_OSCORE(piv, piv_len);
@@ -489,19 +500,19 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     /* Increment SSN */
     increment_ssn_in_context(oscore_ctx);
 
-    /* Use context-sendid as kid */
-    memcpy(kid, oscore_ctx->sendid, oscore_ctx->sendid_len);
-    kid_len = oscore_ctx->sendid_len;
+    /* Use context-sender_id as kid */
+    memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    kid_len = oscore_ctx->sender_id_len;
 
-    /* Compute nonce using partial IV and context->sendid */
-    oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, piv, piv_len, oscore_ctx->commoniv, nonce,
+    /* Compute nonce using partial IV and context->sender_id */
+    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
                          OSCORE_AEAD_NONCE_LEN);
 
     OC_DBG_OSCORE("---computed AEAD nonce using Partial IV (SSN) and Sender ID");
     OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 
-    /* Compose AAD using partial IV and context->sendid */
-    oc_oscore_compose_AAD(oscore_ctx->sendid, oscore_ctx->sendid_len, piv, piv_len, AAD, &AAD_len);
+    /* Compose AAD using partial IV and context->sender_id */
+    oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, AAD, &AAD_len);
     OC_DBG_OSCORE("---composed AAD using Partial IV (SSN) and Sender ID");
     OC_LOGbytes_OSCORE(AAD, AAD_len);
 
@@ -553,8 +564,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     /* Wireshark fix - include the context ID on the wire as well */
     /* otherwise cannot decode OSCORE messages that use implicit ID contexts */
     uint8_t idctx[16], idctx_len;
-    memcpy(idctx, oscore_ctx->idctx, oscore_ctx->idctx_len);
-    idctx_len = oscore_ctx->idctx_len;
+    memcpy(idctx, oscore_ctx->id_context, oscore_ctx->id_context_len);
+    idctx_len = oscore_ctx->id_context_len;
 
     /* Set the OSCORE option */
     coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, idctx, idctx_len);
@@ -590,7 +601,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
    * ------------------------------------
    * Search for OSCORE context by peer UUID
    * If found OSCORE context:
-   *   Set context->sendkey as the encryption key
+   *   Set context->sender_key as the encryption key
    *   Clone incoming oc_message_t (*msg) from CoAP layer
    *   Parse CoAP message
    *   If parse unsuccessful, return error
@@ -598,17 +609,17 @@ static int oc_oscore_send_message(oc_message_t* msg)
    *     Search for client cb by request token
    *     If found client cb:
    *       Use context->SSN as partial IV
-   *       Use context-sendid as kid
+   *       Use context-sender_id as kid
    *       Copy partial IV into client cb
-   *       Compute nonce using partial IV and context->sendid
-   *       Compute AAD using partial IV and context->sendid
+   *       Compute nonce using partial IV and context->sender_id
+   *       Compute AAD using partial IV and context->sender_id
    *       Copy partial IV into incoming oc_message_t (*msg), if valid
    *     Else:
    *       Return error
    *   Else: (CoAP message is response)
    *     Use context->SSN as partial IV
-   *     Compute nonce using partial IV and context->sendid
-   *     Compute AAD using request_piv and context->recvid
+   *     Compute nonce using partial IV and context->sender_id
+   *     Compute AAD using request_piv and context->recipient_id
    *     Copy partial IV into incoming oc_message_t (*msg), if valid
    *    Make room for inner options and payload by moving CoAP payload to offset
    *    2 * COAP_MAX_HEADER_SIZE
@@ -733,10 +744,10 @@ static int oc_oscore_send_message(oc_message_t* msg)
     OC_DBG_OSCORE("found OSCORE context id=%s", oscore_ctx->token_id);
 
     /* Use sender key for encryption */
-    uint8_t* key = oscore_ctx->sendkey;
+    uint8_t* key = oscore_ctx->sender_key;
 
     // names from RFC OSCORE option 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, kid_context[OSCORE_IDCTX_LEN], kid_context_len = 0,
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, kid_context[OSCORE_ID_CONTEXT_LEN], kid_context_len = 0,
                                  nonce[OSCORE_AEAD_NONCE_LEN], AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
 
     /* If CoAP message is request */
@@ -784,24 +795,24 @@ static int oc_oscore_send_message(oc_message_t* msg)
       }
 #endif /* OC_CLIENT */
 
-      /* Use context-sendid as kid */
-      memcpy(kid, oscore_ctx->sendid, oscore_ctx->sendid_len);
-      kid_len = oscore_ctx->sendid_len;
+      /* Use context-sender_id as kid */
+      memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+      kid_len = oscore_ctx->sender_id_len;
 
-      /* use idctx as context_id */
-      memcpy(kid_context, oscore_ctx->idctx, oscore_ctx->idctx_len);
-      kid_context_len = oscore_ctx->idctx_len;
+      /* use id_context as context_id */
+      memcpy(kid_context, oscore_ctx->id_context, oscore_ctx->id_context_len);
+      kid_context_len = oscore_ctx->id_context_len;
 
-      /* Compute nonce using partial IV and context->sendid */
-      oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, piv, piv_len, oscore_ctx->commoniv, nonce,
+      /* Compute nonce using partial IV and context->sender_id */
+      oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
                            OSCORE_AEAD_NONCE_LEN);
 
       OC_DBG_OSCORE("---computed AEAD nonce using Partial IV (SSN) and Sender ID");
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
       OC_DBG_OSCORE("---");
 
-      /* Compose AAD using partial IV and context->sendid */
-      oc_oscore_compose_AAD(oscore_ctx->sendid, oscore_ctx->sendid_len, piv, piv_len, AAD, &AAD_len);
+      /* Compose AAD using partial IV and context->sender_id */
+      oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, AAD, &AAD_len);
       OC_DBG_OSCORE("---composed AAD using Partial IV (SSN) and Sender ID");
       OC_LOGbytes_OSCORE(AAD, AAD_len);
       OC_DBG_OSCORE("---");
@@ -854,9 +865,9 @@ static int oc_oscore_send_message(oc_message_t* msg)
         // ack and separate responses use a new PIV 
         OC_DBG_OSCORE("---piv : ");
         OC_LOGbytes_OSCORE(piv, piv_len);
-        oc_oscore_AEAD_nonce(oscore_ctx->sendid, oscore_ctx->sendid_len, 
+        oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, 
                              piv, piv_len,
-                             oscore_ctx->commoniv, 
+                             oscore_ctx->common_iv, 
                              nonce, OSCORE_AEAD_NONCE_LEN);
         /* Compute nonce using partial IV and sender ID of the sender ( =
          * receiver ID )*/
@@ -869,9 +880,9 @@ static int oc_oscore_send_message(oc_message_t* msg)
         // other responses reuse the PIV and Sender ID from the request to compute the same AEAD nonce as used for the request
         OC_DBG_OSCORE("---request_piv : ");
         OC_LOGbytes_OSCORE(message->endpoint.request_piv, message->endpoint.request_piv_len);
-        oc_oscore_AEAD_nonce(oscore_ctx->recvid, oscore_ctx->recvid_len, 
+        oc_oscore_AEAD_nonce(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, 
                              message->endpoint.request_piv, message->endpoint.request_piv_len,
-                             oscore_ctx->commoniv, 
+                             oscore_ctx->common_iv, 
                              nonce, OSCORE_AEAD_NONCE_LEN);
         /* Compute nonce using partial IV and sender ID of the sender ( =
          * receiver ID )*/
@@ -896,15 +907,15 @@ static int oc_oscore_send_message(oc_message_t* msg)
         // is gone and the other side cannot find the keying material. so for
       this
         // message only we include it again.
-        memcpy(kid, oscore_ctx->sendid, oscore_ctx->sendid_len);
-        kid_len = oscore_ctx->sendid_len;
-        memcpy(ctx_id, oscore_ctx->idctx, oscore_ctx->idctx_len);
-        ctx_id_len = oscore_ctx->idctx_len;
+        memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+        kid_len = oscore_ctx->sender_id_len;
+        memcpy(ctx_id, oscore_ctx->id_context, oscore_ctx->id_context_len);
+        ctx_id_len = oscore_ctx->id_context_len;
 
         OC_DBG_OSCORE("--- Including KID:");
         OC_LOGbytes_OSCORE(kid, kid_len);
 
-        oc_oscore_compose_AAD(oscore_ctx->sendid, oscore_ctx->sendid_len,
+        oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len,
                             message->endpoint.request_piv,
       message->endpoint.request_piv_len, AAD, &AAD_len);
       }
@@ -912,7 +923,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
       */
       {
         // Request sender ID = Req Recipient ID + REQUEST PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
-        oc_oscore_compose_AAD(oscore_ctx->recvid, oscore_ctx->recvid_len, message->endpoint.request_piv,
+        oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, message->endpoint.request_piv,
                               message->endpoint.request_piv_len, AAD, &AAD_len);
       }
       OC_DBG_OSCORE("---composed AAD using request piv and Recipient ID : ");

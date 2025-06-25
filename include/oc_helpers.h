@@ -49,11 +49,17 @@ extern "C" {
 	 */
 	#define oc_string(ocstring) (oc_cast(ocstring, char))
 
-	 /**
-		* @brief cast oc_string to string, replace null pointer results
-		* with a pointer to "NULL"
-		*
-		*/
+	/**
+  * @brief cast oc_string to byte
+  *
+  */
+  #define oc_byte_string(ocstring) (oc_cast(ocstring, unsigned char))
+
+ /**
+	* @brief cast oc_string to string, replace null pointer results
+	* with a pointer to "NULL"
+	*
+	*/
 	#define oc_string_checked(ocstring)                                            \
   (oc_cast(ocstring, char) ? oc_cast(ocstring, char) : "NULL")
 
@@ -530,28 +536,30 @@ extern "C" {
 																												size_t invoked_len);
 
 	/**
-	 * @brief retrieve the wild card value as string
-	 * The invoked URI is checked against the URI of a resource
-	 * that might contain a wild card, if the resource URI contains a wild card
-	 * then the invoked URI is compared against this URI and
-	 * e.g.  resource URI: / abc / *
-	 * invoked URI: / abc / y
-	 * return will be y.
-	 *
-	 * @param uri_resource The URI with wild card
-	 * @param uri_len The length of the URI with wild card
-	 * @param uri_invoked The URI that should match a wild card
-	 * @param invoked_len The URI length of the invoked URI
-	 * @param value the actual value that represents the wild card
-	 * @return int -1 is error, otherwise the value is the integer length of the
-	 * string
+
+	  @brief Retrieve the wildcard string part from an invoked URI.
+
+	  If the resource URI contains a wildcard '*' then the invoked URI part after the wildcard is returned
+	 
+	  @note used currently only on GET/DELETE for the EP aut/at/ *
+	        example; resource URI: /abc/ * and invoked URI: /abc/ y return will be y.
+	 
+	  @param uri_resource The URI with wild card
+	  @param resource_len The length of the URI with wild card
+	  @param uri_invoked The URI that should match a wild card
+	  @param invoked_len The URI length of the invoked URI
+	  @param value the actual pointer to the value that represents the wild card
+
+	  @return int -1 resource URI does not contain a '*', otherwise the value is the integer length of the
+	          string part from invoked URI
+
 	 */
 	int oc_uri_get_wildcard_value_as_string(const char* uri_resource,
-																					size_t uri_len, const char* uri_invoked,
+																					size_t resource_len, const char* uri_invoked,
 																					size_t invoked_len, const char** value);
 
 	/**
-	 * @brief search a string (non null terminated) for a character
+	 * @brief search a string (nonnull terminated) for a character
 	 *
 	 * @param string the string to be searched
 	 * @param p the character to be found

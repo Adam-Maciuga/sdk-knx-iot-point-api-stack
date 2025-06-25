@@ -45,8 +45,9 @@ void oc_create_discovery_resource(int resource_idx, size_t device_index);
  * @param skipped number of entries already skipped
  * @param first_entry first entry to be included
  * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the rt's (resource types)
- * @return true resource added (as entry) to the response
- * @return false resource not added to the response
+ *
+ * @return true resource added (as entry) to the response payload
+ * @return false resource was not added to the response payload
  */
 bool oc_filter_resource(const oc_resource_t *resource, oc_request_t *request,
                         size_t device_index, size_t *response_length,

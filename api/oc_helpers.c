@@ -703,17 +703,24 @@ oc_uri_contains_wildcard_value_underscore(const char* uri_resource,
 }
 
 int
-oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t uri_len,
+oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resource_len,
                                     const char* uri_invoked, size_t invoked_len,
                                     const char** value)
 {
-  if (uri_resource[uri_len - 1] == '*')
+  // resource URI contains '*', -1 since array counts from 0...n
+  if (uri_resource[resource_len - 1] == '*')
   {
-    if ((invoked_len + 1) >= uri_len)
+    // invoked URI must be larger than resource URI;
+    // +1 since '/' is not included in invoked URI
+    if (invoked_len + 1 >= resource_len)
     {
-      *value = &uri_invoked[uri_len - 2];
-      size_t len = invoked_len - uri_len + 2;
-      return (int) len;
+      // pointer to wildcard part of invoked URI,
+      // e.g; to 'xyz...abc' from invoked URI aut/at/xyz...abc
+      // -2 since '/' is not included in invoked URI and array counts from 0...n
+      *value = &uri_invoked[resource_len - 2];
+
+      // len of wildcard part such as 6++ for 'xyz...abc'
+      return (int)(invoked_len - resource_len + 2);
     }
   }
 

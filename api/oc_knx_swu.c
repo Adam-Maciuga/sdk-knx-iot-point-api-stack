@@ -690,7 +690,7 @@ const oc_resource_t core_resource_knx_swu_pkgcmd = {
   { APPLICATION_CBOR, CONTENT_NONE },
   OC_DISCOVERABLE,
   { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
-                                                    {oc_knx_swu_a_put_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
+  {oc_knx_swu_a_put_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
   { oc_knx_swu_a_post_handler, NULL, OC_ACL_SWU, OC_IF_SWU },
   { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
   { NULL, NULL },
@@ -967,8 +967,8 @@ oc_core_knx_swu_get_handler(oc_request_t *request,
   for (int i = first_entry; i < last_entry; i++) {
     const oc_resource_t *resource =
       oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length,
-                           &i, i, true)) {
+    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
+    {
       query_parameter_kvpair_matches++;
     }
   }

@@ -17,25 +17,24 @@
 #ifndef OSCORE_CONSTANTS_H
 #define OSCORE_CONSTANTS_H
 
-#define OSCORE_AEAD_NONCE_LEN (13) /* Nonce length for AES-CCM-16-64-128 */
-#define OSCORE_PIV_LEN (5)         /* Partial IV length */
-#define OSCORE_SENDER_ID_LEN (7)       /* Length of AEAD Nonce - 6 */
-#define OSCORE_OPTION_LEN                                                      \
-  (2 + 21 + 43) /* Option header + Option length + Proxy-uri */
-#define OSCORE_MASTER_SECRET_LEN (256 / 8)
-#define OSCORE_IDCTX_LEN                                                       \
-  (16) /* Arbitrarily chosen upper-bound on ID Context length */
-#define OSCORE_KEY_LEN (16) /* AES-CCM-16-64-128 uses 128-bit keys */
-#define OSCORE_COMMON_IV_LEN                                                   \
-  OSCORE_AEAD_NONCE_LEN /* Same as AEAD Nonce length */
-#define OSCORE_AEAD_TAG_LEN                                                    \
-  (8) /* Size in bytes of AES-CCM-16-64-128 authentication tag */
+#define OSCORE_AEAD_NONCE_LEN (13)      // AEAD Nonce length for AES-CCM-16-64-128, 1=len(Sender ID), 7=padded Sender ID, 5=padded Partial IV
+#define OSCORE_PIV_LEN (5)              // Partial IV max length, see AEAD Nonce 
+#define OSCORE_SENDER_ID_LEN (7)        // Sender ID maxlength, see AEAD Nonce 
+#define OSCORE_OPTION_LEN (2 + 21 + 43) // Option header + Option length + Proxy-uri 
+#define OSCORE_MASTER_SECRET_LEN (32)
+#define OSCORE_ID_CONTEXT_LEN (16)      // Arbitrarily chosen upper-bound on OSCORE Context ID length
+#define OSCORE_KEY_LEN (16)             // AES-CCM-16-64-128 uses 128-bit keys
+#define OSCORE_COMMON_IV_LEN   \
+        OSCORE_AEAD_NONCE_LEN           // Same as AEAD Nonce length
+#define OSCORE_AEAD_TAG_LEN (8)         // Size in bytes of AES-CCM-16-64-128 authentication tag
 #define OSCORE_REPLAY_WINDOW_SIZE (8)
 
 #define OSCORE_STORAGE_PREFIX "ssn"
 #define OSCORE_STORAGE_PREFIX_LEN (3)
-#define OSCORE_STORAGE_KEY_LEN                                                 \
-  (OSCORE_SENDER_ID_LEN + OSCORE_STORAGE_PREFIX_LEN + 1)
+#define OSCORE_STORAGE_KEY_LEN       \
+        (OSCORE_STORAGE_PREFIX_LEN + \
+         OSCORE_SENDER_ID_LEN  *2 +  \
+         OSCORE_ID_CONTEXT_LEN *2 + 1)  // Save ssn per (hex) sender id and (hex) id context as 'ssn+id+context'   
 
 #define OSCORE_INFO_MAX_LEN (128)
 #define OSCORE_AAD_MAX_LEN (128)
