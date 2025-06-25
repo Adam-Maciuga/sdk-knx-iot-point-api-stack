@@ -1196,7 +1196,7 @@ PRAGMA_IN oc_resource_data_t core_resource_dev_mport_data;
 const oc_resource_t core_resource_dev_mport = {(oc_resource_t*)&core_resource_dev_mid,
                                                0,
                                                {NULL, 0, NULL},
-                                               {NULL, sizeof("/dev/multicast_port"), "/dev/multicast_port"},
+                                               {NULL, sizeof("/dev/mport"), "/dev/mport"},
                                                {NULL, 0, NULL},
                                                {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
                                                {APPLICATION_CBOR, CONTENT_NONE},
