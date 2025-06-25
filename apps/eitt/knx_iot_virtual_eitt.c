@@ -234,10 +234,10 @@ int app_init(void)
   oc_core_set_device_mid(0, MID_EITT);
 
   // set the hardware type -> 12 chars, value used from EITT for testing
-  oc_core_set_device_hwt(0, HW_TYPE_ETS6);
+  oc_core_set_device_hwt(0, HW_TYPE_EITT);
 
   // set device model, value used from EITT for testing
-  oc_core_set_device_model(0, DEV_MODEL_ETS6);
+  oc_core_set_device_model(0, DEV_MODEL_EITT);
 
   // set host name, value used from EITT for testing
   oc_core_set_device_hostname(0, HOST_NAME_EITT);
