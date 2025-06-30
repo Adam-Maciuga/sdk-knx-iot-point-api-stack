@@ -739,19 +739,17 @@ extern "C"
   /**
    * Specify a request_callback for GET, PUT, POST, and DELETE methods including their scope and interfaces
    *
-   * @note All resources must provide at least one request handler to be a valid
-   *       resource.
+   * @note All resources must provide at least one request handler to be a valid resource.
    *
    * method types:
-   * - `OC_GET` the `oc_request_callback_t` is responsible for returning the
-   * current value of all resource properties.
-   * - `OC_PUT` the `oc_request_callback_t` is responsible for updating one or
-   * more of the resource properties.
+   * - `OC_GET`  the `oc_request_callback_t` is responsible for returning the
+   *             current value of all resource properties.
+   * - `OC_PUT`  the `oc_request_callback_t` is responsible for updating one or
+   *             more of the resource properties.
    * - `OC_POST` the `oc_request_callback_t` is responsible for updating one or
-   * more of the resource properties. The callback may also be responsible for
-   *         creating new resources.
-   * - `OC_DELETE` the `oc_request_callback_t` is responsible for deleting a
-   * resource
+   *             more of the resource properties. The callback may also be responsible for
+   *             creating new resources.
+   * - `OC_DELETE` the `oc_request_callback_t` is responsible for deleting a resource
    *
    * @note Some methods may never be invoked based on the resources Interface as
    *       well as the provisioning permissions of the client.
@@ -774,21 +772,35 @@ extern "C"
                                        void* user_data, oc_acl_mask_t scopes, oc_interface_mask_t interfaces);
 
   /**
-   * Get for a resource method the corresponding scope and interface
+   * Get for a resource the interfaces for all methods
+   *
+   * @param[in] resource the resource
+   * @param[in/out] interfaces
+   *
+   * @return
+   * - true if the resource and at least on resource method is defined (interfaces are set accordingly) 
+   * - false otherwise (interfaces are not touched)
+   *
+   * @note ADDs all if's from all for this resource defined methods to the 'interfaces' parameter,
+   *       includes possible 'if.x' doublettes such as 2 x if.i on a GET and PUT
+   *       , because of ADDING only please initialize the 'interfaces' parameter accordingly
+   */
+  bool oc_resource_get_all_interfaces_for_a_resource(oc_resource_t* resource, oc_interface_mask_t* interfaces);
+
+  /**
+   * Get for a resource method the corresponding scope
    *
    * @param[in] resource the resource
    * @param[in] method the requesters method for a specific resource callback
-   *	@param[in/out] scopes the method scope(s), if of no interest NULL
-   *	@param[in/out] interfaces the method interface(s), if of no interest NULL
+   * @param[in/out] scopes the method scope(s)
    *
    * @return
-   * - true if resource and resource method are defined (scopes and interfaces are set accordingly)
-   * - false otherwise (scopes and interfaces are not touched)
+   * - true if resource and resource method are defined (scope is set accordingly)
+   * - false otherwise (scope is not touched)
    *
-   * @note scopes and interfaces should not both be NULL - useless call
    */
-  bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes,
-                                              oc_interface_mask_t* interfaces);
+  bool oc_resource_get_acl_for_method(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes);
+
 
   /**
    * @brief sets the callback properties for set properties and get properties

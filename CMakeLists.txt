@@ -256,11 +256,21 @@ if(UNIX OR WIN32)
     add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
     ## EITT NON GUI demo (for certification)
-    add_executable(eitt_virtual_cl ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c)
+    add_executable(eitt_virtual_cl 
+      ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
+      ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+    )
 
     ## LSAB/LSSB NON GUI demo
-    add_executable(lssb_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c)
-    add_executable(lsab_virtual_cl ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c)
+    add_executable(lssb_virtual_cl 
+      ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
+      ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+    )
+    
+    add_executable(lsab_virtual_cl 
+       ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
+       ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+    )
 endif()
 
 # Detect the used platform and pick the right port
@@ -318,18 +328,21 @@ if(WIN32)
         add_executable(eitt_virtual_gui WIN32
             ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.cpp
             ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
         )
 
         ## LSSB GUI 
         add_executable(lssb_virtual_gui WIN32
             ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.cpp
             ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
         )
 
         ## LSAB GUI 
         add_executable(lsab_virtual_gui WIN32
             ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.cpp
             ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
         )
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)

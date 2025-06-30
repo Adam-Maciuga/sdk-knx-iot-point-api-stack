@@ -130,8 +130,8 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_LSAB0_IOO(wxCommandEvent& event);
-  void OnPressed_LSAB1_IOO(wxCommandEvent& event);
+  void OnPressed_LSAB_0_IOO(wxCommandEvent& event);
+  void OnPressed_LSAB_1_IOO(wxCommandEvent& event);
 
   void updateCheckBoxesFromLiveSOOData();
   void updateDeviceData();
@@ -287,7 +287,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
                                 wxPoint(140 + column * x_width, 10 + x_height * row), 
                                 wxSize(x_width, x_height), 0);
 
-    m_LSAB_0_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB0_IOO, this);
+    m_LSAB_0_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_0_IOO, this);
     m_LSAB_0_IOO->Enable(true);
   }
 
@@ -316,7 +316,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     m_LSAB_1_IOO = new wxButton(this, LSAB_1_IOO, _T("IOO, press me ..."),
                                 wxPoint(140 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
 
-    m_LSAB_1_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB1_IOO, this);
+    m_LSAB_1_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_1_IOO, this);
     m_LSAB_1_IOO->Enable(true);
   }
 
@@ -1029,7 +1029,7 @@ void MyFrame::updateCheckBoxesFromLiveSOOData()
   bool p;
 
   // update check box
-  p = app_retrieve_bool_variable_from_channel(LSAB0, SOO);
+  p = app_retrieve_bool_variable_from_channel(LSAB + 0, SOO);
   m_LSAB_0_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
 
   // update check box text
@@ -1038,7 +1038,7 @@ void MyFrame::updateCheckBoxesFromLiveSOOData()
   m_LSAB_0_SOO->SetLabel(text);
 
   // update check box
-  p = app_retrieve_bool_variable_from_channel(LSAB1, SOO);
+  p = app_retrieve_bool_variable_from_channel(LSAB + 1, SOO);
   m_LSAB_1_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
 
   // update check box text
@@ -1221,11 +1221,11 @@ void MyFrame::double2text(double value, char* text)
   strcat(text, new_text);
 }
 
-void MyFrame::OnPressed_LSAB0_IOO(wxCommandEvent& event)
+void MyFrame::OnPressed_LSAB_0_IOO(wxCommandEvent& event)
 {
   // get url from IOO
-  char* url = app_retrieve_href_from_channel(LSAB0, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSAB0, IOO);
+  char* url = app_retrieve_href_from_channel(LSAB, IOO);
+  bool p = app_retrieve_bool_variable_from_channel(LSAB, IOO);
 
   // send out current state (do NOT change the state), multicast
   oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w",true);
@@ -1243,11 +1243,11 @@ void MyFrame::OnPressed_LSAB0_IOO(wxCommandEvent& event)
   SetStatusText(statusBarText);
 }
 
-void MyFrame::OnPressed_LSAB1_IOO(wxCommandEvent& event)
+void MyFrame::OnPressed_LSAB_1_IOO(wxCommandEvent& event)
 {
   // get url from IOO
-  char* url = app_retrieve_href_from_channel(LSAB1, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSAB1, IOO);
+  char* url = app_retrieve_href_from_channel(LSAB + 1, IOO);
+  bool p = app_retrieve_bool_variable_from_channel(LSAB + 1, IOO);
 
   // send out current state (do NOT change the state), multicast
   oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w",true);

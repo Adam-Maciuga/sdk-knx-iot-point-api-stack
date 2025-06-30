@@ -907,9 +907,7 @@ oc_create_knx_swu_pkg_names_resource(int resource_idx, size_t device)
                             "urn:knx:dpt.varString8859_1");
 }
 
-static void
-oc_core_knx_swu_get_handler(oc_request_t *request,
-                            oc_interface_mask_t iface_mask, void *data)
+static void oc_core_knx_swu_get_handler(oc_request_t *request, oc_interface_mask_t iface_mask, void *data)
 {
   (void)data;
   (void)iface_mask;
@@ -944,10 +942,8 @@ oc_core_knx_swu_get_handler(oc_request_t *request,
   first_entry += evaluate_query_px(request, &query_pn, &query_ps);
 
   // check if requested page will carry at least one resource e.g
-  // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page
-  // 0)
-  // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page
-  // 0)
+  // - total=4, pn 5, ps 20, first entry = 100 -> no data on page 5 (all on page 0)
+  // - total=4, pn 1, ps 04, first entry = 004 -> no data on page 1 (all on page 0)
   if (first_entry >= last_entry || query_ps == 0) {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
@@ -955,10 +951,8 @@ oc_core_knx_swu_get_handler(oc_request_t *request,
 
   // entries don't fit in a single page -> more pages are needed to get the full
   // list
-  // - total=4, page number 1, page size 02, first entry = 002 -> no more data
-  // on next page
-  // - total=4, page number 1, page size 01, first entry = 001 -> more data on
-  // next page
+  // - total=4, page number 1, page size 02, first entry = 002 -> no more data on next page
+  // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
   if (last_entry > first_entry + query_ps) {
     last_entry = first_entry + query_ps;
     more_request_needed = true;
@@ -967,7 +961,7 @@ oc_core_knx_swu_get_handler(oc_request_t *request,
   for (int i = first_entry; i < last_entry; i++) {
     const oc_resource_t *resource =
       oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
+    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }

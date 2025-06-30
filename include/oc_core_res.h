@@ -364,7 +364,7 @@ extern "C" {
    * @note according to RFC 6690 a value may contain more than one string to search for (separated by spaces) 
    *
    */
-	bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request);
+  bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief filter if the query parameter key 'if' is part of the request
@@ -383,7 +383,7 @@ extern "C" {
 	 * @note according to RFC 6690 a value may contain more than one string to search for (separated by spaces) 
 	 * 
 	 */
-  bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request);
+  bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief frame the interface mask in the response, as string in the uri

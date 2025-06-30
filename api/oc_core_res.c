@@ -126,13 +126,11 @@ void oc_core_shutdown(void)
 int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool truncate)
 {
 
-	// </point-path-example1>;rt= ":dpa.352.51";if= ":if.i";ct = 50 60
+	// </point-path-example1>;rt=":dpa.352.51";if=":if.i";ct = 50 60
+  // </point-path-example2>;rt=":dpa.352.51";if="urn:knx:if.i";ct = 50 60
 
-	// start with quote "
-	oc_rep_encode_raw((uint8_t*) "\"", 1);
-
-	// used to check if more than a starting <"> was framed
-	int total_size = 1;
+	// used to check if something was framed
+	int total_size = 0;
 
 	if (iface_mask & OC_IF_I)
 	{
@@ -321,9 +319,6 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t iface_mask, bool tr
 		total_size += 6;
 	}
 
-	// end with quote "
-	oc_rep_encode_raw((uint8_t*) "\"", 1);
-	total_size += 1;
 	return total_size;
 }
 
@@ -727,6 +722,7 @@ oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
 		// several device will have only one SN 
 		return oc_list_head(core_resource_list);
 	}
+
 	if (device != 0)
 	{
 		// device > 0: need to traverse list of dynamically added core resources 
@@ -766,63 +762,66 @@ bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
 	return false;
 }
 
-bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
+bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
 {
 	// pre-assumption that 'rt' key is not part of request
   bool match = true, more_query_params; 
-	char* rt_ptr = NULL;
-	int rt_ptr_len = -1;
+	char* request_rt_ptr = NULL;
+	int request_rt_ptr_len = -1;
 
   oc_init_query_iterator();
 	do
 	{
-		more_query_params =	oc_iterate_query_get_values(request, "rt", &rt_ptr, &rt_ptr_len);
+		more_query_params =	oc_iterate_query_get_values(request, "rt", &request_rt_ptr, &request_rt_ptr_len);
 
-		// value must be present  
-		if (rt_ptr_len > 0)
+		// a value must be present  
+		if (request_rt_ptr_len > 0)
 		{
-			// key 'rt' is part of query, check on wildcard rt=* or rt=urn:knx:dpa.201.* 
-			const char* wildcard = memchr(rt_ptr, '*', rt_ptr_len);
+		  // key 'rt' is part of query, check on wildcard rt=* or rt=urn:knx:dpa.201.* 
+			const char* wildcard = memchr(request_rt_ptr, '*', request_rt_ptr_len);
 
 		  if (wildcard)
 			{
 				// cut value string len to compare with, such as for
-				// - rt=urn:knx:dpa.201.* from 17 -> 16
-        // - rt=* from 17 -> 1
-		    rt_ptr_len = (int) (wildcard - rt_ptr);
+				// - rt=urn:knx:dpa.201.* from size 17 -> size 16
+        // - rt=* from size 1 -> size 0
+		    request_rt_ptr_len = (int) (wildcard - request_rt_ptr);
 			}
 
 			// default assumption key 'if' is part of query, but value will be not found 
 			match = false;
 
-			// 0 .. n types
-			for (int i = 0; i < (int) oc_string_array_get_allocated_size(resource->types); i++)
+			// 0...n rt types (acc. specification it can be more than one assigned)
+			for (int i = 0; i < (int)oc_string_array_get_allocated_size(resource->types); i++)
 			{
-				const int resource_type_len =	oc_string_array_get_item_size(resource->types, i);
+				// get the 'rt' string and len, contains the full specified name such as urn:knx:dpa.201.50
+			  const int resource_type_len =	oc_string_array_get_item_size(resource->types, i);
 				const char* resource_type_ptr =	oc_string_array_get_item(resource->types, i);
-				PRINT("rt type len and value '%.*s'", resource_type_len,	resource_type_ptr);
+
+			  PRINT("rt type '%s'", resource_type_ptr);
 
 			  if (wildcard)
 				{
 					// on wildcard scan number of chars up to position of wildcard only
-			    if (strncmp(rt_ptr, resource_type_ptr, rt_ptr_len) == 0)
+			    if (strncmp(request_rt_ptr, resource_type_ptr, request_rt_ptr_len) == 0)
 					{
 						// value from request is contained in resource type
-						// urn:knx:dpa.201.* matches urn:knx:dpa.201.51/52/xxx scanning 16 chars 
+						// - urn:knx:dpa.201.* matches, urn:knx:dpa.201.51/52/xxx scanning 16 chars
+            // - * matches all, scanning 0 chars 
 			      return true;
 					}
 				}
-
-				// on NO wildcard scan number of all chars, take care that request string value
-				// has same len as resource len, otherwise you compare 'urn:knx:dpa' (11)
-				// with 'urn:knx:dpa.201.50' (18) that always matches 
-				if (rt_ptr_len == (int) resource_type_len &&
-						strncmp(rt_ptr, resource_type_ptr, rt_ptr_len) == 0)
-				{
-          // value from request matches to resource type and len also matches
-          // urn:knx:dpa.201.51 matches urn:knx:dpa.201.51 scanning 18 chars 
-				  return true;
-				}
+        else
+        {
+          // on NO wildcard scan number of all chars, take care that request string value
+          // has same len as resource len, otherwise you compare 'urn:knx:dpa' (11)
+          // with 'urn:knx:dpa.201.50' (18) that always matches
+          if (strncmp(request_rt_ptr, resource_type_ptr, request_rt_ptr_len) == 0 && request_rt_ptr_len == resource_type_len)
+          {
+            // value from request matches to resource type and len also matches
+            return true;
+          }
+        }
 			}
 		}
 	}
@@ -830,45 +829,78 @@ bool oc_filter_resource_by_rt(const oc_resource_t* resource, oc_request_t* reque
 	return match;
 }
 
-bool oc_filter_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
+bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
 {
   // pre-assumption that 'if' key is not part of request
   bool match = true, more_query_params;
-	char* if_ptr = NULL;
-	int if_ptr_len = -1;
+	char* request_if_ptr = NULL;
+	int request_if_ptr_len = -1;
 
 	oc_init_query_iterator();
 	do
 	{
-		more_query_params = oc_iterate_query_get_values(request, "if", &if_ptr, &if_ptr_len);
+		more_query_params = oc_iterate_query_get_values(request, "if", &request_if_ptr, &request_if_ptr_len);
 
-		// value must be present  
-		if (if_ptr_len > 8)
+		// a value must be present  
+		if (request_if_ptr_len > 0)
 		{
-      // key 'if' is part of query, check on wildcard if=* or if=urn:knx:if.s*
-			const char* wildcard = memchr(if_ptr, '*', if_ptr_len);
-			if (wildcard)
+		  // key 'if' is part of query, check on wildcard if=* or if=urn:knx:if.s*
+			const char* wildcard = memchr(request_if_ptr, '*', request_if_ptr_len);
+
+		  if (wildcard)
 			{
-				return true;
+        // cut value string len to compare with, such as for
+        // - if=urn:knx:if.s* from size 13 -> size 12
+        // - if=* from size 1 -> size 0
+        request_if_ptr_len = (int)(wildcard - request_if_ptr);
 			}
 
 			// default assumption key 'if' is part of query, but value will be not found 
 			match = false;
 
-			// get if's from resource 
-			oc_interface_mask_t interface = OC_IF_NONE;
+			 // get if's from resource
+      oc_interface_mask_t interfaces = OC_IF_NONE;
 
-			if (oc_resource_get_acl_and_interface_mask(resource, request->request_method, NULL, &interface))
+			if (oc_resource_get_all_interfaces_for_a_resource(resource, &interfaces))
 			{
-				// get the 'if' string from the 'if' bit mask, such as 'if.ll' from OC_IF_LI
-				const char* resource_interface = get_interface_string(interface);
+				// 0...n if types (acc. specification it can be more than one assigned per resource method) 
+				for (int i = 0; i <= MAX_INTERFACE_BIT; i++, interfaces >>= 1)
+        {
+					// only if interface is set on a resource check on a match with request, e.g;
+					// request = urn:knx:if.o, resource = urn:knx:if.p and urn:knx:if.o -> one mach at i = 2
+          // 32-bit if.p + if.i = 0b00000000 00000000 00010000 00100100
+					if (interfaces & 1)
+					{
+					  // get the 'if' string and len, contains the full specified URN such as urn:knx:if.ll
+            const char* resource_if_ptr = get_interface_string_full_urn(i);
+            const int resource_if_ptr_len = (int)strlen(resource_if_ptr);
 
-				// the value contains urn:knx:if.xxx; +8 points to the last DOT '.' , -8 is len of all - sizeof(urn:knx:if.) 
-				if (strncmp(resource_interface, if_ptr + 8, if_ptr_len - 8) == 0)
-				{
-					return true;
-				}
+            PRINT("if type '%s'", resource_if_ptr);
 
+            if (wildcard)
+            {
+              // on wildcard scan number of chars up to position of wildcard only
+              if (strncmp(request_if_ptr, resource_if_ptr, request_if_ptr_len) == 0)
+              {
+                // value from request is contained in resource type
+                // - urn:knx:if.s* matches urn:knx:if.s/sec, scanning 12 chars
+                // - * matches all, scanning 0 chars
+                return true;
+              }
+            }
+            else
+            {
+              // on NO wildcard scan number of all chars, take care that request string value
+              // has same len as resource len, otherwise you compare 'urn:knx:if' (10)
+              // with 'urn:knx:if.ll' (13) that always matches
+              if (strncmp(request_if_ptr, resource_if_ptr, request_if_ptr_len) == 0 && request_if_ptr_len == resource_if_ptr_len)
+              {
+                // value from request matches to resource type and len also matches
+                return true;
+              }
+            }
+					}
+        }
 			}
 		}
 	}

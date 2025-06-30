@@ -62,7 +62,7 @@ enum : uint16_t
   LSSB_1_IOO = CHECK_PM + 4
 };
 
-extern channel_t lsxb[NUM_CHANNELS];
+extern channel_t lsab[NUM_CHANNELS];
 
 static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
   {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
@@ -1025,7 +1025,7 @@ void MyFrame::updateCheckBoxesFromLiveIOOData()
   bool p;
 
   // update check box
-  p = app_retrieve_bool_variable_from_channel(LSSB0, IOO);
+  p = app_retrieve_bool_variable_from_channel(0, IOO);
   m_LSSB_0_IOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
 
   // update check box text
@@ -1034,7 +1034,7 @@ void MyFrame::updateCheckBoxesFromLiveIOOData()
   m_LSSB_0_IOO->SetLabel(text);
 
   // update check box
-  p = app_retrieve_bool_variable_from_channel(LSSB1, IOO);
+  p = app_retrieve_bool_variable_from_channel(1, IOO);
   m_LSSB_1_IOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
 
   // update check box text
@@ -1221,14 +1221,14 @@ void MyFrame::double2text(double value, char* text)
 void MyFrame::OnPressed_LSSB_0_SOO(wxCommandEvent& event)
 {
   // get url from SOO 
-  char* url = app_retrieve_href_from_channel(LSSB0, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSSB0, SOO);
+  char* url = app_retrieve_href_from_channel(0, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(LSSB + 0, SOO);
 
   // toggle value
   p = !p;
 
   // set value
-  app_set_bool_variable_from_channel(LSSB0, SOO, p);
+  app_set_bool_variable_from_channel(0, SOO, p);
 
   // send out, multicast
   oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w", true);  
@@ -1249,14 +1249,14 @@ void MyFrame::OnPressed_LSSB_0_SOO(wxCommandEvent& event)
 void MyFrame::OnPressed_LSSB_1_SOO(wxCommandEvent& event)
 {
   // get url from IOO
-  char* url = app_retrieve_href_from_channel(LSSB1, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSSB1, SOO);
+  char* url = app_retrieve_href_from_channel(1, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(1, SOO);
 
   // toggle value
   p = !p;
 
   // set value
-  app_set_bool_variable_from_channel(LSSB1, SOO, p);
+  app_set_bool_variable_from_channel(1, SOO, p);
 
   // send out, multicast
   oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w", true);

@@ -35,15 +35,11 @@
 
 // common data
 #define NUM_CHANNELS (2)
-#define NUM_POINTS (2)
-#define SOO (0)
-#define IOO (1)
-#define LSSB0 (0)
-#define LSSB1 (1)
-#define LSAB0 (0)
-#define LSAB1 (1)
-#define EITT (0)
-
+#define NUM_POINTS   (2)
+#define SOO  (0)
+#define IOO  (1)
+#define LSSB (1)
+#define LSAB (0)
 
 #define FIRMWARE_NAME "KNX stack image"
 #define HW_TYPE_ETS6 "000102030405" // 12 string chars, MSB = 00
@@ -98,13 +94,12 @@ typedef struct datapoint
   char* href;
   char* dpa;
   char* dpt;
-  char* ift;
+  char* desc;
 } datapoint_t;
 
 typedef struct channel
 {
   char* name;
-  char* desc;
   datapoint_t point[NUM_POINTS];
 } channel_t;
 
@@ -230,6 +225,15 @@ extern "C"
    *
    */
   void app_str_to_upper(char* str);
+
+  /**
+   * @brief generic code to define the array's indexes for a channel + datapoint
+   *
+   * @param channel the to be scanned channel 
+   * @param user_data the user data handed over to the application callback handler
+   *
+   */
+  int32_t app_get_channel_and_point(const channel_t* channel, const void* user_data);
 
 #ifdef __cplusplus
 }

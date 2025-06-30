@@ -16,14 +16,12 @@
  limitations under the License.
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
-
 #include "oc_rep.h"
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
-
 #include "port/oc_clock.h"
 #include "port/oc_storage.h"
 
@@ -57,7 +55,7 @@ static CRITICAL_SECTION critical_section;
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
 
-// Global variables
+// global variables
 
 volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
@@ -66,24 +64,22 @@ char g_serial_number[] = SN_LOWER_CASE_EITT; // startup SN, maybe overwritten by
 // functional block 417 (LSAB) and 421 (LSBB) command/control are needed
 // for certification tests
 
-// define LSAB channel 0..1 + included EPs switch control / status to be used for the EITT certification
-// note that: 
-// - that the EP names from below are expected from the EITT default templates
-// - that the used datapoints are artificial such as dpa 417.61/62
-// - that the leading '/' is required, since this (EITT test) application is using an empty base path (checked in fp/g and p/{property-path})
+// define LSAB/LSSB channel 0..1 + included EPs switch control / status; to be used for the EITT certification, note that:
+// - the EP names from below are expected from the EITT default templates
+// - the used datapoints are artificial such as dpa 417.61/62
+// - the leading '/' is required, since this (EITT test) application is using an empty base path (checked in fp/g and
+// p/{property-path})
+// - the dpa/if type is in SHORT URN notation, on a GET {ipv6-unicast}/{point-path}?m it is requested per specification
 channel_t lsxb[NUM_CHANNELS] = {
-  {"LSAB OnOff 0",
-   "LSAB On/Off Channel 0",
+  {"LSAB",
    {
-    {false, "/p/1", ":dpa.417.61", ":dpt.switch", ":if.i"},
-    {false, "/p/2", ":dpa.417.62", ":dpt.switch", ":if.o"}}},
-  {"LSSB OnOff 1",
-   "LSSB On/Off Channel 0",
+     {false, "/p/1", ":dpa.417.61", ":dpt.switch", "LSAB soo"},   // LSAB soo input
+     {false, "/p/2", ":dpa.417.62", ":dpt.switch", "LSAB ioo"}}}, // LSAB ioo output
+  {"LSSB",
    {
-    {false, "/p/3", ":dpa.421.61", ":dpt.switch", ":if.i"},
-    {false, "/p/4", ":dpa.421.62", ":dpt.switch", ":if.o"}}},
-  };
-
+     {false, "/p/3", ":dpa.421.61", ":dpt.switch", "LSSB soo "},   // LSSB soo output
+     {false, "/p/4", ":dpa.421.62", ":dpt.switch", "LSSB ioo "}}}, // LSSB ioo input
+};
 
 // additional parameters
 volatile uint16_t g_test_parameter;
@@ -95,22 +91,13 @@ void app_set_bool_variable_from_channel(uint16_t channel, uint16_t point, bool v
   lsxb[channel].point[point].value = value;
 }
 
-bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point)
-{
-  return lsxb[channel].point[point].value; 
-}
+bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point) { return lsxb[channel].point[point].value; }
 
 // INT code
 
-void app_set_int_variable(const char* url, const int value)
-{
-  
-}
+void app_set_int_variable(const char* url, const int value) {}
 
-int app_retrieve_int_variable(const char* url)
-{
-  return -1;
-}
+int app_retrieve_int_variable(const char* url) { return -1; }
 
 // PARAMETER code
 
@@ -120,52 +107,8 @@ char* app_get_parameter_url(int index) { return NULL; }
 
 char* app_get_parameter_name(int index) { return NULL; }
 
-bool app_is_secure(void)
-{
-  // may produce a warning if OC_OSCORE is not specified ...
-  // but here it is integral part of CMake
-  return OC_OSCORE ? true : false;
-}
 
-// generic code
-int32_t app_get_channel_and_point(const void* user_data)
-{
-  oc_string_t href_caller;
-  oc_string_t href_resource;
-
-  oc_new_string(&href_caller, user_data, strlen(user_data));
-
-  for (uint16_t c = 0; c < NUM_CHANNELS; c++)
-  {
-    for (uint16_t p = 0; p < NUM_POINTS; p++)
-    {
-      
-      oc_new_string(&href_resource, lsxb[c].point[p].href, strlen(lsxb[c].point[p].href));
-
-      if (oc_url_cmp(href_caller, href_resource) == 0)
-      {
-
-        oc_free_string(&href_caller);
-        oc_free_string(&href_resource);
-
-        return c << 16 | p;
-      }
-
-      oc_free_string(&href_resource);
-
-    }
-  }
-
-  oc_free_string(&href_caller);
-
-  // no match
-  return -1;
-}
-
-char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)
-{
-  return lsxb[channel].point[point].href;
-}
+char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point) { return lsxb[channel].point[point].href; }
 
 // need to define prototype, used by an init method
 void signal_event_loop(void);
@@ -187,32 +130,7 @@ void oc_add_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
 }
 
 /**
- * @brief function to set the input string to upper case
- *
- * @param str the string to make upper case
- *
- */
-void app_str_to_upper(char* str)
-{
-  while (*str != '\0')
-  {
-    *str = toupper(*str);
-    str++;
-  }
-}
-
-/**
  * @brief function to set up the device.
- *
- * sets the:
- * - manufacturer     : cascoda
- * - serial number    : 00FA10010700
- * - base path
- * - knx spec version
- * - hardware version : [0, 7, 0]
- * - firmware version : [0, 7, 0]
- * - hardware type    : 000000000002
- * - device model     : KNX virtual - SA
  *
  */
 int app_init(void)
@@ -283,19 +201,20 @@ char* app_get_password(void) { return PASSWORD; }
 
 */
 
-// LSAB with soo/ioo
+// LSAB/LSSB with soo/ioo
 
+// generic GET
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
-  (void)user_data;
-  (void)interfaces;
-
   bool error_state = true;
 
-  // user data host the original caller url 
-  const int32_t channel_and_datapoint = app_get_channel_and_point(user_data);
+  // user data host the original caller url
+  const int32_t channel_and_datapoint = app_get_channel_and_point(lsxb, user_data);
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
+
+  // holds the interface from resource creation
+  const bool is_input_datapoint = interfaces == OC_IF_I;
 
   PRINT("-- Begin GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 
@@ -340,8 +259,14 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         // value
         if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          oc_rep_text_set_boolean(root, value, lsxb[c].point[p].value);
+          if (is_input_datapoint)
+          {
+            // don't allow to read to an 'input'
+            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+            return;
+          }
 
+          oc_rep_text_set_boolean(root, value, lsxb[c].point[p].value);
           error_state = false;
         }
         // resource types
@@ -357,9 +282,12 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
           // key
           oc_rep_set_key(oc_rep_object(root), "if");
 
+          // if type as short URN
+          const char* interface_type = get_interface_string_short_urn(interfaces);
+
           // one if type only
           oc_rep_begin_array(oc_rep_object(root), if_types);
-          oc_rep_add_text_string(if_types, lsxb[c].point[p].ift);
+          oc_rep_add_text_string(if_types, interface_type);
           oc_rep_end_array(oc_rep_object(root), if_types);
 
           error_state = false;
@@ -388,16 +316,23 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         // description
         if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          oc_rep_text_set_text_string(root, desc, lsxb[c].desc);
+          oc_rep_text_set_text_string(root, desc, lsxb[c].point[p].desc);
 
           error_state = false;
         }
       }
     }
     else
-    { // ... no query parameter 'm' present at all, set value
-      oc_rep_i_set_boolean(root, 1, lsxb[c].point[p].value);
+    { // ... no query parameter 'm' present at all, set value for the GET
 
+      if (is_input_datapoint)
+      {
+        // don't allow to read to an 'input'
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
+        return;
+      }
+
+      oc_rep_i_set_boolean(root, 1, lsxb[c].point[p].value);
       error_state = false;
     }
   }
@@ -422,17 +357,18 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   PRINT("-- End GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
 }
 
-void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+// specific LSAB PUT (IOO will be updated ... )
+void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
-  
-   bool error_state = true;
+
+  bool error_state = true;
 
   // sets the pointer to the (/k or /p) handed over object
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the original caller url 
-  const int32_t channel_and_datapoint = app_get_channel_and_point(user_data);
+  // user data host the original caller url
+  const int32_t channel_and_datapoint = app_get_channel_and_point(lsxb, user_data);
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
@@ -452,7 +388,7 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     // may need to be skipped
     if (rep->iname == 1 && rep->type == OC_REP_BOOL)
     {
-      PRINT("set switch to %d", rep->value.boolean);
+      PRINT("set LSAB soo to %d", rep->value.boolean);
       lsxb[c].point[p].value = rep->value.boolean;
       error_state = false;
       break;
@@ -466,12 +402,67 @@ void put_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
-    PRINT("received no error, update status to %d", lsxb[c].point[SOO].value);
+    // set LSAB status 
+    PRINT("received no error, update LSAB status to %d", lsxb[c].point[SOO].value);
     lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
 
     // this is the 'simple' option to trigger a status on a specific EP
-    PRINT("Send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
+    PRINT("send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
     oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].href, "w", true);
+
+    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
+    return;
+  }
+
+  // bad request status
+  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
+}
+
+// specific LSSB PUT (nothing will be updated ... )
+void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+{
+  (void)interfaces;
+
+  bool error_state = true;
+
+  // sets the pointer to the (/k or /p) handed over object
+  const oc_rep_t* rep = request->request_payload;
+
+  // user data host the original caller url
+  const int32_t channel_and_datapoint = app_get_channel_and_point(lsxb, user_data);
+  const uint16_t c = channel_and_datapoint >> 16;
+  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
+
+  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].href);
+
+  // handle the different requests, here only included as example to
+  // identify if extra data needs to be processed in the endpoint
+  if (oc_is_redirected_request_from(request) > -1)
+  {
+    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
+  }
+
+  // loop over object
+  while (rep)
+  {
+    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
+    // may need to be skipped
+    if (rep->iname == 1 && rep->type == OC_REP_BOOL)
+    {
+      PRINT("set LSSB ioo to %d", rep->value.boolean);
+      lsxb[c].point[p].value = rep->value.boolean;
+      error_state = false;
+      break;
+    }
+    rep = rep->next;
+  }
+
+  // correct data retrieved
+  if (!error_state)
+  {
+    // inform the stack on status
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
     PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
     return;
@@ -687,44 +678,81 @@ void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
  */
 void register_resources(void)
 {
-  PRINT("Register channel 0 .. n control/status resource");
-
-  for (int i = 0; i < NUM_CHANNELS; i++)
+  PRINT("Register LSAB/LSSB channel control/status resource");
   {
-    oc_resource_t* soo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[SOO].href, 1, 0);
-    oc_resource_t* ioo_res = oc_new_resource(lsxb[i].name, lsxb[i].point[IOO].href, 1, 0);
+    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].name, lsxb[LSAB].point[SOO].href, 1, 0);
+    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].name, lsxb[LSAB].point[IOO].href, 1, 0);
+    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].name, lsxb[LSSB].point[SOO].href, 1, 0);
+    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].name, lsxb[LSSB].point[IOO].href, 1, 0);
 
-    char soo_t[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_t, lsxb[i].point[SOO].dpa);
-    char ioo_t[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_t, lsxb[i].point[IOO].dpa);
+    // add to types the FULL URN, needed on a call to well-known without full URN in query parameters
+    char soo_res_type_lsab[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_res_type_lsab, lsxb[LSAB].point[SOO].dpa);
+    char ioo_res_type_lsab[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_res_type_lsab, lsxb[LSAB].point[IOO].dpa);
+    char soo_res_type_lssb[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_res_type_lssb, lsxb[LSSB].point[SOO].dpa);
+    char ioo_res_type_lssb[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_res_type_lssb, lsxb[LSSB].point[IOO].dpa);
 
-    oc_resource_bind_resource_type(soo_res, soo_t);
-    oc_resource_bind_resource_type(ioo_res, ioo_t);
+    oc_resource_bind_resource_type(soo_resource_lsab, soo_res_type_lsab);
+    oc_resource_bind_resource_type(ioo_resource_lsab, ioo_res_type_lsab);
+    oc_resource_bind_resource_type(soo_resource_lssb, soo_res_type_lssb);
+    oc_resource_bind_resource_type(ioo_resource_lssb, ioo_res_type_lssb);
 
-    oc_resource_bind_dpt(soo_res, lsxb[i].point[SOO].dpt);
-    oc_resource_bind_dpt(ioo_res, lsxb[i].point[IOO].dpt);
+    oc_resource_bind_dpt(soo_resource_lsab, lsxb[LSAB].point[SOO].dpt);
+    oc_resource_bind_dpt(ioo_resource_lsab, lsxb[LSAB].point[IOO].dpt);
+    oc_resource_bind_dpt(soo_resource_lssb, lsxb[LSSB].point[SOO].dpt);
+    oc_resource_bind_dpt(ioo_resource_lssb, lsxb[LSSB].point[IOO].dpt);
 
-    oc_resource_bind_content_type(soo_res, APPLICATION_CBOR, CONTENT_NONE);
-    oc_resource_bind_content_type(ioo_res, APPLICATION_CBOR, CONTENT_NONE);
+    oc_resource_bind_content_type(soo_resource_lsab, APPLICATION_CBOR, CONTENT_NONE);
+    oc_resource_bind_content_type(ioo_resource_lsab, APPLICATION_CBOR, CONTENT_NONE);
+    oc_resource_bind_content_type(soo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
+    oc_resource_bind_content_type(ioo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
 
-    oc_resource_set_function_block_instance(soo_res, 1);
-    oc_resource_set_function_block_instance(ioo_res, 1);
+    oc_resource_set_function_block_instance(soo_resource_lsab, 1);
+    oc_resource_set_function_block_instance(ioo_resource_lsab, 1);
+    oc_resource_set_function_block_instance(soo_resource_lssb, 1);
+    oc_resource_set_function_block_instance(ioo_resource_lssb, 1);
 
-    oc_resource_set_discoverable(soo_res, true);
-    oc_resource_set_discoverable(ioo_res, true);
+    oc_resource_set_discoverable(soo_resource_lsab, true);
+    oc_resource_set_discoverable(ioo_resource_lsab, true);
+    oc_resource_set_discoverable(soo_resource_lssb, true);
+    oc_resource_set_discoverable(ioo_resource_lssb, true);
 
-    oc_resource_set_observable(soo_res, true);
-    oc_resource_set_observable(ioo_res, true);
+    oc_resource_set_observable(soo_resource_lsab, true);
+    oc_resource_set_observable(ioo_resource_lsab, true);
+    oc_resource_set_observable(soo_resource_lssb, true);
+    oc_resource_set_observable(ioo_resource_lssb, true);
 
-    // set user data for PUT/GET  (needed to distinguish the call source 
-    void* soo = lsxb[i].point[SOO].href;
-    void* ioo = lsxb[i].point[IOO].href;
+    // define user data for PUT/GET, needed to distinguish the call source
+    // p/1 --> channel 0 / datapoint 0
+    // p/2 --> channel 0 / datapoint 1
+    void* soo_user_data_lsab = lsxb[LSAB].point[SOO].href;
+    void* ioo_user_data_lsab = lsxb[LSAB].point[IOO].href;
+    void* soo_user_data_lssb = lsxb[LSSB].point[SOO].href;
+    void* ioo_user_data_lssb = lsxb[LSSB].point[IOO].href;
 
-    oc_resource_set_request_handler(soo_res, OC_GET, get_lsxb, soo, OC_ACL_O, OC_IF_O);
-    oc_resource_set_request_handler(soo_res, OC_PUT, put_lsxb, soo, OC_ACL_I, OC_IF_I);
-    oc_resource_set_request_handler(ioo_res, OC_GET, get_lsxb, ioo, OC_ACL_O, OC_IF_O);
+    // LSAB defines
+    // soo
+    // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
+    // - PUT
+    // ioo
+    // - GET
+    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, get_lsxb, soo_user_data_lsab, OC_ACL_I, OC_IF_I);
+    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, put_lsab, soo_user_data_lsab, OC_ACL_I, OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, get_lsxb, ioo_user_data_lsab, OC_ACL_O, OC_IF_O);
 
-    oc_add_resource(soo_res);
-    oc_add_resource(ioo_res);
+    // LSSB defines
+    // soo
+    // - GET
+    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, get_lsxb, soo_user_data_lssb, OC_ACL_O, OC_IF_O);
+    // ioo
+    // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
+    // - PUT
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, get_lsxb, ioo_user_data_lssb, OC_ACL_I, OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, put_lssb, ioo_user_data_lssb, OC_ACL_I, OC_IF_I);
+
+    oc_add_resource(soo_resource_lsab);
+    oc_add_resource(ioo_resource_lsab);
+    oc_add_resource(soo_resource_lssb);
+    oc_add_resource(ioo_resource_lssb);
   }
 
   PRINT("Register test parameter");
@@ -744,7 +772,7 @@ void register_resources(void)
     oc_resource_set_observable(tp0, true);
 
     oc_resource_set_request_handler(tp0, OC_GET, get_parameter_0, NULL, OC_ACL_D, OC_IF_D); // see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_P, OC_IF_P); // see EP handler 
+    oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_P, OC_IF_P); // see EP handler
 
     oc_add_resource(tp0);
   }
@@ -856,7 +884,7 @@ int app_initialize_stack(void)
 {
 
   // The final storage folder depends on the build system/ current directory on Linux/ Windows,
-  // the folder name is defined by the file name + serial number. 
+  // the folder name is defined by the file name + serial number.
 
   char storage[400];
   char dir[FILENAME_MAX] = "";

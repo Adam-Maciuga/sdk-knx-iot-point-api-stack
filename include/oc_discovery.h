@@ -35,37 +35,36 @@ extern "C" {
 void oc_create_discovery_resource(int resource_idx, size_t device_index);
 
 /**
- * @brief filter resource if it needs to be included in the response of a
- * link-format response
+ * @brief  filters on an individual resource for a match with the request query parameters, on 
+ *         a match include the resource in the response (in link-format)
  *
- * @param resource the resource to be included
+ * @param resource the resource to be checked
  * @param request  the request, with all query parameters
- * @param device_index the device index on the request is being made
  * @param response_length the current response length
  * @param skipped number of entries already skipped
  * @param first_entry first entry to be included
- * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the rt's (resource types)
+ * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the resource types, otherwise yes.
  *
- * @return true resource added (as entry) to the response payload
- * @return false resource was not added to the response payload
+ * @note parameter truncate is always false when called from the well-known/core EP 
+ *
+ * @return true individual resource added to the response payload (incl. rt's, types, ...) 
+ * @return false individual resource was not added to the response payload
  */
-bool oc_filter_resource(const oc_resource_t *resource, oc_request_t *request,
-                        size_t device_index, size_t *response_length,
+bool oc_check_resource_by_request(const oc_resource_t *resource, oc_request_t *request, size_t *response_length,
                         int *skipped, int first_entry, bool truncate);
 /**
  * @brief add the resource (uri, if, rt, ct) to the response in application link format
  *
  * @param resource the resource
  * @param request  the request
- * @param device_index the device index
  * @param response_length the response length (to be increased)
- * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the rt's (resource types)
+ * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the resource and interface types
  * @return true 
  * @return false (if resource or resource uri are not present) 
  */
 bool oc_add_resource_to_response_payload(const oc_resource_t *resource, oc_request_t *request,
-                           const size_t device_index, size_t *response_length,
-                           const bool truncate);
+                                         size_t *response_length,
+                                         const bool truncate);
 
 #ifdef __cplusplus
 }

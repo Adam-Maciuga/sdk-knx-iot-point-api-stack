@@ -164,7 +164,7 @@ int oc_iterate_query(oc_request_t* request, char** key, size_t* key_len, char** 
 	return oc_ri_get_query_nth_key_value(request->query, request->query_len, key, key_len, value, value_len, query_iterator);
 }
 
-bool oc_iterate_query_get_values(oc_request_t* request, const char* key,																 char** value, int* value_len)
+bool oc_iterate_query_get_values(oc_request_t* request, const char* key, char** value, int* value_len)
 {
 	char* current_key = 0;
 	size_t key_len = 0, v_len;
@@ -265,20 +265,28 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 			resource->properties |= OC_SECURE;
 			#endif 
 
-			// acl scope and interfaces 
+			// callback handler/ acl scope and interfaces = default
+      resource->get_handler.cb = NULL;
 			resource->get_handler.acl_scope_mask = OC_ACL_NONE;
 			resource->get_handler.interface_mask = OC_IF_NONE;
-			resource->put_handler.acl_scope_mask = OC_ACL_NONE;
+
+			resource->put_handler.cb = NULL;
+		  resource->put_handler.acl_scope_mask = OC_ACL_NONE;
 			resource->put_handler.interface_mask = OC_IF_NONE;
-			resource->post_handler.acl_scope_mask = OC_ACL_NONE;
+
+			resource->post_handler.cb = NULL;
+		  resource->post_handler.acl_scope_mask = OC_ACL_NONE;
 			resource->post_handler.interface_mask = OC_IF_NONE;
-			resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
+
+			resource->delete_handler.cb = NULL;
+		  resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
 			resource->delete_handler.interface_mask = OC_IF_NONE;
 
 			// observe
 			resource->observe_period_seconds = 0;
 
-			// const; dynamic (application) resources = false, const (precompiled) resources = always true
+			// for dynamic (application) resources = false,
+			// for const (precompiled) resources = always true
 			*(bool*) &resource->is_const = false;
 
 			// rt data
@@ -498,13 +506,9 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
 	}
 }
 
-bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource,
-																						oc_method_t method,
-																						oc_acl_mask_t* scopes,
-																						oc_interface_mask_t* interfaces)
+bool oc_resource_get_all_interfaces_for_a_resource(oc_resource_t* resource, oc_interface_mask_t* interfaces)
 {
-	// used to create a copy of the resource pointer 
-	oc_request_handler_t* handler = NULL;
+	bool at_least_one_handler_defined = false;
 
 	if (resource == NULL)
 	{
@@ -512,38 +516,86 @@ bool oc_resource_get_acl_and_interface_mask(oc_resource_t* resource,
 		return false;
 	}
 
-	switch (method)
+	// GET defined
+	if (resource->get_handler.cb)
 	{
-		case OC_GET:
-			handler = &resource->get_handler;
-			break;
-
-		case OC_POST:
-			handler = &resource->post_handler;
-
-			break;
-		case OC_PUT:
-			handler = &resource->put_handler;
-
-			break;
-		case OC_DELETE:
-			handler = &resource->delete_handler;
-
-			break;
-		default:  // skip FETCH method for now 
-			break;
+    at_least_one_handler_defined = true;
+	  * interfaces|= resource->get_handler.interface_mask;
 	}
 
-	if (handler)
+	// PUT defined
+  if (resource->put_handler.cb)
+  {
+    at_least_one_handler_defined = true;
+    *interfaces |= resource->put_handler.interface_mask;
+  }
+
+	// POST defined
+  if (resource->post_handler.cb)
+  {
+    at_least_one_handler_defined = true;
+    *interfaces |= resource->post_handler.interface_mask;
+  }
+
+	// DELETE defined
+  if (resource->delete_handler.cb)
+  {
+    at_least_one_handler_defined = true;
+    *interfaces |= resource->delete_handler.interface_mask;
+  }
+
+	if (at_least_one_handler_defined)
 	{
-		// don't set if NULL was handed over (value is not of interest)
-		if (scopes) *scopes = handler->acl_scope_mask;
-		if (interfaces) *interfaces = handler->interface_mask;
-		return true;
+    OC_INF("at least one resource handler defined for this resource");
+	  return true;
 	}
 
-	OC_INF("resource handler not defined for this method");
+	OC_INF("no resource handler defined for this resource");
 	return false;
+}
+
+bool oc_resource_get_acl_for_method(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes)
+{
+  // used to create a copy of the resource pointer
+  const oc_request_handler_t* handler = NULL;
+
+  if (resource == NULL)
+  {
+    OC_ERR("get acl scope from resource: resource is NULL");
+    return false;
+  }
+
+  switch (method)
+  {
+  case OC_GET:
+    handler = &resource->get_handler;
+    break;
+
+  case OC_POST:
+    handler = &resource->post_handler;
+    break;
+
+    case OC_PUT:
+    handler = &resource->put_handler;
+    break;
+
+    case OC_DELETE:
+    handler = &resource->delete_handler;
+    break;
+
+		// skip FETCH method for now
+    default: 
+    break;
+  }
+
+  if (handler)
+  {
+    *scopes = handler->acl_scope_mask;
+    return true;
+  }
+
+  OC_INF("resource handler not defined for this method");
+  return false;
 }
 
 bool oc_add_resource(oc_resource_t* resource)

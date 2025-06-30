@@ -215,34 +215,34 @@ extern "C" {
 	/**
 	 * @brief Get the interface string object from a corresponding interface bit
 	 *
-	 * @param iface_mask the interface mask (access scope)
-	 * @return const char* the interface as string e.g. "if.i"
+	 * @param interface_mask the interface mask (access scope)
+	 * @return const char* the interface as short URN string e.g. ":if.i"
 	 *
 	 * @note: MUST be called with a single interface as mask only,
-	 *        the first  'bit hit' is returned (from lo to hi)
+	 *        the MSB 'bit hit' is returned
 	 */
-	const char* get_interface_string(oc_interface_mask_t iface_mask);
+	const char* get_interface_string_short_urn(oc_interface_mask_t interface_mask);
+
 
 	/**
-	 * @brief Get the method name object
-	 *
-	 * @param method the input method
-	 * @return const char* the method as string e.g. "GET"
-	 */
-	const char* get_method_name(oc_method_t method);
+   * @brief Get the interface string object from a corresponding interface bit
+   *
+   * @param index the interface mask (array) index 
+   * @return const char* the interface as full URN string e.g. "urn:knx:if.i"
+   *
+   */
+  const char* get_interface_string_full_urn(int index);
 
 	/**
 	 * @brief counts the number of total interfaces in the interface mask
 	 *
-	 * @param iface_mask the interface mask
+	 * @param scopes the interface mask
 	 * @return int the amount of interfaces in the mask
 	 *
 	 * @note calculates the interface if.g.s.<a> only 1
 	 *
 	 */
-  unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t iface_mask);
-
-
+  unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes);
 
 	/**
 	* @brief returns the corresponding oc_status code from coap code
@@ -257,19 +257,18 @@ extern "C" {
 	/**
 	 * @brief sets all interfaces in a mask in a string array
 	 *
-	 * @param iface_mask the interface mask
-	 * @param interface_array the string array to place the individual interface names in
+	 * @param scopes the interface mask
+	 * @param scopes_array the string array to place the individual interface names in
 
 	 */
-  void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t iface_mask, oc_string_array_t interface_array);
+  void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array);
 
 	/**
 	 * @brief prints all acl scopes in the mask to stdout
 	 *
-	 * @param iface_mask the interface mask
-	 * names in
+	 * @param scope the scope mask names in
 	 */
-	void oc_print_acl_scopes(oc_acl_mask_t iface_mask);
+	void oc_print_acl_scopes(oc_acl_mask_t scope);
 
 	/**
 	 * @brief core resource numbers
@@ -696,15 +695,6 @@ extern "C" {
    * @return oc_acl_mask_t the compacted mask value of the access scopes, also 'none' on no hit
    */
   oc_acl_mask_t oc_ri_get_scope_mask(char* acl_scope, size_t acl_len);
-
-  /**
-	 * @brief checks if the resource is valid
-	 *
-	 * @param resource The resource to be tested
-	 * @return true valid
-	 * @return false not valid
-	 */
-	bool oc_ri_is_app_resource_valid(const oc_resource_t* resource);
 
 	/**
 	 * @brief creates a new request from the (old) request by copy 1:1,

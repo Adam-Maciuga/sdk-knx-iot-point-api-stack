@@ -59,7 +59,7 @@ enum : uint16_t
   EITT_SOO = CHECK_PM + 1
 };
 
-extern channel_t lsxb[NUM_CHANNELS];
+extern channel_t lsab[NUM_CHANNELS];
 
 static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
   {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
@@ -127,7 +127,7 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_EITT_SOO(wxCommandEvent& event);
+  void OnPressed_LSAB_SOO(wxCommandEvent& event);
 
   void updateCheckBoxesFromLiveIOOData();
   void updateDeviceData();
@@ -266,7 +266,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
     m_EITT_SOO = new wxButton(this, EITT_SOO, _T("SOO, press me ..."),
                                 wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
 
-    m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_EITT_SOO, this);
+    m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_SOO, this);
     m_EITT_SOO->Enable(true);
   }
 
@@ -1142,18 +1142,17 @@ void MyFrame::double2text(double value, char* text)
   strcat(text, new_text);
 }
 
-
-void MyFrame::OnPressed_EITT_SOO(wxCommandEvent& event)
+void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
 {
   // get url from SOO
-  char* url = app_retrieve_href_from_channel(EITT, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(EITT, SOO);
+  char* url = app_retrieve_href_from_channel(LSAB, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(LSAB, SOO);
 
   // toggle value
   p = !p;
 
   // set value
-  app_set_bool_variable_from_channel(LSSB0, SOO, p);
+  app_set_bool_variable_from_channel(LSAB, SOO, p);
 
   // send out, multicast
   oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w", true);

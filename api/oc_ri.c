@@ -104,40 +104,51 @@ static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 
 oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
 
-static const char* interface_strings[15] =
-{ // starts with OC_IF_NONE, names are shared between acl scopes and interfaces AND MUST be in the same order 
-	"",				"if.i",		"if.o",	"if.g.s",
-	"if.c",		"if.p",		"if.d",	"if.a",
-	"if.s",		"if.ll",	"if.b", "if.sec",
-	"if.swu",	"if.pm",	"if.m.x"
+static const char* interface_string_name[15] =
+  { // starts with OC_IF_NONE, names are shared between acl scopes and interfaces AND MUST be in the same order
+    "",      "if.i",  "if.o",		"if.g.s", "if.c",
+    "if.p",  "if.d",  "if.a",		":if.s",	"if.ll",
+    "if.b", "if.sec", "if.swu", "if.pm",	"if.m.x"
+  };
+
+static const char* interface_strings_short_urn[15] =
+{ // starts with OC_IF_NONE, urns are shared between acl scopes and interfaces AND MUST be in the same order
+	"",				":if.i",		":if.o",	  ":if.g.s",	":if.c",
+  ":if.p",	":if.d",	  ":if.a",  	":if.s",		":if.ll",
+  ":if.b",	":if.sec",	":if.swu",	":if.pm",		":if.m.x"
 };
 
-const char* get_interface_string(oc_interface_mask_t iface_mask)
+static const char* interface_strings_full_urn[15] =
+  { // starts with OC_IF_NONE, urns are shared between acl scopes and interfaces AND MUST be in the same order
+    "",              "urn:knx:if.i",   "urn:knx:if.o",   "urn:knx:if.g.s", "urn:knx:if.c",
+    "urn:knx:if.p",  "urn:knx:if.d",   "urn:knx:if.a",   "urn:knx:if.s",   "urn:knx:if.ll",
+    "urn:knx:if.b",  "urn:knx:if.sec", "urn:knx:if.swu", "urn:knx:if.pm",  "urn:knx:if.m.x"};
+
+const char* get_interface_string_short_urn(oc_interface_mask_t interface_mask)
 {
-	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = 12
-	// 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = 1
-	for (unsigned int i = 0; i <= MAX_INTERFACE_BIT; i++, iface_mask >>= 1)
-	{
-		if (iface_mask & 1)
-		{
-			return interface_strings[i];
-		}
-	}
-	return ""; // mask is empty ...
+	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+	// 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+
+	if (!interface_mask)
+    return interface_strings_short_urn[0];
+
+  unsigned int index = 0;
+  // shift one to right first to match array index (bit 2 = array index 1)
+  while (interface_mask >>= 1)
+  {
+    index++;
+  }
+  return interface_strings_short_urn[index];
 }
 
-const char* get_method_name(oc_method_t method)
+const char* get_interface_string_full_urn(int index)
 {
-	if (method == OC_GET)
-		return "GET";
-	if (method == OC_POST)
-		return "POST";
-	if (method == OC_PUT)
-		return "PUT";
-	if (method == OC_DELETE)
-		return "DELETE";
+  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
 
-	return "METHOD ERROR";
+  return interface_strings_full_urn[index];
 }
 
 oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
@@ -154,39 +165,41 @@ oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
 	return OC_IGNORE;
 }
 
-unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t iface_mask)
+unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes)
 {
 	unsigned int total_masks = 0;
 
-	while (iface_mask)
+	while (scopes)
 	{
-		total_masks += iface_mask & 1; // add the LSB (=0/1)
-		iface_mask >>= 1;              // right shift
+		total_masks += scopes & 1; // add the LSB (=0/1)
+		scopes >>= 1;              // right shift
 	}
 	return total_masks;
 }
 
-void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t iface_mask, oc_string_array_t interface_array)
+void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array)
 {
 	// 32-bit if.swu + if.i = 0b00000000 00000000 00010000 00000010
-	for (unsigned int i = 0; i <= MAX_INTERFACE_BIT; i++, iface_mask >>= 1)
+	for (int i = 0; i <= MAX_INTERFACE_BIT; i++, scopes >>= 1)
 	{
-		if (iface_mask & 1)
+		if (scopes & 1)
 		{
-			oc_string_array_add_item(interface_array, interface_strings[i]);
+			// returning the pure interface type names, not the short URN format
+		  oc_string_array_add_item(scopes_array, interface_string_name[i]);
 		}
 	}
 }
 
-void oc_print_acl_scopes(oc_acl_mask_t iface_mask)
+void oc_print_acl_scopes(oc_acl_mask_t scope)
 {
 	#ifdef OC_PRINT
 
-	for (unsigned int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, iface_mask >>= 1)
+	for (unsigned int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, scope >>= 1)
 	{
-		if (iface_mask & 1)
+		if (scope & 1)
 		{
-			PRINTF("%s ", interface_strings[i]);
+			// interfaces goes 1:1 with access scopes
+		  PRINTF("%s ", interface_strings_short_urn[i]);
 		}
 	}
 
@@ -219,20 +232,6 @@ void oc_ri_new_request_from_request(oc_request_t* new_request, oc_request_t* req
 const oc_resource_t* oc_ri_get_app_resources(void)
 {
 	return oc_list_head(app_resources);
-}
-
-bool oc_ri_is_app_resource_valid(const oc_resource_t* resource)
-{
-	const oc_resource_t* res = oc_ri_get_app_resources();
-	while (res)
-	{
-		if (res == resource)
-		{
-			return true;
-		}
-		res = res->next;
-	}
-	return false;
 }
 
 const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device)

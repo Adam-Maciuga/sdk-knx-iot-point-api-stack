@@ -838,7 +838,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   for (int i = first_entry; i < last_entry; i++)
   {
     const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
+    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -1274,7 +1274,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
       return;
     }
     
-    oc_core_set_and_store_device_application_version(device_index, (int)array[0], (int)array[1], (int)array[1]);
+    oc_core_set_and_store_device_application_version(device_index, (int)array[0], (int)array[1], (int)array[2]);
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
     return;
@@ -1320,8 +1320,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // how many query parameter key/value pair matches where found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -1368,7 +1367,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   for (int i = first_entry; i < last_entry; i++)
   {
     const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
-    if (oc_filter_resource(resource, request, device_index, &response_length, &i, i, true))
+    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
