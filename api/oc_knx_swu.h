@@ -49,9 +49,10 @@ extern "C" {
   */
   typedef enum
   {
-    OC_SWU_STATE_IDLE = 0,    /**< state is idle */
-    OC_SWU_STATE_DOWNLOADING, /**< state is downloading */
-    OC_SWU_STATE_DOWNLOADED   /**< state is downloaded */
+    OC_SWU_STATE_IDLE = 0,    // idle (no FWU package is on the way)
+    OC_SWU_STATE_DOWNLOADING, // downloading (a FWU package is currently on the way)
+    OC_SWU_STATE_DOWNLOADED,  // downloaded (the FWU package is fully available at server)
+    OC_SWU_STATE_UPGRADING    // upgrading (the FWU package is currently applied to the server)
   } oc_swu_state_t;
 
   /**
@@ -78,7 +79,8 @@ extern "C" {
   */
   typedef struct oc_device_swu
   {
-    int max_defer;
+    int max_defer;            // maximum number of seconds an AUTOMATIC software update can be deferred, 0 = NO AUTOMATIC update possible
+    int current_defer;        // current number of seconds a software update will be deferred (0...max defer)
     int update_method;        // swu update method (0=pull, 1=push=default or 2=both)
     oc_string_t pkg_name;
     oc_string_t last_update;
@@ -89,7 +91,6 @@ extern "C" {
     oc_swu_result_t result;   // download result
     bool downloaded_once;     // marker for a never updated device
     int protocol;             // only 0=unicast CoAP supported
-
   } oc_device_swu_t;
 
   /**
