@@ -193,23 +193,6 @@ more_or_done:
 
 #ifdef OC_SERVER
 
-bool oc_get_request_payload_raw(oc_request_t* request, const uint8_t** payload,
-																size_t* size, oc_content_format_t* content_format)
-{
-	if (!request || !payload || !size || !content_format)
-	{
-		return false;
-	}
-	if (request->_payload && request->_payload_len > 0)
-	{
-		*content_format = request->content_format;
-		*payload = request->_payload;
-		*size = request->_payload_len;
-		return true;
-	}
-	return false;
-}
-
 void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size,
 										 oc_content_format_t content_format,
 										 oc_status_t response_code)
@@ -620,8 +603,7 @@ void oc_delayed_delete_resource(oc_resource_t* resource)
 	oc_set_delayed_callback(resource, oc_delayed_delete_resource_cb, 0);
 }
 
-void oc_indicate_separate_response(oc_request_t* request,
-																	 oc_separate_response_t* response)
+void oc_indicate_separate_response(oc_request_t* request, oc_separate_response_t* response)
 {
 	request->response->separate_response = response;
 	oc_prepare_cbor_response(request, OC_STATUS_OK);

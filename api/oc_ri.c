@@ -1157,7 +1157,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 		for (int i = 0; i < OC_NUM_CORE_RESOURCES_PER_DEVICE; i++)
 		{
-			tmp_resource = oc_core_get_resource_by_index(i, endpoint->device);
+			tmp_resource = oc_core_get_resource_by_index(i);
 
 			// incoming URL fits to a core resource such as '/.well-known/core' by len and content
 			if (oc_string_len(tmp_resource->uri) == uri_path_len + 1 &&

@@ -242,13 +242,13 @@ static bool oc_process_application_resources(oc_request_t* request,
 }
 
 // filter for basic device resources
-static bool oc_process_basic_resources(oc_request_t* request, const size_t device_index,
-																			 size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
-																			 const int first_entry, const int last_entry)
+static bool oc_process_basic_resources(oc_request_t* request,
+                                       size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
+                                       const int first_entry, const int last_entry)
 {
 	for (int i = 0; i < OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK; i++)
 	{
-		if (oc_check_resource_by_request(oc_core_get_resource_by_index(basic_resources[i], device_index), request, response_length, skipped, first_entry, false))
+		if (oc_check_resource_by_request(oc_core_get_resource_by_index(basic_resources[i]), request, response_length, skipped, first_entry, false))
 		{
 			(*query_parameter_kvpair_matches)++;
 			if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
@@ -661,7 +661,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	{ // page not full, things can still be added
 
 		// add basic device resources
-		current_page_is_full = oc_process_basic_resources(request, device_index, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
+		current_page_is_full = oc_process_basic_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 
 		PRINT("oc_wkcore_discovery_handler add common resources on a unicast request ...");
 	}

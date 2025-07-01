@@ -286,10 +286,9 @@ extern "C" {
 	 *        the list of predefined core resource pointers.
 	 *
 	 * @param index the index of the resource
-	 * @param device the device index
 	 * @return oc_resource_t* the resource handle
 	 */
-	oc_resource_t* oc_core_get_resource_by_index(int index, size_t device);
+	oc_resource_t* oc_core_get_resource_by_index(int index);
 
 	/**
 	 * @brief Ensure that the given URI starts with a forward slash '/'.

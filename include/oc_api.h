@@ -438,7 +438,6 @@ extern "C"
   /**
    * Callback invoked by the stack to set the software
    *
-   * @param[in] device the device index
    * @param[in] response the instance of an internal struct that is used to track
    *                     the state of the separate response
    * @param[in] binary_size the full size of the binary
@@ -448,20 +447,19 @@ extern "C"
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_swu_cb_t)(size_t device, oc_separate_response_t* response, size_t binary_size, size_t block_offset,
+  typedef void (*oc_swu_cb_t)(oc_separate_response_t* response, size_t binary_size, size_t block_offset,
                               uint8_t* block_data, size_t block_len, void* data);
 
   /**
-   * Set the software update callback.
-   *
-   * The swu name callback is called by the stack when the software update is performed
+   * Sets the software update callback,
+   * called by the stack when the software update is performed
    *
    * @note
    * - oc_set_swu_cb() must be called before oc_main_init()
    * - called on each external PUT request to the ep a/swu, but not on a GET request
    *
    * @param[in] cb oc_swu_cb_t function pointer to be called
-   * @param[in] data context pointer that is passed to the oc_restart_cb_t
+   * @param[in] data context pointer that is passed to the oc_swu_cb_t,
    *                 the pointer must be a valid pointer till after oc_main_init()
    *                 call completes.
    */
@@ -1032,19 +1030,6 @@ extern "C"
    * @param response_code the to be used response code
    */
   void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
-
-  /**
-   * @brief retrieve the payload from the request, no processing
-   *
-   * @param request the request
-   * @param payload the payload of the request
-   * @param size the size in bytes of the payload
-   * @param content_format the content format of the payload
-   * @return true
-   * @return false
-   */
-  bool oc_get_request_payload_raw(oc_request_t* request, const uint8_t** payload, size_t* size,
-                                  oc_content_format_t* content_format);
 
   /**
    * @brief send the request, no processing

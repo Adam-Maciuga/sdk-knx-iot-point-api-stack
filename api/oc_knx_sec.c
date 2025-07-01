@@ -234,17 +234,15 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair
-                                          // matches where found
+  int query_parameter_kvpair_matches = 0;   // how many (to this device applicable) query parameter key/value pair
+                                            // matches where found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  int first_entry = OC_KNX_AUTH_O_REPLWDO; // first entry number of a resource
-                                           // that will be placed on a page
-  int last_entry = OC_KNX_AUTH_O; // last entry number of a resource that will
-                                  // be placed on a page
-  int total = last_entry - first_entry; // total entries of this resource
+  int first_entry = OC_KNX_AUTH_O_REPLWDO;  // first entry number of a resource that will be placed on a page
+  int last_entry = OC_KNX_AUTH_O;           // last entry number of a resource that will be placed on a page
+  int total = last_entry - first_entry;     // total entries of this resource
   bool more_request_needed = false;
 
   PRINT("oc_core_auth_o_get_handler - start");
@@ -284,7 +282,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
+    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
     if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
@@ -1254,7 +1252,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i, device_index);
+    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
     if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
