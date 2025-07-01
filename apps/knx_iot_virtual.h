@@ -49,7 +49,6 @@
 
 #define _0_name "Global Test Parameter"
 #define _0_des "global test parameter as 16 bit uint"
-#define _0_if_p ":if.p"
 
 // Sensor
 #define APPLICATION_NAME_LSSB "KNX virtual sensor (LSSB)"
@@ -86,7 +85,6 @@
 #define _0_url_value_eitt "/p/p1"
 #define _0_dpt_eitt ":dpt.propDataType"
 #define _0_dpa_switch_short_eitt ":dpa.65500.201"
-
 
 typedef struct datapoint
 {
@@ -234,6 +232,20 @@ extern "C"
    *
    */
   int32_t app_get_channel_and_point(const channel_t* channel, const void* user_data);
+
+  /**
+   * @brief software update callback
+   *
+   * @param response the instance of an internal struct that is used to track the
+   * state of the separate response
+   * @param binary_size the full size of the binary
+   * @param offset the offset of the image
+   * @param payload the image data
+   * @param len the length of the image data
+   * @param data the user data
+   */
+  void swu_cb(oc_separate_response_t* response, const size_t binary_size, const size_t offset, uint8_t* payload,
+              const size_t len, void* data);
 
 #ifdef __cplusplus
 }

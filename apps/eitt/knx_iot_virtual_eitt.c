@@ -478,7 +478,6 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)user_data;
-  (void)interfaces;
 
   bool error_state = true;
 
@@ -542,9 +541,12 @@ void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
           // key
           oc_rep_set_key(oc_rep_object(root), "if");
 
+          // if type as short URN
+          const char* interface_type = get_interface_string_short_urn(interfaces);
+
           // one if type only
           oc_rep_begin_array(oc_rep_object(root), if_types);
-          oc_rep_add_text_string(if_types, _0_if_p);
+          oc_rep_add_text_string(if_types, interface_type);
           oc_rep_end_array(oc_rep_object(root), if_types);
 
           error_state = false;
@@ -771,6 +773,7 @@ void register_resources(void)
 
     oc_resource_set_observable(tp0, true);
 
+    // parameter defines GET and PUT 
     oc_resource_set_request_handler(tp0, OC_GET, get_parameter_0, NULL, OC_ACL_D, OC_IF_D); // see EP handler
     oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_P, OC_IF_P); // see EP handler
 
@@ -813,54 +816,6 @@ void hostname_cb(const size_t device_index, const oc_string_t host_name, void* d
    * The application callback needs to handle a changed host name such as to
    * announce it to a border router or local daemon.
    */
-}
-
-static oc_event_callback_retval_t send_delayed_response(void* context)
-{
-  oc_separate_response_t* response = context;
-
-  if (response->active)
-  {
-    oc_set_separate_response_buffer(response);
-    oc_send_separate_response(response, OC_STATUS_CHANGED);
-    PRINT("Delayed response sent");
-  }
-  else
-  {
-    PRINT("Delayed response NOT active");
-  }
-
-  return OC_EVENT_DONE;
-}
-
-/**
- * @brief software update callback
- *
- * @param device the device index
- * @param response the instance of an internal struct that is used to track the
- * state of the separate response
- * @param binary_size the full size of the binary
- * @param offset the offset of the image
- * @param payload the image data
- * @param len the length of the image data
- * @param data the user data
- */
-void swu_cb(const size_t device, oc_separate_response_t* response, const size_t binary_size, const size_t offset,
-            uint8_t* payload, const size_t len, void* data)
-{
-  (void)device;
-  (void)binary_size;
-  (void)data;
-
-  char filename[] = "./downloaded.bin";
-  PRINT("swu_cb %s block=%d size=%d ", filename, (int)offset, (int)len);
-
-  FILE* write_ptr = fopen("downloaded_bin", "ab");
-  const size_t n = fwrite(payload, sizeof(*payload), len, write_ptr);
-  const size_t r = fclose(write_ptr);
-  PRINT("written data: %llu, operation ok (=0): %llu", n, r);
-
-  oc_set_delayed_callback(response, &send_delayed_response, 0);
 }
 
 /**
