@@ -31,17 +31,16 @@
 #ifdef OC_IOT_ROUTER
 #include "oc_knx_gm.h"
 #endif 
-
 #include "port/oc_assert.h"
 #include <stdarg.h>
-
 #include "oc_storage.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION
-#include "oc_endpoint.h"
-#include <stdlib.h>
+
+// dynamic list of core resources 
 OC_LIST(core_resource_list);
 static oc_resource_t* core_resources = NULL;
+// dynamic list of device resources, TODO it will be only one ... 
 static oc_device_info_t* oc_device_info = NULL;
 #else  
  // TODO fix this for static allocation, this is not used at the moment..
@@ -57,10 +56,12 @@ void oc_core_init(void)
 	oc_core_shutdown();
 
 	#ifdef OC_DYNAMIC_ALLOCATION
+
+	// calloc also deletes the content with '0'
 	core_resources = (oc_resource_t*) calloc(1, sizeof(oc_resource_t));
 	if (!core_resources)
 	{
-		printf("COULD NOT ALLOCATE CORE RESOURCE\n\n\n\n\n");
+		printf("COULD NOT ALLOCATE CORE RESOURCE");
 		oc_abort("Insufficient stack memory to allocate device resources");
 	}
 
@@ -73,17 +74,17 @@ static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info
 	if (oc_device_info_item)
 	{
 		// KNX
-		oc_free_string(&(oc_device_info_item->serialnumber));
-		oc_free_string(&(oc_device_info_item->hwt));
-		oc_free_string(&(oc_device_info_item->model));
-		oc_free_string(&(oc_device_info_item->hostname));
+    oc_free_string(&oc_device_info_item->serialnumber);
+		oc_free_string(&oc_device_info_item->hwt);
+		oc_free_string(&oc_device_info_item->model);
+		oc_free_string(&oc_device_info_item->hostname);
 	}
 }
 
 void oc_core_shutdown(void)
 {
 	size_t i;
-	oc_free_string(&(oc_platform_info.mfg_name));
+	oc_free_string(&oc_platform_info.mfg_name);
 
 	#ifdef OC_DYNAMIC_ALLOCATION
 	if (oc_device_info)
@@ -622,7 +623,7 @@ void oc_core_populate_resource(int core_resource_index,
 															 int num_resource_types,
 															 ...)
 {
-	oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index, device_index);
+	oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index);
 
 	if (!r)
 	{
@@ -679,7 +680,7 @@ void oc_core_populate_resource(int core_resource_index,
 
 void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt)
 {
-	const oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index, device_index);
+	const oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index);
 	if (!r)
 	{
 		return;
@@ -707,7 +708,7 @@ oc_platform_info_t* oc_core_get_platform_info(void)
 	return &oc_platform_info;
 }
 
-oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
+oc_resource_t* oc_core_get_resource_by_index(int index)
 {
 	#ifndef OC_DYNAMIC_ALLOCATION
 	if (type == OC_DEV_SN)
@@ -716,25 +717,13 @@ oc_resource_t* oc_core_get_resource_by_index(int index, size_t device)
 	}
 	return &core_resources[WELLKNOWNCORE * device + type];
 	#else
-	if (index == OC_DEV_SN)
-	{
-		// returns for each device the same SN(0) from device 0
-		// several device will have only one SN 
-		return oc_list_head(core_resource_list);
-	}
 
-	if (device != 0)
-	{
-		// device > 0: need to traverse list of dynamically added core resources 
-		// device 5 =  4 * WK(57) + index = index in table
-		return &core_resources[WELLKNOWNCORE * (device - 1) + index];
-	}
-
-	// device = 0 : need to traverse the 'linked' list of const core resources 
+	// need to traverse the 'linked' list of CONST device core resources
+	// starts with index 0 = OC_DEV_SN = serial number of device
 	oc_resource_t* res = oc_list_head(core_resource_list);
 	while (index && res)
 	{
-		// index > 0 (so no SN type can be searched for, see above)
+		// index > 0
 		res = oc_list_item_next(res);
 		index--;
 	}
