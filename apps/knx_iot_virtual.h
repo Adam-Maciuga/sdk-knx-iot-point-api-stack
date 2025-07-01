@@ -236,16 +236,14 @@ extern "C"
   /**
    * @brief software update callback
    *
-   * @param response the instance of an internal struct that is used to track the
-   * state of the separate response
+   * @param response the instance of an internal struct that is used to track the state of the separate response
    * @param binary_size the full size of the binary
    * @param offset the offset of the image
    * @param payload the image data
    * @param len the length of the image data
    * @param data the user data
    */
-  void swu_cb(oc_separate_response_t* response, const size_t binary_size, const size_t offset, uint8_t* payload,
-              const size_t len, void* data);
+  void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t offset, uint8_t* payload, size_t len, void* data);
 
 #ifdef __cplusplus
 }
