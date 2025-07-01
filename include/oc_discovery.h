@@ -43,7 +43,8 @@ void oc_create_discovery_resource(int resource_idx, size_t device_index);
  * @param response_length the current response length
  * @param skipped number of entries already skipped
  * @param first_entry first entry to be included
- * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the resource types, otherwise yes.
+ * @param truncate if true the response payload SHALL carry the short URN for the resource types,
+ *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.
  *
  * @note parameter truncate is always false when called from the well-known/core EP 
  *
