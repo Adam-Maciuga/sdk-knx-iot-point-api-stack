@@ -138,24 +138,11 @@ bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point)
   return lssb[channel].point[point].value; 
 }
 
-// INT code
-
-void app_set_int_variable(const char* url, const int value)
-{
-  
-}
-
-int app_retrieve_int_variable(const char* url)
-{
-  return -1;
-}
+// INT code - needs to be defined in case of such GOs
 
 // PARAMETER code
 
-bool app_is_url_parameter(char* url) { return false; }
-
 char* app_get_parameter_url(int index) { return NULL; }
-
 char* app_get_parameter_name(int index) { return NULL; }
 
 char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)
