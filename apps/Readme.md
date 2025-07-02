@@ -34,8 +34,9 @@ Contains the *.c and *.cpp code files for the Light Switch Actuator Basic (LSAB)
 - **knx_iot_virtual_lsab.c** and **knx_iot_virtual_lssb.c**
 - **knx_iot_virtual_lsab.cpp** and **knx_iot_virtual_lssb.cpp**
 
-> The actuator ar sensor application only supports their required datapoints. If (for example) you enable for a sesnsor in ETS 
-  also the actuator functionaliy and assign the actuator objects also GA's, the download of sensor application in ETS will fail. 
+> The above defined ETS applications supports only their intended datapoints, eg; for the sensor application onyl sensor datapoints. 
+  If (for example) you enable for a sensor in ETS also the actuator functionaliy and assign to the actuator objects also GA's, 
+  the ETS download of sensor application will fail for the virtaul sensor device (this demo bevaior may be improved in the future). 
 
 > Note that the current stack does not work properly on sending a separate LSAB status per button from the 
   LSAB GUI application. This is under investigation.
