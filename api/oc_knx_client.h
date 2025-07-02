@@ -107,19 +107,6 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
 /** @} */ // end of doc_module_tag_s_mode_server
 
 /**
- * @brief sends out an s-mode read request.
- * The read request has no data value
- *
- * Note: function does not check the flags on the resources
- *
- * @see oc_do_s_mode_with_scope
- * @param group_address the group address to invoke a read on
- */
-void oc_do_s_mode_read(uint32_t group_address);
-
-
-
-/**
  * @brief sends (transmits) an s-mode message
  *
  * - the value comes from the GET of the resource indicated by the resource_url
@@ -146,6 +133,9 @@ void oc_do_s_mode_read(uint32_t group_address);
  */
  void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* srv_type,
                                               bool consider_transmission_flag);
+
+ void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, const uint32_t grpid, const uint32_t group_address,
+                      const uint64_t iid, char* mode, uint8_t* value_data, const int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

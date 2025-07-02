@@ -3108,8 +3108,27 @@ void oc_init_datapoints_at_initialization(void)
       {
         // read on init cflags is set, fire (after device restart)
         // via the sending association(first assigned ga == sending ga)
-        PRINT("Init_datapoint, index: %d issue read on group address %u", index, g_got[index].ga[0]);
-        oc_do_s_mode_read(g_got[index].ga[0]);
+        uint32_t sending_group_address = g_got[index].ga[0];
+
+        OC_INF("Init datapoint, index: %d issue read on group address %u", index, sending_group_address);
+
+        oc_device_info_t* device = oc_core_get_device_info(0);
+        uint16_t sia_value = device->ia;
+        uint64_t iid = device->iid;
+
+        OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
+
+        // find the (mc) grpid that belongs to the group address
+        uint32_t grpid = oc_find_grpid_in_recipient_table(sending_group_address);
+
+        if (grpid > 0)
+        { // grpid is set in case of multicast at RCP table (configured by MaC)
+
+          #ifdef OC_USE_MULTICAST_SCOPE_2
+          oc_issue_s_mode(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+          #endif
+          oc_issue_s_mode(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+        }
       }
     }
   }
