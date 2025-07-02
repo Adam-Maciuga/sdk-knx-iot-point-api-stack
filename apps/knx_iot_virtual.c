@@ -80,11 +80,11 @@ static oc_event_callback_retval_t send_delayed_response(void* context)
   {
     oc_set_separate_response_buffer(response);
     oc_send_separate_response(response, OC_STATUS_CHANGED);
-    PRINT("Delayed response sent");
+    OC_DBG("Delayed response sent");
   }
   else
   {
-    PRINT("Delayed response NOT active");
+    OC_DBG("Delayed response NOT active");
   }
 
   return OC_EVENT_DONE;
@@ -96,12 +96,12 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t offset,
   (void)data;
 
   char filename[] = "./downloaded.bin";
-  PRINT("swu_cb %s block=%d size=%d ", filename, (int)offset, (int)len);
+  OC_DBG("swu_cb %s block=%d size=%d ", filename, (int)offset, (int)len);
 
   FILE* write_ptr = fopen("downloaded_bin", "ab");
   const size_t n = fwrite(payload, sizeof(*payload), len, write_ptr);
   const size_t r = fclose(write_ptr);
-  PRINT("written data: %llu, operation ok (=0): %llu", n, r);
+  OC_DBG("written data: %llu, operation ok (=0): %llu", n, r);
 
   oc_set_delayed_callback(response, &send_delayed_response, 0);
 }
