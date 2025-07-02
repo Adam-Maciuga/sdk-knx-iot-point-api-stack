@@ -33,7 +33,7 @@
 #endif 
 #include "port/oc_assert.h"
 #include <stdarg.h>
-#include "oc_storage.h"
+#include "port/oc_storage.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION
 
@@ -492,8 +492,7 @@ int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid)
 	return 0;
 }
 
-oc_device_info_t* oc_core_add_device(const char* name, const char* version, const char* base,
-																		 const char* serialnumber,
+oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char* serialnumber,
 																		 oc_core_add_device_cb_t add_device_cb, void* data)
 {
 	(void) data;
@@ -751,7 +750,7 @@ bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
 	return false;
 }
 
-bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
+bool oc_check_resource_by_rt(oc_resource_t* resource, oc_request_t* request)
 {
 	// pre-assumption that 'rt' key is not part of request
   bool match = true, more_query_params; 
@@ -818,7 +817,7 @@ bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* reques
 	return match;
 }
 
-bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
+bool oc_check_resource_by_if(oc_resource_t* resource, oc_request_t* request)
 {
   // pre-assumption that 'if' key is not part of request
   bool match = true, more_query_params;

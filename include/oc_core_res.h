@@ -136,9 +136,8 @@ extern "C" {
 	 * @param data the supplied user data
 	 * @return oc_device_info_t* the device structure
 	 */
-	oc_device_info_t* oc_core_add_device(const char* name, const char* version,
-																			 const char* base,
-																			 const char* serialnumber,
+	oc_device_info_t* oc_core_add_device(char* name, char* version, char* base,
+																			 char* serialnumber,
 																			 oc_core_add_device_cb_t add_device_cb,
 																			 void* data);
 
@@ -363,7 +362,7 @@ extern "C" {
    * @note according to RFC 6690 a value may contain more than one string to search for (separated by spaces) 
    *
    */
-  bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* request);
+  bool oc_check_resource_by_rt(oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief filter if the query parameter key 'if' is part of the request
@@ -382,7 +381,7 @@ extern "C" {
 	 * @note according to RFC 6690 a value may contain more than one string to search for (separated by spaces) 
 	 * 
 	 */
-  bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* request);
+  bool oc_check_resource_by_if(oc_resource_t* resource, oc_request_t* request);
 
 	/**
 	 * @brief frame the interface mask in the response, as string in the uri
