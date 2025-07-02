@@ -669,7 +669,7 @@ extern "C"
    * @param scope the address scope
    * @param port the port
    */
-  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint32_t port);
+  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port);
 
 #ifdef __cplusplus
 }
