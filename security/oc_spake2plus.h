@@ -265,6 +265,36 @@ int oc_spake_calc_confirmV(uint8_t *K_main, uint8_t confirmV[32],
  */
 int oc_spake_calc_K_shared(uint8_t *K_main, uint8_t K_shared[16]);
 
+/**
+ * @brief encode value as zero-padded little endian bytes
+ *
+ * @param value value
+ * @param buffer buffer, must be able to fit 8 bytes
+ * @return number of bytes written (always 8)
+ */
+size_t encode_uint(uint64_t value, uint8_t* buffer);
+
+
+/**
+ * @brief  encode string as length followed by bytes
+ *
+ * @param str string
+ * @param buffer buffer, must be able to fit 8 bytes
+ * @return number of bytes written
+ */
+size_t encode_string(const char* str, uint8_t* buffer);
+
+
+  /**
+ * @brief  point as length followed by bytes
+ *
+ * @param group string
+ * @param point point
+ * @param buffer buffer, must be able to fit 8 bytes
+ * @return number of bytes written
+ */
+size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, uint8_t* buffer);
+
 int oc_spake_calc_K_shared_256(uint8_t *K_main, uint8_t K_shared[32]);
 
 #ifdef __cplusplus

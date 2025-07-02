@@ -165,9 +165,6 @@ int oc_spake_get_w0_L(size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi*
   return ret;
 }
 
-// encode value as zero-padded little endian bytes
-// returns number of bytes written (always 8)
-// buffer must be able to fit 8 bytes
 size_t encode_uint(const uint64_t value, uint8_t* buffer)
 {
   buffer[0] = value >> 0  & 0xff;
@@ -181,21 +178,14 @@ size_t encode_uint(const uint64_t value, uint8_t* buffer)
   return 8;
 }
 
-// encode string as length followed by bytes
-// returns number of bytes written
-size_t
-encode_string(const char* str, uint8_t* buffer)
+size_t encode_string(const char* str, uint8_t* buffer)
 {
   size_t len = encode_uint(strlen(str), buffer);
   memcpy(buffer + len, str, strlen(str));
   return len + strlen(str);
 }
 
-// encode point as length followed by bytes
-// returns number of bytes written
-size_t
-encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point,
-             uint8_t* buffer)
+size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, uint8_t* buffer)
 {
   size_t len_point = 0;
   size_t len_len = 0;
