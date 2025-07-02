@@ -331,7 +331,7 @@ void oc_resource_bind_content_type(oc_resource_t* resource,
 	}
 	if (resource->is_const)
 	{
-		OC_ERR("oc_resource_bind_content_type: resource data is const");
+    OC_DBG("oc_resource_bind_content_type: resource data is const");
 		return;
 	}
 	resource->content_type[0] = content_type_man;
