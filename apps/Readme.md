@@ -3,13 +3,13 @@
 This folder contains code examples of how to use the stack.
 
 The intention of the examples is to explain certain aspects of the stack.
-e.g. provide information in how to build an KNX IoT Point API device based on the stack.
+e.g., provide information in how to build an KNX IoT Point API device based on the stack.
 
 # Example Applications
 
 * The *.c files are windows/linux console applications. 
-* The *.cpp files are windows gui applications, with several table views and interaction buttons. 
-  They 'include' the corresponding *.c files frome above for the data defintion. 
+* The *.cpp files are windows GUI applications, with several table views and interaction buttons. 
+  They 'include' the corresponding *.c files from above for the data definition. 
 
 ## EITT Applications
 
@@ -34,9 +34,9 @@ Contains the *.c and *.cpp code files for the Light Switch Actuator Basic (LSAB)
 - **knx_iot_virtual_lsab.c** and **knx_iot_virtual_lssb.c**
 - **knx_iot_virtual_lsab.cpp** and **knx_iot_virtual_lssb.cpp**
 
-> The above defined ETS applications supports only their intended datapoints, eg; for the sensor application onyl sensor datapoints. 
-  If (for example) you enable for a sensor in ETS also the actuator functionaliy and assign to the actuator objects also GA's, 
-  the ETS download of sensor application to the virtual sensor device will fail for (this demo bevaior may be improved in the future). 
+> The above defined ETS applications supports only their intended datapoints, e.g, for the sensor application only sensor datapoints. 
+  If (for example) you enable for a sensor in ETS also the actuator functionality and assign to the actuator objects also GA's, 
+  the ETS download of sensor application to the virtual sensor device will fail (this demo behavior may be improved in the future). 
 
 > Note that the current stack does not work properly on sending a separate LSAB status per button from the 
   LSAB GUI application. This is under investigation.
