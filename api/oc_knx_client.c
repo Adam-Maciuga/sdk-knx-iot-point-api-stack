@@ -36,33 +36,31 @@ typedef struct broker_s_mode_userdata_t
   int ia;                 /**< internal address of the destination */
   char path[20];          /**< the path on the device designated with ia */
   uint32_t ga;            /**< group address to use */
-  char rp_type[3];        /**< mode to send the message "w"  = 1  "r" = 2  "a" = 3 */
+  char service_type[3];   /**< mode to send the message "w"  = 1  "r" = 2  "a" = 3 */
   char resource_url[20];  /**< the url to pull the data from. */
 } broker_s_mode_userdata_t;
 
 oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
-static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, char* rp, uint8_t* value_data, int value_size);
+static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, char* service_type, uint8_t* value_data, int value_size);
 
-static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint8_t* buf, int buf_size);
+static int oc_s_mode_get_resource_value(const char* resource_url, uint8_t* buf, int buf_size);
 
 static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, oc_endpoint_t* endpoint, void* user_data)
 {
-  //(void)anchor;
   (void) payload;
   (void) len;
   uint8_t buffer[100];
 
-  PRINT("discovery_ia_cb\n");
+  // debugging
+  OC_DBG("discovery_ia_cb");
   oc_endpoint_print(endpoint);
 
-  size_t device_index = 0;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info(0);
   uint32_t sender_ia = device->ia;
 
-  broker_s_mode_userdata_t* cb_data = (broker_s_mode_userdata_t*) user_data;
+  broker_s_mode_userdata_t* cb_data = user_data;
 
-  int value_size;
   if (cb_data->resource_url == NULL)
   {
     return OC_STOP_DISCOVERY;
@@ -72,9 +70,9 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
     return OC_STOP_DISCOVERY;
   }
 
-  value_size =    oc_s_mode_get_resource_value(cb_data->resource_url, "r", buffer, 100);
+  int value_size = oc_s_mode_get_resource_value(cb_data->resource_url, buffer, 100);
 
-  oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga,                 cb_data->rp_type, buffer, value_size);
+  oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga, cb_data->service_type, buffer, value_size);
 
   if (cb_data)
   {
@@ -84,7 +82,7 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
   return OC_STOP_DISCOVERY;
 }
 
-int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid, const uint16_t ia, char* destination, char* srv_type)
+int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid, const uint16_t ia, char* destination, char* service_type)
 {
   char query[50] = "";
 
@@ -109,7 +107,7 @@ int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid
   {
     memset(cb_data, 0, sizeof(broker_s_mode_userdata_t));
     cb_data->ia = ia;
-    strncpy(cb_data->rp_type, srv_type, 2);
+    strncpy(cb_data->service_type, service_type, 2);
     strncpy(cb_data->resource_url, resource_url, 20);
     strncpy(cb_data->path, destination, 20);
 
@@ -179,41 +177,41 @@ oc_rep_t* oc_s_mode_get_value_object(oc_request_t* request)
   return NULL;
 }
 
-void oc_issue_s_mode(int scope, const int sia_value, const uint32_t grpid,
-                     const uint32_t group_address, const uint64_t iid, char* rp,
+void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, const uint32_t grpid,
+                     const uint32_t group_address, const uint64_t iid, char* mode,
                      uint8_t* value_data, const int value_size)
 {
-  PRINT("oc_issue_s_mode : scope %d", scope);
+  PRINT("oc_issue_s_mode : ipv6 address scope %d", ipv6_adr_scope);
 
 #ifdef S_MODE_ALL_COAP_NODES
 #ifdef OC_OSCORE
-  oc_make_ipv6_endpoint(group_mcast, IPV6 | MULTICAST | OSCORE, COAP_PORT, 0xff,
-                        -scope, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0xfd);
+  oc_make_ipv6_endpoint(group_mcast, IPV6 | MULTICAST | OSCORE, COAP_PORT, 0xff, -ipv6_adr_scope, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0x00, 0xfd);
 #else
-  oc_make_ipv6_endpoint(group_mcast, IPV6 | DISCOVERY | MULTICAST, COAP_PORT,
-                        0xff, scope, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0xfd);
+  oc_make_ipv6_endpoint(group_mcast, IPV6 | DISCOVERY | MULTICAST, COAP_PORT, 0xff, ipv6_adr_scope, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0x00, 0xfd);
 
 #endif
 
 #else
 
   // using group addressing 
-  oc_endpoint_t group_multicast = { 0 };
-  group_multicast = oc_create_multicast_group_address(group_multicast, grpid, iid, scope);
+  oc_endpoint_t group_multicast_local_endpoint = { 0 };
+  group_multicast_local_endpoint = oc_create_multicast_group_address(group_multicast_local_endpoint, grpid, iid, ipv6_adr_scope);
 
 #endif
 
-  // set the group_address to the group address, since this field is used to find the OSCORE context id
-  group_multicast.group_address = group_address;
-  oc_send_s_mode(&group_multicast, "/k", sia_value, group_address, rp, value_data, value_size);
+  // set the EP group_address, since this field is used to find the OSCORE context id
+  group_multicast_local_endpoint.group_address = group_address;
+  oc_send_s_mode(&group_multicast_local_endpoint, "/k", sia_value, group_address, mode, value_data, value_size);
 }
 
 static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t sia_value,
-                           const uint32_t group_address, char* rp, uint8_t* value_data,
+                           const uint32_t group_address, char* service_type, uint8_t* value_data,
                            const int value_size)
 {
 
-  PRINT("oc_send_s_mode : ");
+  OC_INF("oc_send_s_mode : ");
   PRINTipaddr(*endpoint);
 
 #ifndef OC_OSCORE
@@ -221,7 +219,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
   {
   #else  
 
-  // TODO not sure if it is needed, the endpoint should already have the OSCORE flag set
+  // set since method is called also with empty EP data (oc_issue_s_mode)
   endpoint->flags = endpoint->flags | OSCORE;
   if (oc_init_multicast_update(endpoint, path, NULL))
   {
@@ -230,22 +228,16 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
     // { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
 
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 4, sia_value);       // 4: <sia> 
+    oc_rep_i_set_int(root, 4, sia_value);             // 4: <sia> 
 
-    oc_rep_i_set_key(&root_map, 5)              // 5:  
+    oc_rep_i_set_key(&root_map, 5)                    // 5:  
 
     CborEncoder value_map;
     cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
-    oc_rep_i_set_int(value, 7, group_address);  // ga
+    oc_rep_i_set_int(value, 7, group_address);        // ga
 
-    oc_rep_i_set_text_string(value, 6, rp);     // st code(w/r/a)
+    oc_rep_i_set_text_string(value, 6, service_type); // st code(w/r/a)
 
-    // set the "value" key
-    // oc_rep_i_set_key(&value_map, 1);
-    // copy the data, this is already in cbor from the fake response of the
-    // resource GET function
-    // the GET function retrieves the data = { 1 : <value> } e.g. including
-    // the open/close object data. hence this needs to be removed.
     if (value_size > 2)
     {
       // [0] = open object / [size] = close object
@@ -256,7 +248,8 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
 
     oc_rep_end_root_object();
 
-    PRINT("oc_send_s_mode: S-MODE Payload Size: %d", oc_rep_get_encoded_payload_size());
+    // debugging
+    OC_INF("oc_send_s_mode: S-MODE Payload Size: %d", oc_rep_get_encoded_payload_size());
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
   #ifndef OC_OSCORE
@@ -266,19 +259,20 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
     #else
     if (oc_do_multicast_update())
     {
-      PRINT("Sent oc_do_multicast_update update");
+      OC_INF("Sent oc_do_multicast_update update");
     #endif
     }
     else
     {
-      PRINT("Could not send POST request");
+      OC_ERR("Could not send POST request");
     }
   }
 }
 
-static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint8_t * buf, const int buf_size)
+// copies the resource data and returns the data len
+static int oc_s_mode_get_resource_value(const char* resource_url, uint8_t * buf, const int buf_size)
 {
-  (void) rp;
+  // max value size of a resource value
   uint8_t buffer[50];
 
   if (resource_url == NULL)
@@ -293,10 +287,12 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
     return 0;
   }
 
+  // local messages
   oc_request_t request;
   oc_response_t response;
   oc_response_buffer_t response_buffer;
 
+  // assign data buffer
   response_buffer.buffer = buffer;
   response_buffer.buffer_size = 50;
 
@@ -324,18 +320,17 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
   request.uri_path = resource_url;
   request.uri_path_len = strlen(resource_url);
 
+  // init CBOR buffer 
   oc_rep_new(response_buffer.buffer, (int) response_buffer.buffer_size);
 
-  // get the value...oc_request_t request_obj;
-  oc_interface_mask_t iface_mask = OC_IF_NONE;
-  // void *data;
-  my_resource->get_handler.cb(&request, iface_mask, my_resource->get_handler.user_data);
+  // set callback handler for the GET with callback, interface type and user data
+  my_resource->get_handler.cb(&request, OC_IF_NONE, my_resource->get_handler.user_data);
 
-  // get the data
+  // get the size (see above)
   int value_size = oc_rep_get_encoded_payload_size();
   uint8_t* value_data = request.response->response_buffer->buffer;
 
-  // cache value data, as it gets overwritten in oc_issue_do_s_mode
+  // cache value data to handed over 'buffer', as it gets overwritten in oc_issue_do_s_mode
   if (value_size < buf_size)
   {
     memcpy(buf, value_data, value_size);
@@ -345,34 +340,7 @@ static int oc_s_mode_get_resource_value(const char* resource_url, char* rp, uint
   return 0;
 }
 
-void oc_do_s_mode_read(const uint32_t group_address)
-{
-  size_t device_index = 0;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  uint32_t sia_value = device->ia;
-  uint64_t iid = device->iid;
-  uint32_t grpid = 0;
 
-  PRINT("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", group_address, sia_value, iid);
-
-  // find the grpid that belongs to the group address
-  grpid = oc_find_grpid_in_recipient_table(group_address);
-  if (grpid > 0)
-  {
-  #ifdef OC_USE_MULTICAST_SCOPE_2
-    oc_issue_s_mode(2, sia_value, grpid, group_address, iid, "r", 0, 0);
-  #endif
-    oc_issue_s_mode(5, sia_value, grpid, group_address, iid, "r", 0, 0);
-  }
-  else if (group_address > 0)
-  {
-
-  #ifdef OC_USE_MULTICAST_SCOPE_2
-    oc_issue_s_mode(2, sia_value, group_address, group_address, iid, "r", 0, 0);
-  #endif
-    oc_issue_s_mode(5, sia_value, group_address, group_address, iid, "r", 0, 0);
-  }
-}
 
 void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* srv_type, bool consider_transmission_flag)
 {
@@ -422,10 +390,10 @@ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url
   oc_notify_observers(my_resource);
 
   // value size 
-  const int value_size = oc_s_mode_get_resource_value(resource_url, srv_type, buffer, sizeof(buffer));
+  const int value_size = oc_s_mode_get_resource_value(resource_url, buffer, sizeof(buffer));
 
   // get the sender ia + iid
-  uint32_t sia_value = device->ia;
+  uint16_t sia_value = device->ia;
   uint64_t iid = device->iid;
 
   int index = oc_core_find_group_object_table_url(resource_url);
