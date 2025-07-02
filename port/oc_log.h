@@ -223,11 +223,11 @@ extern "C" {
   \
   char fileShort[19] = {0};                                     \
   strncpy(fileShort, __FILENAME__, 15);                         \
-  strncat(fileShort, "...", 3);                                 \
+  strncat(fileShort, "...", sizeof("..."));                     \
   \
   char funcShort[28] = {0};                                     \
   strncpy(funcShort, __func__, 24);                             \
-  strncat(funcShort, "...", 3);                                 \
+  strncat(funcShort, "...", sizeof("..."));                     \
   \
   PRINTF("\n"                                                   \
          "%-2d:%-2d:%-2d "                                      \
