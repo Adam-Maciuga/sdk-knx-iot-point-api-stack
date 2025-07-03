@@ -125,10 +125,13 @@ extern "C" {
 
 			 /**
 				* @brief frees an 'ocstring'
+				*
 				*	@note
-				*	- as result next/ptr/size are set to '0', which is not a valid string definition
-				*	- an empty string is also freed (its size is '1')
-				*	- a call to a size '0' (invalid) string from above is not freed 
+				*	- an empty string - is a string - will be released (string size is '1', the string pointer .ptr as such is NOT NULL)
+				*	- an ocstring with .size '0' is not released
+				*	- an ocstring parameter = NULL is not released
+				*
+				*	@return in result the next ptr/size are set to 'NULL'/'0', which is not a valid string definition
 				*
 				*/
 	#define oc_free_string(ocstring) _oc_free_string(ocstring)

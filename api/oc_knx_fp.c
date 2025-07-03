@@ -2344,6 +2344,7 @@ void oc_free_group_object_table_entry(int entry, bool init)
   g_got[entry].id = -1;
 
   // free "string" data memory only if already initialized
+  // assumes in table uninitialized/random string data - don't release it ... 
   if (init == false)
   {
     oc_free_string(&g_got[entry].href);
@@ -2661,6 +2662,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].grpid = 0; // init value, used also in code to check on its validity
 
   // free "string" data memory only if already initialized
+  // assumes in table uninitialized/random string data - don't release it ... 
   if (init == false)
   {
     oc_free_string(&table[entry].url);
@@ -2790,20 +2792,20 @@ static void oc_init_tables(void)
 
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    // init GPT table and assumes no present allocation 
+    // init GPT table, assumes in PUB table uninitialized/random string data - don't release it ... 
     oc_free_group_table_entry(i, g_gpt, true);
   }
 #endif
 
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    // init GRT table and assumes no present allocation 
+    // init GRT table,assumes in RCP table uninitialized/random string data - don't release it ... 
     oc_free_group_table_entry(i, g_grt, true);
   }
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    // init GO table and assumes no present allocation 
+    // init GO table, assumes in GO table uninitialized/random string data - don't release it ... 
     oc_free_group_object_table_entry(i, true);
   }
 }

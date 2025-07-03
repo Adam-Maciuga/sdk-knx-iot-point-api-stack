@@ -535,7 +535,7 @@ oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char
 		// define extern for below usage
 		extern oc_resource_t core_resource_dev_sn;
 
-	  // clear device 0 resources
+	  // add as first list element the 'sn' resource 
 	  oc_list_add_block(core_resource_list, &core_resource_dev_sn);
 	}
 
