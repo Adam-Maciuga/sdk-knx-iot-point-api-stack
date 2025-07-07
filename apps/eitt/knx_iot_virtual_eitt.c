@@ -18,7 +18,6 @@
 */
 #include "oc_rep.h"
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
@@ -32,7 +31,7 @@
 #include <signal.h> // test purpose only; commandline reset
 #include <stdio.h> // defines FILENAME_MAX
 #include <stdlib.h>
-#include "apps/knx_iot_virtual.h" // application constants
+#include "apps/knx_iot_virtual.h" // application constants + methods
 #include "oc_knx_client.h"
 
 #ifdef __linux__
@@ -61,46 +60,33 @@ volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
 char g_serial_number[] = SN_LOWER_CASE_EITT; // startup SN, maybe overwritten by CL option
 
-// functional block 417 (LSAB) and 421 (LSBB) command/control are needed
-// for certification tests
+/**
 
-// define LSAB/LSSB channel 0..1 + included EPs switch control / status; to be used for the EITT certification, note that:
-// - the EP names from below are expected from the EITT default templates
-// - the used datapoints are artificial such as dpa 417.61/62
-// - the leading '/' is required, since this (EITT test) application is using an empty base path (checked in fp/g and
-// p/{property-path})
-// - the dpa/if type is in SHORT URN notation, on a GET {ipv6-unicast}/{point-path}?m it is requested per specification
-channel_t lsxb[NUM_CHANNELS] = {
-  {"LSAB",
-   {
-     {false, "/p/1", ":dpa.417.61", ":dpt.switch", "LSAB soo"},   // LSAB soo input
-     {false, "/p/2", ":dpa.417.62", ":dpt.switch", "LSAB ioo"}}}, // LSAB ioo output
-  {"LSSB",
-   {
-     {false, "/p/3", ":dpa.421.61", ":dpt.switch", "LSSB soo "},   // LSSB soo output
-     {false, "/p/4", ":dpa.421.62", ":dpt.switch", "LSSB ioo "}}}, // LSSB ioo input
+ Below defined datapoints and test parameters are expected from the EITT test template defaults. 
+ 
+  - the EP names
+  - functional block 417 (LSAB) and 421 (LSBB) command/control
+  - the used datapoints are artificial such as dpa 417.61/62
+  - the leading '/' is required, the EITT test application uses an empty base path, checked
+    in fp/g and p/{property-path}
+  - the dpa type is in FULL URN notation,
+     - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
+     - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
+ 
+ */
+
+// LSAB/LSSB channel 0..1 + included EPs switch control/status
+lsxb_channel_t lsxb[NUM_CHANNELS] = {
+  {{
+    {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", "LSAB soo", "0000"},   // 0 << 8 + 0 
+    {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", "LSAB ioo", "0001"}}}, // 0 << 8 + 1  
+  {{
+    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo ", "0100"},   // 1 << 8 + 0 
+    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo ", "0101"}}}, // 1 << 8 + 1 
 };
 
 // additional parameters
-volatile uint16_t g_test_parameter;
-
-// BOOLEAN code
-
-void app_set_bool_variable_from_channel(uint16_t channel, uint16_t point, bool value)
-{
-  lsxb[channel].point[point].value = value;
-}
-
-bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point) { return lsxb[channel].point[point].value; }
-
-// INT code - needs to be defined in case of such GOs
-
-// PARAMETER code - needs to be defined in case of parameter handing
-
-char* app_get_parameter_url(int index) { return NULL; }
-char* app_get_parameter_name(int index) { return NULL; }
-
-char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point) { return lsxb[channel].point[point].href; }
+int_datapoint_t test_parameter = {0, "/p/p1", "urn:knx:dpa.65500.201", ":dpt.propDataType", "Global Test Parameter"};
 
 // need to define prototype, used by an init method
 void signal_event_loop(void);
@@ -113,12 +99,12 @@ void signal_event_loop(void);
  * @param rep the full response
  * @param rep_value the parsed value of the response
  */
-void oc_add_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
+void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
 {
   (void)rep;
   (void)rep_value;
 
-  PRINT("oc_add_s_mode_response_cb %s", url);
+  PRINT("oc_s_mode_response_cb %s", url);
 }
 
 /**
@@ -152,7 +138,7 @@ int app_init(void)
   // set host name, value used from EITT for testing
   oc_core_set_device_hostname(0, HOST_NAME_EITT);
 
-  oc_set_s_mode_response_cb(oc_add_s_mode_response_cb);
+  oc_set_s_mode_response_cb(oc_s_mode_response_cb);
 
 #ifdef OC_SPAKE
 
@@ -176,476 +162,6 @@ int app_init(void)
  * separate method.
  */
 char* app_get_password(void) { return PASSWORD; }
-
-/*
-
- n x CoAP GET/PUT methods for data point resource.
- Setup defines urls, resource types and other (see register
- resources). Initialization of the returned values are done from the global
- property values.
-
- @param request the request representation.
- @param interfaces the interface used for this call
- @param user_data the user data.
-
- @note The (generic) callback 'call' handler uses always above defined 3
- parameters, provide them even if not used
-
-*/
-
-// LSAB/LSSB with soo/ioo
-
-// generic GET
-void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  bool error_state = true;
-
-  // user data host the original caller url
-  const int32_t channel_and_datapoint = app_get_channel_and_point(lsxb, user_data);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  // holds the interface from resource creation
-  const bool is_input_datapoint = interfaces == OC_IF_I;
-
-  PRINT("-- Begin GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  oc_device_info_t* device = oc_core_get_device_info(0);
-
-  // open CBOR
-  oc_rep_begin_root_object();
-
-  if (device != NULL)
-  {
-    if (oc_query_value_exists(request, "m") != -1)
-    {
-      // ... query parameter 'm' is present, check the various values
-      char* m;
-      char* m_key;
-      size_t m_key_len;
-      size_t m_len = oc_get_query_value(request, "m", &m);
-
-      PRINT("Query Parameter: %.*s", (int)m_len, m);
-
-      oc_init_query_iterator();
-
-      // check query parameter
-      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
-      {
-        // unique identifier
-        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // knx://sn: + max len SN + path + \0 = ~ 65
-          char serial_number[65];
-          (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
-                         oc_string(request->resource->uri));
-          oc_rep_i_set_text_string(root, 0, serial_number);
-
-          error_state = false;
-        }
-        // value
-        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          if (is_input_datapoint)
-          {
-            // don't allow to read to an 'input'
-            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-            return;
-          }
-
-          oc_rep_text_set_boolean(root, value, lsxb[c].point[p].value);
-          error_state = false;
-        }
-        // resource types
-        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, rt, lsxb[c].point[p].dpa);
-
-          error_state = false;
-        }
-        // interfaces (array of text strings)
-        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // key
-          oc_rep_set_key(oc_rep_object(root), "if");
-
-          // if type as short URN
-          const char* interface_type = get_interface_string_short_urn(interfaces);
-
-          // one if type only
-          oc_rep_begin_array(oc_rep_object(root), if_types);
-          oc_rep_add_text_string(if_types, interface_type);
-          oc_rep_end_array(oc_rep_object(root), if_types);
-
-          error_state = false;
-        }
-        // dpt
-        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, dpt, lsxb[c].point[p].dpt);
-
-          error_state = false;
-        }
-        // ga
-        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          const int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
-          if (index > -1)
-          {
-            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
-            if (got_table_entry)
-            {
-              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
-            }
-          }
-          error_state = false;
-        }
-        // description
-        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, desc, lsxb[c].point[p].desc);
-
-          error_state = false;
-        }
-      }
-    }
-    else
-    { // ... no query parameter 'm' present at all, set value for the GET
-
-      if (is_input_datapoint)
-      {
-        // don't allow to read to an 'input'
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
-        return;
-      }
-
-      oc_rep_i_set_boolean(root, 1, lsxb[c].point[p].value);
-      error_state = false;
-    }
-  }
-
-  // close CBOR
-  oc_rep_end_root_object();
-
-  // check CBOR encoding errors
-  if (g_err != CborNoError)
-  {
-    error_state = true;
-  }
-
-  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
-
-  // wrong device, cbor error or unknown 'm' query parameter value(s)
-  if (error_state)
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-  else
-    oc_prepare_cbor_response(request, OC_STATUS_OK);
-
-  PRINT("-- End GET %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
-}
-
-// specific LSAB PUT (IOO will be updated ... )
-void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  (void)interfaces;
-
-  bool error_state = true;
-
-  // sets the pointer to the (/k or /p) handed over object
-  const oc_rep_t* rep = request->request_payload;
-
-  // user data host the original caller url
-  const int32_t channel_and_datapoint = app_get_channel_and_point(lsxb, user_data);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].href);
-
-  // handle the different requests, here only included as example to
-  // identify if extra data needs to be processed in the endpoint
-  if (oc_is_redirected_request_from(request) > -1)
-  {
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
-
-  // loop over object
-  while (rep)
-  {
-    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
-    // may need to be skipped
-    if (rep->iname == 1 && rep->type == OC_REP_BOOL)
-    {
-      PRINT("set LSAB soo to %d", rep->value.boolean);
-      lsxb[c].point[p].value = rep->value.boolean;
-      error_state = false;
-      break;
-    }
-    rep = rep->next;
-  }
-
-  // correct data retrieved
-  if (!error_state)
-  {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    // set LSAB status 
-    PRINT("received no error, update LSAB status to %d", lsxb[c].point[SOO].value);
-    lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
-
-    // this is the 'simple' option to trigger a status on a specific EP
-    PRINT("send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
-    oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].href, "w", true);
-
-    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
-    return;
-  }
-
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
-}
-
-// specific LSSB PUT (nothing will be updated ... )
-void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  (void)interfaces;
-
-  bool error_state = true;
-
-  // sets the pointer to the (/k or /p) handed over object
-  const oc_rep_t* rep = request->request_payload;
-
-  // user data host the original caller url
-  const int32_t channel_and_datapoint = app_get_channel_and_point(lsxb, user_data);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  PRINT("-- Begin PUT %s Control at %s ", lsxb[c].name, lsxb[c].point[p].href);
-
-  // handle the different requests, here only included as example to
-  // identify if extra data needs to be processed in the endpoint
-  if (oc_is_redirected_request_from(request) > -1)
-  {
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
-
-  // loop over object
-  while (rep)
-  {
-    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
-    // may need to be skipped
-    if (rep->iname == 1 && rep->type == OC_REP_BOOL)
-    {
-      PRINT("set LSSB ioo to %d", rep->value.boolean);
-      lsxb[c].point[p].value = rep->value.boolean;
-      error_state = false;
-      break;
-    }
-    rep = rep->next;
-  }
-
-  // correct data retrieved
-  if (!error_state)
-  {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
-    return;
-  }
-
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", lsxb[c].name, lsxb[c].point[p].href);
-}
-
-// parameters handling
-
-void get_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  (void)user_data;
-
-  bool error_state = true;
-
-  PRINT("-- Begin GET %s Control at %s ", _0_name, _0_url_value_eitt);
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  oc_device_info_t* device = oc_core_get_device_info(0);
-
-  // open CBOR
-  oc_rep_begin_root_object();
-
-  if (device != NULL)
-  {
-    if (oc_query_value_exists(request, "m") != -1)
-    { // ... query parameter 'm' is present, check the various values
-
-      char* m;
-      char* m_key;
-      size_t m_key_len;
-      size_t m_len = oc_get_query_value(request, "m", &m);
-
-      PRINT("Query Parameter: %.*s", (int)m_len, m);
-
-      oc_init_query_iterator();
-
-      // check query parameter
-      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
-      {
-        // unique identifier
-        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // knx://sn: + max len SN + path + \0 = ~ 65
-          char serial_number[65];
-          (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
-                         oc_string(request->resource->uri));
-          oc_rep_i_set_text_string(root, 0, serial_number);
-
-          error_state = false;
-        }
-        // value
-        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_int(root, value, g_test_parameter);
-
-          error_state = false;
-        }
-        // resource types
-        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, rt, _0_dpa_switch_short_eitt);
-
-          error_state = false;
-        }
-        // interfaces (array of text strings)
-        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // key
-          oc_rep_set_key(oc_rep_object(root), "if");
-
-          // if type as short URN
-          const char* interface_type = get_interface_string_short_urn(interfaces);
-
-          // one if type only
-          oc_rep_begin_array(oc_rep_object(root), if_types);
-          oc_rep_add_text_string(if_types, interface_type);
-          oc_rep_end_array(oc_rep_object(root), if_types);
-
-          error_state = false;
-        }
-        // dpt
-        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
-
-          error_state = false;
-        }
-        // ga
-        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
-          if (index > -1)
-          {
-            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
-            if (got_table_entry)
-            {
-              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
-            }
-          }
-          error_state = false;
-        }
-        // description
-        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, desc, _0_des);
-
-          error_state = false;
-        }
-      }
-    }
-    else
-    { // ... no query parameter 'm' present at all, set value
-      oc_rep_i_set_int(root, 1, g_test_parameter);
-
-      error_state = false;
-    }
-  }
-
-  // close CBOR
-  oc_rep_end_root_object();
-
-  // check CBOR encoding errors
-  if (g_err != CborNoError)
-  {
-    error_state = true;
-  }
-
-  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
-
-  // wrong device, cbor error or unknown 'm' query parameter value(s)
-  if (error_state)
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
-  else
-    oc_prepare_cbor_response(request, OC_STATUS_OK);
-
-  PRINT("-- End GET %s Control at %s ", _0_name, _0_url_value_eitt);
-}
-
-void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  (void)interfaces;
-  (void)user_data;
-
-  PRINT("-- Begin PUT %s Control at %s ", _0_name, _0_url_value_eitt);
-
-  // handle the different requests, here only included as example to
-  // identify if extra data needs to be processed in the endpoint
-  if (oc_is_redirected_request_from(request) > -1)
-  {
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
-
-  // sets the pointer to the (/k /p) handed over object
-  oc_rep_t* rep = request->request_payload;
-  bool error_state = true;
-
-  // loop over object
-  while (rep)
-  {
-    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
-    // may need to be skipped
-    if (rep->iname == 1 && rep->type == OC_REP_INT)
-    {
-      PRINT("-- put_test parameter received : %lld", rep->value.integer);
-      g_test_parameter = (uint16_t)rep->value.integer;
-      error_state = false;
-      break;
-    }
-    rep = rep->next;
-  }
-
-  if (!error_state)
-  {
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    PRINT("-- End PUT %s Control at %s ", _0_name, _0_url_value_eitt);
-    return;
-  }
-
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", _0_name, _0_url_value_eitt);
-}
 
 /**
  * @brief register all the data point resources to the stack this function registers
@@ -672,23 +188,17 @@ void put_parameter_0(oc_request_t* request, oc_interface_mask_t interfaces, void
  */
 void register_resources(void)
 {
-  PRINT("Register LSAB/LSSB channel control/status resource");
+  PRINT("Register LSAB/LSSB 0...1 channel control/status resource");
   {
-    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].name, lsxb[LSAB].point[SOO].href, 1, 0);
-    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].name, lsxb[LSAB].point[IOO].href, 1, 0);
-    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].name, lsxb[LSSB].point[SOO].href, 1, 0);
-    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].name, lsxb[LSSB].point[IOO].href, 1, 0);
+    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].point[SOO].desc, lsxb[LSAB].point[SOO].href, 1, 0);
+    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].point[IOO].desc, lsxb[LSAB].point[IOO].href, 1, 0);
+    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].point[SOO].desc, lsxb[LSSB].point[SOO].href, 1, 0);
+    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].point[IOO].desc, lsxb[LSSB].point[IOO].href, 1, 0);
 
-    // add to types the FULL URN, needed on a call to well-known without full URN in query parameters
-    char soo_res_type_lsab[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_res_type_lsab, lsxb[LSAB].point[SOO].dpa);
-    char ioo_res_type_lsab[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_res_type_lsab, lsxb[LSAB].point[IOO].dpa);
-    char soo_res_type_lssb[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(soo_res_type_lssb, lsxb[LSSB].point[SOO].dpa);
-    char ioo_res_type_lssb[STRING_ARRAY_ITEM_MAX_LEN] = "urn:knx"; strcat(ioo_res_type_lssb, lsxb[LSSB].point[IOO].dpa);
-
-    oc_resource_bind_resource_type(soo_resource_lsab, soo_res_type_lsab);
-    oc_resource_bind_resource_type(ioo_resource_lsab, ioo_res_type_lsab);
-    oc_resource_bind_resource_type(soo_resource_lssb, soo_res_type_lssb);
-    oc_resource_bind_resource_type(ioo_resource_lssb, ioo_res_type_lssb);
+    oc_resource_bind_resource_type(soo_resource_lsab, lsxb[LSAB].point[SOO].dpa);
+    oc_resource_bind_resource_type(ioo_resource_lsab, lsxb[LSAB].point[IOO].dpa);
+    oc_resource_bind_resource_type(soo_resource_lssb, lsxb[LSSB].point[SOO].dpa);
+    oc_resource_bind_resource_type(ioo_resource_lssb, lsxb[LSSB].point[IOO].dpa);
 
     oc_resource_bind_dpt(soo_resource_lsab, lsxb[LSAB].point[SOO].dpt);
     oc_resource_bind_dpt(ioo_resource_lsab, lsxb[LSAB].point[IOO].dpt);
@@ -716,12 +226,10 @@ void register_resources(void)
     oc_resource_set_observable(ioo_resource_lssb, true);
 
     // define user data for PUT/GET, needed to distinguish the call source
-    // p/1 --> channel 0 / datapoint 0
-    // p/2 --> channel 0 / datapoint 1
-    void* soo_user_data_lsab = lsxb[LSAB].point[SOO].href;
-    void* ioo_user_data_lsab = lsxb[LSAB].point[IOO].href;
-    void* soo_user_data_lssb = lsxb[LSSB].point[SOO].href;
-    void* ioo_user_data_lssb = lsxb[LSSB].point[IOO].href;
+    void* soo_user_data_lsab = lsxb[LSAB].point[SOO].id;
+    void* ioo_user_data_lsab = lsxb[LSAB].point[IOO].id;
+    void* soo_user_data_lssb = lsxb[LSSB].point[SOO].id;
+    void* ioo_user_data_lssb = lsxb[LSSB].point[IOO].id;
 
     // LSAB defines
     // soo
@@ -751,11 +259,11 @@ void register_resources(void)
 
   PRINT("Register test parameter");
   {
-    oc_resource_t* tp0 = oc_new_resource(_0_name, _0_url_value_eitt, 1, 0);
+    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.href, 1, 0);
 
-    oc_resource_bind_resource_type(tp0, "urn:knx"_0_dpa_switch_short_eitt);
+    oc_resource_bind_resource_type(tp0, test_parameter.dpa);
 
-    oc_resource_bind_dpt(tp0, _0_dpt_eitt);
+    oc_resource_bind_dpt(tp0, test_parameter.dpt);
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
 
@@ -766,8 +274,8 @@ void register_resources(void)
     oc_resource_set_observable(tp0, true);
 
     // parameter defines GET and PUT 
-    oc_resource_set_request_handler(tp0, OC_GET, get_parameter_0, NULL, OC_ACL_D, OC_IF_D); // see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, put_parameter_0, NULL, OC_ACL_P, OC_IF_P); // see EP handler
+    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // see EP handler
+    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // see EP handler
 
     oc_add_resource(tp0);
   }

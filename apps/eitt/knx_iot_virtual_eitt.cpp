@@ -59,7 +59,7 @@ enum : uint16_t
   EITT_SOO = CHECK_PM + 1
 };
 
-extern channel_t lsab[NUM_CHANNELS];
+extern lsxb_channel_t lsab[NUM_CHANNELS];
 
 static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
   {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};

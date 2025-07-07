@@ -47,30 +47,17 @@
 #define MID (0x00FA) // first 4 digits of SN_LOWER_CASE
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
 
-#define _0_name "Global Test Parameter"
-#define _0_des "global test parameter as 16 bit uint"
-
 // Sensor
 #define APPLICATION_NAME_LSSB "KNX virtual sensor (LSSB)"
 #define SN_LOWER_CASE_LSSB "00fa10020700" // default SN if not overwritten by CL option -s, deliberated incorrect serial numbers
 #define HOST_NAME_LSSB (SN_LOWER_CASE_LSSB) // default host name (reset uses SN_LOWER_CASE as default)
 #define QRCODE_ETS6_LSSB "KNX:S:00FA10020700;P:2X4W3TE0DFLLS19Y1FCH"
 
-#define _0_url_value_lssb "/p/globalTestParameter"
-#define _0_dpt_lssb ":dpt.value2Ucount"
-#define _0_dpa_switch_short_lssb ":dpa.void"
-
-
 // Actuator
 #define APPLICATION_NAME_LSAB "KNX virtual actuator (LSAB)"
 #define SN_LOWER_CASE_LSAB "00fa10020900" // default SN if not overwritten by CL option -s, deliberated incorrect serial numbers
 #define HOST_NAME_LSAB (SN_LOWER_CASE_LSAB) // default host name (reset uses SN_LOWER_CASE as default)
 #define QRCODE_ETS6_LSAB "KNX:S:00FA10020900;P:2X4W3TE0DFLLS19Y1FCH"
-
-#define _0_url_value_lsab "/p/globalTestParameter"
-#define _0_dpt_lsab ":dpt.value2Ucount"
-#define _0_dpa_switch_short_lsab ":dpa.void"
-
 
 // EITT
 #define APPLICATION_NAME_EITT "KNX virtual EITT certification application"
@@ -81,25 +68,34 @@
 #define HW_TYPE_EITT "Windows" // 12 string chars, same as eitt test template
 #define DEV_MODEL_EITT "KNX Certification" // same as eitt test template
 
-// define URL Parameter Page/ Test Parameter (same as eitt test template)
-#define _0_url_value_eitt "/p/p1"
-#define _0_dpt_eitt ":dpt.propDataType"
-#define _0_dpa_switch_short_eitt ":dpa.65500.201"
-
-typedef struct datapoint
+// datapoint definitions, used to register/create a datapoint resource, 
+// either the href/description/... data consumes the space in the static definition or
+// are hard coded when you register, so no difference but better structured
+typedef struct
 {
   volatile bool value;
   char* href;
   char* dpa;
   char* dpt;
   char* desc;
-} datapoint_t;
+  char* id;  // used to identify in the genric PUT/GET handles the channel/ datapoint source
+} bool_datapoint_t;
 
-typedef struct channel
+typedef struct
 {
-  char* name;
-  datapoint_t point[NUM_POINTS];
-} channel_t;
+  volatile int value;
+  char* href;
+  char* dpa;
+  char* dpt;
+  char* desc;
+} int_datapoint_t;
+
+
+// defines the basic (channel oriented) structure of a LSAB/LSSB functional block definition 
+typedef struct
+{
+  bool_datapoint_t point[NUM_POINTS];
+} lsxb_channel_t;
 
 
 #ifdef __cplusplus
@@ -128,11 +124,19 @@ extern "C"
   /**
    * @brief Set a bool
    *
-   * @param channel the channel for the bool to get
-   * @param point the point of the channel for the bool to get
+   * @param channel the channel for the bool to set
+   * @param point the point of the channel for the bool to set
    * @param value value to set
    */
   void app_set_bool_variable_from_channel(uint16_t channel, uint16_t point, bool value);
+
+  /**
+   * @brief Get a bool
+   *
+   * @param channel the channel for the bool to get
+   * @param point the point of the channel for the bool to get
+   */
+  bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point);
 
   /**
    * @brief Set an int
@@ -149,7 +153,7 @@ extern "C"
    * @param point the point of the channel for the bool to get
    * @return boolean variable
    */
-  bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point);
+  bool app_get_bool_variable_from_channel(uint16_t channel, uint16_t point);
 
   /**
    * @brief Get a URL
@@ -225,15 +229,6 @@ extern "C"
   void app_str_to_upper(char* str);
 
   /**
-   * @brief generic code to define the array's indexes for a channel + datapoint
-   *
-   * @param channel the to be scanned channel 
-   * @param user_data the user data handed over to the application callback handler
-   *
-   */
-  int32_t app_get_channel_and_point(const channel_t* channel, const void* user_data);
-
-  /**
    * @brief software update callback
    *
    * @param response the instance of an internal struct that is used to track the state of the separate response
@@ -244,6 +239,24 @@ extern "C"
    * @param data the user data
    */
   void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t offset, uint8_t* payload, size_t len, void* data);
+
+  /**
+   * @brief add all short interface urn's to the 'root' object with string key 'if'
+   *
+   * @param resource the resource
+
+   */
+  void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource);
+
+  void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+
+  void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+
+  
+  
 
 #ifdef __cplusplus
 }
