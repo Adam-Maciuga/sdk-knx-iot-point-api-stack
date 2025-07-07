@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2016 Intel Corporation
 // Copyright (c) 2021 Cascoda Ltd.
+// Copyright (c) 2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,16 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 */
-
-#include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
-
 #include "util/oc_etimer.h"
 #include "util/oc_list.h"
 #include "util/oc_memb.h"
 #include "util/oc_process.h"
-
 #include "messaging/coap/constants.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/oc_coap.h"
@@ -32,10 +27,9 @@
 #endif 
 
 #include "port/oc_random.h"
-
 #include "oc_buffer.h"
 #include "oc_core_res.h"
-#include "oc_discovery.h"
+
 #include "oc_events.h"
 #include "oc_network_events.h"
 #ifdef OC_TCP
@@ -43,8 +37,6 @@
 #endif 
 #include "oc_api.h"
 #include "oc_ri.h"
-#include "oc_uuid.h"
-
 #include "oc_knx_sec.h"
 
 #ifdef OC_BLOCK_WISE
@@ -52,7 +44,6 @@
 #endif 
 
 #ifdef OC_OSCORE
-#include "security/oc_tls.h"
 #include "security/oc_oscore.h"
 #endif 
 
@@ -104,43 +95,25 @@ static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 
 oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
 
-static const char* interface_string_name[15] =
-  { // starts with OC_IF_NONE, names are shared between acl scopes and interfaces AND MUST be in the same order
-    "",      "if.i",  "if.o",		"if.g.s", "if.c",
-    "if.p",  "if.d",  "if.a",		":if.s",	"if.ll",
-    "if.b", "if.sec", "if.swu", "if.pm",	"if.m.x"
+static const char* scope_string_name[MAX_ACL_SCOPE_BIT+1] =
+  { // starts with OC_ACL_NONE, names are shared between scopes and interfaces AND MUST be in the same order
+    "",      "if.i",   "if.o",		"if.g.s", "if.c",
+    "if.p",  "if.d",   "if.a",		"if.s",		"",
+    "",			 "if.sec", "if.swu"
   };
 
-static const char* interface_strings_short_urn[15] =
-{ // starts with OC_IF_NONE, urns are shared between acl scopes and interfaces AND MUST be in the same order
+static const char* interface_string_short_urn[MAX_INTERFACE_BIT+1] =
+  { // starts with OC_IF_NONE, urns are shared between scopes and interfaces AND MUST be in the same order
 	"",				":if.i",		":if.o",	  ":if.g.s",	":if.c",
   ":if.p",	":if.d",	  ":if.a",  	":if.s",		":if.ll",
   ":if.b",	":if.sec",	":if.swu",	":if.pm",		":if.m.x"
 };
 
-static const char* interface_strings_full_urn[15] =
-  { // starts with OC_IF_NONE, urns are shared between acl scopes and interfaces AND MUST be in the same order
+static const char* interface_string_full_urn[MAX_INTERFACE_BIT+1] =
+  { // starts with OC_IF_NONE, urns are shared between scopes and interfaces AND MUST be in the same order
     "",              "urn:knx:if.i",   "urn:knx:if.o",   "urn:knx:if.g.s", "urn:knx:if.c",
     "urn:knx:if.p",  "urn:knx:if.d",   "urn:knx:if.a",   "urn:knx:if.s",   "urn:knx:if.ll",
     "urn:knx:if.b",  "urn:knx:if.sec", "urn:knx:if.swu", "urn:knx:if.pm",  "urn:knx:if.m.x"};
-
-const char* get_interface_string_short_urn(oc_interface_mask_t interface_mask)
-{
-	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-	// 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
-
-	if (!interface_mask)
-    return interface_strings_short_urn[0];
-
-  unsigned int index = 0;
-  // shift one to right first to match array index (bit 2 = array index 1)
-  while (interface_mask >>= 1)
-  {
-    index++;
-  }
-  return interface_strings_short_urn[index];
-}
 
 const char* get_interface_string_full_urn(int index)
 {
@@ -148,7 +121,7 @@ const char* get_interface_string_full_urn(int index)
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
 
-  return interface_strings_full_urn[index];
+  return interface_string_full_urn[index];
 }
 
 oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
@@ -177,17 +150,105 @@ unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes)
 	return total_masks;
 }
 
-void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array)
+unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t interfaces)
 {
-	// 32-bit if.swu + if.i = 0b00000000 00000000 00010000 00000010
-	for (int i = 0; i <= MAX_INTERFACE_BIT; i++, scopes >>= 1)
+  unsigned int total_masks = 0;
+
+  while (interfaces)
+  {
+    total_masks += interfaces & 1; // add the LSB (=0/1)
+    interfaces >>= 1;							 // right shift
+  }
+  return total_masks;
+}
+
+void oc_put_all_access_scope_names_from_a_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array)
+{
+  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+
+	for (int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, scopes >>= 1)
 	{
-		if (scopes & 1)
+    if (scopes & 1)
 		{
-			// returning the pure interface type names, not the short URN format
-		  oc_string_array_add_item(scopes_array, interface_string_name[i]);
+			// returning the pure scope type names
+      oc_string_array_add_item(scopes_array, scope_string_name[i]);
 		}
 	}
+}
+
+void oc_put_all_interface_short_urns_from_a_mask_in_string_array(oc_interface_mask_t interfaces, oc_string_array_t scopes_array)
+{
+  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+
+  for (int i = 0; i <= MAX_INTERFACE_BIT; i++, interfaces >>= 1)
+  {
+    if (interfaces & 1)
+    {
+      // returning the pure interface type names, not the short URN format
+      oc_string_array_add_item(scopes_array, interface_string_short_urn[i]);
+    }
+  }
+}
+
+oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
+{
+  oc_interface_mask_t interface = OC_IF_NONE;
+
+	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+	
+  // get name from FULL array
+  for (int i = 0; i <= MAX_INTERFACE_BIT; i++)
+  {
+    /*
+    urn = urn:knx:if.i;   i = 1 ;  1 << 1  = 2
+    urn = urn:knx:if.swu; i = 11;  1 << 11 = 4096
+    */
+
+    const char* n = interface_string_full_urn[i];
+
+    if (interface_name_len == strlen(n) && strncmp(interface_name, n, interface_name_len) == 0)
+    {
+			// on a hit return immediately
+      interface |= 1 << i;
+      return interface;
+    }
+      
+  }
+  return interface;
+}
+
+oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
+{
+  oc_acl_mask_t scope = OC_ACL_NONE;
+
+	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+
+	// get name from FULL array
+  for (int i = 0; i <= MAX_ACL_SCOPE_BIT; i++)
+  {
+    /*
+    scope = if.i;   i = 1 ;  1 << 1  = 2
+    scope = if.swu; i = 11;  1 << 11 = 4096
+    */
+
+    const char* n = scope_string_name[i];
+
+    if (acl_scope_name_len == strlen(n) && strncmp(acl_scope_name, n, acl_scope_name_len) == 0)
+    {
+      // on a hit return immediately
+      scope |= 1 << i;
+      return scope;
+    }
+  }
+  return scope;
 }
 
 void oc_print_acl_scopes(oc_acl_mask_t scope)
@@ -198,8 +259,7 @@ void oc_print_acl_scopes(oc_acl_mask_t scope)
 	{
 		if (scope & 1)
 		{
-			// interfaces goes 1:1 with access scopes
-		  PRINTF("%s ", interface_strings_short_urn[i]);
+      PRINTF("%s ", scope_string_name[i]);
 		}
 	}
 
@@ -937,68 +997,6 @@ free_all_event_timers(void)
 	}
 }
 
-oc_interface_mask_t oc_ri_get_interface_mask(char* iface, size_t if_len)
-{
-	oc_interface_mask_t iface_mask = OC_IF_NONE;
-
-	if (4 == if_len && strncmp(iface, "if.i", if_len) == 0)
-		iface_mask |= OC_IF_I;
-	if (4 == if_len && strncmp(iface, "if.o", if_len) == 0)
-		iface_mask |= OC_IF_O;
-	if (6 == if_len && strncmp(iface, "if.g.s", if_len) == 0)
-		iface_mask |= OC_IF_G;
-	if (4 == if_len && strncmp(iface, "if.c", if_len) == 0)
-		iface_mask |= OC_IF_C;
-	if (4 == if_len && strncmp(iface, "if.p", if_len) == 0)
-		iface_mask |= OC_IF_P;
-	if (4 == if_len && strncmp(iface, "if.d", if_len) == 0)
-		iface_mask |= OC_IF_D;
-	if (4 == if_len && strncmp(iface, "if.a", if_len) == 0)
-		iface_mask |= OC_IF_A;
-	if (4 == if_len && strncmp(iface, "if.s", if_len) == 0)
-		iface_mask |= OC_IF_S;
-	if (5 == if_len && strncmp(iface, "if.ll", if_len) == 0)
-		iface_mask |= OC_IF_LI;
-	if (4 == if_len && strncmp(iface, "if.b", if_len) == 0)
-		iface_mask |= OC_IF_B;
-	if (6 == if_len && strncmp(iface, "if.sec", if_len) == 0)
-		iface_mask |= OC_IF_SEC;
-	if (6 == if_len && strncmp(iface, "if.swu", if_len) == 0)
-		iface_mask |= OC_IF_SWU;
-	if (5 == if_len && strncmp(iface, "if.pm", if_len) == 0)
-		iface_mask |= OC_IF_PM;
-
-	return iface_mask;
-}
-
-oc_acl_mask_t oc_ri_get_scope_mask(char* acl_scope, size_t acl_len)
-{
-  oc_acl_mask_t acl_mask = OC_ACL_NONE;
-
-  if (4 == acl_len && strncmp(acl_scope, "if.i", acl_len) == 0)
-    acl_mask |= OC_ACL_I;
-  if (4 == acl_len && strncmp(acl_scope, "if.o", acl_len) == 0)
-    acl_mask |= OC_ACL_O;
-  if (6 == acl_len && strncmp(acl_scope, "if.g.s", acl_len) == 0)
-    acl_mask |= OC_ACL_G;
-  if (4 == acl_len && strncmp(acl_scope, "if.c", acl_len) == 0)
-    acl_mask |= OC_ACL_C;
-  if (4 == acl_len && strncmp(acl_scope, "if.p", acl_len) == 0)
-    acl_mask |= OC_ACL_P;
-  if (4 == acl_len && strncmp(acl_scope, "if.d", acl_len) == 0)
-    acl_mask |= OC_ACL_D;
-  if (4 == acl_len && strncmp(acl_scope, "if.a", acl_len) == 0)
-    acl_mask |= OC_ACL_A;
-  if (4 == acl_len && strncmp(acl_scope, "if.s", acl_len) == 0)
-    acl_mask |= OC_ACL_S;
-  if (6 == acl_len && strncmp(acl_scope, "if.sec", acl_len) == 0)
-    acl_mask |= OC_ACL_SEC;
-  if (6 == acl_len && strncmp(acl_scope, "if.swu", acl_len) == 0)
-    acl_mask |= OC_ACL_SWU;
-
-  return acl_mask;
-}
-
 #ifdef OC_BLOCK_WISE
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 																			oc_blockwise_state_t** request_state,
@@ -1083,12 +1081,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		request_obj.query = uri_query;
 		request_obj.query_len = (int) uri_query_len;
 
-		// check if query string includes interface 'if.xx' selection
+		// check if query string includes an interface 'if=if.xx' parameter
 		char* pointer_to_if_value;
 		int if_len = oc_ri_get_query_value(uri_query, uri_query_len, "if", &pointer_to_if_value);
 		if (if_len != -1)
 		{
-			// one xx from the 'if.xx' is picked up, on more if's the query must compose them by '&'
+			// the first and ONLY one 'urn:knx:if.xx' is picked up, on more if's the query must be composed by '&'
+			// only the full URN is assumed here as input 
 			if_mask_from_query = oc_ri_get_interface_mask(pointer_to_if_value, if_len);
 		}
 	}
@@ -1172,10 +1171,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 			// (see core resource definitions!)
 			if (oc_uri_contains_wildcard(oc_string(tmp_resource->uri)))
 			{
-				int len_resource = oc_string_len(tmp_resource->uri);
+				size_t len_resource = oc_string_len(tmp_resource->uri);
 				// incoming URL should be equal or larger than the one with the wild
 				// card, comparison should match to what ever is in front of the last char
-				if ((int) (uri_path_len + 1) >= len_resource &&
+				if (uri_path_len + 1 >= len_resource &&
 						strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path,
 						(size_t) len_resource - 2) == 0)
 				{
@@ -1263,25 +1262,25 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				// return a 4.05 (method not allowed) response
 				if (method == OC_GET && matching_resource->get_handler.cb)
 				{
-					matching_resource->get_handler.cb(&request_obj,
+					matching_resource->get_handler.cb(&request_obj, 
 																						if_mask_from_query,
 																						matching_resource->get_handler.user_data);
 				}
 				else if (method == OC_POST && matching_resource->post_handler.cb)
 				{
-					matching_resource->post_handler.cb(&request_obj,
+					matching_resource->post_handler.cb(&request_obj, 
 																						 if_mask_from_query,
 																						 matching_resource->post_handler.user_data);
 				}
 				else if (method == OC_PUT && matching_resource->put_handler.cb)
 				{
-					matching_resource->put_handler.cb(&request_obj,
+					matching_resource->put_handler.cb(&request_obj, 
 																						if_mask_from_query,
 																						matching_resource->put_handler.user_data);
 				}
 				else if (method == OC_DELETE && matching_resource->delete_handler.cb)
 				{
-					matching_resource->delete_handler.cb(&request_obj,
+					matching_resource->delete_handler.cb(&request_obj, 
 																							 if_mask_from_query,
 																							 matching_resource->delete_handler.user_data);
 				}
