@@ -96,10 +96,8 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 // match is found, the message is dropped as it must be
 // a duplicate.
 #define OC_REQUEST_HISTORY_SIZE (75)
-/*
-static uint16_t history[OC_REQUEST_HISTORY_SIZE];
-static uint8_t history_dev[OC_REQUEST_HISTORY_SIZE];
-*/
+
+// current history entry index (auto init with 0)
 static uint8_t idx;
 
 static struct
@@ -125,7 +123,7 @@ oc_coap_check_if_duplicate(uint16_t mid, uint8_t device, uint16_t port,
 				history[i].port == port &&
 				(memcmp(history[i].address, address, 16) == 0))
 		{
-      OC_DBG("dropping request: is duplicate -> message ID: %d, history[%d]: %d", mid, (int) i, history[i]);
+      OC_DBG("dropping request: is duplicate -> message ID: %d, history[%d]", mid, (int) i);
 			return true;
 		}
 	}
@@ -531,6 +529,7 @@ int coap_receive(oc_message_t* incoming_message)
 				else
 				{
 					#ifdef OC_REQUEST_HISTORY
+
 					if (oc_coap_check_if_duplicate(coap_packet_request->mid,
 							(uint8_t) incoming_message->endpoint.device,
 							incoming_message->endpoint.addr.ipv6.port,
@@ -538,22 +537,19 @@ int coap_receive(oc_message_t* incoming_message)
 					{
 						return 0;
 					}
+
+					// update history entry
 					history[idx].mid = coap_packet_request->mid;
 					history[idx].dev = (uint8_t) incoming_message->endpoint.device;
 					history[idx].port = incoming_message->endpoint.addr.ipv6.port;
 					memcpy(history[idx].address, incoming_message->endpoint.addr.ipv6.address, 16);
-					idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
+
+					// roll over id from 0...74
+				  idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
 					#endif 
-					// TODO
-					//          if (href_len == 7 && memcmp(href, "oic/res", 7) == 0) {
-					//            coap_udp_init_message(response, COAP_TYPE_CON,
-					//            CONTENT_2_05,
-					//                                  coap_get_mid());
-					//          } else
-					{
-						coap_udp_init_message(coap_packet_response, COAP_TYPE_NON, CONTENT_2_05,
-																	coap_get_mid());
-					}
+
+					// init with increases mid
+					coap_udp_init_message(coap_packet_response, COAP_TYPE_NON, CONTENT_2_05, coap_get_mid());
 				}
 			}
 
