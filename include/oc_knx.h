@@ -281,19 +281,6 @@ extern "C"
   void oc_create_knx_resources(size_t device);
 
   /**
-   * @brief runtime switch to ignore s-mode messages send by ourselves.
-   * The /k resource handles all incoming s-mode messages.
-   * This switch can be used to ignore s-mode messages that are send by ourselves.
-   *
-   * @note  For the sniffer, all messages must be handled/reported.
-   *        For a Classic to IoT gateway the self send messages must be ignored.
-   *
-   * @param ignore true: ignore, false handle message
-   *
-   */
-  void oc_knx_knx_ignore_smode_message_from_self(bool ignore);
-
-  /**
    * @delete entry from Group Mapping Table
    *
    * @param entry the index of the entry in the Group Mapping Table
