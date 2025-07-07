@@ -37,7 +37,6 @@
 
 // ---------------------------Variables --------------------------------------
 
-static bool g_ignore_smessage_from_self = false; // prevent to handle own send out messages
 static uint64_t g_fingerprint = 0; // covers GO/PUB/SUB table and 'P' parameters
 static oc_pase_t g_pase;
 static oc_string_t g_idevid;
@@ -676,42 +675,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   {
     return;
   }
-
-  if (g_ignore_smessage_from_self)
-  {
-    // check if incoming message is from myself, If so, then return with bad request
-    // Note that the same device can have multiple IP addresses, so all endpoints
-    // for this device need to be compared against.
-
-    oc_endpoint_t* origin = request->origin;
-
-    if (origin != NULL)
-    {
-      PRINT("k post : origin of message:");
-      PRINTipaddr(*origin);
-    }
-
-    oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
-    oc_endpoint_t* ep_i = NULL;
-
-    for (ep_i = my_ep; ep_i != NULL; ep_i = ep_i->next)
-    {
-      PRINTipaddr(*ep_i);
-
-      if (oc_endpoint_compare_address(origin, ep_i) == 0)
-      {
-        if (origin->addr.ipv6.port == ep_i->addr.ipv6.port)
-        {
-          request->response->response_buffer->code = oc_status_code(OC_IGNORE);
-          PRINT("same address and port: not handling message");
-          return;
-        }
-      }
-    }
-  }
-
-  size_t device_index = request->resource->device;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+   
+  
+  oc_device_info_t* device = oc_core_get_device_info(0);
   if (device == NULL)
   {
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
@@ -720,7 +686,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
   // scan received payload
   oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+
+  while (rep)
   {
     switch (rep->type)
     {
@@ -738,7 +705,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       // s map with st/ga/value
       oc_rep_t* object = rep->value.object;
 
-      while (object != NULL)
+      while (object)
       {
         switch (object->type)
         {
@@ -784,7 +751,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     if (my_gw->data)
     {
       // call the gateway function
-      my_gw->cb(device_index, ip_address, &received_notification, my_gw->data);
+      my_gw->cb(0, ip_address, &received_notification, my_gw->data);
     }
     else
     {
@@ -793,12 +760,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       memset(buffer, 300, 0);
       oc_rep_to_json(request->request_payload, (char*)&buffer, 300, true);
 
-      my_gw->cb(device_index, ip_address, &received_notification, buffer);
+      my_gw->cb(0, ip_address, &received_notification, buffer);
     }
   }
 #endif
 
-  if (oc_is_device_in_runtime(device_index) == false)
+  if (oc_is_device_in_runtime(0) == false)
   {
     PRINT("Device not in runtime state:%d - ignore message", device->lsm_s);
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
@@ -862,7 +829,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     {
       // len > 0 = no error, get the application resource to do the fake post on
       const oc_resource_t* my_resource =
-        oc_ri_get_app_resource_by_uri(oc_string(go_href), oc_string_len(go_href), device_index);
+        oc_ri_get_app_resource_by_uri(oc_string(go_href), oc_string_len(go_href), 0);
       if (!my_resource)
       {
         // TODO silently ignored on unicast ? (multicast anyhow = IGNORE)
@@ -894,7 +861,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           new_request.uri_path = "/k";
           new_request.uri_path_len = 2;
 
-          // use new request (not received one with POST), user data are possible
+          // use new request (not the received one with POST), user data are possible
           my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
 
           // collect the max 'bad' status code
@@ -920,7 +887,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           new_request.uri_path = "/k";
           new_request.uri_path_len = 2;
 
-          // use new request (not received one with POST), user data are possible
+          // use new request (not the received one with POST), user data are possible
           my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
 
           // collect the max 'bad' status code
@@ -940,7 +907,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           new_request.uri_path = "/k";
           new_request.uri_path_len = 2;
 
-          // use new request (not received one with POST), user data are not possible for read
+          // use new request (not the received one with POST), user data are not possible for read
           my_resource->get_handler.cb(&new_request, iface_mask, NULL);
         }
 
@@ -1008,10 +975,6 @@ void oc_create_knx_k_resource(int resource_idx, size_t device)
   oc_core_populate_resource(resource_idx, device, "/k", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_k_get_handler, 0, oc_core_knx_k_post_handler, 0, 1, "urn:knx:g.s");
 }
-
-void oc_knx_knx_ignore_smode_message_from_self(bool ignore) { g_ignore_smessage_from_self = ignore; }
-
-// ----------------------------------------------------------------------------
 
 static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
