@@ -331,7 +331,7 @@ void initialize_variables(void)
 
 int app_set_serial_number(const char* serial_number)
 {
-  // don't copy more than size of SN
+  // don't copy more than size of SN (including /0)
   return strncpy(g_serial_number, serial_number, sizeof(g_serial_number)) != NULL ? 0 : -1;
 }
 
