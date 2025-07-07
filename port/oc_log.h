@@ -218,8 +218,8 @@ extern "C" {
 // it is recommended to use a console for the output that allows a 'no word wrap' 
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
-  time_t current_time = time(NULL);                             \
-  struct tm* tm_local = localtime(&current_time);               \
+  time_t _current_time = time(NULL);                            \
+  struct tm* tm_local = localtime(&_current_time);              \
   \
   char fileShort[19] = {0};                                     \
   strncpy(fileShort, __FILENAME__, 15);                         \
