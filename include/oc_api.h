@@ -783,7 +783,7 @@ extern "C"
    *       includes possible 'if.x' doublettes such as 2 x if.i on a GET and PUT
    *       , because of ADDING only please initialize the 'interfaces' parameter accordingly
    */
-  bool oc_resource_get_all_interfaces_for_a_resource(oc_resource_t* resource, oc_interface_mask_t* interfaces);
+  bool oc_resource_get_all_interfaces_for_a_resource(const oc_resource_t* resource, oc_interface_mask_t* interfaces);
 
   /**
    * Get for a resource method the corresponding scope
@@ -797,7 +797,7 @@ extern "C"
    * - false otherwise (scope is not touched)
    *
    */
-  bool oc_resource_get_acl_for_method(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes);
+  bool oc_resource_get_acl_for_method(const oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes);
 
 
   /**

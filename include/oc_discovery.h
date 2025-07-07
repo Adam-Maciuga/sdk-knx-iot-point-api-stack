@@ -60,6 +60,10 @@ bool oc_check_resource_by_request(const oc_resource_t *resource, oc_request_t *r
  * @param request  the request
  * @param response_length the response length (to be increased)
  * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the resource and interface types
+ *
+ * @note truncate identifies if the method call is originated by a non knx (e.g; well-known) EP or any knx related EP,
+ *       in case of knx EP the truncation is ALWAYS expected
+ *
  * @return true 
  * @return false (if resource or resource uri are not present) 
  */

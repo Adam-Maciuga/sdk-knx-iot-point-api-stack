@@ -105,11 +105,7 @@ int oc_core_get_group_object_table_total_size(void) { return GOT_MAX_ENTRIES; }
 
 oc_group_object_table_t* oc_core_get_group_object_table_entry(int index)
 {
-  if (index < 0)
-  {
-    return NULL;
-  }
-  if (index >= GOT_MAX_ENTRIES)
+  if (index < 0 || index >= GOT_MAX_ENTRIES)
   {
     return NULL;
   }

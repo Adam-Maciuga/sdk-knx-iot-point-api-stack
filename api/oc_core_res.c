@@ -859,7 +859,7 @@ bool oc_check_resource_by_if(oc_resource_t* resource, oc_request_t* request)
           // 32-bit if.p + if.i = 0b00000000 00000000 00010000 00100100
 					if (interfaces & 1)
 					{
-					  // get the 'if' string and len, contains the full specified URN such as urn:knx:if.ll
+					  // get the 'if' string and len, contains the full specified URN such as 'urn:knx:if.ll'
             const char* resource_if_ptr = get_interface_string_full_urn(i);
             const int resource_if_ptr_len = (int)strlen(resource_if_ptr);
 

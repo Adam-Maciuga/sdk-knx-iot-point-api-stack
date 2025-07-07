@@ -720,11 +720,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               // address each string
               char* acl_string = (char*)array + i * STRING_ARRAY_ITEM_MAX_LEN;
 
-              // get bit enum
-              oc_acl_mask_t acl_mask = oc_ri_get_scope_mask(acl_string, strlen(acl_string));
-
-              // compact the strings as acl bit mask definitions
-              acl_scopes += acl_mask;
+              // compact the input strings as acl bit mask definitions
+              acl_scopes += oc_ri_get_scope_mask(acl_string, strlen(acl_string));
             }
 
             // no scope or a bad scope was set such as if.ll
@@ -1052,7 +1049,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   }
   else
   {
-    // compacted list of scopes is used (specification says "interfaces" but scopes are meant)
+    // number of access scopes
     const unsigned int nr_entries = oc_count_total_scopes_in_mask(g_at_entries[index].scope);
     if (nr_entries > 0)
     {
@@ -1063,7 +1060,8 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
 
       oc_new_string_array(&scopes, nr_entries);
 
-      oc_put_scopes_from_mask_in_string_array(g_at_entries[index].scope, scopes);
+      // compacted list of access scopes is used (specification says "interfaces" but access scopes are meant)
+      oc_put_all_access_scope_names_from_a_mask_in_string_array(g_at_entries[index].scope, scopes);
       oc_rep_i_set_string_array(root, 9, scopes);
 
       oc_free_string_array(&scopes);
@@ -1073,11 +1071,15 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   if (g_at_entries[index].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[index].profile == OC_PROFILE_COAP_PASE)
   {
     // create cnf map (8)
-    oc_rep_i_set_key(&root_map, 8) CborEncoder cnf_map;
+    oc_rep_i_set_key(&root_map, 8);
+
+    CborEncoder cnf_map;
     cbor_encoder_create_map(&root_map, &cnf_map, CborIndefiniteLength);
 
     // create osc map (4)
-    oc_rep_i_set_key(&cnf_map, 4) CborEncoder osc_map;
+    oc_rep_i_set_key(&cnf_map, 4);
+
+    CborEncoder osc_map;
     cbor_encoder_create_map(&cnf_map, &osc_map, CborIndefiniteLength);
 
     if (oc_string_len(g_at_entries[index].osc_ms) > 0)
@@ -1929,7 +1931,7 @@ bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, oc_interface_ma
   return false;
 }
 
-bool oc_knx_sec_check_acl(oc_method_t method, oc_resource_t* resource, oc_endpoint_t* endpoint)
+bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
 {
   // called resource scope, init with default
   oc_acl_mask_t called_res_scope = OC_ACL_NONE;

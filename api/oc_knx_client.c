@@ -42,6 +42,7 @@ typedef struct broker_s_mode_userdata_t
 
 oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
+// external definition
 static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, char* service_type, uint8_t* value_data, int value_size);
 
 static int oc_s_mode_get_resource_value(const char* resource_url, uint8_t* buf, int buf_size);
@@ -70,7 +71,7 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
     return OC_STOP_DISCOVERY;
   }
 
-  int value_size = oc_s_mode_get_resource_value(cb_data->resource_url, buffer, 100);
+  int value_size = oc_s_mode_get_resource_value(cb_data->resource_url, buffer, sizeof(buffer));
 
   oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga, cb_data->service_type, buffer, value_size);
 
@@ -230,7 +231,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, const uint32_t s
     oc_rep_begin_root_object();
     oc_rep_i_set_int(root, 4, sia_value);             // 4: <sia> 
 
-    oc_rep_i_set_key(&root_map, 5)                    // 5:  
+    oc_rep_i_set_key(&root_map, 5);                   // 5:  
 
     CborEncoder value_map;
     cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
@@ -287,46 +288,50 @@ static int oc_s_mode_get_resource_value(const char* resource_url, uint8_t * buf,
     return 0;
   }
 
-  // local messages
+  // create local messages
+  // - local response message
+  // - local request message
+  // - local response buffer
   oc_request_t request;
-  oc_response_t response;
-  oc_response_buffer_t response_buffer;
+  oc_response_t response; 
+  oc_response_buffer_t response_buffer; 
 
-  // assign data buffer
+  // response buffer, same initialization as oc_ri.c
   response_buffer.buffer = buffer;
   response_buffer.buffer_size = 50;
-
-  // same initialization as oc_ri.c
   response_buffer.code = 0;
   response_buffer.response_length = 0;
   response_buffer.content_format = 0;
   response_buffer.max_age = 0;
 
+  // response message
   response.separate_response = NULL;
   response.response_buffer = &response_buffer;
 
+  // request message
   request.response = &response;
   request.request_payload = NULL;
   request.query = NULL;
   request.query_len = 0;
-  request.resource = NULL;
+  request.resource = my_resource; // allows in the GET callback to identify the original caller 
   request.origin = NULL;
   request._payload = NULL;
   request._payload_len = 0;
-  request.request_method = OC_POST;
+  request.request_method = OC_POST; // s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/ update
 
   request.content_format = APPLICATION_CBOR;
   request.accept = APPLICATION_CBOR;
   request.uri_path = resource_url;
   request.uri_path_len = strlen(resource_url);
 
-  // init CBOR buffer 
+  // init CBOR response buffer 
   oc_rep_new(response_buffer.buffer, (int) response_buffer.buffer_size);
 
-  // set callback handler for the GET with callback, interface type and user data
+  // call the resource callback GET handler with local request, interface type and user data
+  // - don't use any interface for a local call
   my_resource->get_handler.cb(&request, OC_IF_NONE, my_resource->get_handler.user_data);
 
-  // get the size (see above)
+  // get the size (see above) and copy the data to response buffer 
   int value_size = oc_rep_get_encoded_payload_size();
   uint8_t* value_data = request.response->response_buffer->buffer;
 
@@ -479,7 +484,7 @@ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url
           }
           else
           {
-            // send to group address in multicast address
+            // send to group address in multicast address // TODO why to use a GA as GRP ID ? ETS artefact ?
             oc_issue_s_mode(scope, sia_value, group_address, group_address, iid, srv_type, buffer, value_size);
           }
         }

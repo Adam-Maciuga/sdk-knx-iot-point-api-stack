@@ -269,7 +269,7 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 			resource->observe_period_seconds = 0;
 
 			// for dynamic (application) resources = false,
-			// for const (precompiled) resources = always true
+			// note, for precompiled (core) resources it is always true
 			*(bool*) &resource->is_const = false;
 
 			// rt data
@@ -489,7 +489,7 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
 	}
 }
 
-bool oc_resource_get_all_interfaces_for_a_resource(oc_resource_t* resource, oc_interface_mask_t* interfaces)
+bool oc_resource_get_all_interfaces_for_a_resource(const oc_resource_t* resource, oc_interface_mask_t* interfaces)
 {
 	bool at_least_one_handler_defined = false;
 
@@ -537,7 +537,7 @@ bool oc_resource_get_all_interfaces_for_a_resource(oc_resource_t* resource, oc_i
 	return false;
 }
 
-bool oc_resource_get_acl_for_method(oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes)
+bool oc_resource_get_acl_for_method(const oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes)
 {
   // used to create a copy of the resource pointer
   const oc_request_handler_t* handler = NULL;

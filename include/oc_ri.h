@@ -210,18 +210,7 @@ extern "C" {
 		                          // if.m.{name} (is not a scope) 
 	} oc_acl_mask_t;
 
-#define MAX_ACL_SCOPE_BIT (12) // the highest defined bit-position 
-
-	/**
-	 * @brief Get the interface string object from a corresponding interface bit
-	 *
-	 * @param interface_mask the interface mask (access scope)
-	 * @return const char* the interface as short URN string e.g. ":if.i"
-	 *
-	 * @note: MUST be called with a single interface as mask only,
-	 *        the MSB 'bit hit' is returned
-	 */
-	const char* get_interface_string_short_urn(oc_interface_mask_t interface_mask);
+#define MAX_ACL_SCOPE_BIT (12) // the highest defined bit-position
 
 
 	/**
@@ -234,15 +223,26 @@ extern "C" {
   const char* get_interface_string_full_urn(int index);
 
 	/**
-	 * @brief counts the number of total interfaces in the interface mask
+	 * @brief counts the number of total scopes in a mask
 	 *
-	 * @param scopes the interface mask
-	 * @return int the amount of interfaces in the mask
+	 * @param scopes the scope mask
+	 * @return int the amount of scopes in the mask
 	 *
 	 * @note calculates the interface if.g.s.<a> only 1
 	 *
 	 */
   unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes);
+
+	/**
+   * @brief counts the number of total interfaces in a mask
+   *
+   * @param interfaces the interface mask
+   * @return int the amount of interfaces in the mask
+   *
+   * @note calculates the interface if.g.s.<a> only 1
+   *
+   */
+  unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t interfaces);
 
 	/**
 	* @brief returns the corresponding oc_status code from coap code
@@ -254,14 +254,28 @@ extern "C" {
 	*
 	*/
 	oc_status_t get_oc_status_code_from_coap_code(int coap_code);
-	/**
-	 * @brief sets all interfaces in a mask in a string array
+
+  /**
+	 * @brief sets all access scopes in a mask in a string array with scope names
 	 *
-	 * @param scopes the interface mask
-	 * @param scopes_array the string array to place the individual interface names in
+	 * @param scopes the scope mask
+	 * @param scopes_array the string array to place the individual scope NAMES in
+	 *
+	 * @note example data = [ "if.sec", "if.p" ]
 
 	 */
-  void oc_put_scopes_from_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array);
+  void oc_put_all_access_scope_names_from_a_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array);
+
+	/**
+   * @brief set all interfaces in a mask in a string array with interface short URNs
+   *
+   * @param interfaces the interface mask
+   * @param scopes_array the string array to place the individual interface SHORT URN's in
+   *
+   * @note example data = [ ":if.sec", ":if.p" ]
+
+   */
+  void oc_put_all_interface_short_urns_from_a_mask_in_string_array(oc_interface_mask_t interfaces, oc_string_array_t scopes_array);
 
 	/**
 	 * @brief prints all acl scopes in the mask to stdout
@@ -374,22 +388,25 @@ extern "C" {
 	/**
 	 * @brief request callback, containing
 	 * - the request,
-	 * - the query interfaces from the request
+	 * - the interface query parameter from the request, if none is present = OC_IF_NONE  // TODO not used in any core/application call, to be removed!
 	 * - user data defined by the resource callbacks (if present)
 	 *
 	 */
 	typedef void (*oc_request_callback_t)(oc_request_t*, oc_interface_mask_t, void*);
 
 	/**
-	 * @brief request handler type, including per handler a scope and interface 
+	 * @brief request handler type, including per handler a scope, interface and user data
+	 *
+	 * - for the resource, per handler an individual caller acl mask and interface mask
+	 * - user data , handed over per call (if previously defined on application setup) 
 	 *
 	 */
 	typedef struct oc_request_handler
 	{
 		oc_request_callback_t cb;
 		void* user_data;
-		oc_acl_mask_t acl_scope_mask;		      // for the resource, per handler an individual caller acl mask 
-		oc_interface_mask_t interface_mask;		// for the resource, per handler an individual called interface mask 
+		oc_acl_mask_t acl_scope_mask;	       
+		oc_interface_mask_t interface_mask;
 	} oc_request_handler_t;
 
 	/**
@@ -445,7 +462,7 @@ extern "C" {
 		oc_properties_cb_t set_properties;    // callback for set properties 
 		uint16_t observe_period_seconds;      // observe period in seconds 
 		uint8_t fb_instance;                  // function block instance, default = 0 
-		const bool is_const;                  // whether the associated resource data is readonly 
+		const bool is_const;                  // resource is precompiled (core = true) or not (application = false)
 		oc_resource_data_t* runtime_data;     // runtime modifiable data
 	};
 
@@ -651,7 +668,7 @@ extern "C" {
 	 * @param query the input query
 	 * @param query_len the query length
 	 * @param key the wanted key
-	 * @param value the returned value
+	 * @param value a pointer to the value
 	 * @return int the length of the value
 	 */
 	int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value);
@@ -681,20 +698,26 @@ extern "C" {
 	/**
 	 * @brief retrieve the interface mask from the interface name
 	 *
-	 * @param iface the interface (e.g. "if=if.s")
-	 * @param if_len the interface length
-	 * @return oc_interface_mask_t the compacted mask value of the interface, also 'none' on no hit
+	 * @param interface_name a pointer to a SINGLE, full interface urn (e.g. 'urn:knx:if.s')
+	 * @param interface_name_len the interface urn length
+	 *
+	 * @note only FULL URNs are used to compare with the input
+	 *
+	 * @return oc_interface_mask_t the compacted mask value of the interface, also 'OC_IF_NONE' on no hit
 	 */
-	oc_interface_mask_t oc_ri_get_interface_mask(char* iface, size_t if_len);
+	oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len);
 
 	/**
-   * @brief retrieve the interface mask from the interface name
+   * @brief retrieve the scope mask from the scope name
    *
-   * @param acl_scope the access scope (e.g. "if=if.s")
-   * @param acl_len the access scope length
-   * @return oc_acl_mask_t the compacted mask value of the access scopes, also 'none' on no hit
+   * @param acl_scope_name a pointer to a SINGLE, scope name (e.g. 'if.s')
+   * @param acl_scope_name_len the access scope name length
+   *
+   * @note only scope names are used to compare with the input
+   *
+   * @return oc_acl_mask_t the compacted mask value of the access scopes, also 'OC_ACL_NONE' on no hit
    */
-  oc_acl_mask_t oc_ri_get_scope_mask(char* acl_scope, size_t acl_len);
+  oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len);
 
 	/**
 	 * @brief creates a new request from the (old) request by copy 1:1,

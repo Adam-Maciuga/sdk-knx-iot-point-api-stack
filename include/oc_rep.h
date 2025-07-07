@@ -937,7 +937,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  */
 #define oc_rep_i_set_key(parent, key)                                          \
   if ((uint64_t)(key) != 0)                                                    \
-    g_err |= cbor_encode_int(parent, (int64_t)(key));
+    g_err |= cbor_encode_int(parent, (int64_t)(key))
 
 /**
  * This macro has been replaced with oc_rep_open_array
@@ -1435,12 +1435,10 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * The following code could be used:
  *
  * ~~~{.c}
- *     const char* str0 = "Do not take life too seriously. You will never get
- * out of it alive.";
+ *     const char* str0 = "Do not take life too seriously. You will never get out of it alive.";
  *     const char* str1 = "All generalizations are false, including this one.";
  *     const char* str2 = "Those who believe in telekinetics, raise my hand.";
- *     const char* str3 = "I refuse to join any club that would have me as a
- * member.";
+ *     const char* str3 = "I refuse to join any club that would have me as a member.";
  *
  *     oc_string_array_t quotes;
  *     oc_new_string_array(&quotes, (size_t)4);

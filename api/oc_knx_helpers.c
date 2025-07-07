@@ -173,8 +173,7 @@ int add_next_page_indicator(char* url, int next_page_num)
   return response_length;
 }
 
-int
-oc_frame_integer(const int value)
+int oc_frame_integer(const int value)
 {
   // supports max 32bit decimal number
   char string[10];
