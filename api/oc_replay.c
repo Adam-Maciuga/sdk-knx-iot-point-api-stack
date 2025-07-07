@@ -277,7 +277,7 @@ static struct oc_cached_message_record* find_record_by_msg(struct oc_message_s* 
 		return NULL;
 
 	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; ++i)
-		if (message_records[i].message = msg)
+		if (message_records[i].message == msg)
 			return message_records + i;
 	return NULL;
 }
