@@ -294,20 +294,20 @@ const oc_resource_t* oc_ri_get_app_resources(void)
 	return oc_list_head(app_resources);
 }
 
-const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device)
+const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len, size_t device)
 {
-	if (!uri || uri_len == 0)
+	if (!resource_path || resource_path_len == 0)
 		return NULL;
 
-	// to distinguish /p/x or p/x; tolerate a product 'href' w/wo a '/'
-	const int skip = uri[0] != '/' ? 1 : 0;
+	// to distinguish /p/x or p/x; tolerate a product application resource definition of 'href' w/wo a '/'
+	const int skip = resource_path[0] != '/' ? 1 : 0;
 
 	// never NULL, except no application resources at all
 	const oc_resource_t* res = oc_ri_get_app_resources();
 	while (res)
 	{
-		if (oc_string_len(res->uri) == (uri_len + skip) &&
-				strncmp(uri, oc_string(res->uri) + skip, uri_len) == 0 &&
+		if (oc_string_len(res->uri) == resource_path_len + skip &&
+				strncmp(resource_path, oc_string(res->uri) + skip, resource_path_len) == 0 &&
 				res->device == device)
 			return res;
 		res = res->next;
@@ -1069,9 +1069,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	coap_get_header_content_format(request, &content_format);
 
 	/* Read the accept CoAP option in the request, set default none */
-	unsigned int accept_i = CONTENT_NONE;
-	coap_get_header_accept(request, &accept_i);
-	oc_content_format_t accept = accept_i;
+	unsigned int accept_int = CONTENT_NONE;
+	coap_get_header_accept(request, &accept_int);
+	oc_content_format_t accept = accept_int;
 
 	// 'if' query mask (from request), initialized with default
 	oc_interface_mask_t if_mask_from_query = OC_IF_NONE;
@@ -1086,8 +1086,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		int if_len = oc_ri_get_query_value(uri_query, uri_query_len, "if", &pointer_to_if_value);
 		if (if_len != -1)
 		{
-			// the first and ONLY one 'urn:knx:if.xx' is picked up, on more if's the query must be composed by '&'
-			// only the full URN is assumed here as input 
+			// the first and ONLY one 'urn:knx:if.xx' is picked up
+			// - on more if's the query must be composed by '&' --> the support of more than one parameter is a MAY in the specification 
+			// - only the full URN is assumed here as input 
 			if_mask_from_query = oc_ri_get_interface_mask(pointer_to_if_value, if_len);
 		}
 	}
@@ -1135,7 +1136,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		int parse_error = oc_parse_rep(payload, payload_len, &request_obj.request_payload);
 		if (parse_error != 0)
 		{
-			OC_WRN("ocri: error parsing request payload; tinyCBOR error code:  %d", parse_error);
+			OC_WRN("error parsing request payload; tinyCBOR error code:  %d", parse_error);
 			if (parse_error == CborErrorUnexpectedEOF)
 			{
 				entity_too_large = true;
@@ -1144,39 +1145,56 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		}
 	}
 
-	// if assigned (!NULL) a request to device resource match was found (URI's matches 1:1) 
+	// default, no matching resource found
 	const oc_resource_t* matching_resource = NULL;
 
-	/* If there were no errors thus far, attempt to locate the specific
-	*  declared core resources that will handle the request using the request uri.
+	/*
+	   If there were no errors thus far, attempt to locate the specific
+	   declared core resources that will handle the request using the request uri.
 	*/
 	if (!bad_request)
 	{
 		const oc_resource_t* tmp_resource;
 
+		// check core resources
 		for (int i = 0; i < OC_NUM_CORE_RESOURCES_PER_DEVICE; i++)
 		{
 			tmp_resource = oc_core_get_resource_by_index(i);
 
-			// incoming URL fits to a core resource such as '/.well-known/core' by len and content
-			if (oc_string_len(tmp_resource->uri) == uri_path_len + 1 &&
-					strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path,
-					uri_path_len) == 0)
+			/*
+			  incoming URL fits to a core resource by len and content, such as:
+			  request  : uri_path = '.well-known/core'  without '/' (uri path len = 16, no string end char)
+				resource : res path = '/.well-known/core' with '/' (string size = 18, res path len = 17)
+
+        see core resource definitions!
+
+      */
+      if (uri_path_len + 1 == oc_string_len(tmp_resource->uri) &&
+					strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path, uri_path_len) == 0)
 			{
 				request_obj.resource = matching_resource = tmp_resource;
 				break;
 			}
 
-			// incoming URL fits to a core resource such as '/fp/r/*' by len and content
-			// (see core resource definitions!)
+     
 			if (oc_uri_contains_wildcard(oc_string(tmp_resource->uri)))
 			{
-				size_t len_resource = oc_string_len(tmp_resource->uri);
-				// incoming URL should be equal or larger than the one with the wild
-				// card, comparison should match to what ever is in front of the last char
+
+			  /*
+         incoming URL should be equal or larger than the one with the wildcard,
+         comparison should match to what ever is in front of the last char
+         request  : uri_path = 'fp/r/25'  without '/' (uri path len = 7, no string end char)
+         resource : res path = '/fp/r/\*' with '/' (string size = 8, res path len = 7)
+
+         see core resource definitions!
+
+        */
+
+			  size_t len_resource = oc_string_len(tmp_resource->uri);
+
+				// 7 >= 7 ; res: /fp/r/* + 1 = fp/r/* ; req: fp/r/25;  res (fp/r/ = 5) == req (fp/r/ = 5)
 				if (uri_path_len + 1 >= len_resource &&
-						strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path,
-						(size_t) len_resource - 2) == 0)
+						strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path, len_resource - 2) == 0)
 				{
 					// TODO check if a security leak exists 
 					request_obj.resource = matching_resource = tmp_resource;
@@ -1191,7 +1209,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	// if not a request to device core resources, check against list of declared application resources
 	if (!matching_resource && !bad_request)
 	{
-		request_obj.resource = matching_resource = oc_ri_get_app_resource_by_uri(uri_path, uri_path_len, endpoint->device);
+		request_obj.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len, endpoint->device);
 	}
 	#endif 
 
@@ -1199,13 +1217,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	#ifdef OC_BLOCK_WISE
 	if (matching_resource && !bad_request)
 	{
-		if (!(*response_state))
+		if (!*response_state)
 		{
 			OC_DBG("creating new block-wise response state");
 			*response_state = oc_blockwise_alloc_response_buffer(
 				uri_path, uri_path_len, endpoint, method, OC_BLOCKWISE_SERVER);
 
-			if (!(*response_state))
+			if (!*response_state)
 			{
 				OC_ERR("failure to alloc response state");
 				bad_request = true;
@@ -1229,7 +1247,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	response_buffer.buffer_size = OC_BLOCK_SIZE;
 	#endif 
 
-	// request fits to core or application, lets go 
+	// request fits to core or application, lets go  
 	if (matching_resource && !bad_request)
 	{
 		/* Process a request against a valid resource, request payload, and interface.
@@ -1263,25 +1281,25 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				if (method == OC_GET && matching_resource->get_handler.cb)
 				{
 					matching_resource->get_handler.cb(&request_obj, 
-																						if_mask_from_query,
+																						matching_resource->get_handler.interface_mask,
 																						matching_resource->get_handler.user_data);
 				}
 				else if (method == OC_POST && matching_resource->post_handler.cb)
 				{
 					matching_resource->post_handler.cb(&request_obj, 
-																						 if_mask_from_query,
+																						 matching_resource->post_handler.interface_mask,
 																						 matching_resource->post_handler.user_data);
 				}
 				else if (method == OC_PUT && matching_resource->put_handler.cb)
 				{
 					matching_resource->put_handler.cb(&request_obj, 
-																						if_mask_from_query,
+																						matching_resource->put_handler.interface_mask,
 																						matching_resource->put_handler.user_data);
 				}
 				else if (method == OC_DELETE && matching_resource->delete_handler.cb)
 				{
 					matching_resource->delete_handler.cb(&request_obj, 
-																							 if_mask_from_query,
+																							 matching_resource->delete_handler.interface_mask,
 																							 matching_resource->delete_handler.user_data);
 				}
 				else
@@ -1305,48 +1323,43 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 	if (forbidden)
 	{
-		OC_WRN("ocri: Forbidden request");
+		OC_WRN("forbidden request");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_FORBIDDEN);
 	}
 	else if (entity_too_large)
 	{
-		OC_WRN("ocri: Request payload too large (hence incomplete)");
+		OC_WRN("request payload too large (hence incomplete)");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_REQUEST_ENTITY_TOO_LARGE);
 	}
 	else if (bad_request)
 	{
-		OC_WRN("ocri: Bad request");
-		/* Return a 4.00 response */
+		OC_WRN("bad request");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_BAD_REQUEST);
 	}
 	else if (!matching_resource)
 	{
-		OC_WRN("ocri: Could not find resource");
-		/* Return a 4.04 response if the requested resource was not found */
+		OC_WRN("could not find resource in core and application");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_NOT_FOUND);
 	}
 	else if (!method_impl)
 	{
-		OC_WRN("ocri: Could not find method");
-		/* Return a 4.05 response if the resource does not implement the
-		* request method.
-		*/
+		OC_WRN("could not find method");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_METHOD_NOT_ALLOWED);
 	}
 	else if (!authorized)
 	{
-		OC_WRN("ocri: Subject not authorized");
+		OC_WRN("subject not authorized");
 		/* If the requestor (subject) does not have access granted via an
 		* access control entry in the ACL, then it is not authorized to
 		* access the resource. A 4.01 response is sent.
 		*/
 		response_buffer.response_length = 0;
-		OC_ERR("ocir: subject not authorized");
+		OC_ERR("subject not authorized");
 		response_buffer.code = oc_status_code(OC_STATUS_UNAUTHORIZED);
 	}
 	else
@@ -1362,7 +1375,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&
 			coap_get_header_observe(request, &observe))
 	{
-		/* Check if the resource is OBSERVABLE */
+		// process all < 4.00, check if the resource is OBSERVABLE
 		if (matching_resource->properties & OC_OBSERVABLE)
 		{
 			/* If the observe option is set to 0, make an attempt to add the
@@ -1430,10 +1443,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	}
 	#endif 
 
-	if (request_obj.origin && (request_obj.origin->flags & MULTICAST) &&
+	if (request_obj.origin && request_obj.origin->flags & MULTICAST &&
 			response_buffer.code >= oc_status_code(OC_STATUS_BAD_REQUEST))
 	{
-		response_buffer.code = OC_IGNORE;
+		// on multicast ignore all > 4.00
+	  response_buffer.code = OC_IGNORE;
 	}
 
 	#ifdef OC_SERVER
@@ -1482,15 +1496,15 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 					response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
 			{
 				// check this with s-mode
-				if ((endpoint->flags & MULTICAST) == 0)
+				if (endpoint->flags & MULTICAST)
 				{
 					// multicast, handle observe
-					PRINT("adding callback");
-					oc_ri_add_timed_event_callback_ticks((void*) matching_resource, &oc_observe_notification_delayed, 0);
+					PRINT("adding a callback");
+					oc_ri_add_timed_event_callback_ticks((void*)matching_resource, &oc_observe_notification_delayed, 0);
 				}
 				else
-				{ // unicast
-					PRINT("not adding callback");
+				{ // unicast, skip
+					PRINT("not adding a callback");
 				}
 			}
 
@@ -1506,18 +1520,21 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				#endif 
 				if (response_buffer.content_format > 0)
 				{
-					coap_set_header_content_format(response,
-																				 response_buffer.content_format);
+					// sets header format in all cases > 0 
+				  coap_set_header_content_format(response, response_buffer.content_format);
 				}
 			}
 			else
 			{
-				// For EITT test 5.1.1.4 & 5.2.3.1b
+
+				// TODO unclear why on payload =0 the format is ONLY set on LINK/CBOR
+
+			  // for EITT test 5.1.1.4 & 5.2.3.1b
 				if (response_buffer.content_format == APPLICATION_LINK_FORMAT ||
 						response_buffer.content_format == APPLICATION_CBOR)
 				{
-					coap_set_header_content_format(response,
-																				 response_buffer.content_format);
+          // sets header format in  cases LINK/CBOR
+				  coap_set_header_content_format(response, response_buffer.content_format);
 				}
 			}
 

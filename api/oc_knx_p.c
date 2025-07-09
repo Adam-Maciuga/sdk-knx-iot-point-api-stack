@@ -176,10 +176,10 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-  // EACH application callback handler gets an own copy of the request + new response buffer
+  // each application callback handler gets a new copy of the original request + new response buffer
   oc_request_t new_request = {0};
   oc_response_buffer_t response_buffer = {0};
-  oc_response_t response_obj = {0};
+  oc_response_t response_obj; // filled complete later on 
 
   // define summary callback handler status
   oc_status_t summary_handler_status = OC_STATUS_OK;
@@ -215,7 +215,8 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
         // do the post only if a href and value is in the request
         if (entry_value && entry_url)
         {
-          // copy request to new request
+          // copy all data from request to new request (performance consuming)
+          // - includes also the originally called resource, maybe used in PUT handler to access interfaces or acl scopes 
           oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
           // sets the payload pointer to the collection 'item' OBJECT that includes the value
@@ -227,7 +228,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           new_request.uri_path_len = 2;
 
           const oc_resource_t* my_resource =
-            oc_ri_get_app_resource_by_uri(oc_string(*entry_url), oc_string_len(*entry_url), device_index);
+            oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url), device_index);
 
           if (my_resource && my_resource->put_handler.cb)
           {
@@ -235,9 +236,13 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
             // for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p
 
             // user data can be NULL if not defined by application request handler
-            my_resource->put_handler.cb(&new_request, iface_mask, my_resource->put_handler.user_data);
+            // call application handler with own interface/ user data
+            // (it makes no sense to call it with the original /p interface mask, this is a fix vale)
+            my_resource->put_handler.cb(&new_request, 
+                                        my_resource->put_handler.interface_mask,
+                                        my_resource->put_handler.user_data);
 
-            // collect the max 'bad' status code
+            // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
 
             // create /p --> update

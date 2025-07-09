@@ -120,11 +120,11 @@ extern "C"
    */
   typedef struct oc_group_object_table_t
   {
-    int32_t id; // id, specification demands a range of 16 bit with 0 ... 65535 (see note above)
-    oc_string_t href; // href
-    oc_cflag_mask_t cflags; // cflags as in KNX
-    int ga_len; // length of the group address array (len can only be > 0 but for loops uses mostly signed int ...)
-    uint32_t* ga; // group address array of 32 bit values, specification demands >= 20 entries
+    int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
+    oc_string_t href;         // resource path
+    oc_cflag_mask_t cflags;   // cflags as in KNX
+    int ga_len;               // length of the group address array (len can only be > 0 but for loops uses mostly signed int ...)
+    uint32_t* ga;             // group address array of 32 bit values, specification demands >= 20 entries
   } oc_group_object_table_t;
 
   /**
@@ -150,7 +150,7 @@ extern "C"
    *     }
    * ]
    * ```
-   *
+   * 
    * Key translation
    * | Json Key | Integer Value |
    * | -------- | ------------- |
@@ -159,7 +159,7 @@ extern "C"
    * | iid      | 26            |
    * | fid      | 25            |
    * | grpid    | 13            |
-   * | url      | 10            |
+   * | url      | 10            |   // TODO url will be removed in new specification
    * | ga       | 7             |
    * | non      | -             |
    *
@@ -173,7 +173,7 @@ extern "C"
    * - return the structure at a specific index
    *
    * Note that some (int) integers are tested in the code on their init values
-   * '-1' for validity, this is a problem in case of a 16-bit platforms --> hence they were changed to int32_t
+   * '-1' for (non) validity, this is a problem in case of 16-bit platforms --> hence the plain int was changed to int32_t
    * - ia : (-1 = 0xFFFF = a valid KNX ia)
    * - id : (-1 = 0xFFFF = a valid id range)
    */
@@ -308,7 +308,7 @@ extern "C"
   * @return int the index in the table or -1
   *
   */
-  int oc_core_find_first_group_object_table_index(uint32_t group_address);
+  int oc_core_find_first_go_table_index_with_ga(uint32_t group_address);
 
   /**
    * @brief find 'next' index - after the provided one - in the group object table
@@ -323,22 +323,32 @@ extern "C"
    * @return int the index in the table or -1
    *
    */
-  int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_index);
+  int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index);
 
   /**
-   * @brief find (first) index in the group address table via url
+   * @brief retrieve the GO table index with the lowest 'id' and the GA in position 0 of the GA array
    *
-   * @param url The url to find
-   * @return int The index in the table or -1
+   * @note must loop over all GO entries in the table (see comment in code)
+   *
+   * @param group_address the group address to search for in pos. zero
+   * @return the GO table 'index', -1 in case of no 'index' was found
    */
-  int oc_core_find_group_object_table_url(const char* url);
+  int oc_core_find_go_table_index_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address);
 
   /**
-   * @brief find next index in the group address table via url
+   * @brief find (first) index in the GO object table with the given url
    *
-   * @param  url The url to find
-   * @param cur_index  The current index to start from.
-   * @return int The index in the table or -1
+   * @param url the url to find
+   * @return the index in the table or -1
+   */
+  int oc_core_find_group_object_table_href(const char* url);
+
+  /**
+   * @brief find next index in the group object table with the given url
+   *
+   * @param  url the url to find
+   * @param cur_index  the current index to start from.
+   * @return the index in the table or -1
    */
   int oc_core_find_next_group_object_table_url(const char* url, int cur_index);
 
@@ -348,7 +358,7 @@ extern "C"
    * @param index the index in the group object table
    * @return oc_cflag_mask_t the retrieved cflags
    */
-  oc_cflag_mask_t oc_core_group_object_table_cflag_entries(int index);
+  oc_cflag_mask_t oc_core_get_cflags_from_group_object_table_index(int index);
 
   /**
    * @brief get the 'href' url for a resource form a specific group object table
@@ -365,7 +375,7 @@ extern "C"
    * @param index the index in the group address table
    * @return int the number of group addresses
    */
-  int oc_core_find_group_object_table_number_group_entries(int index);
+  int oc_core_get_ga_table_len_from_group_object_table_index(int index);
 
   /**
    * @brief get group address of index, and entry (e.g. list)
@@ -374,7 +384,7 @@ extern "C"
    * @param entry the entry in the list of addresses at index
    * @return int the group address
    */
-  int oc_core_find_group_object_table_group_entry(int index, int entry);
+  uint32_t oc_core_get_ga_table_entry_from_group_object_table_index(int index, int entry);
 
   /**
    * @brief print the entry in the Group Object Table

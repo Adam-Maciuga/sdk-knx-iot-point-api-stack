@@ -388,7 +388,7 @@ extern "C" {
 	/**
 	 * @brief request callback, containing
 	 * - the request,
-	 * - the interface query parameter from the request, if none is present = OC_IF_NONE  // TODO not used in any core/application call, to be removed!
+	 * - the interface mask, specified on a (application/core) resource for the corresponding request method (GET, ...)
 	 * - user data defined by the resource callbacks (if present)
 	 *
 	 */
@@ -567,12 +567,12 @@ extern "C" {
 	/**
 	 * @brief retrieve the application resource that fits to the given uri (and device index)
 	 *
-	 * @param uri the uri of the resource
-	 * @param uri_len the length of the uri
+	 * @param resource_path the resource path
+	 * @param resource_path_len the length of the resource path
 	 * @param device the device index
 	 * @return oc_resource_t* the resource structure or NULL (request was NULL or no resource found)
 	 */
-	const oc_resource_t* oc_ri_get_app_resource_by_uri(const char* uri, size_t uri_len, size_t device);
+	const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len, size_t device);
 
 	/**
 	 * @brief retrieve list of application resources (excluding device core resources)

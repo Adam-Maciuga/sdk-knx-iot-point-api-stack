@@ -116,23 +116,23 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
  * - the url is the url of the resource to obtain the value from
  *
  *
- * Only the first group address is used to send the s-mode message
- * for the recipient table all entries are used to send the unicast
+ * Only the first group address is used to send the s-mode message.
+ * For the recipient table all entries are used to send the unicast
  * communication.
  *
- * @note The function does NOT check the T flag on the resource
- *       e.g. always send the s-mode message used in case the srv_type
- *       value = "a", e.g. sending a response on read ("r")
+ * @note Usually the function does not check the T flag on the resource
+ *       (e.g. always send the s-mode message) in case of srv_type
+ *       value = "a" when sending a read response on a previous read request ("r")
  *
  * @param scope the multi-cast scope
- * @param resource_url URI of the resource (e.g. implemented on the device that is calling this function)
+ * @param resource_path caller resource URL (e.g. implemented on the device that is calling this function)
  * @param srv_type the "st" value to send e.g. "w" | "a" | "r"
  * @param consider_transmission_flag
- *        #false: does not check the transmit flag (the caller of this function needs to check if the flag is set)
- *        #true: checks transmit flag
+ *        - false: does not check the transmit flag
+ *        - true: checks transmit flag
  */
- void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_url, char* srv_type,
-                                              bool consider_transmission_flag);
+ void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_path, char* srv_type,
+                                        bool consider_transmission_flag);
 
  void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, const uint32_t grpid, const uint32_t group_address,
                       const uint64_t iid, char* mode, uint8_t* value_data, const int value_size);

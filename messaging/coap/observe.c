@@ -356,10 +356,11 @@ coap_notify_observers(const oc_resource_t *resource,
 #endif /* OC_DYNAMIC_ALLOCATION */
 
     oc_request_t request = { 0 };
-    oc_response_t response = { 0 };
+    oc_response_t response;
     response.separate_response = 0;
     oc_response_buffer_t response_buffer;
-    if (!response_buf && resource) {
+    if (!response_buf && resource) 
+    {
       OC_DBG("coap_notify_observers: Issue GET request to resource %s", oc_string_checked(resource->uri));
       response_buffer.buffer = buffer;
       response_buffer.buffer_size = OC_MAX_OBSERVE_SIZE;
@@ -368,21 +369,23 @@ coap_notify_observers(const oc_resource_t *resource,
       request.response = &response;
       request.request_payload = NULL;
       oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
-      {
-        // resource->get_handler.cb(&request, resource->default_interface,
-        //                         resource->get_handler.user_data);
-        resource->get_handler.cb(&request, resource->get_handler.interface_mask, resource->get_handler.user_data);
-      }
+
+      resource->get_handler.cb(&request, 
+                               resource->get_handler.interface_mask, 
+                               resource->get_handler.user_data);
+      
       response_buf = &response_buffer;
-      if (response_buf->code == OC_IGNORE) {
+      if (response_buf->code == OC_IGNORE) 
+      {
         OC_DBG("coap_notify_observers: Resource ignored request");
         goto leave_notify_observers;
-      } // response_buf->code == OC_IGNORE
-    }   //! response_buf && resource
+      } 
+    } 
 
     /* iterate over observers */
     obs = (coap_observer_t *)oc_list_head(observers_list);
-    while (obs != NULL) {
+    while (obs != NULL) 
+    {
       if ((obs->resource != resource) ||
           (endpoint && oc_endpoint_compare(&obs->endpoint, endpoint) != 0)) {
         obs = obs->next;
@@ -413,8 +416,7 @@ coap_notify_observers(const oc_resource_t *resource,
         coap_set_header_uri_path(req, oc_string(resource->uri),
                                  oc_string_len(resource->uri));
 
-        OC_DBG("coap_notify_observers: Creating separate response for "
-               "notification");
+        OC_DBG("creating separate response for notification");
 #ifdef OC_BLOCK_WISE
         if (coap_separate_accept(req, response.separate_response,
                                  &obs->endpoint, obs->obs_counter,

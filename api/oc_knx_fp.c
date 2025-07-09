@@ -124,12 +124,12 @@ int oc_core_find_index_in_group_object_table_from_id(int id)
   return -1;
 }
 
-int oc_core_find_first_group_object_table_index(uint32_t group_address)
+int oc_core_find_first_go_table_index_with_ga(uint32_t group_address)
 {
-  return oc_core_find_next_group_object_table_index(group_address, -1);
+  return oc_core_find_next_go_table_index_with_ga(group_address, -1);
 }
 
-int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_index)
+int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index)
 {
   for (int i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
   {
@@ -147,22 +147,54 @@ int oc_core_find_next_group_object_table_index(uint32_t group_address, int cur_i
   return -1;
 }
 
+int oc_core_find_go_table_index_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address)
+{
+
+  // init with number out of upper range defined so far 0..65535 = error
+  int32_t lowest_id = INT_MAX;
+  int corresponding_index = 0;
+
+  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  {
+    if (g_got[i].id > -1)
+    {
+      // table entry present 
+      if (g_got[i].id < lowest_id)
+      {
+        // id with GA in pos. zero (= sending GA)? 
+        if (group_address == g_got[i].ga[0])
+        {
+          /*
+             id is lower, new id candidate, note must loop over all GO index
+             - index 20: "id" = 12, ga 100 in pos zero -> a receiving group address (+ flags)
+             - index 25: "id" = 10, ga 100 in pos zero -> the sending group address (+ flags)
+          */
+          lowest_id = g_got[i].id;
+          corresponding_index = i;
+        }
+      }
+    }
+  }
+  // no 'ga in pos zero' found returns -1 
+  return lowest_id < INT_MAX ? corresponding_index : -1;
+}
+
 oc_string_t oc_core_get_href_from_group_object_table_index(int index)
 {
   const oc_string_t error = {0};
   return index < GOT_MAX_ENTRIES ? g_got[index].href : error;
 }
 
-oc_cflag_mask_t oc_core_group_object_table_cflag_entries(int index)
+oc_cflag_mask_t oc_core_get_cflags_from_group_object_table_index(int index)
 {
   if (index < GOT_MAX_ENTRIES)
   {
     return g_got[index].cflags;
   }
-  return 0;
+  return OC_CFLAG_NONE;
 }
 
-int oc_core_find_group_object_table_number_group_entries(int index)
+int oc_core_get_ga_table_len_from_group_object_table_index(int index)
 {
   if (index < GOT_MAX_ENTRIES)
   {
@@ -171,7 +203,7 @@ int oc_core_find_group_object_table_number_group_entries(int index)
   return 0;
 }
 
-int oc_core_find_group_object_table_group_entry(int index, int entry)
+uint32_t oc_core_get_ga_table_entry_from_group_object_table_index(int index, int entry)
 {
   if (index < GOT_MAX_ENTRIES)
   {
@@ -183,7 +215,7 @@ int oc_core_find_group_object_table_group_entry(int index, int entry)
   return 0;
 }
 
-int oc_core_find_group_object_table_url(const char* url)
+int oc_core_find_group_object_table_href(const char* url)
 {
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -198,14 +230,14 @@ int oc_core_find_group_object_table_url(const char* url)
 int oc_core_find_next_group_object_table_url(const char* url, const int cur_index)
 {
   if (cur_index == -1)
-  { // don't iterate if already no index available
+  { // don't iterate if already no index is available
     return -1;
   }
 
   for (int i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
   {
     if (strlen(url) == oc_string_len(g_got[i].href) && strcmp(url, oc_string(g_got[i].href)) == 0)
-    {
+    { // href len and content matches
       return i;
     }
   }
@@ -346,7 +378,6 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
 
   PRINT("oc_core_fp_g_get_handler - end");
 }
-
 
 static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -2876,7 +2907,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, si
 
         // called from GET /p handler so always truncate resources URN's
         oc_add_resource_to_response_payload(
-          oc_ri_get_app_resource_by_uri(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index),
+          oc_ri_get_app_resource_by_resource_path(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index),
           request, response_length, true);
         return_value = true;
       }

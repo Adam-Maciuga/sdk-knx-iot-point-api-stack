@@ -725,7 +725,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 		}
 		else
 		{
-			const oc_resource_t* resource = oc_ri_get_app_resource_by_uri(
+			const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(
 				oc_string(cur->uri), oc_string_len(cur->uri), cur->endpoint.device);
 			if (resource)
 			{
