@@ -62,7 +62,6 @@
  */
 #include "oc_rep.h"
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
@@ -104,17 +103,27 @@ volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
 char g_serial_number[] = SN_LOWER_CASE_LSAB; // startup SN, maybe overwritten by CL option
 
-/**
+/*
 
- Below defined datapoints and test parameters are expected for functional block 417 (LSAB) command/control.
+ Below defined datapoints and test parameters for functional block 417 (LSAB) command/control.
 
-  - the EP names
+  EP's
+
+  - href
+    - This application example uses the leading '/p/' that demands (=MUST) that the resource is
+      accessible also via the '/p' EP with add. required functionality such as a PUT/GET /w and w/o metadata (m=).
+    - The leading '/' is optional.
+    - Note that the href resources for a normal application can also be defined without '/p/', then without
+      the add. required functionality for '/p'. See also the code comments in corresponding PUT/GET application handler.
+
   - functional block 417 (LSAB) command/control
-  - the used datapoints
-  - the leading '/' is required, since this application is using an empty base path
-  - the dpa type is in FULL URN notation,
-     - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
-     - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
+  - the datapoints
+
+  URN's
+
+  - the dpa type is in FULL URN notation
+  - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
+  - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
 
  */
 
@@ -208,10 +217,11 @@ int app_init(void)
 char* app_get_password(void) { return PASSWORD; }
 
 /**
- * @brief register all the data point resources to the stack this function registers
+ * @brief
+ * register all the data point resources to the stack this function registers
  * all data point level resources:
  * each resource path is bind to a specific function for the supported methods:
- *   - GET (called from /p
+ *   - GET (called from /p and /k)
  *   - PUT (called from /p and /k)
  *   - POST/DELETE/FETCH  (not supported from stack for the application)
  *
@@ -236,8 +246,8 @@ void register_resources(void)
 
   for (int i = 0; i < NUM_CHANNELS; i++)
   {
-    oc_resource_t* soo_resource = oc_new_resource(lsxb[i].point[SOO].desc, lsxb[i].point[SOO].href, 1, 0);
-    oc_resource_t* ioo_resource = oc_new_resource(lsxb[i].point[IOO].desc, lsxb[i].point[IOO].href, 1, 0);
+    oc_resource_t* soo_resource = oc_new_resource(lsxb[i].point[SOO].desc, lsxb[i].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource = oc_new_resource(lsxb[i].point[IOO].desc, lsxb[i].point[IOO].resource_path, 1, 0);
 
     oc_resource_bind_resource_type(soo_resource, lsxb[i].point[SOO].dpa);
     oc_resource_bind_resource_type(ioo_resource, lsxb[i].point[IOO].dpa);
@@ -265,11 +275,11 @@ void register_resources(void)
     // soo
     // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
     // - PUT
-    oc_resource_set_request_handler(soo_resource, OC_GET, get_lsxb, soo_user_data, OC_ACL_I, OC_IF_I);
-    oc_resource_set_request_handler(soo_resource, OC_PUT, put_lsab, soo_user_data, OC_ACL_I, OC_IF_I);
+    oc_resource_set_request_handler(soo_resource, OC_GET, get_lsxb, soo_user_data, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
+    oc_resource_set_request_handler(soo_resource, OC_PUT, put_lsab, soo_user_data, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
     // ioo
     // - GET
-    oc_resource_set_request_handler(ioo_resource, OC_GET, get_lsxb, ioo_user_data, OC_ACL_O, OC_IF_O);
+    oc_resource_set_request_handler(ioo_resource, OC_GET, get_lsxb, ioo_user_data, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
 
     oc_add_resource(soo_resource);
     oc_add_resource(ioo_resource);
@@ -277,7 +287,7 @@ void register_resources(void)
 
   PRINT("Register test parameter");
   {
-    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.href, 1, 0);
+    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.resource_path, 1, 0);
 
     oc_resource_bind_resource_type(tp0, test_parameter.dpa);
 
@@ -291,8 +301,8 @@ void register_resources(void)
 
     oc_resource_set_observable(tp0, true);
 
-    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // see EP handler 
+    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
+    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 
 
     oc_add_resource(tp0);
   }

@@ -40,8 +40,6 @@ void app_str_to_upper(char* str)
   }
 }
 
-
-
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
   oc_separate_response_t* response = context;
@@ -103,14 +101,14 @@ extern int_datapoint_t test_parameter;
 
 /*
 
- n x CoAP GET/PUT methods for data point resource.
- Setup defines urls, resource types and other (see register
+ n x CoAP GET/PUT methods for the application data point resources.
+ Setup defines resource path, resource types and other (see register
  resources). Initialization of the returned values are done from the global
  property values.
 
- @param request the request representation.
- @param interfaces the interface used for this call
- @param user_data the user data.
+ @param request    the request representation
+ @param interfaces the interface mask, specified with a (application/core) resource and the request method (GET, ...)
+ @param user_data  the user data
 
  @note The (generic) callback 'call' handler uses always above defined 3
  parameters, provide them even if not used
@@ -120,15 +118,14 @@ extern int_datapoint_t test_parameter;
 // generic GET for LSSB/LSAB/EITT applications 
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
-  (void)interfaces;
 
   bool error_state = true;
 
-  // for the GET ...
-  const bool is_output_datapoint = request->resource->get_handler.interface_mask & OC_IF_O;
+  // get interfaces for the resource GET method ...
+  bool is_output_datapoint = interfaces & OC_IF_O;
 
   // user data host the HEX encoded channel/datapoint 
-  const int32_t channel_and_datapoint = strtol(user_data,NULL,16);
+  const uint32_t channel_and_datapoint = strtol(user_data,NULL,16);
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
@@ -137,6 +134,15 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     return;
+  }
+
+  // handle the different request sources, here included as an example to distinguish
+  // the caller source (e.g.; called by /p or /k s-mode message EP)
+  if (oc_is_redirected_request_from(request) == 1)
+  {
+    // caller /p --> always allow to read
+    is_output_datapoint = true;
+    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
   oc_device_info_t* device = oc_core_get_device_info(0);
@@ -178,9 +184,15 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         // value
         if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          if (!is_output_datapoint)
+          if (!is_output_datapoint) 
           {
-            // don't allow to read a no 'output'
+            /*
+              depending on the application you may not allow to read a no 'output' datapoint,
+              especially if the resource path does not include '/p/', see details on res. definition
+              (in such case it is a plain s-mode runtime datapoint)
+
+           */
+
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
           }
@@ -214,7 +226,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         // ga
         if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          const int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
+          const int index = oc_core_find_group_object_table_href(oc_string(request->resource->uri));
           if (index > -1)
           {
             oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
@@ -239,7 +251,13 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
       if (!is_output_datapoint)
       {
-        // don't allow to read a no 'output'
+        /*
+          depending on the application you may not allow to read a no 'output' datapoint,
+          especially if the resource path does not include '/p/', see details res. definition
+          (in such case it is a plain s-mode runtime datapoint)
+
+        */
+
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
@@ -260,7 +278,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
 
-  // wrong device, cbor error or unknown 'm' query parameter value(s)
+  // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   else
@@ -272,12 +290,10 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 // specific PUT for LSAB/EITT applications (SOO write - IOO will be updated ... )
 void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
-  (void)interfaces;
-
   bool error_state = true;
 
-  // for the PUT ...
-  const bool is_input_datapoint = request->resource->put_handler.interface_mask & OC_IF_I;
+  // get interfaces for the resource PUT method ...
+  bool is_input_datapoint = interfaces & OC_IF_I;
 
   // sets the pointer to the (/k or /p) handed over object
   const oc_rep_t* rep = request->request_payload;
@@ -289,28 +305,35 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
-  // handle the different requests, here only included as example to
-  // identify if extra data needs to be processed in the endpoint
-  if (oc_is_redirected_request_from(request) > -1)
+  // handle the different request sources, here included as an example to distinguish
+  // the caller source (e.g.; called by /p or /k s-mode message EP)
+  if (oc_is_redirected_request_from(request) == 1)
   {
+    // caller /p --> always allow to write
+    is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
   // loop over object
   while (rep)
   {
-    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
-    // may need to be skipped
+    // this EP accepts only a bool,
+    // a faulty construct such as {..., 1: true, 1: false} is not handled
     if (rep->iname == 1 && rep->type == OC_REP_BOOL)
     {
       if (!is_input_datapoint)
       {
-        // don't allow to write a no 'input'
+        /*
+          depending on the application you may not allow to write a no 'input' datapoint,
+          especially if the resource path does not include '/p/', see details res. definition
+          (in such case it is a plain s-mode runtime datapoint)
+
+        */
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
 
-      PRINT("set LSAB soo to %d", rep->value.boolean);
+      PRINT("set LSAB to %d", rep->value.boolean);
       lsxb[c].point[p].value = rep->value.boolean;
       error_state = false;
       break;
@@ -321,16 +344,16 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // correct data retrieved
   if (!error_state)
   {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
     // set LSAB status
     PRINT("received no error, update LSAB status to %d", lsxb[c].point[SOO].value);
     lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
 
-    // this is the 'simple' option to trigger a status on a specific EP
-    PRINT("send status to %s with flag: 'w'", lsxb[c].point[IOO].href);
-    oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].href, "w", true);
+    // trigger the LSAB status on a specific resource path (ioo)
+    PRINT("send status to %s with flag: 'w'", lsxb[c].point[IOO].resource_path);
+    oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].resource_path, "w", true);
+
+    // inform the stack on status
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
     PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
     return;
@@ -344,12 +367,10 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 // specific PUT for LSSB/EITT applications (IOO write - nothing will be updated ... )
 void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
-  (void)interfaces;
-
   bool error_state = true;
 
-  // for the PUT ...
-  const bool is_input_datapoint = request->resource->put_handler.interface_mask & OC_IF_I;
+  // get interfaces for the resource PUT method ...
+  bool is_input_datapoint = interfaces & OC_IF_I;
 
   // sets the pointer to the (/k or /p) handed over object
   const oc_rep_t* rep = request->request_payload;
@@ -361,28 +382,35 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
-  // handle the different requests, here only included as example to
-  // identify if extra data needs to be processed in the endpoint
-  if (oc_is_redirected_request_from(request) > -1)
+  // handle the different request sources, here included as an example to distinguish
+  // the caller source (e.g.; called by /p or /k s-mode message EP) 
+  if (oc_is_redirected_request_from(request) == 1)
   {
+    // caller /p --> always allow to write 
+    is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
   // loop over object
   while (rep)
   {
-    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
-    // may need to be skipped
+    // this EP accepts only a bool,
+    // a faulty construct such as {..., 1: true, 1: false} is not handled
     if (rep->iname == 1 && rep->type == OC_REP_BOOL)
     {
       if (!is_input_datapoint)
       {
-        // don't allow to write a no 'input'
+        /*
+          depending on the application you may not allow to write a no 'input' datapoint,
+          especially if the resource path does not include '/p/', see details res. definition
+          (in such case it is a plain s-mode runtime datapoint) 
+
+        */
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
 
-      PRINT("set LSSB ioo to %d", rep->value.boolean);
+      PRINT("set LSSB to %d", rep->value.boolean);
       lsxb[c].point[p].value = rep->value.boolean;
       error_state = false;
       break;
@@ -413,9 +441,8 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
 
   bool error_state = true;
 
-  // for the GET on a parameter is it not tested
-  // - if this is an input or output
-  // - usually a parameter has interface type if.p and if.g
+  // - for the GET on a parameter is it not tested if this is an input or output
+  // - a parameter has interface type GET if.d
 
   PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
@@ -492,7 +519,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
         // ga
         if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          int index = oc_core_find_group_object_table_url(oc_string(request->resource->uri));
+          int index = oc_core_find_group_object_table_href(oc_string(request->resource->uri));
           if (index > -1)
           {
             oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
@@ -531,7 +558,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
 
   PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
 
-  // wrong device, cbor error or unknown 'm' query parameter value(s)
+  // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   else
@@ -546,18 +573,10 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   (void)interfaces;
   (void)user_data;
 
-  // for the PUT on a parameter is it not tested
-  // - if this is an input or output
-  // - usually a parameter has interface type if.p and if.g
+  // - for the PUT on a parameter is it not tested if this is an input or output
+  // - a parameter has interface type PUT if.p
 
   PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
-
-  // handle the different requests, here only included as example to
-  // identify if extra data needs to be processed in the endpoint
-  if (oc_is_redirected_request_from(request) > -1)
-  {
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
 
   // sets the pointer to the (/k /p) handed over object
   oc_rep_t* rep = request->request_payload;
@@ -566,12 +585,12 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   // loop over object
   while (rep)
   {
-    // this EP accepts only a bool, a faulty construct such as {1: 2, 1: true}
-    // may need to be skipped
+    // this EP accepts only an integer,
+    // a faulty construct such as {..., 1: 2, 1: 5} is not handled
     if (rep->iname == 1 && rep->type == OC_REP_INT)
     {
       PRINT("set test parameter to : %lld", rep->value.integer);
-      test_parameter.value = (uint16_t)rep->value.integer;
+      test_parameter.value = (unsigned int)rep->value.integer;
       error_state = false;
       break;
     }
@@ -593,7 +612,7 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
 
 char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)
 {
-  return lsxb[channel].point[point].href;
+  return lsxb[channel].point[point].resource_path;
 }
 
 // PARAMETER code - needs to be defined in case of specific parameter handing

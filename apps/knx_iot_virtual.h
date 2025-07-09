@@ -68,30 +68,43 @@
 #define HW_TYPE_EITT "Windows" // 12 string chars, same as eitt test template
 #define DEV_MODEL_EITT "KNX Certification" // same as eitt test template
 
-// datapoint definitions, used to register/create a datapoint resource, 
-// either the href/description/... data consumes the space in the static definition or
-// are hard coded when you register, so no difference but better structured
+/*
+
+  memory
+
+  - datapoint definitions, used to register/create a datapoint resource in the application, 
+    either the href/description/... data consumes the space this static structure definition, or
+    they are hard coded when you register them, so no space difference but better structured
+
+   value types
+
+   - must respect the bit size definition in the MaC (ETS) product, e.g.; here 32-bit int, in ETS product 8...32 bit uint
+
+*/
+
+
 typedef struct
 {
-  volatile bool value;
-  char* href;
+  volatile bool value; 
+  char* resource_path;
   char* dpa;
   char* dpt;
   char* desc;
   char* id;  // used to identify in the genric PUT/GET handles the channel/ datapoint source
 } bool_datapoint_t;
 
+
 typedef struct
 {
-  volatile int value;
-  char* href;
+  volatile unsigned int value; 
+  char* resource_path;
   char* dpa;
   char* dpt;
   char* desc;
 } int_datapoint_t;
 
 
-// defines the basic (channel oriented) structure of a LSAB/LSSB functional block definition 
+// defines the basic (channel oriented) structure of a LSAB/LSSB/EITT functional block definition 
 typedef struct
 {
   bool_datapoint_t point[NUM_POINTS];

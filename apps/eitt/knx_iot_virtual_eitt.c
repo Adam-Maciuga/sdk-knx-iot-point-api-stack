@@ -60,18 +60,25 @@ volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
 char g_serial_number[] = SN_LOWER_CASE_EITT; // startup SN, maybe overwritten by CL option
 
-/**
+/*
 
- Below defined datapoints and test parameters are expected from the EITT test template defaults. 
+ Below defined datapoints and test parameters for the EITT test template defaults. 
  
-  - the EP names
+  EP's
+
+  - href
+    - This application example uses the leading '/p/' that demands (=MUST) that the resource is
+      accessible also via the '/p' EP with add. required functionality such as a PUT/GET /w and w/o metadata (m=).
+    - The leading '/' is required (the EITT test template uses an empty base path).
+  
   - functional block 417 (LSAB) and 421 (LSBB) command/control
-  - the used datapoints are artificial such as dpa 417.61/62
-  - the leading '/' is required, the EITT test application uses an empty base path, checked
-    in fp/g and p/{property-path}
-  - the dpa type is in FULL URN notation,
-     - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
-     - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
+  - the datapoints are artificial such as dpa 417.61/62
+  
+  URN's
+
+  - the dpa type is in FULL URN notation
+  - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
+  - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
  
  */
 
@@ -81,11 +88,11 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
     {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", "LSAB soo", "0000"},   // 0 << 8 + 0 
     {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", "LSAB ioo", "0001"}}}, // 0 << 8 + 1  
   {{
-    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo ", "0100"},   // 1 << 8 + 0 
-    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo ", "0101"}}}, // 1 << 8 + 1 
+    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", "0100"},   // 1 << 8 + 0 
+    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo", "0101"}}}, // 1 << 8 + 1 
 };
 
-// additional parameters
+// additional parameters (for the href see above)
 int_datapoint_t test_parameter = {0, "/p/p1", "urn:knx:dpa.65500.201", ":dpt.propDataType", "Global Test Parameter"};
 
 // need to define prototype, used by an init method
@@ -164,12 +171,13 @@ int app_init(void)
 char* app_get_password(void) { return PASSWORD; }
 
 /**
- * @brief register all the data point resources to the stack this function registers
+ * @brief
+ * register all the data point resources to the stack this function registers
  * all data point level resources:
  * each resource path is bind to a specific function for the supported methods:
- *   - GET (called from /p
+ *   - GET (called from /p and /k)
  *   - PUT (called from /p and /k)
- *   - POST/DELETE/FETCH  (not supported from stack for the application)
+ *   - POST/DELETE/FETCH (not supported from stack for the application)
  *
  * each resource is:
  *   - secure
@@ -182,6 +190,7 @@ char* app_get_password(void) { return PASSWORD; }
  * @note
  *	periodic observable to be used when one wants to send an event per time
     slice (period is 1 second) with oc_resource_set_periodic_observable(res_InfoOnOff_?, 1);
+
     Set observable events are send when oc_notify_observers(oc_resource_t *resource) is called.
     This function must be called when the value changes, preferable on an interrupt when
     something is read from the hardware.
@@ -190,10 +199,10 @@ void register_resources(void)
 {
   PRINT("Register LSAB/LSSB 0...1 channel control/status resource");
   {
-    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].point[SOO].desc, lsxb[LSAB].point[SOO].href, 1, 0);
-    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].point[IOO].desc, lsxb[LSAB].point[IOO].href, 1, 0);
-    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].point[SOO].desc, lsxb[LSSB].point[SOO].href, 1, 0);
-    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].point[IOO].desc, lsxb[LSSB].point[IOO].href, 1, 0);
+    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].point[SOO].desc, lsxb[LSAB].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].point[IOO].desc, lsxb[LSAB].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].point[SOO].desc, lsxb[LSSB].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].point[IOO].desc, lsxb[LSSB].point[IOO].resource_path, 1, 0);
 
     oc_resource_bind_resource_type(soo_resource_lsab, lsxb[LSAB].point[SOO].dpa);
     oc_resource_bind_resource_type(ioo_resource_lsab, lsxb[LSAB].point[IOO].dpa);
@@ -237,19 +246,19 @@ void register_resources(void)
     // - PUT
     // ioo
     // - GET
-    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, get_lsxb, soo_user_data_lsab, OC_ACL_I, OC_IF_I);
-    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, put_lsab, soo_user_data_lsab, OC_ACL_I, OC_IF_I);
-    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, get_lsxb, ioo_user_data_lsab, OC_ACL_O, OC_IF_O);
+    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, get_lsxb, soo_user_data_lsab, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
+    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, put_lsab, soo_user_data_lsab, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
+    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, get_lsxb, ioo_user_data_lsab, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
 
     // LSSB defines
     // soo
     // - GET
-    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, get_lsxb, soo_user_data_lssb, OC_ACL_O, OC_IF_O);
+    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, get_lsxb, soo_user_data_lssb, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
     // ioo
     // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
-    // - PUT
-    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, get_lsxb, ioo_user_data_lssb, OC_ACL_I, OC_IF_I);
-    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, put_lssb, ioo_user_data_lssb, OC_ACL_I, OC_IF_I);
+    // - PUT 
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, get_lsxb, ioo_user_data_lssb, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, put_lssb, ioo_user_data_lssb, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
 
     oc_add_resource(soo_resource_lsab);
     oc_add_resource(ioo_resource_lsab);
@@ -259,7 +268,7 @@ void register_resources(void)
 
   PRINT("Register test parameter");
   {
-    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.href, 1, 0);
+    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.resource_path, 1, 0);
 
     oc_resource_bind_resource_type(tp0, test_parameter.dpa);
 
@@ -274,8 +283,8 @@ void register_resources(void)
     oc_resource_set_observable(tp0, true);
 
     // parameter defines GET and PUT 
-    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // see EP handler
+    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
+    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler
 
     oc_add_resource(tp0);
   }
