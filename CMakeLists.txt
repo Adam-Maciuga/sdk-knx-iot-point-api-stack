@@ -40,7 +40,7 @@ set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t v
 set(OC_DNS_SD_ENABLED ON CACHE BOOL "Enable DNS SD discovery (in addition to CoAP discovery)")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this a device can (also) receive (OFF: for plain senders).")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
-set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally'' group multicast events with scope 2, e.g.; for PC based applications.")
+set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally' group multicast events with scope 2, e.g.; for PC based applications.")
 
 ### Allows to use an own security framework, with ON the KNX MBEDTLS framework is used. 
 set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use MBEDTLS associated with KNX IoT repository")
