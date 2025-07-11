@@ -109,13 +109,7 @@ char g_serial_number[] = SN_LOWER_CASE_LSAB; // startup SN, maybe overwritten by
 
   EP's
 
-  - href
-    - This application example uses the leading '/p/' that demands (=MUST) that the resource is
-      accessible also via the '/p' EP with add. required functionality such as a PUT/GET /w and w/o metadata (m=).
-    - The leading '/' is optional.
-    - Note that the href resources for a normal application can also be defined without '/p/', then without
-      the add. required functionality for '/p'. See also the code comments in corresponding PUT/GET application handler.
-
+  - href, this application example uses a leading '/p', for details see callback handler 'Callback Notes'
   - functional block 417 (LSAB) command/control
   - the datapoints
 

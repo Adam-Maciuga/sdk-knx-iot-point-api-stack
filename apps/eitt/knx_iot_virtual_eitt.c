@@ -66,11 +66,7 @@ char g_serial_number[] = SN_LOWER_CASE_EITT; // startup SN, maybe overwritten by
  
   EP's
 
-  - href
-    - This application example uses the leading '/p/' that demands (=MUST) that the resource is
-      accessible also via the '/p' EP with add. required functionality such as a PUT/GET /w and w/o metadata (m=).
-    - The leading '/' is required (the EITT test template uses an empty base path).
-  
+  - href, this application example uses a leading '/p', for details see callback handler 'Callback Notes'
   - functional block 417 (LSAB) and 421 (LSBB) command/control
   - the datapoints are artificial such as dpa 417.61/62
   

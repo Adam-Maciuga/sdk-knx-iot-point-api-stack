@@ -100,22 +100,50 @@ extern lsxb_channel_t lsxb[];
 extern int_datapoint_t test_parameter;
 
 /*
+ Callback Notes 
 
- n x CoAP GET/PUT methods for the application data point resources.
- Setup defines resource path, resource types and other (see register
- resources). Initialization of the returned values are done from the global
- property values.
+ Below the CoAP GET/PUT callback handlers are defined for data point resources. For the resource path,
+ resource types and other see 'register resources'.
 
  @param request    the request representation
- @param interfaces the interface mask, specified with a (application/core) resource and the request method (GET, ...)
+ @param interfaces the interface mask, as specified for the application resource and method (GET, ...)
  @param user_data  the user data
 
- @note The (generic) callback 'call' handler uses always above defined 3
- parameters, provide them even if not used
+ The (generic) callback 'call' handler demands the above defined 3 parameters when called by the stack,
+ provide them even if they are not used.
+
+ @note
+
+ The callbacks are called by the stack for an s-mode call (/k), optionally also via the property path (/p).
+
+ For the s-mode call (/k) the group object table configuration flags (cflags) are considered by the stack,
+ but not for the property path call (/p).
+
+ #1
+
+ If a resource path for the s-mode runtime communication application callback is defined with a leading
+ '/p' (e.g.; '/p/lssb/0/soo') the application callbacks can also be called via the '/p' endpoint, moreover
+ in this case the callback MUST implement also add. required functionality.
+
+ - GET /w and w/o metadata m= (mandatory) 
+ - PUT (optional)
+
+ The LSAB/LSSB application examples uses the leading '/p' to demonstrate this,
+ the EITT test application requires a leading '/p' for the EITT certification tests.
+
+ Depending on your application and hardware you may not allow to write (PUT) values to a 'no input'
+ datapoint, because this may damage your hardware. Reading a 'no output' datapoint is less critical
+ but demands a caching of an applicable value. An EXAMPLE how to distinguish the /p and /k call and
+ options how to react are given below in the callback handler code.
+    
+ #2
+
+ If a resource path for the s-mode runtime communication application callback is defined without a leading
+ '/p', the add. required functionality does not apply. The leading '/' is optional.
 
 */
 
-// generic GET for LSSB/LSAB/EITT applications 
+// generic GET for LSSB/LSAB/EITT applications for SOO and IOO
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
 
@@ -140,7 +168,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // the caller source (e.g.; called by /p or /k s-mode message EP)
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller /p --> always allow to read
+    // caller /p --> always allow to read (see 'Callback Notes' above)
     is_output_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
@@ -186,13 +214,8 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         {
           if (!is_output_datapoint) 
           {
-            /*
-              depending on the application you may not allow to read a no 'output' datapoint,
-              especially if the resource path does not include '/p/', see details on res. definition
-              (in such case it is a plain s-mode runtime datapoint)
-
-           */
-
+            
+            // see 'Callback Notes' above
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
           }
@@ -251,13 +274,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
       if (!is_output_datapoint)
       {
-        /*
-          depending on the application you may not allow to read a no 'output' datapoint,
-          especially if the resource path does not include '/p/', see details res. definition
-          (in such case it is a plain s-mode runtime datapoint)
-
-        */
-
+        // see 'Callback Notes' above
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
@@ -287,7 +304,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 }
 
-// specific PUT for LSAB/EITT applications (SOO write - IOO will be updated ... )
+// specific PUT for LSAB/EITT applications for SOO (SOO write - IOO will be updated ... )
 void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   bool error_state = true;
@@ -309,7 +326,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // the caller source (e.g.; called by /p or /k s-mode message EP)
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller /p --> always allow to write
+    // caller /p --> always allow to write (see 'Callback Notes' above)
     is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
@@ -323,12 +340,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     {
       if (!is_input_datapoint)
       {
-        /*
-          depending on the application you may not allow to write a no 'input' datapoint,
-          especially if the resource path does not include '/p/', see details res. definition
-          (in such case it is a plain s-mode runtime datapoint)
-
-        */
+        // see 'Callback Notes' above
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
@@ -364,7 +376,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 }
 
-// specific PUT for LSSB/EITT applications (IOO write - nothing will be updated ... )
+// specific PUT for LSSB/EITT applications for IOO (IOO write - nothing will be updated ... )
 void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   bool error_state = true;
@@ -386,7 +398,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // the caller source (e.g.; called by /p or /k s-mode message EP) 
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller /p --> always allow to write 
+    // caller /p --> always allow to write (see 'Callback Notes' above)
     is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
@@ -400,12 +412,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     {
       if (!is_input_datapoint)
       {
-        /*
-          depending on the application you may not allow to write a no 'input' datapoint,
-          especially if the resource path does not include '/p/', see details res. definition
-          (in such case it is a plain s-mode runtime datapoint) 
-
-        */
+        // see 'Callback Notes' above
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
@@ -433,7 +440,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 }
 
-// generic GET for LSSB/LSAB/EITT applications
+// generic GET for LSSB/LSAB/EITT applications 
 void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)user_data;
@@ -441,7 +448,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
 
   bool error_state = true;
 
-  // - for the GET on a parameter is it not tested if this is an input or output
+  // - input or output, see 'Callback Notes' above
   // - a parameter has interface type GET if.d
 
   PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
@@ -573,7 +580,7 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   (void)interfaces;
   (void)user_data;
 
-  // - for the PUT on a parameter is it not tested if this is an input or output
+  // - input or output, see 'Callback Notes' above
   // - a parameter has interface type PUT if.p
 
   PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
