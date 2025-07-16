@@ -525,8 +525,8 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   int block_size = 0;
   int block_offset = 0; // bytes to skip, default if query parameter 'po' is missing
 
-  uint8_t* payload_ptr = NULL;
-  int payload_size = 0;
+  const uint8_t* payload_ptr = NULL;
+  size_t payload_size = 0;
 
   OC_DBG("oc_knx_swu_a_put_handler - start");
 
