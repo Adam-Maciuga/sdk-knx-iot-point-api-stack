@@ -125,6 +125,7 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
+  // TODO P is wrong must be a D, wait until confirmed by IoT group
   {oc_core_knx_auth_o_osndelay_get_handler, NULL, OC_ACL_P, OC_IF_P},
   {oc_core_knx_auth_o_osndelay_put_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},

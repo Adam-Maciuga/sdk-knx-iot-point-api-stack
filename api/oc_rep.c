@@ -562,17 +562,20 @@ int
 oc_parse_rep(const uint8_t *in_payload, int payload_size, oc_rep_t **out_rep)
 {
   CborParser parser;
-  CborValue root_value, cur_value, map;
+  CborValue root_value;
   CborError err = CborNoError;
   err |= cbor_parser_init(in_payload, payload_size, 0, &parser, &root_value);
+
+  // default out pointer
   *out_rep = 0;
-  if (cbor_value_is_valid(&root_value)) {
+  if (cbor_value_is_valid(&root_value)) 
+  {
     oc_parse_single_entity(&root_value, out_rep, &err);
   }
   // since this has now changed so it returns an object/array at top level
-  // rather than the first element (linked list style)
-  // we need to correct this
-  if (*out_rep) {
+  // rather than the first element (linked list style) we need to correct this
+  if (*out_rep) 
+  { // out pointer 
     oc_rep_t *r = *out_rep;
     if ((*out_rep)->type == OC_REP_OBJECT)
       *out_rep = (*out_rep)->value.object;

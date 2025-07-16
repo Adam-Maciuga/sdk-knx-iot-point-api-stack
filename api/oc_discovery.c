@@ -504,15 +504,15 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 
 					PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
 
-					if (request->origin && (request->origin->flags & MULTICAST) == 0)
+					if (request->origin && request->origin->flags & MULTICAST)
 					{
-						// on unicast request w/ query parameter and NO hit
-						oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+            // on multicast request w/ query parameter and NO hit
+            oc_ignore_request(request);
 					}
 					else
 					{
-						// on multicast request w/ query parameter and NO hit 
-						oc_ignore_request(request);
+            // on unicast request w/ query parameter and NO hit
+            oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 					}
 					return;
 				}

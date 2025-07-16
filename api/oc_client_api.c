@@ -19,11 +19,11 @@
 #include "messaging/coap/transactions.h"
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
-#endif /* OC_TCP */
+#endif 
 #include "oc_api.h"
 #ifdef OC_OSCORE
 #include "security/oc_tls.h"
-#endif /* OC_OSCORE */
+#endif 
 #ifdef OC_CLIENT
 
 static coap_transaction_t *transaction;
@@ -34,11 +34,11 @@ oc_client_cb_t *client_cb;
 
 #ifdef OC_BLOCK_WISE_REQUEST
 static oc_blockwise_state_t *request_buffer = NULL;
-#endif /* OC_BLOCK_WISE_REQUEST */
+#endif 
 
 #ifdef OC_OSCORE
 oc_message_t *multicast_update = NULL;
-#endif /* OC_OSCORE */
+#endif 
 oc_event_callback_retval_t oc_ri_remove_client_cb(void *data);
 
 static bool
@@ -71,13 +71,13 @@ dispatch_coap_request(oc_content_format_t content, oc_content_format_t accept)
       coap_set_payload(request, request_buffer->buffer, payload_size);
       request_buffer->ref_count = 0;
     }
-#else  /* OC_BLOCK_WISE_REQUEST */
+#else  
     if (payload_size > 0) {
       coap_set_payload(request,
                        transaction->message->data + COAP_MAX_HEADER_SIZE,
                        payload_size);
     }
-#endif /* !OC_BLOCK_WISE_REQUEST */
+#endif 
   }
 
   if (payload_size > 0) {
@@ -134,7 +134,7 @@ dispatch_coap_request(oc_content_format_t content, oc_content_format_t accept)
     oc_blockwise_free_request_buffer(request_buffer);
   }
   request_buffer = NULL;
-#endif /* OC_BLOCK_WISE_REQUEST */
+#endif 
 
   transaction = NULL;
   client_cb = NULL;
@@ -210,28 +210,31 @@ prepare_coap_request(oc_client_cb_t *cb)
 }
 
 #ifdef OC_OSCORE
-bool
-oc_do_multicast_update(void)
+
+bool oc_do_multicast_update(void)
 {
   int payload_size = oc_rep_get_encoded_payload_size();
 
-  if (payload_size > 0 && multicast_update) {
-    coap_set_payload(request, multicast_update->data + COAP_MAX_HEADER_SIZE,
-                     payload_size);
-  } else {
+  if (payload_size > 0 && multicast_update) 
+  {
+    // multicast_update is initialized
+    coap_set_payload(request, multicast_update->data + COAP_MAX_HEADER_SIZE, payload_size);
+  }
+  else 
+  {
     goto do_multicast_update_error;
   }
 
-  if (payload_size > 0) {
-    // still the inner...
-    coap_set_header_content_format(request, APPLICATION_CBOR);
-  }
+  // is still the inner header ...
+  coap_set_header_content_format(request, APPLICATION_CBOR);
 
-  multicast_update->length =
-    coap_serialize_message(request, multicast_update->data);
-  if (multicast_update->length > 0) {
+  multicast_update->length =  coap_serialize_message(request, multicast_update->data);
+  if (multicast_update->length > 0) 
+  {
     oc_send_message(multicast_update);
-  } else {
+  }
+  else 
+  {
     goto do_multicast_update_error;
   }
 
@@ -249,25 +252,25 @@ oc_do_multicast_update(void)
 
     oc_send_message(multicast_update4);
   }
-#endif /* OC_IPV4 */
+#endif 
 
   multicast_update = NULL;
   return true;
+
 do_multicast_update_error:
   oc_message_unref(multicast_update);
   multicast_update = NULL;
   return false;
 }
 
-bool
-oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri,
-                         const char *query)
+bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char *query)
 {
   coap_message_type_t type = COAP_TYPE_NON;
 
   multicast_update = oc_internal_allocate_outgoing_message();
 
-  if (!multicast_update) {
+  if (!multicast_update) 
+  {
     return false;
   }
 
@@ -288,27 +291,28 @@ oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri,
 
   coap_set_header_uri_path(request, uri, strlen(uri));
 
-  if (query) {
+  if (query) 
+  {
     coap_set_header_uri_query(request, query);
   }
 
   return true;
 }
-#endif /* OC_OSCORE */
+#endif 
 
 void
 oc_free_server_endpoints(oc_endpoint_t *endpoint)
 {
-  oc_endpoint_t *next;
-  while (endpoint != NULL) {
-    next = endpoint->next;
+  while (endpoint) 
+  {
+    // tmp copy, will be released next ...
+    oc_endpoint_t* next = endpoint->next;
     oc_free_endpoint(endpoint);
     endpoint = next;
   }
 }
 
-bool
-oc_get_response_payload_raw(oc_client_response_t *response,
+bool oc_get_response_payload_raw(oc_client_response_t *response,
                             const uint8_t **payload, size_t *size,
                             oc_content_format_t *content_format)
 {
@@ -336,93 +340,6 @@ oc_get_diagnostic_message(oc_client_response_t *response, const char **msg,
     return true;
   }
   return false;
-}
-
-bool
-oc_do_delete(const char *uri, oc_endpoint_t *endpoint, const char *query,
-             oc_response_handler_t handler, oc_qos_t qos, void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
-
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_DELETE, query,
-                                             client_handler, qos, user_data);
-
-  if (!cb)
-    return false;
-
-  bool status = false;
-
-  status = prepare_coap_request(cb);
-
-  if (status)
-    status = dispatch_coap_request(APPLICATION_CBOR, APPLICATION_CBOR);
-
-  return status;
-}
-
-bool
-oc_do_delete_ex(const char *uri, oc_endpoint_t *endpoint, const char *query,
-                oc_response_handler_t handler, oc_qos_t qos,
-                oc_content_format_t content, oc_content_format_t accept,
-                void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
-
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_DELETE, query,
-                                             client_handler, qos, user_data);
-
-  if (!cb)
-    return false;
-
-  bool status = false;
-
-  status = prepare_coap_request(cb);
-
-  if (status)
-    status = dispatch_coap_request(content, accept);
-
-  return status;
-}
-
-bool
-oc_do_get_ex_secured(const char *uri, oc_endpoint_t *endpoint,
-                     const char *query, const char *token,
-                     oc_response_handler_t handler, oc_qos_t qos,
-                     oc_content_format_t content, oc_content_format_t accept,
-                     void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
-
-  endpoint->flags += OSCORE;
-  PRINT("enable OSCORE encryption");
-
-  oc_endpoint_set_oscore_id_from_str(endpoint, (char *)token);
-
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_GET, query,
-                                             client_handler, qos, user_data);
-  if (!cb)
-    return false;
-
-  bool status = false;
-
-  status = prepare_coap_request(cb);
-
-  if (status)
-    status = dispatch_coap_request(content, accept);
-
-  return status;
 }
 
 bool
@@ -730,27 +647,27 @@ oc_do_wk_discovery_all(const char *uri_query, int scope,
 
 // -----------------------------------------------------------------------------
 
-void
-oc_close_session(oc_endpoint_t *endpoint)
+void oc_close_session(oc_endpoint_t *endpoint)
 {
-  if (endpoint->flags & SECURED) {
-#ifdef OC_SECURITY
+  if (endpoint->flags & SECURED) 
+  {
+    #ifdef OC_SECURITY
     oc_tls_close_connection(endpoint);
-#endif /* OC_SECURITY */
-  } else if (endpoint->flags & TCP) {
-#ifdef OC_TCP
+    #endif 
+  }
+  else if (endpoint->flags & TCP) 
+  {
+    #ifdef OC_TCP
     oc_connectivity_end_session(endpoint);
-#endif /* OC_TCP */
+    #endif
   }
 }
 
 // -----------------------------------------------------------------------------
 
-int
-oc_lf_number_of_entries(const char *payload, int payload_len)
+int oc_lf_number_of_entries(const char *payload, int payload_len)
 {
   int nr_entries = 0;
-  int i;
   if (payload == NULL) {
     return nr_entries;
   }
@@ -759,8 +676,10 @@ oc_lf_number_of_entries(const char *payload, int payload_len)
   }
 
   // multiple lines
-  for (i = 0; i < payload_len; i++) {
-    if (payload[i] == ',') {
+  for (int i = 0; i < payload_len; i++) 
+  {
+    if (payload[i] == ',')
+    {
       nr_entries++;
     }
   }
@@ -840,13 +759,12 @@ oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
 {
   const char *line = NULL;
   int line_len = 0;
-  int i;
   int begin_uri = 0;
   int end_uri = 0;
 
   oc_lf_get_line(payload, payload_len, entry, &line, &line_len);
 
-  for (i = 0; i < line_len; i++) {
+  for (int i = 0; i < line_len; i++) {
     if (line[i] == '<') {
       begin_uri = i + 1;
     }
@@ -909,4 +827,4 @@ oc_lf_get_entry_param(const char *payload, int payload_len, int entry,
   return found;
 }
 
-#endif /* OC_CLIENT */
+#endif 

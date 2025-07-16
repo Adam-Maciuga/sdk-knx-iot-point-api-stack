@@ -30,11 +30,11 @@ extern "C" {
 #endif
 
 typedef enum {
-  INBOUND_NETWORK_EVENT, // inbound network event
+  INBOUND_NETWORK_EVENT, // inbound network event, ANY message
   UDP_TO_TLS_EVENT,
   INIT_TLS_CONN_EVENT,
   RI_TO_TLS_EVENT,
-  INBOUND_RI_EVENT,
+  INBOUND_RI_EVENT,                 // inbound network event, original plain - or beforehand decrypted - message
   OUTBOUND_NETWORK_EVENT,           // outbound network event, payload is not encrypted
   OUTBOUND_NETWORK_EVENT_ENCRYPTED, // outbound network event, payload is encrypted, received from OSCORE layer
   TLS_READ_DECRYPTED_DATA,
@@ -44,7 +44,7 @@ typedef enum {
   TLS_CLOSE_ALL_SESSIONS,
   INBOUND_OSCORE_EVENT,  // inbound network event, payload WILL BE decrypted with oscore
   OUTBOUND_OSCORE_EVENT, // outbound network event, payload WILL BE encrypted with oscore
-  OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload is encrypted with oscore
+  OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload IS encrypted with oscore
   __NUM_OC_EVENT_TYPES__
 } oc_events_t;
 

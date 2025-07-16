@@ -273,7 +273,8 @@ void oc_ri_new_request_from_request(oc_request_t* new_request, oc_request_t* req
 	// copy all src request content to new request content
 	memcpy(new_request, request, sizeof(oc_request_t));
 
-	// init response buffer  
+	// init response buffer,
+	// buffer and buffer size ar not written on purpose (set on root callback handler oc_ri.c)  
 	response_buffer->code = 0;
 	response_buffer->response_length = 0;
 	response_buffer->content_format = 0;
@@ -1020,10 +1021,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	*/
 	oc_method_t method = packet->code;
 
-	/* Initialize request/response objects to be sent up to the app layer. */
+	// create local request/response messages to call core/application callback handler
+  // - local request message
+  // - local response message
+  // - local response buffer
 	oc_request_t request_obj;
-	oc_response_buffer_t response_buffer;
 	oc_response_t response_obj;
+  oc_response_buffer_t response_buffer;
 
 	#ifdef OC_BLOCK_WISE
 	#ifndef OC_SERVER
@@ -1050,7 +1054,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	request_obj.request_payload = NULL;
 	request_obj.query = NULL;
 	request_obj.query_len = 0;
-	request_obj.resource = NULL;
+	request_obj.resource = NULL;					// filled below with core/ app. resource
 	request_obj.origin = endpoint;
 	request_obj._payload = NULL;
 	request_obj._payload_len = 0;
@@ -1213,7 +1217,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	}
 	#endif 
 
-	// alloc response_state. It also affects request_obj.response.
+	// alloc response_state, it also affects response_buffer
 	#ifdef OC_BLOCK_WISE
 	if (matching_resource && !bad_request)
 	{
@@ -1234,8 +1238,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				{
 					oc_new_string(&(*response_state)->uri_query, uri_query, uri_query_len);
 				}
-				// note that this should be the same as what has been set in the return.
-				// but that should be the same as the request
+				// note that this should be the same as what has been set in the return,
+				// the same as the request
 				(*response_state)->return_content_type = accept;
 				response_buffer.buffer = (*response_state)->buffer;
 				response_buffer.buffer_size = OC_MAX_APP_DATA_SIZE;
@@ -1250,11 +1254,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	// request fits to core or application, lets go  
 	if (matching_resource && !bad_request)
 	{
-		/* Process a request against a valid resource, request payload, and interface.
-		*  Initialize oc_rep with a buffer to hold the response payload. "buffer"
-		*  points to memory allocated in the messaging layer for the "CoAP
-		*  Transaction" to service this request.
+		/*
+		   Process a request against a valid resource, request payload, and interface.
+		   - init CBOR response buffer, core or application callback handler will fill this buffer with 'oc_rep_i_set_boolean' or similar calls
+			 - "buffer"  points to memory allocated in the messaging layer for the "CoAP Transaction" to service this request
 		*/
+
 		oc_rep_new(response_buffer.buffer, (int) response_buffer.buffer_size);
 
 		if (!oc_knx_sec_check_acl(method, matching_resource, endpoint))

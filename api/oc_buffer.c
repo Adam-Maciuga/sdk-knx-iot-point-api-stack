@@ -178,8 +178,7 @@ oc_recv_message(oc_message_t* message)
 	}
 }
 
-void
-oc_send_message(oc_message_t* message)
+void oc_send_message(oc_message_t* message)
 {
 	// we only want to cache OSCORE-secured requests, as these frames are the
 	// only ones that will be challenged with an Echo option. However, at this
@@ -187,25 +186,22 @@ oc_send_message(oc_message_t* message)
 	// and token.
 
 	// check from *data ptr
-	uint8_t version = (COAP_HEADER_VERSION_MASK & message->data[0]) >>
-		COAP_HEADER_VERSION_POSITION;
-	uint8_t type =
-		(COAP_HEADER_TYPE_MASK & message->data[0]) >> COAP_HEADER_TYPE_POSITION;
+	uint8_t version = (COAP_HEADER_VERSION_MASK & message->data[0]) >> COAP_HEADER_VERSION_POSITION;
+	uint8_t type =		(COAP_HEADER_TYPE_MASK & message->data[0]) >> COAP_HEADER_TYPE_POSITION;
 	uint8_t code = message->data[1];
-	uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >>
-		COAP_HEADER_TOKEN_LEN_POSITION;
+	uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >>	COAP_HEADER_TOKEN_LEN_POSITION;
 	uint8_t* token = message->data + COAP_HEADER_LEN;
 
 	// type = NON, code : example 4.01 (129) = 10000001 = CLASS/DETAIL, EP = SECURITY
 	// CLASS = >> 5 = 0 are GET/PUT/POST ...
-	// is it a secured, non-confirmable request .... 
-	if (version == 1 && type == 1 && (code >> 5 == 0) && message->endpoint.flags & SECURED)
+	// is it a non-confirmable OSCORE request .... 
+	if (version == 1 && type == 1 && code >> 5 == 0 && message->endpoint.flags & OSCORE)
 	{
-    OC_DBG_OSCORE("Track outgoing OSCORE message");
+    OC_DBG_OSCORE("track outgoing OSCORE message");
 	  oc_replay_message_track(message, token_len, token);
 	}
 
-	// forward message (any other type such as plain/ secured, CON request, ... )
+	// forward message (any type such as plain/ secured, CON request, ... )
 	if (oc_process_post(&message_buffer_handler,
 			oc_events[OUTBOUND_NETWORK_EVENT],
 			message) == OC_PROCESS_ERR_FULL)
@@ -245,13 +241,13 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			#ifdef OC_OSCORE
 			if (oscore_is_oscore_message(data))
 			{
-				OC_DBG_OSCORE("Inbound network event: oscore message (request or response)");
+				OC_DBG_OSCORE("Incoming network event: oscore message (request or response)");
 				oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
 			}
 			else
 			#endif 
 			{
-				OC_DBG_OSCORE("Inbound network event: plain message (request or response)");
+				OC_DBG_OSCORE("Incoming network event: plain message (request or response)");
 				oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
 			}
 
@@ -261,33 +257,33 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 
 		  oc_message_t* message = data;
 
-		  // handle OSCORE first (and use a separate process handler)
+		  // handle OSCORE first (uses a separate process handler)
 			#if OC_OSCORE
 			if ((message->endpoint.flags & MULTICAST) &&
 					(message->endpoint.flags & OSCORE) &&
 					((message->endpoint.flags & OSCORE_ENCRYPTED) == 0))
 			{
-				OC_DBG_OSCORE("Outbound network event: secure multicast request, forwarding to OSCORE");
+				OC_DBG_OSCORE("Outgoing network event: secure multicast request, forwarding to OSCORE");
 				oc_process_post(&oc_oscore_handler,	oc_events[OUTBOUND_GROUP_OSCORE_EVENT], data);
 			}
 			else if ((message->endpoint.flags & OSCORE) &&
 							 ((message->endpoint.flags & OSCORE_ENCRYPTED) == 0))
 			{
-				OC_DBG_OSCORE("Outbound network event: secure unicast message (request or response), forwarding to OSCORE");
+				OC_DBG_OSCORE("Outgoing network event: secure unicast message (request or response), forwarding to OSCORE");
 				oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_OSCORE_EVENT], data);
 			}
 			else
 			#endif 
 				if (message->endpoint.flags & DISCOVERY)
 				{
-					OC_DBG("Outbound network event: plain multicast request");
+					OC_DBG("Outgoing network event: plain multicast request");
 					oc_endpoint_print(&message->endpoint);
 					oc_send_discovery_request(message);
 					oc_message_unref(message);
 				}
 				else
 				{
-					OC_DBG("Outbound network event: plain unicast message");
+					OC_DBG("Outgoing network event: plain unicast message");
 					oc_message_t* type_cast_message = data;
           oc_send_buffer(type_cast_message);
           oc_message_unref(type_cast_message);
@@ -295,7 +291,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 		}
 		else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED])
 		{
-			OC_DBG("Outbound network event:OUTBOUND_NETWORK_EVENT_ENCRYPTED");
+			OC_DBG("Outgoing network event: OUTBOUND_NETWORK_EVENT_ENCRYPTED");
       oc_message_t* type_cast_message = data;
       oc_send_buffer(type_cast_message);
       oc_message_unref(type_cast_message);
