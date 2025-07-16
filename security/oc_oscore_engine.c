@@ -17,7 +17,6 @@
 #include "oc_storage.h"
 
 #if defined OC_OSCORE
-
 #include "api/oc_events.h"
 #include "mbedtls/ccm.h"
 #include "messaging/coap/coap_signal.h"
@@ -124,58 +123,45 @@ static int oc_oscore_receive_message(oc_message_t* message)
   {
     OC_DBG_OSCORE("### found OSCORE header ###");
 
-    oc_oscore_context_t* oscore_ctx = NULL;
+    // here we are sure that it is an OSCORE message (not necessarily one for us, we are able to decrypt)
     message->endpoint.flags += OSCORE;
-    uint8_t* key = NULL;
 
+    oc_oscore_context_t* oscore_ctx = NULL;
+    uint8_t* decryption_key = NULL;
     coap_packet_t oscore_pkt[1];
 
     uint8_t AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
-    OC_DBG_OSCORE("### parse OSCORE message ###");
-    coap_status_t st = oscore_parse_outer_message(message, oscore_pkt);
-
-    if (st != COAP_NO_ERROR)
+    OC_DBG_OSCORE("### parse OUTER OSCORE message ###");
+    if (oscore_parse_outer_message(message, oscore_pkt) != COAP_NO_ERROR)
     {
-      OC_ERR("***error parsing OSCORE message***");
+      OC_ERR("### error parsing outer OSCORE message ###");
       oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
       goto oscore_recv_error;
     }
 
-    OC_DBG_OSCORE("### parsed OSCORE message ###");
-
+    // check duplication on incoming UDP requests
     if (oscore_pkt->transport_type == COAP_TRANSPORT_UDP && oscore_pkt->code <= OC_FETCH)
     {
-      if (oc_coap_check_if_duplicate(oscore_pkt->mid, message->endpoint.device, message->endpoint.addr.ipv6.port,
-                                     message->endpoint.addr.ipv6.address))
+      if (oc_coap_check_if_duplicate(oscore_pkt->mid, message->endpoint.device, message->endpoint.addr.ipv6.port, message->endpoint.addr.ipv6.address))
       {
-        OC_DBG("request is duplicate: dropping...");
         goto oscore_recv_error;
       }
-      OC_DBG("request is new: processing...");
     }
 
-    uint8_t *request_piv = NULL, request_piv_len = 0;
+    uint8_t* request_piv = NULL;
+    uint8_t request_piv_len = 0;
 
-    /*
-      OSCORE packet kid len
-      > 0 : 
-      < 0 : 
-      
-    */
     if (oscore_pkt->kid_len > 0)
-    {
-      /* Search for OSCORE context by kid */
-      OC_DBG_OSCORE("--- got kid from incoming message : ");
-      OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
-      OC_DBG_OSCORE("### searching for OSCORE context by kid ###");
+    { // kid is present - message is a request 
 
-      oscore_ctx = oc_oscore_find_context_by_kid_idctx(oscore_ctx, oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx,
-                                                       oscore_pkt->kid_ctx_len);
+      OC_DBG_OSCORE("---> searching OSCORE context from incoming message by kid (len %d) : ", oscore_pkt->kid_len);
+      OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
+
+      oscore_ctx = oc_oscore_find_context_by_kid_and_id_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
       if (!oscore_ctx)
-      {
-        // we do not have a cached context, so we have to make one
+      { // we do not have a beforehand cached context as part of the context list, so we have to make one
 
         // find auth/at entry with corresponding kid
         int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
@@ -189,7 +175,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
         oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
         // SERVER SIDE on request: create oscore REQUEST recipient context + RESPONSE  sender context from that entry
-        OC_DBG_OSCORE("... server incoming request: adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
+        OC_DBG_OSCORE("adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
         oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
         oscore_ctx = oc_oscore_add_context("", 0, 
                                            oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
@@ -206,7 +192,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
           oc_oscore_free_lru_recipient_context();
 
           // SERVER SIDE on request: create oscore REQUEST recipient context + RESPONSE sender context from that entry
-          OC_DBG_OSCORE("... server incoming request: adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
+          OC_DBG_OSCORE("adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
           oscore_ctx = oc_oscore_add_context("", 0, 
                                              oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
@@ -227,19 +213,19 @@ static int oc_oscore_receive_message(oc_message_t* message)
       }
     }
     else
-    {
-      /* If message is response */
+    { // kid is NOT present - message is a ... 
+
       if (oscore_pkt->code > OC_FETCH)
-      {
-        // search for OSCORE context by token
+      { // ... response ... (such as STATUS_OK = CONTENT_2_05 = 69)
+
         OC_DBG_OSCORE("### searching for OSCORE context by token ###");
         oscore_ctx = oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len,
                                                          oscore_pkt->mid, &request_piv, &request_piv_len,
                                                          message->endpoint.flags & TCP);
       }
       else
-      {
-        /* OSCORE message is request and lacks kid, return error */
+      { // ... request ...  
+
         OC_ERR("***OSCORE protected request lacks kid param***");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
         goto oscore_recv_error;
@@ -248,22 +234,22 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
     if (!oscore_ctx)
     {
+      // TODO here the endless loops starts ...
+
       OC_ERR("***could not find matching OSCORE context, returning UNAUTHORIZED***");
       oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
       goto oscore_recv_error;
     }
 
-    // copy the serial number as return token, so that the reply can find
-    // the context again.
-    OC_DBG_OSCORE("--- setting endpoint serial number with found token & index");
+    // copy the serial number as return token, so that the reply can find the context again
+    OC_DBG_OSCORE("---> setting endpoint serial number with found token & index");
 
     oc_endpoint_set_auth_at_index(&message->endpoint, oscore_ctx->auth_at_index);
-    oc_endpoint_set_oscore_id(&message->endpoint, oscore_ctx->token_id, SERIAL_NUM_SIZE);
+    oc_endpoint_set_oscore_id(&message->endpoint, (char*)oscore_ctx->token_id, SERIAL_NUM_SIZE);
 
 
-    /* Use recipient key for decryption */
-    key = oscore_ctx->recipient_key;
-    //}
+    // use recipient key for decryption
+    decryption_key = oscore_ctx->recipient_key;
 
     /* If received Partial IV in message */
     if (oscore_pkt->piv_len > 0)
@@ -276,11 +262,11 @@ static int oc_oscore_receive_message(oc_message_t* message)
         /* Compose AAD using received piv and context->recipient_id */
         oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, oscore_pkt->piv, oscore_pkt->piv_len, AAD,
                               &AAD_len);
-        OC_DBG_OSCORE("--- composed AAD using received Partial IV and Recipient ID");
+        OC_DBG_OSCORE("---> composed AAD using received Partial IV and Recipient ID");
         OC_LOGbytes_OSCORE(AAD, AAD_len);
       }
 
-      OC_DBG_OSCORE("--- got Partial IV from incoming message : ");
+      OC_DBG_OSCORE("---> got Partial IV from incoming message : ");
       OC_LOGbytes_OSCORE(oscore_pkt->piv, oscore_pkt->piv_len);
 
       /* Copy received piv into oc_message_t->endpoint for requests */
@@ -288,14 +274,14 @@ static int oc_oscore_receive_message(oc_message_t* message)
       {
         memcpy(message->endpoint.request_piv, oscore_pkt->piv, oscore_pkt->piv_len);
         message->endpoint.request_piv_len = oscore_pkt->piv_len;
-        OC_DBG_OSCORE("--- caching PIV for later use...");
+        OC_DBG_OSCORE("---> caching Partial IV for later use ...");
       }
 
       /* Compute nonce using received piv and context->recipient_id */
       oc_oscore_AEAD_nonce(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, oscore_pkt->piv, oscore_pkt->piv_len,
                            oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-      OC_DBG_OSCORE("--- computed AEAD nonce using received Partial IV and Recipient ID");
+      OC_DBG_OSCORE("---> computed AEAD nonce using received Partial IV and Recipient ID");
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
     }
 
@@ -344,7 +330,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
     //                            OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
     //                            nonce, OSCORE_AEAD_NONCE_LEN, AAD, AAD_len,
     //                            oscore_pkt->payload);
-    int ret = oc_oscore_decrypt(oscore_pkt->payload, oscore_pkt->payload_len, OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
+    int ret = oc_oscore_decrypt(oscore_pkt->payload, oscore_pkt->payload_len, OSCORE_AEAD_TAG_LEN, decryption_key, OSCORE_KEY_LEN,
                                 nonce, OSCORE_AEAD_NONCE_LEN, AAD, AAD_len, output);
 
     memcpy(oscore_pkt->payload, output, oscore_pkt->payload_len);
@@ -365,12 +351,8 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
     coap_packet_t coap_pkt[1];
 
-    OC_DBG_OSCORE("### parse inner message ###");
-
-    /* Parse inner (CoAP) message from the decrypted COSE payload */
-    st = oscore_parse_inner_message(oscore_pkt->payload, oscore_pkt->payload_len, &coap_pkt);
-
-    if (st != COAP_NO_ERROR)
+    OC_DBG_OSCORE("### parse INNER OSCORE message ###");
+    if (oscore_parse_inner_message(oscore_pkt->payload, oscore_pkt->payload_len, &coap_pkt) != COAP_NO_ERROR)
     {
       OC_ERR("***error parsing inner message***");
       oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
@@ -418,9 +400,10 @@ static int oc_oscore_receive_message(oc_message_t* message)
   }
   OC_DBG_OSCORE("#################################");
 
-  /* Dispatch oc_message_t to the CoAP layer */
+  // dispatch the (received and decrypted) message to the CoAP layer
   if (oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], message) == OC_PROCESS_ERR_FULL)
   {
+    // error is > 0 ...
     goto oscore_recv_error;
   }
   return 0;
@@ -595,7 +578,7 @@ oscore_group_send_error:
 }
 #endif 
 
-static int oc_oscore_send_message(oc_message_t* msg)
+static int oc_oscore_send_unicast_message(oc_message_t* msg)
 {
   /* OSCORE layer sending path pseudocode
    * ------------------------------------
@@ -652,8 +635,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
 
   oc_oscore_context_t* oscore_ctx = NULL;
 
-  // if found, get the corresponding context for the access token
-  // will be found only in case of a response 
+  // if found, get the corresponding context for the access token will be found only in case of a response 
   if (entry)
   {
     // TODO do we need also ID Context ?
@@ -664,9 +646,8 @@ static int oc_oscore_send_message(oc_message_t* msg)
                                                oc_byte_string_len(entry->osc_id));
   }
 
-  // search for OSCORE context using addressing information
-  // usually on request 
-  PRINT("oc_oscore_send_message : SID ");
+  // search for OSCORE context using addressing information usually on request 
+  PRINT("SID ");
   oc_char_println_hex(msg->endpoint.oscore_id, (int)msg->endpoint.oscore_id_len);
 
   if (oscore_ctx == NULL)
@@ -733,7 +714,7 @@ static int oc_oscore_send_message(oc_message_t* msg)
   if (oscore_ctx == NULL)
   {
     oc_message_unref(message);
-    OC_ERR("oc_oscore_send_message: No OSCORE context found. ERROR");
+    OC_ERR("No OSCORE context found. ERROR");
     goto oscore_send_error;
   }
 
@@ -1088,18 +1069,18 @@ OC_PROCESS_THREAD(oc_oscore_handler, ev, data)
 
     if (ev == oc_events[INBOUND_OSCORE_EVENT])
     {
-      OC_DBG_OSCORE("Inbound OSCORE event: encrypted request");
+      OC_DBG_OSCORE("Incoming OSCORE event: encrypted request");
       oc_oscore_receive_message(data);
     }
     else if (ev == oc_events[OUTBOUND_OSCORE_EVENT])
     {
-      OC_DBG_OSCORE("Outbound OSCORE event: protecting unicast message");
-      oc_oscore_send_message(data);
+      OC_DBG_OSCORE("Outgoing OSCORE event: protecting unicast message");
+      oc_oscore_send_unicast_message(data);
     }
 #ifdef OC_CLIENT
     else if (ev == oc_events[OUTBOUND_GROUP_OSCORE_EVENT])
     {
-      OC_DBG_OSCORE("Outbound OSCORE event: protecting multicast message");
+      OC_DBG_OSCORE("Outgoing OSCORE event: protecting multicast message");
       oc_oscore_send_multicast_message(data);
     }
 #endif

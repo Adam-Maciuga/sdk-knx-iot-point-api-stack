@@ -21,11 +21,9 @@
 #include "messaging/coap/transactions.h"
 #include "oc_api.h"
 #include "oc_client_state.h"
-
 #include "oc_oscore_crypto.h"
 #include "api/oc_knx_sec.h"
 #include "oc_rep.h"
-
 #include "port/oc_log.h"
 OC_LIST(contexts);
 OC_MEMB(ctx_s, oc_oscore_context_t, 20);
@@ -35,7 +33,7 @@ void oc_oscore_free_lru_recipient_context(void)
   oc_oscore_context_t* lru_ctx;
   oc_oscore_context_t* ctx = lru_ctx = oc_list_head(contexts);
 
-  while (ctx != NULL)
+  while (ctx)
   {
     if (ctx->sender_id_len == 0 && ctx->last_used < lru_ctx->last_used)
       lru_ctx = ctx;
@@ -78,26 +76,18 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, siz
   return ctx;
 }
 
-oc_oscore_context_t* oc_oscore_find_context_by_kid_idctx(oc_oscore_context_t* ctx,
-                                    uint8_t* kid,
-                                    uint8_t kid_len, uint8_t* kid_ctx,
-                                    uint8_t kid_ctx_len)
+oc_oscore_context_t* oc_oscore_find_context_by_kid_and_id_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
-  if (!ctx)
-  {
-    ctx = (oc_oscore_context_t*) oc_list_head(contexts);
-  }
+  
+  // get list start
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
 
   if (kid_len == 0)
     return NULL;
 
-  // print received kid from frame 
-  PRINT("find context - for frame kid:(len=%d) :", kid_len);
-  oc_char_println_hex((char*) kid, kid_len);
-
-  while (ctx != NULL)
+  while (ctx)
   {
-    // scanning device context list 
+    // debugging  
     PRINT("---> scanning oscore context list (rcv) id:");
     oc_char_println_hex(ctx->recipient_id_len == 0 ? "empty ...": (char*) ctx->recipient_id, ctx->recipient_id_len);
 
@@ -108,9 +98,9 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_idctx(oc_oscore_context_t* ct
         && memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0)
     {
 
-      PRINT("find context - found auth/at index: %d",ctx->auth_at_index);
+      PRINT("find context, with auth/at index: %d",ctx->auth_at_index);
 
-      // update for a release of "least used" if table is full
+      // update time for a possible release of "last used" - if table is full
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -439,7 +429,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
   PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
   PRINT("Master Secret : (%2d)  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
   PRINT("Salt          : (%2d)  = ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%2llu)= ", ctx->ssn);
+  PRINT("SSN           : (%llu) = ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len, ctx->id_context, ctx->id_context_len,
