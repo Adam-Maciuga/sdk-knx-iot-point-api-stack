@@ -820,14 +820,25 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   // each application callback handler gets a new copy of the original request + new response buffer
-  oc_request_t new_request = {0};
+  oc_request_t new_request;   // filled complete later on 
   oc_response_buffer_t response_buffer = {0};
   oc_response_t response_obj; // filled complete later on 
 
   /*
     Internal Callback Handler
-      - updates ALL GO values with this GA assigned 
-      - the first GO with the GA in position 0 may be used to issue a read response with src type 'a'
+
+    #1 loops over all GOs in table and updates all GOs with the GA included
+       - w-cflag must be enabled, hence it includes also GOs where GA is in position zero
+         (bidirectional w/r- cflags settings on a resource are NO common use on KNX s-mode!)
+
+    #2 loops over all GOs in table and sends a read response in multicast as POST with st='a' (on a uc/mc read request)
+       - does it for all GOs (per href) where the GA is included (even if href's are different per GA) AND
+       - use for the href the GO index with the lowest 'id' and GA in position 0 (=sending GA), take href from that GO to issue the 
+       - t-cflag will be ignored (it is only considered on self initiated writes)
+       
+
+    WRITE/UPDATE = #1 + #2
+    READ = #2
 
     Examples:
 
@@ -840,47 +851,52 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     GO4 : [ id: 4, href: "/p/lsab/0/cut", cflags: w,   ga_len: 2,  ga: [37,38] ]  // a split GO entry with the rest of GA entries (all receiving addresses)
     GO5 : [ id: 5, href: "/p/lsab/0/a00", cflags: w,   ga_len: 2,  ga: [39]    ]  // add on, to update value on GA 50 (GA is only a receiver)
     GO6 : [ id: 6, href: "/p/lsab/0/a01", cflags: w,   ga_len: 2,  ga: [39]    ]  // add on, to update value on GA 50 (GA is only a receiver)
+    GO7 : [ id: 7, href: "/p/lsab/0/ase", cflags: w,   ga_len: 2,  ga: [11,40] ]  // actuator status extra, to demonstrate a read with different href's but the same ga
 
     - application resources 
 
-    AR0 : /p/lsab/0/soo, GET, PUT, if.i + if.d
-    AR1 : /p/lsab/0/ioo, GET, PUT, if.o + if.p
-    AR2 :              , GET, PUT, if.i + if.d  // product problem , no resource path defined 
-    AR3 : /p/lsab/0/a01, GET, PUT, if.i + if.d
-    AR4 : /p/lsab/0/ext, GET, PUT, if.i + if.d
+    AR0 : /p/lsab/0/soo, GET, PUT, if.i
+    AR1 : /p/lsab/0/ioo, GET, PUT, if.o
+    AR2 :              , GET, PUT, if.i // product problem , no resource path defined 
+    AR3 : /p/lsab/0/a01, GET, PUT, if.i 
+    AR4 : /p/lsab/0/ext, GET, PUT, if.i 
+    AR5 : /p/lsab/0/ase, GET, PUT, if.o 
 
     (1) Write
 
     { sia: 5678, s: {st: write, ga: 1, value: 100 }}  // write to ga = 1
 
     1. scan for first GO index where GA = 1 is used = GO0
-    2. scan application resources for href = AR0
-    3. call PUT handler for this application resource = AR0
-    4. scan for next GO where GA = 1 is used = NONE
-    5. DONE
+       - scan application resources for href = AR0
+       - call PUT handler for this application resource (write = enabled) = AR0
+    2. scan for next GO where GA = 1 is used = NONE
+    3. DONE
 
     (2) Read
 
     { sia: 5678, s: {st: read, ga: 11 }}  // read to ga = 11
 
     1. scan for first GO where GA = 11 is used = GO1
-    2. scan application resources for href = AR1
-    3. call GET handler for this this application resource = AR1
-    4. issue read response with srv type 'a' on lowest id with GA in position 0 = GO1
-    5. scan for next GO where GA = 11 is used = GO2
-    6. scan application resources for href = AR4
-    7. no read flag is set on GO2 = skip read
-    8. scan for next GO where GA = 11 is used = NONE
-    9. DONE
+       - scan application resources for href = AR1
+       - call GET handler for this this application resource (read = enabled) = AR1
+       - issue read response with srv type 'a' on lowest id with GA in position 0 = GO1
+    2. scan for next GO where GA = 11 is used = GO2
+       - scan application resources for href = AR4
+       - no read flag is set on GO2 = skip read
+    3. scan for next GO where GA = 11 is used = GO7
+       - scan application resources for href = AR5
+       - call GET handler for this this application resource (read = enabled) = AR5
+       - issue read response with srv type 'a' on lowest id with GA in position 0 = GO7
+    4. DONE
 
 
   */
   while (go_table_index_where_ga_is_used != -1)
   {
-    // get href from the GO index
+    // get href from the GO table index
     oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-    PRINT("k : url %s", oc_string_checked(go_href));
+    PRINT("k : resource path %s", oc_string_checked(go_href));
 
     // device EP present (sanity check, GO without href is usually a product problem or MAC configuration error)
     if (oc_string_len(go_href) > 0)
@@ -910,137 +926,146 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         continue;
       }
 
-      // get c-flags
-      oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
+      /*
+        here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+      */ 
 
-      // if corresponding c-flag and the (only one possible) request service type 'a/w/r' are set ...
-      request_type &= cflags;
+      // get GO c-flags
+      const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-      if (request_type & OC_CFLAG_WRITE)
+      // if corresponding c-flag and the (only one possible) original service request type 'a/w/r' are set,
+      // w-flag & write = write, use copy hence cflags may be different for each GO (same for other options)
+      oc_cflag_mask_t service = request_type & cflags;
+
+      if (service & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
       {
-        PRINT("WRITE: index %d handled due to flags %d", go_table_index_where_ga_is_used, cflags);
+        PRINT("WRITE: GOT index %d handled due to write flag enabled %d", go_table_index_where_ga_is_used, cflags);
 
-        // call application PUT handler (for /k only a POST is defined,
-        // application handler needs to end up in one (PUT) handler for /k and /p)
-        if (application_resource_with_href_match->put_handler.cb)
-        {
-          // copy all data from request to new request (performance consuming) 
-          // - do that for every GO, the last callback from previous GO may have manipulated the data
-          // - includes also the originally called resource, maybe used in PUT handler to access interfaces or acl scopes 
-          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+        /*
+          here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+          and an application resource PUT handler with a write flag enabled, call application PUT handler
+          - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
+        */ 
 
-          // sets the payload pointer to the 'value' OBJECT,
-          // used by /p and /k that calls the same application callback handlers
-          new_request.request_payload = oc_s_mode_get_value_object(request);
+        // copy all data from request to new request (performance consuming) 
+        // - do that for every GO, the last callback from previous GO may have manipulated the data
+        // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes 
+        oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
-          // set src to /k for a redirect check in application callback handler
-          new_request.uri_path = "/k";
-          new_request.uri_path_len = 2;
+        // sets the payload pointer to the 'value' OBJECT,
+        // used by /p and /k that calls the same application callback handlers
+        new_request.request_payload = oc_s_mode_get_value_object(request);
 
-          // use new request (not the received one with POST), user data are possible
-          // call application handler with own interface/ user data
-          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
-          application_resource_with_href_match->put_handler.cb(&new_request, 
-                                                               application_resource_with_href_match->put_handler.interface_mask,
-                                                               application_resource_with_href_match->put_handler.user_data);
+        // set src to /k for a redirect check in application callback handler
+        new_request.uri_path = "/k";
+        new_request.uri_path_len = 2;
 
-          // collect the max 'bad' status code, usually overwritten by the callback
-          collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-        }
+        // use new request (not the received one with POST), user data are possible
+        // call application handler with own interface/ user data
+        // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+        application_resource_with_href_match->put_handler.cb(&new_request, 
+                                                             application_resource_with_href_match->put_handler.interface_mask,
+                                                             application_resource_with_href_match->put_handler.user_data);
+
+        // collect the max 'bad' status code, usually overwritten by the callback
+        collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
+        
       }
-      if (request_type & OC_CFLAG_UPDATE)
+      if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
       {
-        PRINT("UPDATE: index %d handled due to flags %d", go_table_index_where_ga_is_used, cflags);
+        PRINT("RESPONSE: GOT index %d handled due to update on response flag enabled %d", go_table_index_where_ga_is_used, cflags);
 
-        // call application PUT handler (for /k only a POST is defined,
-        // application handler needs to end up in one (PUT) handler for /k and /p)
-        if (application_resource_with_href_match->put_handler.cb)
-        {
-          // copy all data from request to new request (performance consuming)
-          // - do that for every GO, the last callback from previous GO may have manipulated the data
-          // - includes also the originally called resource, maybe used in PUT handler to access interfaces or acl scopes 
-          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+        /*
+          here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+          and an application resource PUT handler with a write flag enabled, call application PUT handler
+          - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
+        */ 
+        
+        // copy all data from request to new request (performance consuming)
+        // - do that for every GO, the last callback from previous GO may have manipulated the data
+        // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes 
+        oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
-          // sets the payload pointer to the 'value' OBJECT,
-          // used by /p and /k that calls the same application callback handlers
-          new_request.request_payload = oc_s_mode_get_value_object(request);
+        // sets the payload pointer to the 'value' OBJECT,
+        // used by /p and /k that calls the same application callback handlers
+        new_request.request_payload = oc_s_mode_get_value_object(request);
 
-          // set src to /k for a redirect check in application callback handler
-          new_request.uri_path = "/k";
-          new_request.uri_path_len = 2;
+        // set src to /k for a redirect check in application callback handler
+        new_request.uri_path = "/k";
+        new_request.uri_path_len = 2;
 
-          // use new request (not the received one with POST), user data are possible
-          // call application handler with own interface/ user data
-          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
-          application_resource_with_href_match->put_handler.cb(&new_request, 
-                                                               application_resource_with_href_match->put_handler.interface_mask,
-                                                               application_resource_with_href_match->put_handler.user_data);
+        // use new request (not the received one with POST), user data are possible
+        // call application handler with own interface/ user data
+        // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+        application_resource_with_href_match->put_handler.cb(&new_request, 
+                                                             application_resource_with_href_match->put_handler.interface_mask,
+                                                             application_resource_with_href_match->put_handler.user_data);
 
-          // collect the max 'bad' status code, usually overwritten by the callback
-          collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-        }
+        // collect the max 'bad' status code, usually overwritten by the callback
+        collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
+        
       }
-      if (request_type & OC_CFLAG_READ)
+      if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
       {
-        PRINT("READ: index %d handled due to flags %d", go_table_index_where_ga_is_used, cflags);
+        PRINT("READ: GOT index %d handled due to read flags enabled %d", go_table_index_where_ga_is_used, cflags);
 
-        if (application_resource_with_href_match->get_handler.cb)
+        /*
+          here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+          and an application resource GET handler with a read flag enabled, call application PUT handler
+          - for /k only a POST is defined, application handler needs to end up in one (GET) handler for /k and /p
+        */ 
+
+        // copy all data from request to new request (performance consuming)
+        // - do that for every GO, the last callback from previous GO may have manipulated the data
+        // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes 
+        oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+
+        // set src to /k for a redirect check in application callback handler
+        new_request.uri_path = "/k";
+        new_request.uri_path_len = 2;
+
+        // use new request (not the received one with POST), user data are possible
+        // call application handler with own interface/ user data
+        // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+        application_resource_with_href_match->get_handler.cb(&new_request,
+                                                             application_resource_with_href_match->get_handler.interface_mask,
+                                                             application_resource_with_href_match->get_handler.user_data);
+
+        // #2 - send read response
         {
-          // copy all data from request to new request (performance consuming)
-          // - do that for every GO, the last callback from previous GO may have manipulated the data
-          // - includes also the originally called resource, maybe used in PUT handler to access interfaces or acl scopes 
-          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+          // get GO array ID with the GA in position zero for the current href (out of 0...max GO table entries),
+          int got_index_lowest_id_and_ga_in_pos_zero_for_href = oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(received_notification.ga, oc_string(go_href));
 
-          // set src to /k for a redirect check in application callback handler
-          new_request.uri_path = "/k";
-          new_request.uri_path_len = 2;
-
-          // use new request (not the received one with POST), user data are possible
-          // call application handler with own interface/ user data
-          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
-          application_resource_with_href_match->get_handler.cb(&new_request,
-                                                               application_resource_with_href_match->get_handler.interface_mask,
-                                                               application_resource_with_href_match->get_handler.user_data);
-
-          
-          /*
-
-            #1 update all linked GOs with the GA included 
-               - w-cflag will be considered to be enabled 
-               - includes also the GA from point #2
-                 (bidirectional w/r- cflags settings on a resource are NO common use on KNX s-mode!)
-
-
-            #2 send for uc/mc read request the read responses in multicast as POST with st='a'
-               - use the GO index with the lowest 'id' and GA in position 0 (=sending GA), take href from that GO
-               - t-cflag will be ignored (it is only considered on self initiated writes)
-
-          */
-
-          // #1 - update linked GAs
-          // TODO 
-
-          // get GO array ID with the GA in position zero (out of 0...max GO table entries)
-          // - process all GOs in the table with this GA included, position of GA must be zero 
-          int got_index_lowest_id_and_ga_in_pos_zero = oc_core_find_go_table_index_with_lowest_id_and_ga_in_pos_zero(received_notification.ga);
-
-          if (got_index_lowest_id_and_ga_in_pos_zero != -1)
+          if (got_index_lowest_id_and_ga_in_pos_zero_for_href != -1)
           {
-            // #2 - we have a sending GA, send response ...
-            // TODO rework method content
+            /*
+              we have a sending GA in position zero, now we can send the read response
+              - resource path match was checked before
+              - runtime was checked before 
 
-            oc_string_t sender_resource_path = oc_core_get_href_from_group_object_table_index(got_index_lowest_id_and_ga_in_pos_zero);
+             */
 
-            #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_do_s_mode_with_scope_and_check(2, oc_string(sender_resource_path), "a", false);
-            #endif
-            oc_do_s_mode_with_scope_and_check(5, oc_string(sender_resource_path), "a", false);
+            // grpid
+            uint32_t grpid = oc_find_grpid_in_recipient_table(received_notification.ga);
 
+            if (grpid > 0)
+            { // grpid is set in case of multicast in RCP table (configured by MaC)
+
+              #ifdef OC_USE_MULTICAST_SCOPE_2
+              oc_issue_s_mode(2, device->ia, grpid, received_notification.ga, device->iid, "a",
+                              new_request.response->response_buffer->buffer,
+                              (int)new_request.response->response_buffer->response_length);
+
+              #endif
+              oc_issue_s_mode(5, device->ia, grpid, received_notification.ga, device->iid, "a",
+                              new_request.response->response_buffer->buffer,
+                              (int)new_request.response->response_buffer->response_length);
+            }
           }
 
           // collect the max 'bad' status code, usually overwritten by the callback
           collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-
+          
         }
       }
     }
