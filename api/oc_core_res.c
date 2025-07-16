@@ -492,8 +492,7 @@ int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid)
 	return 0;
 }
 
-oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char* serialnumber,
-																		 oc_core_add_device_cb_t add_device_cb, void* data)
+oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char* serialnumber, oc_core_add_device_cb_t add_device_cb, void* data)
 {
 	(void) data;
 	#ifndef OC_DYNAMIC_ALLOCATION

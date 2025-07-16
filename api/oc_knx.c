@@ -902,7 +902,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     if (oc_string_len(go_href) > 0)
     {
       // get the application resource with the HREF from the GO, to perform on the forward call
-      const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href), 0);
+      const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
       if (!application_resource_with_href_match)
       {

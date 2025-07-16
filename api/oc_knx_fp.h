@@ -568,14 +568,12 @@ extern "C"
    *  when the request has query option
    * .well-known/core?d=urn:knx:g.s.[group-address]
    * @param request The request
-   * @param device_index The device index
    * @param group_address the parsed group address from the query option
    * @param response_length the response length
    * @return true
    * @return false
    */
-  bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
-                                                         size_t* response_length);
+  bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, uint32_t group_address,  size_t* response_length);
 
   /**
    * @brief checks if the href (url) belongs to the device,

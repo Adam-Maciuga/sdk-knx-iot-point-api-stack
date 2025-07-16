@@ -448,12 +448,12 @@ extern "C" {
 	{
 		struct oc_resource* next;             // next resource 
 		size_t device;                        // device index 
-		oc_string_t name;                     // name of the resource (e.g. "n") 
-		oc_string_t uri;                      // uri of the resource 
-		oc_string_array_t types;              // "rt" types of the resource (e.g. "urn:knx:dpa.0.58" -> dev/da) 
-		oc_string_t dpt;                      // dpt of the resource 
-		oc_content_format_t content_type[2];  // supported resources content types (max two, first mandatory, second optional)  
-		oc_resource_properties_t properties;  // properties (as bit mask) 
+		oc_string_t name;                     // resource name (e.g. 'LSAB') 
+		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
+		oc_string_array_t types;              // resource type (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
+		oc_string_t dpt;                      // resource datapoint type
+		oc_content_format_t content_type[2];  // resource content types that will be supported (max two, first mandatory, second optional)  
+		oc_resource_properties_t properties;  // resource properties (e.g 'discoverable' - bit mask) 
 		oc_request_handler_t get_handler;     // callback for GET 
 		oc_request_handler_t put_handler;     // callback for PUT 
 		oc_request_handler_t post_handler;    // callback for POST 
@@ -569,10 +569,9 @@ extern "C" {
 	 *
 	 * @param resource_path the resource path
 	 * @param resource_path_len the length of the resource path
-	 * @param device the device index
 	 * @return oc_resource_t* the resource structure or NULL (request was NULL or no resource found)
 	 */
-	const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len, size_t device);
+	const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len);
 
 	/**
 	 * @brief retrieve list of application resources (excluding device core resources)

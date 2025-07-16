@@ -228,7 +228,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           new_request.uri_path_len = 2;
 
           const oc_resource_t* my_resource =
-            oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url), device_index);
+            oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url));
 
           if (my_resource && my_resource->put_handler.cb)
           {

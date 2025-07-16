@@ -356,9 +356,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 	}
 
-	// get from the request the addressed device as index
-	const size_t device_index = request->resource->device;
-	const oc_device_info_t* device = oc_core_get_device_info(device_index);
+	// get from device 0 info
+	const oc_device_info_t* device = oc_core_get_device_info(0);
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
 
@@ -381,13 +380,10 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
 		{
 			// skip other devices and not "public" resources 
-			if (my_resource->device != device_index || !(my_resource->properties & OC_DISCOVERABLE))
+			if (my_resource->properties & OC_DISCOVERABLE && oc_string(my_resource->uri))
 			{
-				continue;
-			}
-			if (oc_string(my_resource->uri) != NULL)
-			{ // local URI must be present for a resource 
-				total++;
+        // able to discover + resource path must be present/defined 
+			  total++;
 			}
 		}
 	}
@@ -439,7 +435,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		PRINT("group address: %d", group_address);
 
 		// if not in 'runtime' just return
-		if (!oc_is_device_in_runtime(device_index))
+		if (!oc_is_device_in_runtime(0))
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
 			PRINT("device not at 'runtime'");
@@ -455,7 +451,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 
 		// create the response
-		bool const at_least_one_added = oc_add_points_from_group_object_table_to_response(request, device_index, group_address, &response_length);
+		bool const at_least_one_added = oc_add_points_from_group_object_table_to_response(request, group_address, &response_length);
 
 		if (at_least_one_added)
 		{
@@ -481,7 +477,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// handle programming mode
 	if (if_len == 13 && strncmp(if_request, "urn:knx:if.pm", 13) == 0)
 	{
-		if (oc_knx_device_in_programming_mode(device_index))
+		if (oc_knx_device_in_programming_mode(0))
 		{ // PRG mode on
 			/*
 				 - add only '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' when the interface

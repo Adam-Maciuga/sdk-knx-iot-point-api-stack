@@ -287,7 +287,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
     return 0;
   }
 
-  const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path), 0);
+  const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
   if (!application_resource_with_href_match)
   {
     PRINT("error, application resource path not found %s", resource_path);
@@ -382,7 +382,7 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
   }
 
   // find application resource by resource path
-  const oc_resource_t* my_resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path), 0);
+  const oc_resource_t* my_resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
   if (!my_resource)
   {
     PRINT("error application callback with resource path %s not found", resource_path);
@@ -447,7 +447,7 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
           // for all GOs (with the GA) with the href from the original update the values
           oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-          const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href), 0);
+          const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
           if (!application_resource_with_href_match)
           {

@@ -2928,8 +2928,7 @@ bool is_in_array(uint32_t value, uint32_t* array, int array_size)
   return false;
 }
 
-bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, size_t device_index, uint32_t group_address,
-                                                     size_t* response_length)
+bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, uint32_t group_address, size_t* response_length)
 {
   bool return_value = false;
 
@@ -2946,7 +2945,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, si
 
         // called from GET /p handler so always truncate resources URN's
         oc_add_resource_to_response_payload(
-          oc_ri_get_app_resource_by_resource_path(oc_string(g_got[index].href), oc_string_len(g_got[index].href), device_index),
+          oc_ri_get_app_resource_by_resource_path(oc_string(g_got[index].href), oc_string_len(g_got[index].href)),
           request, response_length, true);
         return_value = true;
       }

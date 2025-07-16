@@ -295,7 +295,7 @@ const oc_resource_t* oc_ri_get_app_resources(void)
 	return oc_list_head(app_resources);
 }
 
-const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len, size_t device)
+const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len)
 {
 	if (!resource_path || resource_path_len == 0)
 		return NULL;
@@ -308,8 +308,7 @@ const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resourc
 	while (res)
 	{
 		if (oc_string_len(res->uri) == resource_path_len + skip &&
-				strncmp(resource_path, oc_string(res->uri) + skip, resource_path_len) == 0 &&
-				res->device == device)
+				strncmp(resource_path, oc_string(res->uri) + skip, resource_path_len) == 0)
 			return res;
 		res = res->next;
 	}
@@ -1213,7 +1212,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	// if not a request to device core resources, check against list of declared application resources
 	if (!matching_resource && !bad_request)
 	{
-		request_obj.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len, endpoint->device);
+		request_obj.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len);
 	}
 	#endif 
 
