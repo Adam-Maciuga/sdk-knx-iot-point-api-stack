@@ -58,7 +58,6 @@ static CRITICAL_SECTION critical_section;
 
 volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
-char g_serial_number[] = SN_LOWER_CASE_EITT; // startup SN, maybe overwritten by CL option
 
 /*
 
@@ -66,7 +65,7 @@ char g_serial_number[] = SN_LOWER_CASE_EITT; // startup SN, maybe overwritten by
  
   EP's
 
-  - href, this application example uses a leading '/p', for details see callback handler 'Callback Notes'
+  - resource path, details see callback handler 'Callback Notes'
   - functional block 417 (LSAB) and 421 (LSBB) command/control
   - the datapoints are artificial such as dpa 417.61/62
   
@@ -88,27 +87,8 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
     {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo", "0101"}}}, // 1 << 8 + 1 
 };
 
-// additional parameters (for the href see above)
+// additional parameters
 int_datapoint_t test_parameter = {0, "/p/p1", "urn:knx:dpa.65500.201", ":dpt.propDataType", "Global Test Parameter"};
-
-// need to define prototype, used by an init method
-void signal_event_loop(void);
-
-/**
- * @brief s-mode response callback
- * will be called when a response is received on an s-mode read request
- *
- * @param url the url
- * @param rep the full response
- * @param rep_value the parsed value of the response
- */
-void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
-{
-  (void)rep;
-  (void)rep_value;
-
-  PRINT("oc_s_mode_response_cb %s", url);
-}
 
 /**
  * @brief function to set up the device.
@@ -121,7 +101,7 @@ int app_init(void)
 
   // set the application name, version, base url, device serial number
   // init also the device resources such as /dev, /.well-known/core, ...
-  ret |= oc_add_device(APPLICATION_NAME_EITT, "1.0.0", "//", g_serial_number, NULL, NULL);
+  ret |= oc_add_device(APPLICATION_NAME_EITT, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
 
   // set the hardware version 0.0.1, value used from EITT for testing
   oc_core_set_device_hwv(0, 0, 0, 1);
@@ -159,12 +139,6 @@ int app_init(void)
 
   return ret;
 }
-
-/**
- * @brief returns the password, used from external application hence defined as
- * separate method.
- */
-char* app_get_password(void) { return PASSWORD; }
 
 /**
  * @brief
@@ -286,71 +260,23 @@ void register_resources(void)
   }
 }
 
-/**
- * @brief
- * Application factory preset callback handler for the device
-
- * @param device_index the device identifier of the list of devices
- * @param data the supplied data.
- */
-void factory_presets_cb(size_t device_index, void* data)
-{
-  (void)device_index;
-  (void)data;
-
-  PRINT("factory preset callback called :");
-}
-
-/**
- * @brief
- * Application host name callback handler for the device
- *
- * @param device_index the device identifier of the list of devices
- * @param host_name the host name of the device to be maintained (check/set,
- * print, ...)
- * @param data the supplied data.
- */
-void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
-{
-  (void)device_index;
-  (void)data;
-
-  PRINT("host name callback called with host name: %s", oc_string(host_name));
-
-  /*
-   * The application callback needs to handle a changed host name such as to
-   * announce it to a border router or local daemon.
-   */
-}
-
-/**
- * @brief initializes the global variables
- * for the resources
- * for the parameters
- */
-void initialize_variables(void)
-{
-  /* initialize global variables for resources */
-  /* if wanted to be read them from persistent storage */
-}
-
-int app_set_serial_number(const char* serial_number)
-{
-  // don't copy more than size of SN (including /0)
-  return strncpy(g_serial_number, serial_number, sizeof(g_serial_number)) != NULL ? 0 : -1;
-}
-
 int app_initialize_stack(void)
 {
+  // set SN before stack initialization
+  const char sn[] = SN_LOWER_CASE_EITT;
+  app_set_serial_number(sn);
 
-  // The final storage folder depends on the build system/ current directory on Linux/ Windows,
-  // the folder name is defined by the file name + serial number.
+  /*
+     The final storage folder depends on the build system/ current directory on Linux/ Windows,
+     the folder name is defined by the file name + serial number.
+     Code below should work both on Linux/Windows.
+  */
 
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_eitt_%s", g_serial_number);
-  PRINT("Current path is: '%s'", dir);
+  (void)sprintf(storage, "./knx_iot_virtual_eitt_%s", app_get_serial_number());
+  OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
   // initialize the 'application' runtime variables

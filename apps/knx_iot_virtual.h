@@ -135,6 +135,13 @@ extern "C"
   int app_set_serial_number(const char* serial_number);
 
   /**
+   * @brief returns the serial number
+   * 
+   * @return pointer to serial number
+   */
+  const char* app_get_serial_number(void);
+
+  /**
    * @brief Set a bool
    *
    * @param channel the channel for the bool to set
@@ -210,6 +217,12 @@ extern "C"
   char* app_get_parameter_name(int index);
 
   /**
+   * @brief returns the password, used from external application hence defined as
+   * separate method.
+   */
+  char* app_get_password(void);
+
+  /**
    * @brief retrieve the fault (boolean) variable at the url
    *
    * @param url the url indicating the fault variable
@@ -227,11 +240,31 @@ extern "C"
   bool app_is_secure(void);
 
   /**
-   * @brief retrieves the password for showing on screen
-   *
-   * @return password (as string)
+ * @brief
+ * Application factory preset callback handler for the device
+
+ * @param device_index the device identifier of the list of devices
+ * @param data the supplied data.
+ */
+  void factory_presets_cb(size_t device_index, void* data);
+
+  /**
+   * @brief initializes the global variables
+   * for the resources
+   * for the parameters
    */
-  char* app_get_password(void);
+  void initialize_variables(void);
+
+  /**
+   * @brief
+   * Application host name callback handler for the device
+   *
+   * @param device_index the device identifier of the list of devices
+   * @param host_name the host name of the device to be maintained (check/set,
+   * print, ...)
+   * @param data the supplied data.
+   */
+  void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data);
 
   /**
    * @brief function to set the input string to upper case
@@ -261,6 +294,16 @@ extern "C"
    */
   void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource);
 
+  /**
+   * @brief s-mode response callback
+   * will be called when a response is received on an s-mode read request
+   *
+   * @param url the url
+   * @param rep the full response
+   * @param rep_value the parsed value of the response
+   */
+  void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value);
+
   void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
@@ -268,7 +311,8 @@ extern "C"
   void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
-  
+  // need to define prototype, used by an init method
+  void signal_event_loop(void);
   
 
 #ifdef __cplusplus

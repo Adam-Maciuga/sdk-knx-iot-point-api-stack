@@ -24,12 +24,17 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
+// global variables
+char g_serial_number[13]; // maybe overwritten by CL option , 12 hex chars plus string end
+
 bool app_is_secure(void)
 {
   // may produce a warning if OC_OSCORE is not specified ...
   // but here it is integral part of CMake
   return OC_OSCORE ? true : false;
 }
+
+char* app_get_password(void) { return PASSWORD; }
 
 void app_str_to_upper(char* str)
 {
@@ -95,6 +100,60 @@ void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
   oc_free_string_array(&interface_list);
 }
 
+/**
+ * @brief s-mode response callback
+ * will be called when a response is received on an s-mode read request
+ *
+ * @param url the url
+ * @param rep the full response
+ * @param rep_value the parsed value of the response
+ */
+void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
+{
+  (void)rep;
+  (void)rep_value;
+
+  PRINT("oc_s_mode_response_cb %s", url);
+}
+
+void factory_presets_cb(size_t device_index, void* data)
+{
+  (void)device_index;
+  (void)data;
+
+  PRINT("factory preset callback called :");
+}
+
+void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
+{
+  (void)device_index;
+  (void)data;
+
+  PRINT("host name callback called with host name: %s", oc_string(host_name));
+
+  /*
+   * The application callback needs to handle a changed host name such as to
+   * announce it to a border router or local daemon.
+   */
+}
+
+void initialize_variables(void)
+{
+  /* initialize global variables for resources */
+  /* if wanted to be read them from persistent storage */
+}
+
+int app_set_serial_number(const char* serial_number)
+{
+  // don't copy more than size of SN
+  return strncpy(g_serial_number, serial_number, sizeof(g_serial_number)) != NULL ? 0 : -1;
+}
+
+const char* app_get_serial_number(void)
+{
+  return g_serial_number;
+}
+
 // defied individually in specific LSAB/LSSB/EITT application code
 extern lsxb_channel_t lsxb[];
 extern int_datapoint_t test_parameter;
@@ -109,37 +168,40 @@ extern int_datapoint_t test_parameter;
  @param interfaces the interface mask, as specified for the application resource and method (GET, ...)
  @param user_data  the user data
 
- The (generic) callback 'call' handler demands the above defined 3 parameters when called by the stack,
+ A callback 'call' handler demands the above defined 3 parameters when called by the stack,
  provide them even if they are not used.
 
- @note
+ Details
+ -------
 
- The callbacks are called by the stack for an s-mode call (/k), optionally also via the property path (/p).
+ The callbacks are called from the stack for an 's-mode' call (/k) and for a parameter and diagnostic
+ 'property' call (/p).
 
- For the s-mode call (/k) the group object table configuration flags (cflags) are considered by the stack,
- but not for the property path call (/p).
+ - For the 's-mode' call the group object table configuration flags (cflags) and service type (w/r/a)
+   is considered by the stack, but not for the 'property' call.
 
- #1
+ - For the POST 's-mode' call the (r/w/a) corresponding GET/PUT callback handler are called as proxies.
+ - For the GET/PUT 'property' call the GET/PUT callback handler are called directly.
 
- If a resource path for the s-mode runtime communication application callback is defined with a leading
- '/p' (e.g.; '/p/lssb/0/soo') the application callbacks can also be called via the '/p' endpoint, moreover
- in this case the callback MUST implement also add. required functionality.
+ - A KNX related resource path for the 's-mode' and 'property' communication SHALL be defined with
+   a leading '/p' (e.g.; '/p/lssb/soo'). Hence, the LSAB/LSSB application examples uses the leading '/p',
+   also the EITT test application requires a leading '/p' for the EITT certification tests.
 
- - GET /w and w/o metadata m= (mandatory) 
- - PUT (optional)
+ - The /p callbacks MUST implement also additional required functionality.
 
- The LSAB/LSSB application examples uses the leading '/p' to demonstrate this,
- the EITT test application requires a leading '/p' for the EITT certification tests.
+   - GET /w and w/o metadata m= (mandatory) 
+   - PUT (optional* for group objects but required for product parameter)
 
- Depending on your application and hardware you may not allow to write (PUT) values to a 'no input'
- datapoint, because this may damage your hardware. Reading a 'no output' datapoint is less critical
- but demands a caching of an applicable value. An EXAMPLE how to distinguish the /p and /k call and
- options how to react are given below in the callback handler code.
-    
- #2
+   * Depending on your application and hardware you may not allow to write (PUT) values to an output 
+     datapoint (GO), this can damage your hardware. Reading an input datapoint is less critical,
+     but requires a kind of caching the value.
 
- If a resource path for the s-mode runtime communication application callback is defined without a leading
- '/p', the add. required functionality does not apply. The leading '/' is optional.
+     An EXAMPLE how to handle/distinguish the 's-mode' and 'property' calls and options how to react
+     is given below in the callback handler code. Another option to circumvent the problem is to not
+     declare the PUT handler for those GOs where a PUT is not possible.
+
+     Note that in the examples a generic (GET) handler is used, to allow a channel based approach with one
+     get handler.
 
 */
 
@@ -249,7 +311,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         // ga
         if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          const int index = oc_core_find_group_object_table_href(oc_string(request->resource->uri));
+          const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
           if (index > -1)
           {
             oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
@@ -526,7 +588,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
         // ga
         if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          int index = oc_core_find_group_object_table_href(oc_string(request->resource->uri));
+          int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
           if (index > -1)
           {
             oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
