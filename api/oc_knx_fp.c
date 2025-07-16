@@ -182,11 +182,12 @@ int oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(uint32_t g
   return lowest_id < INT_MAX ? corresponding_index : -1;
 }
 
-int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path)
+int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags)
 {
   // init with number out of upper range defined so far 0..65535 = error
   int32_t lowest_id = INT_MAX;
   uint32_t corresponding_ga = 0;
+  *cflags = OC_CFLAG_NONE;
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -208,6 +209,7 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path)
 
           lowest_id = g_got[i].id;
           corresponding_ga = g_got[i].ga[0];
+          *cflags = g_got[i].cflags;
         }
       }
     }
@@ -3064,8 +3066,7 @@ uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uin
   {
     uint32_t* array = table[index].ga;
     const int array_size = table[index].ga_len;
-    const bool found = is_in_array(group_address, array, array_size);
-    if (found)
+    if (is_in_array(group_address, array, array_size))
     {
       // break immediately 
       return table[index].grpid;

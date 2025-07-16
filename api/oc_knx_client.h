@@ -108,35 +108,26 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
 /** @} */ // end of doc_module_tag_s_mode_server
 
 /**
- * @brief sends (transmits) an s-mode message
+ * @brief sends (transmits) an s-mode message from an (application) client
  *
  * - the value comes from the GET of the resource indicated by the resource_url
- * - the path is "k"
+ * - the resource path is "/k"
  * - the sia (sender individual address) is taken from the device
- * - the ga is coming from the group address table that is listing the resource
- * - the url is the url of the resource to obtain the value from
+ * - the ga is the 'sending' group address of that resource (if present)
  *
+ * For the recipient table all entries are used to send the unicast communication.
  *
- * Only the first group address is used to send the s-mode message.
- * For the recipient table all entries are used to send the unicast
- * communication.
- *
- * @note Usually the function does not check the T flag on the resource
- *       (e.g. always send the s-mode message) in case of srv_type
- *       value = "a" when sending a read response on a previous read request ("r")
+ * @note the s-mode /k has an own handler,
+ *       moreover the function checks the t-cflag from the GO for the sending GA
  *
  * @param scope the multi-cast scope
- * @param resource_path caller resource URL (e.g. implemented on the device that is calling this function)
- * @param srv_type the "st" value to send e.g. "w" | "a" | "r"
- * @param consider_transmission_flag
- *        - false: does not check the transmit flag
- *        - true: checks transmit flag
+ * @param resource_path caller resource path (e.g. implemented on the device that is calling this function)
+ * @param srv_type the "st" value to send e.g. "w" | "r"
  */
-void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type,
-                                        bool consider_transmission_flag);
+int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type);
 
  void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid, uint32_t group_address,
-                      uint64_t iid, const char* mode, uint8_t* value_data, int value_size);
+                      uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

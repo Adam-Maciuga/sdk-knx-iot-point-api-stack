@@ -38,7 +38,7 @@ typedef struct broker_s_mode_userdata_t
 oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
 // external definition
-static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, char* service_type, uint8_t* value_data, int value_size);
+static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
 
@@ -175,7 +175,7 @@ oc_rep_t* oc_s_mode_get_value_object(oc_request_t* request)
 }
 
 void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
-                     uint32_t group_address, uint64_t iid, const char* mode,
+                     uint32_t group_address, uint64_t iid, const char* service_type,
                      uint8_t* value_data, int value_size)
 {
   PRINT("ipv6 address scope %d", ipv6_adr_scope);
@@ -200,11 +200,11 @@ void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
 
   // set the EP group_address, since this field is used to find the OSCORE context id
   group_multicast_local_endpoint.group_address = group_address;
-  oc_send_s_mode(&group_multicast_local_endpoint, "/k", sia_value, group_address, mode, value_data, value_size);
+  oc_send_s_mode(&group_multicast_local_endpoint, "/k", sia_value, group_address, service_type, value_data, value_size);
 }
 
 static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value,
-                           uint32_t group_address, char* service_type, uint8_t* value_data,
+                           uint32_t group_address, const char* service_type, uint8_t* value_data,
                            int value_size)
 {
 
@@ -287,8 +287,8 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
     return 0;
   }
 
-  const oc_resource_t* my_resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path), 0);
-  if (my_resource == NULL)
+  const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path), 0);
+  if (!application_resource_with_href_match)
   {
     PRINT("error, application resource path not found %s", resource_path);
     return 0;
@@ -314,20 +314,20 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
   response_obj.separate_response = NULL;
   response_obj.response_buffer = &response_buffer;
 
-  // empty request object, later filled, NOT the same initialization as oc_ri.c  
+  // prepare new request from "void" with data needed for the callback GET
+  // NOT the same initialization as oc_ri.c  
   request_obj.response = &response_obj;
   request_obj.request_payload = NULL;
   request_obj.query = NULL;
   request_obj.query_len = 0;
-  request_obj.resource = my_resource;   // allows (a generic) application callback to identify the original caller resource
-  request_obj.origin = NULL;
+  request_obj.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
+  request_obj.origin = NULL; // not known at this point
   request_obj._payload = NULL;
   request_obj._payload_len = 0;
   request_obj.request_method = OC_POST; // s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/ update
-
   request_obj.content_format = APPLICATION_CBOR;
-  request_obj.accept = APPLICATION_CBOR;
-  request_obj.uri_path = resource_path;
+  request_obj.accept = APPLICATION_CBOR; // a GET handler WILL check this
+  request_obj.uri_path = resource_path; // allows (a generic) application callback to identify the caller
   request_obj.uri_path_len = strlen(resource_path);
 
   // init CBOR response buffer,
@@ -336,9 +336,9 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
 
   // call application handler GET with own interface/ user data
   // (it makes no sense to call it with a fix vale)
-  my_resource->get_handler.cb(&request_obj, 
-                              my_resource->get_handler.interface_mask, 
-                              my_resource->get_handler.user_data);
+  application_resource_with_href_match->get_handler.cb(&request_obj, 
+                              application_resource_with_href_match->get_handler.interface_mask, 
+                              application_resource_with_href_match->get_handler.user_data);
 
   // get the ptr + size of - from callback - filled data 
   int resource_value_size = oc_rep_get_encoded_payload_size();
@@ -355,7 +355,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
   return 0;
 }
 
-void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type, bool consider_transmission_flag)
+int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type)
 {
   PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
 
@@ -365,20 +365,20 @@ void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, con
   if (resource_path == NULL)
   {
     OC_ERR("oc_do_s_mode_with_scope_internal: resource url is NULL");
-    return;
+    return -1;
   }
 
   const oc_device_info_t* device = oc_core_get_device_info(0);
   if (device == NULL)
   {
     PRINT("device is NULL");
-    return;
+    return -1;
   }
 
   if (!oc_is_device_in_runtime(0))
   {
     PRINT("device '0' is not running, load state is: %d", device->lsm_s);
-    return;
+    return -1;
   }
 
   // find application resource by resource path
@@ -386,50 +386,54 @@ void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, con
   if (!my_resource)
   {
     PRINT("error application callback with resource path %s not found", resource_path);
-    return;
+    return -1;
   }
 
   if (strcmp(srv_type, "r") == 0)
   { // issue a read request
     
-    const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path);
-    if (sending_ga != -1)
+    oc_cflag_mask_t sending_cflags; 
+    const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path, &sending_cflags);
+    
+    if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
     {
       // DON'T need to copy resource value to buffer
-     
-      // handle read request when called from application (/k has an own handler)
-      uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-      if (grpid > 0)
+
+      const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
+      if (grpid == 0)
       {
-        // multicast read, no value data needed
-        oc_issue_s_mode(scope, device->ia, grpid, sending_ga, device->iid, srv_type, 
-                        resource_value_buffer,
-                        0);
+        PRINT("error, grpid for the resource path %s not found", resource_path);
+        return -1;
       }
-      return;
+
+      // multicast read, NO value data needed
+      oc_issue_s_mode(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
+      return 0;
+      
     }
     PRINT("error, sending group address for the resource path %s not found", resource_path);
-    return;
+    return -1;
     
   }
   if (strcmp(srv_type, "w") == 0)
   { // issue a write request
 
-    const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path);
-    if (sending_ga != -1)
+    oc_cflag_mask_t sending_cflags; 
+    const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path, &sending_cflags);
+    if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
     {
       // copy resource value to buffer, return value size
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
 
-      // handle read request when called from application (/k has an own handler)
       uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-      if (grpid > 0)
+      if (grpid == 0)
       {
-        // multicast read, no value data needed
-        oc_issue_s_mode(scope, device->ia, grpid, sending_ga, device->iid, srv_type, 
-                        resource_value_buffer,
-                        resource_value_size);
+        PRINT("error, grpid for the resource path %s not found", resource_path);
+        return -1;
       }
+
+      // multicast write, value data needed
+      oc_issue_s_mode(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
 
       // update internal GOs on a write request
       {
@@ -474,9 +478,7 @@ void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, con
             const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
             if (cflags & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
-            {
-              // update the resource internally, BUT only all GOs with type if input!
-              oc_request_t new_request = {0};
+            { // update the resource internally, BUT only all GOs with type if input!
 
               // create a CBOR object and place the CBOR encoded response data in 
               oc_rep_t* cbor_object_ptr;
@@ -484,16 +486,27 @@ void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, con
               oc_rep_set_pool(&cbor_object);
               oc_parse_rep(resource_value_buffer, resource_value_size, &cbor_object_ptr);
 
-              // place CBOR data pointer for payload 
-              new_request.request_payload = cbor_object_ptr;
+              oc_request_t request_obj; 
 
-              // no /k and no /p handler call 
-              new_request.uri_path = oc_string(go_href);
-              new_request.uri_path_len = oc_string_len(go_href);
+              // prepare new request from "void" with data needed for the callback PUT
+              // NOT the same initialization as oc_ri.c
+              request_obj.response = NULL; // no response expected
+              request_obj.request_payload = cbor_object_ptr;  // place CBOR payload pointer for PUT 
+              request_obj.query = NULL;
+              request_obj.query_len = 0;
+              request_obj.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
+              request_obj.origin = NULL; // not known at this point
+              request_obj._payload = NULL;
+              request_obj._payload_len = 0;
+              request_obj.request_method = OC_PUT; // A PUT handler MAY check this
+              request_obj.content_format = APPLICATION_CBOR;
+              request_obj.accept = APPLICATION_CBOR; // a PUT does not need it
+              request_obj.uri_path = oc_string(go_href); // allows (a generic) application callback to identify the caller
+              request_obj.uri_path_len = oc_string_len(go_href);
 
               // call application handler with own interface/ user data
               // (it makes no sense to call it with a fix vale)
-              application_resource_with_href_match->put_handler.cb(&new_request, 
+              application_resource_with_href_match->put_handler.cb(&request_obj, 
                                                                    application_resource_with_href_match->put_handler.interface_mask,
                                                                    application_resource_with_href_match->put_handler.user_data);
             }
@@ -505,154 +518,16 @@ void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, con
 
       // notify on a (write) change on the original resource (not the internal updated resources)
       oc_notify_observers(my_resource);
-
-      return;
+      
+      return 0 ;
     }
     PRINT("error, sending group address for the resource path %s not found", resource_path);
-    return;
+    return -1;
   }
 
   // must be one of w/r
   OC_ERR("service type value incorrect %s , allowed are only w+r", srv_type);
-  return;
-  
-
-  
-
-  
-
- 
-
-  // copy resource value to buffer, return value size 
-  const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
-
-  // find the GO index with the given url
-  // for the example in /k (oc_knx.c) handler it is GO1
-  // TODO change to find GO index with href and lowest ID (+ remove while) --> send here 
-  // TODO update also same href (splitted) with any GA and higher IDs --> internal updates 
-
-  int index = oc_core_find_first_group_object_table_index_from_href(resource_path);
-
-  if (index == -1)
-  {
-    PRINT("oc_do_s_mode_with_scope_internal : no table entry found for %s", resource_path);
-    return;
-  }
-
-  // loop over all group objects with the given href
-  while (index != -1)
-  {
-    // 
-    const int ga_len = oc_core_get_ga_table_len_from_group_object_table_index(index);
-    oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(index);
-
-    // send always on bool parameter is false, otherwise 't' flag must be set
-    const bool do_send = consider_transmission_flag ? cflags & OC_CFLAG_TRANSMISSION : true;
-
-    if (do_send)
-    {
-      // debugging
-      PRINT("index %d service type= %s cflags %d flags=", index, srv_type, cflags);
-      oc_print_cflags(cflags);
-
-      // scan all GA's of a that GO 
-      for (int ga_index_in_go_array = 0; ga_index_in_go_array < ga_len; ga_index_in_go_array++)
-      {
-        // get linked group address 0...n of GO
-        // for the example in /k (oc_knx.c) handler it is 11
-        uint32_t group_address = oc_core_get_ga_table_entry_from_group_object_table_index(index, ga_index_in_go_array);
-        PRINT("ga : %u ", group_address);
-
-        // used to update the device linked GO's (from /k)
-        if (strcmp(srv_type, "a") == 0)
-        {
-          // a read response with 'a' popped up, issued by an own read response from /k EP 
-          // check if any other GOT entries has for the same GA a "w" flag, if so update the value
-          PRINT("checking & updating internal group objects");
-
-          // get FIRST GO index with that GA included (one out of 0...max of GO array)
-          int other_index = oc_core_find_first_go_table_index_with_ga(group_address);
-
-          while (other_index != -1)
-          {
-            // for all other GOs (with the GA) with the href from the original update the values
-            if (other_index != index)
-            {
-              oc_cflag_mask_t other_cflags = oc_core_get_cflags_from_group_object_table_index(other_index);
-              oc_string_t other_url = oc_core_get_href_from_group_object_table_index(other_index);
-              const char* other_url_char = oc_string(other_url);
-              const oc_resource_t* other_resource = oc_ri_get_app_resource_by_resource_path(other_url_char, strlen(other_url_char), 0);
-              if (other_resource == NULL)
-              {
-                other_index = oc_core_find_next_go_table_index_with_ga(group_address, other_index);
-                continue;
-              }
-
-              if ((other_cflags & OC_CFLAG_WRITE) && other_resource->put_handler.cb)
-              {
-                // update the resource internally, BUT only all GOs with type if input!
-                oc_request_t new_request = { 0 };
-
-                oc_rep_t* rep;
-                struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
-                oc_rep_set_pool(&rep_objects);
-                oc_parse_rep(resource_value_buffer, resource_value_size, &rep);
-
-                new_request.request_payload = rep;
-                new_request.uri_path = other_url_char;
-                new_request.uri_path_len = strlen(other_url_char);
-
-                // call application handler with own interface/ user data
-                // (it makes no sense to call it with a fix vale)
-                other_resource->put_handler.cb(&new_request, 
-                                               other_resource->put_handler.interface_mask,
-                                               other_resource->put_handler.user_data);
-              }
-            }
-
-            other_index = oc_core_find_next_go_table_index_with_ga(group_address, other_index);
-          }
-        }
-
-         // issue the s-mode response command, but only for the first ga entry (0)
-        if (ga_index_in_go_array == 0)
-        {
-          // handle write/read request when called from application (/k has an own handler) 
-          uint32_t grpid = oc_find_grpid_in_recipient_table(group_address);
-          if (grpid > 0)
-          {
-            // multicast 
-            oc_issue_s_mode(scope, device->ia, grpid, group_address, device->iid, srv_type, 
-                            resource_value_buffer,
-                            resource_value_size);
-          }
-        }
-
-        // unicast 
-        // TODO to be removed - url not existing anymore
-
-        // - the recipient table contains the list of destinations that will receive data
-        // - loop over the full recipient table and send a message if the group is there
-        for (int jr = 0; jr < GRT_MAX_ENTRIES; jr++)
-        {
-          bool found = oc_core_check_recipient_index_on_group_address(jr, group_address);
-          if (found)
-          {
-            char* url = oc_core_get_recipient_index_url(jr);
-            if (url)
-            {
-              PRINT("broker send to url: %s", url);
-              const uint16_t ia = oc_core_get_recipient_ia(jr);
-              oc_knx_client_do_broker_request(resource_path, device->iid, ia, url, srv_type);
-            }
-          }
-        }
-      }
-    }
-
-    // get NEXT GO with that url (last...max)
-    index = oc_core_find_next_group_object_table_index_from_href(resource_path, index);
-  }
+  return -1;
 }
 
 bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func)
