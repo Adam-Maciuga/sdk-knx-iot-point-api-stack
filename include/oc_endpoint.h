@@ -172,15 +172,6 @@ extern "C" {
    */
   int oc_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str);
 
-  /**
-   * @brief string to endpoint
-   *
-   * @param endpoint_str the endpoint as string (e.g. "coaps://[fe::22]:/blah")
-   * @param endpoint the address part of the string
-   * @param uri the uri part of the endpoint
-   * @return int 0 success
-   */
-  int oc_string_to_endpoint(oc_string_t* endpoint_str, oc_endpoint_t* endpoint, oc_string_t* uri);
 
   /**
    * @brief parse endpoint

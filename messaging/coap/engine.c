@@ -243,12 +243,11 @@ int coap_receive(oc_message_t* incoming_message)
 	coap_status_code = COAP_NO_ERROR;
 
 	if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
-   OC_DBG("CoAP Engine: forwarded data from OSCORE layer with len=%u from ", (unsigned int)incoming_message->length);
+   OC_DBG("CoAP Engine: receive (forwarded) data from OSCORE layer with len=%u from ", (unsigned int)incoming_message->length);
   else
-   OC_DBG("CoAP Engine: received data from network layer with len=%u from ", (unsigned int) incoming_message->length);
+   OC_DBG("CoAP Engine: receive data from network layer with len=%u from ", (unsigned int) incoming_message->length);
 
   PRINTipaddr(incoming_message->endpoint);
-  OC_DBG(" = ");
 	OC_LOGbytes(incoming_message->data, incoming_message->length);
 
 	/* static declaration reduces stack peaks and program code size */
@@ -426,8 +425,7 @@ int coap_receive(oc_message_t* incoming_message)
 				if (coap_packet_request->code == UNAUTHORIZED_4_01 && echo_len != 0)
 				{
 					// find in oc_replay tracker and retransmit
-					oc_message_t* original_message =
-						oc_replay_find_msg_by_token(coap_packet_request->token_len, coap_packet_request->token);
+					oc_message_t* original_message = oc_replay_find_msg_by_token(coap_packet_request->token_len, coap_packet_request->token);
 					if (original_message)
 					{
 						// parse the original message, just like in the case where we have a transaction
@@ -686,8 +684,7 @@ int coap_receive(oc_message_t* incoming_message)
 							{
 								// redo echoing returns the same ret code as the first echoing
 								OC_DBG("Stale request from unsycned client, sending 4.01 + Echo Challenge");
-								OC_ERR("Current time %" PRIu64 ", received time %" PRIu64,
-											 current_time, received_timestamp);
+								OC_ERR("Current time %" PRIu64 ", received time %" PRIu64, current_time, received_timestamp);
 
 								coap_send_unauth_echo_response(
 									coap_packet_request->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,

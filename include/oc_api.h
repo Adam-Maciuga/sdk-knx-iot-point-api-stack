@@ -1366,24 +1366,6 @@ extern "C"
                     oc_content_format_t content, oc_content_format_t accept, void* user_data);
 
   /**
-   * Issue a DELETE request to delete a resource
-   *
-   * @param[in] uri The uri of the resource
-   * @param[in] endpoint The endpoint of the server
-   * @param[in] query a query parameter that will be sent to the server's
-   *                  oc_request_callback_t.
-   * @param[in] handler The function invoked once the client has received the
-   * servers response to the DELETE request
-   * @param[in] qos The quality of service current options are HIGH_QOS or LOW_QOS
-   * @param[in] user_data The context pointer that will be sent to the
-   *                      oc_response_handler_t
-   *
-   * @return True if the client successfully dispatched the CoAP DELETE request
-   */
-  bool oc_do_delete(const char* uri, oc_endpoint_t* endpoint, const char* query, oc_response_handler_t handler, oc_qos_t qos,
-                    void* user_data);
-
-  /**
    * Prepare the stack to issue a PUT request
    *
    * After oc_init_put has been called a CoAP message can be built using
