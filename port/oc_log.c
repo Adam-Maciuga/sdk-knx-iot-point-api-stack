@@ -17,22 +17,21 @@
 #include <stdio.h>
 
 #define OUTPUT_FILE_NAME "stack_print_output.txt"
-static FILE *fptr = NULL;
+static FILE *ptr_to_file = NULL;
 
-void oc_file_print(char *format, ...);
-
-void
-oc_file_print(char *format, ...)
+void oc_file_print(char *format, ...)
 {
   va_list args;
-  if (fptr == NULL) {
-    fptr = fopen(OUTPUT_FILE_NAME, "w");
+  if (ptr_to_file == NULL) 
+  {
+    ptr_to_file = fopen(OUTPUT_FILE_NAME, "w");
   }
-  if (fptr) {
+  if (ptr_to_file) 
+  {
     va_start(args, format);
-    vfprintf(fptr, format, args);
+    (void)vfprintf(ptr_to_file, format, args);
     va_end(args);
     // flush the file
-    fflush(fptr);
+    (void)fflush(ptr_to_file);
   }
 }

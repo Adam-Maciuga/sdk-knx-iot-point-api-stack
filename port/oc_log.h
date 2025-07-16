@@ -53,10 +53,6 @@
   #define __FILENAME__ (strrchr(__FILE__, '/')  ? strrchr(__FILE__, '/')  + 1 : __FILE__)
 #endif
 
-#ifdef __ANDROID__
-  #include "android/oc_log_android.h"
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,32 +62,35 @@ extern "C" {
   // for clock function in debug output
   #include <time.h>
 
-  #ifdef __ANDROID__
-    #define TAG "OC-JNI"
-    #define PRINT(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-    #define PRINTF(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+  #ifdef OC_LOG_TO_FILE
+
+    // print to file
+    void oc_file_print(char* format, ...);
+
+    // logging to file
+    #define PRINT(...) oc_file_print(__VA_ARGS__)
+    #define PRINTF(...) oc_file_print(__VA_ARGS__)
+
   #else
-    #ifdef OC_LOG_TO_FILE
-      // logging to file
-      #define PRINT(...) oc_file_print(__VA_ARGS__)
-      #define PRINTF(...) oc_file_print(__VA_ARGS__)
-    #else
-      #define PRINT(...) OC_INF(__VA_ARGS__)
-      #define PRINTF(...) printf(__VA_ARGS__)
-    #endif
+
+    // logging to console
+    #define PRINT(...) OC_INF(__VA_ARGS__)
+    #define PRINTF(...) printf(__VA_ARGS__)
+
   #endif
 
 #else
 
-  #define PRINT(...)
-  #define PRINTF(...)
+    // logging to void
+    #define PRINT(...)
+    #define PRINTF(...)
 
 #endif
 
 #define SPRINTF(...) sprintf(__VA_ARGS__)
 #define SNPRINTF(...) snprintf(__VA_ARGS__)
 
-#define PRINTipaddr(endpoint)                                                  \
+#define PRINTipaddr(endpoint)                   \
   do {                                                                         \
     const char *scheme = "coap";                                               \
     if ((endpoint).flags & SECURED)                                            \
@@ -125,7 +124,7 @@ extern "C" {
     }                                                                          \
   } while (0)
 
-#define PRINTipaddr_flags(endpoint)                                            \
+#define PRINTipaddr_flags(endpoint)             \
   do {                                                                         \
     if ((endpoint).flags & SECURED) {                                          \
       PRINTF("Secured ");                                                      \
@@ -134,7 +133,7 @@ extern "C" {
       PRINTF("MULTICAST ");                                                    \
     };                                                                         \
     if ((endpoint).flags & TCP) {                                              \
-      PRINTF("TCP ");                                                           \
+      PRINTF("TCP ");                                                          \
     };                                                                         \
     if ((endpoint).flags & IPV4) {                                             \
       PRINTF("IPV4 ");                                                         \
@@ -153,7 +152,7 @@ extern "C" {
     };                                                                         \
   } while (0)
 
-#define SNPRINTFipaddr(str, size, endpoint)                                    \
+#define SNPRINTFipaddr(str, size, endpoint)     \
   do {                                                                         \
     const char *scheme = "coap";                                               \
     if ((endpoint).flags & SECURED)                                            \
@@ -207,7 +206,7 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12],(data)[13],(data)[14],(data)[15]
 
-  #define PRINT13BYTEHEX(text, data)            \
+#define PRINT13BYTEHEX(text, data)              \
   text "%02X%02X%02X%02X:%02X%02X%02X%02X:"     \
        "%02X%02X%02X%02X:%02X",                 \
   (data)[0], (data)[1], (data)[2], (data)[3],   \
@@ -216,7 +215,7 @@ extern "C" {
   (data)[12]
 
 // it is recommended to use a console for the output that allows a 'no word wrap' 
-#define OC_LOG(level, ...)                                      \
+#define OC_LOG(level, ...)                      \
   do {                                                          \
   time_t _current_time = time(NULL);                            \
   struct tm* tm_local = localtime(&_current_time);              \
@@ -244,24 +243,12 @@ extern "C" {
   PRINTF(__VA_ARGS__);                                          \
   } while (0)
 
-
 // always do OC_ERR and OC_WRN logs
 #define OC_ERR(...) OC_LOG("ERR", __VA_ARGS__)
 #define OC_WRN(...) OC_LOG("WRN", __VA_ARGS__)
 #define OC_INF(...) OC_LOG("INF", __VA_ARGS__)
 
 #ifdef OC_DEBUG
-
-  #ifdef __ANDROID__
-    #define OC_LOG(level, ...)                                                     \
-      android_log(level, __FILE__, __func__, __LINE__, __VA_ARGS__)
-    #define OC_LOGipaddr(endpoint)                                                 \
-      android_log_ipaddr("DEBUG", __FILE__, __func__, __LINE__, endpoint)
-    #define OC_LOGbytes(bytes, length)                                             \
-      android_log_bytes("DEBUG", __FILE__, __func__, __LINE__, bytes, length)
-  #else 
-
-  #endif
 
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
   #define OC_LOGbytes(bytes, length)                                             \
@@ -297,4 +284,4 @@ extern "C" {
 }
 #endif
 
-#endif /* OC_LOG_H */
+#endif 
