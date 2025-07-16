@@ -326,31 +326,42 @@ extern "C"
   int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index);
 
   /**
-   * @brief retrieve the GO table index with the lowest 'id' and the GA in position 0 of the GA array
+   * @brief retrieve the GO table index for a href with the lowest 'id' and the GA in position 0 of the GA array
    *
-   * @note must loop over all GO entries in the table (see comment in code)
+   * @note MUST process all GO entries in the table (see comment in code) with this GA included
    *
    * @param group_address the group address to search for in pos. zero
+   * @param resource_path the resource path for which the lowest id is searched for  
    * @return the GO table 'index', -1 in case of no 'index' was found
    */
-  int oc_core_find_go_table_index_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address);
+  int oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address, const char* resource_path);
 
   /**
-   * @brief find (first) index in the GO object table with the given url
+   * @brief retrieve the GA in position 0 for a href with lowest 'id'
    *
-   * @param url the url to find
-   * @return the index in the table or -1
+   * @note MUST process all GO entries in the table (see comment in code)
+   *
+   * @param resource_path the resource path for which the GA is searched for
+   * @return the GA, -1 in case of no GA was found
    */
-  int oc_core_find_group_object_table_href(const char* url);
+  int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path);
 
   /**
-   * @brief find next index in the group object table with the given url
+   * @brief find (first) index in the GO object table with the given resource path
    *
-   * @param  url the url to find
-   * @param cur_index  the current index to start from.
-   * @return the index in the table or -1
+   * @param resource_path the resource path to find
+   * @return the first index in the table or -1
    */
-  int oc_core_find_next_group_object_table_url(const char* url, int cur_index);
+  int oc_core_find_first_group_object_table_index_from_href(const char* resource_path);
+
+  /**
+   * @brief find (next) index in the group object table with the given resource path
+   *
+   * @param  resource_path the resource path to find
+   * @param current_index  the current index to start from
+   * @return the (next) index in the table or -1
+   */
+  int oc_core_find_next_group_object_table_index_from_href(const char* resource_path, int current_index);
 
   /**
    * @brief retrieve the cflags from the entry table

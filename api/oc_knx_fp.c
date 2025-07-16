@@ -147,9 +147,8 @@ int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_ind
   return -1;
 }
 
-int oc_core_find_go_table_index_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address)
+int oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address, const char* resource_path)
 {
-
   // init with number out of upper range defined so far 0..65535 = error
   int32_t lowest_id = INT_MAX;
   int corresponding_index = 0;
@@ -157,26 +156,64 @@ int oc_core_find_go_table_index_with_lowest_id_and_ga_in_pos_zero(uint32_t group
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
-    {
-      // table entry present 
-      if (g_got[i].id < lowest_id)
-      {
-        // id with GA in pos. zero (= sending GA)? 
-        if (group_address == g_got[i].ga[0])
-        {
-          /*
-             id is lower, new id candidate, note must loop over all GO index
-             - index 20: "id" = 12, ga 100 in pos zero -> a receiving group address (+ flags)
-             - index 25: "id" = 10, ga 100 in pos zero -> the sending group address (+ flags)
-          */
-          lowest_id = g_got[i].id;
-          corresponding_index = i;
+    { // table entry present 
+
+      if (strlen(resource_path) == oc_string_len(g_got[i].href) &&
+          strcmp(resource_path, oc_string(g_got[i].href)) == 0)
+      { // resource matches 
+
+        if (g_got[i].id < lowest_id && g_got[i].ga[0] == group_address)
+        { // id lower and id with GA in pos. zero (= sending GA)
+          
+            /*
+               id is lower with ga in position zero (= sending GA), new id candidate, must loop over
+               all GO index:
+               - index 20: "id" = 12, ga 100 in pos zero -> a receiving group address (+ flags)
+               - index 25: "id" = 10, ga 100 in pos zero -> the sending group address (+ flags)
+            */
+
+            lowest_id = g_got[i].id;
+            corresponding_index = i;
         }
       }
     }
   }
   // no 'ga in pos zero' found returns -1 
   return lowest_id < INT_MAX ? corresponding_index : -1;
+}
+
+int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path)
+{
+  // init with number out of upper range defined so far 0..65535 = error
+  int32_t lowest_id = INT_MAX;
+  uint32_t corresponding_ga = 0;
+
+  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+  {
+    if (g_got[i].id > -1)
+    { // table entry present
+
+      if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
+      { // resource matches
+
+        if (g_got[i].id < lowest_id && g_got[i].ga_len > 0)
+        { // id lower and ga's are used
+
+          /*
+             id is lower with ga's used, position zero (= sending GA), new id candidate, must loop over
+             all GO index:
+             - index 20: "id" = 12, "href" = abc, ga 200 in pos zero -> a receiving group address (+ flags)
+             - index 25: "id" = 10, "href" = abc, ga 100 in pos zero -> the sending group address (+ flags)
+          */
+
+          lowest_id = g_got[i].id;
+          corresponding_ga = g_got[i].ga[0];
+        }
+      }
+    }
+  }
+  // no 'ga in pos zero' found returns -1
+  return lowest_id < INT_MAX ? (int)corresponding_ga : -1;
 }
 
 oc_string_t oc_core_get_href_from_group_object_table_index(int index)
@@ -215,11 +252,11 @@ uint32_t oc_core_get_ga_table_entry_from_group_object_table_index(int index, int
   return 0;
 }
 
-int oc_core_find_group_object_table_href(const char* url)
+int oc_core_find_first_group_object_table_index_from_href(const char* resource_path)
 {
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    if (strlen(url) == oc_string_len(g_got[i].href) && strcmp(url, oc_string(g_got[i].href)) == 0)
+    if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
     { // href len and content matches
       return i;
     }
@@ -227,16 +264,16 @@ int oc_core_find_group_object_table_href(const char* url)
   return -1;
 }
 
-int oc_core_find_next_group_object_table_url(const char* url, const int cur_index)
+int oc_core_find_next_group_object_table_index_from_href(const char* resource_path, const int current_index)
 {
-  if (cur_index == -1)
+  if (current_index == -1)
   { // don't iterate if already no index is available
     return -1;
   }
 
-  for (int i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
+  for (int i = current_index + 1; i < GOT_MAX_ENTRIES; i++)
   {
-    if (strlen(url) == oc_string_len(g_got[i].href) && strcmp(url, oc_string(g_got[i].href)) == 0)
+    if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
     { // href len and content matches
       return i;
     }
@@ -298,8 +335,8 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; 
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -2987,9 +3024,8 @@ void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
 {
   // FF35::30: <ULA-routing-prefix>::<group id>
   //
-  // create the multi cast address from group and scope
-  oc_endpoint_t group_mcast;
-  memset(&group_mcast, 0, sizeof(group_mcast));
+  // create the multicast address from group and scope
+  oc_endpoint_t group_mcast = {0};
 
   group_mcast = oc_create_multicast_group_address(group_mcast, group_nr, iid, scope);
 
@@ -3027,10 +3063,11 @@ uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uin
   for (int index = 0; index < max_size; index++)
   {
     uint32_t* array = table[index].ga;
-    int array_size = table[index].ga_len;
-    bool found = is_in_array(group_address, array, array_size);
+    const int array_size = table[index].ga_len;
+    const bool found = is_in_array(group_address, array, array_size);
     if (found)
     {
+      // break immediately 
       return table[index].grpid;
     }
   }
@@ -3151,7 +3188,7 @@ void oc_init_datapoints_at_initialization(void)
         uint32_t grpid = oc_find_grpid_in_recipient_table(sending_group_address);
 
         if (grpid > 0)
-        { // grpid is set in case of multicast at RCP table (configured by MaC)
+        { // grpid is set in case of multicast in RCP table (configured by MaC)
 
           #ifdef OC_USE_MULTICAST_SCOPE_2
           oc_issue_s_mode(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
