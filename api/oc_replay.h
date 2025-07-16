@@ -64,20 +64,12 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
                                        oc_string_t rx_kid_ctx);
 
 /**
- * @brief Free all clients with a given KID. Should be used whenever the
- * corresponding access token is deleted
- *
- * @param rx_kid the KID
- */
-void oc_replay_free_client(oc_string_t rx_kid);
-
-/**
  * @brief Mark a message to be retained for retransmission
  *
  * The message is retained using a soft reference - it will not be freed unless
  * the stack runs out of buffers, or after a timeout.
  *
- * If static message buffers are used, this can lead to to a constrained client
+ * If static message buffers are used, this can lead to a constrained client
  * having to drop messages that are otherwise preserved for echo
  * retransmissions, if many requests are being sent out in a short period of
  * time.

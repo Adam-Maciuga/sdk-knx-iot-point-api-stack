@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2023 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +20,6 @@
 #include "oc_config.h"
 #include "messaging/coap/constants.h"
 #include "oc_api.h"
-
 
 #ifndef OC_MAX_REPLAY_RECORDS
 #define OC_MAX_REPLAY_RECORDS (20) 
@@ -72,7 +72,7 @@ static void free_record(struct oc_replay_record* rec)
 // find empty record in queue, if queue is full ... free oldest record
 static struct oc_replay_record* get_empty_record(void)
 {
-	for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; i++)
+	for (int i = 0; i < OC_MAX_REPLAY_RECORDS; i++)
 	{
 		if (!replay_records[i].in_use)
 			return replay_records + i;
@@ -83,7 +83,7 @@ static struct oc_replay_record* get_empty_record(void)
 	struct oc_replay_record* oldest_rec = replay_records;
 
 	// finding of oldest record, to release it (on heap limitations) 
-	for (size_t i = 1; i < OC_MAX_REPLAY_RECORDS; i++)
+	for (int i = 1; i < OC_MAX_REPLAY_RECORDS; i++)
 	{
 		if (replay_records[i].time < oldest_rec->time)
 			oldest_rec = replay_records + i;
@@ -101,7 +101,7 @@ static struct oc_replay_record* get_record(const oc_string_t rx_kid, const oc_st
 		return NULL; // rx kid not present -> a match is not applicable
 	}
 
-	for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; i++)
+	for (int i = 0; i < OC_MAX_REPLAY_RECORDS; i++)
 	{
 		// c pointer arithmetics
 		struct oc_replay_record* rec = replay_records + i;
@@ -243,23 +243,11 @@ void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const
 	rec->time = oc_clock_time();
 }
 
-void oc_replay_free_client(const oc_string_t rx_kid)
-{
-	for (size_t i = 0; i < OC_MAX_REPLAY_RECORDS; ++i)
-	{
-		struct oc_replay_record* rec = replay_records + i;
-		if (oc_byte_string_cmp(rx_kid, rec->rx_kid) == 0)
-		{
-			free_record(rec);
-		}
-	}
-}
-
 struct oc_message_s* oc_replay_find_msg_by_token(const uint16_t token_len, const uint8_t* token)
 {
-	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; ++i)
+	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; i++)
 	{
-		if (message_records[i].message == NULL)
+		if (!message_records[i].message)
 			continue;
 
 		if (message_records[i].token_len == token_len)
@@ -273,10 +261,10 @@ struct oc_message_s* oc_replay_find_msg_by_token(const uint16_t token_len, const
 
 static struct oc_cached_message_record* find_record_by_msg(struct oc_message_s* msg)
 {
-	if (msg == NULL)
+	if (!msg)
 		return NULL;
 
-	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; ++i)
+	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; i++)
 		if (message_records[i].message == msg)
 			return message_records + i;
 	return NULL;
@@ -284,7 +272,7 @@ static struct oc_cached_message_record* find_record_by_msg(struct oc_message_s* 
 
 static struct oc_cached_message_record* find_empty_msg_record(void)
 {
-	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; ++i)
+	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; i++)
 		if (message_records[i].message == NULL)
 			return message_records + i;
 	return NULL;
@@ -295,8 +283,6 @@ static oc_event_callback_retval_t oc_replay_free_msg_handler(void* msg)
 	struct oc_cached_message_record* rec = find_record_by_msg(msg);
 	if (msg)
 	{
-		// OC_DBG("Freeing tracked message %p with token:", msg);
-		// OC_LOGbytes(rec->token, rec->token_len);
 		rec->token_len = 0;
 		rec->message = NULL;
 		oc_message_unref(msg);
@@ -310,7 +296,7 @@ void oc_replay_message_unref(struct oc_message_s* msg)
 	oc_remove_delayed_callback(msg, oc_replay_free_msg_handler);
 }
 
-void oc_replay_message_track(struct oc_message_s* msg, const uint16_t token_len, const uint8_t* token)
+void oc_replay_message_track(struct oc_message_s* msg, uint16_t token_len, const uint8_t* token)
 {
 	struct oc_cached_message_record* rec = find_empty_msg_record();
 
