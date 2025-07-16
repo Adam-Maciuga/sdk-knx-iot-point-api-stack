@@ -76,9 +76,10 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
  * 
  *
  * @param request the request to be checked
+ * @return -1, request was NULL
  * @return 1, call came from /p 
  * @return 0, call came from /k
- * @return -1, call came from anything else or request was NULL
+ * @return 2, call came from anything else such as an internally called callback handler to get resource values 
  */
 int oc_is_redirected_request_from(const oc_request_t *request);
 
@@ -131,11 +132,11 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
  *        - false: does not check the transmit flag
  *        - true: checks transmit flag
  */
- void oc_do_s_mode_with_scope_and_check(const int scope, const char* resource_path, char* srv_type,
+void oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type,
                                         bool consider_transmission_flag);
 
- void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, const uint32_t grpid, const uint32_t group_address,
-                      const uint64_t iid, char* mode, uint8_t* value_data, const int value_size);
+ void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid, uint32_t group_address,
+                      uint64_t iid, const char* mode, uint8_t* value_data, int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 
