@@ -26,10 +26,8 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	// retype pointer
 	coap_packet_t const* oscore_pkt = (coap_packet_t*) packet;
 
-
   uint16_t mid = oscore_pkt->mid;
 	coap_message_type_t type = COAP_TYPE_NON;
-
 
 	if (oscore_pkt->type == COAP_TYPE_CON)
 	{
@@ -40,19 +38,23 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 		mid = coap_get_mid();
 	}
 
-	// one message
+	// one static message
 	coap_packet_t msg[1];
-	coap_udp_init_message(msg, type, code, mid);
+
+	// init and set all in msg to zero 
+  coap_udp_init_message(msg, type, code, mid);
+
+	// UDP/ TCP
 	msg->transport_type = oscore_pkt->transport_type;
 
 
 	oc_message_t* message = oc_internal_allocate_outgoing_message();
 	if (message)
 	{
-		memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
-		OC_ERR("removing OSCORE flag for error return code");
+		// copy original endpoint to local message
+	  memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 
-	  // remove the oscore flag
+	  OC_DBG_OSCORE("removing OSCORE flag for error return code");
 		message->endpoint.flags -= OSCORE;
 
 		// copy token
@@ -432,7 +434,8 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 
 	/* Code */
 	coap_pkt->code = data[0];
-	OC_DBG_OSCORE("Inner CoAP code: %d", coap_pkt->code);
+
+	OC_DBG_OSCORE("Inner CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
 
 	uint8_t* current_option = &data[1];
 
@@ -447,12 +450,12 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 	return COAP_NO_ERROR;
 }
 
-bool
-oscore_is_oscore_message(oc_message_t* msg)
+// checks message header to find an OSCORE header
+bool oscore_is_oscore_message(oc_message_t* msg)
 {
-	uint8_t* current_option = NULL;
+	const uint8_t* current_option = NULL;
 
-	/* Determine exact location of the CoAP options in the packet buffer */
+	// determine exact location of the CoAP options in the packet buffer
 	#ifdef OC_TCP
 	if (msg->endpoint.flags & TCP)
 	{
@@ -466,74 +469,98 @@ oscore_is_oscore_message(oc_message_t* msg)
 			msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
 	}
 	else
-		#endif /* OC_TCP */
+  #endif 
 	{
-		current_option = msg->data + COAP_HEADER_LEN;
+		// header position for UDP 
+	  current_option = msg->data + COAP_HEADER_LEN;
 	}
 
-	size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >>
-		COAP_HEADER_TOKEN_LEN_POSITION;
-
+	// add token size and jump to the end 
+  size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >>	COAP_HEADER_TOKEN_LEN_POSITION;
 	current_option += token_len;
 
-	/* Parse outer options */
+	// parse outer options, fist option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
 	unsigned int option_number = 0;
-	unsigned int option_delta = 0;
-	size_t option_length = 0;
 
-	while (current_option < msg->data + msg->length)
+  while (current_option < msg->data + msg->length)
 	{
 		if ((current_option[0] & 0xF0) == 0xF0)
 		{
-			break;
+			// payload marker 0xFF, currently only checking for 0xF* because rest is reserved
+		  break;
 		}
 
-		option_delta = current_option[0] >> 4;
-		option_length = current_option[0] & 0x0F;
-		++current_option;
+		/*
+		  option = previous option number + delta (number is not used directly)
+
+			examples 
+
+			(13): option = 0,  option += delta (13) ; option += option[next 1 byte] (7)		-> option = 20   // the delta 7   is 20  - 13 , see RFC
+			(14): option = 0,  option += delta (14) ; option += option[next 2 byte] (431)	-> option = 445  // the delta 431 is 700 - 269, see RFC
+
+	  */
+
+		// first option fields
+	  unsigned int option_delta = current_option[0] >> 4; // 0..14
+		size_t option_length = current_option[0] & 0x0F;    // 0..14
+
+		// skip the current option field as such
+		current_option++;
 
 		if (option_delta == 13)
 		{
-			option_delta += current_option[0];
-			++current_option;
+			// extended options, add 8-bit number from next option byte
+		  option_delta += current_option[0];
+
+			// jump to next byte
+		  current_option++;
 		}
 		else if (option_delta == 14)
 		{
-			option_delta += 255;
+      // extended options, 
+		  option_delta += 255; // add always 255 = 269 - 14
+
+			// add 16 bit, hi byte
 			option_delta += current_option[0] << 8;
-			++current_option;
+      // jump to next byte
+			current_option++;
+      // add 16 bit, lo byte
 			option_delta += current_option[0];
-			++current_option;
+      // jump to next byte
+			current_option++;
 		}
 
 		if (option_length == 13)
 		{
-			option_length += current_option[0];
-			++current_option;
+			// see above
+		  option_length += current_option[0];
+			current_option++;
 		}
 		else if (option_length == 14)
 		{
-			option_length += 255;
+      // see above
+		  option_length += 255;
 			option_length += current_option[0] << 8;
-			++current_option;
+
+			current_option++;
 			option_length += current_option[0];
-			++current_option;
+
+			current_option++;
 		}
 
 		option_number += option_delta;
 
-		switch (option_number)
-		{
-			case COAP_OPTION_OSCORE:
-				/* Found the OSCORE option, return success */
-				return true;
-			default:
-				break;
-		}
+		if (option_number == COAP_OPTION_OSCORE)
+    {
+      // found the OSCORE option, return success
+		  return true; 
+    }
 
+		// jump to next byte after option 
 		current_option += option_length;
 	}
 
+	// found NO OSCORE option, return NO success
 	return false;
 }
 
@@ -594,10 +621,10 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 		return BAD_REQUEST_4_00;
 	}
 
-	OC_DBG_OSCORE("Outer CoAP code: %d", coap_pkt->code);
+  OC_DBG_OSCORE("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
 
 	memcpy(coap_pkt->token, current_option, coap_pkt->token_len);
-	OC_DBG_OSCORE("Token (len %u)", coap_pkt->token_len);
+	OC_DBG_OSCORE("Token len %u : ", coap_pkt->token_len);
 	OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
 	current_option += coap_pkt->token_len;
@@ -610,7 +637,7 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 		return ret;
 	}
 
-	return COAP_NO_ERROR;
+  return COAP_NO_ERROR;
 }
 #else  /* OC_OSCORE */
 typedef int dummy_declaration;

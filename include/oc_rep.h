@@ -1655,13 +1655,11 @@ typedef enum {
   OC_REP_MIXED_ARRAY = 0x1f,
 } oc_rep_value_type_t;
 
-/**
- * parsed entry of a cbor object
- * This represents a link list of response values
- * one can iterate over the responses to find values by
- *   - tag name or tag identifier
- *       when the tag name is NULL then the tag identifier is being used.
- *   - type of the value
+/*
+  parsed entry of a cbor object, represents a link list of response values one can iterate over
+  the responses to find values by:
+  - tag name or tag identifier, when the tag name is NULL then the tag identifier is being used
+  - type of the value
  */
 typedef struct oc_rep_s
 {
