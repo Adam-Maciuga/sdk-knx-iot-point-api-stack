@@ -1228,7 +1228,7 @@ void MyFrame::OnPressed_LSAB_0_IOO(wxCommandEvent& event)
   bool p = app_retrieve_bool_variable_from_channel(LSAB, IOO);
 
   // send out current state (do NOT change the state), multicast
-  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w",true);
+  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w");
 
   // update button text
   char text[200];
@@ -1250,7 +1250,7 @@ void MyFrame::OnPressed_LSAB_1_IOO(wxCommandEvent& event)
   bool p = app_retrieve_bool_variable_from_channel(LSAB + 1, IOO);
 
   // send out current state (do NOT change the state), multicast
-  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w",true);
+  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w");
 
   // update button text
   char text[200];

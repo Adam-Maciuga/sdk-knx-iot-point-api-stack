@@ -1155,7 +1155,7 @@ void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
   app_set_bool_variable_from_channel(LSAB, SOO, p);
 
   // send out, multicast
-  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w", true);
+  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w");
 
   // update button text
   char text[200];

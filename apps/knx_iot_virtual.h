@@ -89,8 +89,8 @@ typedef struct
   char* resource_path;
   char* dpa;
   char* dpt;
-  char* desc;
-  char* id;  // used to identify in the genric PUT/GET handles the channel/ datapoint source
+  char* name;
+  char* id;  // used to identify for a generic PUT/GET handler the channel number/ datapoint number
 } bool_datapoint_t;
 
 
@@ -100,7 +100,7 @@ typedef struct
   char* resource_path;
   char* dpa;
   char* dpt;
-  char* desc;
+  char* name;
 } int_datapoint_t;
 
 

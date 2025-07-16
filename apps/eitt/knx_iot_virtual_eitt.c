@@ -169,10 +169,10 @@ void register_resources(void)
 {
   PRINT("Register LSAB/LSSB 0...1 channel control/status resource");
   {
-    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].point[SOO].desc, lsxb[LSAB].point[SOO].resource_path, 1, 0);
-    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].point[IOO].desc, lsxb[LSAB].point[IOO].resource_path, 1, 0);
-    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].point[SOO].desc, lsxb[LSSB].point[SOO].resource_path, 1, 0);
-    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].point[IOO].desc, lsxb[LSSB].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].point[SOO].name, lsxb[LSAB].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].point[IOO].name, lsxb[LSAB].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].point[SOO].name, lsxb[LSSB].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].point[IOO].name, lsxb[LSSB].point[IOO].resource_path, 1, 0);
 
     oc_resource_bind_resource_type(soo_resource_lsab, lsxb[LSAB].point[SOO].dpa);
     oc_resource_bind_resource_type(ioo_resource_lsab, lsxb[LSAB].point[IOO].dpa);
@@ -238,7 +238,7 @@ void register_resources(void)
 
   PRINT("Register test parameter");
   {
-    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.resource_path, 1, 0);
+    oc_resource_t* tp0 = oc_new_resource(test_parameter.name, test_parameter.resource_path, 1, 0);
 
     oc_resource_bind_resource_type(tp0, test_parameter.dpa);
 

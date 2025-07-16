@@ -112,8 +112,8 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
     {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSSB ioo", "0001"}}, // 0 << 8 + 0 
   },
   {{
-    {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", "LSAB soo", "0100"},  // 0 << 8 + 0 
-    {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSAB ioo", "0101"}}, // 0 << 8 + 0 
+    {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", "0100"},  // 0 << 8 + 0 
+    {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSSB ioo", "0101"}}, // 0 << 8 + 0 
   }};
 
 // additional parameters
@@ -197,8 +197,8 @@ void register_resources(void)
 
   for (int i = 0; i < NUM_CHANNELS; i++)
   {
-    oc_resource_t* soo_resource = oc_new_resource(lsxb[i].point[SOO].desc, lsxb[i].point[SOO].resource_path, 1, 0);
-    oc_resource_t* ioo_resource = oc_new_resource(lsxb[i].point[IOO].desc, lsxb[i].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource = oc_new_resource(lsxb[i].point[SOO].name, lsxb[i].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource = oc_new_resource(lsxb[i].point[IOO].name, lsxb[i].point[IOO].resource_path, 1, 0);
 
     oc_resource_bind_resource_type(soo_resource, lsxb[i].point[SOO].dpa);
     oc_resource_bind_resource_type(ioo_resource, lsxb[i].point[IOO].dpa);
@@ -230,7 +230,7 @@ void register_resources(void)
     // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
     // - PUT
     oc_resource_set_request_handler(ioo_resource, OC_GET, get_lsxb, ioo_user_data, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
-    oc_resource_set_request_handler(ioo_resource, OC_PUT, put_lssb, soo_user_data, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
+    oc_resource_set_request_handler(ioo_resource, OC_PUT, put_lssb, ioo_user_data, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
 
     oc_add_resource(soo_resource);
     oc_add_resource(ioo_resource);
@@ -238,7 +238,7 @@ void register_resources(void)
 
   PRINT("Register test parameter");
   {
-    oc_resource_t* tp0 = oc_new_resource(test_parameter.desc, test_parameter.resource_path, 1, 0);
+    oc_resource_t* tp0 = oc_new_resource(test_parameter.name, test_parameter.resource_path, 1, 0);
 
     oc_resource_bind_resource_type(tp0, test_parameter.dpa);
 

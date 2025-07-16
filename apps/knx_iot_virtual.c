@@ -424,7 +424,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
     // trigger the LSAB status on a specific resource path (ioo)
     PRINT("send status to %s with flag: 'w'", lsxb[c].point[IOO].resource_path);
-    oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].resource_path, "w", true);
+    oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, lsxb[c].point[IOO].resource_path, "w");
 
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
