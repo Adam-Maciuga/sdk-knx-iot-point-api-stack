@@ -125,7 +125,9 @@ void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_
 
 void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code)
 {
-	if (request && request->response && request->response->response_buffer)
+	// note that on a not present response and/or buffer the code below is skipped,
+	// such as on an (internal) PUT which does not request a response with a payload
+  if (request && request->response && request->response->response_buffer)
 	{
 		request->response->response_buffer->content_format = CONTENT_NONE;
 		request->response->response_buffer->response_length = 0;
