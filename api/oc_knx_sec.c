@@ -125,8 +125,7 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
-  // TODO P is wrong must be a D, wait until confirmed by IoT group
-  {oc_core_knx_auth_o_osndelay_get_handler, NULL, OC_ACL_P, OC_IF_P},
+  {oc_core_knx_auth_o_osndelay_get_handler, NULL, OC_ACL_D, OC_IF_D},
   {oc_core_knx_auth_o_osndelay_put_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
@@ -335,7 +334,6 @@ PRAGMA_OUT
 void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 {
   OC_DBG("create /aut/o resources");
-  // TODO: what is resource type, none for now
   oc_core_populate_resource(resource_idx, device_index, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_auth_o_get_handler, 0, 0, 0, 0);
 }
