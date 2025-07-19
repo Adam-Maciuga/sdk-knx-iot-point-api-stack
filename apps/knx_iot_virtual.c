@@ -203,6 +203,10 @@ extern int_datapoint_t test_parameter;
      Note that in the examples a generic (GET) handler is used, to allow a channel based approach with one
      get handler.
 
+ - A NON KNX related resource path can be defined for any vendor specific (configuration) purpose. In this case
+   the device configuration is also vendor specific, e.g; by a vendor client. It MAY also be supported in the future by
+   a KNX MaC's, such as via an extension of the product SDK. 
+
 */
 
 // generic GET for LSSB/LSAB/EITT applications for SOO and IOO
