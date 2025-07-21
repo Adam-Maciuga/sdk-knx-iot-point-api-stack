@@ -188,7 +188,7 @@ extern "C"
     oc_string_t at; // access token id. Reference to the security credentials for unicast subscription encryption.
     uint32_t* ga; // group address array of 32 bit values, specification demands >= 20 entries
     int ga_len; // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...)
-    bool non; // non-confirmable unicast request, default = false
+    bool non; // non-confirmable unicast request, default = false (used only on RCP table)
   } oc_group_table_t;
 
   /**

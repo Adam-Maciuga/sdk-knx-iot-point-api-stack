@@ -721,7 +721,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
         sprintf(line, "  fid: '%lld' ", entry->fid);
         strcat(text, line);
       }
-      if (entry->grpid >= 0)
+      if (entry->grpid > 0)
       {
         strcpy(line, "  grpid: ");
         this->int2grpidtext(entry->grpid, line, grpid_conversion);

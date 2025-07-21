@@ -58,14 +58,14 @@ static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, ui
 
 int oc_table_find_id_from_payload(oc_rep_t* object)
 {
-  while (object != NULL)
+  while (object)
   {
     switch (object->type)
     {
     case OC_REP_INT:
     {
-      // id is only for type integer defined
-      if (oc_string_len(object->name) == 0 && object->iname == 0)
+      // id (0) 
+      if (object->iname == 0)
       {
         int id = (int)object->value.integer;
         PRINT("find id from request: %d ", id);
@@ -94,7 +94,7 @@ int find_empty_slot_in_group_object_table(const int id)
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id == -1)
-    { // empty slot
+    { // empty slot is defined as 'not initialized'
       return i;
     }
   }
@@ -456,7 +456,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
-  while (rep != NULL)
+  while (rep)
   {
     switch (rep->type)
     {
@@ -505,7 +505,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       bool id_only = true; // used to delete the GO table entry
       int mandatory_items = 0; // needs to be 4 for creating new entry, i.e. id, ga, cflags & href
 
-      while (object != NULL)
+      while (object)
       {
         switch (object->type)
         {
@@ -561,8 +561,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             const int64_t* array = oc_int_array(object->value.array);
             const int new_array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            // ga size shall be 32 bit
+            // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
             uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
             if (new_array && new_array_size > 0)
             {
@@ -921,8 +920,6 @@ int oc_core_find_publisher_table_index(uint32_t group_address)
   return -1;
 }
 
-oc_string_t oc_core_find_publisher_table_url_from_index(int index) { return g_gpt[index].url; }
-
 static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1046,7 +1043,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
-  while (rep != NULL)
+  while (rep)
   {
     switch (rep->type)
     {
@@ -1096,13 +1093,13 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       bool id_only = true; // to delete a publisher table entry
       int mandatory_items = 0; // needs to be 3 for creating entry, see below
 
-      while (object != NULL)
+      while (object)
       {
         switch (object->type)
         {
         case OC_REP_INT:
 
-          // id(0)
+          // id (0)
           if (object->iname == 0) 
           {
             // set id in tmp copy
@@ -1225,13 +1222,13 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga (7) = empty (specification request)
+          // resource 'ga array' = empty (specification request)
           if (object->iname == 7) 
           {
             tmp_pub_entry.ga_len = 0;
             tmp_pub_entry.ga = NULL;
 
-            mandatory_items++; // also on empty ga array the items# are satisfied
+            mandatory_items++; // also on empty ga array satisfies the items number
             allocator |= TABLE_GAS; // free() ignores NULL ptr
           }
 
@@ -1325,7 +1322,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   // create/update a PUB entry
   oc_knx_increase_fingerprint();
 
-  // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
+  // the last (positive)return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
   PRINT("oc_core_fp_p_post_handler - end");
@@ -1630,7 +1627,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
-  while (rep != NULL)
+  while (rep)
   {
     switch (rep->type)
     {
@@ -1678,13 +1675,13 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       bool id_only = true; // used to delete the RCP table entry
       int mandatory_items = 0; // needs to be 3 for creating entry, see below
 
-      while (object != NULL)
+      while (object)
       {
         switch (object->type)
         {
         case OC_REP_INT:
 
-          // id(0)
+          // id (0)
           if (object->iname == 0) 
           {
 
@@ -1709,7 +1706,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // grpid (13)
           if (object->iname == 13) 
           {
-            
             tmp_rcp_entry.grpid = (uint32_t)object->value.integer;
 
             // valid item + for sure no 'id only case'
@@ -1809,12 +1805,13 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          if (object->iname == 7) // resource 'ga array' = empty (specification request)
+          // resource 'ga array' = empty (specification request)
+          if (object->iname == 7) 
           {
             tmp_rcp_entry.ga_len = 0;
             tmp_rcp_entry.ga = NULL;
 
-            mandatory_items++; // also on empty ga array the items# are satisfied
+            mandatory_items++; // also on empty ga array satisfies the items number
             allocator |= TABLE_GAS; // free() ignores NULL ptr
           }
 
@@ -1919,7 +1916,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   // create/update a RCP entry
   oc_knx_increase_fingerprint();
 
-  // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
+  // the last (positive) return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
   PRINT("oc_core_fp_r_post_handler - end");
@@ -2127,32 +2124,6 @@ uint16_t oc_core_get_recipient_ia(int index)
   }
 
   return (uint16_t)g_grt[index].ia;
-}
-
-char* oc_core_get_recipient_index_url(int index)
-{
-  if (index >= GRT_MAX_ENTRIES)
-  {
-    return NULL;
-  }
-
-  // ia = -1 = init value; ia == 0 is reserved in KNX, so only send when ia > 0
-  if (g_grt[index].ia > 0)
-  {
-    PRINT("oc_core_get_recipient_index_url: ia %d", g_grt[index].ia);
-
-    if (oc_string_len(g_grt[index].url) > 0)
-    {
-      // use url only in case ia is also present
-      PRINT("oc_core_get_recipient_index_url: url %s", oc_string_checked(g_grt[index].url));
-      return oc_string(g_grt[index].url);
-    }
-
-    PRINT("oc_core_get_recipient_index_url: (default) k");
-    return "k";
-  }
-
-  return NULL;
 }
 
 // -utilities -
@@ -2516,8 +2487,8 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
   PRINT("%s [%d] --> [%d]", store, entry, table[entry].ga_len);
   PRINT("id (0)     : %d", table[entry].id);
   PRINT("ia (12)    : %d", table[entry].ia);
-  PRINT("iid (26)   : %" PRIu64 "", table[entry].iid);
-  PRINT("fid (25)   : %" PRIu64 "", table[entry].fid);
+  PRINT("iid (26)   : %" PRIi64 "", table[entry].iid);
+  PRINT("fid (25)   : %" PRIi64 "", table[entry].fid);
   PRINT("grpid (13) : %u", table[entry].grpid);
 
   if (oc_string_len(table[entry].url) > 0)
@@ -2621,6 +2592,7 @@ void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
         switch (rep->type)
         {
 
+        // id(0)
         case OC_REP_INT:
           if (rep->iname == 0)
           {
