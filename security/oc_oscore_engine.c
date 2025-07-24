@@ -248,8 +248,8 @@ static int oc_oscore_receive_message(oc_message_t* message)
     // copy the serial number as return token, so that the reply can find the context again
     OC_DBG_OSCORE("---> setting endpoint serial number with found token & index");
 
-    // set access token index 
-    message->endpoint.auth_at_index = oscore_ctx->auth_at_index + 1;
+    // set access token index that was used to decrypt 
+    message->endpoint.auth_at_index = oscore_ctx->auth_at_index;
     // set OSCORE id 
     oc_endpoint_set_oscore_id(&message->endpoint, (char*)oscore_ctx->token_id, SERIAL_NUM_SIZE);
 
@@ -633,10 +633,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     return 0;
   }
 
-  // most common case for unicast response to a (uc/mc) request 
-  // - we just get the cached index from the original (multicast) request
-  int index = msg->endpoint.auth_at_index - 1;
-  oc_auth_at_t* entry = oc_get_auth_at_entry(index);
+  // most common case for unicast response to a (uc/mc) request, 
+  // we just get the cached index from the original (multicast) request
+  oc_auth_at_t* entry = oc_get_auth_at_entry(msg->endpoint.auth_at_index);
 
   oc_oscore_context_t* oscore_ctx = NULL;
 

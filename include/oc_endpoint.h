@@ -97,9 +97,9 @@ extern "C" {
                                                (scans the list of group addresses behind the access token that is
                                                linked to the OSCORE context) */
 
-    int32_t auth_at_index;                /**< auth at index [1 ... max_indexes], 0 == error,
-                                               - used for matching oscore context of response to request
-                                               - used for upper layers to check access scopes */
+    int32_t auth_at_index;                /**< auth at index
+                                               - used for matching oscore context for an outbound response from a former inbound request
+                                               - used for upper layers to check access scopes (on an inbound request) */
 
     uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE partial iv */
     uint8_t request_piv_len;              /**< OSCORE partial iv length */

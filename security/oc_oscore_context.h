@@ -63,7 +63,7 @@ typedef struct oc_rwin_t
 typedef struct oc_oscore_context_t
 {
   struct oc_oscore_context_t *next;             // pointer to the next, NULL if there is not any
-  int auth_at_index;                            // access token which is used to decrypt a received message as index of the auth AT table + 1, so index = 0 is invalid 
+  int auth_at_index;                            // access token index from AT table, that was used to decrypt a received message 
   uint8_t token_id[OSCORE_ID_CONTEXT_LEN];      // copy of sender id TODO possibly can be removed 
   uint8_t master_secret[OSCORE_ID_CONTEXT_LEN]; // OSCORE master secret
   

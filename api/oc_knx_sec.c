@@ -1389,12 +1389,12 @@ void oc_print_auth_at_entry(int index)
 
 oc_acl_mask_t oc_at_get_scope_mask(int entry)
 {
-  return entry < 0 || entry > G_AT_MAX_ENTRIES - 1 ? OC_ACL_NONE : g_at_entries[entry].scope;
+  return entry < 0 || entry >= G_AT_MAX_ENTRIES ? OC_ACL_NONE : g_at_entries[entry].scope;
 }
 
 int oc_delete_at_table_entry(int entry)
 {
-  if (entry < 0 || entry > G_AT_MAX_ENTRIES - 1)
+  if (entry < 0 || entry >= G_AT_MAX_ENTRIES)
     return -1;
 
   // AT file entry
@@ -1971,7 +1971,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
    - caller scope, e.g. of the auth/at table entry that was used to decrypt the message on OC_OSCORE defined the 'auth_at_index' is always incremented by
      + 1 , so no extra sanity check here is needed
   */
-  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index - 1);
+  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index);
 
   // bitwise 'and' -> at least one scope from access token and resource must match
   if (!(caller_acl_scope & called_res_scope))
@@ -2022,7 +2022,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
 
     if (group_address_in_payload != -1)
     { // ga found and check
-      return check_access_token_for_group_address(endpoint->auth_at_index - 1, group_address_in_payload);
+      return check_access_token_for_group_address(endpoint->auth_at_index, group_address_in_payload);
       // TODO check if already existing a method 
     }
 
