@@ -37,13 +37,13 @@ extern "C"
    */
   typedef enum
   {
-    OC_CFLAG_NONE = 0, // uninitialized communication flags (used on init)
-    OC_CFLAG_COMMUNICATION = 1 << 2, // if true communication enabled (not used in KNX iot as an explicit flag)
-    OC_CFLAG_READ = 1 << 3, // if true readable
-    OC_CFLAG_WRITE = 1 << 4, // if true writable
-    OC_CFLAG_INIT = 1 << 5, // if true read on init
-    OC_CFLAG_TRANSMISSION = 1 << 6, // if true can transmit
-    OC_CFLAG_UPDATE = 1 << 7, // if true update value on a response (transmission flag don't care)
+    OC_CFLAG_NONE = 0,                // uninitialized communication flags (used on init)
+    OC_CFLAG_COMMUNICATION = 1 << 2,  // if true communication enabled (not used in KNX iot as an explicit flag)
+    OC_CFLAG_READ = 1 << 3,           // if true readable
+    OC_CFLAG_WRITE = 1 << 4,          // if true writable
+    OC_CFLAG_INIT = 1 << 5,           // if true read on init
+    OC_CFLAG_TRANSMISSION = 1 << 6,   // if true can transmit
+    OC_CFLAG_UPDATE = 1 << 7,         // if true update value on a response (transmission flag don't care)
   } oc_cflag_mask_t;
 
   /**
@@ -184,7 +184,7 @@ extern "C"
     int64_t iid; // installation id
     int64_t fid; // fabric id
     uint32_t grpid; // multicast group id, specification demands 32 bit
-    oc_string_t url; // url
+    oc_string_t url; // url // TODO url will be removed in new specification
     oc_string_t at; // access token id. Reference to the security credentials for unicast subscription encryption.
     uint32_t* ga; // group address array of 32 bit values, specification demands >= 20 entries
     int ga_len; // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...)
@@ -197,7 +197,7 @@ extern "C"
    *
    * @return int -1 : not found, > -1 : value found
    */
-  int oc_table_find_id_from_payload(oc_rep_t* object);
+  int oc_table_find_id_from_payload(const oc_rep_t* object);
 
   /**
    * @brief retrieve the group object table total size,
@@ -228,10 +228,9 @@ extern "C"
   /**
    * @brief find empty slot in group object table
    *
-   * @param id the index
    * @return the free index or -1 when no empty slots are available
    */
-  int find_empty_slot_in_group_object_table(int id);
+  int find_empty_slot_in_group_object_table(void);
 
   /**
    * @brief register the multicast addresses to listen to
@@ -312,7 +311,7 @@ extern "C"
 
   /**
    * @brief find 'next' index - after the provided one - in the group object table
-   * where a GA is included
+   *        where a GA is included
    *
    * @param group_address the group address to find
    * @param cur_index  the index from which to search
@@ -326,24 +325,13 @@ extern "C"
   int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index);
 
   /**
-   * @brief retrieve the GO table index for a href with the lowest 'id' and the GA in position 0 of the GA array
-   *
-   * @note MUST process all GO entries in the table (see comment in code) with this GA included
-   *
-   * @param group_address the group address to search for in pos. zero
-   * @param resource_path the resource path for which the lowest id is searched for  
-   * @return the GO table 'index', -1 in case of no 'index' was found
-   */
-  int oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address, const char* resource_path);
-
-  /**
    * @brief retrieve the GA in position 0 for a href with lowest 'id'
    *
    * @note MUST process all GO entries in the table (see comment in code)
    *
    * @param resource_path the resource path for which the GA is searched for
-   * @param cflags the flags from the GO of the GA in position 0 (will be init inside the method with none) 
-   * @return the GA, -1 in case of no GA was found
+   * @param cflags NULL, or the flags from the GO of the GA in position 0 (will be init inside the method with none) 
+   * @return the GA, -1 in case of no sending GA was found
    */
   int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags);
 

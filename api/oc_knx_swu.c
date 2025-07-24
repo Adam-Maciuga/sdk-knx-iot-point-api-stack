@@ -93,7 +93,7 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_maxdefer;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_protocol_data;
-const oc_resource_t core_resource_knx_swu_protocol = {(oc_resource_t*)&core_resource_knx_swu_maxdefer,
+const oc_resource_t core_resource_knx_swu_protocol = {&core_resource_knx_swu_maxdefer,
                                                       0,
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("/swu/protocol"), "/swu/protocol"},
@@ -159,7 +159,7 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 extern const oc_resource_t core_resource_knx_swu_method;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_maxdefer_data;
 const oc_resource_t core_resource_knx_swu_maxdefer = {
-  (oc_resource_t*)&core_resource_knx_swu_method,
+  &core_resource_knx_swu_method,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/swu/maxdefer"), "/swu/maxdefer"},
@@ -230,7 +230,7 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
 extern const oc_resource_t core_resource_knx_lastupdate;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_method_data;
 const oc_resource_t core_resource_knx_swu_method = {
-  (oc_resource_t*)&core_resource_knx_lastupdate,
+  &core_resource_knx_lastupdate,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/swu/method"), "/swu/method"},
@@ -282,7 +282,7 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 extern const oc_resource_t core_resource_knx_swu_result;
 PRAGMA_IN oc_resource_data_t core_resource_knx_lastupdate_data;
 const oc_resource_t core_resource_knx_lastupdate = {
-  (oc_resource_t*)&core_resource_knx_swu_result,
+  &core_resource_knx_swu_result,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/swu/lastupdate"), "/swu/lastupdate"},
@@ -323,7 +323,7 @@ static void oc_knx_swu_result_get_handler(oc_request_t* request, oc_interface_ma
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_state;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_result_data;
-const oc_resource_t core_resource_knx_swu_result = {(oc_resource_t*)&core_resource_knx_swu_state,
+const oc_resource_t core_resource_knx_swu_result = {&core_resource_knx_swu_state,
                                                     0,
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("/swu/result"), "/swu/result"},
@@ -364,7 +364,7 @@ static void oc_knx_swu_state_get_handler(oc_request_t* request, oc_interface_mas
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_update;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_state_data;
-const oc_resource_t core_resource_knx_swu_state = {(oc_resource_t*)&core_resource_knx_swu_update,
+const oc_resource_t core_resource_knx_swu_state = {&core_resource_knx_swu_update,
                                                    0,
                                                    {NULL, 0, NULL},
                                                    {NULL, sizeof("/swu/state"), "/swu/state"},
@@ -440,7 +440,7 @@ static void oc_knx_swu_update_get_handler(oc_request_t* request, oc_interface_ma
 extern const oc_resource_t core_resource_knx_swu_pkgv;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_update_data;
 const oc_resource_t core_resource_knx_swu_update = {
-  (oc_resource_t*)&core_resource_knx_swu_pkgv,
+  &core_resource_knx_swu_pkgv,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/swu/update"), "/swu/update"},
@@ -488,7 +488,7 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_pkgcmd;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgv_data;
-const oc_resource_t core_resource_knx_swu_pkgv = {(oc_resource_t*)&core_resource_knx_swu_pkgcmd,
+const oc_resource_t core_resource_knx_swu_pkgv = {&core_resource_knx_swu_pkgcmd,
                                                   0,
                                                   {NULL, 0, NULL},
                                                   {NULL, sizeof("/swu/pkgv"), "/swu/pkgv"},
@@ -615,7 +615,7 @@ static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_pkgbytes;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgcmd_data;
-const oc_resource_t core_resource_knx_swu_pkgcmd = {(oc_resource_t*)&core_resource_knx_swu_pkgbytes,
+const oc_resource_t core_resource_knx_swu_pkgcmd = {&core_resource_knx_swu_pkgbytes,
                                                     0,
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("/a/swu"), "/a/swu"},
@@ -656,7 +656,7 @@ static void oc_knx_swu_bytes_get_handler(oc_request_t* request, oc_interface_mas
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_pkgqurl;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgbytes_data;
-const oc_resource_t core_resource_knx_swu_pkgbytes = {(oc_resource_t*)&core_resource_knx_swu_pkgqurl,
+const oc_resource_t core_resource_knx_swu_pkgbytes = {&core_resource_knx_swu_pkgqurl,
                                                       0,
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("/swu/pkgbytes"), "/swu/pkgbytes"},
@@ -721,7 +721,7 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_pkgnames;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgqurl_data;
-const oc_resource_t core_resource_knx_swu_pkgqurl = {(oc_resource_t*)&core_resource_knx_swu_pkgnames,
+const oc_resource_t core_resource_knx_swu_pkgqurl = {&core_resource_knx_swu_pkgnames,
                                                      0,
                                                      {NULL, 0, NULL},
                                                      {NULL, sizeof("/swu/pkgqurl"), "/swu/pkgqurl"},
@@ -769,7 +769,7 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
 extern const oc_resource_t core_resource_knx_swu;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgnames_data;
 const oc_resource_t core_resource_knx_swu_pkgnames = {
-  (oc_resource_t*)&core_resource_knx_swu,
+  &core_resource_knx_swu,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/swu/pkgname"), "/swu/pkgname"},
@@ -868,7 +868,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_sub;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_data;
-const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
+const oc_resource_t core_resource_knx_swu = {&core_resource_sub,
                                              0,
                                              {NULL, 0, NULL},
                                              {NULL, sizeof("/swu"), "/swu"},

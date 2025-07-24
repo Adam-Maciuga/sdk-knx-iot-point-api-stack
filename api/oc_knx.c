@@ -124,11 +124,11 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
     return;
   }
 
+  // TODO will be 1.1.0
   if (request->accept == APPLICATION_JSON)
   {
     // no begin/end object is needed, it raps only the raw content
     oc_rep_add_line_to_buffer("{\"api\": {\"base\": \"/\", \"version\": \"1.0.0\" }}");
-
     oc_prepare_json_response(request, OC_STATUS_OK);
   }
   else
@@ -172,7 +172,7 @@ static oc_event_callback_retval_t reset(void* context)
 
   PRINT("re-register mDNS with new data");
   // re-register after resetting ia, iid , pm mode (values are usually changed after a reset)
-  const oc_device_info_t* device = oc_core_get_device_info(cached_device_index);
+  oc_device_info_t* device = oc_core_get_device_info(cached_device_index);
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return OC_EVENT_DONE;
@@ -641,8 +641,9 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
+  // TODO OBSERVE is not implemented for 'lt' and 'non' metadata
+
   // only ia of device, no payload
-  // TODO OBSERVE is not implemented
   oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 4, device->ia);
   oc_rep_end_root_object();
@@ -665,14 +666,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   // -> value can be anything incl. a string
   // -> define and clear a temporary object notification, can be:
   // - sia + s + w/a + value  : write/update with full data (see example above)
-  // - sia ONLY = sync message
+  // - sia ONLY               : sync message
   // - sia + s + r + no value : read 
   oc_group_object_notification_t received_notification = {{NULL, 0, NULL}, 0, {NULL, 0, NULL}, 0};
 
   PRINT("oc_core_knx_k_post_handler - start");
 
   // debugging
-  PRINT("decoded payload with size %d : ", (int)request->_payload_len);
+  PRINT("decoded payload size : %d", (int)request->_payload_len);
   oc_print_rep_as_json(request->request_payload, true);
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
@@ -687,7 +688,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  // scan received payload
+  // scan received payload for sia/st/ga BUT NOT value (maybe not present)
   oc_rep_t* rep = request->request_payload;
 
   while (rep)
@@ -696,7 +697,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     {
     case OC_REP_INT:
     {
-      // sia (mandatory)
+      // sia (4), mandatory
       if (rep->iname == 4)
       {
         received_notification.sia = (uint32_t)rep->value.integer;
@@ -705,37 +706,37 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     break;
     case OC_REP_OBJECT:
     {
-      // s map with st/ga/value (see above)
-      oc_rep_t* object = rep->value.object;
+      // s map with st/ga (see above), but no value
+      oc_rep_t* s_map = rep->value.object;
 
-      while (object)
+      while (s_map)
       {
-        switch (object->type)
+        switch (s_map->type)
         {
         case OC_REP_STRING:
         {
-          // st
-          if (object->iname == 6)
+          // st (6)
+          if (s_map->iname == 6)
           {
             oc_free_string(&received_notification.st);
-            oc_new_string(&received_notification.st, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_new_string(&received_notification.st, oc_string(s_map->value.string), oc_string_len(s_map->value.string));
           }
         }
         break;
 
         case OC_REP_INT:
         {
-          // ga
-          if (object->iname == 7)
+          // ga (7)
+          if (s_map->iname == 7)
           {
-            received_notification.ga = (uint32_t)object->value.integer;
+            received_notification.ga = (uint32_t)s_map->value.integer;
           }
         }
         break;
         default:
           break;
         }
-        object = object->next;
+        s_map = s_map->next;
       }
     }
     break;
@@ -745,31 +746,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     rep = rep->next;
   }
 
-#ifdef OC_IOT_ROUTER
-  // gateway functionality: call back for all s-mode calls
-  oc_gateway_t* my_gw = oc_get_gateway_cb();
-  if (my_gw != NULL && my_gw->cb)
-  {
-    if (my_gw->data)
-    {
-      // call the gateway function
-      my_gw->cb(0, ip_address, &received_notification, my_gw->data);
-    }
-    else
-    {
-      // if data is NULL, pass json payload as data
-      char buffer[300];
-      memset(buffer, 300, 0);
-      oc_rep_to_json(request->request_payload, (char*)&buffer, 300, true);
-
-      my_gw->cb(0, ip_address, &received_notification, buffer);
-    }
-  }
-#endif
-
   if (oc_is_device_in_runtime(0) == false)
   {
-    PRINT("Device not in runtime state:%d - ignore message", device->lsm_s);
+    PRINT("device not in runtime state:%d - ignore message", device->lsm_s);
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
     return;
   }
@@ -777,10 +756,11 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   // debugging ...
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
   // handle the request loop over the group addresses of the /fp/r (recipient table)
-  PRINT("k : origin:%s sia: %u ga: %u st: %s", 
-        ip_address, received_notification.sia, 
+  PRINT("/k : sia: %u ga: %u st: %s origin: %s", 
+        received_notification.sia, 
         received_notification.ga,
-        oc_string_checked(received_notification.st));
+        oc_string_checked(received_notification.st), 
+        ip_address);
 
   // set request-flags, only one out of a/w/r is possible
   oc_cflag_mask_t request_type = OC_CFLAG_NONE;
@@ -801,277 +781,328 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     request_type = OC_CFLAG_READ;
   }
 
-  // get FIRST GO array INDEX with the GA included (out of 0...max GO table entries)
-  // - process all GOs in the table with this GA included, position of GA don't care 
+  // GO array INDEX with the GA included (out of 0...max GO table entries)
+  // - process all GOs in the table with this GA included,
+  // - position of GA in GA array don't care 
   int go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(received_notification.ga);
 
-  PRINT("k : index %d", go_table_index_where_ga_is_used);
+  PRINT("/k : index %d", go_table_index_where_ga_is_used);
 
-  if (go_table_index_where_ga_is_used == -1)
-  {
-    // if nothing is found (initially) then ignore the request
-    // - ga is not part of GO table
-    // - sia only (see above) 
+  if (go_table_index_where_ga_is_used != -1)
+  { // index found
 
-    // TODO silently ignored on unicast ? (multicast anyhow = IGNORE) must be a jump to end  ; 
+    // each application callback handler gets a new copy of the original request + new response buffer
+    oc_request_t new_request; // filled complete later on
+    oc_response_buffer_t response_buffer = {0};
+    oc_response_t response_obj; // filled complete later on
 
-    oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
-    return;
-  }
+    /*
+      Internal Callback Handler, Examples and Handling
 
-  // each application callback handler gets a new copy of the original request + new response buffer
-  oc_request_t new_request;   // filled complete later on 
-  oc_response_buffer_t response_buffer = {0};
-  oc_response_t response_obj; // filled complete later on 
+      Group object table LSAB
+      -----------------------
 
-  /*
-    Internal Callback Handler
+      GO0 [ id: 0, href: "/p/lsab/0/soo", cflags: w  , ga_len: 10, GA: [1..10] ] // actuator input
+      GO1 [ id: 8, href: "/p/lsab/0/ioo", cflags: r+t, ga_len: 1,  GA: [11,12] ] // actuator status
+      GO2 [ id: 2, href: "/p/lsab/0/ext", cflags: w,   ga_len: 2,  GA: [15,11] ] // updates value ALSO on GA 11
+      GO3 [ id: 3, href: "/p/lsab/0/cut", cflags: w,   ga_len: 20, GA: [16..36]] // a split entry with 20 GAs (16 = sending GA)
+      GO4 [ id: 4, href: "/p/lsab/0/cut", cflags: w,   ga_len: 2,  GA: [37,38] ] // a split entry with the remainder GAs (all receiving GAs)
+      GO5 [ id: 5, href: "/p/lsab/0/a00", cflags: w,   ga_len: 2,  GA: [39]    ] // add on, to update value on GA 39 
+      GO6 [ id: 6, href: "/p/lsab/0/a01", cflags: w,   ga_len: 2,  GA: [39]    ] // add on, to update value on GA 39 
+      GO7 [ id: 7, href: "/p/lsab/0/as1", cflags: w,   ga_len: 2,  GA: [11,40] ] // actuator status 1, same ga and no r-flag
+      GO8 [ id: 1, href: "/p/lsab/0/as2", cflags: r+w, ga_len: 2,  GA: [41,11] ] // actuator status 2, same ga and r-flag
 
-    #1 loops over all GOs in table and updates all GOs with the GA included
-       - w-cflag must be enabled, hence it includes also GOs where GA is in position zero
-         (bidirectional w/r- cflags settings on a resource are NO common use on KNX s-mode!)
+      Application Resources
+      ---------------------
 
-    #2 loops over all GOs in table and sends a read response in multicast as POST with st='a' (on a uc/mc read request)
-       - does it for all GOs (per href) where the GA is included (even if href's are different per GA) AND
-       - use for the href the GO index with the lowest 'id' and GA in position 0 (=sending GA), take href from that GO to issue the 
-       - t-cflag will be ignored (it is only considered on self initiated writes)
-       
+      AR0 : /p/lsab/0/soo, GET, PUT, if.i
+      AR1 : /p/lsab/0/ioo, GET,      if.o, true   // PUT is optional for outputs
+      AR2 :              , GET, PUT, if.i         // product problem , no resource path defined
+      AR3 : /p/lsab/0/a01, GET, PUT, if.i
+      AR4 : /p/lsab/0/ext, GET, PUT, if.i
+      AR5 : /p/lsab/0/as1, GET,      if.o         // PUT is optional for outputs
+      AR6 : /p/lsab/0/as2, GET,      if.o, false  // PUT is optional for outputs
 
-    WRITE/UPDATE = #1 + #2
-    READ = #2
+      (1) Write/Update 
+      ----------------
 
-    Examples:
+        Updates all GOs in table with the GA included
+        - w-cflag must be enabled,
+        - affects also GOs where the GA is in position zero, sending GA
+          (bidirectional w/r- cflags settings on a resource are no common use in KNX s-mode)
 
-    - group object table LSAB sensor outputs assigned to the SOO, but only 1 x IOO 
+        { sia: 5678, s: {st: write, ga: 1, value: 100 }}
 
-    GO0 : [ id: 0, href: "/p/lsab/0/soo", cflags: w  , ga_len: 10, ga: [1..10] ]  // actuator input
-    GO1 : [ id: 1, href: "/p/lsab/0/ioo", cflags: r+t, ga_len: 1,  ga: [11,12] ]  // actuator status
-    GO2 : [ id: 2, href: "/p/lsab/0/ext", cflags: w,   ga_len: 2,  ga: [15,11] ]  // add on, updates value ALSO on PUT GA 11 (GA is also a sender)
-    GO3 : [ id: 3, href: "/p/lsab/0/cut", cflags: w,   ga_len: 20, ga: [16..36]]  // a split GO entry with > 20 entries (16 = sending address)
-    GO4 : [ id: 4, href: "/p/lsab/0/cut", cflags: w,   ga_len: 2,  ga: [37,38] ]  // a split GO entry with the rest of GA entries (all receiving addresses)
-    GO5 : [ id: 5, href: "/p/lsab/0/a00", cflags: w,   ga_len: 2,  ga: [39]    ]  // add on, to update value on GA 50 (GA is only a receiver)
-    GO6 : [ id: 6, href: "/p/lsab/0/a01", cflags: w,   ga_len: 2,  ga: [39]    ]  // add on, to update value on GA 50 (GA is only a receiver)
-    GO7 : [ id: 7, href: "/p/lsab/0/ase", cflags: w,   ga_len: 2,  ga: [11,40] ]  // actuator status extra, to demonstrate a read with different href's but the same ga
+        1. scan for first GO index where GA = 1 is used = GO0
+           - scan application resources for href = AR0
+           - check cflags GO0 (write = enabled)
+           - call PUT handler for this application resource = AR0
+        2. scan for next GO where GA = 1 is used = NONE
+        3. DONE
 
-    - application resources 
+        --> All GOs are updated
 
-    AR0 : /p/lsab/0/soo, GET, PUT, if.i
-    AR1 : /p/lsab/0/ioo, GET, PUT, if.o
-    AR2 :              , GET, PUT, if.i // product problem , no resource path defined 
-    AR3 : /p/lsab/0/a01, GET, PUT, if.i 
-    AR4 : /p/lsab/0/ext, GET, PUT, if.i 
-    AR5 : /p/lsab/0/ase, GET, PUT, if.o 
+      (2) Read
+      --------
 
-    (1) Write
+        Sends for all GOs in table where the GA is included a (mc/uc) read response
+        - r-cflag must be enabled, t-cflag will be ignored (considered only on self triggered requests)
+        - use the sending GA (position 0) on lowest 'id' per 'href'
+        - 3/7/2 AL does not mandate to send only one response, if needed MaC user needs to remove the r-flag
 
-    { sia: 5678, s: {st: write, ga: 1, value: 100 }}  // write to ga = 1
+        { sia: 5678, s: {st: read, ga: 11 }}
 
-    1. scan for first GO index where GA = 1 is used = GO0
-       - scan application resources for href = AR0
-       - call PUT handler for this application resource (write = enabled) = AR0
-    2. scan for next GO where GA = 1 is used = NONE
-    3. DONE
+        1. find first GO table index where GA = 11 is used = GO1
+           - check application resources for href = AR1
+           - check cflags GO1 (read = enabled)
+           - call GET handler for application resource = AR1
+           - issue read response with sending GA from GO1 = 11
+        2. find next GO table index where GA = 11 is used = GO2
+           - check application resources for href = AR4
+           - check cflags GO2 (read = disabled)
+           - break
+        3. scan for next GO where GA = 11 is used = GO7
+           - scan application resources for href = AR5
+           - check cflags GO7 (read = disabled)
+           - break
+        4. scan for next GO where GA = 11 is used = GO8
+           - check application resources for href = AR6
+           - check cflags GO8 (read = enabled)
+           - call GET handler for application resource = AR6
+           - issue read response with sending GA from GO8 = 41
+        5. DONE
 
-    (2) Read
+        --> NO GOs are internally updated
+           (the read response does not update internally all GOs with u-flag)
 
-    { sia: 5678, s: {st: read, ga: 11 }}  // read to ga = 11
+        DETAIL
+        ------
+        How does the read behave?
+        (don't care if this MaC configuration above may be 'not correct or useless')
 
-    1. scan for first GO where GA = 11 is used = GO1
-       - scan application resources for href = AR1
-       - call GET handler for this this application resource (read = enabled) = AR1
-       - issue read response with srv type 'a' on lowest id with GA in position 0 = GO1
-    2. scan for next GO where GA = 11 is used = GO2
-       - scan application resources for href = AR4
-       - no read flag is set on GO2 = skip read
-    3. scan for next GO where GA = 11 is used = GO7
-       - scan application resources for href = AR5
-       - call GET handler for this this application resource (read = enabled) = AR5
-       - issue read response with srv type 'a' on lowest id with GA in position 0 = GO7
-    4. DONE
+        Option 1:
+        -  {ga: 41, value: false, st:a}
+        -  search for GO with lowest id where GA is linked and send on the sending GA = GO8
+        -> not used
 
+        Option 2:
+        -  {ga: 11, value: false, st:a}
+        -  search for GO with lowest id where GA is linked and send on same GA = GO8
+        -> not used
 
-  */
-  while (go_table_index_where_ga_is_used != -1)
-  {
-    // get href from the GO table index
-    oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
+        Option 3:
+        -  {ga: 11, value: true, st:a}
+        -  search for GOs where GA is a sending GA = GO1
+        -> not used
 
-    PRINT("k : resource path %s", oc_string_checked(go_href));
+        Option 4:
+        -  {ga: 41, value: false, st:a}, {ga: 11, value: true, st:a}
+        -  search for GOs where GA is linked and send on sending GA = GO8 + GO1
+        -> used
 
-    // device EP present (sanity check, GO without href is usually a product problem or MAC configuration error)
-    if (oc_string_len(go_href) > 0)
+        Option 5:
+        -  {ga: 11, value: false, st:a}, {ga: 11, value: true, st:a}
+        -  search for GOs where GA is linked and send on same GA = GO8 + GO1
+        -> not used
+
+    */
+    while (go_table_index_where_ga_is_used != -1)
     {
-      // get the application resource with the HREF from the GO, to perform on the forward call
-      const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
+      // get href from the GO table index
+      oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-      if (!application_resource_with_href_match)
+      PRINT("/k : resource path %s", oc_string_checked(go_href));
+
+      // device EP present (sanity check, GO without href is usually a product problem or MAC configuration error)
+      if (oc_string_len(go_href) > 0)
       {
-        /*
-           - group object table and application resource definition see above
-           - POST /k with write on GA 39
-           - if the first GO href entry does not have a matching application resource
-             option 1 :
-             1. first GO is GO5 -> no application resource 
-             2. stop and return
-             option 2 (used):
-             1. first GO is GO5 -> no application resource 
-             2. search GO table for next href with GA included -> GO6 -> AR3
-             3. update AR3
-             4. return
-                        
-         */
+        // get the application resource with the HREF from the GO, to perform on the forward call
+        const oc_resource_t* application_resource_with_href_match =
+          oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
-        // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
-        go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(received_notification.ga, go_table_index_where_ga_is_used);
-        continue;
-      }
-
-      /*
-        here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
-      */ 
-
-      // get GO c-flags
-      const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
-
-      // if corresponding c-flag and the (only one possible) original service request type 'a/w/r' are set,
-      // w-flag & write = write, use copy hence cflags may be different for each GO (same for other options)
-      oc_cflag_mask_t service = request_type & cflags;
-
-      if (service & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
-      {
-        PRINT("WRITE: GOT index %d handled due to write flag enabled %d", go_table_index_where_ga_is_used, cflags);
-
-        /*
-          here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
-          and an application resource PUT handler with a write flag enabled, call application PUT handler
-          - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
-        */ 
-
-        // copy all data from request to new request (performance consuming) 
-        // - do that for every GO, the last callback from previous GO may have manipulated the data
-        // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes 
-        oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
-
-        // sets the payload pointer to the 'value' OBJECT,
-        // used by /p and /k that calls the same application callback handlers
-        new_request.request_payload = oc_s_mode_get_value_object(request);
-
-        // set src to /k for a redirect check in application callback handler
-        new_request.uri_path = "/k";
-        new_request.uri_path_len = 2;
-
-        // use new request (not the received one with POST), user data are possible
-        // call application handler with own interface/ user data
-        // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
-        application_resource_with_href_match->put_handler.cb(&new_request, 
-                                                             application_resource_with_href_match->put_handler.interface_mask,
-                                                             application_resource_with_href_match->put_handler.user_data);
-
-        // collect the max 'bad' status code, usually overwritten by the callback
-        collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-        
-      }
-      if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
-      {
-        PRINT("RESPONSE: GOT index %d handled due to update on response flag enabled %d", go_table_index_where_ga_is_used, cflags);
-
-        /*
-          here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
-          and an application resource PUT handler with a write flag enabled, call application PUT handler
-          - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
-        */ 
-        
-        // copy all data from request to new request (performance consuming)
-        // - do that for every GO, the last callback from previous GO may have manipulated the data
-        // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes 
-        oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
-
-        // sets the payload pointer to the 'value' OBJECT,
-        // used by /p and /k that calls the same application callback handlers
-        new_request.request_payload = oc_s_mode_get_value_object(request);
-
-        // set src to /k for a redirect check in application callback handler
-        new_request.uri_path = "/k";
-        new_request.uri_path_len = 2;
-
-        // use new request (not the received one with POST), user data are possible
-        // call application handler with own interface/ user data
-        // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
-        application_resource_with_href_match->put_handler.cb(&new_request, 
-                                                             application_resource_with_href_match->put_handler.interface_mask,
-                                                             application_resource_with_href_match->put_handler.user_data);
-
-        // collect the max 'bad' status code, usually overwritten by the callback
-        collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-        
-      }
-      if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
-      {
-        PRINT("READ: GOT index %d handled due to read flags enabled %d", go_table_index_where_ga_is_used, cflags);
-
-        /*
-          here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
-          and an application resource GET handler with a read flag enabled, call application PUT handler
-          - for /k only a POST is defined, application handler needs to end up in one (GET) handler for /k and /p
-        */ 
-
-        // copy all data from request to new request (performance consuming)
-        // - do that for every GO, the last callback from previous GO may have manipulated the data
-        // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes 
-        oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
-
-        // set src to /k for a redirect check in application callback handler
-        new_request.uri_path = "/k";
-        new_request.uri_path_len = 2;
-
-        // use new request (not the received one with POST), user data are possible
-        // call application handler with own interface/ user data
-        // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
-        application_resource_with_href_match->get_handler.cb(&new_request,
-                                                             application_resource_with_href_match->get_handler.interface_mask,
-                                                             application_resource_with_href_match->get_handler.user_data);
-
-        // #2 - send read response
+        if (!application_resource_with_href_match)
         {
-          // get GO array ID with the GA in position zero for the current href (out of 0...max GO table entries),
-          int got_index_lowest_id_and_ga_in_pos_zero_for_href = oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(received_notification.ga, oc_string(go_href));
+          /*
+             - group object table and application resource definition see above
+             - POST /k with write on GA 39
+             - if the first GO href entry does not have a matching application resource
+               option 1 :
+               1. first GO is GO5 -> no application resource
+               2. stop and return
+               option 2 (used):
+               1. first GO is GO5 -> no application resource
+               2. search GO table for next href with GA included -> GO6 -> AR3
+               3. update AR3
+               4. return
 
-          if (got_index_lowest_id_and_ga_in_pos_zero_for_href != -1)
-          {
-            /*
-              we have a sending GA in position zero, now we can send the read response
-              - resource path match was checked before
-              - runtime was checked before 
+           */
 
-             */
+          // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
+          go_table_index_where_ga_is_used =
+            oc_core_find_next_go_table_index_with_ga(received_notification.ga, go_table_index_where_ga_is_used);
+          continue;
+        }
 
-            // grpid
-            uint32_t grpid = oc_find_grpid_in_recipient_table(received_notification.ga);
+        /*
+          here we have
+          - a GO with the GA included
+          - a GO with a resource path (href) and an application resource with the SAME resource path (href)
+        */
 
-            if (grpid > 0)
-            { // grpid is set in case of multicast in RCP table (configured by MaC)
+        // get GO c-flags
+        const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-              #ifdef OC_USE_MULTICAST_SCOPE_2
-              oc_issue_s_mode(2, device->ia, grpid, received_notification.ga, device->iid, "a",
-                              new_request.response->response_buffer->buffer,
-                              (int)new_request.response->response_buffer->response_length);
+        // if corresponding c-flag and the (only one possible) original service request type 'a/w/r' are set,
+        // w-flag & write = write, use copy hence cflags may be different for each GO (same for other options)
+        oc_cflag_mask_t service = request_type & cflags;
 
-              #endif
-              oc_issue_s_mode(5, device->ia, grpid, received_notification.ga, device->iid, "a",
-                              new_request.response->response_buffer->buffer,
-                              (int)new_request.response->response_buffer->response_length);
-            }
-          }
+        if (service & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
+        {
+          PRINT("/k : write with GOT index %d handled due to write flag enabled %d", go_table_index_where_ga_is_used, cflags);
+
+          /*
+            here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+            and an application resource PUT handler with a write flag enabled, call application PUT handler
+            - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
+          */
+
+          // copy all data from request to new request (performance consuming)
+          // - do that for every GO, the last callback from previous GO may have manipulated the data
+          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl
+          // scopes
+          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+
+          // sets the payload pointer to the 'value' OBJECT --> MUST BE IN (otherwise NULL is assigned)
+          // used by /p and /k that calls the same application callback handlers
+          new_request.request_payload = oc_s_mode_get_value_object(request);
+
+          // set src to /k (POST /k with payload) ; for a redirect check in application callback handles
+          new_request.uri_path = "/k";
+          new_request.uri_path_len = 2; // exclude for uri path len string null termination
+
+          // use new request (not the received one with POST), user data are possible
+          // call application handler with own interface/ user data
+          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+          application_resource_with_href_match->put_handler.cb(
+            &new_request, application_resource_with_href_match->put_handler.interface_mask,
+            application_resource_with_href_match->put_handler.user_data);
 
           // collect the max 'bad' status code, usually overwritten by the callback
           collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-          
+        }
+        if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
+        {
+          PRINT("/k : response with GOT index %d handled due to update on response flag enabled %d", go_table_index_where_ga_is_used, cflags);
+
+          /*
+            here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+            and an application resource PUT handler with a write flag enabled, call application PUT handler
+            - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
+          */
+
+          // copy all data from request to new request (performance consuming)
+          // - do that for every GO, the last callback from previous GO may have manipulated the data
+          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl
+          // scopes
+          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+
+          // sets the payload pointer to the 'value' OBJECT --> MUST BE IN (otherwise NULL is assigned)
+          // used by /p and /k that calls the same application callback handlers
+          new_request.request_payload = oc_s_mode_get_value_object(request);
+
+          // set src to /k (POST /k with payload) ; for a redirect check in application callback handles
+          new_request.uri_path = "/k";
+          new_request.uri_path_len = 2; // exclude for uri path len string null termination
+
+          // use new request (not the received one with POST), user data are possible
+          // call application handler with own interface/ user data
+          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+          application_resource_with_href_match->put_handler.cb(
+            &new_request, application_resource_with_href_match->put_handler.interface_mask,
+            application_resource_with_href_match->put_handler.user_data);
+
+          // collect the max 'bad' status code, usually overwritten by the callback
+          collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
+        }
+        if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
+        {
+          PRINT("/k : read with GOT index %d handled due to read flags enabled %d", go_table_index_where_ga_is_used, cflags);
+
+          /*
+          here we have
+          - a GO with the GA included
+          - a GO with a resource path (href) and an application resource with the SAME resource path (href)
+          - an application resource GET handler with a read flag enabled
+
+          for /k only a POST is defined, application handler needs to end up in one (GET) handler for /k and /p
+          */
+
+          // copy all data from request to new request (performance consuming)
+          // - do that for every GO, the last callback from previous GO may have manipulated the data
+          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl
+          // scopes
+          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+
+          // set src to /k (POST /k with payload) ; for a redirect check in application callback handles
+          new_request.uri_path = "/k";
+          new_request.uri_path_len = 2; // exclude for uri path len string null termination
+
+          // use new request (not the received one with POST), user data are possible
+          // call application handler with own interface/ user data
+          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+          application_resource_with_href_match->get_handler.cb(&new_request, 
+                                                               application_resource_with_href_match->get_handler.interface_mask,
+                                                               application_resource_with_href_match->get_handler.user_data);
+
+          // #2 - send read response
+          {
+            // Option 4, get sending GA for the current resource path href (out of 0...max GO table entries)
+            const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href), NULL);
+
+            if (sending_ga != -1)
+            { // we have a sending GA, now we can send the read response, rest was checked before
+
+              // grpid
+              uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
+
+              if (grpid > 0)
+              { // grpid is set in case of multicast in RCP table (configured by MaC)
+
+              #ifdef OC_USE_MULTICAST_SCOPE_2
+                oc_issue_s_mode(2, device->ia, grpid, sending_ga, device->iid, "a",
+                                new_request.response->response_buffer->buffer,
+                                (int)new_request.response->response_buffer->response_length);
+
+              #endif
+                oc_issue_s_mode(5, device->ia, grpid, sending_ga, device->iid, "a",
+                                new_request.response->response_buffer->buffer,
+                                (int)new_request.response->response_buffer->response_length);
+              }
+              else
+              {
+                // TODO resolve IP unicast to send back ...
+                // discover unicast IPv6 for IA via mDNS
+                // return message with unicast IPv6
+                PRINT("grpid =0");
+              }
+            }
+
+            // collect the max 'bad' status code, usually overwritten by the callback
+            collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
+          }
         }
       }
-    }
 
-    // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
-    go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(received_notification.ga, go_table_index_where_ga_is_used);
+      // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
+      go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(received_notification.ga, go_table_index_where_ga_is_used);
+    }
+  }
+  else
+  { // index not found
+    
+    // - ga is not part of GO table
+    // - sia ONLY (see above)
+    summary_handler_status = OC_STATUS_NOT_FOUND;
   }
 
   if (request->origin && request->origin->flags & MULTICAST)
@@ -1206,18 +1237,18 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 12)
       {
-        PRINT("oc_core_knx_ia_post_handler received 12 (ia) : %d", (int)rep->value.integer);
+        PRINT("received 12 (ia) : %d", (int)rep->value.integer);
         oc_core_set_and_store_device_ia(device_index, (uint16_t)rep->value.integer);
         ia_set = true;
       }
       else if (rep->iname == 25)
       {
-        PRINT("oc_core_knx_ia_post_handler received 25 (fid): %llu", (uint64_t)rep->value.integer);
+        PRINT("received 25 (fid): %llu", (uint64_t)rep->value.integer);
         oc_core_set_and_store_device_fid(device_index, rep->value.integer);
       }
       else if (rep->iname == 26)
       {
-        PRINT("oc_core_knx_ia_post_handler received 26 (iid): %llu", (uint64_t)rep->value.integer);
+        PRINT("received 26 (iid): %llu", (uint64_t)rep->value.integer);
         oc_core_set_and_store_device_iid(device_index, rep->value.integer);
         iid_set = true;
       }

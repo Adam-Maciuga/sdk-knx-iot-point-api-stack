@@ -291,8 +291,7 @@ extern "C"
   /**
    * poll to process tasks
    *
-   * @return
-   *  - time for the next poll event
+   * @return time for the next poll event (0 = no event pending)
    */
   oc_clock_time_t oc_main_poll(void);
 
@@ -618,7 +617,7 @@ extern "C"
    * ```
    *
    * @param[in] name the name of the new resource this will set the property `n`
-   * @param[in] uri the Uniform Resource Identifier for the resource
+   * @param[in] resource_path the Uniform Resource Identifier for the resource
    * @param[in] num_resource_types the number of Resource Types that will be
    *                               added/bound to the resource
    * @param[in] device index of the logical device the resource will be added to
@@ -631,7 +630,7 @@ extern "C"
    * @see oc_resource_set_periodic_observable
    * @see oc_resource_set_request_handler
    */
-  oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types, size_t device);
+  oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_resource_types, size_t device);
 
   /**
    * Add a Resource Type "rt" property to the resource.
@@ -837,21 +836,6 @@ extern "C"
    *  - false: the resource can not be added to the stack.
    */
   bool oc_add_resource(oc_resource_t* resource);
-
-  /**
-   * Remove a resource from the stack and delete the resource.
-   *
-   * Any resource observers will automatically be removed.
-   *
-   * This will free the memory associated with the resource.
-   *
-   * @param[in] resource the resource to delete
-   *
-   * @return
-   *  - true: when the resource has been deleted and memory freed.
-   *  - false: there was an issue deleting the resource.
-   */
-  bool oc_delete_resource(oc_resource_t* resource);
 
   /**
    * Schedule a callback to remove a resource.

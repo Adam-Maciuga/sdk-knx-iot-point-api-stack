@@ -82,18 +82,6 @@ oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, char* oscore_id,
 	return oscore_id_len;
 }
 
-void oc_endpoint_set_auth_at_index(oc_endpoint_t* endpoint, int32_t index)
-{
-#ifdef OC_OSCORE
-
-	if (endpoint)
-	{
-		endpoint->auth_at_index = index + 1;
-	}
-#endif
-
-}
-
 #ifdef OC_IPV4
 static void
 oc_ipv4_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str)

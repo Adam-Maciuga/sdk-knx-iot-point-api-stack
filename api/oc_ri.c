@@ -331,6 +331,7 @@ static void oc_ri_delete_all_app_resources(void)
 			// we'll get stuck in an infinite loop!
 			return;
 		}
+		// removed an item from list, start all over again ...
 		res = oc_ri_get_app_resources();
 	}
 }
@@ -623,6 +624,19 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void)
 	return oc_memb_alloc(&app_resource_datas_s);
 }
 
+/**
+ * Remove a resource from the stack and delete the resource.
+ *
+ * Any resource observers will automatically be removed.
+ *
+ * This will free the memory associated with the resource.
+ *
+ * @param[in] _resource the resource to delete
+ *
+ * @return
+ *  - true: when the resource has been deleted and memory freed.
+ *  - false: there was an issue deleting the resource.
+ */
 bool oc_ri_delete_resource(const oc_resource_t* _resource)
 {
 	if (!_resource)
@@ -758,8 +772,7 @@ oc_ri_add_resource_block(const oc_resource_t* resource)
 }
 #endif 
 
-void
-oc_ri_free_resource_properties(oc_resource_t* resource)
+void oc_ri_free_resource_properties(oc_resource_t* resource)
 {
 	if (resource == NULL)
 	{
@@ -770,17 +783,21 @@ oc_ri_free_resource_properties(oc_resource_t* resource)
 		OC_ERR("oc_ri_free_resource_properties: resource is const");
 		return;
 	}
-	// Resource names and URIs use the oc_string_t type to point to read-only
-	// memory, so we do not need to free
-	// oc_free_string(&(resource->name));
+	// resource names, resource path and the dpt use the oc_string_t type to point to read-only memory,
+	// so we do not need to free it with oc_free_string(&(resource->name/uri)
+	
+	// name (static)
 	resource->name.ptr = NULL;
 	resource->name.size = 0;
-	// oc_free_string(&(resource->uri));
+
+	// path (static)
 	resource->uri.ptr = NULL;
 	resource->uri.size = 0;
+
+	// types (allocated)
 	if (oc_string_array_get_allocated_size(resource->types) > 0)
 	{
-		oc_free_string_array(&(resource->types));
+    oc_free_string_array(&resource->types);
 	}
 }
 
@@ -1008,7 +1025,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 																			oc_endpoint_t* endpoint)
 	#endif 
 {
-	// Flags that capture status along various stages of processing the request.
+	// flags that capture status along various stages of processing the request.
 	bool method_impl = true, bad_request = false, success = false,
 		forbidden = false, entity_too_large = false, authorized = true;
 
@@ -1048,12 +1065,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	response_obj.separate_response = NULL;
 	response_obj.response_buffer = &response_buffer;
 
-	// empty request object, later filled 
+	// empty request object, resource later filled with core/ app. resource 
 	request_obj.response = &response_obj;
 	request_obj.request_payload = NULL;
 	request_obj.query = NULL;
 	request_obj.query_len = 0;
-	request_obj.resource = NULL;					// filled below with core/ app. resource
+	request_obj.resource = NULL;
 	request_obj.origin = endpoint;
 	request_obj._payload = NULL;
 	request_obj._payload_len = 0;
@@ -1096,32 +1113,34 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		}
 	}
 
-	/* Obtain handle to buffer containing the serialized payload */
+	// obtain handle to buffer containing the serialized payload
 	const uint8_t* payload = NULL;
-	int payload_len = 0;
-	#ifdef OC_BLOCK_WISE
+	uint32_t payload_len = 0;
+
+  #ifdef OC_BLOCK_WISE
 	if (*request_state)
-	{
-		payload = (*request_state)->buffer;
+	{ // not NULL, so set payload + len
+	  payload = (*request_state)->buffer;
 		payload_len = (*request_state)->payload_size;
 	}
 	#else  
 	payload_len = coap_get_payload(request, &payload);
-	#endif 
+	#endif
+
 	request_obj._payload = payload;
 	request_obj._payload_len = payload_len;
 	request_obj.content_format = content_format;
 	request_obj.accept = accept;
 	request_obj.uri_path = uri_path;
 	request_obj.uri_path_len = uri_path_len;
+
 	#ifndef OC_DYNAMIC_ALLOCATION
 	char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
 	oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
 	memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
 	memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
 	struct oc_memb rep_objects = { sizeof(oc_rep_t), OC_MAX_NUM_REP_OBJECTS,
-		rep_objects_alloc, (void*) rep_objects_pool,
-		0 };
+		rep_objects_alloc, (void*) rep_objects_pool, 0 };
 	#else  
 	struct oc_memb rep_objects = { sizeof(oc_rep_t), 0, 0, 0, 0 };
 	#endif 
@@ -1130,13 +1149,14 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 	if (payload_len > 0 && (content_format == APPLICATION_CBOR || content_format == APPLICATION_OSCORE))
 	{
-		/* Attempt to parse request payload using tinyCBOR via oc_rep helper
-		*  functions. The result of this parse is a tree of oc_rep_t structures
-		*  which will reflect the schema of the payload.
-		*  Any failures while parsing the payload is viewed as an erroneous
-		*  request and results in a 4.00 response being sent.
+		/*
+		  Attempt to parse request payload using tinyCBOR via oc_rep helper
+		  functions. The result of this parse is a tree of oc_rep_t structures
+		  which will reflect the schema of the payload.
+		  Any failures while parsing the payload is viewed as an erroneous
+		  request and results in a 4.00 response being sent.
 		*/
-		int parse_error = oc_parse_rep(payload, payload_len, &request_obj.request_payload);
+		int parse_error = oc_parse_rep(payload, (int)payload_len, &request_obj.request_payload);
 		if (parse_error != 0)
 		{
 			OC_WRN("error parsing request payload; tinyCBOR error code:  %d", parse_error);
@@ -1198,8 +1218,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				// 7 >= 7 ; res: /fp/r/* + 1 = fp/r/* ; req: fp/r/25;  res (fp/r/ = 5) == req (fp/r/ = 5)
 				if (uri_path_len + 1 >= len_resource &&
 						strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path, len_resource - 2) == 0)
-				{
-					// TODO check if a security leak exists 
+				{ // found core resource 
+
+				  // TODO check if a security leak exists 
 					request_obj.resource = matching_resource = tmp_resource;
 					break;
 				}
@@ -1209,18 +1230,19 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 	#ifdef OC_SERVER
 
-	// if not a request to device core resources, check against list of declared application resources
 	if (!matching_resource && !bad_request)
-	{
+	{ // if not a request to device core resources, check list of application resources
 		request_obj.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len);
 	}
 	#endif 
 
 	// alloc response_state, it also affects response_buffer
 	#ifdef OC_BLOCK_WISE
+
 	if (matching_resource && !bad_request)
-	{
-		if (!*response_state)
+	{ // either core/application resource was found
+
+	  if (!*response_state)
 		{
 			OC_DBG("creating new block-wise response state");
 			*response_state = oc_blockwise_alloc_response_buffer(
@@ -1237,8 +1259,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				{
 					oc_new_string(&(*response_state)->uri_query, uri_query, uri_query_len);
 				}
-				// note that this should be the same as what has been set in the return,
-				// the same as the request
+				// should be the same type in response as in the request
 				(*response_state)->return_content_type = accept;
 				response_buffer.buffer = (*response_state)->buffer;
 				response_buffer.buffer_size = OC_MAX_APP_DATA_SIZE;
@@ -1250,18 +1271,19 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	response_buffer.buffer_size = OC_BLOCK_SIZE;
 	#endif 
 
-	// request fits to core or application, lets go  
 	if (matching_resource && !bad_request)
-	{
-		/*
-		   Process a request against a valid resource, request payload, and interface.
-		   - init CBOR response buffer, core or application callback handler will fill this buffer with 'oc_rep_i_set_boolean' or similar calls
-			 - "buffer"  points to memory allocated in the messaging layer for the "CoAP Transaction" to service this request
-		*/
+	{ // core/application resource found, process request
 
+	  /*
+		   - init CBOR response buffer, core or application callback handler will fill this buffer
+		     with 'oc_rep_i_set_boolean' or similar calls
+			 - the buffer points to (local call stack) memory, allocated for the "CoAP Transaction"
+			   to service this request
+		*/
 		oc_rep_new(response_buffer.buffer, (int) response_buffer.buffer_size);
 
-		if (!oc_knx_sec_check_acl(method, matching_resource, endpoint))
+		// check access, use as payload the CBOR data
+    if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, request_obj.request_payload))
 		{
 			authorized = false;
 		}
@@ -1992,8 +2014,9 @@ void oc_ri_shutdown(void)
 	oc_blockwise_scrub_buffers(true);
 	#endif 
 
-	while (oc_main_poll() != 0)
-		;
+	// wait until no event is pending anymore
+  while (oc_main_poll())
+    ;		
 
 	stop_processes();
 	oc_process_shutdown();

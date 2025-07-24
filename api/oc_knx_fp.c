@@ -83,14 +83,10 @@ int oc_table_find_id_from_payload(oc_rep_t* object)
   return -1;
 }
 
-int find_empty_slot_in_group_object_table(const int id)
-{
-  if (id < 0)
-  {
-    // should be a positive number
-    return -1;
-  }
 
+
+int find_empty_slot_in_group_object_table(void)
+{
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id == -1)
@@ -147,47 +143,13 @@ int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_ind
   return -1;
 }
 
-int oc_core_find_got_index_for_href_with_lowest_id_and_ga_in_pos_zero(uint32_t group_address, const char* resource_path)
-{
-  // init with number out of upper range defined so far 0..65535 = error
-  int32_t lowest_id = INT_MAX;
-  int corresponding_index = 0;
-
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
-  {
-    if (g_got[i].id > -1)
-    { // table entry present 
-
-      if (strlen(resource_path) == oc_string_len(g_got[i].href) &&
-          strcmp(resource_path, oc_string(g_got[i].href)) == 0)
-      { // resource matches 
-
-        if (g_got[i].id < lowest_id && g_got[i].ga[0] == group_address)
-        { // id lower and id with GA in pos. zero (= sending GA)
-          
-            /*
-               id is lower with ga in position zero (= sending GA), new id candidate, must loop over
-               all GO index:
-               - index 20: "id" = 12, ga 100 in pos zero -> a receiving group address (+ flags)
-               - index 25: "id" = 10, ga 100 in pos zero -> the sending group address (+ flags)
-            */
-
-            lowest_id = g_got[i].id;
-            corresponding_index = i;
-        }
-      }
-    }
-  }
-  // no 'ga in pos zero' found returns -1 
-  return lowest_id < INT_MAX ? corresponding_index : -1;
-}
-
 int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags)
 {
   // init with number out of upper range defined so far 0..65535 = error
   int32_t lowest_id = INT_MAX;
   uint32_t corresponding_ga = 0;
-  *cflags = OC_CFLAG_NONE;
+  if (cflags) 
+    *cflags = OC_CFLAG_NONE;
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -195,7 +157,7 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
     { // table entry present
 
       if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
-      { // resource matches
+      { // resource path matches
 
         if (g_got[i].id < lowest_id && g_got[i].ga_len > 0)
         { // id lower and ga's are used
@@ -208,8 +170,10 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
           */
 
           lowest_id = g_got[i].id;
-          corresponding_ga = g_got[i].ga[0];
-          *cflags = g_got[i].cflags;
+          // only the first GA can be a sending GA
+          corresponding_ga = g_got[i].ga[0]; 
+          if (cflags)
+            *cflags = g_got[i].cflags;
         }
       }
     }
@@ -453,7 +417,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
   // set ptr to collection of 1...n GOs in payload
   const oc_rep_t* rep = request->request_payload;
-  const oc_rep_t* object = NULL;
+  oc_rep_t* object = NULL;
 
   // no payload -> 4.00
   while (rep)
@@ -479,19 +443,19 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       int array_index = oc_core_find_index_in_group_object_table_from_id(id);
       if (array_index != -1)
       {
-        // index already in use, so it will be changed
+        // GO id (array index) already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
       }
       else
       {
-        // no index, so we will create one
+        // no GO id (array index) in use, so we will create one
         return_status = OC_STATUS_CREATED;
 
-        // returns a valid index if not -1
-        array_index = find_empty_slot_in_group_object_table(id);
+        // returns a valid index, if not -1
+        array_index = find_empty_slot_in_group_object_table();
         if (array_index == -1)
         {
-          OC_ERR("GO table has no empty slot to add a new entry");
+          OC_ERR("GO table has no empty slot to add a new GO entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -820,7 +784,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
-const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
+const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_p,
                                                 0,
                                                 {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
@@ -828,7 +792,7 @@ const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_k
                                                 {NULL, 0, NULL},
                                                 {APPLICATION_CBOR, CONTENT_NONE},
                                                 OC_DISCOVERABLE,
-                                                {oc_core_fp_g_x_get_handler, NULL, OC_ACL_P, OC_IF_P},
+                                                {oc_core_fp_g_x_get_handler, NULL, OC_ACL_P, OC_IF_P}, // TODO wrong , change after clarification 
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {oc_core_fp_g_x_del_handler, NULL, OC_ACL_C, OC_IF_C},
@@ -1331,7 +1295,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_p_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
-const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
+const oc_resource_t core_resource_knx_fp_p = {&core_resource_knx_fp_p_x,
                                               0,
                                               {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
@@ -1474,7 +1438,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
-const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
+const oc_resource_t core_resource_knx_fp_p_x = {&core_resource_knx_fp_r,
                                                 0,
                                                 {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
@@ -1925,7 +1889,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_r_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
-const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
+const oc_resource_t core_resource_knx_fp_r = {&core_resource_knx_fp_r_x,
                                               0,
                                               {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
@@ -2069,7 +2033,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
-const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
+const oc_resource_t core_resource_knx_fp_r_x = {&core_resource_knx_p,
                                                 0,
                                                 {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},

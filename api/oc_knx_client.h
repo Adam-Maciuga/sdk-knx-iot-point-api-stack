@@ -66,19 +66,18 @@ bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
 oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
 
 /**
- * @brief  checks if the request is a redirected request from /k or /p,
- *         when that happened, extra information can be in the CBOR object.
+ * @brief  checks if the request is a redirected request from /k, /p or /p/{point-path},
+ *         when that happened, extra information can be in the CBOR object (metadata).
  *
  * @note   an endpoint allows a stack 'redirect' call such as:
- *         - from s-mode /k with { 4: <IA>, 5: { 6: w, 7: 1234, 1: true } }
- *         - from CoAP /p with { 1: true, 'min': 50, ... },
- *           here extra CBOR data may be applied to the value  
- * 
+ *         - a. from s-mode POST k with payload
+ *         - b. from CoAP POST p with payload (value and/or metadata)
+ *         - c. from CoAP GET/PUT p/{point-path} with/without payload
  *
  * @param request the request to be checked
  * @return -1, request was NULL
- * @return 1, call came from /p 
- * @return 0, call came from /k
+ * @return 1, call came from b or c 
+ * @return 0, call came from a
  * @return 2, call came from anything else such as an internally called callback handler to get resource values 
  */
 int oc_is_redirected_request_from(const oc_request_t *request);
@@ -111,9 +110,9 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
  * @brief sends (transmits) an s-mode message from an (application) client
  *
  * - the value comes from the GET of the resource indicated by the resource_url
- * - the resource path is "/k"
+ * - the outgoing resource path is "/k"
  * - the sia (sender individual address) is taken from the device
- * - the ga is the 'sending' group address of that resource (if present)
+ * - the ga is the 'sending' group address of that resource (must not necessarily be configured/ available)
  *
  * For the recipient table all entries are used to send the unicast communication.
  *

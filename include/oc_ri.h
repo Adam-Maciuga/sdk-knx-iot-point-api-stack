@@ -196,7 +196,7 @@ extern "C" {
 		OC_ACL_NONE = OC_IF_NONE, // no scope, defined as 0 (not 1) to not count this as a scope 
 		OC_ACL_I = OC_IF_I,       // if.i (logical input)
 		OC_ACL_O = OC_IF_O,       // if.o (logical output)
-		OC_ACL_G = OC_IF_G,       // if.g.s.[ga] 
+		OC_ACL_G = OC_IF_G,       // if.g.s (used only for /k endpoint in stack, details see method oc_knx_sec_check_acl) 
 		OC_ACL_C = OC_IF_C,       // if.c (configuration)
 		OC_ACL_P = OC_IF_P,       // if.p (parameter)
 		OC_ACL_D = OC_IF_D,       // if.d (diagnostic)		
@@ -442,11 +442,12 @@ extern "C" {
 
 	/**
 	 * @brief resource structure
+	 * @note not defined with typedef directly, done on top of file 
 	 *
 	 */
 	struct oc_resource
 	{
-		struct oc_resource* next;             // next resource 
+    struct oc_resource* next;             // link to next res. (can't be const, application res. changes data + ptr)
 		size_t device;                        // device index 
 		oc_string_t name;                     // resource name (e.g. 'LSAB') 
 		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
@@ -463,16 +464,16 @@ extern "C" {
 		uint16_t observe_period_seconds;      // observe period in seconds 
 		uint8_t fb_instance;                  // function block instance, default = 0 
 		const bool is_const;                  // resource is precompiled (core = true) or not (application = false)
-		oc_resource_data_t* runtime_data;     // runtime modifiable data
-	};
+		oc_resource_data_t* runtime_data;     // runtime modifiable data (number of observers included)
+  };
 
+	// defined to safe space since only the next is of interest 
 	typedef struct oc_resource_dummy_s
 	{
 		struct oc_resource* next;   // next resource
 		size_t device;              // should ALWAYS be -1 for dummy node
 	} oc_resource_dummy_t;
 
-	typedef struct oc_link_s oc_link_t;
 
 	/**
 	 * @brief callback return values

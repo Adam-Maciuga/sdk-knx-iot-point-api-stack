@@ -168,8 +168,7 @@ oc_message_unref(oc_message_t* message)
 	}
 }
 
-void
-oc_recv_message(oc_message_t* message)
+void oc_receive_message(oc_message_t* message)
 {
 	if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT],
 			message) == OC_PROCESS_ERR_FULL)
@@ -300,17 +299,16 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
   OC_PROCESS_END()
 }
 
-oc_message_t*
-oc_get_incoming_message_with_ptr(uint8_t* data)
+oc_message_t* oc_get_incoming_message_with_ptr(uint8_t* data)
 {
 	struct oc_memb* pool = &oc_incoming_buffers;
-	for (size_t i = 0; i < pool->num; ++i)
+	for (int i = 0; i < pool->num; ++i)
 	{
 		// unused block, should not contain data of a valid message
 		if (pool->count[i] <= 0)
 			continue;
 
-		int offset = i * (int) pool->size;
+		int offset = i * pool->size;
 		oc_message_t* msg = (oc_message_t*) ((char*) pool->mem + offset);
 
 		if (msg->data <= data && data < msg->data + msg->length)
@@ -322,14 +320,12 @@ oc_get_incoming_message_with_ptr(uint8_t* data)
 	return NULL;
 }
 
-int
-oc_buffer_num_free_incoming()
+int oc_buffer_num_free_incoming(void)
 {
 	return oc_memb_numfree(&oc_incoming_buffers);
 }
 
-int
-oc_buffer_num_free_outgoing()
+int oc_buffer_num_free_outgoing(void)
 {
 	return oc_memb_numfree(&oc_outgoing_buffers);
 }

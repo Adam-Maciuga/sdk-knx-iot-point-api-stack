@@ -244,7 +244,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
 
   while (ctx)
   {
-    // find AT for context that hosts the GA
+    // find AT for context that MAY host the GA
     const oc_auth_at_t* my_entry = oc_get_auth_at_entry(ctx->auth_at_index);
     if (my_entry)
     {
@@ -252,7 +252,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
       oc_print_auth_at_entry(ctx->auth_at_index);
 
       for (int i = 0; i < my_entry->ga_len; i++)
-      {
+      { // scan all GA's
         const uint32_t group_value = my_entry->ga[i];
         
         if (group_address == group_value)

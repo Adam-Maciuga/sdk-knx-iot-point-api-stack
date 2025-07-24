@@ -92,13 +92,14 @@ extern "C" {
     int interface_index;                  /**< interface index */
     uint8_t priority;                     /**< priority */
 
-    uint32_t group_address;               /**< group address, being used to find back the OSCORE
-                                               credential to be used for encryption for s-mode messages
-                                               e.g. looping over the list of group addresses of the key */
+    uint32_t group_address;               /**< used to find later on the OSCORE context '128-bit sender key'
+                                               that must be used for encryption of s-mode message requests 
+                                               (scans the list of group addresses behind the access token that is
+                                               linked to the OSCORE context) */
 
-    int32_t auth_at_index;                /**< auth at index +1 [1 ... max_indexes], 0 == error.
-                                               * Used for matching oscore context of response to request.
-                                               * Used for upper layers to check access interfaces. */
+    int32_t auth_at_index;                /**< auth at index [1 ... max_indexes], 0 == error,
+                                               - used for matching oscore context of response to request
+                                               - used for upper layers to check access scopes */
 
     uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE partial iv */
     uint8_t request_piv_len;              /**< OSCORE partial iv length */
@@ -154,14 +155,6 @@ extern "C" {
    * @return int 0 success
    */
   int oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, char* oscore_id, int oscore_id_len);
-
-  /**
-   * @brief set auth at index for the endpoint, e.g. the used security context
-   *
-   * @param endpoint the end point
-   * @param index the auth at index
-   */
-  void oc_endpoint_set_auth_at_index(oc_endpoint_t* endpoint, int32_t index);
 
   /**
    * @brief convert the endpoint to a human-readable  string (e.g."coaps://[fe::22]:/")

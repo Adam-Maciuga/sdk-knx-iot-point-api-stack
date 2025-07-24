@@ -78,6 +78,8 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
   return OC_STOP_DISCOVERY;
 }
 
+
+// TODO currently not used , maybe for resolve IP address on write via ia  
 int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid, const uint16_t ia, char* destination, char* service_type)
 {
   char query[50] = "";
@@ -94,7 +96,7 @@ int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid
   (void) snprintf(ia_str, 11, ".%x", ia);
   strcat(query, ia_str);
 
-  PRINT("oc_knx_client_do_broker_request: query=%s", query);
+  PRINT("query=%s", query);
 
   // not sure if we should use a malloc here, what would happen if there are no
   // devices found? because that causes a memory leak
@@ -126,13 +128,17 @@ int oc_is_redirected_request_from(const oc_request_t* request)
     return -1;
   }
 
-  // /k handler set 'k' and len = 2
-  if (strncmp("/k", request->uri_path, request->uri_path_len) == 0)
+  // check POST /k with extra payload (s-mode message), handler was setting '/k'
+  if (strncmp("/k", request->uri_path, 2) == 0)
   {
     return 0;
   }
-  // /p handler set '/p' and len = 2
-  if (strncmp("/p", request->uri_path, request->uri_path_len) == 0)
+
+  // check GET/PUT with/without extra payload p/{point-path}
+  // check POST with extra payload p/, handler was setting 'p/'
+  // - we don't care of total length, at least p/ must be present
+  // - len 2 is used , we compare two chars only by exclude for uri path len string null termination
+  if (strncmp("p/", request->uri_path, 2) == 0)
   {
     return 1;
   }
@@ -198,7 +204,7 @@ void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
 
 #endif
 
-  // set the EP group_address, since this field is used to find the OSCORE context id
+  // set the EP group_address, since this field is used to find the OSCORE context id/ encryption sender key
   group_multicast_local_endpoint.group_address = group_address;
   oc_send_s_mode(&group_multicast_local_endpoint, "/k", sia_value, group_address, service_type, value_data, value_size);
 }
@@ -271,7 +277,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_val
     }
     else
     {
-      OC_ERR("Could not send POST request");
+      OC_ERR("could not send POST request");
     }
   }
 }
@@ -368,7 +374,7 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
     return -1;
   }
 
-  const oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info(0);
   if (device == NULL)
   {
     PRINT("device is NULL");
@@ -397,7 +403,7 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
     
     if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
     {
-      // DON'T need to copy resource value to buffer
+      // DON'T need to copy resource value to buffer for e read
 
       const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
       if (grpid == 0)
@@ -421,7 +427,8 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
     oc_cflag_mask_t sending_cflags; 
     const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path, &sending_cflags);
     if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
-    {
+    { // here we have a sending GA that is able to transmit...
+
       // copy resource value to buffer, return value size
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
 
@@ -521,7 +528,14 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
       
       return 0 ;
     }
-    PRINT("error, sending group address for the resource path %s not found", resource_path);
+
+    /*
+      if no sending group address will be found, this is not automatically an error
+      - the GO may be configured correctly, but no GA is defined in the GO table
+      - the caller writes to 'something' which cannot send out at all
+      - ...
+    */
+    OC_WRN("no sending group address for the resource path %s not found", resource_path);
     return -1;
   }
 

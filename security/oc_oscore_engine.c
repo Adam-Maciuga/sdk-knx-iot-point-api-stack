@@ -161,7 +161,8 @@ static int oc_oscore_receive_message(oc_message_t* message)
       oscore_ctx = oc_oscore_find_context_by_kid_and_id_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
       if (!oscore_ctx)
-      { // we do not have a beforehand cached context as part of the context list, so we have to make one
+      { // we do not have a beforehand cached context as part of the context list,
+        // so we have to make one (usually on a fresh request)
 
         // find auth/at entry with corresponding kid
         int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
@@ -172,11 +173,14 @@ static int oc_oscore_receive_message(oc_message_t* message)
           goto oscore_recv_error;
         }
 
+        // get access token 
         oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
         // SERVER SIDE on request: create oscore REQUEST recipient context + RESPONSE  sender context from that entry
         OC_DBG_OSCORE("adding oscore REQUEST recipient context + RESPONSE sender context with Recipient ID : ");
         oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
+
+        // 
         oscore_ctx = oc_oscore_add_context("", 0, 
                                            oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                            0, 
@@ -244,9 +248,10 @@ static int oc_oscore_receive_message(oc_message_t* message)
     // copy the serial number as return token, so that the reply can find the context again
     OC_DBG_OSCORE("---> setting endpoint serial number with found token & index");
 
-    oc_endpoint_set_auth_at_index(&message->endpoint, oscore_ctx->auth_at_index);
+    // set access token index 
+    message->endpoint.auth_at_index = oscore_ctx->auth_at_index + 1;
+    // set OSCORE id 
     oc_endpoint_set_oscore_id(&message->endpoint, (char*)oscore_ctx->token_id, SERIAL_NUM_SIZE);
-
 
     // use recipient key for decryption
     decryption_key = oscore_ctx->recipient_key;
@@ -452,7 +457,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     OC_DBG_OSCORE("#################################");
     OC_DBG_OSCORE("found group OSCORE context for GA %u", group_address);
 
-    /* Use sender key for encryption */
+    // use sender key for encryption
     uint8_t* key = oscore_ctx->sender_key;
 
     OC_DBG_OSCORE("### parse CoAP message ###");
@@ -635,7 +640,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   oc_oscore_context_t* oscore_ctx = NULL;
 
-  // if found, get the corresponding context for the access token will be found only in case of a response 
+  // if found, get the corresponding context for the access token,
+  // will be found only in case of a response 
   if (entry)
   {
     // TODO do we need also ID Context ?

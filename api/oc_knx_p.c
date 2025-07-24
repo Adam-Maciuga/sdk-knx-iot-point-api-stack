@@ -127,6 +127,8 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
 static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
+  (void)iface_mask;
+
   bool error = false;
 
   PRINT("oc_core_p_post_handler - start");
@@ -148,16 +150,18 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
       // scan for objects, a post may contain in the collection many items, each with many attributes
       const oc_rep_t* entry_object = rep->value.object;
 
+      // check if 'href' is present
       while (entry_object)
       {
-        // href = CBOR KEY 11, value = string
+        // href = CBOR KEY 11, value = string = MANDATORY according to specification
         if (entry_object->iname == 11 && entry_object->type == OC_REP_STRING)
         {
           if (!oc_belongs_href_to_resource(entry_object->value.string, false, device_index))
           {
-            // there is no href in all application resources that fist to the request href
+            // there is no href in all application resources that fits to the request href
             error = true;
-            OC_ERR("href '%.*s' does not belong to device", (int)oc_string_len(entry_object->value.string),
+            OC_ERR("href '%.*s' does not belong to device", 
+                   (int)oc_string_len(entry_object->value.string), 
                    oc_string_checked(entry_object->value.string));
           }
         }
@@ -191,7 +195,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   {
     if (rep->type == OC_REP_OBJECT)
     {
-      // scan for objects, a post may contain in the collection many items, each with many attributes
+      // scan for objects, a post may contain in the collection many items, each with many attributes (value, metadata)
       oc_rep_t* entry_object = rep->value.object;
 
       const oc_string_t* entry_url = NULL;
@@ -200,7 +204,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
       while (entry_object)
       {
-        // href
+        // href = MANDATORY
         if (entry_object->iname == 11 && entry_object->type == OC_REP_STRING)
         {
           entry_url = &entry_object->value.string;
@@ -212,7 +216,14 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           entry_value = entry_object;
         }
 
-        // do the post only if a href and value is in the request
+        /*
+          Do the post only if (at least) a href and value is in the request, reason: 
+
+          - WRITING of metadata (per POST here, or PUT) is optional in the specification; this is NOT supported from the stack, hence to
+            write a value in this stack version at least href + value must be present. 
+          - Note, READING of metadata (per GET) is mandatory in the specification for specific types (if, rt, ...),
+            this is supported from the stack (application callback handler).
+        */
         if (entry_value && entry_url)
         {
           // copy all data from request to new request (performance consuming)
@@ -223,9 +234,10 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           // used by /p and /k that calls the same application callback handlers
           new_request.request_payload = rep->value.object;
 
-          // set src to /p for a redirect check in application callback handles
-          new_request.uri_path = "/p";
-          new_request.uri_path_len = 2;
+          // set src to POST p with payload; for a redirect check in application callback handles
+          // 'p/' and not '/p' because the PUT for p/{property-path} starts with segment 'p/'
+          new_request.uri_path = "p/";
+          new_request.uri_path_len = 2; // exclude for uri path len string null termination 
 
           const oc_resource_t* my_resource =
             oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url));
@@ -262,7 +274,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_f;
 PRAGMA_IN oc_resource_data_t core_resource_knx_p_data;
-const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
+const oc_resource_t core_resource_knx_p = {&core_resource_knx_f,
                                            0,
                                            {NULL, 0, NULL},
                                            {NULL, sizeof("/p"), "/p"},

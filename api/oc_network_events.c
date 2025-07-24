@@ -32,7 +32,7 @@ oc_process_network_event(void)
   oc_network_event_handler_mutex_lock();
   oc_message_t *message = (oc_message_t *)oc_list_pop(network_events);
   while (message != NULL) {
-    oc_recv_message(message);
+    oc_receive_message(message);
     message = oc_list_pop(network_events);
   }
 #ifdef OC_NETWORK_MONITOR

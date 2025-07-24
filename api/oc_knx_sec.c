@@ -21,19 +21,18 @@
 #include "oc_discovery.h"
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 #include <inttypes.h>
+#include "oc_knx_fp.h"
 #include "security/oc_oscore_context.h"
-
 #include "oc_knx_helpers.h"
 #include "oc_storage.h"
 
-
 // AT storage data
 #define AT_STORE "at_store"
-#define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
+#define AT_SIZE (sizeof(AT_STORE) + 6)              // support of '_99999' at FILE entries
 
-static uint32_t g_oscore_replaywindow = 32; // default according to RFC OSCORE
-static uint32_t g_oscore_osndelay = 1000; // default (ms) defined by iot specification
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // static inits with '0', included strings next/ptr/size are '0' are not valid
+static uint32_t g_oscore_replaywindow = 32;         // default according to RFC OSCORE
+static uint32_t g_oscore_osndelay = 1000;           // default (ms) defined by iot specification
+static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // static init with '0', included strings next/ptr/size are '0' are not valid
 
 // ----------------------------------------------------------------------------
 
@@ -59,8 +58,6 @@ char* oc_at_profile_to_string(oc_at_profile_t at_profile)
   }
   return "";
 }
-
-// ----------------------------------------------------------------------------
 
 static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -116,7 +113,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 extern const oc_resource_t core_resource_knx_auth_o;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
-  (oc_resource_t*)&core_resource_knx_auth_o,
+  &core_resource_knx_auth_o,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
@@ -197,7 +194,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 // 'core_resource_well_known_core_final'
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
-  (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
+  &core_resource_knx_auth_o_osndelay,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
@@ -310,7 +307,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 extern const oc_resource_t core_resource_knx_auth_at;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_data;
 const oc_resource_t core_resource_knx_auth_o = {
-  (oc_resource_t*)&core_resource_knx_auth_at,
+  &core_resource_knx_auth_at,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/o"), "/auth/o"},
@@ -341,7 +338,7 @@ void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 // ----------------------------------------------------------------------------
 
 #define LDEVID_RENEW 1
-#define LDEVID_STOP 2
+#define LDEVID_STOP  2
 
 static int a_sen_convert_cmd(char* cmd)
 {
@@ -403,7 +400,7 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 // 'core_resource_well_known_core_final'
 PRAGMA_IN oc_resource_data_t core_resource_knx_a_sen_data;
 const oc_resource_t core_resource_knx_a_sen = {
-  (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
+  &core_resource_knx_auth_o_replwdo,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/a/sen"), "/a/sen"},
@@ -500,6 +497,18 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
   }
   PRINT("no id found (error)");
   return NULL;
+}
+
+// -1, if no GA was found in access token GA list
+static bool check_access_token_for_group_address(int access_token_index, uint32_t group_address)
+{
+  // if there is no GA list (len =0), loop does not start
+  // must be a stack issue that the wrong access token is used
+  for (int i = 0; i < g_at_entries[access_token_index].ga_len; i++)
+    if (g_at_entries[access_token_index].ga[i] == group_address)
+      return true;
+
+  return false;
 }
 
 int oc_core_get_at_table_size(void) { return G_AT_MAX_ENTRIES; }
@@ -640,13 +649,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   rep = request->request_payload;
   oc_rep_t* object = NULL;
 
-  while (rep != NULL)
+  while (rep)
   {
     if (rep->type == OC_REP_OBJECT)
     {
       // check for valid payload (EITT Test 5.3.8.2)
       object = rep->value.object;
-      while (object != NULL)
+      while (object)
       {
         if (object->type == OC_REP_MIXED_ARRAY)
         {
@@ -663,14 +672,14 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
       if (at == NULL)
       {
-        OC_ERR("access token not found!");
+        OC_ERR("access token ID in payload not found!");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
       index = find_index_from_at_table_from_id(at);
       if (index != -1)
       {
-        OC_INF("entry already exist!");
+        OC_INF("access token entry already exist!");
         return_status = OC_STATUS_CHANGED;
       }
       else
@@ -691,7 +700,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
       bool id_only = true; // used to delete the AT table entry
 
-      while (object != NULL)
+      while (object)
       {
         if (object->type == OC_REP_STRING_ARRAY)
         {
@@ -744,7 +753,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // scope with GA integer array from MaC such as [200, 201]
           if (object->iname == 9)
           {
-            // in case of GAs (incl size 0) the scope property is not used
+            // default, overwritten if GA array was correctly assigned
             g_at_entries[index].scope = OC_ACL_NONE;
 
             const int64_t* array = oc_int_array(object->value.array);
@@ -770,7 +779,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               g_at_entries[index].ga = new_array;
 
               // TODO when observe is implemented for /k check access scope properly
-              // check where used...
+
+              // define THIS auth at token with 's-mode messaging' scope,
+              // this scope is set only here and for  /k endpoint resource handler 
               g_at_entries[index].scope = OC_ACL_G;
             }
             else
@@ -794,13 +805,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             oc_free_string(&(g_at_entries[index].sub));
             oc_new_string(&g_at_entries[index].sub, oc_string(object->value.string), oc_string_len(object->value.string));
           }
-          // if (object->iname == 3) {
-          //  aud
-          //  oc_free_string(&(g_at_entries[index].aud));
-          //  oc_new_string(&g_at_entries[index].aud,
-          //                oc_string(object->value.string),
-          //                oc_string_len(object->value.string));
-          //}
+          
         }
         else if (object->type == OC_REP_INT)
         {
@@ -870,15 +875,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
-                  // if (oscobject->iname == 7 && subobject_nr == 8 &&
-                  //     oscobject_nr == 4) {
-                  //   // cnf::osc::rid
-                  //   oc_free_string(&(g_at_entries[index].osc_rid));
-                  //   oc_new_byte_string(&g_at_entries[index].osc_rid,
-                  //                      oc_string(oscobject->value.string),
-                  //                      oc_string_len(oscobject->value.string));
-                  //   other_updated = true;
-                  // }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
                   {
                     // cnf:osc:id
@@ -961,7 +957,7 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 extern const oc_resource_t core_resource_knx_auth_at_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
-  (oc_resource_t*)&core_resource_knx_auth_at_x,
+  &core_resource_knx_auth_at_x,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/at"), "/auth/at"},
@@ -1166,7 +1162,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 extern const oc_resource_t core_resource_knx_auth;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_x_data;
 const oc_resource_t core_resource_knx_auth_at_x = {
-  (oc_resource_t*)&core_resource_knx_auth,
+  &core_resource_knx_auth,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
@@ -1311,7 +1307,7 @@ PRAGMA_OUT
 extern const oc_resource_t core_resource_well_known_core;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
-  (oc_resource_t*)&core_resource_well_known_core,
+  &core_resource_well_known_core,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth"), "/auth"},
@@ -1391,9 +1387,9 @@ void oc_print_auth_at_entry(int index)
 #endif
 }
 
-oc_acl_mask_t oc_at_get_scope_mask(int index)
+oc_acl_mask_t oc_at_get_scope_mask(int entry)
 {
-  return index < 0 || index > G_AT_MAX_ENTRIES - 1 ? OC_ACL_NONE : g_at_entries[index].scope;
+  return entry < 0 || entry > G_AT_MAX_ENTRIES - 1 ? OC_ACL_NONE : g_at_entries[entry].scope;
 }
 
 int oc_delete_at_table_entry(int entry)
@@ -1529,7 +1525,7 @@ static void oc_load_at_table_entry(int entry)
     oc_rep_t* head = rep;
     if (err == 0)
     {
-      while (rep != NULL)
+      while (rep)
       {
         switch (rep->type)
         {
@@ -1770,8 +1766,8 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
   }
   else
   {
-    // write (OR overwrite) the above defined pase entry to AT table (RAM) and file storage
-    // here the 'index' cannot be >= G_AT_MAX_ENTRIES 
+    // write (OR overwrite if index was already occupied) the above defined pase entry
+    // to AT table (RAM) and file storage, here the 'index' cannot be >= G_AT_MAX_ENTRIES 
 
     // id (use local temp id)
     oc_free_string(&g_at_entries[index].id);
@@ -1801,8 +1797,8 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
     oc_free_string(&g_at_entries[index].osc_id);
     oc_new_byte_string(&g_at_entries[index].osc_id, client_senderid, client_senderid_size);
 
-    // release a possible ga array, it will be overwritten
-    // free ignores NULL ptr
+    // no ga array as scope , only if.sec
+    // release a possible ga array, it will be overwritten, free ignores NULL ptr
     free(g_at_entries[index].ga);
     g_at_entries[index].ga_len = 0;
     g_at_entries[index].ga = NULL;
@@ -1930,9 +1926,9 @@ bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, oc_interface_ma
   return false;
 }
 
-bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint)
+bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
 {
-  // called resource scope, init with default
+  //  scope of called resource, init with default
   oc_acl_mask_t called_res_scope = OC_ACL_NONE;
 
   // check for scope, considering of CoAP INNER method (GET, PUT, ...)
@@ -1946,13 +1942,12 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
   // uri len of resource versus uri len of caller endpoint was checked before
   if (called_res_scope == OC_ACL_NONE)
   {
-    // not a secure resource, access allowed
-    // see table 5.1.3, all resources with methods that do not have any scope (=
-    // 'none')
+    // not a secure resource, access allowed, see table in clause 5.1.3 of specification,
+    // all resources with methods that do not have any scope uses in stack 'OC_ACL_NONE'
     return true;
   }
 
-  PRINT("method allowed flags:");
+  PRINT("method allowed flags : ");
   PRINTipaddr_flags(*endpoint);
 
 #ifdef OC_OSCORE
@@ -1964,26 +1959,24 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     return false;
   }
 
-  // Example for auth/o sub resource
-  // MAC writes - on tool key - if.p/d/c/sec/swu scopes in e.g.;
-  //     aut/at/2 acl table entry (never an interface like if.ll or if.b)
-  // DEV owns for each method AND resource a 'precompiled' acl and
-  //     interface definition, e.g.; EP auth/o GET = acl : if.p/d/c, interface = if.ll
-  //
-  // The stack compares for the given method the auth/at acl scope with the
-  // resource acl scope, at least one bit match = ok, otherwise 4.00 (bad
-  // request) response.
+  /*
+   Example for auth/o sub resource
 
-  // caller scope, e.g. of the auth/at table entry that was used to decrypt the
-  // message on OC_OSCORE defined the 'auth_at_index' is always incremented by
-  // + 1 , so no extra sanity check here is needed
+   - A MaC writes - on tool key - if.p/d/c/sec/swu scopes in e.g.; aut/at/2 acl table entry (never an interface like if.ll or if.b)
+   - A device owns for each method AND resource a 'precompiled' acl and interface definition, e.g.; EP auth/o GET = acl : if.p/d/c, interface = if.ll
+  
+   The stack compares for the given method the auth/at acl scope with the resource acl scope, at least one bit match = ok,
+   otherwise 4.00 (bad request) response.
+
+   - caller scope, e.g. of the auth/at table entry that was used to decrypt the message on OC_OSCORE defined the 'auth_at_index' is always incremented by
+     + 1 , so no extra sanity check here is needed
+  */
   const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index - 1);
 
-  // bitwise 'and' -> at least one scope must match
+  // bitwise 'and' -> at least one scope from access token and resource must match
   if (!(caller_acl_scope & called_res_scope))
   {
-    PRINT("access to %s unauthorized: request scope=%d; resource scope=%d :", oc_string(resource->uri), caller_acl_scope,
-          called_res_scope);
+    PRINT("access to %s unauthorized: request scope=%d; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
 
     oc_print_acl_scopes(caller_acl_scope);
     oc_print_acl_scopes(called_res_scope);
@@ -1993,8 +1986,53 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     return false;
   }
 
+  /*
+    here the caller/called scopes are matching, this can be a
+    - a call to common endpoints with caller access token scope + called resource scope hosts at least 'if.sec' (POST auth/at ) --> OK
+    - a call to s-mode endpoint with caller access token scope + called resource scope hosts at least 'if.g.s' (POST /k)  --> OK, ... but 
+      extra handling is needed, ga from request must be also part of ga list in access token (list must be non-empty)
+  */
+  if (called_res_scope == OC_ACL_G)
+  { // MUST BE a call to s-mode endpoint /k = extra handling, no other EP uses 'if-g.s' as scope (see resource definition)
+
+    // scan received payload for request ga
+    const oc_rep_t* rep = value_object;
+    int group_address_in_payload = -1;
+
+    while (rep)
+    {
+      if (rep->type == OC_REP_OBJECT)
+      {
+        // s map with st/ga/value (if present on write/update)
+        oc_rep_t* s_map = rep->value.object;
+
+        while (s_map)
+        {
+          if (s_map->type == OC_REP_INT && s_map->iname == 7)
+          { // only GA is of interest
+
+            group_address_in_payload = (int)s_map->value.integer;
+            break;
+          }
+          s_map = s_map->next;
+        }
+      }
+      rep = rep->next;
+    }
+
+    if (group_address_in_payload != -1)
+    { // ga found and check
+      return check_access_token_for_group_address(endpoint->auth_at_index - 1, group_address_in_payload);
+      // TODO check if already existing a method 
+    }
+
+    // no ga found in payload = request payload error, no access 
+    return false;
+ 
+  }
+
 #endif
 
-  // acl scopes + method checked or OC_OSCORE is off
+  // acl scopes + method OK or OC_OSCORE is off
   return true;
 }

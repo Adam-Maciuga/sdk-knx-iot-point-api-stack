@@ -211,15 +211,14 @@ oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_le
 	oc_send_response_raw(request, (const uint8_t*) msg, msg_len, TEXT_PLAIN, response_code);
 }
 
-oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types, size_t device_index)
+oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_resource_types, size_t device_index)
 {
 	oc_resource_t* resource = NULL;
-	oc_resource_data_t* data = NULL;
 
-	if (strlen(uri) < OC_MAX_URL_LENGTH)
+  if (strlen(resource_path) < OC_MAX_URL_LENGTH)
 	{
 		resource = oc_ri_alloc_resource();	// content is not cleared
-		data = oc_ri_alloc_resource_data(); // content is not cleared
+		oc_resource_data_t* data = oc_ri_alloc_resource_data(); // content is not cleared
 
 		if (resource && data)
 		{
@@ -235,17 +234,18 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 			}
 
 			// uri
-			oc_check_uri(uri);                        
+			oc_check_uri(resource_path);                        
 			resource->uri.next = NULL;
-			resource->uri.ptr = uri;
-			resource->uri.size = strlen(uri) + 1;     // include null terminator in size
+			resource->uri.ptr = resource_path;
+			resource->uri.size = strlen(resource_path) + 1;     // include null terminator in size
 
 			// types
 			oc_new_string_array(&resource->types, num_resource_types);
 
 			// properties
 			resource->properties = OC_DISCOVERABLE;
-			#ifdef OC_OSCORE
+
+		  #ifdef OC_OSCORE
 			// each new (app) resource is secured
 			resource->properties |= OC_SECURE;
 			#endif 
@@ -274,14 +274,14 @@ oc_resource_t* oc_new_resource(char* name, char* uri, uint8_t num_resource_types
 			// note, for precompiled (core) resources it is always true
 			*(bool*) &resource->is_const = false;
 
-			// rt data
+			// rt data (# observers) 
 			resource->runtime_data = data;
 			resource->runtime_data->num_observers = 0;
 		}
 	}
 	else
 	{
-		OC_ERR("resource uri longer than 30 bytes: %d", (int) strlen(uri));
+		OC_ERR("resource path longer than 30 bytes: %d", (int) strlen(resource_path));
 	}
 
 	return resource;
@@ -291,12 +291,12 @@ void oc_resource_bind_resource_type(oc_resource_t* resource, const char* type)
 {
 	if (resource == NULL)
 	{
-		OC_ERR("oc_resource_bind_resource_type: resource is NULL");
+		OC_ERR("resource is NULL");
 		return;
 	}
 	if (resource->is_const)
 	{
-		OC_ERR("oc_resource_bind_resource_type: resource data is const");
+		OC_ERR("resource data is const");
 		return;
 	}
 	oc_string_array_add_item(resource->types, type);
@@ -306,12 +306,12 @@ void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt)
 {
 	if (resource == NULL)
 	{
-		OC_ERR("oc_resource_bind_dpt: resource is NULL");
+		OC_ERR("resource is NULL");
 		return;
 	}
 	if (resource->is_const)
 	{
-		OC_ERR("oc_resource_bind_dpt: resource data is const");
+		OC_ERR("resource data is const");
 		return;
 	}
 	oc_free_string(&resource->dpt);
@@ -328,12 +328,12 @@ void oc_resource_bind_content_type(oc_resource_t* resource,
 {
 	if (resource == NULL)
 	{
-		OC_ERR("oc_resource_bind_content_type: resource is NULL");
+		OC_ERR("resource is NULL");
 		return;
 	}
 	if (resource->is_const)
 	{
-    OC_DBG("oc_resource_bind_content_type: resource data is const");
+    OC_DBG("resource data is const");
 		return;
 	}
 	resource->content_type[0] = content_type_man;
@@ -354,31 +354,31 @@ oc_resource_set_discoverable(oc_resource_t* resource, bool state)
 {
 	if (resource == NULL)
 	{
-		OC_ERR("oc_resource_set_discoverable: resource is NULL");
+		OC_ERR("resource is NULL");
 		return;
 	}
 	if (resource->is_const)
 	{
-		OC_ERR("oc_resource_set_discoverable: resource data is const");
+		OC_ERR("resource data is const");
 		return;
 	}
 
 	if (state)
 		resource->properties |= OC_DISCOVERABLE;
 	else
-		resource->properties &= ~OC_DISCOVERABLE;
+		resource->properties &=  ~OC_DISCOVERABLE;
 }
 
 void oc_resource_set_observable(oc_resource_t* resource, bool state)
 {
 	if (resource == NULL)
 	{
-		OC_ERR("oc_resource_set_observable: resource is NULL");
+		OC_ERR("resource is NULL");
 		return;
 	}
 	if (resource->is_const)
 	{
-		OC_ERR("oc_resource_set_discoverable: resource data is const");
+		OC_ERR("resource data is const");
 		return;
 	}
 
@@ -588,15 +588,10 @@ bool oc_add_resource(oc_resource_t* resource)
 	return oc_ri_add_resource(resource);
 }
 
-bool oc_delete_resource(oc_resource_t* resource)
-{
-	return oc_ri_delete_resource(resource);
-}
-
 static oc_event_callback_retval_t oc_delayed_delete_resource_cb(void* data)
 {
 	oc_resource_t* resource = data;
-	oc_delete_resource(resource);
+  oc_ri_delete_resource(resource);
 	return OC_EVENT_DONE;
 }
 

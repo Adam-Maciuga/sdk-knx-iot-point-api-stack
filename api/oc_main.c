@@ -379,8 +379,7 @@ int oc_main_init(const oc_handler_t* handler)
   return 0;
 }
 
-oc_clock_time_t
-oc_main_poll(void)
+oc_clock_time_t oc_main_poll(void)
 {
   oc_clock_time_t ticks_until_next_event = oc_etimer_request_poll();
   while (oc_process_run())

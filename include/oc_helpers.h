@@ -32,8 +32,7 @@
 extern "C" {
 	#endif
 
-	typedef struct oc_mmem oc_handle_t, oc_string_t, oc_array_t, oc_string_array_t,
-		oc_byte_string_array_t;
+	typedef struct oc_mmem oc_handle_t, oc_string_t, oc_array_t, oc_string_array_t,	oc_byte_string_array_t;
 
 	enum StringRepresentation
 	{

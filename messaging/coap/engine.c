@@ -1332,15 +1332,21 @@ int coap_receive(oc_message_t* incoming_message)
 		OC_ERR("Unexpected CoAP command");
 		if (incoming_message->endpoint.flags & TCP)
 		{
-			coap_send_empty_response(COAP_TYPE_NON, 0, coap_packet_request->token,
-															 coap_packet_request->token_len, coap_status_code,
+			coap_send_empty_response(COAP_TYPE_NON,
+															 0, 
+															 coap_packet_request->token,
+															 coap_packet_request->token_len,
+															 coap_status_code,
 															 &incoming_message->endpoint);
 		}
 		else
 		{
 			coap_send_empty_response(coap_packet_request->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-															 coap_packet_request->mid, coap_packet_request->token, coap_packet_request->token_len,
-															 coap_status_code, &incoming_message->endpoint);
+															 coap_packet_request->mid, 
+															 coap_packet_request->token, 
+															 coap_packet_request->token_len,
+															 coap_status_code, 
+															 &incoming_message->endpoint);
 		}
 		return coap_status_code;
 	}

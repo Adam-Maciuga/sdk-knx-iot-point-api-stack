@@ -196,7 +196,7 @@ public:
   {
     (void)errorMessage;
     bool isPassed = true;
-    oc_delete_resource(s_pResource);
+    oc_ri_delete_resource(s_pResource);
     return isPassed;
   }
 };

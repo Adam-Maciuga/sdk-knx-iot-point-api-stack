@@ -203,8 +203,7 @@ oc_parse_single_entity(CborValue *value, oc_rep_t **rep, CborError *err)
   case CborTagType: {
     CborTag tag;
     cbor_value_get_tag(value, &tag);
-    /* skip over CBOR Tags */
-    // goto get_tagged_value;
+    // skip over CBOR tags, goto get_tagged value
   } break;
   case CborIntegerType:
     *err |= cbor_value_get_int64(value, &cur->value.integer);
@@ -558,13 +557,12 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
   }
 }
 
-int
-oc_parse_rep(const uint8_t *in_payload, int payload_size, oc_rep_t **out_rep)
+int oc_parse_rep(const uint8_t *in_payload, int in_payload_size, oc_rep_t **out_rep)
 {
   CborParser parser;
   CborValue root_value;
   CborError err = CborNoError;
-  err |= cbor_parser_init(in_payload, payload_size, 0, &parser, &root_value);
+  err |= cbor_parser_init(in_payload, in_payload_size, 0, &parser, &root_value);
 
   // default out pointer
   *out_rep = 0;
@@ -574,17 +572,26 @@ oc_parse_rep(const uint8_t *in_payload, int payload_size, oc_rep_t **out_rep)
   }
   // since this has now changed so it returns an object/array at top level
   // rather than the first element (linked list style) we need to correct this
+  // comment by KNX AH, code may be done in original code   
+
   if (*out_rep) 
-  { // out pointer 
+  { // out pointer is not NULL
+
+    // tmp copy
     oc_rep_t *r = *out_rep;
+
+    // check value types and assign pointer to the actual value according to the type
     if ((*out_rep)->type == OC_REP_OBJECT)
       *out_rep = (*out_rep)->value.object;
-    else if ((*out_rep)->type == OC_REP_OBJECT_ARRAY)
-      *out_rep = (*out_rep)->value.object_array;
-    else if ((*out_rep)->type == OC_REP_MIXED_ARRAY)
-      *out_rep = (*out_rep)->value.mixed_array;
-    else
-      return err;
+    else 
+      if ((*out_rep)->type == OC_REP_OBJECT_ARRAY)
+        *out_rep = (*out_rep)->value.object_array;
+      else 
+        if ((*out_rep)->type == OC_REP_MIXED_ARRAY)
+          *out_rep = (*out_rep)->value.mixed_array;
+        else
+          return err;
+
     r->type = OC_REP_NIL;
     oc_free_rep(r);
   }

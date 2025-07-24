@@ -13,10 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 */
-/**
-  @brief DNS SD platform abstraction
-  @file
-*/
+
 #ifndef DNS_SD_H
 #define DNS_SD_H
 
@@ -25,7 +22,6 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <stdbool.h>
 
 /**
  * @brief Publish the KNX mDNS service in order to enable DNS-SD discovery.
@@ -49,8 +45,18 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
  */
 void knx_service_sleep_period(int sp);
 
+ /**
+ * @brief Returns the device used unicast port.
+ *
+ * @note added as extra function allowing to adapt for
+ *       different OS versions by not demanding to include the OS
+ *       specific IP header file in the (OS) shared stack code.
+ *
+ */
+uint16_t knx_get_used_port(void);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // DNS_SD_H
+#endif

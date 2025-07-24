@@ -217,7 +217,7 @@ bool oc_check_resource_by_request(const oc_resource_t* resource, oc_request_t* r
 	return oc_add_resource_to_response_payload(resource, request, response_length, truncate);
 }
 
-// filter for application resources
+// filter for application resources (not all of them may be able to discover)
 static bool oc_process_application_resources(oc_request_t* request,
                                              size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
                                              const int first_entry, const int last_entry)
@@ -225,23 +225,24 @@ static bool oc_process_application_resources(oc_request_t* request,
 	for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
 	{
 		// skip non visible application resources
-	  if (!(resource->properties & OC_DISCOVERABLE))
-			continue;
+	  if (resource->properties & OC_DISCOVERABLE)
+    { // not all of them may be able to discover, so check 
 
-		if (oc_check_resource_by_request(resource, request, response_length, skipped, first_entry, false))
-		{
-			(*query_parameter_kvpair_matches)++;
-			if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
-			{
-				// first page entry + current amount of matches exceeds page size
-				return true;
-			}
-		}
+	    if (oc_check_resource_by_request(resource, request, response_length, skipped, first_entry, false))
+      {
+        (*query_parameter_kvpair_matches)++;
+        if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
+        {
+          // first page entry + current amount of matches exceeds page size
+          return true;
+        }
+      }
+	  }
 	}
 	return false;
 }
 
-// filter for basic device resources
+// filter for basic device resources (all of them are able to discover)
 static bool oc_process_basic_resources(oc_request_t* request,
                                        size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
                                        const int first_entry, const int last_entry)
@@ -727,10 +728,10 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 
 oc_resource_dummy_t core_resource_well_known_core_final = { NULL, -1 };					 		// next resource (here NULL)
 PRAGMA_IN																																										 		// compiler specific
-oc_resource_data_t core_resource_well_known_core_data;																			 		// user runtime data
+oc_resource_data_t core_resource_well_known_core_data;																			 		// user runtime data (includes number of observers) 
 const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition 
-{
-	(oc_resource_t*) &core_resource_well_known_core_final,																		 		// ptr to next resource
+{ // typecast since type of last dummy is different
+	(oc_resource_t*) &core_resource_well_known_core_final,																		 		// ptr to next (here last) resource
 	0,																																												 		// device instance
 	{ NULL, 0, NULL },																						 								// resource name
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI

@@ -13,30 +13,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 */
-
-#include "dns-sd.h"
 #include "ipadapter.h"
 
-#define WIN32_LEAN_AND_MEAN
 #include <process.h>
 #include <string.h>
 #include <Windows.h>
 #include <inttypes.h>
 
+// globally needed
 intptr_t process_handle = 0;
-char subtypes[64];
-char prefixed_serial_no[64];
-static char port_str[7];
 static char sp_text_record[16] = "";
 
 int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
+  // for the case if DNS_SD is disabled
   (void) serial_no;
   (void) iid;
   (void) ia;
   (void) pm;
 
 #ifdef OC_DNS_SD
+
+  char subtypes[64];
+  char port_str[7]; // max 65535 + /0 chars 
 
   // if already present, kill first
   if (process_handle != 0)
@@ -45,7 +44,8 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
   }
 
   // stringify port
-  (void) snprintf(port_str, sizeof(port_str), "%d", get_ip_context_for_device(0)->port);
+  uint16_t port = get_ip_context_for_device(0)->port;
+  (void)snprintf(port_str, sizeof(port_str), "%d", port);
 
   // stringify prog mode
   char* pm_subtype = pm ? ",_pm" : "";
@@ -55,11 +55,17 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
 
   // creates/executes a new process (may need to install a dns client)
   // <arg0> see function, rest: -R <Name> <Type> <Domain> <Port> [<TXT>...] -> Register a service
-  process_handle = _spawnlp(_P_NOWAIT, "dns-sd", "dns-sd", "-R", serial_no, subtypes, "local", port_str, sp_text_record, NULL);
+  process_handle = _spawnlp(_P_NOWAIT, "dns-sd", "dns-sd", 
+                            "-R", serial_no, subtypes, "local", port_str, sp_text_record, NULL);
 
 #endif 
 
   return 0;
+}
+
+uint16_t knx_get_used_port(void)
+{
+  return get_ip_context_for_device(0)->port;
 }
 
 void knx_service_sleep_period(int sp)

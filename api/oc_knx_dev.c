@@ -24,7 +24,6 @@
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "port/dns-sd.h"
-#include "ipadapter.h"
 
 #ifdef OC_IOT_ROUTER
 #include "api/oc_knx_gm.h"
@@ -476,7 +475,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
         {
           oc_register_group_multicasts();
           oc_init_datapoints_at_initialization();
-          const oc_device_info_t* device = oc_core_get_device_info(device_index);
+          oc_device_info_t* device = oc_core_get_device_info(device_index);
           knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
         }
 
@@ -1122,7 +1121,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
   {
     oc_rep_begin_root_object();
     // use actual used port from ip adapter 
-    oc_rep_i_set_int(root, 1, get_ip_context_for_device(0)->port); 
+    oc_rep_i_set_int(root, 1, knx_get_used_port()); 
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;

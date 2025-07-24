@@ -81,7 +81,7 @@ void oc_message_unref(oc_message_t *message);
  *
  * @param message the received message
  */
-void oc_recv_message(oc_message_t *message);
+void oc_receive_message(oc_message_t *message);
 
 /**
  * @brief send (CoAP) message
@@ -96,7 +96,7 @@ void oc_send_message(oc_message_t *message);
  *
  * @return int the number of buffers
  */
-int oc_buffer_num_free_incoming();
+int oc_buffer_num_free_incoming(void);
 
 /**
  * @brief Get the number of outgoing buffers. If this is zero and you attempt
@@ -104,7 +104,7 @@ int oc_buffer_num_free_incoming();
  *
  * @return int the number of buffers
  */
-int oc_buffer_num_free_outgoing();
+int oc_buffer_num_free_outgoing(void);
 
 /**
  * @brief close all tls session for the specific device

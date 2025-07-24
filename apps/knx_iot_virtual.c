@@ -189,12 +189,13 @@ extern int_datapoint_t test_parameter;
 
  - The /p callbacks MUST implement also additional required functionality.
 
-   - GET /w and w/o metadata m= (mandatory) 
-   - PUT (optional* for group objects but required for product parameter)
-
-   * Depending on your application and hardware you may not allow to write (PUT) values to an output 
+   * Depending on your application and hardware you may not allow to write (PUT) values to an output
      datapoint (GO), this can damage your hardware. Reading an input datapoint is less critical,
-     but requires a kind of caching the value.
+     but requires a kind of caching the value. Hence, the specification demands:
+
+     - GET is mandatory for 's-mode' and 'property' communication /w and w/o metadata m=(mandatory) 
+     - PUT is optional for 's-mode'
+     - PUT is mandatory for 'property'
 
      An EXAMPLE how to handle/distinguish the 's-mode' and 'property' calls and options how to react
      is given below in the callback handler code. Another option to circumvent the problem is to not
@@ -212,11 +213,7 @@ extern int_datapoint_t test_parameter;
 // generic GET for LSSB/LSAB/EITT applications for SOO and IOO
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
-
   bool error_state = true;
-
-  // get interfaces for the resource GET method ...
-  bool is_output_datapoint = interfaces & OC_IF_O;
 
   // user data host the HEX encoded channel/datapoint 
   const uint32_t channel_and_datapoint = strtol(user_data,NULL,16);
@@ -231,11 +228,9 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   }
 
   // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by /p or /k s-mode message EP)
+  // the caller source (e.g.; called by p/ or /k s-mode message EP)
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller /p --> always allow to read (see 'Callback Notes' above)
-    is_output_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
@@ -278,14 +273,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         // value
         if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
-          if (!is_output_datapoint) 
-          {
-            
-            // see 'Callback Notes' above
-            oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-            return;
-          }
-
+          // see 'Callback Notes' above
           oc_rep_text_set_boolean(root, value, lsxb[c].point[p].value);
           error_state = false;
         }
@@ -338,13 +326,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     else
     { // ... no query parameter 'm' present at all, set value for the GET
 
-      if (!is_output_datapoint)
-      {
-        // see 'Callback Notes' above
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
-        return;
-      }
-
+      // see 'Callback Notes' above
       oc_rep_i_set_boolean(root, 1, lsxb[c].point[p].value);
       error_state = false;
     }
@@ -411,9 +393,11 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         return;
       }
 
-      PRINT("set LSAB to %d", rep->value.boolean);
+      // see 'Callback Notes' above
       lsxb[c].point[p].value = rep->value.boolean;
       error_state = false;
+
+      PRINT("set LSAB to %d", rep->value.boolean);
       break;
     }
     rep = rep->next;
@@ -483,9 +467,11 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         return;
       }
 
-      PRINT("set LSSB to %d", rep->value.boolean);
+      // see 'Callback Notes' above
       lsxb[c].point[p].value = rep->value.boolean;
       error_state = false;
+
+      PRINT("set LSSB to %d", rep->value.boolean);
       break;
     }
     rep = rep->next;
@@ -615,7 +601,10 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
     else
     { // ... no query parameter 'm' present at all, set value
 
+      // see 'Callback Notes' above
       oc_rep_i_set_int(root, 1, test_parameter.value);
+
+      PRINT("get test parameter to : %u", test_parameter.value);
       error_state = false;
     }
   }
@@ -662,9 +651,11 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
     // a faulty construct such as {..., 1: 2, 1: 5} is not handled
     if (rep->iname == 1 && rep->type == OC_REP_INT)
     {
-      PRINT("set test parameter to : %lld", rep->value.integer);
+      // see 'Callback Notes' above
       test_parameter.value = (unsigned int)rep->value.integer;
       error_state = false;
+
+      PRINT("set test parameter to : %u", test_parameter.value);
       break;
     }
     rep = rep->next;

@@ -398,13 +398,12 @@ int oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
-		OC_ERR("device_index %llu too large", device_index);
+		OC_ERR("device_index %lu too large", device_index);
 		return -1;
 	}
-	const size_t hwt_len = strlen(hardware_type);
 
 	oc_free_string(&oc_device_info[device_index].hwt);
-	oc_new_string(&oc_device_info[device_index].hwt, hardware_type, hwt_len);
+  oc_new_string(&oc_device_info[device_index].hwt, hardware_type, strlen(hardware_type));
 
 	return 0;
 }
