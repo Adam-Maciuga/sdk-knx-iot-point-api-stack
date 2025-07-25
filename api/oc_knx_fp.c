@@ -56,7 +56,7 @@ static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, ui
 
 // ------------
 
-int oc_table_find_id_from_payload(oc_rep_t* object)
+int oc_table_find_id_from_payload(const oc_rep_t* object)
 {
   while (object)
   {
@@ -782,7 +782,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
-const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_p,
+const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
                                                 0,
                                                 {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
@@ -1273,7 +1273,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_p_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
-const oc_resource_t core_resource_knx_fp_p = {&core_resource_knx_fp_p_x,
+const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
                                               0,
                                               {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
@@ -1416,7 +1416,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
-const oc_resource_t core_resource_knx_fp_p_x = {&core_resource_knx_fp_r,
+const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 0,
                                                 {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
@@ -1867,7 +1867,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_fp_r_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
-const oc_resource_t core_resource_knx_fp_r = {&core_resource_knx_fp_r_x,
+const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
                                               0,
                                               {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
@@ -2011,7 +2011,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
-const oc_resource_t core_resource_knx_fp_r_x = {&core_resource_knx_p,
+const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
                                                 0,
                                                 {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},
@@ -2868,17 +2868,17 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
   return return_value;
 }
 
-oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope,
-                                                          uint16_t port)
+oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, 
+                                                          uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope
   // FF3_:FD__:____:____:(8-f)___:____
   // FF35:30:<ULA-routing-prefix>::<group id>
   //    | 5 == scope
   //    | 3 == scope
-  // Multicast prefix: FF35:0030:  [4 bytes]
-  // ULA routing prefix: FD11:2222:3333::  [6 bytes + 2 empty bytes]
-  // Group Identifier: 8000 : 0068 [4 bytes ]
+  // Multicast prefix: FF35:0030:          [4 bytes]
+  // ULA routing prefix: FD11:2222:33a3::  [6 bytes + 2 empty bytes]
+  // Group Identifier: 8000 : 0068         [4 bytes ]
 
   // group number to the various bytes
   uint8_t byte_1 = (uint8_t)group_nr;
@@ -2897,23 +2897,24 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   my_transport_flags += IPV6;
   my_transport_flags += MULTICAST;
   my_transport_flags += DISCOVERY;
-#ifdef OC_OSCORE
+
+  #ifdef OC_OSCORE
   my_transport_flags += OSCORE;
 #endif
 
-  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 0xff, 0x30 + scope, 0, 0x30, //  FF35::30:
-                        0xfd, ula_5, ula_4, ula_3, ula_2,
-                        ula_1, // FD11 : 2222 : 3333
-                        0, 0, // ::
-                        byte_4, byte_3, byte_2, byte_1);
-  PRINT("oc_create_multicast_group_address_with_port S=%d iid=%" PRIu64 " G=%u B4=%d "
-        "B3=%d B2=%d "
-        "B1=%d",
+  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, 
+                        port, 0xff, 0x30 + scope, 0, 0x30,        // FF35::30:
+                        0xfd, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD11 : 2222 : 3333
+                        0, 0,                                     // ::
+                        byte_4, byte_3, byte_2, byte_1);          // group id
+
+  PRINT("oc_create_multicast_group_address_with_port S=%d iid=%" PRIu64 " G=%u B4=%d B3=%d B2=%d B1=%d :",
         scope, iid, group_nr, byte_4, byte_3, byte_2, byte_1);
-  PRINT("");
   PRINTipaddr(group_mcast);
 
   group_mcast.group_address = group_nr;
+
+  // copy all from local data to (return) pointer 
   memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
 
   return in;

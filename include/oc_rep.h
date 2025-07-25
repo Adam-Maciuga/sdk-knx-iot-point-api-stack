@@ -1677,7 +1677,7 @@ typedef struct oc_rep_s
     struct oc_rep_s *object;
     struct oc_rep_s *object_array;
     struct oc_rep_s *mixed_array;
-  } value; ///< the value as union
+  } value; // the value as union
 } oc_rep_t;
 
 // internal function

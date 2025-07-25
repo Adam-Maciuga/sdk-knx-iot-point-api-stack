@@ -113,7 +113,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 extern const oc_resource_t core_resource_knx_auth_o;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
-  &core_resource_knx_auth_o,
+  (oc_resource_t*)&core_resource_knx_auth_o,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
@@ -194,7 +194,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 // 'core_resource_well_known_core_final'
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
-  &core_resource_knx_auth_o_osndelay,
+  (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
@@ -307,7 +307,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 extern const oc_resource_t core_resource_knx_auth_at;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_data;
 const oc_resource_t core_resource_knx_auth_o = {
-  &core_resource_knx_auth_at,
+  (oc_resource_t*)&core_resource_knx_auth_at,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/o"), "/auth/o"},
@@ -400,7 +400,7 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 // 'core_resource_well_known_core_final'
 PRAGMA_IN oc_resource_data_t core_resource_knx_a_sen_data;
 const oc_resource_t core_resource_knx_a_sen = {
-  &core_resource_knx_auth_o_replwdo,
+  (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/a/sen"), "/a/sen"},
@@ -955,7 +955,7 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 extern const oc_resource_t core_resource_knx_auth_at_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
-  &core_resource_knx_auth_at_x,
+  (oc_resource_t*)&core_resource_knx_auth_at_x,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/at"), "/auth/at"},
@@ -973,7 +973,7 @@ const oc_resource_t core_resource_knx_auth_at = {
   0,
   0,
   true,
-  &core_resource_knx_auth_at_data};
+  (oc_resource_t*)&core_resource_knx_auth_at_data};
 PRAGMA_OUT
 
 void oc_create_auth_at_resource(int resource_idx, size_t device)
@@ -1160,7 +1160,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 extern const oc_resource_t core_resource_knx_auth;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_x_data;
 const oc_resource_t core_resource_knx_auth_at_x = {
-  &core_resource_knx_auth,
+  (oc_resource_t*)&core_resource_knx_auth,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
@@ -1305,7 +1305,7 @@ PRAGMA_OUT
 extern const oc_resource_t core_resource_well_known_core;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
-  &core_resource_well_known_core,
+  (oc_resource_t*)&core_resource_well_known_core,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/auth"), "/auth"},

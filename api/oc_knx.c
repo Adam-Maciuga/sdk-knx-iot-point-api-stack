@@ -14,8 +14,8 @@
  // limitations under the License.
  */
 
-#include "oc_knx.h"
 #include <oc_storage.h>
+#include "oc_knx.h"
 #include "api/oc_knx_helpers.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
