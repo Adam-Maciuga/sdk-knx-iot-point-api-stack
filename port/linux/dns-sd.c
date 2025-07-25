@@ -21,11 +21,11 @@
 #include <errno.h>
 #include <stdint.h>
 #include <ctype.h>
+#include <../oc_log.h>
 
 // globally needed
 static pid_t avahi_pid = 0;
 static char sp_text_record[16] = "";
-
 
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
@@ -61,14 +61,14 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
       serial_no_lowercase[i] = tolower(serial_no_lowercase[i]);
     }
 
-    // setup the subtype for the sn
+    // set up the subtype for the sn
     // --subtype=_001cafe1234._sub._knx._udp
     char *serial_format_string = "--subtype=_%s._sub._knx._udp";
     snprintf(serial_no_subtype, sizeof(serial_no_subtype), 
              serial_format_string,
              serial_no_lowercase);
 
-    // setup the subtype for the iid, ia
+    // set up the subtype for the iid, ia
     // --subtype=_ia33a3-20a._sub._knx._udp
     char *installation_format_string = "--subtype=_ia%x-%x._sub._knx._udp";
     snprintf(installation_subtype, sizeof(installation_subtype),
@@ -115,8 +115,7 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
     return 0;
   } else {
     // fork failed
-    OC_ERR("Failed to fork Avahi advertisement process, error %s",
-           strerror(errno));
+    OC_ERR("Failed to fork Avahi advertisement process, error %s", strerror(errno));
     return -1;
   }
 #endif

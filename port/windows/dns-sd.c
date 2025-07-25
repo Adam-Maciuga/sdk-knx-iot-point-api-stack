@@ -19,6 +19,7 @@
 #include <string.h>
 #include <Windows.h>
 #include <inttypes.h>
+#include <../oc_log.h>
 
 // globally needed
 intptr_t process_handle = 0;
