@@ -516,7 +516,6 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 {
   (void)data;
   (void)iface_mask;
-  oc_rep_t* rep = NULL;
 
   PRINT("oc_core_lsm_post_handler - start");
 
@@ -539,8 +538,8 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
   // default setting if nothing will be found
   int event = LSM_E_NOP;
 
-  rep = request->request_payload;
-  while (rep != NULL)
+  const oc_rep_t*  rep = request->request_payload;
+  while (rep)
   {
     if (rep->type == OC_REP_INT)
     {
@@ -561,9 +560,8 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
   {
     const oc_loadstate_t* my_cb = oc_get_lsm_change_cb();
 
-    // application LSM mode callback handler
     if (my_cb && my_cb->cb)
-    {
+    { // application callback handler for LSM present ...
       my_cb->cb(device_index, oc_knx_get_lsm(device_index), my_cb->data);
     }
 
@@ -571,7 +569,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     if (oc_is_device_in_runtime(device_index))
     {
       oc_register_group_multicasts();
-      // oc_init_datapoints_at_initialization();
+      oc_init_datapoints_at_initialization();
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
 
@@ -1064,25 +1062,24 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
               // grpid
               uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-
               if (grpid > 0)
               { // grpid is set in case of multicast in RCP table (configured by MaC)
 
               #ifdef OC_USE_MULTICAST_SCOPE_2
-                oc_issue_s_mode(2, device->ia, grpid, sending_ga, device->iid, "a",
+                oc_issue_s_mode_mc(2, device->ia, grpid, sending_ga, device->iid, "a",
                                 new_request.response->response_buffer->buffer,
                                 (int)new_request.response->response_buffer->response_length);
 
               #endif
-                oc_issue_s_mode(5, device->ia, grpid, sending_ga, device->iid, "a",
+                oc_issue_s_mode_mc(5, device->ia, grpid, sending_ga, device->iid, "a",
                                 new_request.response->response_buffer->buffer,
                                 (int)new_request.response->response_buffer->response_length);
               }
               else
               {
-                // TODO resolve IP unicast to send back ...
+                // TODO resolve IP unicast to send via unicast...
                 // discover unicast IPv6 for IA via mDNS
-                // return message with unicast IPv6
+                // send message with unicast IPv6
                 PRINT("grpid =0");
               }
             }
@@ -1135,9 +1132,9 @@ const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fi
                                            {NULL, 0, NULL},
                                            {APPLICATION_CBOR, CONTENT_NONE},
                                            OC_DISCOVERABLE,
-                                           {oc_core_knx_k_get_handler, NULL, OC_ACL_G, OC_IF_G},
+                                           {oc_core_knx_k_get_handler, NULL, OC_ACL_G | OC_ACL_GA, OC_IF_G},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {oc_core_knx_k_post_handler, NULL, OC_ACL_G, OC_IF_G},
+                                           {oc_core_knx_k_post_handler, NULL, OC_ACL_G | OC_ACL_GA, OC_IF_G},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {NULL, NULL},
                                            {NULL, NULL},
@@ -1228,7 +1225,6 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
   oc_rep_t* rep = request->request_payload;
 
   while (rep)
@@ -1238,18 +1234,18 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 12)
       {
         PRINT("received 12 (ia) : %d", (int)rep->value.integer);
-        oc_core_set_and_store_device_ia(device_index, (uint16_t)rep->value.integer);
+        oc_core_set_and_store_device_ia(0, (uint16_t)rep->value.integer);
         ia_set = true;
       }
       else if (rep->iname == 25)
       {
         PRINT("received 25 (fid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_and_store_device_fid(device_index, rep->value.integer);
+        oc_core_set_and_store_device_fid(0, rep->value.integer);
       }
       else if (rep->iname == 26)
       {
         PRINT("received 26 (iid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_and_store_device_iid(device_index, rep->value.integer);
+        oc_core_set_and_store_device_iid(0, rep->value.integer);
         iid_set = true;
       }
     }
@@ -1259,11 +1255,11 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
   // iid/ia are mandatory
   if (iid_set && ia_set)
   {
-    if (oc_is_device_in_runtime(device_index))
+    if (oc_is_device_in_runtime(0))
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
-      oc_device_info_t* device = oc_core_get_device_info(device_index);
+      oc_device_info_t* device = oc_core_get_device_info(0);
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);

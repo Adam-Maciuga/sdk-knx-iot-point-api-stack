@@ -461,7 +461,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
   size_t device_index = request->resource->device;
   oc_rep_t* rep = request->request_payload;
 
-  while (rep != NULL)
+  while (rep)
   {
     if (rep->type == OC_REP_INT)
     {

@@ -95,25 +95,30 @@ static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 
 oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
 
-static const char* scope_string_name[MAX_ACL_SCOPE_BIT+1] =
-  { // starts with OC_ACL_NONE, names are shared between scopes and interfaces AND MUST be in the same order
+static const char* scope_string_name[NUM_ACL_SCOPES] =
+  { // starts with OC_ACL_NONE,
+    // names are shared between scopes and interfaces AND MUST be in the same order
     "",      "if.i",   "if.o",		"if.g.s", "if.c",
     "if.p",  "if.d",   "if.a",		"if.s",		"",
-    "",			 "if.sec", "if.swu"
+    "",			 "if.sec", "if.swu",  "",       "",
+    "<ga>"
   };
 
-static const char* interface_string_short_urn[MAX_INTERFACE_BIT+1] =
-  { // starts with OC_IF_NONE, urns are shared between scopes and interfaces AND MUST be in the same order
-	"",				":if.i",		":if.o",	  ":if.g.s",	":if.c",
-  ":if.p",	":if.d",	  ":if.a",  	":if.s",		":if.ll",
-  ":if.b",	":if.sec",	":if.swu",	":if.pm",		":if.m.x"
-};
+static const char* interface_string_short_urn[NUM_INTERFACES] =
+  { // starts with OC_IF_NONE,
+    // urns are shared between scopes and interfaces AND MUST be in the same order
+	  "",				":if.i",		":if.o",	  ":if.g.s",	":if.c",
+    ":if.p",	":if.d",	  ":if.a",  	":if.s",		":if.ll",
+    ":if.b",	":if.sec",	":if.swu",	":if.pm",		":if.m.x"
+  };
 
-static const char* interface_string_full_urn[MAX_INTERFACE_BIT+1] =
-  { // starts with OC_IF_NONE, urns are shared between scopes and interfaces AND MUST be in the same order
+static const char* interface_string_full_urn[NUM_INTERFACES] =
+  { // starts with OC_IF_NONE,
+    // urns are shared between scopes and interfaces AND MUST be in the same order
     "",              "urn:knx:if.i",   "urn:knx:if.o",   "urn:knx:if.g.s", "urn:knx:if.c",
     "urn:knx:if.p",  "urn:knx:if.d",   "urn:knx:if.a",   "urn:knx:if.s",   "urn:knx:if.ll",
-    "urn:knx:if.b",  "urn:knx:if.sec", "urn:knx:if.swu", "urn:knx:if.pm",  "urn:knx:if.m.x"};
+    "urn:knx:if.b",  "urn:knx:if.sec", "urn:knx:if.swu", "urn:knx:if.pm",  "urn:knx:if.m.x"
+  };
 
 const char* get_interface_string_full_urn(int index)
 {

@@ -168,13 +168,13 @@ extern "C" {
 	} oc_response_t;
 
 
-	// interface masks 
+	// interfaces 
 	typedef enum oc_interface_mask
 	{
 		OC_IF_NONE = 0,         // no interface, defined as 0 (not 1) to not count this as an interface
 		OC_IF_I = 1 << 1,       // if.i (logical input)
 		OC_IF_O = 1 << 2,       // if.o (logical output)
-		OC_IF_G = 1 << 3,       // if.g.s.[ga] 
+		OC_IF_G = 1 << 3,       // if.g.s. and <ga> 
 		OC_IF_C = 1 << 4,       // if.c (configuration)
 		OC_IF_P = 1 << 5,       // if.p (parameter)
 		OC_IF_D = 1 << 6,       // if.d (diagnostic)		
@@ -188,15 +188,16 @@ extern "C" {
 		OC_IF_M = 1 << 14       // if.m.x (manufacturer specific)
 	} oc_interface_mask_t;
 
-#define MAX_INTERFACE_BIT (14) // the highest defined bit-position
+#define MAX_INTERFACE_BIT (14) // the highest 'defined' valid interface bit-position
+#define NUM_INTERFACES    (15) // the number of interfaces in the array
 
-	// access control masks, derived from interfaces
+	// access control (acl) scopes, derived from interfaces
 	typedef enum oc_acl_mask
 	{
 		OC_ACL_NONE = OC_IF_NONE, // no scope, defined as 0 (not 1) to not count this as a scope 
 		OC_ACL_I = OC_IF_I,       // if.i (logical input)
 		OC_ACL_O = OC_IF_O,       // if.o (logical output)
-		OC_ACL_G = OC_IF_G,       // if.g.s (used only for /k endpoint in stack, details see method oc_knx_sec_check_acl) 
+		OC_ACL_G = OC_IF_G,       // if.g.s (all ga's are allowed at /k, see method oc_knx_sec_check_acl) 
 		OC_ACL_C = OC_IF_C,       // if.c (configuration)
 		OC_ACL_P = OC_IF_P,       // if.p (parameter)
 		OC_ACL_D = OC_IF_D,       // if.d (diagnostic)		
@@ -205,12 +206,14 @@ extern "C" {
 		                          // if.ll (is not a scope)
 		                          // if.b  (is not a scope)
 		OC_ACL_SEC = OC_IF_SEC,   // if.sec 
-		OC_ACL_SWU = OC_IF_SWU    // if.swu 
+		OC_ACL_SWU = OC_IF_SWU,   // if.swu 
 	                            // if.pm (is not a scope) 
-		                          // if.m.{name} (is not a scope) 
+		                          // if.m.x (is not a scope)
+    OC_ACL_GA = OC_IF_M << 1  // <ga> is ONLY an INTERNAL scope and no interface ([owl]some ga's are allowed at /k, see method oc_knx_sec_check_acl)
 	} oc_acl_mask_t;
 
-#define MAX_ACL_SCOPE_BIT (12) // the highest defined bit-position
+#define MAX_ACL_SCOPE_BIT (12) // the highest 'defined' valid scope bit-position
+#define NUM_ACL_SCOPES    (16) // the number of scopes in the array
 
 
 	/**
@@ -227,8 +230,6 @@ extern "C" {
 	 *
 	 * @param scopes the scope mask
 	 * @return int the amount of scopes in the mask
-	 *
-	 * @note calculates the interface if.g.s.<a> only 1
 	 *
 	 */
   unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes);

@@ -856,19 +856,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
             sprintf(line, "");
             strcat(text, line);
           }
-          /*
-          if (oc_byte_string_len(my_entry->aud) > 0) {
-            sprintf(line, "  osc_aud [%d]: ", (int)oc_byte_string_len(my_entry->aud));
-            char* ms = oc_string(my_entry->aud);
-            int length = (int)oc_byte_string_len(my_entry->aud);
-            for (int i = 0; i < length; i++) {
-              sprintf(line, "%02x", (unsigned char)ms[i]);
-              strcat(text, line);
-            }
-            sprintf(line, "\n");
-            strcat(text, line);
-          }
-          */
+          
           if (my_entry->ga_len > 0)
           {
             sprintf(line, "  osc_ga : [");
@@ -1155,7 +1143,7 @@ void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
   app_set_bool_variable_from_channel(LSAB, SOO, p);
 
   // send out, multicast
-  oc_do_s_mode_with_scope_and_check(SENDER_SCOPE, url, "w");
+  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
 
   // update button text
   char text[200];

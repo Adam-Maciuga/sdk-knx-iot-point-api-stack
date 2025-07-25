@@ -283,7 +283,8 @@ bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char 
   request->token_len = 8;
   int i = 0;
   uint32_t r;
-  while (i < request->token_len) {
+  while (i < request->token_len) 
+  {
     r = oc_random_value();
     memcpy(request->token + i, &r, sizeof(r));
     i += sizeof(r);

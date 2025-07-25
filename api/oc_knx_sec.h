@@ -132,8 +132,8 @@ extern "C" {
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" / "ID Context" - max 6 byte string 
 		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id used as "kid" / "Client Sender ID" - max 7 byte string 
 		int nbf;										// token not valid before (optional) 
-		int ga_len;									// length of the group addresses (ga) in the scope 
-		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values, specification demands >= 20 entries 
+		int ga_len;									// length of the group addresses (ga) in the scope, specification demands at least 20 entries must be supported
+		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values 
 
 	} oc_auth_at_t;
 

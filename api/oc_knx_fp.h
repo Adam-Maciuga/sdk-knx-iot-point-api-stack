@@ -123,8 +123,8 @@ extern "C"
     int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
     oc_string_t href;         // resource path
     oc_cflag_mask_t cflags;   // cflags as in KNX
-    int ga_len;               // length of the group address array (len can only be > 0 but for loops uses mostly signed int ...)
-    uint32_t* ga;             // group address array of 32 bit values, specification demands >= 20 entries
+    uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (n) / send (1)  
+    int ga_len;               // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
 
   /**
@@ -186,8 +186,8 @@ extern "C"
     uint32_t grpid; // multicast group id, specification demands 32 bit
     oc_string_t url; // url // TODO url will be removed in new specification
     oc_string_t at; // access token id. Reference to the security credentials for unicast subscription encryption.
-    uint32_t* ga; // group address array of 32 bit values, specification demands >= 20 entries
-    int ga_len; // length of the group address array (len can only be > 0 but code loops uses mostly signed int ...)
+    uint32_t* ga; // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
+    int ga_len; // group address array len, specification demands at least 20 entries must be supported
     bool non; // non-confirmable unicast request, default = false (used only on RCP table)
   } oc_group_table_t;
 
@@ -235,26 +235,13 @@ extern "C"
   /**
    * @brief register the multicast addresses to listen to
    *
-   * The addresses are formed from:
-   * - situation 1) grpid of the publisher entries
-   * or if no grpid exist:
-   * - situation 2) group address entries in the Group Object table
+   * - The addresses are formed from grpid (if > 0) of the publisher entries
+   * - Loop over the group object table, for each group address entry, 
+   *   if cflags is "Write" "Update" "Read" find for the GA the grpid entry in the publisher table,
+   *   if present register the grpid as part of the address
    *
-   * for situation 1):
-   * - loop over the group object table
-   *   - for each group address entry
-   *     - if cflags is "Write" "Update" "Read"
-   *       - find the grpid entry in the publisher table
-   *       - register the grpid as part of the address
-   *
-   * for situation 2):
-   * - loop over the group object table
-   *   - for each group address entry
-   *     - if cflags is "Write" "Update" "Read"
-   *       - register the  group address as part of the address
-   *
-   * function is called when the device is (re)started in run-time mode (e.g.
-   * state = "loaded")
+   * @note function is called when the device is (re)started in run-time mode (e.g.
+   *       state = "loaded" or ia/iid is (re)written)
    */
   void oc_register_group_multicasts(void);
 

@@ -343,19 +343,14 @@ int oc_main_init(const oc_handler_t* handler)
     app_callbacks->register_resources();
   }
 
-#ifdef OC_IOT_ROUTER
-  oc_create_iot_router_functional_block(0);
-#endif
-
 #endif 
 
-  OC_DBG("Stack initialized...");
+  OC_DBG("stack initialized ...");
 
   initialized = true;
 
 #ifdef OC_SERVER
-  // listen to the group addresses multicasts
-  // that are registered in the group object table
+  // listen to the group addresses multicasts that are registered in the PUB table
   oc_register_group_multicasts();
 #endif
 

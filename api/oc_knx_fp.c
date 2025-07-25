@@ -83,8 +83,6 @@ int oc_table_find_id_from_payload(oc_rep_t* object)
   return -1;
 }
 
-
-
 int find_empty_slot_in_group_object_table(void)
 {
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -862,26 +860,6 @@ static int oc_core_items_used_in_pub_table(void)
     }
   }
   return counter;
-}
-
-int oc_core_find_publisher_table_index(uint32_t group_address)
-{
-  int i, j;
-  for (i = 0; i < GPT_MAX_ENTRIES; i++)
-  {
-
-    if (g_gpt[i].id > -1)
-    {
-      for (j = 0; j < g_gpt[i].ga_len; j++)
-      {
-        if (group_address == g_gpt[i].ga[j])
-        {
-          return i;
-        }
-      }
-    }
-  }
-  return -1;
 }
 
 static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -2999,9 +2977,7 @@ uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uin
 {
   for (int index = 0; index < max_size; index++)
   {
-    uint32_t* array = table[index].ga;
-    const int array_size = table[index].ga_len;
-    if (is_in_array(group_address, array, array_size))
+    if (is_in_array(group_address, table[index].ga, table[index].ga_len))
     {
       // break immediately 
       return table[index].grpid;
@@ -3027,109 +3003,79 @@ void oc_register_group_multicasts(void)
     PRINT("oc_register_group_multicasts: no device info");
     return;
   }
-  const uint64_t installation_id = device->iid;
-  const uint16_t multicast_port = COAP_DEFAULT_PORT;
 
-  PRINT("multicast port %u", multicast_port);
+  PRINT("multicast port %i", COAP_DEFAULT_PORT);
 
-  bool pub_table_grpid_entry_present = false;
-
+  // register via grpid
   for (int index = 0; index < GPT_MAX_ENTRIES; index++)
   {
-    uint32_t grpid = g_gpt[index].grpid;
-    if (grpid > 0)
-    {
-      pub_table_grpid_entry_present = true;
-      break;
-    }
-  }
-  if (pub_table_grpid_entry_present)
-  {
-    // register via grpid
-    for (int index = 0; index < GPT_MAX_ENTRIES; index++)
-    {
-      const int nr_entries = g_got[index].ga_len;
-      const oc_cflag_mask_t cflags = g_got[index].cflags;
+    const oc_cflag_mask_t cflags = g_got[index].cflags;
 
-      // check if the GA is used for receiving, e.g. one of r/w/u
-      if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
+    // check if the GA is used for any receiving action, e.g. one of r/w/u
+    if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
+    {
+      for (int i = 0; i < g_got[index].ga_len; i++)
       {
-        for (int i = 0; i < nr_entries; i++)
-        {
-          // check if a 'receiving' GA as part of a GO is in the publisher table (device can receive)
-          const uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
+        // check if the 'receiving' GA from GO table entry is in the publisher table (device wants to receive it)
+        const uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
 
-          PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid,
-                g_got[index].ga[i]);
-          oc_print_cflags(cflags);
+        PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid, g_got[index].ga[i]);
+        oc_print_cflags(cflags);
 
-          if (grpid > 0)
-          { // found
-            subscribe_group_to_multicast_with_port(grpid, installation_id, 2, multicast_port);
-            subscribe_group_to_multicast_with_port(grpid, installation_id, 5, multicast_port);
-          }
+        if (grpid > 0)
+        { // found
+          subscribe_group_to_multicast_with_port(grpid, device->iid, 2, COAP_DEFAULT_PORT);
+          subscribe_group_to_multicast_with_port(grpid, device->iid, 5, COAP_DEFAULT_PORT);
         }
       }
     }
   }
-  else
-  {
-    // register via group object
-    for (int index = 0; index < GOT_MAX_ENTRIES; index++)
-    {
-      const int nr_entries = g_got[index].ga_len;
-      const oc_cflag_mask_t cflags = g_got[index].cflags;
-
-      // check if the GA is used for receiving, e.g. one of r/w/u
-      if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
-      {
-        // register all GA's of this GO
-        for (int i = 0; i < nr_entries; i++)
-        {
-          PRINT("oc_register_group_multicasts index=%d i=%d group: %u  cflags=", index, i, g_got[index].ga[i]);
-          oc_print_cflags(cflags); // debugging
-          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 2, multicast_port);
-          subscribe_group_to_multicast_with_port(g_got[index].ga[i], installation_id, 5, multicast_port);
-        }
-      }
-    }
-  }
+  
 #endif
 }
 
 void oc_init_datapoints_at_initialization(void)
 {
-  PRINT("Scan datapoints for possible initialization...");
+  PRINT("scan datapoints for possible i-cflag initialization ...");
 
-  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
+  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    // at least one GA is assigned (is an array)
-    if (g_got[index].ga_len > 0)
+    if (g_got[i].id > -1)
     {
-      if (g_got[index].cflags & OC_CFLAG_INIT)
+      // at least one GA is assigned (is an array)
+      if (g_got[i].ga_len > 0)
       {
-        // read on init cflags is set, fire (after device restart)
-        // via the sending association(first assigned ga == sending ga)
-        uint32_t sending_group_address = g_got[index].ga[0];
+        if (g_got[i].cflags & OC_CFLAG_INIT)
+        {
+          // read on init cflags is set, fire (after device restart)
+          // via the sending association(first assigned ga == sending ga)
+          uint32_t sending_group_address = g_got[i].ga[0];
 
-        OC_INF("Init datapoint, index: %d issue read on group address %u", index, sending_group_address);
+          OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 
-        oc_device_info_t* device = oc_core_get_device_info(0);
-        uint16_t sia_value = device->ia;
-        uint64_t iid = device->iid;
+          oc_device_info_t* device = oc_core_get_device_info(0);
+          uint16_t sia_value = device->ia;
+          uint64_t iid = device->iid;
 
-        OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
+          OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
 
-        // find the (mc) grpid that belongs to the group address
-        uint32_t grpid = oc_find_grpid_in_recipient_table(sending_group_address);
+          // find the (mc) grpid that belongs to the group address
+          const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_group_address);
+          if (grpid > 0)
+          { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-        if (grpid > 0)
-        { // grpid is set in case of multicast in RCP table (configured by MaC)
-
-          #ifdef OC_USE_MULTICAST_SCOPE_2
-          oc_issue_s_mode(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
-          #endif
-          oc_issue_s_mode(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+            #ifdef OC_USE_MULTICAST_SCOPE_2
+            oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+            #endif
+            oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+          }
+          else
+          {
+            // TODO resolve IP unicast to send via unicast...
+            // discover unicast IPv6 for IA via mDNS
+            // send message with unicast IPv6
+            PRINT("grpid =0");
+          }
         }
       }
     }

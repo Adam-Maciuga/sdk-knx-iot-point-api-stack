@@ -180,7 +180,8 @@ oc_rep_t* oc_s_mode_get_value_object(oc_request_t* request)
   return NULL;
 }
 
-void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
+// send out s-mode message in multicast
+void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
                      uint32_t group_address, uint64_t iid, const char* service_type,
                      uint8_t* value_data, int value_size)
 {
@@ -361,7 +362,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
   return 0;
 }
 
-int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type)
+int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resource_path, const char* srv_type)
 {
   PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
 
@@ -403,21 +404,34 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
     
     if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
     {
-      // DON'T need to copy resource value to buffer for e read
+      // DON'T need to copy resource value to buffer for a read
 
+      // grpid
       const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-      if (grpid == 0)
-      {
-        PRINT("error, grpid for the resource path %s not found", resource_path);
-        return -1;
+      if (grpid > 0)
+      { // grpid is set in case of multicast in RCP table (configured by MaC)
+        
+        // multicast read, NO value data needed
+        oc_issue_s_mode_mc(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
+        return 0;
       }
-
-      // multicast read, NO value data needed
-      oc_issue_s_mode(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
-      return 0;
-      
+      else
+      {
+        // TODO resolve IP unicast to send via unicast...
+        // discover unicast IPv6 for IA via mDNS
+        // send message with unicast IPv6
+        PRINT("grpid =0");
+        return 0;
+      }
     }
-    PRINT("error, sending group address for the resource path %s not found", resource_path);
+
+    /*
+      no sending, this is not automatically an error
+      - the 'resource path' cannot be found, the caller writes to 'something'
+      - the t-flag is not set
+    */
+
+    OC_WRN("sending for the resource path %s not possible", resource_path);
     return -1;
     
   }
@@ -432,16 +446,24 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
       // copy resource value to buffer, return value size
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
 
+      // grpid
       uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-      if (grpid == 0)
+      if (grpid > 0)
+      { // grpid is set in case of multicast in RCP table (configured by MaC)
+
+        // multicast write, value data needed
+        oc_issue_s_mode_mc(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
+
+      }
+      else
       {
-        PRINT("error, grpid for the resource path %s not found", resource_path);
-        return -1;
+        // TODO resolve IP unicast to send via unicast...
+        // discover unicast IPv6 for IA via mDNS
+        // send message with unicast IPv6
+        PRINT("grpid =0");
       }
 
-      // multicast write, value data needed
-      oc_issue_s_mode(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
-
+      
       // update internal GOs on a write request
       {
         PRINT("checking & updating internal group objects");
@@ -451,7 +473,7 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
 
         while (go_table_index_where_ga_is_used != -1)
         {
-          // for all GOs (with the GA) with the href from the original update the values
+          // for all GOs with the GA included -> update the values
           oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
           const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
@@ -485,30 +507,30 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
             const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
             if (cflags & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
-            { // update the resource internally, BUT only all GOs with type if input!
+            { // update the resource internally, BUT only all GOs with w-cflag set
 
-              // create a CBOR object and place the CBOR encoded response data in 
+              // copy in CBOR object the CBOR encoded resource data from original write request 
               oc_rep_t* cbor_object_ptr;
               struct oc_memb cbor_object = {sizeof(oc_rep_t), 0, 0, 0, 0};
               oc_rep_set_pool(&cbor_object);
               oc_parse_rep(resource_value_buffer, resource_value_size, &cbor_object_ptr);
 
-              oc_request_t request_obj; 
-
               // prepare new request from "void" with data needed for the callback PUT
               // NOT the same initialization as oc_ri.c
+              oc_request_t request_obj;
+
               request_obj.response = NULL; // no response expected
               request_obj.request_payload = cbor_object_ptr;  // place CBOR payload pointer for PUT 
               request_obj.query = NULL;
               request_obj.query_len = 0;
               request_obj.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
-              request_obj.origin = NULL; // not known at this point
+              request_obj.origin = NULL; // not known here
               request_obj._payload = NULL;
               request_obj._payload_len = 0;
               request_obj.request_method = OC_PUT; // A PUT handler MAY check this
               request_obj.content_format = APPLICATION_CBOR;
-              request_obj.accept = APPLICATION_CBOR; // a PUT does not need it
-              request_obj.uri_path = oc_string(go_href); // allows (a generic) application callback to identify the caller
+              request_obj.accept = APPLICATION_CBOR; // a PUT MAY need it for response payload with 2.04
+              request_obj.uri_path = oc_string(go_href); // allows (a generic) app. callback to identify the caller resource path
               request_obj.uri_path_len = oc_string_len(go_href);
 
               // call application handler with own interface/ user data
@@ -530,12 +552,11 @@ int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, cons
     }
 
     /*
-      if no sending group address will be found, this is not automatically an error
-      - the GO may be configured correctly, but no GA is defined in the GO table
-      - the caller writes to 'something' which cannot send out at all
-      - ...
+      no sending, this is not automatically an error
+      - the 'resource path' cannot be found, the caller writes to 'something'
+      - the t-flag is not set 
     */
-    OC_WRN("no sending group address for the resource path %s not found", resource_path);
+    OC_WRN("sending for the resource path %s not possible", resource_path);
     return -1;
   }
 

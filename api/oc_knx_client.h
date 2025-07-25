@@ -110,22 +110,24 @@ oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
  * @brief sends (transmits) an s-mode message from an (application) client
  *
  * - the value comes from the GET of the resource indicated by the resource_url
- * - the outgoing resource path is "/k"
+ * - the outgoing resource path is '/k' either with multicast or unicast
  * - the sia (sender individual address) is taken from the device
- * - the ga is the 'sending' group address of that resource (must not necessarily be configured/ available)
+ * - the ga is the 'sending' group address of the resource path
  *
  * For the recipient table all entries are used to send the unicast communication.
  *
- * @note the s-mode /k has an own handler,
- *       moreover the function checks the t-cflag from the GO for the sending GA
+ * @note the function checks the t-cflag from the GO for the sending GA
  *
  * @param scope the multi-cast scope
  * @param resource_path caller resource path (e.g. implemented on the device that is calling this function)
- * @param srv_type the "st" value to send e.g. "w" | "r"
+ * @param srv_type the service type to use, "w" or "r"
+ *
+ * @return 0 send out, -1 not send out (path not existing, t-cflag not set)
+ *
  */
-int oc_do_s_mode_with_scope_and_check(int scope, const char* resource_path, const char* srv_type);
+int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resource_path, const char* srv_type);
 
- void oc_issue_s_mode(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid, uint32_t group_address,
+ void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid, uint32_t group_address,
                       uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client

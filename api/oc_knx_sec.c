@@ -778,11 +778,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               g_at_entries[index].ga_len = new_array_size;
               g_at_entries[index].ga = new_array;
 
-              // TODO when observe is implemented for /k check access scope properly
-
-              // define THIS auth at token with 's-mode messaging' scope,
-              // this scope is set only here and for  /k endpoint resource handler 
-              g_at_entries[index].scope = OC_ACL_G;
+              // define THIS auth at token with 's-mode messaging' <ga> scope only here,
+              // used only on /k endpoint resource handler (see oc_knx_sec_check_acl)  
+              g_at_entries[index].scope = OC_ACL_GA;
             }
             else
             {
@@ -1037,7 +1035,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[index].id));
 
   // scope : 9 (either list of GAS is used or acl scopes)
-  if (g_at_entries[index].ga_len > 0)
+  if (g_at_entries[index].scope == OC_ACL_GA)
   {
     // list of GAs is used
     oc_rep_i_set_int_array(root, 9, g_at_entries[index].ga, g_at_entries[index].ga_len);
@@ -1962,14 +1960,17 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
   /*
    Example for auth/o sub resource
 
-   - A MaC writes - on tool key - if.p/d/c/sec/swu scopes in e.g.; aut/at/2 acl table entry (never an interface like if.ll or if.b)
-   - A device owns for each method AND resource a 'precompiled' acl and interface definition, e.g.; EP auth/o GET = acl : if.p/d/c, interface = if.ll
-  
-   The stack compares for the given method the auth/at acl scope with the resource acl scope, at least one bit match = ok,
-   otherwise 4.00 (bad request) response.
+   The stack compares caller scope with called scope, at least one bit match = ok, otherwise 4.00 (bad request) response.
 
-   - caller scope, e.g. of the auth/at table entry that was used to decrypt the message on OC_OSCORE defined the 'auth_at_index' is always incremented by
-     + 1 , so no extra sanity check here is needed
+   caller scope
+   ------------
+   the acl scope from auth/at table entry that was used to decrypt the message, written by a MaC - by using the tool key -
+   such as if.p/d/c/sec/swu (never an interface like if.ll or if.b)
+
+   called scope
+   ------------
+   the device resource + method 'precompiled' acl scope (see resource definitions, e.g.; auth/o GET = if.p/d/c)
+  
   */
   const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index);
 
@@ -1987,13 +1988,23 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
   }
 
   /*
-    here the caller/called scopes are matching, this can be a
-    - a call to common endpoints with caller access token scope + called resource scope hosts at least 'if.sec' (POST auth/at ) --> OK
-    - a call to s-mode endpoint with caller access token scope + called resource scope hosts at least 'if.g.s' (POST /k)  --> OK, ... but 
-      extra handling is needed, ga from request must be also part of ga list in access token (list must be non-empty)
+   
+    here the caller/called scopes are matching for O0 and O1
+    
+    O0 a call to common endpoints with caller/called scope, both hosts at least 'if.sec' (auth/at) --> OK
+
+    O1 a call to s-mode endpoint with caller/called scope, both hosts at least 'if.g.s' (/k)  --> OK
+       = all ga's are allowed for if.g.s
+
+    O2 a call to s-mode endpoint with caller/called scope, both hosts at least '<ga>' (/k)  --> NOT ENOUGH
+       = some ga's are allowed for <ga>, ga from request must be also part of ga list in access token (list IS NOT empty)
+       - no other EP than /k uses '<ga>' as scope (see resource definition)
+       - <ga> scope is set only in one place (create access token with non-empty list)
+      
   */
-  if (called_res_scope == OC_ACL_G)
-  { // MUST BE a call to s-mode endpoint /k = extra handling, no other EP uses 'if-g.s' as scope (see resource definition)
+
+  if (caller_acl_scope == OC_ACL_GA && called_res_scope & OC_ACL_GA)
+  { // O2 - caused by an access token with a non-empty ga list as POST/GET to /k 
 
     // scan received payload for request ga
     const oc_rep_t* rep = value_object;
@@ -2023,11 +2034,12 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     if (group_address_in_payload != -1)
     { // ga found and check
       return check_access_token_for_group_address(endpoint->auth_at_index, group_address_in_payload);
-      // TODO check if already existing a method 
+      // TODO check if already existing a method
     }
 
-    // no ga found in payload = request payload error, no access 
+    // no ga found in payload = request payload error, no access
     return false;
+    
  
   }
 
