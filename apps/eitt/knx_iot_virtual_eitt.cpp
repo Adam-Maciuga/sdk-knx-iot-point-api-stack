@@ -366,7 +366,6 @@ void MyFrame::OnExit(wxCommandEvent& event) { Close(true); }
  */
 void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 {
-  int device_index = 0;
   SetStatusText("Changing programming mode");
 
   bool my_val = m_menuFile->IsChecked(CHECK_PM);
@@ -387,7 +386,6 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
  */
 void MyFrame::OnSleepyMode(wxCommandEvent& event)
 {
-  int device_index = 0;
   SetStatusText("Changing sleepy mode");
 
   bool my_sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
@@ -508,7 +506,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
       strcat(text, line);
       sprintf(line, "  url: '%s' ", oc_string(entry->href));
       strcat(text, line);
-      sprintf(line, "  cflags : '%d' ", (int)entry->cflags);
+      sprintf(line, "  cflags : '%d' ", static_cast<int>(entry->cflags));
       oc_cflags_as_string(line, entry->cflags);
       strcat(text, line);
       strcpy(line, "  ga : [");
@@ -802,41 +800,28 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
         {
           if (oc_byte_string_len(my_entry->osc_id) > 0)
           {
-            sprintf(line, "  osc_id [%d]: ", (int)oc_byte_string_len(my_entry->osc_id));
+            sprintf(line, "  osc_id [%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_id)));
             strcat(text, line);
             char* ms = oc_string(my_entry->osc_id);
-            int length = (int)oc_byte_string_len(my_entry->osc_id);
+            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_id));
             for (int i = 0; i < length; i++)
             {
-              sprintf(line, "%02x", (unsigned char)ms[i]);
+              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
               strcat(text, line);
             }
             sprintf(line, "");
             strcat(text, line);
           }
-          /*
-                    if (oc_byte_string_len(my_entry->osc_rid) > 0) {
-                      sprintf(line, "  osc_rid [%d]: ", (int)oc_byte_string_len(my_entry->osc_rid));
-                      strcat(text, line);
-                      char* ms = oc_string(my_entry->osc_rid);
-                      int length = (int)oc_byte_string_len(my_entry->osc_rid);
-                      for (int i = 0; i < length; i++) {
-                        sprintf(line, "%02x", (unsigned char)ms[i]);
-                        strcat(text, line);
-                      }
-                      sprintf(line, "");
-                      strcat(text, line);
-                    }
-                    */
+          
           if (oc_byte_string_len(my_entry->osc_ms) > 0)
           {
-            sprintf(line, "  osc_ms [%d]: ", (int)oc_byte_string_len(my_entry->osc_ms));
+            sprintf(line, "  osc_ms [%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_ms)));
             strcat(text, line);
-            int length = (int)oc_byte_string_len(my_entry->osc_ms);
+            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_ms));
             char* ms = oc_string(my_entry->osc_ms);
             for (int i = 0; i < length; i++)
             {
-              sprintf(line, "%02x", (unsigned char)ms[i]);
+              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
               strcat(text, line);
             }
             sprintf(line, "");
@@ -844,20 +829,20 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
           }
           if (oc_byte_string_len(my_entry->osc_contextid) > 0)
           {
-            sprintf(line, "  osc_contextid (o)[%d]: ", (int)oc_byte_string_len(my_entry->osc_contextid));
+            sprintf(line, "  osc_contextid (o)[%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_contextid)));
             strcat(text, line);
             char* ms = oc_string(my_entry->osc_contextid);
-            int length = (int)oc_byte_string_len(my_entry->osc_contextid);
+            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_contextid));
             for (int i = 0; i < length; i++)
             {
-              sprintf(line, "%02x", (unsigned char)ms[i]);
+              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
               strcat(text, line);
             }
             sprintf(line, "");
             strcat(text, line);
           }
           
-          if (my_entry->ga_len > 0)
+          if (my_entry->scope == OC_ACL_GA)
           {
             sprintf(line, "  osc_ga : [");
             strcat(text, line);
@@ -870,7 +855,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
           }
           else
           {
-            sprintf(line, "  scope : ", my_entry->scope);
+            sprintf(line, "  scope : ");
             this->int2scopetext(my_entry->scope, line);
             strcat(text, line);
             strcat(text, "\n");
@@ -1093,11 +1078,11 @@ void MyFrame::int2grpidtext(uint64_t value, char* text, bool as_ets)
      Group Identifier: 8000 : 0068 [4 bytes ]
     */
     // group number to the various bytes
-    uint8_t byte_1 = (uint8_t)value;
-    uint8_t byte_2 = (uint8_t)(value >> 8);
-    uint8_t byte_3 = (uint8_t)(value >> 16);
-    uint8_t byte_4 = (uint8_t)(value >> 24);
-    uint8_t byte_5 = (uint8_t)(value >> 32);
+    uint8_t byte_1 = static_cast<uint8_t>(value);
+    uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
+    uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
+    uint8_t byte_4 = static_cast<uint8_t>(value >> 24);
+    uint8_t byte_5 = static_cast<uint8_t>(value >> 32);
 
     if (byte_5 == 0)
     {

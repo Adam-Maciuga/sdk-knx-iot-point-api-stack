@@ -174,7 +174,7 @@ extern "C" {
 		OC_IF_NONE = 0,         // no interface, defined as 0 (not 1) to not count this as an interface
 		OC_IF_I = 1 << 1,       // if.i (logical input)
 		OC_IF_O = 1 << 2,       // if.o (logical output)
-		OC_IF_G = 1 << 3,       // if.g.s. and <ga> 
+		OC_IF_G = 1 << 3,       // if.g.s. (all or some group addresses)
 		OC_IF_C = 1 << 4,       // if.c (configuration)
 		OC_IF_P = 1 << 5,       // if.p (parameter)
 		OC_IF_D = 1 << 6,       // if.d (diagnostic)		
@@ -197,7 +197,7 @@ extern "C" {
 		OC_ACL_NONE = OC_IF_NONE, // no scope, defined as 0 (not 1) to not count this as a scope 
 		OC_ACL_I = OC_IF_I,       // if.i (logical input)
 		OC_ACL_O = OC_IF_O,       // if.o (logical output)
-		OC_ACL_G = OC_IF_G,       // if.g.s (all ga's are allowed at /k, see method oc_knx_sec_check_acl) 
+		OC_ACL_G = OC_IF_G,       // if.g.s (all ga's are allowed, see oc_knx_sec_check_acl) 
 		OC_ACL_C = OC_IF_C,       // if.c (configuration)
 		OC_ACL_P = OC_IF_P,       // if.p (parameter)
 		OC_ACL_D = OC_IF_D,       // if.d (diagnostic)		
@@ -209,10 +209,10 @@ extern "C" {
 		OC_ACL_SWU = OC_IF_SWU,   // if.swu 
 	                            // if.pm (is not a scope) 
 		                          // if.m.x (is not a scope)
-    OC_ACL_GA = OC_IF_M << 1  // <ga> is ONLY an INTERNAL scope and no interface ([owl]some ga's are allowed at /k, see method oc_knx_sec_check_acl)
+    OC_ACL_GA = OC_IF_M << 1  // <ga> ([owl]some ga's are allowed, see oc_knx_sec_check_acl), is ONLY an INTERNAL scope and has no corr. interface
 	} oc_acl_mask_t;
 
-#define MAX_ACL_SCOPE_BIT (12) // the highest 'defined' valid scope bit-position
+#define MAX_ACL_SCOPE_BIT (12) // the highest 'defined' valid scope bit-position (mote, the <ga> scope is internal and not considered)
 #define NUM_ACL_SCOPES    (16) // the number of scopes in the array
 
 

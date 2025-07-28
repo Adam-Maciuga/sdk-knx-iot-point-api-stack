@@ -481,7 +481,7 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
     {
     case OC_REP_STRING:
     {
-      // id is only for type text string defined
+      // access token id (0) is only for type text string defined
       if (oc_string_len(object->name) == 0 && object->iname == 0)
       {
         oc_string_t* index = &object->value.string;
@@ -499,7 +499,7 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
   return NULL;
 }
 
-// -1, if no GA was found in access token GA list
+// false, if the GA was NOT found in access token GA list
 static bool check_access_token_for_group_address(int access_token_index, uint32_t group_address)
 {
   // if there is no GA list (len =0), loop does not start
@@ -634,7 +634,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   bool scope_updated = false;
   bool other_updated = false;
 
-  int index = -1;
+  int array_index = -1;
   PRINT("oc_core_auth_at_post_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
@@ -645,7 +645,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   // debugging
   oc_print_rep_as_json(request->request_payload, true);
 
-  // set ptr to collection of 1...n ATs in payload
+  // set ptr to collection of 1...n access token entries in payload
   rep = request->request_payload;
   oc_rep_t* object = NULL;
 
@@ -655,6 +655,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
     {
       // check for valid payload (EITT Test 5.3.8.2)
       object = rep->value.object;
+
+      // scan all objects for a mixed array first 
       while (object)
       {
         if (object->type == OC_REP_MIXED_ARRAY)
@@ -666,27 +668,35 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         object = object->next;
       }
 
-      // reassign ...
+      // reassign to original pointer ...
+      // treat request payload value as one entry (that itself defines a chain of objects for id, scopes,...)
       object = rep->value.object;
-      oc_string_t* at = find_access_token_id_from_payload(object);
 
-      if (at == NULL)
+      // find access token id in request
+      oc_string_t* access_token_id = find_access_token_id_from_payload(object);
+
+      if (access_token_id == NULL)
       {
         OC_ERR("access token ID in payload not found!");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
-      index = find_index_from_at_table_from_id(at);
-      if (index != -1)
+
+      // find index in AT table
+      array_index = find_index_from_at_table_from_id(access_token_id);
+      if (array_index != -1)
       {
-        OC_INF("access token entry already exist!");
+        // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
       }
       else
       {
+        // no index, so we will create one
         return_status = OC_STATUS_CREATED;
-        index = find_empty_at_index();
-        if (index == -1)
+
+        // no index, so we will create one (default)
+        array_index = find_empty_at_index();
+        if (array_index == -1)
         {
           OC_ERR("AT table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -694,9 +704,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         }
       }
 
-      // set AT entry id
-      oc_free_string(&(g_at_entries[index].id));
-      oc_new_string(&g_at_entries[index].id, oc_string(*at), oc_string_len(*at));
+      // set AT id
+      oc_free_string(&(g_at_entries[array_index].id));
+      oc_new_string(&g_at_entries[array_index].id, oc_string(*access_token_id), oc_string_len(*access_token_id));
 
       bool id_only = true; // used to delete the AT table entry
 
@@ -719,9 +729,12 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             // set default scope
             oc_acl_mask_t acl_scopes = OC_ACL_NONE;
 
+            // release a possible ga array (same id was used with GA list, now without), free ignores NULL ptr
+            free(g_at_entries[array_index].ga);
+
             // in case of scopes the GA/GA len property is not used
-            g_at_entries[index].ga = NULL;
-            g_at_entries[index].ga_len = 0;
+            g_at_entries[array_index].ga = NULL;
+            g_at_entries[array_index].ga_len = 0;
 
             for (int i = 0; i < new_array_size; i++)
             {
@@ -741,7 +754,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             }
 
             // scopes (compacted bits)
-            g_at_entries[index].scope = acl_scopes;
+            g_at_entries[array_index].scope = acl_scopes;
             scope_updated = true;
           }
         }
@@ -754,7 +767,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           if (object->iname == 9)
           {
             // default, overwritten if GA array was correctly assigned
-            g_at_entries[index].scope = OC_ACL_NONE;
+            g_at_entries[array_index].scope = OC_ACL_NONE;
 
             const int64_t* array = oc_int_array(object->value.array);
             const int new_array_size = oc_int_array_size(object->value.array);
@@ -770,17 +783,16 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
               PRINT("ga size %d", new_array_size);
 
-              // release a possible ga array, it will be overwritten,
-              // no selective adding (note it releases the org ptr)
-              // free ignores NULL ptr
-              free(g_at_entries[index].ga);
+              // release a possible ga array, it will be overwritten, free ignores NULL ptr
+              free(g_at_entries[array_index].ga);
 
-              g_at_entries[index].ga_len = new_array_size;
-              g_at_entries[index].ga = new_array;
+              g_at_entries[array_index].ga_len = new_array_size;
+              g_at_entries[array_index].ga = new_array;
 
-              // define THIS auth at token with 's-mode messaging' <ga> scope only here,
-              // used only on /k endpoint resource handler (see oc_knx_sec_check_acl)  
-              g_at_entries[index].scope = OC_ACL_GA;
+              // define THIS auth at token with 's-mode messaging' <ga> scope,
+              // - defined only here
+              // - used only on  /k resource (see also oc_knx_sec_check_acl)  
+              g_at_entries[array_index].scope = OC_ACL_GA;
             }
             else
             {
@@ -795,28 +807,33 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         {
           if (object->iname != 0)
           {
+            // NOT id (0), for sure from now on a not 'ID only' case, note that id (0) was already scanned  
             id_only = false;
           }
           if (object->iname == 2)
           {
-            // sub
-            oc_free_string(&(g_at_entries[index].sub));
-            oc_new_string(&g_at_entries[index].sub, oc_string(object->value.string), oc_string_len(object->value.string));
+            // sub (2)
+            oc_free_string(&(g_at_entries[array_index].sub));
+            oc_new_string(&g_at_entries[array_index].sub, oc_string(object->value.string), oc_string_len(object->value.string));
           }
           
         }
         else if (object->type == OC_REP_INT)
         {
+
+          // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
+
           if (object->iname == 38)
           {
-            // profile
+            // profile (38)
             PRINT("profile %d", (int)object->value.integer);
-            g_at_entries[index].profile = (int)object->value.integer;
+            g_at_entries[array_index].profile = (int)object->value.integer;
           }
         }
         else if (object->type == OC_REP_OBJECT)
         {
+          // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
           // level of cnf or sub.
@@ -831,9 +848,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               if (sub_object_nr == 8 && sub_object->iname == 3)
               {
                 // cnf:kid (8:3)
-                oc_free_string(&(g_at_entries[index].kid));
-                oc_new_string(&g_at_entries[index].kid, oc_string(sub_object->value.string),
-                              oc_string_len(sub_object->value.string));
+                oc_free_string(&(g_at_entries[array_index].kid));
+                oc_new_string(&g_at_entries[array_index].kid, oc_string(sub_object->value.string), oc_string_len(sub_object->value.string));
               }
             }
             else if (sub_object->type == OC_REP_OBJECT)
@@ -859,33 +875,33 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 {
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 2)
                   {
-                    // cnf:osc:ms
-                    oc_free_string(&(g_at_entries[index].osc_ms));
-                    oc_new_byte_string(&g_at_entries[index].osc_ms, oc_string(oscore_object->value.string),
+                    // cnf:osc:ms (8:4:2)
+                    oc_free_string(&(g_at_entries[array_index].osc_ms));
+                    oc_new_byte_string(&g_at_entries[array_index].osc_ms, oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
                   {
-                    // cnf:osc:contextId
-                    oc_free_string(&(g_at_entries[index].osc_contextid));
-                    oc_new_byte_string(&g_at_entries[index].osc_contextid, oc_string(oscore_object->value.string),
+                    // cnf:osc:contextId (8:4:6)
+                    oc_free_string(&(g_at_entries[array_index].osc_contextid));
+                    oc_new_byte_string(&g_at_entries[array_index].osc_contextid, oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
                   {
-                    // cnf:osc:id
-                    oc_free_string(&(g_at_entries[index].osc_id));
-                    oc_new_byte_string(&g_at_entries[index].osc_id, oc_string(oscore_object->value.string),
+                    // cnf:osc:id (8:4:0)
+                    oc_free_string(&(g_at_entries[array_index].osc_id));
+                    oc_new_byte_string(&g_at_entries[array_index].osc_id, oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
                   {
-                    // cnf:osc:salt
-                    oc_free_string(&(g_at_entries[index].osc_salt));
-                    oc_new_byte_string(&g_at_entries[index].osc_salt, oc_string(oscore_object->value.string),
+                    // cnf:osc:salt (8:4:5)
+                    oc_free_string(&(g_at_entries[array_index].osc_salt));
+                    oc_new_byte_string(&g_at_entries[array_index].osc_salt, oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
@@ -902,29 +918,29 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
       if (id_only)
       {
-        PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_delete_at_table_entry(index);
+        PRINT("only found id in request, deleting entry at index: %d", array_index);
+        oc_delete_at_table_entry(array_index);
       }
       else
       {
-        PRINT("storage index: %d (%s) ", index, oc_string_checked(*at));
-        oc_print_auth_at_entry(index);
-        oc_store_at_table_entry(index);
+        PRINT("storage index: %d (%s) ", array_index, oc_string_checked(*access_token_id));
+        oc_print_auth_at_entry(array_index);
+        oc_store_at_table_entry(array_index);
       }
     }
     rep = rep->next;
   }
 
   PRINT("activating oscore context");
-  // add the oscore contexts by reinitializing all used oscore keys.
-  // do not update the oscore when update of the scope contents only
+
   if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true)
   {
-    OC_WRN("update scope only");
+    // do not update the oscore when update of the scope contents only
+    OC_WRN("updated scopes only, NO reinitializing of all used oscore keys ");
   }
   else
   {
-    // update the oscore context
+    // add the oscore contexts by reinitializing all used oscore keys.
     oc_init_oscore_from_storage(false);
   }
 
@@ -1037,12 +1053,12 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   // scope : 9 (either list of GAS is used or acl scopes)
   if (g_at_entries[index].scope == OC_ACL_GA)
   {
-    // list of GAs is used
+    // list of GAs is used (the internal <ga> scope is never returned as 'scope')
     oc_rep_i_set_int_array(root, 9, g_at_entries[index].ga, g_at_entries[index].ga_len);
   }
   else
   {
-    // number of access scopes
+    // number of access scopes (all scopes except <ga> scope)
     const unsigned int nr_entries = oc_count_total_scopes_in_mask(g_at_entries[index].scope);
     if (nr_entries > 0)
     {
@@ -1369,7 +1385,7 @@ void oc_print_auth_at_entry(int index)
           PRINT("osc:id (h)    : (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_id));
           oc_string_println_hex(g_at_entries[index].osc_id);
         }
-        if (g_at_entries[index].ga_len > 0)
+        if (g_at_entries[index].scope == OC_ACL_GA)
         {
           PRINT("osc:ga        : [");
           for (int i = 0; i < g_at_entries[index].ga_len; i++)
@@ -1400,7 +1416,7 @@ int oc_delete_at_table_entry(int entry)
   (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
   oc_storage_erase(filename);
 
-  // generic data
+  // id, scope, profile
   oc_free_string(&g_at_entries[entry].id);
   oc_new_string(&g_at_entries[entry].id, "", 0);
   g_at_entries[entry].scope = OC_ACL_NONE;
@@ -1425,8 +1441,7 @@ int oc_delete_at_table_entry(int entry)
   oc_free_string(&g_at_entries[entry].kid);
   oc_new_string(&g_at_entries[entry].kid, "", 0);
 
-  // release a possible ga array
-  // free ignores NULL ptr
+  // release a possible ga array, free ignores NULL ptr
   free(g_at_entries[entry].ga);
 
   g_at_entries[entry].ga = NULL;
@@ -1474,12 +1489,10 @@ static void oc_store_at_table_entry(int entry)
   oc_rep_i_set_text_string(root, 83, oc_string(g_at_entries[entry].kid));
 
   // 84x: cnf:osc:xx map
-  oc_rep_i_set_byte_string(root, 840, oc_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
-  oc_rep_i_set_byte_string(root, 842, oc_string(g_at_entries[entry].osc_ms), oc_byte_string_len(g_at_entries[entry].osc_ms));
-  oc_rep_i_set_byte_string(root, 845, oc_string(g_at_entries[entry].osc_salt),
-                           oc_byte_string_len(g_at_entries[entry].osc_salt));
-  oc_rep_i_set_byte_string(root, 846, oc_string(g_at_entries[entry].osc_contextid),
-                           oc_byte_string_len(g_at_entries[entry].osc_contextid));
+  oc_rep_i_set_byte_string(root, 840, oc_byte_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
+  oc_rep_i_set_byte_string(root, 842, oc_byte_string(g_at_entries[entry].osc_ms), oc_byte_string_len(g_at_entries[entry].osc_ms));
+  oc_rep_i_set_byte_string(root, 845, oc_byte_string(g_at_entries[entry].osc_salt), oc_byte_string_len(g_at_entries[entry].osc_salt));
+  oc_rep_i_set_byte_string(root, 846, oc_byte_string(g_at_entries[entry].osc_contextid), oc_byte_string_len(g_at_entries[entry].osc_contextid));
 
   // 777: ga's
   oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
@@ -1612,16 +1625,14 @@ static void oc_load_at_table_entry(int entry)
                 new_array[i] = (uint32_t)array[i];
               }
 
-              // release a possible ga array, it will be overwritten,
-              // no selective adding (note it releases the org ptr)
-              // free ignores NULL ptr
+              // release a possible ga array, it will be overwritten (no selective adding, free ignores NULL ptr
               free(g_at_entries[entry].ga);
-
-              PRINT("ga size %d", new_array_size);
 
               // assign only when the new array is allocated correctly
               g_at_entries[entry].ga_len = new_array_size;
               g_at_entries[entry].ga = new_array;
+
+              PRINT("ga size %d", new_array_size);
             }
           }
           break;
@@ -1795,9 +1806,11 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
     oc_free_string(&g_at_entries[index].osc_id);
     oc_new_byte_string(&g_at_entries[index].osc_id, client_senderid, client_senderid_size);
 
-    // no ga array as scope , only if.sec
+    
     // release a possible ga array, it will be overwritten, free ignores NULL ptr
     free(g_at_entries[index].ga);
+
+    // no ga array as scope for PASE token
     g_at_entries[index].ga_len = 0;
     g_at_entries[index].ga = NULL;
 
@@ -1863,7 +1876,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
   oc_oscore_free_sender_contexts();
 
-  OC_DBG_OSCORE("... adding OSCORE contexts from AT table");
+  OC_DBG_OSCORE("... adding OSCORE contexts from access token table");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
@@ -1945,12 +1958,15 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     return true;
   }
 
+  #ifndef OC_OSCORE
+  return true;
+  #endif
+
+  // debugging
   PRINT("method allowed flags : ");
   PRINTipaddr_flags(*endpoint);
 
-#ifdef OC_OSCORE
-
-  if ((endpoint->flags & OSCORE + OSCORE_DECRYPTED) != OSCORE + OSCORE_DECRYPTED)
+  if ((endpoint->flags & (OSCORE + OSCORE_DECRYPTED)) != OSCORE + OSCORE_DECRYPTED)
   {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
     OC_DBG_OSCORE("access denied for: %s with flags: %d", oc_string_checked(resource->uri), endpoint->flags);
@@ -1975,76 +1991,71 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
   const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index);
 
   // bitwise 'and' -> at least one scope from access token and resource must match
-  if (!(caller_acl_scope & called_res_scope))
+  if (caller_acl_scope & called_res_scope)
   {
-    PRINT("access to %s unauthorized: request scope=%d; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
+    /*
+      here the caller/called scopes are matching
 
-    oc_print_acl_scopes(caller_acl_scope);
-    oc_print_acl_scopes(called_res_scope);
+      O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec' -> OK
 
-    OC_WRN("resource call denied");
+      O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s' -> OK
+         = all ga's are allowed for if.g.s
 
-    return false;
-  }
+      O2 s-mode endpoint (/k) call with caller/called scope hosting at least '<ga>' -> NOT ENOUGH
+         = some ga's are allowed for <ga>
+         - ga from request must be also part of ga list in access token (list IS NOT empty)
+         - no other EP than /k uses '<ga>' as resource scope (see resource definition)
+         - <ga> scope is set only in one place (create access token with non-empty list)
 
-  /*
-   
-    here the caller/called scopes are matching for O0 and O1
-    
-    O0 a call to common endpoints with caller/called scope, both hosts at least 'if.sec' (auth/at) --> OK
+    */
 
-    O1 a call to s-mode endpoint with caller/called scope, both hosts at least 'if.g.s' (/k)  --> OK
-       = all ga's are allowed for if.g.s
+    if (caller_acl_scope == OC_ACL_GA)
+    { // O2 - a call with <ga> access token, here this is only possible if /k resource was
+      // addressed (a & b ->  OC_ACL_GA & OC_ACL_G + OC_ACL_GA at /k resource definition)
 
-    O2 a call to s-mode endpoint with caller/called scope, both hosts at least '<ga>' (/k)  --> NOT ENOUGH
-       = some ga's are allowed for <ga>, ga from request must be also part of ga list in access token (list IS NOT empty)
-       - no other EP than /k uses '<ga>' as scope (see resource definition)
-       - <ga> scope is set only in one place (create access token with non-empty list)
-      
-  */
+      // scan received payload for request ga
+      const oc_rep_t* rep = value_object;
+      int group_address_in_payload = -1;
 
-  if (caller_acl_scope == OC_ACL_GA && called_res_scope & OC_ACL_GA)
-  { // O2 - caused by an access token with a non-empty ga list as POST/GET to /k 
-
-    // scan received payload for request ga
-    const oc_rep_t* rep = value_object;
-    int group_address_in_payload = -1;
-
-    while (rep)
-    {
-      if (rep->type == OC_REP_OBJECT)
+      while (rep)
       {
-        // s map with st/ga/value (if present on write/update)
-        oc_rep_t* s_map = rep->value.object;
-
-        while (s_map)
+        if (rep->type == OC_REP_OBJECT)
         {
-          if (s_map->type == OC_REP_INT && s_map->iname == 7)
-          { // only GA is of interest
+          // s map with st/ga/value (if present on write/update)
+          oc_rep_t* s_map = rep->value.object;
 
-            group_address_in_payload = (int)s_map->value.integer;
-            break;
+          while (s_map)
+          {
+            if (s_map->type == OC_REP_INT && s_map->iname == 7)
+            { // only GA is of interest
+
+              group_address_in_payload = (int)s_map->value.integer;
+              break;
+            }
+            s_map = s_map->next;
           }
-          s_map = s_map->next;
         }
+        rep = rep->next;
       }
-      rep = rep->next;
+
+      // no ga found in request payload = request payload error, no access
+      // ga found in request payload, check ...
+      return group_address_in_payload == -1
+        ? false 
+        : check_access_token_for_group_address(endpoint->auth_at_index, group_address_in_payload);
     }
 
-    if (group_address_in_payload != -1)
-    { // ga found and check
-      return check_access_token_for_group_address(endpoint->auth_at_index, group_address_in_payload);
-      // TODO check if already existing a method
-    }
-
-    // no ga found in payload = request payload error, no access
-    return false;
-    
- 
+    // acl scopes + method OK
+    return true;
   }
 
-#endif
+  OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :",
+                oc_string(resource->uri), 
+                caller_acl_scope,
+                called_res_scope);
 
-  // acl scopes + method OK or OC_OSCORE is off
-  return true;
+  oc_print_acl_scopes(caller_acl_scope);
+  oc_print_acl_scopes(called_res_scope);
+
+  return false;
 }

@@ -217,15 +217,14 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t
   PRINT("oc_oscore_find_context_by_oscore_id:");
   oc_char_println_hex(oscore_id, oscore_id_len);
 
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_list_head(contexts);
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
   while (ctx != NULL)
   {
-    char* ctx_serial_number = ctx->token_id;
+    uint8_t* ctx_serial_number = ctx->token_id;
     if (memcmp(oscore_id, ctx_serial_number, cmp_len) == 0)
     {
-      PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index: %d",
-            ctx->auth_at_index);
-      OC_DBG_OSCORE("    Common IV:");
+      PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index : %d",  ctx->auth_at_index);
+      OC_DBG_OSCORE("    Common IV :");
       OC_LOGbytes_OSCORE(ctx->common_iv, OSCORE_COMMON_IV_LEN);
       ctx->last_used = oc_clock_time();
       return ctx;

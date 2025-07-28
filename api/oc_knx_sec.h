@@ -122,8 +122,8 @@ extern "C" {
 		oc_string_t id;							// (0) id, hex encoded 
 		oc_acl_mask_t scope;	      // (9) acl scopes (compacted as bit field)
 		oc_at_profile_t profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
-		oc_string_t sub;						// (2) TLS (not used) kid 
-		oc_string_t kid;						// (8:3) TLS (not used) cnf:sub
+		oc_string_t sub;						// (2) TLS kid 
+		oc_string_t kid;						// (8:3) TLS cnf:sub
 		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional) 
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
 		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional-not used)	(decimal value)
@@ -250,7 +250,7 @@ extern "C" {
 	 *
 	 * @note
 	 * - OSCORE context entries are an internal linked list
-	 * - after device reset or post on auth/at table 
+	 * - called after device reset or on POST /auth/at table 
 	 *
 	 * @param read_ssn_from_storage if content is read from storage (yes/no), this affects how to handle the SSN (true usually after device reset)
 	 */
