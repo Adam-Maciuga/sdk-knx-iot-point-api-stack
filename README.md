@@ -59,6 +59,9 @@ __port/\*.h__
 Contains the shared platform abstractions.
 
 - DNS/SD 
+  - The stack is creating/calling a process to call specific \<OS> functionality
+    (Windows - Bonjour from Apple, needs to be installed; Linux - Avahi tools, maybe already installed). For an own implementation, 
+    this functionality must be adapted.  
 - Clock
   - The stack uses the clock functions only to evaluate time differences, such as with seconds 
     to inform a client on a server reboot startup time. An absolute (RFC 3339 UTC) time stamp 
