@@ -73,7 +73,7 @@ int oc_table_find_id_from_payload(const oc_rep_t* object)
     {
     case OC_REP_INT:
     {
-      // pub/rcp id  (0) is only for type int defined 
+      // pub/rcp id (0) is only for type int defined 
       if (object->iname == 0)
       {
         int id = (int)object->value.integer;
@@ -469,11 +469,14 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       #define MANDATORY_GO_PROPERTIES (4) // id, ga, cflags and href must be present
+      bool id_only = true; // used to delete the GO table entry
 
       uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
-      oc_group_object_table_t tmp_got_entry = g_got[array_index]; // fill with live GO (from a present entry or from an empty entry)
-      bool id_only = true; // used to delete the GO table entry
-      int current_go_properties = 0; 
+      oc_group_object_table_t tmp_go_entry = g_got[array_index]; // fill with live GO (from a present entry or from an empty entry)
+
+      // set GO id 
+      tmp_go_entry.id = id;
+      int current_go_properties = 1; 
 
       while (object)
       {
@@ -482,24 +485,18 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         
         case OC_REP_INT:
 
-          // id (0)
-          if (object->iname == 0)
+          if (object->iname != 0)
           {
-            // set id in tmp copy 
-            tmp_got_entry.id = (int)object->value.integer;
-
-            // valid item + possibly an 'id only case'
-            current_go_properties++;
+            // NOT id (0), for sure from now on a not 'ID only' case,
+            // note that id (0) was already scanned/assigned
+            id_only = false;
           }
 
           // cflags (8)
           if (object->iname == 8)
           {
             // set flags in tmp copy
-            tmp_got_entry.cflags = (int)object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            id_only = false;
+            tmp_go_entry.cflags = (int)object->value.integer;
             current_go_properties++;
           }
 
@@ -513,7 +510,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 11)
           {
             // set (new) href in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_got_entry.href, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_new_string(&tmp_go_entry.href, oc_string(object->value.string), oc_string_len(object->value.string));
 
             current_go_properties++;
             allocator |= GO_HREF;
@@ -543,8 +540,8 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
               PRINT("ga size %d", new_array_size);
 
               // assign GA array in tmp copy (org ptr still valid)
-              tmp_got_entry.ga_len = new_array_size;
-              tmp_got_entry.ga = new_array;
+              tmp_go_entry.ga_len = new_array_size;
+              tmp_go_entry.ga = new_array;
 
               current_go_properties++;
               allocator |= GO_GAS;
@@ -554,7 +551,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
               OC_ERR("out of stack memory");
 
               // on error: free GO tmp entry (all heap allocations)
-              oc_free_allocated_go_table_elements(&tmp_got_entry, allocator);
+              oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
 
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
@@ -569,7 +566,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           OC_ERR("invalid object type detected");
 
           // on error: free GO tmp entry (all heap allocations)
-          oc_free_allocated_go_table_elements(&tmp_got_entry, allocator);
+          oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -602,7 +599,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_go_table_elements(&tmp_got_entry, allocator);
+          oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -615,31 +612,31 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         // a "bad" status will stop processing and return a 4.00
 
         // note that an empty array ( 7: []) does not end up in setting the GA len, it ends in 4.00
-        if (tmp_got_entry.ga_len == 0)
+        if (tmp_go_entry.ga_len == 0)
         {
           do_save = false;
-          OC_ERR("no groups %d", tmp_got_entry.ga_len);
+          OC_ERR("no ga's %d", tmp_go_entry.ga_len);
         }
-        if (tmp_got_entry.cflags == 0)
+        if (tmp_go_entry.cflags == 0)
         {
           do_save = false;
-          OC_ERR("no cflags set %d", tmp_got_entry.cflags);
+          OC_ERR("no cflags set %d", tmp_go_entry.cflags);
         }
-        if (oc_string_len(tmp_got_entry.href) > OC_MAX_URL_LENGTH)
+        if (oc_string_len(tmp_go_entry.href) > OC_MAX_URL_LENGTH)
         {
           do_save = false;
           OC_ERR("href is longer than %d", OC_MAX_URL_LENGTH);
         }
-        if (!oc_belongs_href_to_resource(tmp_got_entry.href, true, 0))
+        if (!oc_belongs_href_to_resource(tmp_go_entry.href, true, 0))
         {
           do_save = false;
-          OC_ERR("href '%s' does not belong to device", oc_string_checked(tmp_got_entry.href));
+          OC_ERR("href '%s' does not belong to device", oc_string_checked(tmp_go_entry.href));
         }
 
         if (!do_save)
         {
           // on error: free GO tmp entry (all heap allocations)
-          oc_free_allocated_go_table_elements(&tmp_got_entry, allocator);
+          oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -656,7 +653,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         oc_free_allocated_go_table_elements(&g_got[array_index], allocator);
 
         // assign GO table entry with tmp GO (all elements)
-        g_got[array_index] = tmp_got_entry;
+        g_got[array_index] = tmp_go_entry;
 
         // debugging
         oc_print_group_object_table_entry(array_index);
@@ -1045,11 +1042,13 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       #define MANDATORY_PUB_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+      bool id_only = true; // to delete a publisher table entry
 
       uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
-      oc_group_table_t tmp_pub_entry = g_gpt[array_index]; // fill with live PUB entry (from a present/empty entry)
-      bool id_only = true; // to delete a publisher table entry
-      int current_pub_properties = 0; 
+      oc_group_table_t tmp_gpt_entry = g_gpt[array_index]; // fill with live PUB entry (from a present/empty entry)
+
+      tmp_gpt_entry.id = id;
+      int current_gpt_properties = 1; 
 
       while (object)
       {
@@ -1057,54 +1056,34 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         {
         case OC_REP_INT:
 
-          // id (0)
-          if (object->iname == 0) 
+          if (object->iname != 0)
           {
-            // set id in tmp copy
-            tmp_pub_entry.id = (int)object->value.integer;
-
-            // valid item + possibly an 'id only case'
-            current_pub_properties++;
+            // NOT id (0), for sure from now on a not 'ID only' case,
+            // note that id (0) was already scanned/assigned
+            id_only = false;
           }
 
           // ia (12)
-          if (object->iname == 12) 
+          if(object->iname == 12) 
           {
-            tmp_pub_entry.ia = (int)object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            current_pub_properties++;
-            id_only = false;
-           
+            tmp_gpt_entry.ia = (int)object->value.integer;
+            current_gpt_properties++;
           }
-
           // grpid (13)
-          if (object->iname == 13) 
+          else if (object->iname == 13) 
           {
-            tmp_pub_entry.grpid = (uint32_t)object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            current_pub_properties++;
-            id_only = false;
-           
+            tmp_gpt_entry.grpid = (uint32_t)object->value.integer;
+            current_gpt_properties++;
           }
-
           // iid (26)
-          if (object->iname == 26) 
+          else if (object->iname == 26) 
           {
-            tmp_pub_entry.iid = object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            id_only = false;
-          }
-
+            tmp_gpt_entry.iid = object->value.integer;
+          } 
           // fid (25)
-          if (object->iname == 25) 
+          else if(object->iname == 25) 
           {
-            tmp_pub_entry.fid = object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            id_only = false;
+            tmp_gpt_entry.fid = object->value.integer;
           }
 
           break;
@@ -1117,17 +1096,16 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 10) 
           {
             // set (new) url in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_pub_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_new_string(&tmp_gpt_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
 
-            current_pub_properties++;
+            current_gpt_properties++;
             allocator |= TABLE_URL;
           }
-
           // at (14))
-          if (object->iname == 14)
+          else if(object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_pub_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_new_string(&tmp_gpt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
             allocator |= TABLE_ATREF;
           }
@@ -1156,10 +1134,10 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
               PRINT("ga size %d", array_size);
 
-              tmp_pub_entry.ga_len = array_size;
-              tmp_pub_entry.ga = new_array;
+              tmp_gpt_entry.ga_len = array_size;
+              tmp_gpt_entry.ga = new_array;
 
-              current_pub_properties++;
+              current_gpt_properties++;
               allocator |= TABLE_GAS;
             }
             else
@@ -1167,7 +1145,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
               OC_ERR("out of stack memory");
 
               // on error: free PUB tmp entry (all heap allocations)
-              oc_free_allocated_pub_rcp_table_elements(&tmp_pub_entry, allocator);
+              oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
 
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
@@ -1183,10 +1161,10 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // resource 'ga array' = empty (specification request)
           if (object->iname == 7) 
           {
-            tmp_pub_entry.ga_len = 0;
-            tmp_pub_entry.ga = NULL;
+            tmp_gpt_entry.ga_len = 0;
+            tmp_gpt_entry.ga = NULL;
 
-            current_pub_properties++; // also on empty ga array satisfies the items number
+            current_gpt_properties++; // also on empty ga array satisfies the items number
             allocator |= TABLE_GAS; // free() ignores NULL ptr
           }
 
@@ -1197,7 +1175,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           OC_ERR("invalid object type detected");
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_pub_rcp_table_elements(&tmp_pub_entry, allocator);
+          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1223,14 +1201,14 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_pub_properties < MANDATORY_PUB_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_PUB_PROPERTIES)
         { // a 
 
           // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_pub_rcp_table_elements(&tmp_pub_entry, allocator);
+          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1242,7 +1220,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         // check entry with some additional sanity checks
         // a "bad" status will stop processing and return a 4.00
 
-        if (oc_string_len(tmp_pub_entry.url) > OC_MAX_URL_LENGTH)
+        if (oc_string_len(tmp_gpt_entry.url) > OC_MAX_URL_LENGTH)
         {
           do_save = false;
           OC_ERR("url is longer than %d ", OC_MAX_URL_LENGTH);
@@ -1251,7 +1229,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         if (!do_save)
         {
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_pub_rcp_table_elements(&tmp_pub_entry, allocator);
+          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1265,10 +1243,10 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           - created : 2 elements (GAs, URL, AT)
           - changed : 1..2 elements (GAs, URL, AT) - 0 not possible, would be to delete a PUB entry
         */
-        oc_free_allocated_pub_rcp_table_elements(&g_gpt[array_index], allocator);
+        oc_free_allocated_table_elements(&g_gpt[array_index], allocator);
 
         // assign PUB table entry with tmp PUB (all elements)
-        g_gpt[array_index] = tmp_pub_entry;
+        g_gpt[array_index] = tmp_gpt_entry;
 
         // debugging
         oc_print_group_table_entry(array_index, GPT_STORE, g_gpt);
@@ -1638,11 +1616,14 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       #define MANDATORY_RCP_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+      bool id_only = true; // used to delete the RCP table entry
 
       uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
-      oc_group_table_t tmp_rcp_entry = g_grt[array_index]; // fill with live RCP entry (from a present/empty entry)
-      bool id_only = true; // used to delete the RCP table entry
-      int current_rcp_properties = 0; 
+      oc_group_table_t tmp_grt_entry = g_grt[array_index]; // fill with live RCP entry (from a present/empty entry)
+
+      // set RCP id 
+      tmp_grt_entry.id = id;
+      int current_grt_properties = 1; 
 
       while (object)
       {
@@ -1650,54 +1631,34 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         {
         case OC_REP_INT:
 
-          // id (0)
-          if (object->iname == 0) 
+          if (object->iname != 0)
           {
-
-            // set id in tmp copy
-            tmp_rcp_entry.id = (int)object->value.integer;
-
-            // valid item + possibly an 'id only case'
-            current_rcp_properties++;
+            // NOT id (0), for sure from now on a not 'ID only' case,
+            // note that id (0) was already scanned/assigned
+            id_only = false;
           }
 
           // ia (12)
           if (object->iname == 12) 
           {
-            
-            tmp_rcp_entry.ia = (int)object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            current_rcp_properties++;
-            id_only = false;
+            tmp_grt_entry.ia = (int)object->value.integer;
+            current_grt_properties++;
           }
-
           // grpid (13)
-          if (object->iname == 13) 
+          else if(object->iname == 13) 
           {
-            tmp_rcp_entry.grpid = (uint32_t)object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            current_rcp_properties++;
-            id_only = false;
+            tmp_grt_entry.grpid = (uint32_t)object->value.integer;
+            current_grt_properties++;
           }
-
           // iid (26)
-          if (object->iname == 26) 
+          else if(object->iname == 26) 
           {
-            tmp_rcp_entry.iid = object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            id_only = false;
+            tmp_grt_entry.iid = object->value.integer;
           }
-
           // fid (25)
-          if (object->iname == 25) 
+          else if(object->iname == 25) 
           {
-            tmp_rcp_entry.fid = object->value.integer;
-
-            // valid item + for sure no 'id only case'
-            id_only = false;
+            tmp_grt_entry.fid = object->value.integer;
           }
 
           break;
@@ -1710,17 +1671,16 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           if (object->iname == 10) 
           {
             // set (new) url in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_rcp_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_new_string(&tmp_grt_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
 
-            current_rcp_properties++;
+            current_grt_properties++;
             allocator |= TABLE_URL;
           }
-
           // at (14))
-          if (object->iname == 14)
+          else if(object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_rcp_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
+            oc_new_string(&tmp_grt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
             allocator |= TABLE_ATREF;
           }
@@ -1749,10 +1709,10 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
               PRINT("ga size %d", new_array_size);
 
-              tmp_rcp_entry.ga_len = new_array_size;
-              tmp_rcp_entry.ga = new_array;
+              tmp_grt_entry.ga_len = new_array_size;
+              tmp_grt_entry.ga = new_array;
 
-              current_rcp_properties++;
+              current_grt_properties++;
               allocator |= TABLE_GAS;
             }
             else
@@ -1760,7 +1720,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
               OC_ERR("out of stack memory");
 
               // on error: free PUB tmp entry (all heap allocations)
-              oc_free_allocated_pub_rcp_table_elements(&tmp_rcp_entry, allocator);
+              oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
 
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
@@ -1777,10 +1737,10 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // resource 'ga array' = empty (specification request)
           if (object->iname == 7) 
           {
-            tmp_rcp_entry.ga_len = 0;
-            tmp_rcp_entry.ga = NULL;
+            tmp_grt_entry.ga_len = 0;
+            tmp_grt_entry.ga = NULL;
 
-            current_rcp_properties++; // also on empty ga array satisfies the items number
+            current_grt_properties++; // also on empty ga array satisfies the items number
             allocator |= TABLE_GAS; // free() ignores NULL ptr
           }
 
@@ -1793,7 +1753,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // resource 'non' (CBOR/JSON = 'non'/'non')
           if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
           {
-            tmp_rcp_entry.non = object->value.boolean;
+            tmp_grt_entry.non = object->value.boolean;
           }
 
           break;
@@ -1803,7 +1763,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           OC_ERR("invalid object type detected");
 
           // on error: free RCP tmp entry (all heap allocations)
-          oc_free_allocated_pub_rcp_table_elements(&tmp_rcp_entry, allocator);
+          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           break;
@@ -1824,18 +1784,18 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
         // no tmp elements allocated ...
         PRINT("only found id in request, deleting entry at index: %d", array_index);
-        oc_delete_group_table_entry(array_index, GPT_STORE, g_grt, GRT_MAX_ENTRIES);
+        oc_delete_group_table_entry(array_index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_rcp_properties < MANDATORY_RCP_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED && current_grt_properties < MANDATORY_RCP_PROPERTIES)
         { // a
 
           // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_pub_rcp_table_elements(&tmp_rcp_entry, allocator);
+          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1847,7 +1807,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // check entry with some additional sanity checks
         // a "bad" status will stop processing and return a 4.00
 
-        if (oc_string_len(tmp_rcp_entry.url) > OC_MAX_URL_LENGTH)
+        if (oc_string_len(tmp_grt_entry.url) > OC_MAX_URL_LENGTH)
         {
           do_save = false;
           OC_ERR("url is longer than %d ", OC_MAX_URL_LENGTH);
@@ -1856,7 +1816,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         if (!do_save)
         {
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_pub_rcp_table_elements(&tmp_rcp_entry, allocator);
+          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1870,10 +1830,10 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           - created : 2 elements (GAs, URL, AT)
           - changed : 1..2 elements (GAs, URL, AT) - 0 not possible, would be to delete an RCP entry
         */
-        oc_free_allocated_pub_rcp_table_elements(&g_grt[array_index], allocator);
+        oc_free_allocated_table_elements(&g_grt[array_index], allocator);
 
         // assign RCP table entry with tmp RCP (all elements)
-        g_grt[array_index] = tmp_rcp_entry;
+        g_grt[array_index] = tmp_grt_entry;
 
         // debugging
         oc_print_group_table_entry(array_index, GRT_STORE, g_grt);
@@ -2389,7 +2349,7 @@ void oc_free_allocated_go_table_elements(oc_group_object_table_t* entry, uint8_t
   }
 }
 
-void oc_free_allocated_pub_rcp_table_elements(oc_group_table_t* entry, uint8_t allocator)
+void oc_free_allocated_table_elements(oc_group_table_t* entry, uint8_t allocator)
 {
   if (allocator & TABLE_ATREF)
   {

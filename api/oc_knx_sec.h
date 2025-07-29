@@ -122,16 +122,16 @@ extern "C" {
 		oc_string_t id;							// (0) id, hex encoded 
 		oc_acl_mask_t scope;	      // (9) acl scopes (compacted as bit field)
 		oc_at_profile_t profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
-		oc_string_t sub;						// (2) TLS kid 
-		oc_string_t kid;						// (8:3) TLS cnf:sub
-		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional) 
+		oc_string_t sub;						// (2) TLS kid (optional - not used)
+		oc_string_t kid;						// (8:3) TLS cnf:sub (optional - not used)
+		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional - not used) 
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
-		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional-not used)	(decimal value)
-		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional- not used) default: decimal value 10
-		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt (optional) empty string 
+		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional - not used) default:	decimal value
+		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional - not used) default: decimal value 10
+		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default: empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as "kid_context" / "ID Context" - max 6 byte string 
 		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id used as "kid" / "Client Sender ID" - max 7 byte string 
-		int nbf;										// token not valid before (optional) 
+		int nbf;										// token not valid before (optional - not used) 
 		int ga_len;									// length of the group addresses (ga) in the scope, specification demands at least 20 entries must be supported
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values 
 

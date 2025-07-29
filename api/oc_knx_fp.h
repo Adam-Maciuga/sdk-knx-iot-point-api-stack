@@ -415,7 +415,7 @@ extern "C"
    * @param entry the PUB/RCP entry
    * @param allocator which PUB/RCP 'ocstring' element to be freed for that table entry
    */
-  void oc_free_allocated_pub_rcp_table_elements(oc_group_table_t* entry, const uint8_t allocator);
+  void oc_free_allocated_table_elements(oc_group_table_t* entry, const uint8_t allocator);
 
   /**
    * @brief delete entry of the Group Object Table,

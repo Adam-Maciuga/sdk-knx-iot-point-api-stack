@@ -704,11 +704,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         }
       }
 
-      // set AT id
+      #define MANDATORY_AT_PROPERTIES (5) // id, profile, scope, cnf:osc:id/ms
+      bool id_only = true; // used to delete the AT table entry
+
+      // set AT id, note that access token is (too) complex to use a shadow copy as for POST on pub/rcp/go 
       oc_free_string(&(g_at_entries[array_index].id));
       oc_new_string(&g_at_entries[array_index].id, oc_string(*access_token_id), oc_string_len(*access_token_id));
-
-      bool id_only = true; // used to delete the AT table entry
+      int current_at_properties = 1; // AT id already set
 
       while (object)
       {
@@ -753,9 +755,11 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               return;
             }
 
+            scope_updated = true;
+
             // scopes (compacted bits)
             g_at_entries[array_index].scope = acl_scopes;
-            scope_updated = true;
+            current_at_properties++;
           }
         }
         else if (object->type == OC_REP_INT_ARRAY)
@@ -793,6 +797,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               // - defined only here
               // - used only on  /k resource (see also oc_knx_sec_check_acl)  
               g_at_entries[array_index].scope = OC_ACL_GA;
+              current_at_properties++;
             }
             else
             {
@@ -807,12 +812,15 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         {
           if (object->iname != 0)
           {
-            // NOT id (0), for sure from now on a not 'ID only' case, note that id (0) was already scanned  
+            // NOT id (0), for sure from now on a not 'ID only' case,
+            // note that id (0) was already scanned/assigned  
             id_only = false;
           }
+
+          // sub (2)
           if (object->iname == 2)
           {
-            // sub (2)
+            
             oc_free_string(&(g_at_entries[array_index].sub));
             oc_new_string(&g_at_entries[array_index].sub, oc_string(object->value.string), oc_string_len(object->value.string));
           }
@@ -824,11 +832,11 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
+          // profile (38)
           if (object->iname == 38)
           {
-            // profile (38)
-            PRINT("profile %d", (int)object->value.integer);
             g_at_entries[array_index].profile = (int)object->value.integer;
+            current_at_properties++;
           }
         }
         else if (object->type == OC_REP_OBJECT)
@@ -862,7 +870,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 {
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 4)
                   {
-                    // only support value 10 at the moment, EITT test 5.3.19.3
+                    // algorithm (10) only supports value 10 at the moment, EITT test 5.3.19.3
                     if ((int)object->value.integer != 10)
                     {
                       OC_ERR("algorithm is not 10 : %d", (int)object->value.integer);
@@ -877,9 +885,11 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                   {
                     // cnf:osc:ms (8:4:2)
                     oc_free_string(&(g_at_entries[array_index].osc_ms));
-                    oc_new_byte_string(&g_at_entries[array_index].osc_ms, oc_string(oscore_object->value.string),
+                    oc_new_byte_string(&g_at_entries[array_index].osc_ms, oc_string(oscore_object->value.string), 
                                        oc_string_len(oscore_object->value.string));
+
                     other_updated = true;
+                    current_at_properties++;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
                   {
@@ -888,6 +898,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     oc_new_byte_string(&g_at_entries[array_index].osc_contextid, oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
+                  
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
                   {
@@ -896,6 +907,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     oc_new_byte_string(&g_at_entries[array_index].osc_id, oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
+                    current_at_properties++;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
                   {
@@ -916,13 +928,33 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         object = object->next;
       }
 
-      if (id_only)
-      {
+      /*
+        a: created +  id only/< 5 elements  = ERROR (to few elements)
+        b: created +  5 elements            = OK (create)
+        c: changed +  id only               = OK (delete)
+        d: changed +  1..n elements         = OK (update)
+
+      */
+
+      if (return_status == OC_STATUS_CHANGED && id_only)
+      { // c
         PRINT("only found id in request, deleting entry at index: %d", array_index);
         oc_delete_at_table_entry(array_index);
       }
       else
       {
+        if (return_status == OC_STATUS_CREATED && current_at_properties < MANDATORY_AT_PROPERTIES)
+        { // a
+
+          // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+          PRINT("mandatory items missing, no entry created at index: %d", array_index);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        // b + d
+
         PRINT("storage index: %d (%s) ", array_index, oc_string_checked(*access_token_id));
         oc_print_auth_at_entry(array_index);
         oc_store_at_table_entry(array_index);
