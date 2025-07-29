@@ -41,32 +41,8 @@
 #define LSSB (1)
 #define LSAB (0)
 
-#define FIRMWARE_NAME "KNX stack image"
-#define HW_TYPE_ETS6 "000102030405" // 12 string chars, MSB = 00
-#define DEV_MODEL_ETS6 "6800" // reuse mask version from iot device
-#define MID (0x00FA) // first 4 digits of SN_LOWER_CASE
+// use it in upper case 
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
-
-// Sensor
-#define APPLICATION_NAME_LSSB "KNX virtual sensor (LSSB)"
-#define SN_LOWER_CASE_LSSB "00fa10020700" // default SN if not overwritten by CL option -s, deliberated incorrect serial numbers
-#define HOST_NAME_LSSB (SN_LOWER_CASE_LSSB) // default host name (reset uses SN_LOWER_CASE as default)
-#define QRCODE_ETS6_LSSB "KNX:S:00FA10020700;P:2X4W3TE0DFLLS19Y1FCH"
-
-// Actuator
-#define APPLICATION_NAME_LSAB "KNX virtual actuator (LSAB)"
-#define SN_LOWER_CASE_LSAB "00fa10020900" // default SN if not overwritten by CL option -s, deliberated incorrect serial numbers
-#define HOST_NAME_LSAB (SN_LOWER_CASE_LSAB) // default host name (reset uses SN_LOWER_CASE as default)
-#define QRCODE_ETS6_LSAB "KNX:S:00FA10020900;P:2X4W3TE0DFLLS19Y1FCH"
-
-// EITT
-#define APPLICATION_NAME_EITT "KNX virtual EITT certification application"
-#define SN_LOWER_CASE_EITT "00fa10020800" // same as eitt test template, deliberated incorrect serial numbers
-#define HOST_NAME_EITT (SN_LOWER_CASE_EITT) // default host name (reset uses SN_LOWER_CASE as default)
-#define QRCODE_ETS6_EITT "KNX:S:00FA10020800;P:2X4W3TE0DFLLS19Y1FCH"
-#define MID_EITT (667) // same as eitt test template
-#define HW_TYPE_EITT "Windows" // 12 string chars, same as eitt test template
-#define DEV_MODEL_EITT "KNX Certification" // same as eitt test template
 
 /*
 
@@ -81,8 +57,6 @@
    - must respect the bit size definition in the MaC (ETS) product, e.g.; here 32-bit int, in ETS product 8...32 bit uint
 
 */
-
-
 typedef struct
 {
   volatile bool value; 
@@ -115,6 +89,12 @@ typedef struct
 extern "C"
 {
 #endif
+
+  /**
+   * @brief function to set up the device.
+   *
+   */
+  int app_init(void);
 
   /**
    * @brief initialize the stack
@@ -313,7 +293,6 @@ extern "C"
 
   // need to define prototype, used by an init method
   void signal_event_loop(void);
-  
 
 #ifdef __cplusplus
 }

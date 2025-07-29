@@ -52,16 +52,10 @@
 #include "oc_helpers.h"
 #include "port/oc_clock.h"
 #include "port/oc_storage.h"
-
-#ifdef OC_SPAKE
-#include "security/oc_spake2plus.h" // security enrollment by password
-#endif
-
 #include <signal.h> // test purpose only; commandline reset
 #include <stdio.h> // defines FILENAME_MAX
 #include <stdlib.h>
 #include "apps/knx_iot_virtual.h" // application constants + methods
-#include "oc_knx_client.h"
 
 #ifdef __linux__
 #include <pthread.h>
@@ -83,12 +77,18 @@ static CRITICAL_SECTION critical_section;
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
 
+// LSAB definitions
+const char application_name[] = "KNX virtual actuator (LSAB)";
+const char sn_lower_case[] = "00fa10020900";  // deliberated incorrect serial numbers
+const char hostname[] = "knx-00fa10020900";   // default host name (reset uses this default)
+const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
+const char dev_model[] = "6800";              // reuse mask version from iot device
+const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
+
 // global variables
 
 volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
-
-
 
 /*
 
@@ -121,56 +121,6 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
 // additional parameters
 int_datapoint_t test_parameter = {
   0, "/p/globalTestParameter", "urn:knx:dpa.65500.201", ":dpt.value2Ucount", "Global Test Parameter"};
-
-/**
- * @brief function to set up the device.
- *
- */
-int app_init(void)
-{
-  // set provider, no callback/no data
-  int ret = oc_init_platform("KNX Association", NULL, NULL);
-
-  // set the application name, version, base url, device serial number
-  // init also the device resources such as /dev, /.well-known/core, ...
-  ret |= oc_add_device(APPLICATION_NAME_LSAB, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
-
-  // set the hardware version 0.0.1, value used from EITT for testing
-  oc_core_set_device_hwv(0, 0, 0, 1);
-
-  // set the hardware version 0.0.1, value used from EITT for testing
-  oc_core_set_device_fwv(0, 0, 0, 1);
-
-  // set manufacturer id, value used from EITT for testing
-  oc_core_set_device_mid(0, MID);
-
-  // set the hardware type -> 12 chars, value used from EITT for testing
-  oc_core_set_device_hwt(0, HW_TYPE_ETS6);
-
-  // set device model, value used from EITT for testing
-  oc_core_set_device_model(0, DEV_MODEL_ETS6);
-
-  // set host name, value used from EITT for testing
-  oc_core_set_device_hostname(0, HOST_NAME_LSAB);
-
-  oc_set_s_mode_response_cb(oc_s_mode_response_cb);
-
-#ifdef OC_SPAKE
-
-  // if current (negotiated) pwd is not set (e.g. on a handover), use application definition
-  if (strlen(oc_spake_get_password()) == 0)
-    oc_spake_set_password(PASSWORD);
-
-  // make lower to upper case
-  char sn_upper[] = SN_LOWER_CASE_LSAB;
-  app_str_to_upper(sn_upper);
-
-  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, oc_spake_get_password());
-
-#endif
-
-  return ret;
-}
 
 /**
  * @brief
@@ -267,8 +217,7 @@ void register_resources(void)
 int app_initialize_stack(void)
 {
   // set SN before stack initialization
-  const char sn[] = SN_LOWER_CASE_LSAB;
-  app_set_serial_number(sn);
+  app_set_serial_number(sn_lower_case);
 
   /*
     The final storage folder depends on the build system/ current directory on Linux/ Windows,
@@ -391,7 +340,7 @@ int main(const int argc, char* argv[])
     }
     if (strcmp(argv[1], "-help") == 0)
     {
-      PRINTF("usage: no arguments starts the server;              \
+      PRINTF("usage: no arguments starts the server;                \
                 -help shows this message;                           \
                 -reset does an full device reset (erase code 2)     \
                 -s <serial number> sets the device serial number");
@@ -409,7 +358,7 @@ int main(const int argc, char* argv[])
     }
   }
 
-  PRINT("KNX-IOT server name : \"%s\"", APPLICATION_NAME_LSAB);
+  PRINT("KNX-IOT server name : \"%s\"", application_name);
 
   // ... before this call devices and resources are not existing, return code
   // issued by .init handler
@@ -437,7 +386,7 @@ int main(const int argc, char* argv[])
   // used to refresh (and print) IP addresses
   oc_connectivity_get_endpoints(0);
 
-  PRINT("Server '%s' is now running, waiting on incoming connections...", APPLICATION_NAME_LSAB);
+  PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
 
 #ifdef WIN32
   while (quit != 1) // check on Ctrl-C

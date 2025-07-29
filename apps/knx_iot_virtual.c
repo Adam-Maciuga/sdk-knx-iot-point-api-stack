@@ -24,8 +24,12 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
-// global variables
-char g_serial_number[13]; // maybe overwritten by CL option , 12 hex chars plus string end
+#ifdef OC_SPAKE
+#include "security/oc_spake2plus.h" // security enrollment by password
+#endif
+
+// global variables (12 x char + /0), maybe overwritten by CL option
+char g_serial_number[13]; 
 
 bool app_is_secure(void)
 {
@@ -147,6 +151,62 @@ int app_set_serial_number(const char* serial_number)
 {
   // don't copy more than size of SN
   return strncpy(g_serial_number, serial_number, sizeof(g_serial_number)) != NULL ? 0 : -1;
+}
+
+int app_init(void)
+{
+  extern const char application_name[];
+  extern const char sn_upper_case[];
+  extern const char sn_lower_case[];
+  extern const char hostname[];
+  extern const uint32_t mid;
+  extern const char hw_type[];
+  extern const char dev_model[];
+
+  // set provider, no callback/no data
+  int ret = oc_init_platform("KNX Association", NULL, NULL);
+
+  // set the application name, version, base url, device serial number
+  // init also the device resources such as /dev, /.well-known/core, ...
+  ret |= oc_add_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
+
+  // set the hardware version 0.0.1, value used from EITT for testing
+  oc_core_set_device_hwv(0, 0, 0, 1);
+
+  // set the hardware version 0.0.1, value used from EITT for testing
+  oc_core_set_device_fwv(0, 0, 0, 1);
+
+  // set manufacturer id, value used from EITT for testing
+  oc_core_set_device_mid(0, mid);
+
+  // set the hardware type -> 12 chars, value used from EITT for testing
+  oc_core_set_device_hwt(0, hw_type);
+
+  // set device model, value used from EITT for testing
+  oc_core_set_device_model(0, dev_model);
+
+  // set host name, value used from EITT for testing
+  oc_core_set_device_hostname(0, hostname);
+
+  // set response callback (if needed must be filled with code)
+  oc_set_s_mode_response_cb(oc_s_mode_response_cb);
+
+#ifdef OC_SPAKE
+
+  // if current (negotiated) pwd is not set (e.g. on a handover), use application definition
+  if (strlen(oc_spake_get_password()) == 0)
+    oc_spake_set_password(PASSWORD);
+
+  // convert in upper case (12 x char + /0)
+  char sn_upper[13];
+  memcpy(sn_upper, sn_lower_case, 13);
+  app_str_to_upper(sn_upper);
+
+  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, oc_spake_get_password());
+
+#endif
+
+  return ret;
 }
 
 const char* app_get_serial_number(void)

@@ -350,7 +350,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
        this works as the allowed password characters do not interfere
        with the separator characters colon and semicolon and are in the alphanumeric range.
   */
-  strcpy(text, "QR Info:   KNX:S:");
+  strcpy(text, "QR Code:   KNX:S:");
   strcat(text, oc_string(device->serialnumber));
   strcat(text, ";P:");
   strcat(text, app_get_password());
