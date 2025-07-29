@@ -85,7 +85,7 @@ int oc_reset_device(const size_t device_index, const int reset_mode)
   const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
   if (my_preset_cb && my_preset_cb->cb)
   {
-    PRINT("PRE-set callback handler is called");
+    PRINT("PRESET callback handler is called");
     my_preset_cb->cb(device_index, my_preset_cb->data);
   }
 
@@ -96,7 +96,7 @@ int oc_reset_device(const size_t device_index, const int reset_mode)
   const oc_reset_t* my_reset_cb = oc_get_reset_cb();
   if (my_reset_cb && my_reset_cb->cb)
   {
-    PRINT("RE-set callback handler is called");
+    PRINT("RESET callback handler is called");
     my_reset_cb->cb(device_index, reset_mode, my_reset_cb->data);
   }
 
@@ -168,7 +168,7 @@ static oc_event_callback_retval_t reset(void* context)
   */
   oc_core_find_and_remove_pase_token_in_at_table();
   
-#endif
+  #endif
 
   PRINT("re-register mDNS with new data");
   // re-register after resetting ia, iid , pm mode (values are usually changed after a reset)
@@ -252,7 +252,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
   PRINT("oc_core_knx_post_handler with data %s", buffer);
 
   oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+  while (rep)
   {
     switch (rep->type)
     { // note, type does not reflect a 1:1 meaning of the CBOR major types

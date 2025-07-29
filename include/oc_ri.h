@@ -709,6 +709,17 @@ extern "C" {
 	oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len);
 
 	/**
+   * @brief frame the interface mask in the response, as string in the uri
+   * example: full tag if= ":if.i" this function frames ":if.i" (truncated)
+   * or "urn:knx:if.i"
+   *
+   * @param interfaces The interface masks to frame
+   * @param truncated 1 = do not frame "urn:knx" in the payload
+   * @return int 0 = success
+   */
+  int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool truncated);
+
+	/**
    * @brief retrieve the scope mask from the scope name
    *
    * @param acl_scope_name a pointer to a SINGLE, scope name (e.g. 'if.s')

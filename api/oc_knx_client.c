@@ -101,7 +101,7 @@ int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid
   // not sure if we should use a malloc here, what would happen if there are no
   // devices found? because that causes a memory leak
   broker_s_mode_userdata_t* cb_data = malloc(sizeof(broker_s_mode_userdata_t));
-  if (cb_data != NULL)
+  if (cb_data)
   {
     memset(cb_data, 0, sizeof(broker_s_mode_userdata_t));
     cb_data->ia = ia;

@@ -199,6 +199,46 @@ void oc_put_all_interface_short_urns_from_a_mask_in_string_array(oc_interface_ma
   }
 }
 
+int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool truncate)
+{
+  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+
+  // used to check if something was framed
+  int total_size = 0;
+  size_t n;
+
+  for (int i = 0; i <= MAX_INTERFACE_BIT; i++, interfaces >>= 1)
+  {
+    if (interfaces & 1)
+    {
+      if (total_size > 0)
+      {
+        // if not the first one, add a space before the next ...
+        oc_rep_encode_raw((uint8_t*)" ", 1);
+        total_size++;
+      }
+
+			if (truncate)
+			{
+        // returning the short interface type names
+        n = strlen(interface_string_short_urn[i]);
+        oc_rep_encode_raw((uint8_t*)interface_string_short_urn[i], n);
+			}
+      else
+      {
+        // returning the full interface type names
+        n = strlen(interface_string_full_urn[i]);
+        oc_rep_encode_raw((uint8_t*)interface_string_full_urn[i], n);
+      }
+
+			total_size += (int)n;
+    }
+  }
+  return total_size;
+}
+
 oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
 {
   oc_interface_mask_t interface = OC_IF_NONE;
@@ -1024,11 +1064,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 																			oc_blockwise_state_t** request_state,
 																			oc_blockwise_state_t** response_state,
 																			uint16_t block2_size, oc_endpoint_t* endpoint)
-	#else  
+#else  
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 																			uint8_t* buffer,
 																			oc_endpoint_t* endpoint)
-	#endif 
+#endif 
 {
 	// flags that capture status along various stages of processing the request.
 	bool method_impl = true, bad_request = false, success = false,
@@ -1293,51 +1333,50 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 			authorized = false;
 		}
 		else
-
-			#ifdef OC_SECURITY
-			/* If matching_resource is a coaps:// resource, then query ACL to check if
-			* the requester (the subject) is authorized to issue this request to
-			* the resource.
-			*/
-			if (!oc_sec_check_acl(method, matching_resource, endpoint))
+		#ifdef OC_SECURITY
+		/* If matching_resource is a coaps:// resource, then query ACL to check if
+		* the requester (the subject) is authorized to issue this request to
+		* the resource.
+		*/
+		if (!oc_sec_check_acl(method, matching_resource, endpoint))
+		{
+			authorized = false;
+			// oc_ri_audit_log(method, matching_resource, endpoint);
+		}
+		else
+		#endif 
+		{
+			// invoke core or application callback handler, otherwise
+			// return a 4.05 (method not allowed) response
+			if (method == OC_GET && matching_resource->get_handler.cb)
 			{
-				authorized = false;
-				// oc_ri_audit_log(method, matching_resource, endpoint);
+				matching_resource->get_handler.cb(&request_obj, 
+																					matching_resource->get_handler.interface_mask,
+																					matching_resource->get_handler.user_data);
+			}
+			else if (method == OC_POST && matching_resource->post_handler.cb)
+			{
+				matching_resource->post_handler.cb(&request_obj, 
+																					 matching_resource->post_handler.interface_mask,
+																					 matching_resource->post_handler.user_data);
+			}
+			else if (method == OC_PUT && matching_resource->put_handler.cb)
+			{
+				matching_resource->put_handler.cb(&request_obj, 
+																					matching_resource->put_handler.interface_mask,
+																					matching_resource->put_handler.user_data);
+			}
+			else if (method == OC_DELETE && matching_resource->delete_handler.cb)
+			{
+				matching_resource->delete_handler.cb(&request_obj, 
+																						 matching_resource->delete_handler.interface_mask,
+																						 matching_resource->delete_handler.user_data);
 			}
 			else
-				#endif 
 			{
-				// invoke core or application callback handler, otherwise
-				// return a 4.05 (method not allowed) response
-				if (method == OC_GET && matching_resource->get_handler.cb)
-				{
-					matching_resource->get_handler.cb(&request_obj, 
-																						matching_resource->get_handler.interface_mask,
-																						matching_resource->get_handler.user_data);
-				}
-				else if (method == OC_POST && matching_resource->post_handler.cb)
-				{
-					matching_resource->post_handler.cb(&request_obj, 
-																						 matching_resource->post_handler.interface_mask,
-																						 matching_resource->post_handler.user_data);
-				}
-				else if (method == OC_PUT && matching_resource->put_handler.cb)
-				{
-					matching_resource->put_handler.cb(&request_obj, 
-																						matching_resource->put_handler.interface_mask,
-																						matching_resource->put_handler.user_data);
-				}
-				else if (method == OC_DELETE && matching_resource->delete_handler.cb)
-				{
-					matching_resource->delete_handler.cb(&request_obj, 
-																							 matching_resource->delete_handler.interface_mask,
-																							 matching_resource->delete_handler.user_data);
-				}
-				else
-				{
-					method_impl = false;
-				}
+				method_impl = false;
 			}
+		}
 	}
 
 	#if defined(OC_BLOCK_WISE)
@@ -1399,9 +1438,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	}
 
 	#ifdef OC_SERVER
-	/* If a GET request was successfully processed, then check its
-	*  observe option.
-	*/
+	// If a GET request was successfully processed, then check its observe option.
+	
 	uint32_t observe = 2; // init with error
 	if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&
 			coap_get_header_observe(request, &observe))
