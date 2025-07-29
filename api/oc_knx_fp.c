@@ -37,7 +37,7 @@
 #define TABLE_GAS (1 << 1)
 #define TABLE_URL (1 << 2)
 
-// identifier for minimum pub/rcp properties
+// identifier for minimum group object properties
 #define GO_HREF (1 << 0)
 #define GO_GAS (1 << 1)
 

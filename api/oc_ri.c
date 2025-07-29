@@ -270,8 +270,6 @@ oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t 
 
 oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
 {
-  oc_acl_mask_t scope = OC_ACL_NONE;
-
 	// 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
@@ -289,11 +287,10 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
     if (acl_scope_name_len == strlen(n) && strncmp(acl_scope_name, n, acl_scope_name_len) == 0)
     {
       // on a hit return immediately
-      scope |= 1 << i;
-      return scope;
+      return 1 << i;
     }
   }
-  return scope;
+  return OC_ACL_NONE;
 }
 
 void oc_print_acl_scopes(oc_acl_mask_t scope)

@@ -202,7 +202,7 @@ static oc_event_callback_retval_t restart(void* context)
 
 #ifdef OC_OSCORE
 
-  // Delete PASE token (check only for one hit ...), comes with nothing else
+  // delete PASE token (check only for one hit ...), comes with nothing else
   oc_core_find_and_remove_pase_token_in_at_table();
   
 #endif
