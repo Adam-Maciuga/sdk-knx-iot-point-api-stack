@@ -355,11 +355,13 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
 
   size_t device_index = request->resource->device;
   oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+
+  while (rep)
   {
     if (rep->type == OC_REP_STRING)
     {
-      if (rep->iname == 1) // CBOR value
+      // value (1)
+      if (rep->iname == 1)
       {
         PRINT("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));
 
@@ -370,7 +372,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
         oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(rep->value.string), oc_string_len(rep->value.string));
 
         // call host name application callback handler
-        oc_hostname_t* my_hostname = oc_get_hostname_cb();
+        const oc_hostname_t* my_hostname = oc_get_hostname_cb();
         if (my_hostname && my_hostname->cb)
         {
           my_hostname->cb(device_index, rep->value.string, my_hostname->data);
@@ -401,7 +403,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
   size_t device_index = request->resource->device;
   oc_device_info_t* device = oc_core_get_device_info(device_index);
 
-  if (device != NULL)
+  if (device)
   {
     oc_rep_begin_root_object();
     oc_rep_i_set_text_string(root, 1, oc_string(device->hostname));
@@ -1563,18 +1565,18 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     device->iid = 0;
     device->fid = 0;
 
-    // set default host name to device '0' SN
+    // set default host name to device serial number with leading 'knx-'  
     oc_free_string(&device->hostname);
-    oc_new_string(&device->hostname, oc_string(device->serialnumber), oc_string_len(device->serialnumber));
+
+    // 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
+    char hostname[20] = "knx-";
+    strcat(hostname, oc_string(device->serialnumber));
+    oc_new_string(&device->hostname, hostname, strlen(hostname));
 
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
     oc_delete_at_table();
-
-#ifdef OC_IOT_ROUTER
-    oc_delete_group_mapping_table();
-#endif
 
     /*
        writing all above reset values to storage (LSM already written)
@@ -1585,7 +1587,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
-    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->serialnumber), oc_string_len(device->serialnumber));
+    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->hostname), oc_string_len(device->hostname));
 
     return;
   }
