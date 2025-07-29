@@ -35,7 +35,6 @@
 // identifier for minimum pub/rcp properties 
 #define TABLE_ATREF (1 << 0)
 #define TABLE_GAS (1 << 1)
-#define TABLE_URL (1 << 2)
 
 // identifier for minimum group object properties
 #define GO_HREF (1 << 0)
@@ -1041,7 +1040,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-      #define MANDATORY_PUB_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+      #define MANDATORY_GPT_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
       bool id_only = true; // to delete a publisher table entry
 
       uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
@@ -1081,7 +1080,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
             tmp_gpt_entry.iid = object->value.integer;
           } 
           // fid (25)
-          else if(object->iname == 25) 
+          else if (object->iname == 25) 
           {
             tmp_gpt_entry.fid = object->value.integer;
           }
@@ -1092,17 +1091,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // url (10)
-          if (object->iname == 10) 
-          {
-            // set (new) url in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_gpt_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
-
-            current_gpt_properties++;
-            allocator |= TABLE_URL;
-          }
           // at (14))
-          else if(object->iname == 14)
+          if(object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
             oc_new_string(&tmp_gpt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
@@ -1201,7 +1191,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_PUB_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_GPT_PROPERTIES)
         { // a 
 
           // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
@@ -1214,34 +1204,14 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           return;
         }
 
-        // b + d
+        // b + d, here all ok, set new PUB entry
 
-        bool do_save = true;
-        // check entry with some additional sanity checks
-        // a "bad" status will stop processing and return a 4.00
-
-        if (oc_string_len(tmp_gpt_entry.url) > OC_MAX_URL_LENGTH)
-        {
-          do_save = false;
-          OC_ERR("url is longer than %d ", OC_MAX_URL_LENGTH);
-        }
-
-        if (!do_save)
-        {
-          // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
-
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        // here all ok, set new PUB entry
         PRINT("storing PUB table at %d", array_index);
 
         /*
           Free - on stack allocated -  live PUB table entry elements that will be overwritten next.
-          - created : 2 elements (GAs, URL, AT)
-          - changed : 1..2 elements (GAs, URL, AT) - 0 not possible, would be to delete a PUB entry
+          - created : 2 elements (GAs, AT)
+          - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete a PUB entry
         */
         oc_free_allocated_table_elements(&g_gpt[array_index], allocator);
 
@@ -1362,9 +1332,6 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
   {
     oc_rep_i_set_int(root, 26, g_gpt[index].iid);
   }
-
-  // url- 10
-  oc_rep_i_set_text_string(root, 10, oc_string(g_gpt[index].url));
 
   // at - 14
   if (oc_string_len(g_gpt[index].at) > 0)
@@ -1615,7 +1582,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // non-confirmable flag for a new entry is init to false ONLY once on creation (not on a possible 'changed' update)
       }
 
-      #define MANDATORY_RCP_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+      #define MANDATORY_GRT_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
       bool id_only = true; // used to delete the RCP table entry
 
       uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
@@ -1645,18 +1612,18 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
             current_grt_properties++;
           }
           // grpid (13)
-          else if(object->iname == 13) 
+          else if (object->iname == 13) 
           {
             tmp_grt_entry.grpid = (uint32_t)object->value.integer;
             current_grt_properties++;
           }
           // iid (26)
-          else if(object->iname == 26) 
+          else if (object->iname == 26) 
           {
             tmp_grt_entry.iid = object->value.integer;
           }
           // fid (25)
-          else if(object->iname == 25) 
+          else if (object->iname == 25) 
           {
             tmp_grt_entry.fid = object->value.integer;
           }
@@ -1667,17 +1634,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // url (10)
-          if (object->iname == 10) 
-          {
-            // set (new) url in tmp copy (org ptr still valid)
-            oc_new_string(&tmp_grt_entry.url, oc_string(object->value.string), oc_string_len(object->value.string));
-
-            current_grt_properties++;
-            allocator |= TABLE_URL;
-          }
           // at (14))
-          else if(object->iname == 14)
+          if (object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
             oc_new_string(&tmp_grt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
@@ -1788,7 +1746,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       }
       else
       {
-        if (return_status == OC_STATUS_CREATED && current_grt_properties < MANDATORY_RCP_PROPERTIES)
+        if (return_status == OC_STATUS_CREATED && current_grt_properties < MANDATORY_GRT_PROPERTIES)
         { // a
 
           // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
@@ -1801,34 +1759,13 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           return;
         }
 
-        // b + d
-
-        bool do_save = true;
-        // check entry with some additional sanity checks
-        // a "bad" status will stop processing and return a 4.00
-
-        if (oc_string_len(tmp_grt_entry.url) > OC_MAX_URL_LENGTH)
-        {
-          do_save = false;
-          OC_ERR("url is longer than %d ", OC_MAX_URL_LENGTH);
-        }
-
-        if (!do_save)
-        {
-          // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
-
-          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        // here all ok, set new PUB entry
+        // b + d, here all ok, set new PUB entry
         PRINT("storing RCP table at %d", array_index);
 
         /*
           Free - on stack allocated -  live RCP table entry elements that will be overwritten next.
-          - created : 2 elements (GAs, URL, AT)
-          - changed : 1..2 elements (GAs, URL, AT) - 0 not possible, would be to delete an RCP entry
+          - created : 2 elements (GAs, AT)
+          - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete an RCP entry
         */
         oc_free_allocated_table_elements(&g_grt[array_index], allocator);
 
@@ -1950,9 +1887,6 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
   {
     oc_rep_i_set_int(root, 26, g_grt[index].iid);
   }
-
-  // url- 10
-  oc_rep_i_set_text_string(root, 10, oc_string(g_grt[index].url));
 
   // at - 14
   if (oc_string_len(g_grt[index].at) > 0)
@@ -2362,11 +2296,6 @@ void oc_free_allocated_table_elements(oc_group_table_t* entry, uint8_t allocator
     entry->ga_len = 0;
     entry->ga = NULL;
   }
-
-  if (allocator & TABLE_URL)
-  {
-    oc_free_string(&entry->url);
-  }
 }
 
 int oc_delete_group_object_table_entry(int entry)
@@ -2429,10 +2358,6 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
   PRINT("fid (25)   : %" PRIi64 "", table[entry].fid);
   PRINT("grpid (13) : %u", table[entry].grpid);
 
-  if (oc_string_len(table[entry].url) > 0)
-  {
-    PRINT("url (10)   : '%s'", oc_string_checked(table[entry].url));
-  }
   if (oc_string_len(table[entry].at) > 0)
   {
     PRINT("at (14) : %s", oc_string_checked(table[entry].at));
@@ -2521,87 +2446,83 @@ void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
 
-    int err = oc_parse_rep(buf, bytes_to_read, &rep);
+    const int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
+
     if (err == 0)
     {
-      while (rep != NULL)
+      while (rep)
       {
         switch (rep->type)
         {
-
-        // id(0)
-        case OC_REP_INT:
-          if (rep->iname == 0)
-          {
-            table[entry].id = (int)rep->value.integer;
-          }
-          if (rep->iname == 12)
-          {
-            table[entry].ia = (int)rep->value.integer;
-          }
-          if (rep->iname == 13)
-          {
-            table[entry].grpid = (uint32_t)rep->value.integer;
-          }
-          if (rep->iname == 25)
-          {
-            table[entry].fid = rep->value.integer;
-          }
-          if (rep->iname == 26)
-          {
-            table[entry].iid = rep->value.integer;
-          }
-          break;
-        case OC_REP_STRING:
-          if (rep->iname == 10)
-          {
-            oc_free_string(&table[entry].url);
-            oc_new_string(&table[entry].url, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-          if (rep->iname == 14)
-          {
-            oc_free_string(&table[entry].at);
-            oc_new_string(&table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-          break;
-        case OC_REP_INT_ARRAY:
-
-          // ga array (7)
-          if (rep->iname == 7)
-          {
-            // temp ptr to address the CBOR array 
-            const int64_t* array = oc_int_array(rep->value.array);
-            const int new_array_size = (int)oc_int_array_size(rep->value.array);
-
-            // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
-            if (new_array && new_array_size > 0)
+          case OC_REP_INT:
+            if (rep->iname == 0)
             {
-              for (int i = 0; i < new_array_size; i++)
-              {
-                new_array[i] = (uint32_t)array[i];
-              }
-
-              // release a possible ga array, it will be overwritten,
-              // no selective adding (note it releases the org ptr)
-              // free ignores NULL ptr
-              free(table[entry].ga);
-
-              PRINT("ga size %d", new_array_size);
-
-              // assign only when the new array is allocated correctly
-              table[entry].ga_len = new_array_size;
-              table[entry].ga = new_array;
+              table[entry].id = (int32_t)rep->value.integer;
             }
+            if (rep->iname == 12)
+            {
+              table[entry].ia = (uint32_t)rep->value.integer;
+            }
+            if (rep->iname == 13)
+            {
+              table[entry].grpid = (uint32_t)rep->value.integer;
+            }
+            if (rep->iname == 25)
+            {
+              table[entry].fid = rep->value.integer;
+            }
+            if (rep->iname == 26)
+            {
+              table[entry].iid = rep->value.integer;
+            }
+            break;
+          case OC_REP_STRING:
+
+            // at (14)
+            if (rep->iname == 14)
+            {
+              oc_free_string(&table[entry].at);
+              oc_new_string(&table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            }
+            break;
+          case OC_REP_INT_ARRAY:
+
+            // ga array (7)
+            if (rep->iname == 7)
+            {
+              // temp ptr to address the CBOR array 
+              const int64_t* array = oc_int_array(rep->value.array);
+              const int new_array_size = (int)oc_int_array_size(rep->value.array);
+
+              // malloc of 'zero' byte return pointer is undefined
+              uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+              if (new_array && new_array_size > 0)
+              {
+                for (int i = 0; i < new_array_size; i++)
+                {
+                  new_array[i] = (uint32_t)array[i];
+                }
+
+                // release a possible ga array, it will be overwritten,
+                // no selective adding (note it releases the org ptr)
+                // free ignores NULL ptr
+                free(table[entry].ga);
+
+                PRINT("ga size %d", new_array_size);
+
+                // assign only when the new array is allocated correctly
+                table[entry].ga_len = new_array_size;
+                table[entry].ga = new_array;
+              }
+            }
+            break;
+          default:
+            // any other invalid type prints ...
+            // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
+            PRINT("invalid object type detected");
+            break;
           }
-          break;
-        default:
-          // any other invalid type prints ...
-          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
-          PRINT("invalid object type detected");
-          break;
-        }
         rep = rep->next;
       }
     }
@@ -2641,7 +2562,6 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   // assumes in table uninitialized/random string data - don't release it ... 
   if (init == false)
   {
-    oc_free_string(&table[entry].url);
     oc_free_string(&table[entry].at);
     free(table[entry].ga);
   }

@@ -184,7 +184,6 @@ extern "C"
     int64_t iid; // installation id
     int64_t fid; // fabric id
     uint32_t grpid; // multicast group id, specification demands 32 bit
-    oc_string_t url; // url // TODO url will be removed in new specification
     oc_string_t at; // access token id. Reference to the security credentials for unicast subscription encryption.
     uint32_t* ga; // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     int ga_len; // group address array len, specification demands at least 20 entries must be supported
