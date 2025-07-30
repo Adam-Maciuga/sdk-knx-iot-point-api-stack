@@ -32,7 +32,10 @@ static oc_device_swu_t swu_device = {
   {NULL, 0, NULL}, 0,
   {0, 0, 0}, OC_SWU_STATE_IDLE,
   {NULL, 0, NULL}, OC_SWU_RESULT_INIT,
-  false, CoAP};
+  false,
+  CoAP,
+  {NULL, 0, NULL}
+};
 
 // below data can be set (PUT) all other can only be read
 #define KNX_STORAGE_SWU_MAX_DEFER "swu_knx_max_defer"
@@ -156,10 +159,10 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 
 // resource definition, details/comments see on
 // 'core_resource_well_known_core_final'
-extern const oc_resource_t core_resource_knx_swu_method;
+extern const oc_resource_t core_resource_knx_swu_hwref;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_maxdefer_data;
 const oc_resource_t core_resource_knx_swu_maxdefer = {
-  (oc_resource_t*)&core_resource_knx_swu_method,
+  (oc_resource_t*)&core_resource_knx_swu_hwref,
   0,
   {NULL, 0, NULL},
   {NULL, sizeof("/swu/maxdefer"), "/swu/maxdefer"},
@@ -177,6 +180,48 @@ const oc_resource_t core_resource_knx_swu_maxdefer = {
   0,
   true,
   &core_resource_knx_swu_maxdefer_data};
+PRAGMA_OUT
+
+static void oc_knx_swu_hwref_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+{
+  (void)data;
+  (void)iface_mask;
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
+    return;
+  }
+
+  oc_rep_begin_root_object();
+  oc_rep_i_set_text_string(root, 1, oc_string(swu_device.hwref));
+  oc_rep_end_root_object();
+
+  oc_prepare_cbor_response(request, OC_STATUS_OK);
+}
+
+// resource definition, details/comments see on
+// 'core_resource_well_known_core_final'
+extern const oc_resource_t core_resource_knx_swu_method;
+PRAGMA_IN oc_resource_data_t core_resource_knx_swu_hwref_data;
+const oc_resource_t core_resource_knx_swu_hwref = {
+  (oc_resource_t*)&core_resource_knx_swu_method,
+  0,
+  {NULL, 0, NULL},
+  {NULL, sizeof("/swu/hwref"), "/swu/hwref"},
+  {NULL, 0, NULL},
+  {NULL, sizeof("urn:knx:dpt.varString8559_1"), "urn:knx:dpt.varString8559_1"},
+  {APPLICATION_CBOR, CONTENT_NONE},
+  OC_DISCOVERABLE,
+  {oc_knx_swu_hwref_get_handler, NULL, OC_ACL_D, OC_IF_D},
+  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
+  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
+  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
+  {NULL, NULL},
+  {NULL, NULL},
+  0,
+  0,
+  true,
+  &core_resource_knx_swu_hwref_data};
 PRAGMA_OUT
 
 static void oc_knx_swu_method_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -585,32 +630,6 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("oc_knx_swu_a_put_handler - end");
 }
 
-static void oc_knx_swu_a_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  // triggers a software update query request (PULL on Software Update Server)
-  // triggers a {cmd:start/cancel} with some add. data
-  oc_rep_t* rep = request->request_payload;
-
-  if (rep && rep->type == OC_REP_INT)
-  {
-    OC_DBG("oc_knx_swu_a_post_handler received : %d", (int)rep->value.integer);
-
-    // not implemented
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_IMPLEMENTED);
-    return;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
 // resource definition, details/comments see on
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_knx_swu_pkgbytes;
@@ -621,11 +640,11 @@ const oc_resource_t core_resource_knx_swu_pkgcmd = {(oc_resource_t*)&core_resour
                                                     {NULL, sizeof("/a/swu"), "/a/swu"},
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("urn:knx:dpt.file"), "urn:knx:dpt.file"},
-                                                    {APPLICATION_CBOR, CONTENT_NONE},
+                                                    {APPLICATION_OCTET_STREAM, CONTENT_NONE},
                                                     OC_DISCOVERABLE,
                                                     {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                     {oc_knx_swu_a_put_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
-                                                    {oc_knx_swu_a_post_handler, NULL, OC_ACL_SWU, OC_IF_SWU},
+                                                    {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                     {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                     {NULL, NULL},
                                                     {NULL, NULL},
@@ -894,9 +913,12 @@ void oc_create_knx_swu_resources(size_t device_index)
 
   // create missing runtime variables for device 0
   // - no SWU name for the package (never downloaded)
-  // - manufacturing date (artificial, value used from KNX certification tests)
+  // - manufacturing date (artificial, value used from EITT KNX certification tests)
+  // - hw reference (artificial, value used from EITT KNX certification tests)
   oc_swu_set_package_name("");
   oc_swu_set_last_update("2020-04-12T23:20:50.52Z");
+  oc_swu_set_hwref("0102030405ABCDEF");
+
 }
 
 void oc_swu_set_package_name(const char* name)
@@ -909,6 +931,12 @@ void oc_swu_set_last_update(const char* time)
 {
   oc_free_string(&swu_device.last_update);
   oc_new_string(&swu_device.last_update, time, strlen(time));
+}
+
+void oc_swu_set_hwref(const char* hwref)
+{
+  oc_free_string(&swu_device.hwref);
+  oc_new_string(&swu_device.hwref, hwref, strlen(hwref));
 }
 
 void oc_swu_set_package_bytes(const int package_bytes) { swu_device.pkg_bytes = package_bytes; }

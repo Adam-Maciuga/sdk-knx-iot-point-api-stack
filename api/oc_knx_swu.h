@@ -91,6 +91,7 @@ extern "C" {
     oc_swu_result_t result;   // download result
     bool downloaded_once;     // marker for a never updated device
     int protocol;             // only 0=unicast CoAP supported
+    oc_string_t hwref;        // hardware reference number (manufacturer specific)
   } oc_device_swu_t;
 
   /**
@@ -113,6 +114,13 @@ extern "C" {
    * @param time the update time in IETF RFC 3339
    */
   void oc_swu_set_last_update(const char* time);
+
+  /**
+   * @brief set the current hw reference 
+   *
+   * @param hwref the hw reference 
+   */
+  void oc_swu_set_hwref(const char* hwref);
 
   /**
    * @brief set the current amount of the bytes written
