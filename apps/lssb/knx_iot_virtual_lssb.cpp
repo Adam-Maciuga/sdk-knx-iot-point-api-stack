@@ -637,11 +637,6 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
         this->int2grpidtext(entry->grpid, line, grpid_conversion);
         strcat(text, line);
       }
-      if (oc_string_len(entry->url) > 0)
-      {
-        sprintf(line, "  url: '%s' ", oc_string(entry->url));
-        strcat(text, line);
-      }
       if (oc_string_len(entry->at) > 0)
       {
         sprintf(line, "  at: '%s' ", oc_string(entry->at));
@@ -719,11 +714,6 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
       {
         strcpy(line, "  grpid: ");
         this->int2grpidtext(entry->grpid, line, grpid_conversion);
-        strcat(text, line);
-      }
-      if (oc_string_len(entry->url) > 0)
-      {
-        sprintf(line, "  url: '%s' ", oc_string(entry->url));
         strcat(text, line);
       }
       if (oc_string_len(entry->at) > 0)

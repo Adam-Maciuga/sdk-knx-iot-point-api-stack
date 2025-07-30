@@ -33,9 +33,7 @@
 #define OC_REPLAY_RECORD_TIMEOUT (5)
 #endif
 
-#ifndef OC_REPLAY_WINDOW_SIZE
-#define OC_REPLAY_WINDOW_SIZE (32)
-#endif
+extern uint32_t g_oscore_replay_window_size;
 
 static struct oc_replay_record
 {
@@ -43,7 +41,7 @@ static struct oc_replay_record
 	oc_string_t rx_kid;     // byte string holding the KID of the client
 	oc_string_t rx_kid_ctx; // byte string holding the KID context of the client, can be null
 	oc_clock_time_t time;   // time of last received packet
-	uint32_t window;        // bitfield indicating received SSNs through bit position, 32 = default by OSCORE RFC 
+	uint64_t window;        // bitfield indicating received SSNs through bit position, 32 = default by OSCORE RFC (max 64 possible)
 	bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
@@ -120,7 +118,7 @@ static struct oc_replay_record* get_record(const oc_string_t rx_kid, const oc_st
 	return NULL;  // nothing found
 }
 
-replay_state_t oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
+replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx)
 {
 	/*
 	With CoAP over UDP, you cannot guarantee messages are received in order,
@@ -170,12 +168,12 @@ replay_state_t oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t r
 	// should be kept around - update the time (to prevent a release from heap)  
 	rec->time = oc_clock_time();
 
-  const int64_t ssn_diff = rec->rx_ssn - rx_ssn;  // SSN = 32 bit hence unproblematic
+  const int64_t ssn_diff = rec->rx_ssn - rx_ssn;  // rx_ssn = 32 bit hence unproblematic
 
 	PRINT("new ssn = %llu", rx_ssn);                // %llu = 64 bit ulong
 	PRINT("old ssn = %llu", rec->rx_ssn);           // %llu = 64 bit ulong
 	PRINT("kid     = %s", oc_string(rx_kid));       // %s = string
-	PRINT("wnd old : %u", rec->window);             // %u = 32 bit ulong bit field 
+	PRINT("wnd old : %llu", rec->window);           // %llu = 64 bit ulong bit field 
 	PRINT("ssn_diff = %lli", ssn_diff);             // 64 bit int
 
 	// new SSN <= max value of received SSN -> either new SSN is within window or out of left bound  
@@ -183,14 +181,14 @@ replay_state_t oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t r
 	{
 		PRINT("ssn_diff = %lli >= 0", ssn_diff);
 
-		// diff >= 32 -> out of left bound (max ssn = 32, rx = 0 -> SSN of 1..32 can be windowed) 
-		if (ssn_diff >= OC_REPLAY_WINDOW_SIZE)
+		// diff >= size (32) -> out of left bound (max ssn = size (32), rx = 0 -> SSN of 1...size (32) can be windowed) 
+		if (ssn_diff >= g_oscore_replay_window_size)
 		{
 			PRINT("out of window left bound");
 			return ECHO; // not known if it was (ever) received before  
 		}
 
-		// diff < 32 -> within the window (max ssn = 32, rx = 1 -> SSN 1..31 can be windowed)
+		// diff < size (32) -> within the window (max ssn = size (32), rx = 1 -> SSN 1...size -1 (31) can be windowed)
 		// see if it has been received before, so this can be a replay
 		if (rec->window & 1 << ssn_diff)
 		{
@@ -210,10 +208,10 @@ replay_state_t oc_replay_check_client(const uint64_t rx_ssn, const oc_string_t r
 	// note that shifting by an amount larger than the size of the type
 	// is undefined behaviour, so we must zero the window manually here
 
-	if (-ssn_diff >= OC_REPLAY_WINDOW_SIZE)
-		rec->window = 0;            // 00000000'..'..'00000001' << 32 = 00000000'..'..'00000000'
+	if (-ssn_diff >= g_oscore_replay_window_size)
+		rec->window = 0;            // 00000000'..'..'00000001' << size (32)    = 00000000'..'..'00000000'
 	else
-		rec->window <<= -ssn_diff;  // 00000000'..'..'00000001' << 31 = 10000000'..'..'00000000'
+		rec->window <<= -ssn_diff;  // 00000000'..'..'00000001' << size -1 (31) = 10000000'..'..'00000000'
 
 	// set bit 0, indicating ssn 'rec->rx_ssn' has been received
 	// DO remember SSN, it is now the highest one

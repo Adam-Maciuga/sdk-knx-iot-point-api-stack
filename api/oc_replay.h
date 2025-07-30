@@ -60,8 +60,7 @@ void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const
  * @return Either client is synchronised (you may accept the frame with the given SSN)
  * or it is not synchronised (either you challenge the frame or deny it completely)
  */
-replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid,
-                                       oc_string_t rx_kid_ctx);
+replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
 
 /**
  * @brief Mark a message to be retained for retransmission

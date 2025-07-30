@@ -114,7 +114,7 @@ TEST(ReplayProtection, TimeBasedFree)
   }
 }
 
-extern uint64_t g_oscore_replaywindow;
+extern uint32_t g_oscore_replay_window_size;
 
 TEST(ReplayProtection, RplWdo)
 {
@@ -127,6 +127,6 @@ TEST(ReplayProtection, RplWdo)
   // outside the upper bound of the replay window
   EXPECT_FALSE(oc_replay_check_client(55, kid, empty, false));
   // fake an update to the replay window upper bound
-  g_oscore_replaywindow = 64;
+  g_oscore_replay_window_size = 64;
   EXPECT_TRUE(oc_replay_check_client(55, kid, empty, false));
 }

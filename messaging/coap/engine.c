@@ -584,7 +584,7 @@ int coap_receive(oc_message_t* incoming_message)
 				oc_string_t kid_ctx = { 0 };        // init default kid context
 				uint64_t ssn;                       // local ssn (PIV)
 
-				// fill 
+				// fill kid/kid context/ssn 
 				oc_new_byte_string(&kid, incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
 				oc_new_byte_string(&kid_ctx, incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
 				oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
