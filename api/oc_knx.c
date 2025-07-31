@@ -1478,11 +1478,16 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 
    - use empty AT table as criteria
 
-     On a reset code 7, the 'if.sec' entries remains (but not the PASE token)
+     On a reset code 7, PASE token is removed, all other 'if.sec' entries remains
      --> this results in a nonempty AT table which is NOT a default cfg state (see security leak above).
+
+     On a reset code 2, all token are removed 
+     --> this results in an empty AT table which is the default cfg state.
+
+     On a restart, PASE token is removed, all other 'if.sec' entries remains
+     --> this results in an empty AT table which is the default cfg state.
  
   */
-
 
   // check if the AT table is empty (see above)
   if (oc_core_items_used_in_auth_at_table() > 0)
@@ -1779,8 +1784,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     }
 
     // shared_key is 16-byte array - NOT NULL TERMINATED
-    uint8_t shared_key[16];
-    uint8_t shared_key_len = sizeof(shared_key);
+    const uint8_t shared_key[16];
+    const uint8_t shared_key_len = sizeof(shared_key);
     oc_spake_calc_K_shared(spake_data.K_main, shared_key);
 
     // set the /auth/at entry with the calculated shared key
@@ -1788,7 +1793,15 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     // update pase token in AT table
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
-    oc_oscore_set_auth_device(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, shared_key_len);
+
+    // debugging
+    PRINT("set id : (%llu) ", oc_byte_string_len(g_pase.id)); oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
+    PRINT("set ms : (%2d) ", shared_key_len);                 oc_char_println_hex(shared_key, shared_key_len);
+
+    // - create the token & store in at table (usually at position 0)
+    // - note there should be no entries, if there is an entry then overwrite it
+    // - it is a by MaC freely chosen id
+    oc_oscore_set_auth_shared(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, shared_key_len);
 
     // empty payload
     oc_send_empty_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);

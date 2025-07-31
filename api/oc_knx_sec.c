@@ -176,9 +176,15 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
   {
     if (rep->type == OC_REP_INT)
     {
-
-      if (rep->iname == 1)
+      // don't allow window size > 64 (used window is of type uint64_t = 64 bits possible) 
+      if (rep->iname == 1 && rep->value.integer <= 64)
       {
+        /*
+          If the window is changed at runtime, two scenarios are possible (see oc_replay.c)
+          - from hi to low --> all before inside the window marked ssn are invalid
+          - from low to hi --> all before echoed frames are now marked as new 
+         */
+
         PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d", rep->type, (int)rep->value.integer);
         g_oscore_replay_window_size = (uint32_t)rep->value.integer;
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -445,27 +451,12 @@ static int find_empty_at_index(void)
   return -1;
 }
 
-static int find_index_from_at_table_from_id(const oc_string_t* at)
-{
-  const int len_at = oc_string_len(*at);
-
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
-  {
-    const int len = oc_string_len(g_at_entries[i].id);
-    if (len > 0 && len == len_at && strncmp(oc_string(*at), oc_string(g_at_entries[i].id), len) == 0)
-    {
-      return i;
-    }
-  }
-  return -1;
-}
-
-static int find_index_from_at_string(const char* at, const int len_at)
+static int find_index_from_access_token_string(const char* at, const int len_at)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     const int len = oc_string_len(g_at_entries[i].id);
-    if (len > 0 && len == len_at && (strncmp(at, oc_string(g_at_entries[i].id), len) == 0))
+    if (len > 0 && len == len_at && strncmp(at, oc_string(g_at_entries[i].id), len) == 0)
     {
       return i;
     }
@@ -683,8 +674,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         return;
       }
 
-      // find index in AT table
-      array_index = find_index_from_at_table_from_id(access_token_id);
+      // find index from access token table
+      array_index = find_index_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
       if (array_index != -1)
       {
         // index already in use, so it will be changed
@@ -1064,7 +1055,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   PRINT("id = %.*s", value_len, value);
 
   // get the AT index from access string token 
-  int index = find_index_from_at_string(value, value_len);
+  int index = find_index_from_access_token_string(value, value_len);
   if (index < 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1183,7 +1174,7 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   PRINT("id = %.*s", value_len, value);
 
   // get the AT index from access string token 
-  int index = find_index_from_at_string(value, value_len);
+  int index = find_index_from_access_token_string(value, value_len);
 
   if (index < 0)
   {
@@ -1785,14 +1776,14 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 
 // ----------------------------------------------------------------------------
 
-void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
+void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size,
                                uint8_t* shared_key, int shared_key_size)
 {
   // local tmp token id
   oc_string_t pase_token_id = {NULL,0,NULL};
 
   // id
-  oc_new_string(&pase_token_id, client_senderid, client_senderid_size);
+  oc_new_string(&pase_token_id, client_sender_id, client_sender_id_size);
 
   int index = oc_core_find_at_entry_with_id(oc_string(pase_token_id));
 
@@ -1819,11 +1810,11 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
     g_at_entries[index].scope = OC_ACL_SEC;
     g_at_entries[index].profile = OC_PROFILE_COAP_PASE;
 
-    // no sub
+    // no (TLS) sub
     oc_free_string(&g_at_entries[index].sub);
     oc_new_string(&g_at_entries[index].sub,"",0);
 
-    // no kid
+    // no (TLS) kid
     oc_free_string(&g_at_entries[index].kid);
     oc_new_string(&g_at_entries[index].kid, "" ,0);
 
@@ -1837,7 +1828,7 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
 
     // kid (on the wire it was a byte string, so we have to store the byte string)
     oc_free_string(&g_at_entries[index].osc_id);
-    oc_new_byte_string(&g_at_entries[index].osc_id, client_senderid, client_senderid_size);
+    oc_new_byte_string(&g_at_entries[index].osc_id, client_sender_id, client_sender_id_size);
 
     
     // release a possible ga array, it will be overwritten, free ignores NULL ptr
@@ -1856,21 +1847,6 @@ void oc_oscore_set_auth_shared(char* client_senderid, int client_senderid_size,
 
   // free allocated memory from local pase token id
   oc_free_string(&pase_token_id);
-}
-
-void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
-                               uint8_t* shared_key, int shared_key_size)
-{
-  // - create the token & store in at table (usually at position 0)
-  // - note there should be no entries, if there is an entry then overwrite it
-  // - it is a by MaC freely chosen id 
-  PRINT("set id : (%2d) ", client_senderid_size);
-  oc_char_println_hex(client_senderid, client_senderid_size);
-
-  PRINT("set ms : (%2d) ", shared_key_size);
-  oc_char_println_hex(shared_key, shared_key_size);
-
-  oc_oscore_set_auth_shared(client_senderid, client_senderid_size, shared_key, shared_key_size);
 }
 
 oc_auth_at_t* oc_get_auth_at_entry(int index)

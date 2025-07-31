@@ -171,21 +171,18 @@ extern "C" {
 	 */
 	int oc_core_find_at_entry_empty_slot(void);
 
-	
 	/**
-	 * @brief set shared (SPAKE) key to the auth at table, on the Device side
-	 *
-	 * @param client_senderid the client_senderid of the device that has been
-	 * negotiated with spake2plus. This will become the Sender ID within the OSCORE
-	 * context. This value is an ASCII-encoded string representing the hexadecimal
-	 * serial number
-	 * @param client_senderid_size the size of the serial number
-	 * @param shared_key the master key after SPAKE2 handshake
-	 * @param shared_key_size the key size
-	 */
-	void oc_oscore_set_auth_device(char* client_senderid, int client_senderid_size,
-                                 uint8_t* shared_key,
-                                 int shared_key_size);
+   * @brief set shared (SPAKE) key to the auth at table, on the Device side
+   *
+   * @param client_sender_id the client sender id of the device that has been
+   * negotiated with SPAKE2+. This will become the Sender ID within the OSCORE
+   * context. This value is an ASCII-encoded string representing the hexadecimal
+   * serial number
+   * @param client_sender_id_size the size of the serial number
+   * @param shared_key the master key after SPAKE2 handshake
+   * @param shared_key_size the key size
+   */
+	void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size);
 
 	/**
 	 * @brief retrieve auth/at entry

@@ -109,7 +109,7 @@ extern "C" {
 		 /**
 			* @brief create new string from string (null terminated)
 			*	@note even an empty string will allocate one byte for the string terminator "" (NULL);
-			*	      with a resulting string size of '1' 
+			*	      with an internal string size of '1' (use oc string len to determine the actual string len) 
 			*
 			*/
 	#define oc_new_string(ocstring, str, str_len)                                  \
