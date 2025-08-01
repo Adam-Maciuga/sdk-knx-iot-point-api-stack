@@ -138,7 +138,7 @@ extern "C"
   oc_lsm_state_t oc_knx_get_lsm(size_t device_index);
 
   /**
-   * @brief sets the current LSM state
+   * @brief sets the current LSM state and writes it to storage
    *
    * @param device_index index of the device to which the resource is to be
    * created
@@ -231,36 +231,6 @@ extern "C"
    */
   void oc_knx_load_fingerprint(void);
 
-    /**
-   * @brief reset the device
-   * the reset value according to the specification:
-   * - reset = 2 (Factory Reset) :
-   *   - individual address (ia)
-   *   - host name (hname)
-   *   - Installation ID (iid)
-   *   - programming mode (pm)
-   *   - device address (da)
-   *   - sub address (sa)
-   *   - group object table
-   *   - recipient object table
-   *   - publisher object table
-   *   - access token table
-   * - reset = 7 (Factory Reset without IA):
-   *   - group object table
-   *   - recipient object table
-   *   - publisher object table
-   *   - access token table (all token that do not contain if.sec)
-   *
-   * @note
-   * Before the actual reset actions the factory preset callback handler is called ,
-   * after the actions the reset callback handler
-   *
-   * @see oc_knx_device_storage_reset
-   * @param device_index the device index
-   * @param reset_mode the reset mode
-   * @return int 0== success
-   */
-  int oc_reset_device(size_t device_index, int reset_mode);
 
   /**
    * @brief Creation of the KNX device resources.

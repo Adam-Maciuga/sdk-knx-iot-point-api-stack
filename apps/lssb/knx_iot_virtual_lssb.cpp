@@ -506,10 +506,9 @@ void MyFrame::updateDeviceData()
  */
 void MyFrame::OnClearTables(wxCommandEvent& event)
 {
-  int device_index = 0;
   SetStatusText("Clear Tables");
   // reset the device
-  oc_knx_device_storage_reset(device_index, 7);
+  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_WO_IA);
   // update the UI
   this->updateDeviceData();
 }
@@ -521,10 +520,9 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
  */
 void MyFrame::OnReset(wxCommandEvent& event)
 {
-  int device_index = 0;
   SetStatusText("Device Reset");
   // reset the device
-  oc_knx_device_storage_reset(device_index, 2);
+  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
   // update the UI
   this->updateDeviceData();
 }

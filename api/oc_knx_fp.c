@@ -2300,7 +2300,7 @@ void oc_free_allocated_table_elements(oc_group_table_t* entry, uint8_t allocator
 
 int oc_delete_group_object_table_entry(int entry)
 {
-  if (entry < 0 || entry > GOT_MAX_ENTRIES - 1)
+  if (entry < 0 || entry >= GOT_MAX_ENTRIES)
     return -1;
 
   // delete GO entry (note, one file per entry)
@@ -2585,7 +2585,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
 static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   // use either GPT or GRT table size
-  if (entry < 0 || entry > max_size - 1)
+  if (entry < 0 || entry >= max_size)
     return -1;
 
   // delete GPT/GRT entry (note, one file per entry)
@@ -2965,8 +2965,8 @@ void oc_init_datapoints_at_initialization(void)
         if (g_got[i].cflags & OC_CFLAG_INIT)
         {
           // read on init cflags is set, fire (after device restart)
-          // via the sending association(first assigned ga == sending ga)
-          uint32_t sending_group_address = g_got[i].ga[0];
+          // no check on -1, there MUST be at least one sending GA 
+          const uint32_t sending_group_address = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href), NULL);
 
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 

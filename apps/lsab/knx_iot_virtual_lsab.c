@@ -373,7 +373,7 @@ int main(const int argc, char* argv[])
   if (g_reset)
   {
     PRINT("execute command line reset for device '0' with erase code 2 ...");
-    oc_knx_device_storage_reset(0, 2);
+    oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
   }
 
   const oc_device_info_t* device = oc_core_get_device_info(0);

@@ -85,7 +85,7 @@ void oc_knx_load_device(size_t device);
  * - reset = 7 (Factory Reset without IA):
  *   - load state machine 
  *   - group object / recipient / publisher object table
- *   - access token table (except entries with if.sec)
+ *   - access token table (except entries with 'if.sec')
  *
  * @param device_index The device index
  * @param reset_mode the KNX reset mode

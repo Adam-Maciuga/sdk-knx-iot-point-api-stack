@@ -77,32 +77,6 @@ static int convert_cmd(char* cmd)
   return 0;
 }
 
-int oc_reset_device(const size_t device_index, const int reset_mode)
-{
-  PRINT("reset device: %d", reset_mode);
-
-  // application preset callback handler
-  const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
-  if (my_preset_cb && my_preset_cb->cb)
-  {
-    PRINT("PRESET callback handler is called");
-    my_preset_cb->cb(device_index, my_preset_cb->data);
-  }
-
-  // delete data
-  oc_knx_device_storage_reset(device_index, reset_mode);
-
-  // application reset callback handler
-  const oc_reset_t* my_reset_cb = oc_get_reset_cb();
-  if (my_reset_cb && my_reset_cb->cb)
-  {
-    PRINT("RESET callback handler is called");
-    my_reset_cb->cb(device_index, reset_mode, my_reset_cb->data);
-  }
-
-  return 0;
-}
-
 /*
   payload example:
   {
@@ -124,18 +98,17 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
     return;
   }
 
-  // TODO will be 1.1.0
   if (request->accept == APPLICATION_JSON)
   {
     // no begin/end object is needed, it raps only the raw content
-    oc_rep_add_line_to_buffer("{\"api\": {\"base\": \"/\", \"version\": \"1.0.0\" }}");
+    oc_rep_add_line_to_buffer("{\"api\": {\"base\": \"/\", \"version\": \"1.0.0\" }}");  // TODO will be 1.1.0
     oc_prepare_json_response(request, OC_STATUS_OK);
   }
   else
   {
     oc_rep_begin_root_object();
     oc_rep_set_object(root, api);
-    oc_rep_text_set_text_string(api, version, "1.0.0");
+    oc_rep_text_set_text_string(api, version, "1.0.0"); // TODO will be 1.1.0
     oc_rep_text_set_text_string(api, base, "/");
     oc_rep_close_object(root, api);
     oc_rep_end_root_object();
@@ -144,35 +117,65 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
   }
 }
 
-// cache device_index and reset value, original values may be void when callbacks are executed (due to clean up resources)
-static size_t cached_device_index;
+// cache reset value, original values may be void when callbacks are executed (due to clean up resources)
 static int cached_erase_code_value;
 
 static oc_event_callback_retval_t reset(void* context)
 {
-  PRINT("reset device");
-
-  // use cached value
-  oc_reset_device(cached_device_index, cached_erase_code_value);
-
-  #ifdef OC_OSCORE
+  PRINT("reset device: %d", cached_erase_code_value);
 
   /* Specification demands
      - reset a possible PRG mode
-     - terminate a possible PASE token (it checks only for one hit ...)
+     - terminate PASE token
    
-     Erase code
-     - 2 (all is deleted) 
-     - 7 (all is deleted, entries with if.sec remains)
+   Erase code
+
+   2 (Factory Reset) :
+      - individual address (ia)
+      - host name (hname)
+      - Installation ID (iid)
+      - programming mode (pm)
+      - device address (da)
+      - sub address (sa)
+      - group object table
+      - recipient table
+      - publisher table
+      - PASE token (with below deletion)
+      - all access tokens 
+   
+   7 (Factory Reset without IA):
+      - group object table
+      - recipient table
+      - publisher table
+      - PASE token (explicitly)
+      - all access tokens that do not contain 'if.sec'
+   
+    @note Before the actual reset actions the factory preset callback handler is called ,
+          after the actions the reset callback handler
 
   */
-  oc_core_find_and_remove_pase_token_in_at_table();
-  
-  #endif
 
-  PRINT("re-register mDNS with new data");
-  // re-register after resetting ia, iid , pm mode (values are usually changed after a reset)
-  oc_device_info_t* device = oc_core_get_device_info(cached_device_index);
+  // application factory preset callback handler
+  const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
+  if (my_preset_cb && my_preset_cb->cb)
+  {
+    PRINT("PRESET callback handler is called");
+    my_preset_cb->cb(0, my_preset_cb->data);
+  }
+
+  // delete data
+  oc_knx_device_storage_reset(0, cached_erase_code_value);
+
+  // application reset callback handler
+  const oc_reset_t* my_reset_cb = oc_get_reset_cb();
+  if (my_reset_cb && my_reset_cb->cb)
+  {
+    PRINT("RESET callback handler is called");
+    my_reset_cb->cb(0, cached_erase_code_value, my_reset_cb->data);
+  }
+
+  PRINT("re-register mDNS with new data of ia, iid , pm mode (values are usually changed after a reset)");
+  const oc_device_info_t* device = oc_core_get_device_info(0);
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return OC_EVENT_DONE;
@@ -182,38 +185,27 @@ static oc_event_callback_retval_t restart(void* context)
 {
   PRINT("restart device");
 
-  // Specification demands
-  // - reset a possible PRG mode
-  // - terminate a possible PASE key
-  // - apply (changed) configuration parameters latest after 30s
+  /* Specification demands
+     - reset a possible PRG mode
+     - terminate a possible PASE token (it checks only for one hit ...)
+     - apply (changed) configuration parameters latest after 30s
 
-  // use cached value
-  oc_device_info_t* device = oc_core_get_device_info(cached_device_index);
+  */
 
-  // switch off PRG mode
-  if (device == NULL)
-  {
-    OC_ERR("device not found %d", (int)cached_device_index);
-  }
-  else
-  {
-    device->pm = false;
-  }
+  oc_device_info_t* device = oc_core_get_device_info(0);
+  device->pm = false;
 
-#ifdef OC_OSCORE
-
-  // delete PASE token (check only for one hit ...), comes with nothing else
+  // delete PASE token
   oc_core_find_and_remove_pase_token_in_at_table();
-  
-#endif
-  // CFG parameters
+
+  // check and send on i-flags
   oc_init_datapoints_at_initialization();
 
   // application restart callback handler
-  oc_restart_t* my_restart = oc_get_restart_cb();
+  const oc_restart_t* my_restart = oc_get_restart_cb();
   if (my_restart && my_restart->cb)
   {
-    my_restart->cb(cached_device_index, my_restart->data);
+    my_restart->cb(0, my_restart->data);
   }
 
   return OC_EVENT_DONE;
@@ -259,18 +251,18 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 
     case OC_REP_STRING:
     {
-      if (rep->iname == 2) // CBOR key
+      // command (2)
+      if (rep->iname == 2) 
       {
-        // the command
         cmd = convert_cmd(oc_string(rep->value.string));
       }
     }
     break;
     case OC_REP_INT:
     {
-      if (rep->iname == 1) // CBOR key
+      // value (1)
+      if (rep->iname == 1)
       {
-        // the value
         erase_code_value = (int)rep->value.integer;
       }
     }
@@ -287,9 +279,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 
   if (cmd == RESTART_DEVICE)
   {
-    // safe device# and '-1' value (restart don't use a value)
-    // device_index may be void when using the data again (cleanup resources)
-    cached_device_index = device_index;
+    // safe '-1' 'erase code' value (restart don't use a value)
     cached_erase_code_value = erase_code_value;
 
     // restart callback 
@@ -301,9 +291,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
   }
   if (cmd == RESET_DEVICE)
   {
-    // safe device# and 'erase code' value (reset may use a value)
-    // device may be void when using the data again
-    cached_device_index = device_index;
+    // safe 'erase code' value (reset uses a value)
     cached_erase_code_value = erase_code_value;
 
     // reset callback 
@@ -1478,13 +1466,13 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 
    - use empty AT table as criteria
 
-     On a reset code 7, PASE token is removed, all other 'if.sec' entries remains
-     --> this results in a nonempty AT table which is NOT a default cfg state (see security leak above).
+     On a reset code 7, PASE token is removed, all tokens are removed expect possible 'if.sec' entries
+     --> this result in a nonempty AT table, which is NOT a default cfg state (see security leak above).
 
-     On a reset code 2, all token are removed 
-     --> this results in an empty AT table which is the default cfg state.
+     On a reset code 2, all tokens are removed (including PASE taken)
+     --> this results FOR SURE in an empty AT table, which is the default cfg state.
 
-     On a restart, PASE token is removed, all other 'if.sec' entries remains
+     On a restart, PASE token is removed, all other token remains
      --> this results in an empty AT table which is the default cfg state.
  
   */
@@ -1515,9 +1503,9 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   uint8_t members_step_3 = 0;
 
   // check input to classify step 1..3 (no state machine is implemented)
-  // - step 1: 2
-  // - step 2: 1
-  // - step 3: 1
+  // - step 1: 2 - id + rnd 
+  // - step 2: 1 - shareP   
+  // - step 3: 1 - confirmP 
   // no check if there are multiple byte strings in the request payload (first wins)
   while (rep)
   {
@@ -1641,7 +1629,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     rep = rep->next;
   }
 
-  PRINT("oc_core_knx_spake_post_handler pase_step: %d", pase_step);
+  PRINT("pase_step: %d", pase_step);
 
   oc_indicate_separate_response(request, &spake_separate_rsp);
   oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);

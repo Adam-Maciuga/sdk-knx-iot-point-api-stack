@@ -1550,7 +1550,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
 
   if (device == NULL)
   {
-    OC_ERR("oc_knx_device_storage_reset: device is NULL");
+    OC_ERR("device is NULL");
     return;
   }
 
@@ -1597,17 +1597,14 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
 
-    // set the ia to KNX defaults
+    // set the ia to KNX defaults (ports see above)
     device->pm = false;
 
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
+    oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
-
-#ifdef OC_IOT_ROUTER
-    oc_delete_group_mapping_table();
-#endif
 
     // writing all above reset values to storage (LSM already written)
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));

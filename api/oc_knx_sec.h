@@ -156,10 +156,12 @@ extern "C" {
 	int oc_core_items_used_in_auth_at_table(void);
 
 	/**
-	* @brief Find an PASE entry and deletes it from AT table
+   * @brief Find (all) PASE entries in the access token table and delete them 
 	*	       - from RAM
 	*				 - from storage (file system)
 	*        - from possible context references
+	* 
+	* @note there should be only one entry, everything else is a stack (PASE handling) problem 
 	*/
 	void oc_core_find_and_remove_pase_token_in_at_table(void);
 
@@ -200,7 +202,7 @@ extern "C" {
 	void oc_print_auth_at_entry(int index);
 
 	/**
-	 * @brief delete the AT table
+	 * @brief deletes the entire AT table
 	 * - from RAM
 	 * - from storage (file system)
 	 *
@@ -208,7 +210,7 @@ extern "C" {
 	void oc_delete_at_table(void);
 
 	/**
-	 * @brief delete the AT table, except entries with scope = "if.sec"
+	 * @brief deletes the entire AT table, except entries with scope = "if.sec"
 	 * - from RAM
 	 * - from storage (file system)
 	 *

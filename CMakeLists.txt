@@ -59,7 +59,7 @@ set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enables security replay protecti
 set(KNX_GOT_MAX_ENTRIES "50" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
-set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of group security table (auth/at) entries")
+set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")

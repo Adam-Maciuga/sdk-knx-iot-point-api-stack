@@ -316,7 +316,7 @@ extern "C"
    * @note MUST process all GO entries in the table (see comment in code)
    *
    * @param resource_path the resource path for which the GA is searched for
-   * @param cflags NULL, or the flags from the GO of the GA in position 0 (will be init inside the method with none) 
+   * @param cflags NULL, or if of interest a flag variable to get the flags from the GO of the GA in position 0 (flag variable will be init inside the method with none) 
    * @return the GA, -1 in case of no sending GA was found
    */
   int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags);
