@@ -1692,13 +1692,11 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
   {
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
     {
-      oc_delete_at_table_entry(i); // delete entry from AT table
+      oc_delete_at_table_entry(i);      // delete entry from AT table
       oc_oscore_free_contexts_at_id(i); // removes possible references
-      PRINT("PASE key found, invalidated...");
-      return;
+      PRINT("PASE key found at id : %d, invalidated...", i);
     }
   }
-  PRINT("PASE key NOT found, hence NOT invalidated...");
 }
 
 int oc_core_find_at_entry_with_osc_id(uint8_t* osc_id, size_t osc_id_len)
@@ -1740,7 +1738,7 @@ void oc_load_at_table(void)
 
 void oc_delete_at_table(void)
 {
-  PRINT("Deleting 'all' AT Object Table entries from RAM and storage");
+  PRINT("deleting 'all' access token table entries from RAM and storage");
 
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
@@ -1754,9 +1752,8 @@ void oc_delete_at_table(void)
 
 void oc_delete_at_table_except_sec_scope_entries(void)
 {
-  PRINT("Deleting 'non if.sec' AT Object Table entries from RAM and storage");
+  PRINT("deleting 'non if.sec' access token table entries from RAM and storage");
 
-  // reset the entries that are not "if.sec"
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     const oc_acl_mask_t scope = oc_at_get_scope_mask(i);
