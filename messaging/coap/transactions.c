@@ -81,9 +81,8 @@ coap_register_as_transaction_handler(void)
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t *
-coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len,
-                     oc_endpoint_t *endpoint)
+// sending an own request or response 
+coap_transaction_t * coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t *endpoint)
 {
   coap_transaction_t *t = oc_memb_alloc(&transactions_memb);
   if (t) {
@@ -208,11 +207,10 @@ coap_send_transaction(coap_transaction_t *t)
 }
 
 /*---------------------------------------------------------------------------*/
-void
-coap_clear_transaction(coap_transaction_t *t)
+void coap_clear_transaction(coap_transaction_t *t)
 {
   if (t) {
-    OC_DBG("Freeing transaction %u: %p", t->mid, (void *)t);
+    OC_DBG("freeing transaction %u: %p", t->mid, (void *)t);
 
     oc_etimer_stop(&t->retrans_timer);
     oc_message_unref(t->message);
@@ -220,30 +218,26 @@ coap_clear_transaction(coap_transaction_t *t)
     oc_memb_free(&transactions_memb, t);
   }
 }
-coap_transaction_t *
-coap_get_transaction_by_mid(uint16_t mid)
+coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 {
-  coap_transaction_t *t = NULL;
-
-  for (t = (coap_transaction_t *)oc_list_head(transactions_list); t;
-       t = t->next) {
-    if (t->mid == mid) {
-      OC_DBG("Found transaction for MID %u: %p", t->mid, (void *)t);
+  for (coap_transaction_t* t = oc_list_head(transactions_list); t; t = t->next)
+  {
+    if (t->mid == mid) 
+    {
+      OC_DBG("found transaction for MID %u: %p", t->mid, (void *)t);
       return t;
     }
   }
   return NULL;
 }
 
-coap_transaction_t *
-coap_get_transaction_by_token(uint8_t *token, uint8_t token_len)
+coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token_len)
 {
-  coap_transaction_t *t = NULL;
-
-  for (t = (coap_transaction_t *)oc_list_head(transactions_list); t;
-       t = t->next) {
-    if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) {
-      OC_DBG("Found transaction by token %p", (void *)t);
+  for (coap_transaction_t* t = oc_list_head(transactions_list); t; t = t->next) 
+  {
+    if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
+    {
+      OC_DBG("found transaction by token %p", (void *)t);
       return t;
     }
   }
