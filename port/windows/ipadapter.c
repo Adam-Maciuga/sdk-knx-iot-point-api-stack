@@ -44,6 +44,9 @@
 #include "port/oc_connectivity.h"
 
 #define COAP_PORT_UNSECURED (5683)
+
+// OCF not used 
+#if 0
 static const uint8_t ALL_OCF_NODES_LL[] = {
   0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x58
 };
@@ -53,6 +56,7 @@ static const uint8_t ALL_OCF_NODES_RL[] = {
 static const uint8_t ALL_OCF_NODES_SL[] = {
   0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x58
 };
+#endif
 
 static const uint8_t ALL_COAP_NODES_LL[] = { 0xff, 0x02, 0, 0, 0, 0, 0, 0,
                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
@@ -250,7 +254,9 @@ add_mcast_sock_to_ipv6_mcast_group(SOCKET mcast_sock, DWORD if_index)
 {
   struct ipv6_mreq mreq;
 
-  /* Link-local scope */
+  // OCF not used
+  #if 0   
+  // Link-local scope
   memset(&mreq, 0, sizeof(mreq));
   memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_OCF_NODES_LL, 16);
   mreq.ipv6mr_interface = if_index;
@@ -291,6 +297,8 @@ add_mcast_sock_to_ipv6_mcast_group(SOCKET mcast_sock, DWORD if_index)
     OC_ERR("joining site-local IPv6 multicast group %d", WSAGetLastError());
     return -1;
   }
+
+  #endif
 
   OC_DBG("Adding all CoAP Nodes");
   /* Link-local scope ALL COAP NODES */
@@ -682,7 +690,7 @@ recv_msg(SOCKET sock, uint8_t *recv_buf, int recv_buf_size,
 static void *
 network_event_thread(void *data)
 {
-  ip_context_t *dev = (ip_context_t *)data;
+  ip_context_t *dev = data;
 
 #define OC_WSAEVENTSELECT(socket, event_handle, event_type)                    \
   do {                                                                         \
@@ -845,10 +853,11 @@ network_event_thread(void *data)
 
 //#ifdef OC_SECURITY
 #ifdef OC_OSCORE /* receiving from a secure socket */
-        if (i == SECURE6) {
-          int count = recv_msg(dev->secure_sock, message->data, OC_PDU_SIZE,
-                               &message->endpoint, false, &message->mcast_dest);
-          if (count < 0) {
+        if (i == SECURE6) 
+        {
+          int count = recv_msg(dev->secure_sock, message->data, OC_PDU_SIZE, &message->endpoint, false, &message->mcast_dest);
+          if (count < 0) 
+          {
             oc_message_unref(message);
             continue;
           }
@@ -869,13 +878,13 @@ network_event_thread(void *data)
           message->endpoint.flags = IPV4 | SECURED;
           message->encrypted = 1;
         }
-#endif /* OC_IPV4 */
-#endif /* OC_OSCORE */
+#endif 
+#endif 
       common:
 #ifdef OC_DEBUG
-        PRINT("Incoming message, %zd bytes, from ", message->length);
+        PRINT("incoming message, %llu bytes, from ", message->length);
         PRINTipaddr(message->endpoint);
-#endif /* OC_DEBUG */
+#endif 
         oc_network_event(message);
       }
     }
@@ -1130,35 +1139,40 @@ oc_send_buffer(oc_message_t *message)
   if (message->endpoint.flags & TCP) {
     return oc_tcp_send_buffer(dev, message, &receiver);
   }
-#endif /* OC_TCP */
+#endif 
 
-//#ifdef OC_SECURITY
-#ifdef OC_OSCORE /*  not using secured socket to send*/
-  if (message->endpoint.flags & SECURED) {
-#ifdef OC_IPV4
+// OSCORE is not using secure socket to send, it uses server_sock, see below
+#ifdef OC_OSCORE  
+  if (message->endpoint.flags & SECURED) 
+  { 
+  #ifdef OC_IPV4
     if (message->endpoint.flags & IPV4) {
       send_sock = dev->secure4_sock;
     } else {
       send_sock = dev->secure_sock;
     }
-#else  /* OC_IPV4 */
+  #else  
+    // IPv6 and SECURE 
     send_sock = dev->secure_sock;
-#endif /* !OC_IPV4 */
-  } else
-#endif /* OC_OSCORE */
-#ifdef OC_IPV4
-    if (message->endpoint.flags & IPV4) {
-    send_sock = dev->server4_sock;
-  } else {
-    send_sock = dev->server_sock;
+  #endif 
   }
-#else  /* OC_IPV4 */
+  else
+#endif 
+  #ifdef OC_IPV4
+  if (message->endpoint.flags & IPV4) 
   {
-    // if (dev) {
-    send_sock = dev->server_sock;
-    //}
+    send_sock = dev->server4_sock;
   }
-#endif /* !OC_IPV4 */
+  else 
+  {
+    send_sock = dev->server_sock;
+  }
+  #else 
+  {
+    // IPv6 and OSCORE + all other 
+    send_sock = dev->server_sock;
+  }
+  #endif 
 
   return send_msg(send_sock, &receiver, message);
 }

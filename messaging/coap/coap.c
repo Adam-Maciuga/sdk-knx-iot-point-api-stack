@@ -434,24 +434,19 @@ coap_serialize_signal_options(void* packet, uint8_t* option_array)
 	return option_length;
 }
 #endif 
-/*---------------------------------------------------------------------------*/
-/* It just calculates size of option when option_array is NULL, otherwise it adds the options */
+
+// It just calculates size of option when option_array is NULL, otherwise it adds the options to the *packet
 static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool inner, bool outer, bool oscore)
 {
 	(void) oscore;
-	coap_packet_t* const coap_pkt = packet;
-	uint8_t* option = option_array;
-	unsigned int current_number = 0;
-	size_t option_length = 0;
 
-	if (option)
-	{
-		OC_DBG("Serializing options at %p", option);
-	}
-	else
-	{
-		OC_DBG("Calculating size of options");
-	}
+  coap_packet_t* const coap_pkt = packet;		// copy of org, name used in macros below 
+	uint8_t* option = option_array;						// copy of org, name used in macros below 
+	unsigned int current_number = 0;					// copy of org, name used in macros below 
+
+  size_t option_length = 0;
+
+	OC_DBG("Options are : %s ", option ? "serialized" : "size calculated");
 
 	#ifdef OC_TCP
 	if (coap_check_signal_message(packet))
@@ -555,15 +550,6 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 	if (inner && IS_OPTION(coap_pkt, COAP_OPTION_ECHO))
 	{
 		COAP_SERIALIZE_BYTE_OPTION(COAP_OPTION_ECHO, echo, "Echo");
-	}
-
-	if (inner && IS_OPTION(coap_pkt, COAP_OPTION_ACCEPT))
-	{
-		current_number = OCF_OPTION_ACCEPT_CONTENT_FORMAT_VER;
-	}
-	if (inner && IS_OPTION(coap_pkt, COAP_OPTION_CONTENT_FORMAT))
-	{
-		current_number = OCF_OPTION_CONTENT_FORMAT_VER;
 	}
 
 	return option_length;
@@ -755,7 +741,8 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
           x     : false = 4.02
 				  true  : true  = parse
 
-         -> don't parse OSCORE options if not requested by call with outer & oscore
+         -> OSCORE option is only valid if present in outer options,
+            hence allow this option only on outer & oscore = called by 'oscore_parse_outer_message'
 
         */
 
@@ -768,7 +755,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 
 			#endif 
 
-		  case COAP_OPTION_CONTENT_FORMAT:
+		  case COAP_OPTION_CONTENT_FORMAT: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -787,11 +774,11 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 						coap_pkt->content_format != APPLICATION_PKCS7_SGK)
 					return UNSUPPORTED_MEDIA_TYPE_4_15;
 				break;
-			case COAP_OPTION_MAX_AGE:
+			case COAP_OPTION_MAX_AGE: // class U+E option: OSCORE RFC 8613, clause 4.1.1 
 				coap_pkt->max_age = coap_parse_int_option(current_option, option_length);
 				OC_DBG("  Max-Age [%lu]", (unsigned long) coap_pkt->max_age);
 				break;
-			case COAP_OPTION_ETAG:
+			case COAP_OPTION_ETAG: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -804,7 +791,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 							 coap_pkt->etag[5], coap_pkt->etag[6],
 							 coap_pkt->etag[7]); /*FIXME always prints 8 bytes */
 				break;
-			case COAP_OPTION_ACCEPT:
+			case COAP_OPTION_ACCEPT: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -812,8 +799,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				coap_pkt->accept =
 					(uint16_t) coap_parse_int_option(current_option, option_length);
 				OC_DBG("  Accept [%u]", coap_pkt->accept);
-				if (coap_pkt->accept != APPLICATION_VND_OCF_CBOR &&
-						coap_pkt->accept != APPLICATION_CBOR &&
+				if (coap_pkt->accept != APPLICATION_CBOR &&
 						coap_pkt->accept != APPLICATION_OSCORE &&
 						coap_pkt->accept != APPLICATION_LINK_FORMAT &&
 						coap_pkt->accept != APPLICATION_OCTET_STREAM &&
@@ -824,7 +810,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 						coap_pkt->accept != APPLICATION_PKCS7_SGK)
 					return NOT_ACCEPTABLE_4_06;
 				break;
-			case COAP_OPTION_PROXY_URI:
+			case COAP_OPTION_PROXY_URI:  // class U option: OSCORE RFC 8613, clause 4.1.1 
 				if (!outer)
 				{
 					return BAD_OPTION_4_02;
@@ -872,7 +858,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				return PROXYING_NOT_SUPPORTED_5_05;
 				break;
 				#endif
-			case COAP_OPTION_URI_HOST:
+			case COAP_OPTION_URI_HOST: // class U option: OSCORE RFC 8613, clause 4.1.1 
 				if (!outer)
 				{
 					return BAD_OPTION_4_02;
@@ -882,7 +868,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				OC_DBG("Uri-Host [%.*s]", (int) coap_pkt->uri_host_len,
 							 coap_pkt->uri_host);
 				break;
-			case COAP_OPTION_URI_PORT:
+			case COAP_OPTION_URI_PORT: // class U option: OSCORE RFC 8613, clause 4.1.1 
 				if (!outer)
 				{
 					return BAD_OPTION_4_02;
@@ -891,7 +877,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 					(uint16_t) coap_parse_int_option(current_option, option_length);
 				OC_DBG("  Uri-Port [%u]", coap_pkt->uri_port);
 				break;
-			case COAP_OPTION_URI_PATH:
+			case COAP_OPTION_URI_PATH: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -904,7 +890,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				OC_DBG("  Uri-Path [%.*s]", (int) coap_pkt->uri_path_len,
 							 coap_pkt->uri_path);
 				break;
-			case COAP_OPTION_URI_QUERY:
+			case COAP_OPTION_URI_QUERY: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -951,7 +937,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				coap_pkt->observe = coap_parse_int_option(current_option, option_length);
 				OC_DBG("  Observe [%lu]", (unsigned long) coap_pkt->observe);
 				break;
-			case COAP_OPTION_BLOCK2:
+			case COAP_OPTION_BLOCK2: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -966,7 +952,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num,
 							 coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
 				break;
-			case COAP_OPTION_BLOCK1:
+			case COAP_OPTION_BLOCK1: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -980,8 +966,8 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				coap_pkt->block1_num >>= 4;
 				OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num,
 							 coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
-				break;
-			case COAP_OPTION_SIZE2:
+				break; 
+			case COAP_OPTION_SIZE2: // class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -989,7 +975,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				coap_pkt->size2 = coap_parse_int_option(current_option, option_length);
 				OC_DBG("  Size2 [%lu]", (unsigned long) coap_pkt->size2);
 				break;
-			case COAP_OPTION_SIZE1:
+			case COAP_OPTION_SIZE1: // class U option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner)
 				{
 					return BAD_OPTION_4_02;
@@ -997,33 +983,23 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				coap_pkt->size1 = coap_parse_int_option(current_option, option_length);
 				OC_DBG("  Size1 [%lu]", (unsigned long) coap_pkt->size1);
 				break;
-			case COAP_OPTION_ECHO:
+			case COAP_OPTION_ECHO: // NOT listed as class E option: OSCORE RFC 8613, clause 4.1.1 
 				if (!inner || option_length > COAP_ECHO_LEN)
 				{
-					// Echo options must be OSCORE-encrypted for the deduplication to work
+					// echo options must be OSCORE-encrypted for the deduplication to work
 					return BAD_OPTION_4_02;
 				}
 				memcpy(coap_pkt->echo, current_option, option_length);
 				coap_pkt->echo_len = option_length;
-				// OC_DBG("  Echo [%lu]", (unsigned long)coap_pkt->echo);
 				break;
-			case OCF_OPTION_CONTENT_FORMAT_VER:
-			case OCF_OPTION_ACCEPT_CONTENT_FORMAT_VER:
-			{
-				if (!inner)
-				{
-					return BAD_OPTION_4_02;
-				}
-				// uint16_t version =
-				//  (uint16_t)coap_parse_int_option(current_option, option_length);
-				// OC_DBG("  Content-format/accept-Version: [%u]", version);
-			} break;
 			default:
-				OC_DBG("  unknown (%u)", option_number);
-				/* check if critical (odd) */
+
+		    OC_DBG("  unknown (%u)", option_number);
+				
 				if (option_number & 1)
 				{
-					OC_WRN("Unsupported critical option");
+          // check if critical option (odd) TODO check, some critical options are NOT odd (must be in check above) 
+				  OC_WRN("unsupported critical option");
 					return BAD_OPTION_4_02;
 				}
 		}

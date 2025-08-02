@@ -1857,7 +1857,7 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
 			/* Do not parse an incoming payload when the Content-Format option
 			* has not been set to the CBOR encoding.
 			*/
-			if (cf == APPLICATION_CBOR || cf == APPLICATION_VND_OCF_CBOR)
+			if (cf == APPLICATION_CBOR)
 			{
 				err = oc_parse_rep(payload, payload_len, &client_response.payload);
 			}
