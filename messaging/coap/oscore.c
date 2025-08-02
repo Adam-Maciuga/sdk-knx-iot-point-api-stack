@@ -263,10 +263,9 @@ coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 }
 
 int
-coap_parse_oscore_option(void* packet, uint8_t* current_option,
-												 size_t option_length)
+coap_parse_oscore_option(void* packet, uint8_t* current_option, size_t option_length)
 {
-	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
+	coap_packet_t* const coap_pkt = packet;
 
 	/*
 		OSCORE Option structure From RFC 8613:
@@ -285,21 +284,23 @@ coap_parse_oscore_option(void* packet, uint8_t* current_option,
 	OC_DBG_OSCORE("OSCORE option");
 	if (option_length == 0)
 	{
-		OC_DBG_OSCORE("\t---empty value");
+		OC_DBG_OSCORE("\t... empty value");
 		return 0;
 	}
-	/* Flags  |0 0 0|h|k|  n  | */
+
+  // flags (see above) , one byte 
 	coap_pkt->oscore_flags = *current_option;
 	current_option++;
 	option_length--;
-	OC_DBG_OSCORE("\tflags: %02x", coap_pkt->oscore_flags);
 
-	/* Partial IV length (n bytes) */
-	coap_pkt->piv_len = (coap_pkt->oscore_flags & OSCORE_FLAGS_PIVLEN_BITMASK);
+  OC_DBG_OSCORE("\tflags: %02x", coap_pkt->oscore_flags);
+
+	// Partial IV length (n bytes)
+	coap_pkt->piv_len = coap_pkt->oscore_flags & OSCORE_FLAGS_PIVLEN_BITMASK;
 
 	if (coap_pkt->piv_len > 0)
 	{
-		/* Partial IV */
+		// copy PIV
 		memcpy(coap_pkt->piv, current_option, coap_pkt->piv_len);
 		current_option += coap_pkt->piv_len;
 		option_length -= coap_pkt->piv_len;
@@ -308,15 +309,15 @@ coap_parse_oscore_option(void* packet, uint8_t* current_option,
 		OC_LOGbytes_OSCORE(coap_pkt->piv, coap_pkt->piv_len);
 	}
 
-	/* kid context (if any) */
-	/* Check if 'h' flag bit is set */
+	// kid context (if any), check if 'h' flag bit is set
 	if (coap_pkt->oscore_flags & OSCORE_FLAGS_KIDCTX_BITMASK)
 	{
-		coap_pkt->kid_ctx_len = *current_option;
+		// (s) 1 byte
+	  coap_pkt->kid_ctx_len = *current_option;
 		current_option++;
 		option_length--;
 
-		/* Store kid context */
+		// copy kid context (s bytes)
 		memcpy(coap_pkt->kid_ctx, current_option, coap_pkt->kid_ctx_len);
 		current_option += coap_pkt->kid_ctx_len;
 		option_length -= coap_pkt->kid_ctx_len;
@@ -325,11 +326,10 @@ coap_parse_oscore_option(void* packet, uint8_t* current_option,
 		OC_LOGbytes_OSCORE(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 	}
 
-	/* kid (if any) */
-	/* Check if 'k' flag bit is set */
+	// kid (if any), check if 'k' flag bit is set
 	if (coap_pkt->oscore_flags & OSCORE_FLAGS_KID_BITMASK)
 	{
-		/* Remaining bytes in option: kid */
+		// copy kid (remaining bytes in option)
 		coap_pkt->kid_len = (uint8_t) option_length;
 		memcpy(coap_pkt->kid, current_option, option_length);
 

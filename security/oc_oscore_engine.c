@@ -463,7 +463,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     OC_DBG_OSCORE("### parse CoAP message ###");
     /* Parse CoAP message */
     coap_packet_t coap_pkt[1];
-    coap_status_t code = coap_udp_parse_message(coap_pkt, message->data, (uint16_t)message->length);
+    coap_status_t code = coap_udp_parse_message(coap_pkt, message->data, message->length);
 
     if (code != COAP_NO_ERROR)
     {
@@ -698,7 +698,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 #endif 
   {
     // parse CoAP message
-    code = coap_udp_parse_message(coap_pkt, message->data, (uint16_t)message->length);
+    code = coap_udp_parse_message(coap_pkt, message->data, message->length);
   }
 
   if (code != COAP_NO_ERROR)

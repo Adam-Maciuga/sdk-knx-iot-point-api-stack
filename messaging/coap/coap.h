@@ -99,8 +99,7 @@ extern "C" {
 	/** parsed message struct */
 	typedef struct
 	{
-		uint8_t* buffer; /**< pointer to CoAP header / incoming packet buffer / memory
-												to serialize packet */
+		uint8_t* buffer; // pointer to CoAP header / incoming packet buffer / memory, to serialize packet
 		coap_transport_type_t transport_type;
 		uint8_t version;
 		coap_message_type_t type;
@@ -112,8 +111,7 @@ extern "C" {
 
 		uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE + 1]; // bitmap to check if option is set
 
-		uint16_t content_format; /* parse options once and store; allows setting
-																options in random order  */
+		uint16_t content_format; // parse options once and store; allows setting options in random order
 		uint32_t max_age;
 		uint8_t etag_len;
 		uint8_t etag[COAP_ETAG_LEN];
@@ -149,7 +147,6 @@ extern "C" {
 		uint8_t if_none_match;
 
 		#ifdef OC_TCP
-		/* CoAP over TCP Signal option values */
 		uint32_t max_msg_size;
 		uint8_t blockwise_transfer;
 		uint8_t custody;
@@ -157,10 +154,9 @@ extern "C" {
 		size_t alt_addr_len;
 		uint32_t hold_off;
 		uint16_t bad_csm_opt;
-		#endif /* OC_TCP */
+		#endif 
 
 		#ifdef OC_OSCORE
-		/* OSCORE Option value */
 		uint8_t oscore_flags;
 		uint8_t piv[OSCORE_PIV_LEN];
 		uint8_t piv_len;
@@ -168,7 +164,7 @@ extern "C" {
 		uint8_t kid_ctx_len;
 		uint8_t kid[OSCORE_SENDER_ID_LEN];
 		uint8_t kid_len;
-		#endif /* OC_OSCORE */
+		#endif 
 
 		uint8_t echo[COAP_ECHO_LEN];
 		size_t echo_len;
@@ -259,7 +255,7 @@ extern "C" {
 	* @note  does not copy OSCORE option security content
 	*
 	*/
-	coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, uint16_t data_len);
+	coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_len);
 
 	int coap_get_query_variable(void* packet, const char* name,
 															const char** output);
