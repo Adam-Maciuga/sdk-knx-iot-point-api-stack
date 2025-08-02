@@ -130,8 +130,8 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_LSAB_0_IOO(wxCommandEvent& event);
-  void OnPressed_LSAB_1_IOO(wxCommandEvent& event);
+  void OnPressed_LSAB_0_IOO(wxCommandEvent& event); // trigger by hand a status "write" 
+  void OnPressed_LSAB_1_IOO(wxCommandEvent& event); // trigger by hand a status "write" 
 
   void updateCheckBoxesFromLiveSOOData();
   void updateDeviceData();
@@ -933,9 +933,9 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  * - check boxes
  * - info buttons
  * - text buttons
- * does a oc_main_poll to give a tick to the stack
+ * does an oc_main_poll to give a tick to the stack
  * takes into account if the device is sleepy
- * e.g. then it only does an poll each 20 seconds
+ * e.g. then it only does a poll each 20 seconds
  * @param event triggered by a timer
  */
 void MyFrame::OnTimer(wxTimerEvent& event)
@@ -988,7 +988,7 @@ void MyFrame::updateCheckBoxesFromLiveSOOData()
   bool p;
 
   // update check box
-  p = app_retrieve_bool_variable_from_channel(LSAB + 0, SOO);
+  p = app_retrieve_bool_variable_from_channel(0, SOO);
   m_LSAB_0_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
 
   // update check box text
@@ -997,7 +997,7 @@ void MyFrame::updateCheckBoxesFromLiveSOOData()
   m_LSAB_0_SOO->SetLabel(text);
 
   // update check box
-  p = app_retrieve_bool_variable_from_channel(LSAB + 1, SOO);
+  p = app_retrieve_bool_variable_from_channel(1, SOO);
   m_LSAB_1_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
 
   // update check box text
@@ -1180,11 +1180,12 @@ void MyFrame::double2text(double value, char* text)
   strcat(text, new_text);
 }
 
+// trigger by hand a status request "write"
 void MyFrame::OnPressed_LSAB_0_IOO(wxCommandEvent& event)
 {
   // get url from IOO
-  char* url = app_retrieve_href_from_channel(LSAB, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSAB, IOO);
+  char* url = app_retrieve_href_from_channel(0, IOO);
+  bool p = app_retrieve_bool_variable_from_channel(0, IOO);
 
   // send out current state (do NOT change the state), multicast
   oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
@@ -1202,11 +1203,12 @@ void MyFrame::OnPressed_LSAB_0_IOO(wxCommandEvent& event)
   SetStatusText(statusBarText);
 }
 
+// trigger by hand a status request "write"
 void MyFrame::OnPressed_LSAB_1_IOO(wxCommandEvent& event)
 {
   // get url from IOO
-  char* url = app_retrieve_href_from_channel(LSAB + 1, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSAB + 1, IOO);
+  char* url = app_retrieve_href_from_channel(1, IOO);
+  bool p = app_retrieve_bool_variable_from_channel(1, IOO);
 
   // send out current state (do NOT change the state), multicast
   oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");

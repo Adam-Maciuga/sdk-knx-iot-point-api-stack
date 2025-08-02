@@ -1106,14 +1106,14 @@ void MyFrame::double2text(double value, char* text)
 void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
 {
   // get url from SOO
-  char* url = app_retrieve_href_from_channel(LSAB, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSAB, SOO);
+  char* url = app_retrieve_href_from_channel(0, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(0, SOO);
 
   // toggle value
   p = !p;
 
   // set value
-  app_set_bool_variable_from_channel(LSAB, SOO, p);
+  app_set_bool_variable_from_channel(0, SOO, p);
 
   // send out, multicast
   oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");

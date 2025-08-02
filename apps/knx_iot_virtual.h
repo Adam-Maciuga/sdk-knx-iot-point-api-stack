@@ -38,8 +38,7 @@
 #define NUM_POINTS   (2)
 #define SOO  (0)
 #define IOO  (1)
-#define LSSB (1)
-#define LSAB (0)
+
 
 // use it in upper case 
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"

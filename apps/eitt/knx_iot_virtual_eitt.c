@@ -48,6 +48,10 @@ static CRITICAL_SECTION critical_section;
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
 
+// for the mixture of EITT channel definitions 
+#define LSSB (1)
+#define LSAB (0)
+
 // EITT definitions 
 const char application_name[] = "KNX virtual EITT certification application";
 const char sn_lower_case[] = "00fa10020800";  // same as eitt test template, deliberated incorrect serial numbers

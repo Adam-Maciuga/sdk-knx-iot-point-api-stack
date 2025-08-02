@@ -273,6 +273,7 @@ extern int_datapoint_t test_parameter;
 // generic GET for LSSB/LSAB/EITT applications for SOO and IOO
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
+  (void)interfaces;
   bool error_state = true;
 
   // user data host the HEX encoded channel/datapoint 

@@ -130,8 +130,8 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_LSSB_0_SOO(wxCommandEvent& event);
-  void OnPressed_LSSB_1_SOO(wxCommandEvent& event);
+  void OnPressed_LSSB_0_SOO(wxCommandEvent& event); // trigger by hand a switch on/off request
+  void OnPressed_LSSB_1_SOO(wxCommandEvent& event); // trigger by hand a switch on/off request
 
   void updateCheckBoxesFromLiveIOOData();
   void updateDeviceData();
@@ -1179,11 +1179,12 @@ void MyFrame::double2text(double value, char* text)
 }
 
 
+// trigger by hand a switch on/off request
 void MyFrame::OnPressed_LSSB_0_SOO(wxCommandEvent& event)
 {
   // get url from SOO 
   char* url = app_retrieve_href_from_channel(0, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(LSSB + 0, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(0, SOO);
 
   // toggle value
   p = !p;
@@ -1207,6 +1208,7 @@ void MyFrame::OnPressed_LSSB_0_SOO(wxCommandEvent& event)
   SetStatusText(statusBarText);
 }
 
+// trigger by hand a switch on/off request
 void MyFrame::OnPressed_LSSB_1_SOO(wxCommandEvent& event)
 {
   // get url from IOO
