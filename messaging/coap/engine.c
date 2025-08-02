@@ -412,8 +412,7 @@ int coap_receive(oc_message_t* incoming_message)
 				}
 				#endif
 
-				// SERVER --> remove transaction after a received confirmation 
-				if (coap_packet_request->type == COAP_TYPE_CON)
+				// remove transaction ALWAYS after a received confirmation 
 					coap_clear_transaction(transaction);
 			}
 			else
