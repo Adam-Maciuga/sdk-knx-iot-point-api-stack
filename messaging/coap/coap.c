@@ -1153,9 +1153,9 @@ coap_init_connection(void)
 	/* initialize transaction ID */
 	current_mid = (uint16_t) oc_random_value();
 }
-/*---------------------------------------------------------------------------*/
-uint16_t
-coap_get_mid(void)
+
+// get next message id
+uint16_t coap_get_next_mid(void)
 {
 	return ++current_mid;
 }

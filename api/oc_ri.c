@@ -2008,7 +2008,7 @@ oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 		return cb;
 	}
 
-	cb->mid = coap_get_mid();
+	cb->mid = coap_get_next_mid();
 	oc_new_string(&cb->uri, uri, strlen(uri));
 	cb->method = method;
 	cb->qos = qos;

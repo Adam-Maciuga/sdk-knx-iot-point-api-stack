@@ -26,16 +26,21 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	// retype pointer
 	coap_packet_t const* oscore_pkt = (coap_packet_t*) packet;
 
+	// set mid as default from request/ response  
   uint16_t mid = oscore_pkt->mid;
-	coap_message_type_t type = COAP_TYPE_NON;
+
+  // set type as default 
+  coap_message_type_t type = COAP_TYPE_NON;
 
 	if (oscore_pkt->type == COAP_TYPE_CON)
 	{
-		type = COAP_TYPE_ACK;
+		// in case of confirmable send ack with mid from request 
+	  type = COAP_TYPE_ACK;
 	}
 	else
 	{
-		mid = coap_get_mid();
+		// send any message other than ack with OWN (next) mid
+		mid = coap_get_next_mid();
 	}
 
 	// one static message

@@ -238,7 +238,7 @@ extern "C" {
 	extern char* coap_error_message;
 
 	void coap_init_connection(void);
-	uint16_t coap_get_mid(void);
+	uint16_t coap_get_next_mid(void);
 
 	void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
 														 uint16_t mid);
@@ -253,7 +253,7 @@ extern "C" {
 
 	/**
 	*
-	* @brief parses *data and copy from it coap header/token/options
+	* @brief parses *data and copy from it coap header/token/mid/options
 	*        to *packet
 	*
 	* @note  does not copy OSCORE option security content

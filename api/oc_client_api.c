@@ -276,7 +276,9 @@ bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char 
 
   memcpy(&multicast_update->endpoint, mcast, sizeof(oc_endpoint_t));
   oc_rep_new(multicast_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
-  coap_udp_init_message(request, type, OC_POST, coap_get_mid());
+
+  coap_udp_init_message(request, type, OC_POST, coap_get_next_mid());
+
   // still the inner message
   coap_set_header_accept(request, APPLICATION_CBOR);
 
@@ -474,7 +476,7 @@ oc_stop_observe(const char *uri, oc_endpoint_t *endpoint)
   if (!cb)
     return false;
 
-  cb->mid = coap_get_mid();
+  cb->mid = coap_get_next_mid();
   cb->observe_seq = 1;
 
   bool status = false;

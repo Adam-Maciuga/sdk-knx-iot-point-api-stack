@@ -641,8 +641,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 		coap_separate_t* next = cur->next;
 		if (cur->observe < 3)
 		{
-			coap_transaction_t* t = coap_new_transaction(
-				coap_get_mid(), cur->token, cur->token_len, &cur->endpoint);
+			coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), cur->token, cur->token_len, &cur->endpoint);
 			if (t)
 			{
 				coap_packet_t response[1];

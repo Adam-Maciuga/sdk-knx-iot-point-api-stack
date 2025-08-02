@@ -299,7 +299,7 @@ coap_remove_observers_on_dos_change(size_t device, bool reset)
       }
       coap_set_token(notification, obs->token, obs->token_len);
       coap_transaction_t *transaction = coap_new_transaction(
-        coap_get_mid(), obs->token, obs->token_len, &obs->endpoint);
+        coap_get_next_mid(), obs->token, obs->token_len, &obs->endpoint);
       if (transaction) {
         notification->mid = transaction->mid;
         transaction->message->length =
@@ -531,7 +531,7 @@ coap_notify_observers(const oc_resource_t *resource,
                                            response_buf->content_format);
           }
           coap_set_token(notification, obs->token, obs->token_len);
-          transaction = coap_new_transaction(coap_get_mid(), obs->token,
+          transaction = coap_new_transaction(coap_get_next_mid(), obs->token,
                                              obs->token_len, &obs->endpoint);
           if (transaction) {
             obs->last_mid = transaction->mid;
@@ -733,7 +733,7 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
                                          response_buf->content_format);
         }
         coap_set_token(notification, obs->token, obs->token_len);
-        transaction = coap_new_transaction(coap_get_mid(), obs->token,
+        transaction = coap_new_transaction(coap_get_next_mid(), obs->token,
                                            obs->token_len, &obs->endpoint);
         if (transaction) {
           obs->last_mid = transaction->mid;
