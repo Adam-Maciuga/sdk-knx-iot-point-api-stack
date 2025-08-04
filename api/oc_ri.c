@@ -1696,10 +1696,10 @@ oc_ri_free_client_cbs_by_mid(uint16_t mid)
 void
 oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t * endpoint)
 {
-	oc_client_cb_t* cb = (oc_client_cb_t*) oc_list_head(client_cbs), * next;
+	oc_client_cb_t* cb = oc_list_head(client_cbs);
 	while (cb != NULL)
 	{
-		next = cb->next;
+		oc_client_cb_t* next = cb->next;
 		if (!cb->multicast && !cb->discovery && cb->ref_count == 0 &&
 				oc_endpoint_compare(&cb->endpoint, endpoint) == 0)
 		{

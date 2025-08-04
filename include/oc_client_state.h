@@ -106,7 +106,7 @@ extern "C" {
 	} oc_client_handler_t;
 
 	/**
-	 * @brief client callback information
+	 * @brief client callback information, used to find back a caller
 	 *
 	 */
 	typedef struct oc_client_cb_t
@@ -128,12 +128,12 @@ extern "C" {
 		bool multicast;                /**< multi cast */
 		bool stop_multicast_receive;   /**< stop receiving multi cast */
 		uint8_t ref_count;             /**< reference counting on this data block */
-		uint8_t separate;              /**< separate responses */
-	#ifdef OC_OSCORE
-		uint8_t piv[OSCORE_PIV_LEN]; /**< partial IV */
-		uint8_t piv_len;             /**< length of the partial IV */
-		uint64_t notification_num;   /**< notification number */
-	#endif                         /* OC_OSCORE */
+		uint8_t separate;							 /**< separate responses */
+	  #ifdef OC_OSCORE
+		uint8_t piv[OSCORE_PIV_LEN];	 /**< partial IV */
+		uint8_t piv_len;							 /**< length of the partial IV */
+		uint64_t notification_num;		 /**< notification number */
+	  #endif											   
 	} oc_client_cb_t;
 
 #ifdef OC_BLOCK_WISE
@@ -212,6 +212,8 @@ extern "C" {
 
 	/**
 	 * @brief find the client callback info by message id (mid)
+	 *
+	 * @note the callback hosts the caller information (resource path, token, method, ...) 
 	 *
 	 * @param mid the message id
 	 * @return oc_client_cb_t* the client callback info

@@ -72,6 +72,8 @@ void oc_message_add_ref(oc_message_t *message);
 /**
  * @brief remove reference (for tracking in use)
  *
+ * @note in case of reference is then '0' data + pool are memory wise released 
+ *
  * @param message the message
  */
 void oc_message_unref(oc_message_t *message);
