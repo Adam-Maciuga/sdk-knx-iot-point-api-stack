@@ -203,12 +203,6 @@ prepare_coap_request_ex(oc_client_cb_t *cb, oc_content_format_t accept)
   return true;
 }
 
-static bool
-prepare_coap_request(oc_client_cb_t *cb)
-{
-  return prepare_coap_request_ex(cb, APPLICATION_CBOR);
-}
-
 #ifdef OC_OSCORE
 
 bool oc_do_multicast_update(void)
@@ -331,163 +325,22 @@ bool oc_get_response_payload_raw(oc_client_response_t *response,
   return false;
 }
 
-bool
-oc_get_diagnostic_message(oc_client_response_t *response, const char **msg,
-                          size_t *size)
-{
-  oc_content_format_t cf = 0;
-  if (oc_get_response_payload_raw(response, (const uint8_t **)msg, size, &cf)) {
-    if (cf != TEXT_PLAIN) {
-      return false;
-    }
-    return true;
-  }
-  return false;
-}
 
-bool
-oc_do_get_ex(const char *uri, oc_endpoint_t *endpoint, const char *query,
-             oc_response_handler_t handler, oc_qos_t qos,
-             oc_content_format_t content, oc_content_format_t accept,
-             void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
 
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_GET, query,
-                                             client_handler, qos, user_data);
-  if (!cb)
-    return false;
 
-  bool status = false;
 
-  status = prepare_coap_request(cb);
 
-  if (status)
-    status = dispatch_coap_request(content, accept);
 
-  return status;
-}
 
-bool
-oc_do_get(const char *uri, oc_endpoint_t *endpoint, const char *query,
-          oc_response_handler_t handler, oc_qos_t qos, void *user_data)
-{
-  return oc_do_get_ex(uri, endpoint, query, handler, qos, APPLICATION_CBOR,
-                      APPLICATION_CBOR, user_data);
-}
 
-bool
-oc_init_put(const char *uri, oc_endpoint_t *endpoint, const char *query,
-            oc_response_handler_t handler, oc_qos_t qos, void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
 
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_PUT, query,
-                                             client_handler, qos, user_data);
-  if (!cb)
-    return false;
 
-  return prepare_coap_request(cb);
-}
 
-bool
-oc_init_post(const char *uri, oc_endpoint_t *endpoint, const char *query,
-             oc_response_handler_t handler, oc_qos_t qos, void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
 
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_POST, query,
-                                             client_handler, qos, user_data);
-  if (!cb) {
-    return false;
-  }
 
-  return prepare_coap_request(cb);
-}
 
-bool
-oc_do_put(void)
-{
-  return dispatch_coap_request(APPLICATION_CBOR, APPLICATION_CBOR);
-}
 
-bool
-oc_do_put_ex(oc_content_format_t content, oc_content_format_t accept)
-{
-  return dispatch_coap_request(content, accept);
-}
 
-bool
-oc_do_post(void)
-{
-  return dispatch_coap_request(APPLICATION_CBOR, APPLICATION_CBOR);
-}
-
-bool
-oc_do_post_ex(oc_content_format_t content, oc_content_format_t accept)
-{
-  return dispatch_coap_request(content, accept);
-}
-
-bool
-oc_do_observe(const char *uri, oc_endpoint_t *endpoint, const char *query,
-              oc_response_handler_t handler, oc_qos_t qos, void *user_data)
-{
-  oc_client_handler_t client_handler = {
-    .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
-  };
-
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_GET, query,
-                                             client_handler, qos, user_data);
-  if (!cb)
-    return false;
-
-  cb->observe_seq = 0;
-
-  bool status = false;
-
-  status = prepare_coap_request(cb);
-
-  if (status)
-    status = dispatch_coap_request(APPLICATION_CBOR, APPLICATION_CBOR);
-
-  return status;
-}
-
-bool
-oc_stop_observe(const char *uri, oc_endpoint_t *endpoint)
-{
-  oc_client_cb_t *cb = oc_ri_get_client_cb(uri, endpoint, OC_GET);
-
-  if (!cb)
-    return false;
-
-  cb->mid = coap_get_next_mid();
-  cb->observe_seq = 1;
-
-  bool status = false;
-
-  status = prepare_coap_request(cb);
-
-  if (status)
-    status = dispatch_coap_request(APPLICATION_CBOR, APPLICATION_CBOR);
-
-  return status;
-}
 
 #ifdef OC_TCP
 oc_event_callback_retval_t
@@ -528,18 +381,9 @@ oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_seconds,
   oc_set_delayed_callback(cb, oc_remove_ping_handler, timeout_seconds);
   return true;
 }
-#endif /* OC_TCP */
+#endif 
 
 // -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-
-void
-oc_stop_multicast(oc_client_response_t *response)
-{
-  oc_client_cb_t *cb = (oc_client_cb_t *)response->client_cb;
-  cb->stop_multicast_receive = true;
-}
 
 static bool
 dispatch_ip_discovery_ex(oc_client_cb_t *cb4, const char *uri,

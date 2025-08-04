@@ -1050,16 +1050,6 @@ extern "C"
    */
   void oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code);
 
-  /**
-   * @brief retrieve the diagnostic payload from a response
-   *
-   * @param response the response to get the diagnostic payload from
-   * @param msg the diagnostic payload
-   * @param size the size of the diagnostic payload
-   * @return true - retrieved payload
-   * @return false
-   */
-  bool oc_get_diagnostic_message(oc_client_response_t* response, const char** msg, size_t* size);
 
   /**
    * Ignore the request
@@ -1283,251 +1273,21 @@ extern "C"
   int oc_lf_get_entry_param(const char* payload, int payload_len, int entry, const char* param, const char** p_out,
                             int* p_len);
 
-  /**
-   * @brief issues a get request with accept-content CBOR
-   *
-   * @param uri the uri to be used
-   * @param endpoint the endpoint of the device
-   * @param query the query
-   * @param handler the callback handler
-   * @param qos the qos type confirmable / not confirmable
-   * @param user_data the user data
-   * @return true
-   * @return false
-   *
-   * @see oc_do_get_ex
-   */
-  bool oc_do_get(const char* uri, oc_endpoint_t* endpoint, const char* query, oc_response_handler_t handler, oc_qos_t qos,
-                 void* user_data);
 
-  /**
-   * @brief Issue a GET request to obtain the current value of all properties a
-   * resource
-   *
-   * Example:
-   * ```
-   * static bool value;
-   *
-   * static void
-   * get_light(oc_client_response_t *data)
-   * {
-   *   PRINT("GET_light:\n");
-   *   oc_rep_t *rep = data->payload;
-   *   while (rep != NULL) {
-   *     PRINT("key %s, value ", oc_string_checked(rep->name));
-   *     switch (rep->type) {
-   *     case OC_REP_BOOL:
-   *       PRINT("%d\n", rep->value.boolean);
-   *       value = rep->value.boolean;
-   *       break;
-   *     default:
-   *       break;
-   *     }
-   *     rep = rep->next;
-   *   }
-   * }
-   * //the server uri and server endpoint obtained from oc_discovery_handler_t
-   * // as a result of an oc_do_ip_discovery call
-   * oc_do_get_ex(server_uri, server_ep, NULL, &get_switch, LOW_QOS,
-   *   APPLICATION_CBOR, APPLICATION_CBOR, NULL);
-   * ```
-   *
-   * @param[in] uri the uri of the resource
-   * @param[in] endpoint the endpoint of the server
-   * @param[in] query a query parameter that will be sent to the server's
-   *                  oc_request_callback_t.
-   * @param[in] handler function invoked once the client has received the servers
-   *                    response to the GET request
-   * @param[in] qos the quality of service current options are HIGH_QOS or LOW_QOS
-   * @param[in] content The content format of the request payload
-   * @param[in] accept  The content format of the response payload
-   * @param[in] user_data context pointer that will be sent to the
-   *                      oc_response_handler_t
-   *
-   * @return True if the client successfully dispatched the CoAP GET request
-   */
-  bool oc_do_get_ex(const char* uri, oc_endpoint_t* endpoint, const char* query, oc_response_handler_t handler, oc_qos_t qos,
-                    oc_content_format_t content, oc_content_format_t accept, void* user_data);
+  
 
-  /**
-   * Prepare the stack to issue a PUT request
-   *
-   * After oc_init_put has been called a CoAP message can be built using
-   * `oc_rep_*` functions. Then oc_do_put is called to dispatch the CoAP request.
-   *
-   * Example:
-   * ```
-   *
-   * static void
-   * put_switch(oc_client_response_t *data)
-   * {
-   *   if (data->code == OC_STATUS_CHANGED)
-   *     printf("PUT response: CHANGED\n");
-   *   else
-   *     printf("PUT response code %d\n", data->code);
-   * }
-   *
-   * if (oc_init_put(server_uri, server_ep, NULL, &put_switch, LOW_QOS, NULL)) {
-   *   oc_rep_begin_root_object();
-   *   oc_rep_set_boolean(root, value, true);
-   *   oc_rep_end_root_object();
-   *   if (oc_do_put(APPLICATION_CBOR, APPLICATION_CBOR))
-   *     printf("Sent PUT request\n");
-   *   else
-   *     printf("Could not send PUT request\n");
-   * } else
-   *   printf("Could not init PUT request\n");
-   * ```
-   * @param[in] uri the uri of the resource
-   * @param[in] endpoint the endpoint of the server
-   * @param[in] query a query parameter that will be sent to the server's
-   *                  oc_request_callback_t.
-   * @param[in] handler function invoked once the client has received the servers
-   *                    response to the PUT request
-   * @param[in] qos the quality of service current options are HIGH_QOS or LOW_QOS
-   * @param[in] user_data context pointer that will be sent to the
-   *                      oc_response_handler_t
-   *
-   * @return True if the client successfully prepared the CoAP PUT request
-   *
-   * @see oc_do_put_ex
-   * @see oc_init_post
-   */
-  bool oc_init_put(const char* uri, oc_endpoint_t* endpoint, const char* query, oc_response_handler_t handler, oc_qos_t qos,
-                   void* user_data);
 
-  /**
-   * @brief Dispatch the CoAP PUT request wiht content type and accept type CBOR
-   *
-   * @return true
-   * @return false
-   *
-   * @see oc_do_put_ex
-   */
-  bool oc_do_put(void);
 
-  /**
-   * @brief Dispatch the CoAP PUT request
-   *
-   * @param content The content format of the request payload
-   * @param accept  The content format of the response payload
-   * @return true if the client successfully dispatched the CoAP request
-   * @return false
-   *
-   * @see oc_init_put
-   */
-  bool oc_do_put_ex(oc_content_format_t content, oc_content_format_t accept);
+  
 
-  /**
-   * Prepare the stack to issue a POST request
-   *
-   * After oc_init_post has been called a CoAP message can be built using
-   * `oc_rep_*` functions. Then oc_do_post is called to dispatch the CoAP request.
-   *
-   * Example:
-   * ```
-   *
-   * static void
-   * post_switch(oc_client_response_t *data)
-   * {
-   *   if (data->code == OC_STATUS_CHANGED)
-   *     printf("POST response: CHANGED\n");
-   *   else
-   *     printf("POST response code %d\n", data->code);
-   * }
-   *
-   * if (oc_init_post(server_uri, server_ep, NULL, &put_switch, LOW_QOS, NULL)) {
-   *   oc_rep_begin_root_object();
-   *   oc_rep_set_boolean(root, value, true);
-   *   oc_rep_end_root_object();
-   *   if (oc_do_put(APPLICATION_CBOR, APPLICATION_CBOR))
-   *     printf("Sent POST request\n");
-   *   else
-   *     printf("Could not send POST request\n");
-   * } else
-   *   printf("Could not init POST request\n");
-   * ```
-   * @param[in] uri the uri of the resource
-   * @param[in] endpoint the endpoint of the server
-   * @param[in] query a query parameter that will be sent to the server's
-   *                  oc_request_callback_t.
-   * @param[in] handler function invoked once the client has received the servers
-   *                     response to the POST request
-   * @param[in] qos the quality of service current options are HIGH_QOS or LOW_QOS
-   * @param[in] user_data context pointer that will be sent to the
-   *                      oc_response_handler_t
-   *
-   * @return True if the client successfully prepared the CoAP PUT request
-   *
-   * @see oc_do_post
-   * @see oc_init_put
-   */
-  bool oc_init_post(const char* uri, oc_endpoint_t* endpoint, const char* query, oc_response_handler_t handler, oc_qos_t qos,
-                    void* user_data);
 
-  /**
-   * @brief Dispatch the CoAP POST request wiht content type and accept type CBOR
-   *
-   * @return true
-   * @return false
-   *
-   * @see oc_do_post_ex
-   */
-  bool oc_do_post(void);
+  
 
-  /**
-   * @brief  Dispatch the CoAP POST request
-   *
-   * @param content The content format of the request payload
-   * @param accept  The content format of the response payload
-   * @return true if the client successfully dispatched the CoAP POST request
-   * @return false
-   *
-   * @see oc_init_post
-   */
-  bool oc_do_post_ex(oc_content_format_t content, oc_content_format_t accept);
+  
 
-  /**
-   * Dispatch a GET request with the CoAP Observe option to subscribe for
-   * notifications from a resource.
-   *
-   * The oc_response_handler_t will be invoked each time upon receiving a
-   * notification.
-   *
-   * The handler will continue to be invoked till oc_stop_observe() is called.
-   *
-   * @param[in] uri the uri of the resource
-   * @param[in] endpoint the endpoint of the server
-   * @param[in] query a query parameter that will be sent to the server's
-   *                  oc_request_callback_t.
-   * @param[in] handler function invoked once the client has received the servers
-   *                     response to the POST request
-   * @param[in] qos the quality of service current options are HIGH_QOS or LOW_QOS
-   * @param[in] user_data context pointer that will be sent to the
-   *                      oc_response_handler_t
-   *
-   * @return True if the client successfully dispatched the CaAP observer request
-   */
-  bool oc_do_observe(const char* uri, oc_endpoint_t* endpoint, const char* query, oc_response_handler_t handler,
-                     oc_qos_t qos, void* user_data);
+  
 
-  /**
-   * Unsubscribe for notifications from a resource.
-   *
-   * @param[in] uri the uri of the resource being observed
-   * @param[in] endpoint the endpoint of the server
-   *
-   * @return True if the client successfully dispatched the CaAP stop observer
-   *         request
-   */
-  bool oc_stop_observe(const char* uri, oc_endpoint_t* endpoint);
-
-  /**
-   * stop the multicast update (e.g. do not handle the responses)
-   *
-   * @param[in] response the response that should not be handled.
-   */
-  void oc_stop_multicast(oc_client_response_t* response);
+  
 
   /**
    * @brief initialize the multicast update
