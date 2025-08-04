@@ -241,7 +241,7 @@ void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const
 	rec->time = oc_clock_time();
 }
 
-struct oc_message_s* oc_replay_find_msg_by_token(const uint16_t token_len, const uint8_t* token)
+struct oc_message_s* oc_replay_find_msg_by_token(const uint8_t* token, const uint16_t token_len)
 {
 	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; i++)
 	{

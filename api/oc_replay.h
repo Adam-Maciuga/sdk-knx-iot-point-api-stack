@@ -97,12 +97,12 @@ void oc_replay_message_unref(struct oc_message_s *msg);
  * The soft reference will be removed. If this is the last remaining reference
  * to the message, the message will be freed.
  *
+ * @param token Token pointer used to identify the message
  * @param token_len Length of the token
- * @param token Token used to identify the message
+ *
  * @return struct oc_message_s*
  */
-struct oc_message_s *oc_replay_find_msg_by_token(uint16_t token_len,
-                                                 const uint8_t *token);
+struct oc_message_s* oc_replay_find_msg_by_token(const uint8_t* token, uint16_t token_len);
 
 /**
  * @brief Get the first available (not used) record
