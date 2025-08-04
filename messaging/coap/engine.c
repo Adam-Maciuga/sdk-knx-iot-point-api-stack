@@ -351,10 +351,12 @@ int coap_receive(oc_message_t* incoming_message)
 		  if (transaction)
 			{
 				#ifdef OC_CLIENT
-				// This block retransmits messages with included Echo options
-				// for which we have a transaction. This includes Echo retransmissions
-				// for unicast acknowledged requests, but not NON requests, or
-				// multicast S-Mode messages (which are always NON).
+				/*
+				   Transaction present
+				   - retransmits messages with included Echo options for which we have a transaction (= client requests, e.g, CLIENT is active)
+				   - includes Echo retransmissions for unicast acknowledged requests
+				   - does NOT include NON requests, or multicast S-Mode messages (which are always NON)
+        */
 
 		    uint8_t echo_value[COAP_ECHO_LEN];
 				size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
@@ -362,13 +364,13 @@ int coap_receive(oc_message_t* incoming_message)
 				// received echo challenge from extern WITH echo
 		    if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
 				{
-					OC_DBG("received unauthorised response with echo option, sending re-request with included echo...");
+					OC_DBG("received unauthorised response with echo option FROM TRANSACTION, sending re-request with included echo...");
 
+					// parse the transaction message
 		      coap_packet_t re_request_pkt[1];
 					coap_udp_parse_message(re_request_pkt, transaction->message->data, transaction->message->length);
 
 					client_cb = oc_ri_find_client_cb_by_mid(re_request_pkt->mid);
-					OC_DBG("Pointer to MID Client Callback: %p", client_cb);
 
 					// copy the echo from the unauthorised response into the new request
 					coap_set_header_echo(re_request_pkt, echo_value, echo_len);
@@ -382,8 +384,8 @@ int coap_receive(oc_message_t* incoming_message)
 						i += sizeof(r);
 					}
 
-					// create a new transaction and send the re-request. New transaction has
-          // different  MID & (randomized) token, but should use the same client callback
+					// send the re-request, add as new transaction
+          // - different  MID & (randomized) token, but should use the same client callback
 		      re_request_pkt->mid = coap_get_next_mid();
 
 		      coap_transaction_t* new_transaction = coap_new_transaction(
@@ -401,7 +403,8 @@ int coap_receive(oc_message_t* incoming_message)
 
 		      if (new_transaction->message->length > 0)
 					{
-						coap_send_transaction(new_transaction);
+            OC_DBG("retransmitting with included Echo...");
+		        coap_send_transaction(new_transaction);
 					}
 					else
 					{
@@ -419,7 +422,12 @@ int coap_receive(oc_message_t* incoming_message)
 			}
 			else
 			{
-				// no transaction present
+        /*
+				   Transaction NOT present
+           - retransmits messages with included Echo options
+           - includes Echo retransmissions for unicast acknowledged requests
+           - does NOT include NON requests, or multicast S-Mode messages (which are always NON)
+        */
 
 			  uint8_t echo_value[COAP_ECHO_LEN];
 				size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
@@ -427,52 +435,54 @@ int coap_receive(oc_message_t* incoming_message)
 				// received echo challenge from extern WITH echo
 			  if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
 				{
-					// find in oc_replay tracker and retransmit
-					oc_message_t* original_message = oc_replay_find_msg_by_token(incoming_coap_message->token_len, incoming_coap_message->token);
+          OC_DBG("received unauthorised response with echo option FROM TOKEN, sending re-request with included echo...");
+
+			    // find message in record list and retransmit
+          oc_message_t* original_message = oc_replay_find_msg_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
 					if (original_message)
 					{
-						// parse the original message, just like in the case where we have a transaction
-						coap_packet_t rerequest_pkt[1];
-						coap_udp_parse_message(rerequest_pkt, original_message->data, original_message->length);
+						// parse the original message (just like the same as we would have a transaction message)
+						coap_packet_t re_request_pkt[1];
+						coap_udp_parse_message(re_request_pkt, original_message->data, original_message->length);
 
-						client_cb = oc_ri_find_client_cb_by_mid(rerequest_pkt->mid);
-						OC_DBG("Pointer to MID Client Callback: %p", client_cb);
+						client_cb = oc_ri_find_client_cb_by_mid(re_request_pkt->mid);
 
 						// copy the echo from the unauthorised response into the new request
-						coap_set_header_echo(rerequest_pkt, echo_value, echo_len);
-						int i = 0;
-						while (i < rerequest_pkt->token_len)
+						coap_set_header_echo(re_request_pkt, echo_value, echo_len);
+
+						// sets 0..2 x 4 byte random, actual token may be less than the amount of random bytes
+					  int i = 0;
+						while (i < re_request_pkt->token_len)
 						{
 							unsigned int r = oc_random_value();
-							memcpy(rerequest_pkt->token + i, &r, sizeof(r));
+							memcpy(re_request_pkt->token + i, &r, sizeof(r));
 							i += sizeof(r);
 						}
 
-					  rerequest_pkt->mid = coap_get_next_mid();
-
-						
+						// send a new re-request
+            // - different  MID & (randomized) token, but should use the same client callback
+					  re_request_pkt->mid = coap_get_next_mid();
 
 						// a little bit naughty - modify the old client callback to refer to
 						// the new (retransmitted) packet
-						client_cb->mid = rerequest_pkt->mid;
-						client_cb->token_len = rerequest_pkt->token_len;
-						memcpy(client_cb->token, rerequest_pkt->token,
-									 client_cb->token_len);
+						client_cb->mid = re_request_pkt->mid;
+						client_cb->token_len = re_request_pkt->token_len;
+						memcpy(client_cb->token, re_request_pkt->token, client_cb->token_len);
 
-						// add reference to original message so that it is not freed while
-						// we still need it
+						// add reference to original message so that it is not freed while we still need it
 						oc_message_add_ref(original_message);
 
-						oc_message_t* retransmitted_message =
-							oc_internal_allocate_outgoing_message();
-						retransmitted_message->endpoint = original_message->endpoint;
-						retransmitted_message->length = coap_oscore_serialize_message(
-							rerequest_pkt, retransmitted_message->data, true, true, true);
+						oc_message_t* re_request_message =	oc_internal_allocate_outgoing_message();
+						re_request_message->endpoint = original_message->endpoint;
+						re_request_message->length = coap_oscore_serialize_message(re_request_pkt, re_request_message->data, true, true, true);
 
-						OC_DBG("Received Unauthorised Response with Echo option");
-						OC_DBG("Retransmitting with included Echo...");
-						coap_send_message(retransmitted_message);
+						if (re_request_message->length > 0)
+            {
+              OC_DBG("retransmitting with included Echo...");
+						  coap_send_message(re_request_message);
+            }
 
+						// also in case of not send out message
 						oc_message_unref(original_message);
 						oc_replay_message_unref(original_message);
 					}

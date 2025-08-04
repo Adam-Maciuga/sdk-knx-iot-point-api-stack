@@ -113,16 +113,16 @@ coap_transaction_t * coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t 
   return t;
 }
 
-/*---------------------------------------------------------------------------*/
-void
-coap_send_transaction(coap_transaction_t *t)
+// sends message and clears afterward the transaction 
+void coap_send_transaction(coap_transaction_t *t)
 {
-  if (!oc_main_initialized()) {
+  if (!oc_main_initialized()) 
     return;
-  }
-  OC_DBG("Sending transaction(len: %zd) %u: %p", t->message->length, t->mid,(void *)t);
+
+  #ifdef OC_DEBUG
+
+  OC_DBG("sending transaction(len: %llu) mid %u -> ", t->message->length, t->mid);
   OC_LOGbytes(t->message->data, t->message->length);
-  bool confirmable = false;
 
   if (t == NULL) {
     OC_ERR("transaction == NULL");
@@ -134,69 +134,71 @@ coap_send_transaction(coap_transaction_t *t)
     OC_ERR("data in message in transaction == NULL");
   }
 
-  OC_DBG("coap_send_transaction  xxxxx %d", t->message->data[0]);
+  OC_DBG("coap_send_transaction %d", t->message->data[0]);
 
-  confirmable =
-    (COAP_TYPE_CON == ((COAP_HEADER_TYPE_MASK & t->message->data[0]) >>
-                       COAP_HEADER_TYPE_POSITION))
-      ? true
-      : false;
-  OC_DBG("confirmable %d", confirmable);
-#ifdef OC_TCP
+  #endif
+
+  bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION  ? true : false;
+
+  #ifdef OC_TCP
   if (!(t->message->endpoint.flags & TCP) && confirmable) {
-#else  /* OC_TCP */
-  if (confirmable) {
-#endif /* !OC_TCP */
-    if (t->retrans_counter < COAP_MAX_RETRANSMIT) {
-      /* not timed out yet */
-      OC_DBG("Keeping transaction %u: %p", t->mid, (void *)t);
+  #else 
+  if (confirmable) 
+  {
+  #endif
 
-      if (t->retrans_counter == 0) {
-        t->retrans_timer.timer.interval =
-          COAP_RESPONSE_TIMEOUT_TICKS +
-          (oc_random_value() %
-           (oc_clock_time_t)COAP_RESPONSE_TIMEOUT_BACKOFF_MASK);
-        OC_DBG("Initial interval %d", (int)t->retrans_timer.timer.interval);
-      } else {
-        t->retrans_timer.timer.interval <<= 1; /* double */
-        OC_DBG("Doubled %d", (int)t->retrans_timer.timer.interval);
+    OC_DBG("confirmable message");
+
+    if (t->retrans_counter < COAP_MAX_RETRANSMIT) 
+    {
+      
+      OC_DBG("not timed out, keeping transaction %u: %p", t->mid, (void *)t);
+
+      if (t->retrans_counter == 0) 
+      {
+        t->retrans_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS + oc_random_value() % (oc_clock_time_t)COAP_RESPONSE_TIMEOUT_BACKOFF_MASK;
+        OC_DBG("interval initialized %d", (int)t->retrans_timer.timer.interval);
+      }
+      else 
+      {
+        t->retrans_timer.timer.interval <<= 1;
+        OC_DBG("interval doubled %d", (int)t->retrans_timer.timer.interval);
       }
 
       OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
-      oc_etimer_restart(&t->retrans_timer); /* interval updated above */
+      oc_etimer_restart(&t->retrans_timer); // interval updated above
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
       oc_message_add_ref(t->message);
-
       coap_send_message(t->message);
-
-      t = NULL;
-    } else {
-      /* timed out */
-      OC_WRN("Timeout");
-#ifdef OC_SERVER
-      /* remove observers */
+    }
+    else 
+    {
+      
+      OC_WRN("timed out, removing transaction %u: %p", t->mid, (void*)t);
+      #ifdef OC_SERVER
       coap_remove_observer_by_client(&t->message->endpoint);
-#endif /* OC_SERVER */
+      #endif
 
-#ifdef OC_CLIENT
+      #ifdef OC_CLIENT
       oc_ri_free_client_cbs_by_mid(t->mid);
-#endif /* OC_CLIENT */
+      #endif 
 
-#ifdef OC_BLOCK_WISE
+      #ifdef OC_BLOCK_WISE
       oc_blockwise_scrub_buffers(false);
-#endif /* OC_BLOCK_WISE */
-#ifdef OC_SECURITY
-      //#ifdef OC_OSCORE
+      #endif
+      #ifdef OC_SECURITY
       if (t->message->endpoint.flags & SECURED) {
         oc_tls_close_connection(&t->message->endpoint);
       } else
-#endif /* OC_SECURITY */
+      #endif 
       {
         coap_clear_transaction(t);
       }
     }
-  } else {
+  }
+  else 
+  {
     OC_DBG("non-confirmable message");
     oc_message_add_ref(t->message);
 
@@ -247,10 +249,10 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
 void
 coap_check_transactions(void)
 {
-  coap_transaction_t *t = (coap_transaction_t *)oc_list_head(transactions_list),
-                     *next;
-  while (t != NULL) {
-    next = t->next;
+  coap_transaction_t *t = oc_list_head(transactions_list);
+  while (t != NULL) 
+  {
+    coap_transaction_t* next = t->next;
     if (oc_etimer_expired(&t->retrans_timer)) {
       ++(t->retrans_counter);
       OC_DBG("Retransmitting %u (%u)", t->mid, t->retrans_counter);
