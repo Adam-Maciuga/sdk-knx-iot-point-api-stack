@@ -62,8 +62,15 @@ OC_PROCESS_NAME(coap_engine);
 void coap_init_engine(void);
 /*---------------------------------------------------------------------------*/
 int coap_receive(oc_message_t *message);
-bool oc_coap_check_if_duplicate(uint16_t mid, uint8_t device, uint16_t port,
-                                uint8_t address[16]);
+
+/**
+ * @brief Check if a replay telegram is pending
+ *
+ * @note A replay is a telegram addressing the same endpoint (same IPv6 address,
+ *       port and message id (mid))
+ *
+*/
+bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16]);
 
 #ifdef __cplusplus
 }

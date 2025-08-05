@@ -105,7 +105,6 @@ static struct
 {
 	uint16_t mid;
 	uint16_t port;
-	uint8_t dev;
 	uint8_t address[16];
 } history[OC_REQUEST_HISTORY_SIZE];
 
@@ -113,17 +112,16 @@ static struct
 #define OC_ECHO_FRESHNESS_TIME (10 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 #endif
 
-bool oc_coap_check_if_duplicate(uint16_t mid, uint8_t device, uint16_t port, uint8_t address[16])
+bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16])
 {
 
 	for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
 	{
 		if (history[i].mid == mid && 
-				history[i].dev == device &&
 				history[i].port == port && 
 				memcmp(history[i].address, address, 16) == 0)
 		{
-      OC_DBG("dropping request: is duplicate -> message ID: %d, history[%d]", mid, (int) i);
+      OC_DBG("dropping request: is duplicate -> message ID: %d, history[%d]", mid, (int)i);
 			return true;
 		}
 	}
@@ -353,7 +351,7 @@ int coap_receive(oc_message_t* incoming_message)
 				#ifdef OC_CLIENT
 				/*
 				   Transaction present
-				   - retransmits messages with included Echo options for which we have a transaction (= client requests, e.g, CLIENT is active)
+				   - retransmits messages with included Echo option for which we have a transaction (= client requests, e.g, CLIENT is active)
 				   - includes Echo retransmissions for unicast acknowledged requests
 				   - does NOT include NON requests, or multicast S-Mode messages (which are always NON)
         */
@@ -395,7 +393,7 @@ int coap_receive(oc_message_t* incoming_message)
 					// a little bit naughty, modify the old client callback to refer to the new re-request packet
 					client_cb->mid = re_request_pkt->mid;
 					client_cb->token_len = re_request_pkt->token_len;
-					memcpy(client_cb->token, re_request_pkt->token, client_cb->token_len);
+          memcpy(client_cb->token, re_request_pkt->token, re_request_pkt->token_len);
 
 					new_transaction->message = oc_internal_allocate_outgoing_message();
 					new_transaction->message->endpoint = transaction->message->endpoint;
@@ -424,7 +422,7 @@ int coap_receive(oc_message_t* incoming_message)
 			{
         /*
 				   Transaction NOT present
-           - retransmits messages with included Echo options
+           - retransmits messages with included Echo option for which we have a token
            - includes Echo retransmissions for unicast acknowledged requests
            - does NOT include NON requests, or multicast S-Mode messages (which are always NON)
         */
@@ -463,11 +461,10 @@ int coap_receive(oc_message_t* incoming_message)
             // - different  MID & (randomized) token, but should use the same client callback
 					  re_request_pkt->mid = coap_get_next_mid();
 
-						// a little bit naughty - modify the old client callback to refer to
-						// the new (retransmitted) packet
+						// a little bit naughty - modify the old client callback to refer to the new (retransmitted) packet
 						client_cb->mid = re_request_pkt->mid;
 						client_cb->token_len = re_request_pkt->token_len;
-						memcpy(client_cb->token, re_request_pkt->token, client_cb->token_len);
+            memcpy(client_cb->token, re_request_pkt->token, re_request_pkt->token_len);
 
 						// add reference to original message so that it is not freed while we still need it
 						oc_message_add_ref(original_message);
@@ -483,13 +480,12 @@ int coap_receive(oc_message_t* incoming_message)
             }
 
 						// also in case of not send out message
-						oc_message_unref(original_message);
-						oc_replay_message_unref(original_message);
+						oc_replay_message_untrack(original_message);
 					}
 					else
 					{
 						// need to retransmit but no longer have original buffer. just drop it.
-						OC_ERR("=== Could not find original request for response with echo! Dropping! ===");
+						OC_ERR("could not find the original request (by token) for the response with echo, dropping it!");
 						return 0;
 					}
 				}
@@ -547,7 +543,6 @@ int coap_receive(oc_message_t* incoming_message)
 					#ifdef OC_REQUEST_HISTORY
 
 					if (oc_coap_check_if_duplicate(incoming_coap_message->mid,
-							(uint8_t) incoming_message->endpoint.device,
 							incoming_message->endpoint.addr.ipv6.port,
 							incoming_message->endpoint.addr.ipv6.address))
 					{
@@ -556,7 +551,6 @@ int coap_receive(oc_message_t* incoming_message)
 
 					// update history entry
 					history[idx].mid = incoming_coap_message->mid;
-					history[idx].dev = (uint8_t) incoming_message->endpoint.device;
 					history[idx].port = incoming_message->endpoint.addr.ipv6.port;
 					memcpy(history[idx].address, incoming_message->endpoint.addr.ipv6.address, 16);
 
