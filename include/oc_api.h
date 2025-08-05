@@ -1218,25 +1218,6 @@ extern "C"
 {
 #endif
 
-  /**
-   * Discover all servers that have a resource type using the site-local scope
-   *
-   * The discovery request will make a multi-cast request to the IPv6 ``scope``
-   * multi-cast address scope. The address scope is the domain in which the
-   * multi-cast discovery packet should be propagated.
-   *
-   * Read RFC4291 and RFC7346 for more information about IPv6 Reference Scopes.
-   *
-   * @param[in] uri_query the query to be added the .well-known/core URI.
-   * @param[in] scope  the scope of the request, for example: 0x2
-   * @param[in] handler the oc_discovery_all_handler_t that will be called once a
-   *                    server containing the resource type is discovered
-   * @param[in] user_data context pointer that is passed to the
-   *                      oc_discovery_handler_t.
-   *
-   * @return true on success
-   */
-  bool oc_do_wk_discovery_all(const char* uri_query, int scope, oc_discovery_all_handler_t handler, void* user_data);
 
   /**
    * @brief link format parser, retrieve the number of entries in a response

@@ -79,47 +79,7 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
 }
 
 
-// TODO currently not used , maybe for resolve IP address on write via ia  
-int oc_knx_client_do_broker_request(const char* resource_url, const uint64_t iid, const uint16_t ia, char* destination, char* service_type)
-{
-  char query[50] = "";
 
-  char prefix[20];
-  (void) snprintf(prefix, 13, "ep=knx://ia.");
-  strcat(query, prefix);
-
-  char iid_hex[20];
-  oc_conv_uint64_to_hex_string(iid_hex, iid);
-  strcat(query, iid_hex);
-
-  char ia_str[11];
-  (void) snprintf(ia_str, 11, ".%x", ia);
-  strcat(query, ia_str);
-
-  PRINT("query=%s", query);
-
-  // not sure if we should use a malloc here, what would happen if there are no
-  // devices found? because that causes a memory leak
-  broker_s_mode_userdata_t* cb_data = malloc(sizeof(broker_s_mode_userdata_t));
-  if (cb_data)
-  {
-    memset(cb_data, 0, sizeof(broker_s_mode_userdata_t));
-    cb_data->ia = ia;
-    strncpy(cb_data->service_type, service_type, 2);
-    strncpy(cb_data->resource_url, resource_url, 20);
-    strncpy(cb_data->path, destination, 20);
-
-    oc_do_wk_discovery_all(query, 2, discovery_ia_cb, cb_data);
-    oc_do_wk_discovery_all(query, 3, discovery_ia_cb, cb_data);
-    oc_do_wk_discovery_all(query, 5, discovery_ia_cb, cb_data);
-  }
-  else
-  {
-    OC_ERR("cb_data is NULL");
-    return -1;
-  }
-  return 0;
-}
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
