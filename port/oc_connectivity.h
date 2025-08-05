@@ -110,20 +110,20 @@ struct oc_message_s
   oc_ipv6_addr_t mcast_dest;
   size_t length;
   uint8_t ref_count;
-#ifdef OC_DYNAMIC_ALLOCATION
-#ifdef OC_INOUT_BUFFER_SIZE
+  #ifdef OC_DYNAMIC_ALLOCATION
+  #ifdef OC_INOUT_BUFFER_SIZE
   uint8_t data[OC_INOUT_BUFFER_SIZE];
-#else  /* OC_INOUT_BUFFER_SIZE */
-  uint8_t *data;
-#endif /* !OC_INOUT_BUFFER_SIZE */
-#else  /* OC_DYNAMIC_ALLOCATION */
+  #else  
+  uint8_t *data; // points to the message as such  
+  #endif 
+  #else  
   uint8_t data[OC_PDU_SIZE];
-#endif /* OC_DYNAMIC_ALLOCATION */
-#ifdef OC_TCP
+  #endif 
+  #ifdef OC_TCP
   size_t read_offset;
-#endif /* OC_TCP */
-  uint8_t encrypted;
-  void (*soft_ref_cb)(struct oc_message_s *);
+  #endif 
+  uint8_t encrypted; // used to mark if a message was received via a 'secured' IP adapter socket (this does not mean OSCORE security)
+  void (*soft_ref_cb)(struct oc_message_s *); // used to define the 'to be used de allocator method' for a message in case it needs to be released by OS
 };
 
 /**

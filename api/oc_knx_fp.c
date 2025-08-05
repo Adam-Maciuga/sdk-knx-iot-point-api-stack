@@ -2784,8 +2784,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
   return return_value;
 }
 
-oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, 
-                                                          uint64_t iid, int scope, uint16_t port)
+oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope
   // FF3_:FD__:____:____:(8-f)___:____
@@ -2809,10 +2808,8 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   uint8_t ula_4 = (uint8_t)(iid >> 24);
   uint8_t ula_5 = (uint8_t)(iid >> 32);
 
-  int my_transport_flags = 0;
-  my_transport_flags += IPV6;
-  my_transport_flags += MULTICAST;
-  my_transport_flags += DISCOVERY;
+  // flags, discovery is set per default if the method is used to create also a discovery address
+  int my_transport_flags = IPV6 + MULTICAST + DISCOVERY;
 
   #ifdef OC_OSCORE
   my_transport_flags += OSCORE;

@@ -200,10 +200,13 @@ void coap_send_transaction(coap_transaction_t *t)
   else 
   {
     OC_DBG("non-confirmable message");
+
+    // add ref
     oc_message_add_ref(t->message);
 
     coap_send_message(t->message);
 
+    // removes also the ref 
     coap_clear_transaction(t);
   }
 }

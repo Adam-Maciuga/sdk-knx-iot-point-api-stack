@@ -63,16 +63,16 @@ oc_message_t *oc_allocate_message_from_pool(struct oc_memb *pool);
 oc_message_t *oc_internal_allocate_outgoing_message(void);
 
 /**
- * @brief add reference (for tracking in use)
+ * @brief add (increase) reference (for tracking in use)
  *
  * @param message the message
  */
 void oc_message_add_ref(oc_message_t *message);
 
 /**
- * @brief remove reference (for tracking in use)
+ * @brief remove (decrease) reference (for tracking in use)
  *
- * @note in case of reference is then '0' data + pool are memory wise released 
+ * @note in case of reference is '0' the data ptr + pool ptr are memory wise released (but not the message as such) 
  *
  * @param message the message
  */

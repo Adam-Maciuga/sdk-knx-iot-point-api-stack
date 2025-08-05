@@ -107,6 +107,7 @@ extern "C" {
 
 	/**
 	 * @brief client callback information, used to find back a caller
+	 *        (resource path, mid, method, token, ...)
 	 *
 	 */
 	typedef struct oc_client_cb_t

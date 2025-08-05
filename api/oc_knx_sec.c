@@ -1738,7 +1738,7 @@ void oc_load_at_table(void)
 
 void oc_delete_at_table(void)
 {
-  PRINT("deleting 'all' access token table entries from RAM and storage");
+  PRINT("Deleting Access Table from RAM and storage (file system)");
 
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {

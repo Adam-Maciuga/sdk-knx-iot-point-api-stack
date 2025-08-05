@@ -1105,11 +1105,10 @@ int
 oc_send_buffer(oc_message_t *message)
 {
 #ifdef OC_DEBUG
-  PRINT("Outgoing message, %zd bytes, to ", message->length);
+  PRINT("Outgoing message, %llu bytes, to ", message->length);
   PRINTipaddr(message->endpoint);
-#endif /* OC_DEBUG */
-  struct sockaddr_storage receiver;
-  memset(&receiver, 0, sizeof(receiver));
+#endif 
+  struct sockaddr_storage receiver = {0};
 #ifdef OC_IPV4
   if (message->endpoint.flags & IPV4) {
     struct sockaddr_in *r = (struct sockaddr_in *)&receiver;
@@ -1122,8 +1121,7 @@ oc_send_buffer(oc_message_t *message)
   {
 #endif
     struct sockaddr_in6 *r = (struct sockaddr_in6 *)&receiver;
-    memcpy(r->sin6_addr.s6_addr, message->endpoint.addr.ipv6.address,
-           sizeof(r->sin6_addr.s6_addr));
+    memcpy(r->sin6_addr.s6_addr, message->endpoint.addr.ipv6.address, sizeof(r->sin6_addr.s6_addr));
     r->sin6_family = AF_INET6;
     r->sin6_port = htons(message->endpoint.addr.ipv6.port);
     r->sin6_scope_id = message->endpoint.addr.ipv6.scope;

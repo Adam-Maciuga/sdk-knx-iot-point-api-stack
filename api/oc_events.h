@@ -42,7 +42,7 @@ typedef enum {
   INTERFACE_DOWN, /**< network interface down*/
   INTERFACE_UP,   /**< network interface up */
   TLS_CLOSE_ALL_SESSIONS,
-  INBOUND_OSCORE_EVENT,  // inbound network event, payload WILL BE decrypted with oscore
+  INBOUND_OSCORE_EVENT,  // inbound network event, payload IS decrypted with oscore
   OUTBOUND_OSCORE_EVENT, // outbound network event, payload WILL BE encrypted with oscore
   OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload IS encrypted with oscore
   __NUM_OC_EVENT_TYPES__

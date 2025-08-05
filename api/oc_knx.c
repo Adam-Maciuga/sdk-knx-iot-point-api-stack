@@ -159,7 +159,7 @@ static oc_event_callback_retval_t reset(void* context)
   const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
   if (my_preset_cb && my_preset_cb->cb)
   {
-    PRINT("PRESET callback handler is called");
+    PRINT("Factory PRESET callback handler is called");
     my_preset_cb->cb(0, my_preset_cb->data);
   }
 
@@ -170,11 +170,11 @@ static oc_event_callback_retval_t reset(void* context)
   const oc_reset_t* my_reset_cb = oc_get_reset_cb();
   if (my_reset_cb && my_reset_cb->cb)
   {
-    PRINT("RESET callback handler is called");
+    PRINT("Factory RESET callback handler is called");
     my_reset_cb->cb(0, cached_erase_code_value, my_reset_cb->data);
   }
 
-  PRINT("re-register mDNS with new data of ia, iid , pm mode (values are usually changed after a reset)");
+  PRINT("Re-register mDNS with new data of ia, iid , pm mode (values are usually changed after a reset)");
   const oc_device_info_t* device = oc_core_get_device_info(0);
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
@@ -275,8 +275,6 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 
   PRINT("cmd: %d value: %d", cmd, erase_code_value);
 
-  const size_t device_index = request->resource->device;
-
   if (cmd == RESTART_DEVICE)
   {
     // safe '-1' 'erase code' value (restart don't use a value)
@@ -294,8 +292,8 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     // safe 'erase code' value (reset uses a value)
     cached_erase_code_value = erase_code_value;
 
-    // reset callback 
-    oc_set_delayed_callback_ms(NULL, reset, 100);
+    // init reset callback with 2 seconds  
+    oc_set_delayed_callback_ms(NULL, reset, 2000);
 
     // Before executing the reset function, the KNX IoT device MUST return a
     // response with CoAP response code 2.04 CHANGED and with payload containing
@@ -1511,7 +1509,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   {
     switch (rep->type)
     {
-      // check identifiers for byte strings
+      // check identifiers for byte strings (salt, ...))
       case OC_REP_BYTE_STRING:
       {
         if (rep->iname == SPAKE_PA_SHARE_P)
@@ -1520,13 +1518,13 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
           pase_step = SPAKE_PA_SHARE_P;
           members_step_2++;
         }
-        if (rep->iname == SPAKE_CA_CONFIRM_P)
+        else if (rep->iname == SPAKE_CA_CONFIRM_P)
         {
           // pase credential verification request (step 3) 
           pase_step = SPAKE_CA_CONFIRM_P;
           members_step_3++;
         }
-        if (rep->iname == SPAKE_RND)
+        else if (rep->iname == SPAKE_RND)
         {
           // pase parameter request (step 1) 
           pase_step = SPAKE_RND;

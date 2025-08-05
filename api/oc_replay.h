@@ -84,18 +84,14 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, const uint8_t *token);
 
 /**
- * @brief Free a message that was previously marked with
- * oc_replay_message_track()
+ * @brief Free a message that was previously marked with to track
  *
  * @param msg pointer to the message buffer
  */
-void oc_replay_message_unref(struct oc_message_s *msg);
+void oc_replay_message_untrack(struct oc_message_s *msg);
 
 /**
- * @brief Find a previously tracked message and mark it as no longer tracked
- *
- * The soft reference will be removed. If this is the last remaining reference
- * to the message, the message will be freed.
+ * @brief Find a previously tracked message by token
  *
  * @param token Token pointer used to identify the message
  * @param token_len Length of the token

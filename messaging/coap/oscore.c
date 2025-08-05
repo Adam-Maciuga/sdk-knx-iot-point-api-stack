@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2020 Intel Corporation
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -571,10 +572,12 @@ bool oscore_is_oscore_message(oc_message_t* msg)
 
 coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 {
-	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
-	/* initialize packet */
+	coap_packet_t* const coap_pkt = packet;
+	
+	// init with '0'
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
-	/* pointer to packet bytes */
+
+  // set coap pointer to message data pointer 
 	coap_pkt->buffer = msg->data;
 	uint8_t* current_option = NULL;
 
@@ -597,28 +600,24 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 
 	}
 	else
-		#endif /* OC_TCP */
+	#endif 
 	{
 		coap_pkt->transport_type = COAP_TRANSPORT_UDP;
-		/* parse header fields */
-		coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >>
-			COAP_HEADER_VERSION_POSITION;
+		coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >>	COAP_HEADER_VERSION_POSITION;
 		if (coap_pkt->version != 1)
 		{
 			OC_WRN("CoAP version must be 1");
 			return BAD_REQUEST_4_00;
 		}
-		coap_pkt->type = (COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >>
-			COAP_HEADER_TYPE_POSITION;
+		coap_pkt->type = (COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >>	COAP_HEADER_TYPE_POSITION;
 		coap_pkt->mid = coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3];
 		coap_pkt->code = coap_pkt->buffer[1];
 
 		current_option = msg->data + COAP_HEADER_LEN;
 	}
 
-	/* Token */
-	coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >>
-		COAP_HEADER_TOKEN_LEN_POSITION;
+	// token
+	coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >>		COAP_HEADER_TOKEN_LEN_POSITION;
 
 	if (coap_pkt->token_len > COAP_TOKEN_LEN)
 	{
@@ -626,7 +625,7 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 		return BAD_REQUEST_4_00;
 	}
 
-  OC_DBG_OSCORE("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
+  OC_DBG_OSCORE("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE) : %d", coap_pkt->code);
 
 	memcpy(coap_pkt->token, current_option, coap_pkt->token_len);
 	OC_DBG_OSCORE("Token len %u : ", coap_pkt->token_len);
@@ -635,7 +634,7 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 	current_option += coap_pkt->token_len;
 
 	// parse outer, on present OSCORE option ... take over secure content
-	coap_status_t ret = coap_oscore_parse_options(packet, msg->data, (uint32_t) msg->length, current_option, false, true, true);
+	const coap_status_t ret = coap_oscore_parse_options(packet, msg->data, (uint32_t) msg->length, current_option, false, true, true);
 	if (COAP_NO_ERROR != ret)
 	{
 		OC_DBG_OSCORE("coap_oscore_parse_options failed! %d", ret);
@@ -644,6 +643,6 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 
   return COAP_NO_ERROR;
 }
-#else  /* OC_OSCORE */
+#else 
 typedef int dummy_declaration;
-#endif /* !OC_OSCORE */
+#endif
