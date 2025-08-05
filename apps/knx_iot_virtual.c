@@ -124,8 +124,6 @@ void factory_presets_cb(size_t device_index, void* data)
 {
   (void)device_index;
   (void)data;
-
-  PRINT("factory preset callback called :");
 }
 
 void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
