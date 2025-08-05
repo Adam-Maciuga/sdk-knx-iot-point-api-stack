@@ -45,11 +45,12 @@ static struct oc_replay_record
 	bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
+// used to cache a message for a replay attack 
 static struct oc_cached_message_record
 {
 	uint16_t token_len;
-	uint8_t token[COAP_TOKEN_LEN];
-	struct oc_message_s* message;
+	uint8_t token[COAP_TOKEN_LEN]; // used msg token 
+	struct oc_message_s* message;  // pointer to message
 } message_records[OC_MAX_MESSAGE_RECORDS] = { 0 };
 
 // make record available for reuse
@@ -268,7 +269,7 @@ static struct oc_cached_message_record* find_record_by_msg(struct oc_message_s* 
 	return NULL;
 }
 
-static struct oc_cached_message_record* find_empty_msg_record(void)
+static struct oc_cached_message_record* find_empty_record(void)
 {
 	for (int i = 0; i < OC_MAX_MESSAGE_RECORDS; i++)
 		if (message_records[i].message == NULL)
@@ -279,31 +280,50 @@ static struct oc_cached_message_record* find_empty_msg_record(void)
 static oc_event_callback_retval_t oc_replay_free_msg_handler(void* msg)
 {
 	struct oc_cached_message_record* rec = find_record_by_msg(msg);
-	if (msg)
+	if (rec)
 	{
 		rec->token_len = 0;
 		rec->message = NULL;
-		oc_message_unref(msg);
 	}
+  oc_message_unref(msg);
 	return OC_EVENT_DONE;
 }
 
-void oc_replay_message_unref(struct oc_message_s* msg)
+void oc_replay_message_untrack(struct oc_message_s* msg)
 {
-	oc_replay_free_msg_handler(msg);
+
+	/*
+    1. remove ref
+    2. clear token
+    3. remove delayed callback
+   */
+
+  oc_replay_free_msg_handler(msg);
 	oc_remove_delayed_callback(msg, oc_replay_free_msg_handler);
 }
 
 void oc_replay_message_track(struct oc_message_s* msg, uint16_t token_len, const uint8_t* token)
 {
-	struct oc_cached_message_record* rec = find_empty_msg_record();
+	/*
+	  1. add ref
+		2. set token
+		3. set delayed callback
+   */
+
+  struct oc_cached_message_record* rec = find_empty_record();
 
   if (!rec)
 		return;
-	
-	oc_message_add_ref(msg);
-	msg->soft_ref_cb = oc_replay_message_unref;
 
+	// from here on a rec entry is available 
+
+	// add reference
+  oc_message_add_ref(msg);
+
+	// pointer to (void) method from above, with parameter that is defined later on when called 
+	msg->soft_ref_cb = oc_replay_message_untrack; 
+
+	// save token
 	rec->token_len = token_len;
 	memcpy(rec->token, token, token_len);
 	rec->message = msg;
