@@ -239,8 +239,8 @@ coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 		coap_pkt->piv_len = piv_len;
 	}
 
-	/* kid */
-	if (coap_pkt->code <= OC_FETCH)
+	/* kid (even for a kid length of 0 it might need to be the case that the flag is set) */
+	if (coap_pkt->code <= OC_FETCH || (coap_pkt->code > OC_FETCH && coap_pkt->echo_len > 0 && kid_len > 0))
 	{
 		coap_pkt->oscore_flags |= 1 << OSCORE_FLAGS_BIT_KID_POSITION;
 	}

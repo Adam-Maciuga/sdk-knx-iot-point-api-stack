@@ -457,14 +457,29 @@ int coap_receive(oc_message_t* incoming_message)
 							i += sizeof(r);
 						}
 
-						// send a new re-request
-            // - different  MID & (randomized) token, but should use the same client callback
 					  re_request_pkt->mid = coap_get_next_mid();
 
-						// a little bit naughty - modify the old client callback to refer to the new (retransmitted) packet
-						client_cb->mid = re_request_pkt->mid;
-						client_cb->token_len = re_request_pkt->token_len;
-            memcpy(client_cb->token, re_request_pkt->token, re_request_pkt->token_len);
+			      if (IS_OPTION(re_request_pkt, COAP_OPTION_OSCORE))
+            {
+              re_request_pkt->options[(COAP_OPTION_OSCORE) / OPTION_MAP_SIZE] -= 1 << ((COAP_OPTION_OSCORE) % OPTION_MAP_SIZE);
+            }
+
+			      // re requests must always be unicast 
+						if (original_message->endpoint.flags & MULTICAST)
+            {
+              original_message->endpoint.flags -= MULTICAST;
+              original_message->endpoint.addr = incoming_message->endpoint.addr;
+              original_message->endpoint.addr_local = incoming_message->endpoint.addr_local;
+            }
+
+						// a little bit naughty - modify the old client callback to refer to
+						// the new (retransmitted) packet
+            if (client_cb)
+            {
+              client_cb->mid = re_request_pkt->mid;
+              client_cb->token_len = re_request_pkt->token_len;
+              memcpy(client_cb->token, re_request_pkt->token, client_cb->token_len);
+            }
 
 						// add reference to original message so that it is not freed while we still need it
 						oc_message_add_ref(original_message);
