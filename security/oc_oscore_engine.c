@@ -14,6 +14,7 @@
 // limitations under the License.
 */
 
+#include "oc_replay.h"
 #include "oc_storage.h"
 
 #if defined OC_OSCORE
@@ -119,6 +120,8 @@ static int oc_oscore_receive_message(oc_message_t* message)
    * Dispatch oc_message_t to the CoAP layer
    */
 
+  bool s_mode_re_request = false;
+
   if (oscore_is_oscore_message(message))
   {
     OC_DBG_OSCORE("### found OSCORE header ###");
@@ -159,6 +162,45 @@ static int oc_oscore_receive_message(oc_message_t* message)
       OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
 
       oscore_ctx = oc_oscore_find_context_by_kid_and_id_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
+
+      if (!oscore_ctx)
+      {
+        // Handle S-Mode Echo Challenge Responses
+        if (oscore_pkt->kid_ctx_len == 10)
+        {
+          s_mode_re_request = true;
+
+          request_piv = oscore_pkt->piv;
+          request_piv_len = oscore_pkt->piv_len;
+
+          oc_message_t* original_message = oc_replay_find_msg_by_token(oscore_pkt->token_len, oscore_pkt->token);
+
+          if (!original_message)
+          {
+            goto oscore_recv_error;
+          }
+
+          // find auth/at entry with corresponding kid
+          int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
+          if (idx == -1)
+          {
+            OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
+            oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
+            goto oscore_recv_error;
+          }
+
+          // get access token
+          oc_auth_at_t* entry = oc_get_auth_at_entry(idx);
+
+          // Create response recipient context
+          oscore_ctx = oc_oscore_add_context(
+            oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), oc_string(entry->osc_id),
+            oc_byte_string_len(entry->osc_id), // Recipient Id is osc.id
+            0, // one time use anyway
+            oc_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms), oc_string(entry->osc_salt),
+            oc_byte_string_len(entry->osc_salt), oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len, idx, false);
+        }
+      }
 
       if (!oscore_ctx)
       { // we do not have a beforehand cached context as part of the context list,
@@ -402,6 +444,11 @@ static int oc_oscore_receive_message(oc_message_t* message)
     PRINTipaddr_flags(message->endpoint);
 
     OC_DBG_OSCORE("### serialized decrypted CoAP message to dispatch to the CoAP layer ###");
+
+    if (s_mode_re_request)
+    {
+        oc_oscore_free_context(oscore_ctx);
+    }
   }
   OC_DBG_OSCORE("#################################");
 
@@ -723,6 +770,36 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     goto oscore_send_error;
   }
 
+  bool s_mode_echo = false;
+
+  // Allocate a temp S-Mode Echo Challenge Responder Context
+  if (coap_pkt->code > OC_FETCH // Response
+      && coap_pkt->echo_len > 0 // With Echo Challenge
+      && entry->ga_len > 0 // For an S-Mode Message
+      )
+  {
+    unsigned char rnd[10];
+
+    mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
+    mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
+
+    uint64_t request_ssn = 0;
+
+    oscore_read_piv(message->endpoint.request_piv, message->endpoint.request_piv_len, &request_ssn);
+
+    oscore_ctx = oc_oscore_add_context(
+        oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), // Sender Id is osc.id
+      oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), // Recipient ID (gets used as request_kid for the AAD composition => use Request Sender ID)
+        request_ssn, // one time use anyway
+        oc_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms),
+        oc_string(entry->osc_salt), oc_byte_string_len(entry->osc_salt),
+        (char*)rnd, 10, 
+        message->endpoint.auth_at_index, false);
+
+
+    s_mode_echo = true;
+  }
+
   // TODO cannot be NULL , to be removed 
   if (oscore_ctx)
   {
@@ -769,15 +846,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         /* Find client cb for the request */
         oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(coap_pkt->token, coap_pkt->token_len);
 
-        if (!cb)
+        if (cb)
         {
-          OC_ERR("**could not find client callback corresponding to request**");
-          goto oscore_send_error;
+          /* Copy partial IV into client cb */
+          memcpy(cb->piv, piv, piv_len);
+          cb->piv_len = piv_len;
         }
-
-        /* Copy partial IV into client cb */
-        memcpy(cb->piv, piv, piv_len);
-        cb->piv_len = piv_len;
       }
 #endif /* OC_CLIENT */
 
@@ -845,7 +919,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       // TODO empty ack is not encrypted
       // sep response goes to lower path (check implications)
       // echo challenge needs to be in upper path (see 3.6.5 point api ) otherwise it may cause nonce reuse
-      if (is_empty_ack || is_separate_response)
+      if (is_empty_ack || is_separate_response || s_mode_echo)
       {
         // RFC 8613, 8.3, point 3 lower * 
         // ack and separate responses use a new PIV 
@@ -998,8 +1072,21 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     /* Set the OSCORE option */
     // TODO update according to changes above 
-    if (is_request || is_empty_ack || is_separate_response)
+    if (is_request || is_empty_ack || is_separate_response || s_mode_echo)
     {
+      if (s_mode_echo)
+      {
+        /* For an S-Mode Echo Challenge the Response Sender ID must be included  */
+        memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+        kid_len = oscore_ctx->sender_id_len;
+
+        /* include the 10 byte id context in the header */
+        memcpy(kid_context, oscore_ctx->id_context, oscore_ctx->id_context_len);
+        kid_context_len = oscore_ctx->id_context_len;
+
+        oc_oscore_free_context(oscore_ctx);
+      }
+
       coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, kid_context, kid_context_len);
     }
     else
