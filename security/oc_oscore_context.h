@@ -62,24 +62,23 @@ typedef struct oc_rwin_t
  */
 typedef struct oc_oscore_context_t
 {
-  struct oc_oscore_context_t *next;             // pointer to the next, NULL if there is not any
-  int auth_at_index;                            // access token index from AT table, that was used to decrypt a received message 
-  uint8_t token_id[OSCORE_ID_CONTEXT_LEN];      // copy of sender id TODO possibly can be removed 
-  uint8_t master_secret[OSCORE_ID_CONTEXT_LEN]; // OSCORE master secret
+  struct oc_oscore_context_t *next;                 // pointer to the next, NULL if there is not any
+  int auth_at_index;                                // access token index from AT table, that was used to decrypt a received message 
+  uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  // OSCORE master secret
   
-  uint8_t sender_id[OSCORE_SENDER_ID_LEN];      // OSCORE Sender ID
-  uint8_t sender_id_len;                        // length
-  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];   // OSCORE Recipient ID
-  uint8_t recipient_id_len;                     // length
-  uint64_t ssn;                                 // sender sequence number
-  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];    // OSCORE ID Context
-  uint8_t id_context_len;                       // length
+  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          // OSCORE Sender ID
+  uint8_t sender_id_len;                            // length
+  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // OSCORE Recipient ID
+  uint8_t recipient_id_len;                         // length
+  uint64_t ssn;                                     // sender sequence number
+  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // OSCORE ID Context
+  uint8_t id_context_len;                           // length
 
   // derived parameters
-  uint8_t sender_key[OSCORE_KEY_LEN];           // 128-bit sender key 
-  uint8_t recipient_key[OSCORE_KEY_LEN];        // 128-bit recipient key
-  uint8_t common_iv[OSCORE_COMMON_IV_LEN];      // Common IV
-  oc_clock_time_t last_used;                    // Time of last use, for runtime caching of recipient contexts
+  uint8_t sender_key[OSCORE_KEY_LEN];               // 128-bit sender key 
+  uint8_t recipient_key[OSCORE_KEY_LEN];            // 128-bit recipient key
+  uint8_t common_iv[OSCORE_COMMON_IV_LEN];          // Common IV
+  oc_clock_time_t last_used;                        // time of last use, for runtime caching of recipient contexts
 } oc_oscore_context_t;
 
 /**
@@ -137,35 +136,36 @@ void oc_oscore_free_sender_contexts(void);
 void oc_oscore_free_contexts_at_id(int auth_at_index);
 
 /**
- * @brief creates an OSCORE context (e.g. the internal structure for
- encoding/decoding)
+ * @brief creates an OSCORE context (e.g. the internal structure for encoding/decoding
  *
  * Note: OSCORE context is also a field.
  *
  *
- * @param senderid the SID
- * @param senderid_size the length of SID
- * @param recipientid the RID
- * @param recipientid_size the length of RID
+ * @param sender_id the Sender ID (SID)
+ * @param sender_id_size the length of Sender ID
+ * @param recipient_id the Recipient ID (RID)
+ * @param recipient_id_size the length of Recipient ID
  * @param ssn  the sender sequence number
 
  * @param mastersecret the OSCORE master secret
  * @param mastersecret_size the length of the OSCORE master secret
- * @param mastersecret the salt
- * @param mastersecret_size the length of the salt
- * @param token_id the token
- * @param token_id_size the length of the token_id
+ * @param salt the salt
+ * @param salt_size the length of the salt
+ * @param id_context the ID Context
+ * @param id_context_size the length of the ID Context
  * @param auth_at_index index in the auth at table -1.
  * @param read_ssn_from_storage initialize ssn with an offset (details see code comments) from storage
  *
  * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t* oc_oscore_add_context(
-  const char *senderid, int senderid_size,
-  const char* recipientid, int recipientid_size,
+  const char *sender_id, int sender_id_size,
+  const char* recipient_id, int recipient_id_size,
   uint64_t ssn,
-  const char *mastersecret, int mastersecret_size, const char *salt,
-  int salt_size, const char *token_id, int token_id_size, int auth_at_index,
+  const char *mastersecret, int mastersecret_size, 
+  const char *salt, int salt_size, 
+  const char* id_context, int id_context_size, 
+  int auth_at_index,
   bool read_ssn_from_storage);
 
 /**

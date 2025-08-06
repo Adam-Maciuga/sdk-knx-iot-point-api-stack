@@ -1352,7 +1352,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 }
 
-// defined as extra message wrapper that allows for TCP = enabled -> one code place   
+// defined as extra message wrapper that allows for TCP = enabled extra code -> one code place   
 void coap_send_message(oc_message_t* message)
 {
 	#ifdef OC_TCP
@@ -1492,7 +1492,7 @@ coap_tcp_parse_message(void* packet, uint8_t* data, uint32_t data_len)
 
 	return COAP_NO_ERROR;
 }
-#endif /* OC_TCP */
+#endif 
 /*---------------------------------------------------------------------------*/
 #if 0
 int

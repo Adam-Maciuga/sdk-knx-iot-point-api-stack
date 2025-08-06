@@ -1889,21 +1889,20 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
     {
       oc_print_auth_at_entry(i);
 
-      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
+      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE 
+          || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
 
-        // TODO read ssn from storage and pass to add ctx below 
-
-        // REQUEST CLIENT SIDE
+        // 'Client' Side (details see method 'oc_oscore_receive_message' header)
         // create oscore REQUEST sender context
-        // create oscore RESPONSE recipient context
-        OC_DBG_OSCORE("... client for outgoing request: adding oscore REQUEST sender context + RESPONSE recipient context with Sender ID : ");
+        // create oscore RESPONSE recipient context = kid  (h '') + kid_context  (ms/salt from token)
+        OC_DBG_OSCORE("... adding oscore REQUEST sender context + RESPONSE recipient context with Sender ID : ");
         oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
 
         oc_oscore_context_t* ctx = oc_oscore_add_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0, 
-          0, 
+          0, // SSN for REQUEST sender context (from storage, context is already present) // TODO read ssn from storage and pass to add ctx below 
           oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms), 
           oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
           oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),

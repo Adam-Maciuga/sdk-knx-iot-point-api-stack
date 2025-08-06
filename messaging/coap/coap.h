@@ -101,7 +101,7 @@ extern "C" {
 	{
 		uint8_t* buffer; // pointer to CoAP header / incoming packet buffer / memory, to serialize packet
 		coap_transport_type_t transport_type;
-		uint8_t version;
+		uint8_t version; // current version is '1'
 		coap_message_type_t type;
 		uint8_t code;
 		uint16_t mid;	// used in coap to detect duplicate messages 

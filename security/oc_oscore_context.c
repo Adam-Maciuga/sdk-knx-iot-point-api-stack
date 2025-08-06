@@ -220,8 +220,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t
   oc_oscore_context_t* ctx = oc_list_head(contexts);
   while (ctx != NULL)
   {
-    uint8_t* ctx_serial_number = ctx->token_id;
-    if (memcmp(oscore_id, ctx_serial_number, cmp_len) == 0)
+    if (memcmp(oscore_id, ctx->sender_id, cmp_len) == 0)
     {
       PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index : %d",  ctx->auth_at_index);
       OC_DBG_OSCORE("    Common IV :");
@@ -333,11 +332,13 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
   }
 }
 
-oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_size,
-                                           const char* recipientid, int recipientid_size,
-                                           uint64_t ssn, const char* mastersecret,
-                                           int mastersecret_size, const char* salt, int salt_size,
-                                           const char* osc_ctx, int osc_ctx_size, int auth_at_index,
+oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_size,
+                                           const char* recipient_id, int recipient_id_size,
+                                           uint64_t ssn, 
+                                           const char* mastersecret, int mastersecret_size, 
+                                           const char* salt, int salt_size, 
+                                           const char* id_context, int id_context_size, 
+                                           int auth_at_index,
                                            bool read_ssn_from_storage)
 {
 
@@ -350,7 +351,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     return NULL;
   }
 
-  if (!senderid && !recipientid && !mastersecret)
+  if (!sender_id && !recipient_id && !mastersecret)
   {
     OC_ERR("No sender ID or recipient ID or Master secret");
     goto add_oscore_context_error;
@@ -363,21 +364,21 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
     goto add_oscore_context_error;
   }
 
-  if (senderid_size > OSCORE_SENDER_ID_LEN)
+  if (sender_id_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("sender id size > %d = %d", OSCORE_SENDER_ID_LEN, senderid_size);
+    OC_ERR("sender id size > %d = %d", OSCORE_SENDER_ID_LEN, sender_id_size);
     goto add_oscore_context_error;
   }
 
-  if (recipientid_size > OSCORE_SENDER_ID_LEN)
+  if (recipient_id_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("recipient id size > %d = %d", OSCORE_SENDER_ID_LEN, recipientid_size);
+    OC_ERR("recipient id size > %d = %d", OSCORE_SENDER_ID_LEN, recipient_id_size);
     goto add_oscore_context_error;
   }
 
-  if (osc_ctx_size > OSCORE_ID_CONTEXT_LEN) 
+  if (id_context_size > OSCORE_ID_CONTEXT_LEN) 
   {
-    OC_ERR("osc ctx size > %d = %d", OSCORE_ID_CONTEXT_LEN, osc_ctx_size);
+    OC_ERR("osc ctx size > %d = %d", OSCORE_ID_CONTEXT_LEN, id_context_size);
     goto add_oscore_context_error;
   }
 
@@ -396,25 +397,23 @@ oc_oscore_context_t* oc_oscore_add_context(const char* senderid, int senderid_si
   }
  
 
-  if (senderid && senderid_size > 0)
+  if (sender_id && sender_id_size > 0)
   {
-    // set sender id to value from cnf:osc:id (can be the own sending GA, SN (from device, written by MaC ETS)
-    memcpy(ctx->sender_id, senderid, senderid_size);
-    ctx->sender_id_len = (uint8_t)senderid_size;
-    // TODO use case ???
-    memcpy(ctx->token_id, senderid, senderid_size); 
+    // set sender id to value from cnf:osc:id 
+    memcpy(ctx->sender_id, sender_id, sender_id_size);
+    ctx->sender_id_len = (uint8_t)sender_id_size;
   }
 
-  if (recipientid && recipientid_size > 0)
+  if (recipient_id && recipient_id_size > 0)
   {
-    memcpy(ctx->recipient_id, recipientid, recipientid_size);
-    ctx->recipient_id_len = (uint8_t)recipientid_size;
+    memcpy(ctx->recipient_id, recipient_id, recipient_id_size);
+    ctx->recipient_id_len = (uint8_t)recipient_id_size;
   }
 
-  if (osc_ctx && osc_ctx_size > 0)
+  if (id_context && id_context_size > 0)
   {
-    memcpy(ctx->id_context, osc_ctx, osc_ctx_size);
-    ctx->id_context_len = (uint8_t)osc_ctx_size;
+    memcpy(ctx->id_context, id_context, id_context_size);
+    ctx->id_context_len = (uint8_t)id_context_size;
   }
   
   if (mastersecret)

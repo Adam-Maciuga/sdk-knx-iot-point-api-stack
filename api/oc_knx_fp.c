@@ -2809,7 +2809,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   uint8_t ula_5 = (uint8_t)(iid >> 32);
 
   // flags, discovery is set per default if the method is used to create also a discovery address
-  int my_transport_flags = IPV6 + MULTICAST + DISCOVERY;
+  int my_transport_flags = IPV6 + MULTICAST + DISCOVERY; // TODO remove discovery 
 
   #ifdef OC_OSCORE
   my_transport_flags += OSCORE;
