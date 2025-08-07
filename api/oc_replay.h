@@ -84,7 +84,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, const uint8_t *token);
 
 /**
- * @brief Free a message that was previously marked with to track
+ * @brief untrack a message that was previously marked to track
  *
  * @param msg pointer to the message buffer
  */

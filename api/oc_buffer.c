@@ -154,13 +154,13 @@ oc_message_unref(oc_message_t* message)
 		if (message->ref_count == 0)
 		{
 			#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
-			if (message->data != NULL)
+			if (message->data)
 			{
 				free(message->data);
 			}
-			#endif /* OC_DYNAMIC_ALLOCATION && !OC_INOUT_BUFFER_SIZE */
+			#endif 
 			struct oc_memb* pool = message->pool;
-			if (pool != NULL)
+			if (pool)
 			{
 				oc_memb_free(pool, message);
 			}
@@ -184,21 +184,24 @@ void oc_send_message(oc_message_t* message)
 	// point we only have the encoded CoAP bytes, so we parse just the header
 	// and token.
 
-	// check from *data ptr
+	/*
+	   deserialize it from *data ptr
+     - version = 1 (fix),
+     - type = NON (0=CON,1=NON,ACK=2,RST=3),
+     - code = 3-bit CLASS (0..7)/ 5-bit DETAIL (0..31) = code >> 5 = REQUEST as GET/PUT/POST/DELETE (+ empty message)
+     - flags = OSCORE
+     ... a non-confirmable OSCORE request ....
+  */
 	uint8_t version = (COAP_HEADER_VERSION_MASK & message->data[0]) >> COAP_HEADER_VERSION_POSITION;
 	uint8_t type = (COAP_HEADER_TYPE_MASK & message->data[0]) >> COAP_HEADER_TYPE_POSITION;
 	uint8_t code = message->data[1];
-	uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >>	COAP_HEADER_TOKEN_LEN_POSITION;
 	uint8_t* token = message->data + COAP_HEADER_LEN;
-
-	// version = 1 (fix),
-	// type = NON (0=CON,1=NON,ACK=2,RST=3),
-	// code = 3-bit CLASS (0..7)/ 5-bit DETAIL (0..31) = code >> 5 = REQUEST as GET/PUT/POST/DELETE (+ empty message)
-	// flags = OSCORE
-	// ... a non-confirmable OSCORE request .... 
+  uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+	
 	if (version == 1 && type == 1 && code >> 5 == 0 && message->endpoint.flags & OSCORE)
 	{
-    OC_DBG_OSCORE("track outgoing OSCORE NON-confirmable message");
+		// here we track the message 
+	  OC_DBG_OSCORE("track outgoing OSCORE NON-confirmable message");
 	  oc_replay_message_track(message, token_len, token);
 	}
 
@@ -249,7 +252,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			else
 			#endif 
 			{
-				OC_DBG_OSCORE("Incoming network event: PLAIN message (request or response)");
+				OC_DBG_OSCORE("Incoming network event: original plain - or beforehand decrypted - message (request or response)");
 				oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
 			}
 
@@ -263,7 +266,6 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 		    1. handle OSCORE (mc/uc) messages first, to encrypt the outgoing message before sending it 
 		       - processing a possible (multicast) discovery follows as second step, since 
 		         DISCOVERY flag is also set on creating a mc address such as used for OSCORE messages
-
 
 		  */
 			#if OC_OSCORE

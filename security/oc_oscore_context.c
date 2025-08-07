@@ -76,7 +76,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, siz
   return ctx;
 }
 
-oc_oscore_context_t* oc_oscore_find_context_by_kid_and_id_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len)
+oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
   
   // get list start
@@ -91,7 +91,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_id_context(uint8_t* kid, 
     PRINT("---> scanning oscore context list (rcv) id:");
     oc_char_println_hex(ctx->recipient_id_len == 0 ? "empty ...": (char*) ctx->recipient_id, ctx->recipient_id_len);
 
-    // received frame kid (Sender ID) and kid context(ID Context) must both match in size and value to an oscore context 
+    // received frame kid (Sender ID) and kid_context (ID Context) must both match in size and value to an oscore context 
     if (kid_len == ctx->recipient_id_len
         && memcmp(kid, ctx->recipient_id, kid_len) == 0 
         && kid_ctx_len == ctx->id_context_len 
@@ -117,7 +117,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
                                     uint8_t* request_piv_len, bool tcp)
 {
   char* oscore_id = NULL;
-  int oscore_id_len = 0;
+  size_t oscore_id_len = 0;
 
 #ifdef OC_CLIENT
 
@@ -167,7 +167,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   }
 #endif
 
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*) oc_list_head(contexts);
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
 
   if (oscore_id_len == 0)
   {

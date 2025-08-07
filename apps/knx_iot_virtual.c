@@ -29,7 +29,7 @@
 #endif
 
 // global variables (12 x char + /0), maybe overwritten by CL option
-char g_serial_number[13]; 
+char g_serial_number[SERIAL_NUM_SIZE + 1]; 
 
 bool app_is_secure(void)
 {
@@ -39,15 +39,6 @@ bool app_is_secure(void)
 }
 
 char* app_get_password(void) { return PASSWORD; }
-
-void app_str_to_upper(char* str)
-{
-  while (*str != '\0')
-  {
-    *str = (char)toupper(*str);
-    str++;
-  }
-}
 
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
@@ -154,7 +145,6 @@ int app_set_serial_number(const char* serial_number)
 int app_init(void)
 {
   extern const char application_name[];
-  extern const char sn_upper_case[];
   extern const char sn_lower_case[];
   extern const char hostname[];
   extern const uint32_t mid;
@@ -196,9 +186,9 @@ int app_init(void)
     oc_spake_set_password(PASSWORD);
 
   // convert in upper case (12 x char + /0)
-  char sn_upper[13];
-  memcpy(sn_upper, sn_lower_case, 13);
-  app_str_to_upper(sn_upper);
+  char sn_upper[SERIAL_NUM_SIZE + 1];
+  memcpy(sn_upper, sn_lower_case, SERIAL_NUM_SIZE +1);
+  _strupr(sn_upper);
 
   OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, oc_spake_get_password());
 

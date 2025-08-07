@@ -37,7 +37,8 @@ static oc_blockwise_state_t *request_buffer = NULL;
 #endif 
 
 #ifdef OC_OSCORE
-oc_message_t *multicast_update = NULL;
+// a static pointer, to allocate/ release an outgoing mc message (used like a 2-state state machine)
+oc_message_t *multicast_update = NULL; 
 #endif 
 oc_event_callback_retval_t oc_ri_remove_client_cb(void *data);
 
@@ -142,67 +143,6 @@ dispatch_coap_request(oc_content_format_t content, oc_content_format_t accept)
   return success;
 }
 
-static bool
-prepare_coap_request_ex(oc_client_cb_t *cb, oc_content_format_t accept)
-{
-  coap_message_type_t type = COAP_TYPE_NON;
-
-  if (cb->qos == HIGH_QOS) {
-    type = COAP_TYPE_CON;
-  }
-
-  transaction =
-    coap_new_transaction(cb->mid, cb->token, cb->token_len, &cb->endpoint);
-
-  if (!transaction) {
-    return false;
-  }
-
-  oc_rep_new(transaction->message->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
-
-#ifdef OC_BLOCK_WISE_REQUEST
-  if (cb->method == OC_PUT || cb->method == OC_POST) {
-    request_buffer = oc_blockwise_alloc_request_buffer(
-      oc_string(cb->uri) + 1, oc_string_len(cb->uri) - 1, &cb->endpoint,
-      cb->method, OC_BLOCKWISE_CLIENT);
-    if (!request_buffer) {
-      OC_ERR("request_buffer is NULL");
-      return false;
-    }
-    oc_rep_new(request_buffer->buffer, OC_MAX_APP_DATA_SIZE);
-
-    request_buffer->mid = cb->mid;
-    request_buffer->client_cb = cb;
-  }
-#endif /* OC_BLOCK_WISE_REQUEST */
-
-#ifdef OC_TCP
-  if (cb->endpoint.flags & TCP) {
-    coap_tcp_init_message(request, cb->method);
-  } else
-#endif /* OC_TCP */
-  {
-    coap_udp_init_message(request, type, cb->method, cb->mid);
-  }
-
-  coap_set_header_accept(request, accept);
-
-  coap_set_token(request, cb->token, cb->token_len);
-
-  coap_set_header_uri_path(request, oc_string(cb->uri), oc_string_len(cb->uri));
-
-  if (cb->observe_seq != -1)
-    coap_set_header_observe(request, cb->observe_seq);
-
-  if (oc_string_len(cb->query) > 0) {
-    coap_set_header_uri_query(request, oc_string(cb->query));
-  }
-
-  client_cb = cb;
-
-  return true;
-}
-
 #ifdef OC_OSCORE
 
 bool oc_do_multicast_update(void)
@@ -216,6 +156,7 @@ bool oc_do_multicast_update(void)
   }
   else 
   {
+    // here it may jump with a NULL ptr to th error handling but this is cached there
     goto do_multicast_update_error;
   }
 
@@ -225,10 +166,12 @@ bool oc_do_multicast_update(void)
   multicast_update->length =  coap_serialize_message(request, multicast_update->data);
   if (multicast_update->length > 0) 
   {
+    OC_INF("sent multicast message - OK");
     oc_send_message(multicast_update);
   }
   else 
   {
+    OC_WRN("sent multicast message - ERROR");
     goto do_multicast_update_error;
   }
 
@@ -259,8 +202,6 @@ do_multicast_update_error:
 
 bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char *query)
 {
-  coap_message_type_t type = COAP_TYPE_NON;
-
   multicast_update = oc_internal_allocate_outgoing_message();
 
   if (!multicast_update) 
@@ -271,20 +212,15 @@ bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char 
   memcpy(&multicast_update->endpoint, mcast, sizeof(oc_endpoint_t));
   oc_rep_new(multicast_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
 
-  coap_udp_init_message(request, type, OC_POST, coap_get_next_mid());
+  coap_udp_init_message(request, COAP_TYPE_NON, OC_POST, coap_get_next_mid());
 
   // still the inner message
   coap_set_header_accept(request, APPLICATION_CBOR);
 
-  request->token_len = 8;
-  int i = 0;
-  uint32_t r;
-  while (i < request->token_len) 
-  {
-    r = oc_random_value();
-    memcpy(request->token + i, &r, sizeof(r));
-    i += sizeof(r);
-  }
+  // set here fix 8 byte token len
+  request->token_len = 8; 
+  const uint32_t a = oc_random_value(); memcpy(request->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(request->token + 4, &b, sizeof(b));
 
   coap_set_header_uri_path(request, uri, strlen(uri));
 
@@ -385,46 +321,7 @@ oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_seconds,
 
 // -----------------------------------------------------------------------------
 
-static bool
-dispatch_ip_discovery_ex(oc_client_cb_t *cb4, const char *uri,
-                         const char *query, oc_client_handler_t handler,
-                         oc_endpoint_t *endpoint, oc_content_format_t accept,
-                         oc_content_format_t content, void *user_data)
-{
-  if (!endpoint) {
-    OC_ERR("require valid endpoint");
-    return false;
-  }
 
-  oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, endpoint, OC_GET, query,
-                                             handler, LOW_QOS, user_data);
-
-  if (cb) {
-    cb->discovery = true;
-    if (cb4) {
-      cb->mid = cb4->mid;
-      memcpy(cb->token, cb4->token, cb4->token_len);
-    }
-
-    if (prepare_coap_request_ex(cb, accept) &&
-        dispatch_coap_request(content, accept)) {
-      goto exit;
-    }
-
-    if (transaction) {
-      coap_clear_transaction(transaction);
-      transaction = NULL;
-      oc_ri_remove_client_cb(cb);
-      client_cb = cb = NULL;
-    }
-
-    return false;
-  }
-
-exit:
-
-  return true;
-}
 
 void oc_close_session(oc_endpoint_t *endpoint)
 {

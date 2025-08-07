@@ -2812,8 +2812,8 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   int my_transport_flags = IPV6 + MULTICAST + DISCOVERY; // TODO remove discovery 
 
   #ifdef OC_OSCORE
-  my_transport_flags += OSCORE;
-#endif
+  my_transport_flags |= OSCORE;
+  #endif
 
   oc_make_ipv6_endpoint(group_mcast, my_transport_flags, 
                         port, 0xff, 0x30 + scope, 0, 0x30,        // FF35::30:

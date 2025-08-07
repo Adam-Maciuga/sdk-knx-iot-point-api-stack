@@ -622,26 +622,23 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
 {
 	oc_response_buffer_t response_buffer;
+
 	response_buffer.buffer = handle->response_state->buffer;
 	response_buffer.response_length = length;
 	response_buffer.code = oc_status_code(response_code);
-	if (length > 0)
-	{
-		response_buffer.content_format = APPLICATION_CBOR;
-	}
-	else
-	{
-		response_buffer.content_format = CONTENT_NONE;
-	}
+	response_buffer.content_format = length > 0 ? APPLICATION_CBOR : CONTENT_NONE;
 
 	coap_separate_t* cur = oc_list_head(handle->requests);
 
-	while (cur != NULL)
+	while (cur)
 	{
-		coap_separate_t* next = cur->next;
-		if (cur->observe < 3)
+		// get next
+	  coap_separate_t* next = cur->next;
+
+	  if (cur->observe < 3)
 		{
-			coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), cur->token, cur->token_len, &cur->endpoint);
+			// not more than 3 observers per endpoint at a time
+	    coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), cur->token, cur->token_len, &cur->endpoint);
 			if (t)
 			{
 				coap_packet_t response[1];
@@ -650,7 +647,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 
 				#ifdef OC_BLOCK_WISE
 				oc_blockwise_state_t* response_state = NULL;
-				#ifdef OC_TCP
+				  #ifdef OC_TCP
 				if (!(cur->endpoint.flags & TCP) &&
 						response_buffer.response_length > cur->block2_size)
 				{
@@ -732,7 +729,9 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 		next_separate_request :
 		#endif 
 		coap_separate_clear(handle, cur);
-		cur = next;
+
+		// restore next
+	  cur = next;
 	}
 	handle->active = 0;
 	oc_blockwise_free_response_buffer(handle->response_state);

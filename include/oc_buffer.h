@@ -72,7 +72,7 @@ void oc_message_add_ref(oc_message_t *message);
 /**
  * @brief remove (decrease) reference (for tracking in use)
  *
- * @note in case of reference is '0' the data ptr + pool ptr are memory wise released (but not the message as such) 
+ * @note in case of reference count is '0' the data ptr + pool ptr are memory wise released (but not the message as such) 
  *
  * @param message the message
  */

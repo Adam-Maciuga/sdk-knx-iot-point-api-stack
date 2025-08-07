@@ -84,11 +84,32 @@ extern "C" {
 		OPTION_MAP_SIZE = sizeof(uint8_t) * 8
 	};
 
-	#define SET_OPTION(packet, opt)                                                \
-  ((packet)->options[(opt) / OPTION_MAP_SIZE] |= 1 << ((opt) % OPTION_MAP_SIZE))
+	/**
+     @brief set an option in the packet MUST-HAVE 'options' member (that is an array)
 
-	#define IS_OPTION(packet, opt)                                                 \
-  ((packet)->options[(opt) / OPTION_MAP_SIZE] & (1 << ((opt) % OPTION_MAP_SIZE)))
+     @note the numerical option value sets the bit at the corresponding array position,
+           example array with 32 byte (0...256 bit positions), COAP_OPTION_ECHO (252) =
+					 [252/8] = [31] |= (1 << 4) = 'bbb1bbbb'	         
+  */
+	#define SET_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] |= (1 << ((opt) % OPTION_MAP_SIZE)))
+
+  /**
+     @brief reset an option in the packet MUST-HAVE 'options' member (that is an array)
+
+     @note the numerical option value sets the bit at the corresponding array position,
+           example array with 32 byte (0...256 bit positions), COAP_OPTION_ECHO (252) =
+           [252/8] = [31] &= ~(1 << 4) = 'bbb0bbbb'
+  */
+  #define UNSET_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] &= ~(1 << ((opt) % OPTION_MAP_SIZE)))
+
+	/**
+   @brief checks if an option is set in the packet MUST-HAVE 'options' member (that is an array)
+
+   @note the numerical option value gets the bit at the corresponding array position,
+         example array with 32 byte (0...256 bit positions), COAP_OPTION_ECHO (252) =
+         [252/8] = [31] & (1 << 4) -> 'bbb1bbbb' = true
+  */
+  #define IS_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] & (1 << ((opt) % OPTION_MAP_SIZE)))
 
 	/** enum value for coap transport type  */
 	typedef enum
@@ -99,7 +120,7 @@ extern "C" {
 	/** parsed message struct */
 	typedef struct
 	{
-		uint8_t* buffer; // pointer to CoAP header / incoming packet buffer / memory, to serialize packet
+		uint8_t* buffer; // pointer to memory that host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
 		coap_transport_type_t transport_type;
 		uint8_t version; // current version is '1'
 		coap_message_type_t type;
@@ -109,7 +130,7 @@ extern "C" {
 		uint8_t token_len;
 		uint8_t token[COAP_TOKEN_LEN]; // used in coap to match a request with a response 
 
-		uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE + 1]; // bitmap to check if option is set
+		uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE + 1]; // results in a 32 byte bitmap, used to set/check options (see macros)
 
 		uint16_t content_format; // parse options once and store; allows setting options in random order
 		uint32_t max_age;
@@ -174,7 +195,7 @@ extern "C" {
 	} coap_packet_t;
 
 	/** option format serialization */
-	#define COAP_SERIALIZE_INT_OPTION(number, field, text)                         \
+	#define COAP_SERIALIZE_INT_OPTION(number, field, text)                       \
   if (IS_OPTION(coap_pkt, number)) {                                           \
     option_length += coap_serialize_int_option(number, current_number, option, \
                                                coap_pkt->field);               \
@@ -184,7 +205,8 @@ extern "C" {
     }                                                                          \
     current_number = number;                                                   \
   }
-	#define COAP_SERIALIZE_BYTE_OPTION(number, field, text)                        \
+
+	#define COAP_SERIALIZE_BYTE_OPTION(number, field, text)                      \
   if (IS_OPTION(coap_pkt, number)) {                                           \
     option_length += coap_serialize_array_option(number, current_number,       \
                                                  option, coap_pkt->field,      \
@@ -199,7 +221,8 @@ extern "C" {
     }                                                                          \
     current_number = number;                                                   \
   }
-	#define COAP_SERIALIZE_STRING_OPTION(number, field, splitter, text)            \
+
+	#define COAP_SERIALIZE_STRING_OPTION(number, field, splitter, text)          \
   if (IS_OPTION(coap_pkt, number)) {                                           \
     option_length += coap_serialize_array_option(                              \
       number, current_number, option, (uint8_t *)coap_pkt->field,              \

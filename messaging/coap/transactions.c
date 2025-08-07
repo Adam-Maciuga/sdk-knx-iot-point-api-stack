@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2016 Intel Corporation
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,8 +76,7 @@ static struct oc_process *transaction_handler_process = NULL;
 /*---------------------------------------------------------------------------*/
 /*- Internal API ------------------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
-void
-coap_register_as_transaction_handler(void)
+void coap_register_as_transaction_handler(void)
 {
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
@@ -113,7 +113,7 @@ coap_transaction_t * coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t 
   return t;
 }
 
-// sends message and clears afterward the transaction 
+// (re)sends 'transaction' message and MAY clear afterward the transaction 
 void coap_send_transaction(coap_transaction_t *t)
 {
   if (!oc_main_initialized()) 
@@ -174,7 +174,6 @@ void coap_send_transaction(coap_transaction_t *t)
     }
     else 
     {
-      
       OC_WRN("timed out, removing transaction %u: %p", t->mid, (void*)t);
       #ifdef OC_SERVER
       coap_remove_observer_by_client(&t->message->endpoint);
@@ -206,15 +205,16 @@ void coap_send_transaction(coap_transaction_t *t)
 
     coap_send_message(t->message);
 
+    OC_DBG("removing transaction");
     // removes also the ref 
     coap_clear_transaction(t);
   }
 }
 
-/*---------------------------------------------------------------------------*/
 void coap_clear_transaction(coap_transaction_t *t)
 {
-  if (t) {
+  if (t) 
+  {
     OC_DBG("freeing transaction %u: %p", t->mid, (void *)t);
 
     oc_etimer_stop(&t->retrans_timer);
@@ -223,6 +223,7 @@ void coap_clear_transaction(coap_transaction_t *t)
     oc_memb_free(&transactions_memb, t);
   }
 }
+
 coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 {
   for (coap_transaction_t* t = oc_list_head(transactions_list); t; t = t->next)
@@ -248,59 +249,82 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   }
   return NULL;
 }
-/*---------------------------------------------------------------------------*/
-void
-coap_check_transactions(void)
+
+void coap_check_transactions(void)
 {
   coap_transaction_t *t = oc_list_head(transactions_list);
-  while (t != NULL) 
+  while (t) 
   {
+    // save next
     coap_transaction_t* next = t->next;
-    if (oc_etimer_expired(&t->retrans_timer)) {
+
+    if (oc_etimer_expired(&t->retrans_timer)) 
+    { // expired
+
+      // increase attempts 
       ++(t->retrans_counter);
-      OC_DBG("Retransmitting %u (%u)", t->mid, t->retrans_counter);
-      int removed = oc_list_length(transactions_list);
+
+      OC_DBG("retransmitting MID %u with attempt (%u)", t->mid, t->retrans_counter);
       coap_send_transaction(t);
-      if ((removed - oc_list_length(transactions_list)) > 1) {
+
+      const int removed = oc_list_length(transactions_list);
+
+      if (removed - oc_list_length(transactions_list) > 1) 
+      {
+
+        // list is not empty maybe there is transaction needs to be resent, restart the list 
         t = (coap_transaction_t *)oc_list_head(transactions_list);
         continue;
       }
     }
-    t = next;
-  }
-}
-/*---------------------------------------------------------------------------*/
-void
-coap_free_all_transactions(void)
-{
-  coap_transaction_t *t = (coap_transaction_t *)oc_list_head(transactions_list),
-                     *next;
-  while (t != NULL) {
-    next = t->next;
-    coap_clear_transaction(t);
+    // restore next
     t = next;
   }
 }
 
-void
-coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
+void coap_free_all_transactions(void)
 {
-  coap_transaction_t *t = (coap_transaction_t *)oc_list_head(transactions_list),
-                     *next;
-  while (t != NULL) {
-    next = t->next;
-    if (oc_endpoint_compare(&t->message->endpoint, endpoint) == 0) {
-      int removed = oc_list_length(transactions_list);
-#ifdef OC_CLIENT
-      /* Remove the client callback tied to this transaction */
+  coap_transaction_t *t = oc_list_head(transactions_list);
+  while (t) 
+  {
+    // get next 
+    coap_transaction_t* next = t->next;
+    // clear current 
+    coap_clear_transaction(t);
+    // restore next 
+    t = next;
+  }
+}
+
+void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
+{
+  coap_transaction_t *t = oc_list_head(transactions_list);
+
+  while (t) 
+  {
+    // save next
+    coap_transaction_t* next = t->next;
+    if (oc_endpoint_compare(&t->message->endpoint, endpoint) == 0) 
+    {
+      const int removed = oc_list_length(transactions_list);
+
+      #ifdef OC_CLIENT
+
+      // remove the client callback tied to this transaction
       oc_ri_free_client_cbs_by_mid(t->mid);
-#endif /* OC_CLIENT */
-      if ((removed - oc_list_length(transactions_list)) > 0) {
+
+      #endif 
+
+      if (removed - oc_list_length(transactions_list) > 0) 
+      {
+        // list is not empty maybe there is another transaction for the same endpoint, restart the list 
         t = (coap_transaction_t *)oc_list_head(transactions_list);
         continue;
       }
+      // clear found transaction 
       coap_clear_transaction(t);
     }
+    // restore next
     t = next;
   }
 }

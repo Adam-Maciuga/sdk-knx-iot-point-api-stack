@@ -183,7 +183,7 @@ oc_oscore_context_t *oc_oscore_find_context_by_kid(oc_oscore_context_t *ctx,
                                                    size_t device, uint8_t *kid,
                                                    uint8_t kid_len);
 
-oc_oscore_context_t *oc_oscore_find_context_by_kid_and_id_context(
+oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(
   uint8_t *kid, uint8_t kid_len,
   uint8_t *kid_ctx, uint8_t kid_ctx_len);
 

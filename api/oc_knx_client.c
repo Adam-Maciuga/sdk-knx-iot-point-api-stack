@@ -1,5 +1,6 @@
 /*
  // Copyright (c) 2021-2022 Cascoda Ltd
+ // Copyright (c) 2024-2025 KNX Association
  //
  // Licensed under the Apache License, Version 2.0 (the "License");
  // you may not use this file except in compliance with the License.
@@ -175,15 +176,13 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_val
                            int value_size)
 {
 
-  OC_INF("oc_send_s_mode : "); PRINTipaddr(*endpoint);
-
 #ifndef OC_OSCORE
   if (oc_init_post(path, endpoint, NULL, NULL, LOW_QOS, NULL))
   {
 #else  
 
   // set since method is called also with empty EP data (oc_issue_s_mode)
-  endpoint->flags = endpoint->flags | OSCORE;
+  endpoint->flags |= OSCORE;
 
   if (oc_init_multicast_update(endpoint, path, NULL))
   {
@@ -221,25 +220,12 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_val
     oc_rep_end_root_object();
 
     // debugging
-    OC_INF("S-MODE payload size: %d , payload = ", oc_rep_get_encoded_payload_size());
+    OC_INF("send s-mode to ipv6 address       : ");
+    PRINTipaddr(*endpoint);
+    OC_INF("send s-mode (%d)with CBOR payload : ", oc_rep_get_encoded_payload_size());
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
-  #ifndef OC_OSCORE
-    if (oc_do_post_ex(APPLICATION_CBOR, APPLICATION_CBOR))
-    {
-      PRINT("Sent POST request\n");
-    #else
-
-    if (oc_do_multicast_update())
-    {
-      OC_INF("sent multicast message");
-
-    #endif
-    }
-    else
-    {
-      OC_ERR("could not send POST request");
-    }
+    oc_do_multicast_update();
   }
 }
 

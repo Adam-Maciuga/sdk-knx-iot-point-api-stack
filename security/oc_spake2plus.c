@@ -55,7 +55,8 @@ uint8_t bytes_N[] = {
   0x60, 0x34, 0x80, 0x8c, 0xd5, 0x64, 0x49, 0x0b, 0x1e, 0x65, 0x6e, 0xdb, 0xe7
 };
 
-static char password[33] = { 0 };  // init with ASCII table char 0 = NULL = /0 = end of string 
+// per specification min 6 max 32 chars, init with 0 + /0 (end of string)
+static char password[33] = { 0 };   
 
 #define KNX_RNG_LEN (32)
 #define KNX_SALT_LEN (32)
@@ -91,18 +92,16 @@ oc_spake_free(void)
   return 0;
 }
 
-const char*
-oc_spake_get_password(void)
+const char* oc_spake_get_password(void)
 {
   return password;
 }
 
-void
-oc_spake_set_password(char* new_pass)
+void oc_spake_set_password(char* new_pass)
 {
+  // copies sizeof(password) bytes,if new password is less than this size 'dst' will be filled with '0' 
   strncpy(password, new_pass, sizeof(password));
 }
-
 
 
 int

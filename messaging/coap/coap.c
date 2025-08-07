@@ -1175,8 +1175,7 @@ coap_tcp_init_message(void* packet, uint8_t code)
 }
 #endif /* OC_TCP */
 /*---------------------------------------------------------------------------*/
-static void
-coap_udp_set_header_fields(void* packet)
+static void coap_udp_set_header_fields(void* packet)
 {
 	coap_packet_t* const coap_pkt = packet;
 
@@ -1187,7 +1186,10 @@ coap_udp_set_header_fields(void* packet)
 	coap_pkt->buffer[2] = (uint8_t) (coap_pkt->mid >> 8);
 	coap_pkt->buffer[3] = (uint8_t) coap_pkt->mid;
 }
+
 /**
+ * @brief 
+ *
  *  - inner = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
  *  - outer = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
  *
@@ -1249,7 +1251,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 																 &extended_len);
 		}
 		else
-			#endif 
+		#endif 
 		{
 			// add size of common header
 			token_location = COAP_HEADER_LEN;
@@ -1330,7 +1332,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 			// copy payload after the options 
 			memmove(option, coap_pkt->payload, coap_pkt->payload_len);
 		}
-		OC_DBG("serialized (CBOR) payload :");
+    OC_DBG("serialize CBOR payload (len %u) : ", coap_pkt->payload_len);
 		OC_LOGbytes(option, coap_pkt->payload_len);
 	}
 	else
@@ -1352,7 +1354,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 }
 
-// defined as extra message wrapper that allows for TCP = enabled extra code -> one code place   
+// forwards a CoAP message to lower (OSCORE) layers, defined as extra message wrapper that allows for TCP = enabled extra code -> one code place   
 void coap_send_message(oc_message_t* message)
 {
 	#ifdef OC_TCP
@@ -1406,17 +1408,22 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 		return BAD_REQUEST_4_00;
 	}
 
+	// (abused) ptr to token 
 	uint8_t* current_option = data + COAP_HEADER_LEN;
 
+	// copy token
 	memcpy(coap_pkt->token, current_option, coap_pkt->token_len);
-	OC_DBG("Token (len %u)", coap_pkt->token_len);
+
+	// debugging
+  OC_DBG("Token (len %u)", coap_pkt->token_len);
 	OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
+	// real ptr to option 
 	current_option += coap_pkt->token_len;
 
 	// parse inner and outer, on present OSCORE option ... = 4.02 bad option (DON'T take over secure content) 
-	coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
-	if (COAP_NO_ERROR != ret)
+	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
+	if (ret != COAP_NO_ERROR)
 	{
 		OC_ERR("coap_oscore_parse_options failed! %d", ret);
 		return ret;
@@ -2024,7 +2031,7 @@ coap_set_header_size1(void* packet, uint32_t size)
 int
 coap_get_header_echo(void* packet, uint8_t echo[COAP_ECHO_LEN])
 {
-	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
+	coap_packet_t* const coap_pkt = packet;
 
 	if (!IS_OPTION(coap_pkt, COAP_OPTION_ECHO))
 	{

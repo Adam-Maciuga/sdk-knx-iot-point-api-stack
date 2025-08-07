@@ -860,10 +860,9 @@ oc_ri_resource_next(const oc_resource_t* resource)
 void
 oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
 {
-	oc_event_callback_t* event_cb =
-		(oc_event_callback_t*) oc_list_head(timed_callbacks);
+	oc_event_callback_t* event_cb = oc_list_head(timed_callbacks);
 
-	while (event_cb != NULL)
+	while (event_cb)
 	{
 		if (event_cb->data == cb_data && event_cb->callback == event_callback)
 		{

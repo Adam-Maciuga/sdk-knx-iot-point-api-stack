@@ -40,7 +40,7 @@
 #define IOO  (1)
 
 
-// use it in upper case 
+// use it in upper case (min 6, max 32)
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
 
 /*
@@ -244,14 +244,6 @@ extern "C"
    * @param data the supplied data.
    */
   void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data);
-
-  /**
-   * @brief function to set the input string to upper case
-   *
-   * @param str the string to make upper case
-   *
-   */
-  void app_str_to_upper(char* str);
 
   /**
    * @brief software update callback

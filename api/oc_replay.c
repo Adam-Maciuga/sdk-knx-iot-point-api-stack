@@ -291,10 +291,8 @@ static oc_event_callback_retval_t oc_replay_free_msg_handler(void* msg)
 
 void oc_replay_message_untrack(struct oc_message_s* msg)
 {
-
 	/*
-    1. remove ref
-    2. clear token
+    1. set tracked msg to NULL, set tracked token len to '0'
     3. remove delayed callback
    */
 
@@ -320,7 +318,7 @@ void oc_replay_message_track(struct oc_message_s* msg, uint16_t token_len, const
 	// add reference
   oc_message_add_ref(msg);
 
-	// pointer to (void) method from above, with parameter that is defined later on when called 
+	// pointer to (void) method defined a bit above, the required parameter will be passed to it later on when called 
 	msg->soft_ref_cb = oc_replay_message_untrack; 
 
 	// save token

@@ -1688,7 +1688,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     // return changed, frame pb (11) & cb (13)
 
-    const char* password = oc_spake_get_password();
     mbedtls_mpi_free(&spake_data.w0);
     mbedtls_ecp_point_free(&spake_data.L);
     mbedtls_mpi_free(&spake_data.y);

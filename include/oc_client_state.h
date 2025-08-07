@@ -106,7 +106,8 @@ extern "C" {
 	} oc_client_handler_t;
 
 	/**
-	 * @brief client callback information, used to find back a caller
+	 * @brief client callback information for observe operations,
+	 *        used to find back a caller
 	 *        (resource path, mid, method, token, ...)
 	 *
 	 */
@@ -126,7 +127,7 @@ extern "C" {
 		uint8_t token[COAP_TOKEN_LEN]; /**< CoAP token */
 		uint8_t token_len;             /**< CoAP token length */
 		bool discovery;                /**< discovery call */
-		bool multicast;                /**< multi cast */
+		bool multicast;                /**< multicast */
 		bool stop_multicast_receive;   /**< stop receiving multi cast */
 		uint8_t ref_count;             /**< reference counting on this data block */
 		uint8_t separate;							 /**< separate responses */

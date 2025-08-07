@@ -195,13 +195,12 @@ static int oc_oscore_receive_message(oc_message_t* message)
    * Dispatch oc_message_t to the CoAP layer
    */
 
-  bool s_mode_re_request = false;
-
   {
+    bool s_mode_re_request = false;
     OC_DBG_OSCORE("### process OSCORE message ###");
 
     // here we are sure that it is an OSCORE message (not necessarily one for us, we are able to decrypt)
-    message->endpoint.flags += OSCORE;
+    message->endpoint.flags |= OSCORE;
 
     // defaults
     oc_oscore_context_t* oscore_ctx = NULL;
@@ -239,7 +238,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
       OC_DBG_OSCORE("---> searching OSCORE context from incoming message by kid (len %d) : ", oscore_pkt->kid_len);
       OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
 
-      oscore_ctx = oc_oscore_find_context_by_kid_and_id_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
+      oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
       if (!oscore_ctx)
       {
@@ -272,11 +271,14 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
           // Create response recipient context
           oscore_ctx = oc_oscore_add_context(
-            oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), oc_string(entry->osc_id),
-            oc_byte_string_len(entry->osc_id), // Recipient Id is osc.id
+            oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), 
+            oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), // Recipient Id is osc.id
             0, // one time use anyway
-            oc_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms), oc_string(entry->osc_salt),
-            oc_byte_string_len(entry->osc_salt), oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len, idx, false);
+            oc_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms),
+            oc_string(entry->osc_salt), oc_byte_string_len(entry->osc_salt), 
+            (char*)oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len, 
+            idx,
+            false);
         }
       }
 
@@ -325,7 +327,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
                                              0, 
                                              oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
                                              oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-                                             oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len,
+                                             (char*)oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len,
                                              idx,
                                              false);
 
