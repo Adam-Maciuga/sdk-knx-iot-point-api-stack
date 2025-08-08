@@ -14,7 +14,6 @@
 // limitations under the License.
 */
 #include "ipadapter.h"
-
 #include <process.h>
 #include <string.h>
 #include <Windows.h>

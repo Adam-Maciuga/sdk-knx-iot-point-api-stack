@@ -190,7 +190,7 @@ void oc_send_message(oc_message_t* message)
      - type = NON (0=CON,1=NON,ACK=2,RST=3),
      - code = 3-bit CLASS (0..7)/ 5-bit DETAIL (0..31) = code >> 5 = REQUEST as GET/PUT/POST/DELETE (+ empty message)
      - flags = OSCORE
-     ... a non-confirmable OSCORE request ....
+     
   */
 	uint8_t version = (COAP_HEADER_VERSION_MASK & message->data[0]) >> COAP_HEADER_VERSION_POSITION;
 	uint8_t type = (COAP_HEADER_TYPE_MASK & message->data[0]) >> COAP_HEADER_TYPE_POSITION;
@@ -200,7 +200,7 @@ void oc_send_message(oc_message_t* message)
 	
 	if (version == 1 && type == 1 && code >> 5 == 0 && message->endpoint.flags & OSCORE)
 	{
-		// here we track the message 
+	  // here we track the message MUST BE ... a non-confirmable OSCORE request ....
 	  OC_DBG_OSCORE("track outgoing OSCORE NON-confirmable message");
 	  oc_replay_message_track(message, token_len, token);
 	}
