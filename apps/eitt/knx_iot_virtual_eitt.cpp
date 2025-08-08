@@ -307,7 +307,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
   strcat(text, oc_string(device->serialnumber));
   strcat(text, ";P:");
   strcat(text, app_get_password());
-  _strupr(text);
+  app_str_to_upper(text);
 
   wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 2) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);

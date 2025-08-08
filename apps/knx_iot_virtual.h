@@ -246,6 +246,18 @@ extern "C"
   void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data);
 
   /**
+   * @brief function to set the input string to upper case
+   *
+   * @note extra function defined, since '_strupr' from <string.h> is Microsof (Windows) 
+           specific and not available in Linux in <string.h>
+   *
+   * @param str the string to make upper case
+   *
+   */
+  void app_str_to_upper(char* str);
+
+
+  /**
    * @brief software update callback
    *
    * @param response the instance of an internal struct that is used to track the state of the separate response

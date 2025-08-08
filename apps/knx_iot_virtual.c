@@ -38,6 +38,15 @@ bool app_is_secure(void)
   return OC_OSCORE ? true : false;
 }
 
+void app_str_to_upper(char* str)
+{
+  while (*str != '\0')
+  {
+    *str = (char)toupper(*str);
+    str++;
+  }
+}
+
 char* app_get_password(void) { return PASSWORD; }
 
 static oc_event_callback_retval_t send_delayed_response(void* context)
@@ -188,7 +197,7 @@ int app_init(void)
   // convert in upper case (12 x char + /0)
   char sn_upper[SERIAL_NUM_SIZE + 1];
   memcpy(sn_upper, sn_lower_case, SERIAL_NUM_SIZE +1);
-  _strupr(sn_upper);
+  app_str_to_upper(sn_upper);
 
   OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, oc_spake_get_password());
 
