@@ -113,7 +113,9 @@ coap_transaction_t * coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t 
   return t;
 }
 
-// (re)sends 'transaction' message and MAY clear afterward the transaction 
+// (re)sends a message by 'transaction' and
+// - NON-confirmable clears the transaction afterwards
+// - CON-confirmable MAY clear afterward the transaction (all reps done)
 void coap_send_transaction(coap_transaction_t *t)
 {
   if (!oc_main_initialized()) 
