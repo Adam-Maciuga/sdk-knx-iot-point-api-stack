@@ -625,9 +625,9 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  // TODO OBSERVE is not implemented for 'lt' and 'non' metadata
+  // TODO OBSERVE is not implemented for (1) 'lt' and 'non' metadata (2.5.9.3/4) and (2) SECOND get request -> response payload (2.5.9.1)
 
-  // only ia of device, no payload
+  // only ia of device, no payload for first GET request
   oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 4, device->ia);
   oc_rep_end_root_object();
