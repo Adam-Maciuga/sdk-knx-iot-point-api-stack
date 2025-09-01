@@ -108,39 +108,6 @@ int oc_is_redirected_request_from(const oc_request_t* request)
   return 2;
 }
 
-oc_rep_t* oc_s_mode_get_value_object(oc_request_t* request)
-{
-
-  // loop over the request 
-  oc_rep_t* rep = request->request_payload;
-
-  while (rep)
-  {
-    switch (rep->type)
-    {
-      case OC_REP_OBJECT:
-      {
-        // get the storage index for this object
-        oc_rep_t* object = rep->value.object;
-        while (object)
-        {
-          // search for "value" (1)
-          if (object->iname == 1)
-          {
-            // returns the object that contains the value
-            return object;
-          }
-          object = object->next;
-        }
-      } break;
-      default:
-        break;
-    }
-    rep = rep->next;
-  }
-  return NULL;
-}
-
 // send out s-mode message in multicast
 void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
                      uint32_t group_address, uint64_t iid, const char* service_type,

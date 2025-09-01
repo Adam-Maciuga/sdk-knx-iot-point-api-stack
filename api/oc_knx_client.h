@@ -96,14 +96,6 @@ int oc_is_redirected_request_from(const oc_request_t *request);
   @{
 */
 
-/**
- * @brief parses out the value OBJECT of the s-mode request.
- *
- * @param request the request
- * @return oc_rep_t* the rep object
- */
-oc_rep_t *oc_s_mode_get_value_object(oc_request_t *request);
-
 /** @} */ // end of doc_module_tag_s_mode_server
 
 /**

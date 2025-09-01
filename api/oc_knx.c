@@ -647,10 +647,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   // { sia: 5678, s: {st: write, ga: 1, value: 100 }}
   // -> value can be anything incl. a string
   // -> define and clear a temporary object notification, can be:
-  // - sia + s + w/a + value  : write/update with full data (see example above)
-  // - sia ONLY               : sync message
-  // - sia + s + r + no value : read 
-  oc_group_object_notification_t received_notification = {{NULL, 0, NULL}, 0, {NULL, 0, NULL}, 0};
+  // - sia + w/a + ga + value  : write/update ga with value (see example above)
+  // - sia                     : sync message
+  // - sia + r + + ga          : read ga
+  oc_group_object_notification_t received_notification = {0};
+
+  // pointer to possible value object, may be not present (GET = OK),
+  // PUT (= not OK), it is handed then over as default NULL to the AL callback handlers
+  oc_rep_t* received_notification_value_object = NULL;
 
   PRINT("oc_core_knx_k_post_handler - start");
 
@@ -670,60 +674,72 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  // scan received payload for sia/st/ga BUT NOT value (maybe not present)
+  // scan received payload for sia/st/ga/value
   oc_rep_t* rep = request->request_payload;
 
   while (rep)
   {
     switch (rep->type)
     {
-    case OC_REP_INT:
-    {
-      // sia (4), mandatory
-      if (rep->iname == 4)
+      case OC_REP_INT:
       {
-        received_notification.sia = (uint32_t)rep->value.integer;
-      }
-    }
-    break;
-    case OC_REP_OBJECT:
-    {
-      // s map with st/ga (see above), but no value
-      oc_rep_t* s_map = rep->value.object;
-
-      while (s_map)
-      {
-        switch (s_map->type)
+        // sia (4), mandatory
+        if (rep->iname == 4)
         {
-        case OC_REP_STRING:
-        {
-          // st (6)
-          if (s_map->iname == 6)
-          {
-            oc_free_string(&received_notification.st);
-            oc_new_string(&received_notification.st, oc_string(s_map->value.string), oc_string_len(s_map->value.string));
-          }
+          received_notification.sia = (uint32_t)rep->value.integer;
         }
         break;
+      }
+      case OC_REP_OBJECT:
+      {
+        // two objects are defined:
+        // - (5) s-map object with defined types for st/ga
+        // - (1) value object with several types for the value (bool, string, ...), subject to application handlers
+        oc_rep_t* object = rep->value.object;
 
-        case OC_REP_INT:
+        while (object)
         {
-          // ga (7)
-          if (s_map->iname == 7)
+
+          // value (1), object type don't care here, optional
+          if (object->iname == 1)
           {
-            received_notification.ga = (uint32_t)s_map->value.integer;
+            // picks the object that contains the value
+            received_notification_value_object = object;
           }
+
+          switch (object->type)
+          {
+            case OC_REP_STRING:
+            {
+              // st (6), optional
+              if (object->iname == 6)
+              {
+                // frees any already assigned 'st' (would be an error in request payload)
+                oc_free_string(&received_notification.st);
+                oc_new_string(&received_notification.st, oc_string(object->value.string), oc_string_len(object->value.string));
+              }
+              break;
+            }
+            case OC_REP_INT:
+            {
+              // ga (7), optional
+              if (object->iname == 7)
+              {
+                received_notification.ga = (uint32_t)object->value.integer;
+              }
+              break;
+            }
+           
+            default:
+              break;
+          }
+          object = object->next;
         }
         break;
-        default:
-          break;
-        }
-        s_map = s_map->next;
       }
-    }
-    break;
-    default:
-      break;
+     
+      default:
+        break;
     }
     rep = rep->next;
   }
@@ -744,23 +760,23 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         oc_string_checked(received_notification.st), 
         ip_address);
 
-  // set request-flags, only one out of a/w/r is possible
-  oc_cflag_mask_t request_type = OC_CFLAG_NONE;
+  // set default request-flags, only one out of a/w/r is possible
+  oc_cflag_mask_t service_type_from_request = OC_CFLAG_NONE;
 
   if (strcmp(oc_string_checked(received_notification.st), "w") == 0)
   {
     // write, any ga => cflags = w -> overwrite object value
-    request_type = OC_CFLAG_WRITE;
+    service_type_from_request = OC_CFLAG_WRITE;
   }
   else if (strcmp(oc_string_checked(received_notification.st), "a") == 0)
   {
     // update, any ga => cflags = w -> overwrite object value
-    request_type = OC_CFLAG_UPDATE;
+    service_type_from_request = OC_CFLAG_UPDATE;
   }
   else if (strcmp(oc_string_checked(received_notification.st), "r") == 0)
   {
     /// read, any ga => cflags = r -> read object value (group speaker principle, one 'r' flag should be set ...)
-    request_type = OC_CFLAG_READ;
+    service_type_from_request = OC_CFLAG_READ;
   }
 
   // GO array INDEX with the GA included (out of 0...max GO table entries)
@@ -774,9 +790,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   { // index found
 
     // each application callback handler gets a new copy of the original request + new response buffer
-    oc_request_t new_request; // filled complete later on
+    oc_request_t new_request; // filled completely later on
     oc_response_buffer_t response_buffer = {0};
-    oc_response_t response_obj; // filled complete later on
+    oc_response_t response_obj; // filled completely later on
 
     /*
       Internal Callback Handler, Examples and Handling
@@ -934,9 +950,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         // get GO c-flags
         const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-        // if corresponding c-flag and the (only one possible) original service request type 'a/w/r' are set,
-        // w-flag & write = write, use copy hence cflags may be different for each GO (same for other options)
-        oc_cflag_mask_t service = request_type & cflags;
+        // if corresponding c-flag and the (only one possible) original service type from request 'a/w/r' are set,
+        // write request and w-flag set = write possible, use copy hence cflags may be different for each GO (same for other options)
+        oc_cflag_mask_t service = service_type_from_request & cflags;
 
         if (service & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
         {
@@ -950,13 +966,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           // copy all data from request to new request (performance consuming)
           // - do that for every GO, the last callback from previous GO may have manipulated the data
-          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl
-          // scopes
+          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes
           oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
           // sets the payload pointer to the 'value' OBJECT --> MUST BE IN (otherwise NULL is assigned)
           // used by /p and /k that calls the same application callback handlers
-          new_request.request_payload = oc_s_mode_get_value_object(request);
+          new_request.request_payload = received_notification_value_object;
 
           // set src to /k (POST /k with payload) ; for a redirect check in application callback handles
           new_request.uri_path = "/k";
@@ -964,7 +979,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           // use new request (not the received one with POST), user data are possible
           // call application handler with own interface/ user data
-          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+          // (it makes no sense to call it with the original /k interface mask, this is a fix value)
           application_resource_with_href_match->put_handler.cb(
             &new_request, application_resource_with_href_match->put_handler.interface_mask,
             application_resource_with_href_match->put_handler.user_data);
@@ -984,13 +999,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           // copy all data from request to new request (performance consuming)
           // - do that for every GO, the last callback from previous GO may have manipulated the data
-          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl
-          // scopes
+          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes
           oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
           // sets the payload pointer to the 'value' OBJECT --> MUST BE IN (otherwise NULL is assigned)
           // used by /p and /k that calls the same application callback handlers
-          new_request.request_payload = oc_s_mode_get_value_object(request);
+          new_request.request_payload = received_notification_value_object;
 
           // set src to /k (POST /k with payload) ; for a redirect check in application callback handles
           new_request.uri_path = "/k";
@@ -998,7 +1012,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           // use new request (not the received one with POST), user data are possible
           // call application handler with own interface/ user data
-          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+          // (it makes no sense to call it with the original /k interface mask, this is a fix value)
           application_resource_with_href_match->put_handler.cb(
             &new_request, application_resource_with_href_match->put_handler.interface_mask,
             application_resource_with_href_match->put_handler.user_data);
@@ -1021,8 +1035,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           // copy all data from request to new request (performance consuming)
           // - do that for every GO, the last callback from previous GO may have manipulated the data
-          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl
-          // scopes
+          // - includes also the originally called resource, maybe used in callback handler to access interfaces or acl scopes
           oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
 
           // set src to /k (POST /k with payload) ; for a redirect check in application callback handles
@@ -1031,7 +1044,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           // use new request (not the received one with POST), user data are possible
           // call application handler with own interface/ user data
-          // (it makes no sense to call it with the original /k interface mask, this is a fix vale)
+          // (it makes no sense to call it with the original /k interface mask, this is a fix value)
           application_resource_with_href_match->get_handler.cb(&new_request, 
                                                                application_resource_with_href_match->get_handler.interface_mask,
                                                                application_resource_with_href_match->get_handler.user_data);
