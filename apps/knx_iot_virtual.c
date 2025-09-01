@@ -314,7 +314,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
       // check query parameter
       while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
       {
-        // unique identifier
+        // id (mandatory)
         if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           // knx://sn: + max len SN + uri path + \0 = ~ 65
@@ -328,14 +328,14 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
           error_state = false;
         }
-        // value
+        // value (mandatory)
         if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           // see 'Callback Notes' above
           oc_rep_text_set_boolean(root, value, lsxb[c].point[p].value);
           error_state = false;
         }
-        // resource types
+        // resource types (mandatory)
         if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           // use the first type, skip urn:knx (=7), if more types are used
@@ -346,19 +346,19 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
           oc_rep_text_set_text_string(root, rt, first_type + 7);
           error_state = false;
         }
-        // interfaces (array of text strings)
+        // interfaces (array of text strings) (mandatory)
         if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           add_all_interface_short_urns_for_a_resource(request->resource);
           error_state = false;
         }
-        // dpt
+        // dpt (mandatory)
         if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
           error_state = false;
         }
-        // ga
+        // ga (mandatory)
         if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
@@ -372,7 +372,14 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
           }
           error_state = false;
         }
-        // description
+        // href (mandatory)
+        if (strncmp(m, "href", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
+
+          error_state = false;
+        }
+        // description (optional)
         if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           oc_rep_text_set_text_string(root, desc, oc_string(request->resource->name));
