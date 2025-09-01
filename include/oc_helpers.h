@@ -126,10 +126,10 @@ extern "C" {
 				* @brief frees an 'ocstring'
 				*
 				*	@note
-				*	- an empty string - is a string - will be released (string size is '1', the string pointer .ptr as such is NOT NULL)
+				*	- an empty string "" - is a string - and will be released (string size of empty string is '1', the string pointer .ptr as such is NOT NULL)
 				*	- an ocstring with .size '0' is not released
 				*	- an ocstring with parameter = NULL is not released
-				*	- an ocstring with .ptr 'NULL' is released -> free ignores NULL ptr (size must be > 0, this would be an alloc problem anyhow)
+				*	- an ocstring with .ptr 'NULL' is released -> free ignores NULL ptr (size must be > 0, this would be a previous alloc problem anyhow)
 				*
 				*	@return in result the next ptr/size are set to 'NULL'/'0', which is not a valid string definition
 				*

@@ -81,8 +81,6 @@ extern "C"
    *
    *  generic structures:
    * ```
-   *  { 5: { 6: "st value" , 7: "ga value", 1: "value" } }
-   *
    *  { 4: "sia", 5: { 6: "st", 7: "ga", 1: "value" } }
    * ```
    *
@@ -97,7 +95,7 @@ extern "C"
    */
   typedef struct oc_group_object_notification
   {
-    oc_string_t value; // generic value received
+    oc_string_t value; // value (treated as string)
     uint32_t sia; // source individual address
     oc_string_t st; // service type code (write=w, read=r, response=a)
     uint32_t ga; // group address

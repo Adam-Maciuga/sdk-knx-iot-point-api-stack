@@ -235,10 +235,11 @@ extern int_datapoint_t test_parameter;
  'property' call (/p).
 
  - For the 's-mode' call the group object table configuration flags (cflags) and service type (w/r/a)
-   is considered by the stack, but not for the 'property' call.
+   are considered by the stack, but not for the 'property' call.
 
- - For the POST 's-mode' call the (r/w/a) corresponding GET/PUT callback handler are called as proxies.
- - For the GET/PUT 'property' call the GET/PUT callback handler are called directly.
+ - For a POST 's-mode' call the corresponding (r/w/a) application GET/PUT callback handlers are called
+   by the stack. The request payload (on w/a ->PUT) points to the actual value object.  
+ - For a GET/PUT 'property' call the GET/PUT callback handler are called directly.
 
  - A KNX related resource path for the 's-mode' and 'property' communication SHALL be defined with
    a leading '/p' (e.g.; '/p/lssb/soo'). Hence, the LSAB/LSSB application examples uses the leading '/p',
@@ -425,7 +426,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // get interfaces for the resource PUT method ...
   bool is_input_datapoint = interfaces & OC_IF_I;
 
-  // sets the pointer to the (/k or /p) handed over object
+  // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
   // user data host the HEX encoded channel/datapoint 
@@ -499,7 +500,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // get interfaces for the resource PUT method ...
   bool is_input_datapoint = interfaces & OC_IF_I;
 
-  // sets the pointer to the (/k or /p) handed over object
+  // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
   // user data host the HEX encoded channel/datapoint
