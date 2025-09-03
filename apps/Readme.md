@@ -42,6 +42,9 @@ Contains the *.c and *.cpp code files for the Light Switch Actuator Basic (LSAB)
   LSAB GUI application. This is under investigation.
 
 
+> Note that if theres multiple Instances of the same Virtual device in the same Network, Problems may occur. 
+  This is due to the fact that the Virtual devices use the same Serial No. and Multiple ETS Instances may try to Pogram Devices on the Network, thus overloading them. 
+
 ### Folder '/knxtools'
 
 Contains a (preregisterd) ETS6 **product** and a (predefined) ETS6 **project**.  
