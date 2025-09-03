@@ -271,6 +271,7 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint16_
 	framed_bytes = oc_rep_add_line_to_buffer(serial_number);
 	response_length += framed_bytes;
 
+	// add a space to not concatenate sn  with ia 
 	framed_bytes = oc_rep_add_line_to_buffer(" knx://ia.");
 	response_length += framed_bytes;
 
@@ -625,7 +626,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			strncpy(sn_substr, ep_serialnumber_start_pos, ep_star_pos - ep_serialnumber_start_pos);
 		}
 
-		// - sn.*        fits always
+		// - sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP) 
 		// - sn.00fa...  fits to the sn entirely (useful on mc)
 		// - sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
 		if (strncmp(ep_serialnumber_start_pos, "*", 1) == 0 ||
