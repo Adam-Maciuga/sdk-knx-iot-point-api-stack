@@ -272,7 +272,7 @@ oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_reso
 
 			// for dynamic (application) resources = false,
 			// note, for precompiled (core) resources it is always true
-			*(bool*) &resource->is_const = false;
+			resource->is_const = false;
 
 			// rt data (# observers) 
 			resource->runtime_data = data;

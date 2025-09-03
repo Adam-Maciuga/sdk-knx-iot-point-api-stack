@@ -474,7 +474,7 @@ extern "C" {
 		oc_properties_cb_t set_properties;    // callback for set properties 
 		uint16_t observe_period_seconds;      // observe period in seconds 
 		uint8_t fb_instance;                  // function block instance, default = 0 
-		const bool is_const;                  // resource is precompiled (core = true) or not (application = false)
+		bool is_const;                        // resource is precompiled (core = true) or not (application = false)
 		oc_resource_data_t* runtime_data;     // runtime modifiable data (number of observers included)
   };
 
