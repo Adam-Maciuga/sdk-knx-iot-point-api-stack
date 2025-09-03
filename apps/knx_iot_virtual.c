@@ -276,8 +276,8 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   // user data host the HEX encoded channel/datapoint 
   const uint32_t channel_and_datapoint = strtol(user_data,NULL,16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
+  const uint16_t channel = channel_and_datapoint >> 16;
+  const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
   PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
@@ -333,7 +333,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           // see 'Callback Notes' above
-          oc_rep_text_set_boolean(root, value, lsxb[c].point[p].value);
+          oc_rep_text_set_boolean(root, value, lsxb[channel].point[point].value);
           error_state = false;
         }
         // resource types (mandatory)
@@ -393,7 +393,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     { // ... no query parameter 'm' present at all, set value for the GET
 
       // see 'Callback Notes' above
-      oc_rep_i_set_boolean(root, 1, lsxb[c].point[p].value);
+      oc_rep_i_set_boolean(root, 1, lsxb[channel].point[point].value);
       error_state = false;
     }
   }
@@ -431,8 +431,8 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   // user data host the HEX encoded channel/datapoint 
   const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
+  const uint16_t channel = channel_and_datapoint >> 16;
+  const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
   PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
@@ -460,7 +460,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
       }
 
       // see 'Callback Notes' above
-      lsxb[c].point[p].value = rep->value.boolean;
+      lsxb[channel].point[point].value = rep->value.boolean;
       error_state = false;
 
       PRINT("set LSAB to %d", rep->value.boolean);
@@ -472,13 +472,13 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // correct data retrieved
   if (!error_state)
   {
-    // set LSAB status
-    PRINT("received no error, update LSAB status to %d", lsxb[c].point[SOO].value);
-    lsxb[c].point[IOO].value = lsxb[c].point[SOO].value;
+    // set LSAB status (note, for a real hw device the staus usually needs to be determined from the actual hw relay)
+    PRINT("received no error, update LSAB status to %d", lsxb[channel].point[SOO].value);
+    lsxb[channel].point[IOO].value = lsxb[channel].point[SOO].value;
 
     // trigger the LSAB status on a specific resource path (ioo)
-    PRINT("send status to %s with flag: 'w'", lsxb[c].point[IOO].resource_path);
-    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, lsxb[c].point[IOO].resource_path, "w");
+    PRINT("send status to %s with flag: 'w'", lsxb[channel].point[IOO].resource_path);
+    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, lsxb[channel].point[IOO].resource_path, "w");
 
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
@@ -505,8 +505,8 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   // user data host the HEX encoded channel/datapoint
   const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
+  const uint16_t channel = channel_and_datapoint >> 16;
+  const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
   PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
@@ -534,7 +534,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
       }
 
       // see 'Callback Notes' above
-      lsxb[c].point[p].value = rep->value.boolean;
+      lsxb[channel].point[point].value = rep->value.boolean;
       error_state = false;
 
       PRINT("set LSSB to %d", rep->value.boolean);
