@@ -41,11 +41,13 @@ Contains the *.c and *.cpp code files for the Light Switch Actuator Basic (LSAB)
 > Note that the current stack does not work properly on sending a separate LSAB status per button from the 
   LSAB GUI application. This is under investigation.
 
-
-> Note that if there are multiple instances of the **same** virtual device run in the **same** network problems occur (e. g.; two developers are testing at the same time their ETS).
-This is due to the fact that  the virtual devices use the same serial number. Multiple ETS instances may try to program devices on the same network that were not intended to be programmed, thus overloading them. 
-If you run into this problem, you can change the serial number in the respective .c file of lsab/lssb. 
-Further you need to change the serial number in the ETS project by updating the certificate of the devices in the project.
+If there are multiple instances of the **same** virtual device run in the **same** network problems will occur (e. g.; two developers 
+are testing at the same time their ETS projects with up and running lsab/lssb virtual devices on their computers).
+This is due to the fact that at least two virtual devices uses then the same serial number. An ETS instance may then program
+not the intended device from the 'own' installation (it finds all in the network). 
+If you run into this problem, you can change the serial number in one test instance (ETS project/ vrirtual devices). 
+1. in the lsab/lssb c-file (for the virtual devices)
+2. in the ETS project by updating the certificate (see [ETS6 pages](../../wikis/Home/ETS6))
 
 ### Folder '/knxtools'
 
