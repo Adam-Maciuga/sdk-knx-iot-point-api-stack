@@ -22,7 +22,6 @@
 #include "oc_knx_client.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
-#include "oc_knx_gm.h" // only used if iot router is enabled
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "oc_oscore_context.h"

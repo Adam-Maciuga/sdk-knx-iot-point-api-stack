@@ -362,10 +362,6 @@ extern "C" {
 		OC_KNX_AUTH_AT,						/**< auth/at resource listing auth/at/X */
 		OC_KNX_AUTH_AT_X,					/**< auth/at/X resources */
 		OC_KNX_AUTH,							/**< auth list all sub resources */
-	#ifdef OC_IOT_ROUTER
-		OC_KNX_FP_GM,           /**< FP/GM */
-		OC_KNX_FP_GM_X,         /**< FP/GM/X */
-	#endif
 		/* List of resources on a logical device: start */
 		WELLKNOWNCORE           /**< well-known/core resource */
 		/* List of resources on a logical device: end */

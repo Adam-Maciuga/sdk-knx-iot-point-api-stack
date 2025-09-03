@@ -19,15 +19,10 @@
 #include <oc_storage.h>
 #include "include/oc_helpers.h"
 #include "oc_knx_fp.h"
-#include "oc_knx_gm.h"
 #include "oc_knx_helpers.h"
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "port/dns-sd.h"
-
-#ifdef OC_IOT_ROUTER
-#include "api/oc_knx_gm.h"
-#endif
 
 #include <stdio.h>
 #include "oc_core_res.h"
