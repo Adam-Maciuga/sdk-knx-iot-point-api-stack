@@ -307,7 +307,7 @@ oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char
 	// per device 'WELLKNOWNCORE' resources needed 
 	const size_t new_num = 1 + WELLKNOWNCORE * device_count;
 
-	// allocate new device resources
+	// reallocate (expand) present device resources with new device resources
 	core_resources = (oc_resource_t*) realloc(core_resources, new_num * sizeof(oc_resource_t));
 
 	if (!core_resources)
