@@ -17,7 +17,6 @@
 #include "oc_api.h"
 #include "api/oc_knx_fb.h"
 #include "api/oc_knx_fp.h"
-#include "api/oc_knx_gm.h"
 #include "oc_api.h"
 #include "oc_knx_helpers.h"
 
@@ -114,18 +113,6 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   {
     return;
   }
-
-#ifdef OC_IOT_ROUTER
-  const char* value;
-  int value_len =
-    oc_uri_get_wildcard_value_as_string(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                        request->uri_path, request->uri_path_len, &value);
-  if ((value_len == 5) && (strncmp(value, "netip", 5) == 0))
-  {
-    oc_core_f_netip_get_handler(request, iface_mask, data);
-    return;
-  }
-#endif
 
   // if instance is not set, it is instance 0
   int instance = 0;

@@ -1311,35 +1311,6 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   PRINT("oc_core_knx_auth_get_handler - end");
 }
 
-#ifdef OC_IOT_ROUTER
-
-// resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
-extern const oc_resource_t core_resource_knx_fp_gm;
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
-const oc_resource_t core_resource_knx_auth = {
-  (oc_resource_t*)&core_resource_knx_fp_gm,
-  0,
-  {NULL, 0, NULL},
-  {NULL, sizeof("/auth"), "/auth"},
-  {NULL, 0, NULL},
-  {NULL, 0, NULL},
-  {APPLICATION_LINK_FORMAT, CONTENT_NONE},
-  OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
-  {oc_core_knx_auth_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL},
-  {NULL, NULL},
-  0,
-  0,
-  true,
-  &core_resource_knx_auth_data};
-PRAGMA_OUT
-#else
-
 // resource definition, details/comments see on
 // 'core_resource_well_known_core_final'
 extern const oc_resource_t core_resource_well_known_core;
@@ -1365,7 +1336,6 @@ const oc_resource_t core_resource_knx_auth = {
   true,
   &core_resource_knx_auth_data};
 PRAGMA_OUT
-#endif
 
 void oc_create_knx_auth_resource(int resource_idx, size_t device)
 {

@@ -64,10 +64,6 @@ set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
 set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
 
-# iot router specific resource variables (not completed implementation)
-set(OC_IOT_ROUTER_ENABLED OFF CACHE BOOL "Enable IoT Router code")
-set(KNX_GAMT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group address mapping (iot router) table entries")
-
 # dont show below variables in any (command) GUI
 mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
 
@@ -94,7 +90,6 @@ set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/oc_knx_dev.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx_fb.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx_fp.c
-    ${PROJECT_SOURCE_DIR}/api/oc_knx_gm.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx_helpers.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx_p.c
     ${PROJECT_SOURCE_DIR}/api/oc_knx_sec.c
@@ -429,10 +424,6 @@ if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_SPAKE)
    target_compile_definitions(kis-common INTERFACE KNX_MIN_IT=${KNX_SPAKE_MIN_IT})
    target_compile_definitions(kis-common INTERFACE KNX_MAX_IT=${KNX_SPAKE_MAX_IT})
-endif()
-
-if(OC_IOT_ROUTER_ENABLED)
-    target_compile_definitions(kis-common INTERFACE OC_IOT_ROUTER GAMT_MAX_ENTRIES=${KNX_GAMT_MAX_ENTRIES})
 endif()
 
 if(OC_PRINT_ENABLED)
