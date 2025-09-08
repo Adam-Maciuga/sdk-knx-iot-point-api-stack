@@ -24,16 +24,28 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief Publish the KNX mDNS service in order to enable DNS-SD discovery.
- *
- * @param serial_no KNX serial number. The advertised service will be
- * "${serial_no}._knx._udp"
- * @param iid KNX Installation ID. Set to 0 if the device has not been
- * commissioned yet
- * @param ia KNX Individual Address. Set to 0 if the device has not been
- * commissioned yet
- * @param pm True if the device is in Programming Mode, false otherwise.
- * @return int 0 on success, -1 on error.
+   @brief Publish the KNX mDNS service in order to enable DNS-SD discovery.
+  
+   @param serial_no KNX serial number
+   @param iid KNX Installation ID, set to 0 if the device has not been commissioned yet
+   @param ia KNX Individual Address, set to 0 if the device has not been commissioned yet
+   @param pm True if the device is in Programming Mode, false otherwise
+
+   @return int 0 on success, -1 on error
+  
+   @note
+    DNS-SD <domain>
+    .local
+    DNS-SD <service>
+      - _knx._udp 
+    DNS-SD <sub service>
+      - _{serialnumber}             ->  _00fa10020800._sub  (ascii hex, lower case)
+      - _ia{installation-id}-{ia}   -> _ia33a3-20a._sub     (ascii hex, lower case)
+      - _pm                         -> _pm._sub
+    1. Get all knx services         -> IN <service>.<domain> -> OUT <instance>.<service>.<domain>
+    2. Get specific knx service     -> IN <service>.<domain> -> OUT <instance>.<service>.<domain>
+
+   
  */
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
 

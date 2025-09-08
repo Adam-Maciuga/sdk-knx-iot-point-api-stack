@@ -27,6 +27,8 @@
 static pid_t avahi_pid = 0;
 static char sp_text_record[16] = "";
 
+uint16_t knx_get_used_port(void) { return get_ip_context_for_device(0)->port; }
+
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
   // for the case if DNS_SD is disabled
@@ -79,7 +81,7 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
     char *pm_subtype = "--subtype=_pm._sub._knx._udp";
     
     // set up the subtype for the port
-    uint16_t port = get_ip_context_for_device(0)->port;
+    const uint16_t port = knx_get_used_port();
     snprintf(port_str, sizeof(port_str), "%d", port);
 
     int error;
@@ -121,11 +123,6 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 #endif
 
   return 0;
-}
-
-uint16_t knx_get_used_port(void)
-{ 
-  return get_ip_context_for_device(0)->port; 
 }
 
 void knx_service_sleep_period(int sp)
