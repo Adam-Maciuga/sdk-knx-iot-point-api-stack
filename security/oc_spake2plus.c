@@ -129,9 +129,9 @@ oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* w0,
   }
   if (L)
   {
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->X, &g_spake_parameters.L.X));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->Y, &g_spake_parameters.L.Y));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->Z, &g_spake_parameters.L.Z));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_X, &g_spake_parameters.L.private_X));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_Y, &g_spake_parameters.L.private_Y));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_Z, &g_spake_parameters.L.private_Z));
   }
   return 0;
 cleanup:
