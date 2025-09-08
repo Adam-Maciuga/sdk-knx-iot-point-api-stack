@@ -152,6 +152,6 @@
 #define MBEDTLS_ERROR_C
 #define MBEDTLS_DEBUG_C
 
-#include "mbedtls/check_config.h"
+// #include "mbedtls/check_config.h"
 
 #endif /* MBEDTLS_CONFIG_H */
