@@ -38,9 +38,14 @@ Contains external project dependencies.
    
  > The IoT stack repository uses GIT **submodules** to retrieve the (above described) external code 
    as part of the version control system (also possible is to use CMake **fetchcontent** that handles
-   it as part of the build system). The `.gitmodules` file defines the folder/path per submodule, 
-   the specifically used commit ID is defined in the corresponding folder with a gitlink (name@commit). 
-   See git/stack overflow documentation for gitmodules (how to pull or init submodules).   
+   it as part of the build system). 
+   
+   - The `.gitmodules` file in the source root folder defines
+     the 'build' folder/path per used submodule (see git/stack overflow documentation for .gitmodules).
+   - The desired version (visible in the GitLab 
+     folder as a commit ID in form of gitlink name@commit)
+     can be updated to the requested version (e.g; go the corresponding sub folder, checkout with git the desired version, push the change, the new commit ID 
+     will be then visible in GitLab).
 
 __include/*__  
 Contains all common headers.
