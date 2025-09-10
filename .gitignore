@@ -1,6 +1,6 @@
 # patterns see https://git-scm.com/docs/gitignore#_pattern_format
 
-# build system 
+# build system files
 out  
 
 # vs code setting files
@@ -18,3 +18,6 @@ deps/**
 *.tmp
 *.gcda
 *.gcno
+
+# EITT test configuration files 
+/tests/eitt/**
