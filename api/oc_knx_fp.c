@@ -1040,12 +1040,19 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-      #define MANDATORY_GPT_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
-      bool id_only = true; // to delete a publisher table entry
+      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
+      #define MANDATORY_GPT_PROPERTIES (3) 
 
-      uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
-      oc_group_table_t tmp_gpt_entry = g_gpt[array_index]; // fill with live PUB entry (from a present/empty entry)
+      // to delete a PUB table entry
+      bool id_only = true; 
 
+      // identify which "stack" memory resource are allocated during the post
+      uint8_t allocator = 0;
+
+      // fill with live PUB entry (from a present/empty entry)
+      oc_group_table_t tmp_gpt_entry = g_gpt[array_index]; 
+
+      // set PUB id 
       tmp_gpt_entry.id = id;
       int current_gpt_properties = 1; 
 
@@ -1057,29 +1064,29 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
           if (object->iname != 0)
           {
-            // NOT id (0), for sure from now on a not 'ID only' case,
+            // NOT an id (0), for sure from now on a not 'ID only' case,
             // note that id (0) was already scanned/assigned
             id_only = false;
           }
 
-          // ia (12)
+          // ia (12) - used on unicast
           if(object->iname == 12) 
           {
             tmp_gpt_entry.ia = (int)object->value.integer;
             current_gpt_properties++;
           }
-          // grpid (13)
+          // grpid (13) - used on multicast
           else if (object->iname == 13) 
           {
             tmp_gpt_entry.grpid = (uint32_t)object->value.integer;
             current_gpt_properties++;
           }
-          // iid (26)
+          // iid (26) - used on multicast
           else if (object->iname == 26) 
           {
             tmp_gpt_entry.iid = object->value.integer;
           } 
-          // fid (25)
+          // fid (25) - used on unicast
           else if (object->iname == 25) 
           {
             tmp_gpt_entry.fid = object->value.integer;
@@ -1091,7 +1098,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // at (14))
+          // at (14) - used on unicast
           if(object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
@@ -1106,7 +1113,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga array (7) 
+          // ga array (7) - used on multicast 
           if (object->iname == 7) // resource 'ga array'
           {
             const int64_t* array = oc_int_array(object->value.array);
@@ -1148,7 +1155,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // resource 'ga array' = empty (specification request)
+          // ga array (7) - used on multicast, resource 'ga array' = empty (specification request)
           if (object->iname == 7) 
           {
             tmp_gpt_entry.ga_len = 0;
@@ -1175,6 +1182,9 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       /*
+        Options
+        -------
+
         a: created +  id only/< 3 elements  = ERROR (to few elements)
         b: created +  3 elements            = OK (create)
         c: changed +  id only               = OK (delete)
@@ -1185,7 +1195,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       if (return_status == OC_STATUS_CHANGED && id_only)
       { // c
 
-        // no tmp elements allocated ...
+        // no tmp elements will be allocated ...
         PRINT("only found id in request, deleting entry at index: %d", array_index);
         oc_delete_group_table_entry(array_index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
       }
@@ -1194,7 +1204,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_GPT_PROPERTIES)
         { // a 
 
-          // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+          // see details on constant
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
 
           // on error: free PUB tmp entry (all heap allocations)
@@ -1205,7 +1215,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
 
         // b + d, here all ok, set new PUB entry
-
         PRINT("storing PUB table at %d", array_index);
 
         /*
@@ -1582,11 +1591,17 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // non-confirmable flag for a new entry is init to false ONLY once on creation (not on a possible 'changed' update)
       }
 
-      #define MANDATORY_GRT_PROPERTIES (3) // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
-      bool id_only = true; // used to delete the RCP table entry
+      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
+      #define MANDATORY_GRT_PROPERTIES (3)
 
-      uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
-      oc_group_table_t tmp_grt_entry = g_grt[array_index]; // fill with live RCP entry (from a present/empty entry)
+      // used to delete the RCP table entry
+      bool id_only = true; 
+
+      // identify which "stack" memory resource are allocated during the post
+      uint8_t allocator = 0; 
+
+      // fill with live RCP entry (from a present/empty entry)
+      oc_group_table_t tmp_grt_entry = g_grt[array_index]; 
 
       // set RCP id 
       tmp_grt_entry.id = id;
@@ -1600,29 +1615,29 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
           if (object->iname != 0)
           {
-            // NOT id (0), for sure from now on a not 'ID only' case,
+            // NOT an id (0), for sure from now on a not 'ID only' case,
             // note that id (0) was already scanned/assigned
             id_only = false;
           }
 
-          // ia (12)
+          // ia (12) - used on unicast
           if (object->iname == 12) 
           {
             tmp_grt_entry.ia = (int)object->value.integer;
             current_grt_properties++;
           }
-          // grpid (13)
+          // grpid (13) - used on multicast
           else if (object->iname == 13) 
           {
             tmp_grt_entry.grpid = (uint32_t)object->value.integer;
             current_grt_properties++;
           }
-          // iid (26)
+          // iid (26) - used on multicast 
           else if (object->iname == 26) 
           {
             tmp_grt_entry.iid = object->value.integer;
           }
-          // fid (25)
+          // fid (25) - used on unicast
           else if (object->iname == 25) 
           {
             tmp_grt_entry.fid = object->value.integer;
@@ -1634,7 +1649,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // at (14))
+          // at (14) - used on unicast, see IMPORTANT notes below (in Options)
           if (object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
@@ -1649,7 +1664,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga array (7)
+          // ga array (7) - used on multicast
           if (object->iname == 7)
           {
             const int64_t* array = oc_int_array(object->value.array);
@@ -1692,13 +1707,13 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // resource 'ga array' = empty (specification request)
+          // ga array (7) - used on multicast, resource 'ga array' = empty (specification request)
           if (object->iname == 7) 
           {
             tmp_grt_entry.ga_len = 0;
             tmp_grt_entry.ga = NULL;
 
-            current_grt_properties++; // also on empty ga array satisfies the items number
+            current_grt_properties++; // also an empty ga array satisfies the items number
             allocator |= TABLE_GAS; // free() ignores NULL ptr
           }
 
@@ -1708,7 +1723,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // resource 'non' (CBOR/JSON = 'non'/'non')
+          // resource 'non' (CBOR/JSON = 'non'/'non') - used on unicast, multicast are always NON messages (=true)
           if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
           {
             tmp_grt_entry.non = object->value.boolean;
@@ -1730,17 +1745,50 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       /*
+        Options
+        -------
+
         a: created +  id only/< 3 elements  = ERROR (to few elements)
         b: created +  3 elements            = OK (create)
         c: changed +  id only               = OK (delete)
         d: changed +  1/2 elements          = OK (update)
 
+
+        Notes
+        -----
+        A MaC shall not configure the same access token for different IA recipients (unicast) in the
+        RCP table, e.g.;
+        - RCP entry 1: (ia) 1234, (at) = 'token1'
+        - RCP entry 2: (ia) 1235, (at) = 'token1'
+
+        A sender would use the same access token (key material) from 'token1' to encrypt a message
+        for ia 1234 and 1235. 
+
+        Since there is a replay window with #n entries to the left, an attacker may record the unlock message
+        and resend it later again.
+
+        Sender
+        SSN10  UNLOCK -> (ia) 1234
+        SSN11  UNLOCK -> (ia) 1235
+        :
+        : 
+        SSN12  LOCK   -> (ia) 1234
+        SSN13  LOCK   -> (ia) 1235
+        :
+        :
+        Attacker
+        SSN11  UNLOCK -> (ia) 1234 
+          -> SSN11 is in left side of replay window from Receiver with ia 1234,
+             seen from its last received valid SSN12
+          -> the destination ia 1234 is not part of the msg, an attacker needs only the
+             IPv6 address of device with ia 1234
+	
       */
 
       if (return_status == OC_STATUS_CHANGED && id_only)
       { // c
 
-        // no tmp elements allocated ...
+        // no tmp elements will be allocated ...
         PRINT("only found id in request, deleting entry at index: %d", array_index);
         oc_delete_group_table_entry(array_index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
       }
@@ -1749,7 +1797,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         if (return_status == OC_STATUS_CREATED && current_grt_properties < MANDATORY_GRT_PROPERTIES)
         { // a
 
-          // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
+          // see details on constant
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
 
           // on error: free PUB tmp entry (all heap allocations)

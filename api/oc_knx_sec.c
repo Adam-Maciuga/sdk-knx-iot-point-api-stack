@@ -615,8 +615,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 {
   (void)data;
   (void)iface_mask;
-  oc_rep_t* rep = NULL;
 
+  oc_rep_t* rep = NULL;
   oc_rep_t* sub_object = NULL;
   oc_rep_t* oscore_object = NULL;
 
@@ -785,9 +785,9 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               g_at_entries[array_index].ga_len = new_array_size;
               g_at_entries[array_index].ga = new_array;
 
-              // define THIS auth at token with 's-mode messaging' <ga> scope,
-              // - defined only here
-              // - used only on  /k resource (see also oc_knx_sec_check_acl)  
+              // define THIS auth at token below with <ga> scope 's-mode messaging',
+              // - is defined only here in the code
+              // - is used only on /k resource (see also oc_knx_sec_check_acl)  
               g_at_entries[array_index].scope = OC_ACL_GA;
               current_at_properties++;
             }
@@ -836,7 +836,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // level of cnf or sub.
+          // level of cnf or sub
           sub_object = object->value.object;
           int sub_object_nr = object->iname;
 
@@ -924,7 +924,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         a: created +  id only/< 5 elements  = ERROR (to few elements)
         b: created +  5 elements            = OK (create)
         c: changed +  id only               = OK (delete)
-        d: changed +  1..n elements         = OK (update)
+        d: changed +  1...n elements        = OK (update)
 
       */
 
@@ -946,7 +946,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         }
 
         // b + d
-
         PRINT("storage index: %d (%s) ", array_index, oc_string_checked(*access_token_id));
         oc_print_auth_at_entry(array_index);
         oc_store_at_table_entry(array_index);
@@ -959,7 +958,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
   if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true)
   {
-    // do not update the oscore when update of the scope contents only
+    // do not update the oscore when update only scope content
     OC_WRN("updated scopes only, NO reinitializing of all used oscore keys ");
   }
   else

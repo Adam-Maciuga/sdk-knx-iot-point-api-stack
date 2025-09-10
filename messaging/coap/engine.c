@@ -287,17 +287,15 @@ int coap_receive(oc_message_t* incoming_message)
 
 	if (coap_status_code == COAP_NO_ERROR)
 	{
-		// here it can be a req or response
+		/* here it can be a req or response
 
-		// echo should be defined as
-		// 1 NON multicast (track buffer)   
-		// 2 CON unicast s-mode (transaction buffer)
-    // 3 NON unicast s-mode (track buffer)    
-		// 4 CON unicast configuration (transaction buffer)
-		// are 4 and 2/3 using the same echo challenge response () for sending a request (meaning for each request a fresh ssn and echo is used)
-		// example, in picture 26 the message (1) in case of unicast
-		//	- device A has RCP table with IA1/IA2 both RCP entries reference the same access token (that has GA 0001)
-		//  - is device A encrypting ones (msg1) and sending to IA1 and IA2 the same message (msg1)  or is each message individually encrypted (msg1/msg2)
+		echo should be defined for:
+		- 1 NON multicast (track buffer)   
+		- 2 CON unicast s-mode (transaction buffer)
+    - 3 NON unicast s-mode (track buffer)    
+		- 4 CON unicast configuration (transaction buffer)
+
+    */
 
 	  bool block2 = false;
 		bool block1 = false;
@@ -592,16 +590,17 @@ int coap_receive(oc_message_t* incoming_message)
 			{
 				if (incoming_coap_message->type == COAP_TYPE_CON)
 				{
-          // CON -> init ACK with same mid 
+          // CON -> prepare response as ACK with same mid 
 				  coap_udp_init_message(outgoing_coap_response, COAP_TYPE_ACK, CONTENT_2_05, incoming_coap_message->mid);
 				}
 				else
 				{
 					#ifdef OC_REQUEST_HISTORY
 
-					if (oc_coap_check_if_duplicate(incoming_coap_message->mid,
-							incoming_message->endpoint.addr.ipv6.port,
-							incoming_message->endpoint.addr.ipv6.address))
+					if (oc_coap_check_if_duplicate(
+						incoming_coap_message->mid,
+						incoming_message->endpoint.addr.ipv6.port,
+						incoming_message->endpoint.addr.ipv6.address))
 					{
 						return 0;
 					}
@@ -615,7 +614,7 @@ int coap_receive(oc_message_t* incoming_message)
 				  idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
 					#endif 
 
-					// NON -> init NON with increases mid
+					// NON -> prepare response as NON with increases mid
 					coap_udp_init_message(outgoing_coap_response, COAP_TYPE_NON, CONTENT_2_05, coap_get_next_mid());
 				}
 			}
