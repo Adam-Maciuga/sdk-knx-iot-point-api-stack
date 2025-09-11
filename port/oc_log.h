@@ -60,7 +60,7 @@ extern "C" {
 #ifdef OC_PRINT
 
   // for clock function in debug output
-  #include <time.h>
+  #include <oc_clock.h>
 
   #ifdef OC_LOG_TO_FILE
 
@@ -217,8 +217,7 @@ extern "C" {
 // it is recommended to use a console for the output that allows a 'no word wrap' 
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
-  time_t _current_time = time(NULL);                            \
-  struct tm* tm_local = localtime(&_current_time);              \
+  unsigned long long  _current_time = oc_clock_time();          \
   \
   char fileShort[20] = {0};                                     \
   strncpy(fileShort, __FILENAME__, 15);                         \
@@ -229,12 +228,12 @@ extern "C" {
   strncat(funcShort, "...", sizeof("..."));                     \
   \
   PRINTF("\n"                                                   \
-         "%-2d:%-2d:%-2d "                                      \
+         "%-14llu: "                                            \
          "%-4s: "                                               \
          "%-20.18s"                                             \
          "%-5d: "                                               \
          "%-30.27s> ",                                          \
-         tm_local->tm_hour, tm_local->tm_min, tm_local->tm_sec, \
+         _current_time,                                         \
          level,                                                 \
          strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
          __LINE__,                                              \
