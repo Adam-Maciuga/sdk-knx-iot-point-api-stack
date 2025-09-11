@@ -58,14 +58,6 @@ int oc_spake_init(void);
 int oc_spake_free(void);
 
 /**
- * @brief Verify the implementation of Spake2+ using the test vectors defined
- * within the spec.
- *
- * @return int 0 on successful self-test
- */
-int oc_spake_test_vector();
-
-/**
  * @brief Generate the fields needed for the PASE Parameter Exchange frame type.
  *
  * @ref oc_spake_init() must be called before this function can be used.
@@ -78,18 +70,18 @@ int oc_spake_test_vector();
 int oc_spake_parameter_exchange(uint8_t rnd[32], uint8_t salt[32], int *it);
 
 /**
- * @brief Get the pre-loaded fields needed for PASE and SPAKE
+ * @brief Get the preloaded fields needed for PASE and SPAKE
  *
  * @ref oc_spake_set_parameters() must be used to set these values
  *
- * @param rnd Random number
+ * @param rand Random number
  * @param salt The salt to be used fo PBKDF2
  * @param it The number of iterations to be used for PBKDF2
  * @param w0 omega0 value for SPAKE2+
  * @param L L ecp point for SPAKE2+
  * @return int 0 on success
  */
-int oc_spake_get_parameters(uint8_t rnd[32], uint8_t salt[32], int *it,
+int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int *it,
                             mbedtls_mpi *w0, mbedtls_ecp_point *L);
 
 /**
@@ -296,6 +288,13 @@ size_t encode_string(const char* str, uint8_t* buffer);
 size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, uint8_t* buffer);
 
 int oc_spake_calc_K_shared_256(uint8_t *K_main, uint8_t K_shared[32]);
+
+int calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc[kPubKeySize], mbedtls_ecp_point* shareV,
+                              char* idProver, char* idVerifier, char* context);
+
+int calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1, mbedtls_mpi* x, mbedtls_ecp_point* shareP,
+                              const uint8_t shareV_enc[kPubKeySize], uint8_t K_main[32], char* idProver, char* idVerifier,
+                              char* context);
 
 #ifdef __cplusplus
 }

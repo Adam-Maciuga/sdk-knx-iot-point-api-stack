@@ -123,7 +123,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #ifdef OC_DEBUG
 
-  OC_DBG("sending transaction(len: %llu) mid %u -> ", t->message->length, t->mid);
+  OC_DBG("sending transaction(len: %lu) mid %u -> ", t->message->length, t->mid);
   OC_LOGbytes(t->message->data, t->message->length);
 
   if (t == NULL) {

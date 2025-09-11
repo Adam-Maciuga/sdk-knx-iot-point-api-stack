@@ -1725,21 +1725,23 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     // next step: calculate pB, encode it into the struct
     mbedtls_ecp_point pB;
     mbedtls_ecp_point_init(&pB);
-    if (ret = oc_spake_calc_shareV(&pB, &spake_data.pub_y, &spake_data.w0))
+    ret = oc_spake_calc_shareV(&pB, &spake_data.pub_y, &spake_data.w0);
+    if (ret != 0)
     {
       OC_ERR("oc_spake_calc_pB failed with code %d", ret);
       mbedtls_ecp_point_free(&pB);
       goto error;
     }
 
-    if (ret = oc_spake_encode_pubkey(&pB, g_pase.shareV))
+    ret = oc_spake_encode_pubkey(&pB, g_pase.shareV);
+    if (ret != 0)
     {
       OC_ERR("oc_spake_encode_pubkey failed with code %d", ret);
       mbedtls_ecp_point_free(&pB);
       goto error;
     }
-
-    if (ret = oc_spake_calc_transcript_responder(&spake_data, g_pase.shareP, &pB))
+    ret = oc_spake_calc_transcript_responder(&spake_data, g_pase.shareP, &pB);
+    if (ret != 0)
     {
       OC_ERR("oc_spake_calc_transcript_responder failed with code %d", ret);
       mbedtls_ecp_point_free(&pB);

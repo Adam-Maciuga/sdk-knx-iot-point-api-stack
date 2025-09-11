@@ -199,7 +199,7 @@ size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, ui
 
 // encode mpi as length followed by bytes
 // returns number of bytes written
-size_t
+static size_t
 encode_mpi(mbedtls_mpi* mpi, uint8_t* buffer)
 {
   size_t len_mpi = 0;

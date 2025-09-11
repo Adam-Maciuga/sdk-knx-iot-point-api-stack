@@ -163,9 +163,9 @@ oc_mem_trace_free(void)
   }
 }
 #else  /* OC_MEMORY_TRACE */
-// TODO : it would be removed if MEMTRACE=0 excludes compiling this file
-void 
-dummy_null_func(void)
+
+void dummy_null_func(void);  // add prototype to remove warning 
+void dummy_null_func(void)
 {
 }
 #endif /* !OC_MEMORY_TRACE */

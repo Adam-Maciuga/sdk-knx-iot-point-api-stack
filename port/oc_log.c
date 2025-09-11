@@ -19,15 +19,16 @@
 #define OUTPUT_FILE_NAME "stack_print_output.txt"
 static FILE *ptr_to_file = NULL;
 
+// used in case CMake compile option is set ....
 void oc_file_print(char *format, ...)
 {
-  va_list args;
   if (ptr_to_file == NULL) 
   {
     ptr_to_file = fopen(OUTPUT_FILE_NAME, "w");
   }
   if (ptr_to_file) 
   {
+    va_list args;
     va_start(args, format);
     (void)vfprintf(ptr_to_file, format, args);
     va_end(args);

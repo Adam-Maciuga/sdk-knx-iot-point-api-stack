@@ -285,7 +285,7 @@ int oc_main_init(const oc_handler_t* handler)
 
   #ifdef OC_SPAKE
   oc_initialise_spake_data();
-#endif
+  #endif
 
   // call one time on startup (must be successful)
   if (app_callbacks->init() < 0)

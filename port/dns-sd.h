@@ -34,11 +34,11 @@ extern "C" {
    @return int 0 on success, -1 on error
   
    @note
-    DNS-SD <domain>
-    .local
-    DNS-SD <service>
+   DNS-SD <domain>
+      - .local
+   DNS-SD <service>
       - _knx._udp 
-    DNS-SD <sub service>
+   DNS-SD <sub service>
       - _{serialnumber}             ->  _00fa10020800._sub  (ascii hex, lower case)
       - _ia{installation-id}-{ia}   -> _ia33a3-20a._sub     (ascii hex, lower case)
       - _pm                         -> _pm._sub
@@ -46,6 +46,7 @@ extern "C" {
     2. Get specific knx service     -> IN <service>.<domain> -> OUT <instance>.<service>.<domain>
 
    
+
  */
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
 

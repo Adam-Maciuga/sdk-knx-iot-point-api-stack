@@ -542,7 +542,7 @@ bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
 	return false;
 }
 
-bool oc_check_resource_by_rt(oc_resource_t* resource, oc_request_t* request)
+bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* request)
 {
 	// pre-assumption that 'rt' key is not part of request
   bool match = true, more_query_params; 
@@ -609,7 +609,7 @@ bool oc_check_resource_by_rt(oc_resource_t* resource, oc_request_t* request)
 	return match;
 }
 
-bool oc_check_resource_by_if(oc_resource_t* resource, oc_request_t* request)
+bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* request)
 {
   // pre-assumption that 'if' key is not part of request
   bool match = true, more_query_params;

@@ -169,7 +169,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	// should be kept around - update the time (to prevent a release from heap)  
 	rec->time = oc_clock_time();
 
-  const int64_t ssn_diff = rec->rx_ssn - rx_ssn;  // rx_ssn = 32 bit hence unproblematic
+	// rx_ssn = 32 bit, hence unproblematic
+  const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn); 
 
 	PRINT("new ssn = %llu", rx_ssn);                // %llu = 64 bit ulong
 	PRINT("old ssn = %llu", rec->rx_ssn);           // %llu = 64 bit ulong

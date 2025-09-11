@@ -19,10 +19,11 @@
 #include <Windows.h>
 #include <inttypes.h>
 #include <../oc_log.h>
+#include <../dns-sd.h>
 
 // globally needed
 intptr_t process_handle = 0;
-static char sp_text_record[16] = "";
+static char sp_text_record[16] = ""; // may be filled at runtime with sleep seconds
 
 uint16_t knx_get_used_port(void) { return get_ip_context_for_device(0)->port; }
 
@@ -71,7 +72,7 @@ void knx_service_sleep_period(int sp)
     // string includes "SP=xx"
     (void)sprintf(sp_text_record, "SP=%d", sp);
   else
-    // empty string 
+    // empty the string (maybe it was set to SP=xxx before) 
     memset(sp_text_record, 0, sizeof(sp_text_record));
     
 }

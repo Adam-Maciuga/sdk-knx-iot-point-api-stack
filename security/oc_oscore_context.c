@@ -427,7 +427,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
   PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
   PRINT("Master Secret : (%2d)  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
   PRINT("Salt          : (%2d)  = ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%llu) = ", ctx->ssn);
+  PRINT("SSN           : (%lu)  = ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len, ctx->id_context, ctx->id_context_len,

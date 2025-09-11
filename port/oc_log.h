@@ -215,16 +215,16 @@ extern "C" {
   (data)[12]
 
 // it is recommended to use a console for the output that allows a 'no word wrap' 
-#define OC_LOG(level, ...)                      \
+#define OC_LOG(level, ...)                                      \
   do {                                                          \
   time_t _current_time = time(NULL);                            \
   struct tm* tm_local = localtime(&_current_time);              \
   \
-  char fileShort[19] = {0};                                     \
+  char fileShort[20] = {0};                                     \
   strncpy(fileShort, __FILENAME__, 15);                         \
   strncat(fileShort, "...", sizeof("..."));                     \
   \
-  char funcShort[28] = {0};                                     \
+  char funcShort[30] = {0};                                     \
   strncpy(funcShort, __func__, 24);                             \
   strncat(funcShort, "...", sizeof("..."));                     \
   \
@@ -233,7 +233,7 @@ extern "C" {
          "%-4s: "                                               \
          "%-20.18s"                                             \
          "%-5d: "                                               \
-         "%-30.28s> ",                                          \
+         "%-30.27s> ",                                          \
          tm_local->tm_hour, tm_local->tm_min, tm_local->tm_sec, \
          level,                                                 \
          strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \

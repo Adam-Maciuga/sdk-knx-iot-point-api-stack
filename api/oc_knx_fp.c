@@ -2370,7 +2370,7 @@ void oc_delete_group_object_table(void)
   }
 }
 
-void oc_free_group_object_table(void)
+static void oc_free_group_object_table(void)
 {
   PRINT("Free GO Table");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -2474,7 +2474,7 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
 #endif
 }
 
-void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
+static void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
 {
   char filename[FPT_SIZE];
   (void)snprintf(filename, FPT_SIZE, "%s_%d", store, entry);
@@ -2579,7 +2579,7 @@ void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table)
   free(buf);
 }
 
-void oc_load_object_table(void)
+static void oc_load_object_table(void)
 {
   PRINT("Loading Group Recipient Table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
@@ -2786,7 +2786,7 @@ void oc_free_knx_table_resources(void)
   oc_free_group_object_table();
 }
 
-bool is_in_array(uint32_t value, uint32_t* array, int array_size)
+static bool is_in_array(uint32_t value, uint32_t* array, int array_size)
 {
   if (array_size <= 0)
   {

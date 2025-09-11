@@ -374,7 +374,7 @@ int oc_lf_number_of_entries(const char *payload, int payload_len)
   return nr_entries;
 }
 
-int
+static int
 oc_lf_get_line(const char *payload, int payload_len, int entry,
                const char **line, int *line_len)
 {

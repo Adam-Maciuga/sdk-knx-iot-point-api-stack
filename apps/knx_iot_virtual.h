@@ -138,23 +138,6 @@ extern "C"
   bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point);
 
   /**
-   * @brief Set an int
-   *
-   * @param url the url for the int to set
-   * @param value value to set
-   */
-  void app_set_int_variable(const char* url, int value);
-
-  /**
-   * @brief Get a bool
-   *
-   * @param channel the channel for the bool to get
-   * @param point the point of the channel for the bool to get
-   * @return boolean variable
-   */
-  bool app_get_bool_variable_from_channel(uint16_t channel, uint16_t point);
-
-  /**
    * @brief Get a URL
    *
    * @param channel the channel for the URL to get
@@ -200,14 +183,6 @@ extern "C"
    * separate method.
    */
   char* app_get_password(void);
-
-  /**
-   * @brief retrieve the fault (boolean) variable at the url
-   *
-   * @param url the url indicating the fault variable
-   * @return the value of the fault variable
-   */
-  bool app_retrieve_fault_variable(const char* url);
 
   /**
    * @brief function to report if the (oscore) security is turn on for this
@@ -296,6 +271,9 @@ extern "C"
 
   // need to define prototype, used by an init method
   void signal_event_loop(void);
+
+  // proto defined, to remove complier warning
+  void register_resources(void);
 
 #ifdef __cplusplus
 }
