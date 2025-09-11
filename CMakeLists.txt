@@ -113,19 +113,23 @@ set(CBOR_SOURCES
 set(CRYPTO_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aes.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aesni.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/arc4.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aesce.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aria.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/asn1parse.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/asn1write.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/base64.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/blowfish.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum_core.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum_mod.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum_mod_raw.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/block_cipher.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/camellia.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ccm.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/chacha20.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/chachapoly.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cipher.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cipher_wrap.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/constant_time.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cmac.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ctr_drbg.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/des.c
@@ -135,24 +139,24 @@ set(CRYPTO_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecjpake.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp_curves.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp_curves_new.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/entropy.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/entropy_poll.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/error.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/gcm.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/havege.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/hkdf.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/hmac_drbg.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/lmots.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/lms.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md2.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md4.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md5.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md_wrap.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/memory_buffer_alloc.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/nist_kw.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/oid.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/padlock.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pem.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk_ecc.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk_wrap.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs12.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs5.c
@@ -161,41 +165,66 @@ set(CRYPTO_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/platform.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/platform_util.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/poly1305.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_aead.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_cipher.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_client.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_driver_wrappers_no_static.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_ecp.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_ffdh.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_hash.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_mac.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_pake.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_rsa.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_se.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_slot_management.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_storage.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_its_file.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_util.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ripemd160.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa_internal.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa_alt_helpers.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha1.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha256.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha512.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha3.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/threading.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/timing.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/version.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/version_features.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/xtea.c
 )
 
 set(X509_SOURCES
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/certs.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs11.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs7.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_create.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_crl.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_crt.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_csr.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write_crt.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write_csr.c
 )
 
 set(TLS_SOURCES
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/debug.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/mps_reader.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/mps_trace.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/net_sockets.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cache.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_ciphersuites.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cli.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_client.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cookie.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_srv.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_debug_helpers_generated.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_msg.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_ticket.c
     ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls12_client.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls12_server.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_keys.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_server.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_client.c
+    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_generic.c
 )
 
 set(CORE_SOURCES
@@ -241,6 +270,8 @@ add_library(kis-common INTERFACE)
 add_library(kisClientServer ${CORE_SOURCES} ${COAP_SOURCES} ${API_SOURCES})
 add_library(tinycbor-master ${CBOR_SOURCES})
 
+# integrate MBTLS manually (lean build process) and not with cmake 'add_subdirectory' functionality (directly the mbedtls cmake file)
+# mbed tls version is defined in git .submodles file, see repository(3.6.4)
 if(OC_USE_KNX_MBEDTLS)
     add_library(mbedtls ${TLS_SOURCES})
     add_library(mbedx509 ${X509_SOURCES})
@@ -288,7 +319,7 @@ if(WIN32)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
         target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
 
-        set(libs ws2_32)                                    # ensure loading WIN32 socket DLL
+        set(libs ws2_32 bcrypt)                             # ensure loading WIN32 socket and bcrypt DLL 
 
         target_sources(kis-port PUBLIC
             ${PORT_DIR}/abort.c
