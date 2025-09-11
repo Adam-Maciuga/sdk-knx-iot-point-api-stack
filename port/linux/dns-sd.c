@@ -87,26 +87,50 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 
     int error;
 
-    if (pm) {
-      error = execlp("avahi-publish-service", "avahi-publish-service",
-                     installation_subtype, // installation & ia (subtype)
-                     serial_no_subtype,    // serial number (subtype)
-                     pm_subtype,           // programming mode (subtype)
-                     serial_no,            // service name = serial number
-                     "_knx._udp",          // service type
-                     port_str,             // port
-                     sp_text_record,       // TXT record
-                     (char *)NULL);
+    // execute avahi-publish-service
+    // avahi-publish-service <name> <type> <port> [<txt-record>]
+    if (pm) {//pm=program mode
+      //check if a sleep period text record is to be included
+      if (strlen(sp_text_record) > 0) { 
+        error = execlp("avahi-publish-service", "avahi-publish-service",
+                      installation_subtype,
+                      serial_no_subtype,
+                      pm_subtype,
+                      serial_no,
+                      "_knx._udp",
+                      port_str,
+                      sp_text_record,   // include TXT record
+                      (char *)NULL);
+      } else {
+        error = execlp("avahi-publish-service", "avahi-publish-service",
+                      installation_subtype,
+                      serial_no_subtype,
+                      pm_subtype,
+                      serial_no,
+                      "_knx._udp",
+                      port_str,
+                      (char *)NULL);    // no TXT record
+      }
     } else {
-      error = execlp("avahi-publish-service", "avahi-publish-service",
-                     installation_subtype, // installation & ia (subtype)
-                     serial_no_subtype,    // serial number (subtype)
-                                           // no programming mode subtype
-                     serial_no,            // service name = serial number
-                     "_knx._udp",          // service type
-                     port_str,             // port
-                     sp_text_record,       // TXT record
-                     (char *)NULL);
+      //check if a sleep period text record is to be included
+      if (strlen(sp_text_record) > 0) {
+        error = execlp("avahi-publish-service", "avahi-publish-service",
+                      installation_subtype,
+                      serial_no_subtype,
+                      serial_no,
+                      "_knx._udp",
+                      port_str,
+                      sp_text_record,
+                      (char *)NULL);  // include TXT record
+      } else {
+        error = execlp("avahi-publish-service", "avahi-publish-service",
+                      installation_subtype,
+                      serial_no_subtype,
+                      serial_no,
+                      "_knx._udp",
+                      port_str,
+                      (char *)NULL);  // no TXT record
+      }
     }
 
     if (error == -1) {
