@@ -231,7 +231,7 @@ int app_initialize_stack(void)
 
   char storage[400];
   char dir[FILENAME_MAX] = "";
-  GetCurrentDir(dir, FILENAME_MAX);
+  (void) GetCurrentDir(dir, FILENAME_MAX);
   (void)sprintf(storage, "./knx_iot_virtual_eitt_%s", app_get_serial_number());
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
