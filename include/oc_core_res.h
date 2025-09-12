@@ -238,12 +238,11 @@ extern "C" {
 	int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid);
 
 	/**
-	 * @brief sets the installation identifier (iid) (unsigned int)
+	 * @brief gets the installation identifier (iid) (unsigned int)
 	 *
-	 * @param device_index the device index
 	 * @return The KNX installation id
 	 */
-	uint64_t oc_core_get_device_iid(size_t device_index);
+	uint64_t oc_core_get_device_iid(void);
 
 	/**
    * @brief sets the application version identifier

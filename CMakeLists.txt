@@ -319,7 +319,7 @@ if(WIN32)
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
         target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
 
-        set(libs ws2_32 bcrypt)                             # ensure loading WIN32 socket and bcrypt DLL 
+        set(libs ws2_32 bcrypt)                             # ensure loading WIN32 socket DLL and bcrypt DLL 
 
         target_sources(kis-port PUBLIC
             ${PORT_DIR}/abort.c
@@ -340,6 +340,7 @@ if(WIN32)
         FetchContent_Declare(
           wxWidgets
           URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.8/wxWidgets-3.2.8.7z
+          DOWNLOAD_EXTRACT_TIMESTAMP true
         )
 
         # prefer to use extraction timestamp rather than archive timepstamp 

@@ -196,7 +196,7 @@ int oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
 {
 	if (device_index >= oc_core_get_num_devices())
 	{
-		OC_ERR("device_index %lu too large", device_index);
+		OC_ERR("device_index %llu too large", device_index);
 		return -1;
 	}
 
@@ -232,15 +232,9 @@ int oc_core_set_device_hostname(const size_t device_index, const char* host_name
 	return 0;
 }
 
-uint64_t oc_core_get_device_iid(const size_t device_index)
+uint64_t oc_core_get_device_iid()
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-
-	return oc_device_info[device_index].iid;
+	return oc_device_info[0].iid;
 }
 
 int oc_core_set_and_store_device_iid(size_t device_index, uint64_t iid)
