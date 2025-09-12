@@ -1012,7 +1012,7 @@ const oc_resource_t core_resource_knx_auth_at = {
   0,
   0,
   true,
-  (oc_resource_t*)&core_resource_knx_auth_at_data};
+  &core_resource_knx_auth_at_data};
 PRAGMA_OUT
 
 void oc_create_auth_at_resource(int resource_idx, size_t device)
