@@ -309,7 +309,6 @@ static void handle_signal(const int signal)
 int main(const int argc, char* argv[])
 {
   oc_clock_time_t next_event;
-  setvbuf(stdout, NULL, _IOFBF, 4096); 
 
 #ifdef KNX_GUI
   WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
