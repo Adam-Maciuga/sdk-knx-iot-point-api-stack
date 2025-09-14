@@ -51,7 +51,7 @@ oc_abort(const char *msg)
 #if OC_LOG_TO_FILE
   (void)msg;
 #else
-  PRINT("\n%s\nAbort.\n", msg);
+  PRINTF("\n%s\nAbort.\n", msg);
 #endif
   abort_impl();
 }

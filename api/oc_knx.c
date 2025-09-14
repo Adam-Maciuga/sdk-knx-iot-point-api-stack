@@ -1647,7 +1647,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p)
 {
   (void)req_p;
-  PRINT("oc_core_knx_spake_separate_post_handler");
+  PRINT("oc_core_knx_spake_separate_post_handler - start");
 
   // previous device response is fired and no longer active ...
   if (!spake_separate_rsp.active)
@@ -1663,8 +1663,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     #ifdef OC_SPAKE
 
-    // get random numbers for rnd, salt & it (# of iterations)
+    // get random numbers for rnd, salt & it (number of iterations)
     oc_spake_get_pbkdf_params(g_pase.rnd, g_pase.salt, &g_pase.it);
+
     OC_DBG_SPAKE("Rnd:");
     OC_LOGbytes_SPAKE(g_pase.rnd, sizeof(g_pase.rnd));
     OC_DBG_SPAKE("Salt:");
@@ -1826,6 +1827,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   }
 
   error:
+
+  PRINT("oc_core_knx_spake_separate_post_handler - error");
+
   // be paranoid: wipe all global data after an error
   memset(spake_data.K_main, 0, sizeof(spake_data.K_main));
   mbedtls_ecp_point_free(&spake_data.L);
@@ -1890,10 +1894,12 @@ void oc_initialise_spake_data(void)
 {
   // can fail if initialization of the RNG does not work
   assert(oc_spake_init() == 0);
+
   mbedtls_mpi_init(&spake_data.w0);
   mbedtls_ecp_point_init(&spake_data.L);
   mbedtls_mpi_init(&spake_data.y);
   mbedtls_ecp_point_init(&spake_data.pub_y);
+
   // start SPAKE brute force protection timer
   oc_set_delayed_callback(NULL, decrement_counter, 10);
 }
