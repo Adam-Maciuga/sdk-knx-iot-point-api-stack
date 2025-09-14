@@ -28,7 +28,7 @@
 #include "port/oc_random.h"
 #include "port/oc_log.h"
 
-static mbedtls_ctr_drbg_context* ctr_drbg_ctx;
+static mbedtls_ctr_drbg_context* pointer_to_ctr_drbg_ctx;
 static mbedtls_ecp_group grp;
 
 // clang-format off
@@ -63,30 +63,31 @@ static char password[33] = { 0 };
 
 struct spake_parameters
 {
-  int loaded; /// 0: not loaded, 1: loaded
+  int loaded;           // 0: not loaded, 1: loaded
   mbedtls_mpi w0;
   mbedtls_ecp_point L;
   uint8_t salt[32];
   uint8_t rand[32];
-  uint32_t iter;
+  uint32_t iter;        // iterations
 } g_spake_parameters;
 
-int
-oc_spake_init(void)
+int oc_spake_init(void)
 {
-  int ret = 0;
+  // used AND assigned inside macro
+  int ret;
+
   // initialize entropy and drbg contexts
   mbedtls_ecp_group_init(&grp);
 
   MBEDTLS_MPI_CHK(mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1));
 
-  ctr_drbg_ctx = oc_random_get_ctr_drbg_context();
-cleanup:
+  pointer_to_ctr_drbg_ctx = oc_random_get_ctr_drbg_context();
+
+  cleanup:
   return ret;
 }
 
-int
-oc_spake_free(void)
+int oc_spake_free(void)
 {
   mbedtls_ecp_group_free(&grp);
   return 0;
@@ -97,15 +98,14 @@ const char* oc_spake_get_password(void)
   return password;
 }
 
-void oc_spake_set_password(char* new_pass)
+void oc_spake_set_password(const char* new_password)
 {
   // copies sizeof(password) bytes,if new password is less than this size 'dst' will be filled with '0' 
-  strncpy(password, new_pass, sizeof(password));
+  strncpy(password, new_password, sizeof(password));
 }
 
 
-int
-oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* w0,
+int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* w0,
                         mbedtls_ecp_point* L)
 {
   if (g_spake_parameters.loaded != 1)
@@ -140,14 +140,13 @@ cleanup:
   return ret;
 }
 
-int
-oc_spake_get_pbkdf_params(uint8_t rnd[32], uint8_t salt[32], int* it)
+int oc_spake_get_pbkdf_params(uint8_t* rand, uint8_t* salt, int* it)
 {
-  if (oc_spake_get_parameters(rnd, salt, it, NULL, NULL) == 0)
+  if (oc_spake_get_parameters(rand, salt, it, NULL, NULL) == 0)
     return 0;
 
-  // generate random numbers for rnd, salt & it (# of iterations)
-  return oc_spake_parameter_exchange(rnd, salt, it);
+  // generate random numbers for rnd, salt & it (number of iterations)
+  return oc_spake_parameter_exchange(rand, salt, it);
 }
 
 int oc_spake_get_w0_L(size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
@@ -224,19 +223,22 @@ oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
                                         &olen, out, kPubKeySize);
 }
 
-int
-oc_spake_parameter_exchange(uint8_t rnd[32], uint8_t salt[32], int* it)
+int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it)
 {
   unsigned int it_seed;
   int ret;
 
-  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(ctr_drbg_ctx, rnd, KNX_RNG_LEN));
-  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(ctr_drbg_ctx, salt, KNX_SALT_LEN));
-  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(
-    ctr_drbg_ctx, (unsigned char*) &it_seed, sizeof(it_seed)));
-
+  printf("T4c ctx %p rand: %p salt: %p it: %d", pointer_to_ctr_drbg_ctx, rand, salt, *it);
+  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, rand, KNX_RNG_LEN));
+  printf("T4d");
+  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, salt, KNX_SALT_LEN));
+  printf("T4e");
+  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, (unsigned char*)&it_seed, sizeof(it_seed)));
+  printf("T4f");
   *it = it_seed % (KNX_MAX_IT - KNX_MIN_IT) + KNX_MIN_IT;
+  printf("T4g");
 cleanup:
+  printf("T4h");
   return ret;
 }
 
@@ -297,8 +299,7 @@ oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* salt, int it,
   mbedtls_mpi w1;
   mbedtls_mpi_init(&w1);
   MBEDTLS_MPI_CHK(oc_spake_calc_w0_w1(pw, len_salt, salt, it, w0, &w1));
-  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, L, &w1, &grp.G, mbedtls_ctr_drbg_random,
-                  ctr_drbg_ctx));
+  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, L, &w1, &grp.G, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
 cleanup:
   mbedtls_mpi_free(&w1);
   return ret;
@@ -307,8 +308,7 @@ cleanup:
 int
 oc_spake_gen_keypair(mbedtls_mpi* y, mbedtls_ecp_point* pub_y)
 {
-  return mbedtls_ecp_gen_keypair(&grp, y, pub_y, mbedtls_ctr_drbg_random,
-                                 ctr_drbg_ctx);
+  return mbedtls_ecp_gen_keypair(&grp, y, pub_y, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx);
 }
 
 // generic formula for
@@ -381,8 +381,7 @@ calculate_JfKgL(mbedtls_ecp_point* J, const mbedtls_mpi* f,
     mbedtls_ecp_muladd(&grp, &K_minus_g_L, &one, K, &negative_g, L));
 
   // J = f * (K_minus_g_L)
-  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, J, f, &K_minus_g_L,
-                  mbedtls_ctr_drbg_random, ctr_drbg_ctx));
+  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, J, f, &K_minus_g_L, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
 
 cleanup:
   mbedtls_mpi_free(&negative_g);
@@ -458,8 +457,7 @@ calc_transcript_responder(spake_data_t* spake_data,
   MBEDTLS_MPI_CHK(calculate_Z_M(&Z, &spake_data->y, &shareP, &spake_data->w0));
 
   // V = h*y*L, where L = w1*P
-  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, &V, &spake_data->y, &spake_data->L,
-                  mbedtls_ctr_drbg_random, ctr_drbg_ctx));
+  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, &V, &spake_data->y, &spake_data->L, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
 
   // calculate transcript
   ttlen += encode_string(context, ttbuf + ttlen);

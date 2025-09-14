@@ -62,12 +62,12 @@ int oc_spake_free(void);
  *
  * @ref oc_spake_init() must be called before this function can be used.
  *
- * @param rnd Random number
+ * @param rand Random number
  * @param salt The salt to be used for PBKDF2
  * @param it The number of iterations to be used for PBKDF2
  * @return int 0 on success, mbedtls error code on failure
  */
-int oc_spake_parameter_exchange(uint8_t rnd[32], uint8_t salt[32], int *it);
+int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it);
 
 /**
  * @brief Get the preloaded fields needed for PASE and SPAKE
@@ -87,12 +87,12 @@ int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int *it,
 /**
  * @brief get the PBKDF params for OC SPAKE
  *
- * @param rnd Random number
+ * @param rand Random number
  * @param salt the salt to be used for PBKDF2
  * @param it The number of iterations to be used for PBKDF2
  * @return int 0 on success, mbedtls error code on failure
  */
-int oc_spake_get_pbkdf_params(uint8_t rnd[32], uint8_t salt[32], int *it);
+int oc_spake_get_pbkdf_params(uint8_t* rand, uint8_t* salt, int* it);
 
 /**
  * @brief get the W0 and L values for SPAKE exchange
@@ -121,9 +121,9 @@ const char *oc_spake_get_password(void);
 /**
  * @brief Set the Spake2+ password
  *
- * @param new_pass Null-terminated string containing the password
+ * @param new_password Null-terminated string containing the password
  */
-void oc_spake_set_password(char *new_pass);
+void oc_spake_set_password(const char *new_password);
 
 /**
  * @brief Calculate the w0 & L parameter

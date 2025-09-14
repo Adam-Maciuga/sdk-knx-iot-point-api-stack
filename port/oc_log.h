@@ -46,6 +46,10 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "oc_clock_util.h"
+
+// for clock function in debug output, maybe used for debugging in release builds, hence included globally 
+#include "oc_clock.h"
 
 #ifdef WIN32
   #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
@@ -58,9 +62,6 @@ extern "C" {
 #endif
 
 #ifdef OC_PRINT
-
-  // for clock function in debug output
-  #include <oc_clock.h>
 
   #ifdef OC_LOG_TO_FILE
 
@@ -219,7 +220,7 @@ extern "C" {
 #define _N2 30
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
-  unsigned long long  _current_time = oc_clock_time();          \
+  oc_clock_time_t _current_time = oc_clock_time();          \
   \
    char fileShort[_N1] = {0};                                   \
   strncpy_s(fileShort, _N1,__FILENAME__, 15);                   \

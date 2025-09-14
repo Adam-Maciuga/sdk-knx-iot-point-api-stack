@@ -389,23 +389,25 @@ if(WIN32)
         target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
 
-        if(MSVC)
-                    set(GUI_FLAG "/SUBSYSTEM:WINDOWS")
-                    set(CONSOLE_FLAG "/SUBSYSTEM:CONSOLE")
-        else()
-                    set(GUI_FLAG "-mconsole")
-                    set(CONSOLE_FLAG "-mconsole")
-        endif()
+         if(USE_CONSOLE)
+          if(MSVC)
+                      set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
+                      set(CONSOLE_FLAG "/SUBSYSTEM:CONSOLE")
+          else()
+                      set(GUI_FLAG "-mconsole")
+                      set(CONSOLE_FLAG "-mconsole")
+          endif()
                 
-        # Console versions
-        set_target_properties(eitt_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
-        set_target_properties(lssb_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
-        set_target_properties(lsab_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
+          # Console versions
+          set_target_properties(eitt_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
+          set_target_properties(lssb_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
+          set_target_properties(lsab_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
 
-        # GUI versions
-        set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-        set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-        set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+          # GUI versions
+          set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+          set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+          set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        endif()
 
 endif()
 
