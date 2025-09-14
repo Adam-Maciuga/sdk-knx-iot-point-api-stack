@@ -159,9 +159,14 @@ int app_init(void)
   extern const uint32_t mid;
   extern const char hw_type[];
   extern const char dev_model[];
-
+  
   // set provider, no callback/no data
   int ret = oc_init_platform("KNX Association", NULL, NULL);
+
+  //Define 4kb Stdout write buffer, needed for faster console output on gcc debug builds
+  #ifdef OC_DEBUG
+    setvbuf(stdout, NULL, _IOFBF, 4096); 
+  #endif
 
   // set the application name, version, base url, device serial number
   // init also the device resources such as /dev, /.well-known/core, ...

@@ -2,8 +2,8 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "windows-debug",
-      "displayName": "Windows Debug",
+      "name": "windows-debug-msvc",
+      "displayName": "Windows Debug(MSVC)",
       "description": "Target Windows with the Visual Studio development environment.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -30,8 +30,8 @@
       }
     },
     {
-      "name": "windows-release",
-      "displayName": "Windows Release",
+      "name": "windows-release-msvc",
+      "displayName": "Windows Release(MSVC)",
       "description": "Target Windows with the Visual Studio development environment.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -72,6 +72,35 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "windows-gcc-debug",
+      "displayName": "Windows GCC Debug",
+      "description": "Build with MinGW-w64 GCC in Debug mode",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "OC_DEBUG_ENABLED": true,
+        "OC_PRINT_ENABLED": true,
+        "OC_DEBUG_OSCORE_ENABLED": true
     }
+  },
+  {
+    "name": "windows-gcc-release",
+    "displayName": "Windows GCC Release",
+    "description": "Build with MinGW-w64 GCC in Release mode",
+    "generator": "Ninja",
+    "binaryDir": "${sourceDir}/out/build/${presetName}",
+    "installDir": "${sourceDir}/out/install/${presetName}",
+    "cacheVariables": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "CMAKE_C_COMPILER": "gcc",
+      "CMAKE_CXX_COMPILER": "g++"
+    }
+  }
   ]
 }

@@ -316,6 +316,12 @@ if(UNIX)
 endif()
 
 if(WIN32)
+        # Add manifest for windows GUI applications when using MinGW
+        if(MINGW)
+            set(MANIFEST_RC ${CMAKE_SOURCE_DIR}/apps/manifest.rc)
+        else()
+            set(MANIFEST_RC "")
+        endif()
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
         target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
 
@@ -363,6 +369,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.cpp
             ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${MANIFEST_RC} 
         )
 
         ## LSAB GUI 
@@ -370,6 +377,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.cpp
             ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${MANIFEST_RC} 
         )
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
@@ -381,11 +389,24 @@ if(WIN32)
         target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
 
-        if(USE_CONSOLE)
-           set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
-           set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
-           set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS /SUBSYSTEM:CONSOLE)
+        if(MSVC)
+                    set(GUI_FLAG "/SUBSYSTEM:WINDOWS")
+                    set(CONSOLE_FLAG "/SUBSYSTEM:CONSOLE")
+        else()
+                    set(GUI_FLAG "-mconsole")
+                    set(CONSOLE_FLAG "-mconsole")
         endif()
+                
+        # Console versions
+        set_target_properties(eitt_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
+        set_target_properties(lssb_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
+        set_target_properties(lsab_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
+
+        # GUI versions
+        set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+
 endif()
 
 # When using KNX standard security source MBTLS -> use config definitions defined by Intel
