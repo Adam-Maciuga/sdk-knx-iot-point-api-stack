@@ -66,9 +66,9 @@ struct spake_parameters
   int loaded;           // 0: not loaded, 1: loaded
   mbedtls_mpi w0;
   mbedtls_ecp_point L;
-  uint8_t salt[32];
-  uint8_t rand[32];
-  uint32_t iter;        // iterations
+  uint8_t salt[32];     // acc. KNX specification max 32
+  uint8_t rand[32];     // acc. KNX specification exactly 32 
+  int iterations;       // acc. KNX specification 'integer'
 } g_spake_parameters;
 
 int oc_spake_init(void)
@@ -80,9 +80,9 @@ int oc_spake_init(void)
   mbedtls_ecp_group_init(&grp);
 
   MBEDTLS_MPI_CHK(mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1));
-
   pointer_to_ctr_drbg_ctx = oc_random_get_ctr_drbg_context();
 
+  // jumped from inside macro
   cleanup:
   return ret;
 }
@@ -110,7 +110,10 @@ int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* 
 {
   if (g_spake_parameters.loaded != 1)
     return 1;
+
+  // used AND assigned inside macro
   int ret;
+
   if (rand)
   {
     memcpy(rand, g_spake_parameters.rand, 32);
@@ -121,7 +124,7 @@ int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* 
   }
   if (it)
   {
-    *it = g_spake_parameters.iter;
+    *it = g_spake_parameters.iterations;
   }
   if (w0)
   {
@@ -134,7 +137,9 @@ int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* 
     MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_Z, &g_spake_parameters.L.private_Z));
   }
   return 0;
-cleanup:
+
+  // jumped from inside macro
+  cleanup:
   mbedtls_mpi_free(w0);
   mbedtls_ecp_point_free(L);
   return ret;
@@ -225,20 +230,20 @@ oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
 
 int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it)
 {
-  unsigned int it_seed;
-  int ret;
+  int it_seed;
 
-  printf("T4c ctx %p rand: %p salt: %p it: %d", pointer_to_ctr_drbg_ctx, rand, salt, *it);
+  // used AND assigned inside macro
+  int ret;
+ 
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, rand, KNX_RNG_LEN));
-  printf("T4d");
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, salt, KNX_SALT_LEN));
-  printf("T4e");
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, (unsigned char*)&it_seed, sizeof(it_seed)));
-  printf("T4f");
+
+  // assign per reference
   *it = it_seed % (KNX_MAX_IT - KNX_MIN_IT) + KNX_MIN_IT;
-  printf("T4g");
-cleanup:
-  printf("T4h");
+
+  // jumped from inside macro
+  cleanup:
   return ret;
 }
 

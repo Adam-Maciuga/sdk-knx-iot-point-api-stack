@@ -72,7 +72,7 @@ extern "C"
     uint8_t confirmP[32]; // ca from RFC 9382 in Spake2+ = confirmP
     uint8_t confirmV[32]; // cb from RFC 9382 in Spake2+ = confirmV
     uint8_t rnd[32];      // rnd
-    int it;
+    int it;               // iterations
   } oc_pase_t;
 
   /**
@@ -290,9 +290,10 @@ extern "C"
 #ifdef OC_SPAKE
   /**
    * @brief Initialise the RNG used for SPAKE2+ and global data structures
+   * @return int -1 error, 0 success
    *
    */
-  void oc_initialise_spake_data(void);
+  int oc_initialise_spake_data(void);
 #endif
 
 #ifdef __cplusplus

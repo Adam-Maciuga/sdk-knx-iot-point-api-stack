@@ -244,7 +244,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			#ifdef OC_OSCORE
 			if (oscore_is_oscore_message(data))
 			{
-              // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE process chain
+			  // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE process chain
 			  OC_DBG_OSCORE("Incoming network event: OSCORE message (request or response)");
 				oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
 			}

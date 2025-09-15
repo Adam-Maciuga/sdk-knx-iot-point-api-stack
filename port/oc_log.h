@@ -220,7 +220,7 @@ extern "C" {
 #define _N2 30
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
-  oc_clock_time_t _current_time = oc_clock_time();          \
+  oc_clock_time_t _current_time = oc_clock_time();              \
   \
    char fileShort[_N1] = {0};                                   \
   strncpy_s(fileShort, _N1,__FILENAME__, 15);                   \

@@ -284,18 +284,27 @@ int oc_main_init(const oc_handler_t* handler)
   oc_network_event_handler_mutex_init();
 
   #ifdef OC_SPAKE
-  oc_initialise_spake_data();
+
+  // call one time on startup (must be successful)
+  if (oc_initialise_spake_data() < 0)
+  {
+    OC_ERR("Error in SPAKE2+ initialization, spake data init failed");
+
+    oc_ri_shutdown();
+    oc_shutdown_all_devices();
+    return -1;
+  }
+
   #endif
 
   // call one time on startup (must be successful)
   if (app_callbacks->init() < 0)
   {
-    oc_ri_shutdown();
-    oc_shutdown_all_devices();
-
     OC_ERR("Error in stack initialization, application init handler failed");
 
-   return -1;
+    oc_ri_shutdown();
+    oc_shutdown_all_devices();
+    return -1;
     
   }
 #ifdef OC_DYNAMIC_ALLOCATION
@@ -384,9 +393,9 @@ oc_clock_time_t oc_main_poll(void)
   return ticks_until_next_event;
 }
 
-void
-oc_main_shutdown(void)
+void oc_main_shutdown(void)
 {
+  // no shutdown if not already initialized
   if (initialized == false)
     return;
 
@@ -394,24 +403,24 @@ oc_main_shutdown(void)
 
   oc_ri_shutdown();
 
-#ifdef OC_SECURITY
+  #ifdef OC_SECURITY
   oc_tls_shutdown();
-#endif /* OC_SECURITY */
+  #endif 
 
   oc_shutdown_all_devices();
 
-#ifdef OC_DYNAMIC_ALLOCATION
+  #ifdef OC_DYNAMIC_ALLOCATION
   free(drop_commands);
   drop_commands = NULL;
-#else
+  #else
   memset(drop_commands, 0, sizeof(bool) * OC_MAX_NUM_DEVICES);
-#endif
+  #endif
 
   app_callbacks = NULL;
 
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
   oc_mem_trace_shutdown();
-#endif /* OC_MEMORY_TRACE */
+  #endif 
 }
 
 bool
@@ -420,8 +429,7 @@ oc_main_initialized(void)
   return initialized;
 }
 
-void
-_oc_signal_event_loop(void)
+void _oc_signal_event_loop(void)
 {
   if (app_callbacks)
   {
