@@ -207,11 +207,10 @@ bool
 oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray,
                               const char str[], size_t str_len, size_t index)
 {
-  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN)
-  {
-    oc_assert(false);
-    return false;
-  }
+
+  // break if too long 
+  oc_assert(strlen(str) < STRING_ARRAY_ITEM_MAX_LEN); 
+  
   size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
   oc_string(*ocstringarray)[pos] = (uint8_t) str_len;
   pos++;
