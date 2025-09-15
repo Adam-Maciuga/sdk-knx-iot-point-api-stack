@@ -216,19 +216,18 @@ extern "C" {
   (data)[12]
 
 // it is recommended to use a console for the output that allows a 'no word wrap' 
-#define _N1 20
-#define _N2 30
+
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
   oc_clock_time_t _current_time = oc_clock_time();              \
   \
-   char fileShort[_N1] = {0};                                   \
-  strncpy_s(fileShort, _N1,__FILENAME__, 15);                   \
-  strncat_s(fileShort, _N1, "...", sizeof("..."));              \
+   char fileShort[20] = {0};                                    \
+  strncpy(fileShort, __FILENAME__, 15);                         \
+  strncat(fileShort, "...", sizeof("..."));                     \
   \
-  char funcShort[_N2] = {0};                                    \
-  strncpy_s(funcShort, _N2, __func__, 24);                      \
-  strncat_s(funcShort, _N2, "...", sizeof("..."));              \
+  char funcShort[30] = {0};                                     \
+  strncpy(funcShort, __func__, 24);                             \
+  strncat(funcShort, "...", sizeof("..."));                     \
   \
   PRINTF("\n"                                                   \
          "%-14llu: "                                            \
