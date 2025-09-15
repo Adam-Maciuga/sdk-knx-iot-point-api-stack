@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2022 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,21 +56,16 @@ uint8_t bytes_N[] = {
   0x60, 0x34, 0x80, 0x8c, 0xd5, 0x64, 0x49, 0x0b, 0x1e, 0x65, 0x6e, 0xdb, 0xe7
 };
 
-// per specification min 6 max 32 chars, init with 0 + /0 (end of string)
+/*
+ - per specification min 6 max 32 chars,
+ - defined with size 33 to allow a /0 for the string copy function on password max size
+ - init with 0 + /0 (end of string)
+
+*/
 static char password[33] = { 0 };   
 
 #define KNX_RNG_LEN (32)
 #define KNX_SALT_LEN (32)
-
-struct spake_parameters
-{
-  int loaded;           // 0: not loaded, 1: loaded
-  mbedtls_mpi w0;
-  mbedtls_ecp_point L;
-  uint8_t salt[32];     // acc. KNX specification max 32
-  uint8_t rand[32];     // acc. KNX specification exactly 32 
-  int iterations;       // acc. KNX specification 'integer'
-} g_spake_parameters;
 
 int oc_spake_init(void)
 {
@@ -102,70 +98,6 @@ void oc_spake_set_password(const char* new_password)
 {
   // copies sizeof(password) bytes,if new password is less than this size 'dst' will be filled with '0' 
   strncpy(password, new_password, sizeof(password));
-}
-
-
-int oc_spake_get_parameters(uint8_t* rand, uint8_t* salt, int* it, mbedtls_mpi* w0,
-                        mbedtls_ecp_point* L)
-{
-  if (g_spake_parameters.loaded != 1)
-    return 1;
-
-  // used AND assigned inside macro
-  int ret;
-
-  if (rand)
-  {
-    memcpy(rand, g_spake_parameters.rand, 32);
-  }
-  if (salt)
-  {
-    memcpy(salt, g_spake_parameters.salt, 32);
-  }
-  if (it)
-  {
-    *it = g_spake_parameters.iterations;
-  }
-  if (w0)
-  {
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(w0, &g_spake_parameters.w0));
-  }
-  if (L)
-  {
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_X, &g_spake_parameters.L.private_X));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_Y, &g_spake_parameters.L.private_Y));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&L->private_Z, &g_spake_parameters.L.private_Z));
-  }
-  return 0;
-
-  // jumped from inside macro
-  cleanup:
-  mbedtls_mpi_free(w0);
-  mbedtls_ecp_point_free(L);
-  return ret;
-}
-
-int oc_spake_get_pbkdf_params(uint8_t* rand, uint8_t* salt, int* it)
-{
-  if (oc_spake_get_parameters(rand, salt, it, NULL, NULL) == 0)
-    return 0;
-
-  // generate random numbers for rnd, salt & it (number of iterations)
-  return oc_spake_parameter_exchange(rand, salt, it);
-}
-
-int oc_spake_get_w0_L(size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
-{
-  if (oc_spake_get_parameters(NULL, NULL, NULL, w0, L) == 0)
-    return 0;
-
-  const int ret = oc_spake_calc_w0_L(password, len_salt, salt, it, w0, L);
-
-  if (ret != 0)
-  {
-    OC_ERR("oc_spake_calc_w0_L failed with code %d", ret);
-  }
-  return ret;
 }
 
 size_t encode_uint(const uint64_t value, uint8_t* buffer)
@@ -201,10 +133,8 @@ size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, ui
   return len_len + len_point;
 }
 
-// encode mpi as length followed by bytes
-// returns number of bytes written
-static size_t
-encode_mpi(mbedtls_mpi* mpi, uint8_t* buffer)
+// encode mpi as length followed by bytes, returns number of bytes written
+static size_t encode_mpi(mbedtls_mpi* mpi, uint8_t* buffer)
 {
   size_t len_mpi = 0;
   size_t len_len = 0;
@@ -220,8 +150,7 @@ encode_mpi(mbedtls_mpi* mpi, uint8_t* buffer)
   return len_len + len_mpi;
 }
 
-int
-oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
+int oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
 {
   size_t olen;
   return mbedtls_ecp_point_write_binary(&grp, P, MBEDTLS_ECP_PF_UNCOMPRESSED,
@@ -239,7 +168,12 @@ int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it)
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, salt, KNX_SALT_LEN));
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, (unsigned char*)&it_seed, sizeof(it_seed)));
 
-  // assign per reference
+  /*
+     spans from at least min to max, example with 
+     min = 1000, max = 100000, it_seed = 1234567
+     -> 1234567 mod 99000 + 1000 = 12 + 1000 = 1012
+
+  */
   *it = it_seed % (KNX_MAX_IT - KNX_MIN_IT) + KNX_MIN_IT;
 
   // jumped from inside macro
@@ -247,9 +181,23 @@ int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it)
   return ret;
 }
 
-int
-oc_spake_calc_w0_w1(const char* pw, size_t len_salt, const uint8_t* salt,
-                    int it, mbedtls_mpi* w0, mbedtls_mpi* w1)
+/**
+ * @brief Calculate the w0 & w1 parameter
+ *
+ * Uses PBKDF2 with SHA256 & HMAC to calculate a 40-byte output which is
+ * converted into w0 and w1.
+ *
+ * @param pw the null-terminated password
+ * @param len_salt salt len
+ * @param salt 32-byte array containing the salt
+ * @param it the number of iterations to perform within PBKDF2
+ * @param w0 the w0 parameter as defined by SPAKE2+. Must be initialized by the
+ * caller.
+ * @param w1 the w1 parameter as defined by SPAKE2+. Must be initialized by the
+ * caller.
+ * @return int 0 on success, mbedtls error code on failure
+ */
+static int oc_spake_calc_w0_w1(const char* pw, size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_mpi* w1)
 {
   int ret;
   mbedtls_md_context_t ctx;
@@ -296,31 +244,53 @@ cleanup:
   return ret;
 }
 
-int
-oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* salt, int it,
-                   mbedtls_mpi* w0, mbedtls_ecp_point* L)
+/**
+ * @brief Calculate the w0 & L parameter
+ *
+ * Uses PBKDF2 with SHA256 & HMAC to calculate a 40-byte output which is
+ * converted into w0 and w1.
+ *
+ * @param pw the null-terminated password
+ * @param len_salt salt len
+ * @param salt 32-byte array containing the salt
+ * @param it the number of iterations to perform within PBKDF2
+ * @param w0 the w0 parameter as defined by SPAKE2+. Must be initialized by the
+ * caller.
+ * @param L the L parameter as defined by SPAKE2+. Must be initialized by the
+ * caller.
+ * @return int 0 on success, mbedtls error code on failure
+ */
+static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
 {
   int ret;
   mbedtls_mpi w1;
   mbedtls_mpi_init(&w1);
   MBEDTLS_MPI_CHK(oc_spake_calc_w0_w1(pw, len_salt, salt, it, w0, &w1));
   MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, L, &w1, &grp.G, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
-cleanup:
+
+  cleanup:
   mbedtls_mpi_free(&w1);
   return ret;
 }
 
-int
-oc_spake_gen_keypair(mbedtls_mpi* y, mbedtls_ecp_point* pub_y)
+int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
+{
+  const int ret = oc_spake_calc_w0_L(password, len_salt, salt, it, w0, L);
+
+  if (ret != 0)
+  {
+    OC_ERR("oc_spake_calc_w0_L failed with code %d", ret);
+  }
+  return ret;
+}
+
+int oc_spake_gen_keypair(mbedtls_mpi* y, mbedtls_ecp_point* pub_y)
 {
   return mbedtls_ecp_gen_keypair(&grp, y, pub_y, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx);
 }
 
-// generic formula for
-// pX = pubX + wX * L
-static int
-calculate_pX(mbedtls_ecp_point* pX, const mbedtls_ecp_point* pubX,
-             const mbedtls_mpi* wX, const uint8_t bytes_L[], size_t len_L)
+// generic formula for pX = pubX + wX * L
+static int calculate_pX(mbedtls_ecp_point* pX, const mbedtls_ecp_point* pubX, const mbedtls_mpi* wX, const uint8_t bytes_L[], size_t len_L)
 {
   mbedtls_mpi one;
   mbedtls_ecp_point L;
@@ -337,34 +307,26 @@ calculate_pX(mbedtls_ecp_point* pX, const mbedtls_ecp_point* pubX,
   // shareP = 1 * pubA + w0 * M
   MBEDTLS_MPI_CHK(mbedtls_ecp_muladd(&grp, pX, &one, pubX, wX, &L));
 
-cleanup:
+  cleanup:
   mbedtls_mpi_free(&one);
   mbedtls_ecp_point_free(&L);
   return ret;
 }
 
 // shareP = pubA + w0 * M
-int
-oc_spake_calc_shareP(mbedtls_ecp_point* shareP, const mbedtls_ecp_point* pubA,
-                     const mbedtls_mpi* w0)
+int oc_spake_calc_shareP(mbedtls_ecp_point* shareP, const mbedtls_ecp_point* pubA, const mbedtls_mpi* w0)
 {
   return calculate_pX(shareP, pubA, w0, bytes_M, sizeof(bytes_M));
 }
 
 // shareV = pubB + w0 * N
-int
-oc_spake_calc_shareV(mbedtls_ecp_point* shareV, const mbedtls_ecp_point* pubB,
-                     const mbedtls_mpi* w0)
+int oc_spake_calc_shareV(mbedtls_ecp_point* shareV, const mbedtls_ecp_point* pubB, const mbedtls_mpi* w0)
 {
   return calculate_pX(shareV, pubB, w0, bytes_N, sizeof(bytes_N));
 }
 
-// generic formula for
-// J = f * (K - g * L)
-static int
-calculate_JfKgL(mbedtls_ecp_point* J, const mbedtls_mpi* f,
-                const mbedtls_ecp_point* K, const mbedtls_mpi* g,
-                const mbedtls_ecp_point* L)
+// generic formula for J = f * (K - g * L)
+static int calculate_JfKgL(mbedtls_ecp_point* J, const mbedtls_mpi* f, const mbedtls_ecp_point* K, const mbedtls_mpi* g, const mbedtls_ecp_point* L)
 {
   int ret;
   mbedtls_mpi negative_g, zero, one;
@@ -382,8 +344,7 @@ calculate_JfKgL(mbedtls_ecp_point* J, const mbedtls_mpi* f,
 
   // K_minus_g_L = K - g * L
   MBEDTLS_MPI_CHK(mbedtls_mpi_read_string(&one, 10, "1"));
-  MBEDTLS_MPI_CHK(
-    mbedtls_ecp_muladd(&grp, &K_minus_g_L, &one, K, &negative_g, L));
+  MBEDTLS_MPI_CHK(mbedtls_ecp_muladd(&grp, &K_minus_g_L, &one, K, &negative_g, L));
 
   // J = f * (K_minus_g_L)
   MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, J, f, &K_minus_g_L, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
@@ -399,9 +360,7 @@ cleanup:
 // Z = h*x*(Y - w0*N)
 // also works for:
 // V = h*w1*(Y - w0*N)
-static int
-calculate_ZV_N(mbedtls_ecp_point* Z, const mbedtls_mpi* x,
-               const mbedtls_ecp_point* Y, const mbedtls_mpi* w0)
+static int calculate_ZV_N(mbedtls_ecp_point* Z, const mbedtls_mpi* x, const mbedtls_ecp_point* Y, const mbedtls_mpi* w0)
 {
   int ret;
 
@@ -419,9 +378,7 @@ cleanup:
   return ret;
 }
 // Z = h*y*(X - w0*M)
-static int
-calculate_Z_M(mbedtls_ecp_point* Z, const mbedtls_mpi* x,
-              const mbedtls_ecp_point* Y, const mbedtls_mpi* w0)
+static int calculate_Z_M(mbedtls_ecp_point* Z, const mbedtls_mpi* x, const mbedtls_ecp_point* Y, const mbedtls_mpi* w0)
 {
   int ret;
 
@@ -439,10 +396,7 @@ cleanup:
   return ret;
 }
 
-int
-calc_transcript_responder(spake_data_t* spake_data,
-                          const uint8_t shareP_enc[kPubKeySize],
-                          mbedtls_ecp_point* shareV, char* idProver,
+int calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc[kPubKeySize], mbedtls_ecp_point* shareV, char* idProver,
                           char* idVerifier, char* context)
 {
   int ret = 0;
@@ -501,20 +455,14 @@ cleanup:
   return ret;
 }
 
-int
-oc_spake_calc_transcript_responder(spake_data_t* spake_data,
-                                   const uint8_t shareP_enc[kPubKeySize],
-                                   mbedtls_ecp_point* shareV)
+int oc_spake_calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc[kPubKeySize], mbedtls_ecp_point* shareV)
 {
 
   return calc_transcript_responder(spake_data, shareP_enc, shareV, "", "",
                                    SPAKE_CONTEXT);
 }
 
-int
-calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1, mbedtls_mpi* x,
-                          mbedtls_ecp_point* shareP,
-                          const uint8_t shareV_enc[kPubKeySize],
+int calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1, mbedtls_mpi* x, mbedtls_ecp_point* shareP, const uint8_t shareV_enc[kPubKeySize],
                           uint8_t K_main[32], char* idProver, char* idVerifier,
                           char* context)
 
@@ -572,20 +520,7 @@ cleanup:
   return ret;
 }
 
-int
-oc_spake_calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1,
-                                   mbedtls_mpi* x, mbedtls_ecp_point* X,
-                                   const uint8_t Y_enc[kPubKeySize],
-                                   uint8_t K_main[32])
-{
-
-  return calc_transcript_initiator(w0, w1, x, X, Y_enc, K_main, "", "",
-                                   SPAKE_CONTEXT);
-}
-
-int
-oc_spake_calc_confirmV(uint8_t* K_main, uint8_t confirmV[32],
-                       uint8_t bytes_shareP[kPubKeySize])
+int oc_spake_calc_confirmV(uint8_t* K_main, uint8_t confirmV[32], uint8_t bytes_shareP[kPubKeySize])
 {
   // |KcA| + |KcB| = 16 bytes
   uint8_t K_confirmP_K_confirmV[64];
@@ -603,9 +538,7 @@ oc_spake_calc_confirmV(uint8_t* K_main, uint8_t confirmV[32],
     sizeof(K_confirmP_K_confirmV) / 2, bytes_shareP, kPubKeySize, confirmV);
 }
 
-int
-oc_spake_calc_confirmP(uint8_t* K_main, uint8_t confirmP[32],
-                       uint8_t bytes_shareV[kPubKeySize])
+int oc_spake_calc_confirmP(uint8_t* K_main, uint8_t confirmP[32], uint8_t bytes_shareV[kPubKeySize])
 {
   // |KcA| + |KcB| = 16 bytes
   uint8_t K_confirmP_K_confirmV[64];
@@ -622,8 +555,7 @@ oc_spake_calc_confirmP(uint8_t* K_main, uint8_t confirmP[32],
     sizeof(K_confirmP_K_confirmV) / 2, bytes_shareV, kPubKeySize, confirmP);
 }
 
-int
-oc_spake_calc_K_shared(uint8_t* K_main, uint8_t K_shared[16])
+int oc_spake_calc_K_shared(uint8_t* K_main, uint8_t K_shared[16])
 {
   int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0,
                          K_main, 32, (const unsigned char*) "SharedKey",
@@ -631,8 +563,7 @@ oc_spake_calc_K_shared(uint8_t* K_main, uint8_t K_shared[16])
   return ret;
 }
 
-int
-oc_spake_calc_K_shared_256(uint8_t* K_main, uint8_t K_shared[32])
+int oc_spake_calc_K_shared_256(uint8_t* K_main, uint8_t K_shared[32])
 {
   int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0,
                          K_main, 32, (const unsigned char*) "SharedKey",
@@ -640,4 +571,4 @@ oc_spake_calc_K_shared_256(uint8_t* K_main, uint8_t K_shared[32])
   return ret;
 }
 
-#endif // OC_SPAKE
+#endif
