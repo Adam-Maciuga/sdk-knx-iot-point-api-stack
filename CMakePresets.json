@@ -12,18 +12,9 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
-        "OC_DEBUG_ENABLED": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "OC_PRINT_ENABLED": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "OC_DEBUG_OSCORE_ENABLED": {
-          "type": "BOOL",
-          "value": "ON"
-        }
+        "OC_DEBUG_ENABLED": true,
+        "OC_PRINT_ENABLED": true,
+        "OC_DEBUG_OSCORE_ENABLED": true
       },
       "condition": {
         "type": "equals",
@@ -58,18 +49,9 @@
       "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OC_DEBUG_ENABLED": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "OC_PRINT_ENABLED": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "OC_DEBUG_OSCORE_ENABLED": {
-          "type": "BOOL",
-          "value": "ON"
-        }
+        "OC_DEBUG_ENABLED": true,
+        "OC_PRINT_ENABLED": true,
+        "OC_DEBUG_OSCORE_ENABLED": true
       },
       "condition": {
         "type": "equals",
