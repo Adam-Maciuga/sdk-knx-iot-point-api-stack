@@ -392,7 +392,8 @@ oc_platform_info_t* oc_core_init_platform(const char* mfg_name, oc_core_init_pla
 
 void oc_check_uri(const char* uri)
 {
-	oc_assert(uri[0] == '/');
+  // break if uri does not start with '/' 
+  oc_assert(uri[0] == '/');
 }
 
 void oc_core_populate_resource(int core_resource_index,

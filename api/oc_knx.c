@@ -1,5 +1,6 @@
 /*
  // Copyright (c) 2021-2022 Cascoda Ltd
+ // Copyright (c) 2024-2025 KNX Association
  //
  // Licensed under the Apache License, Version 2.0 (the "License");
  // you may not use this file except in compliance with the License.
@@ -36,11 +37,11 @@
 
 // ---------------------------Variables --------------------------------------
 
-static uint64_t g_fingerprint = 0; // covers GO/PUB/SUB table and 'P' parameters
-static oc_pase_t g_pase;
+static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
+static oc_pase_t g_pase;            // holds the negotiated pase parameter 
 static oc_string_t g_idevid;
 static oc_string_t g_ldevid;
-static int pase_step = 0; // covers the current running pase step 
+static int pase_step = 0;           // covers the current running pase step 
 
 // ----------------------------------------------------------------------------
 
@@ -125,7 +126,7 @@ static oc_event_callback_retval_t reset(void* context)
 
   /* Specification demands
      - reset a possible PRG mode
-     - terminate PASE token
+     - terminate a possible PASE token (removes all, even that only one should be present)
    
    Erase code
 
@@ -186,7 +187,7 @@ static oc_event_callback_retval_t restart(void* context)
 
   /* Specification demands
      - reset a possible PRG mode
-     - terminate a possible PASE token (it checks only for one hit ...)
+     - terminate a possible PASE token (removes all, even that only one should be present)
      - apply (changed) configuration parameters latest after 30s
 
   */
@@ -1470,18 +1471,18 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 
      If MaC resets the device (LSM = unloaded) and waits n seconds (as the device said ...)
      an attacker can set an own PASE token to read out all data the MaC will write
-     later on (including a reconfiguration)
+     later on (including that an attacker can do a reconfiguration)
 
    - use empty AT table as criteria
 
-     On a reset code 7, PASE token is removed, all tokens are removed expect possible 'if.sec' entries
-     --> this result in a nonempty AT table, which is NOT a default cfg state (see security leak above).
+     On a reset code 7, PASE token is removed, all tokens are removed expect entries with 'if.sec' scope
+     -> this results in a nonempty AT table, which is NOT the default cfg state (see security leak above)
 
-     On a reset code 2, all tokens are removed (including PASE taken)
-     --> this results FOR SURE in an empty AT table, which is the default cfg state.
+     On a reset code 2, all tokens are removed (including PASE token)
+     -> this results FOR SURE in an empty AT table, which is the default cfg state
 
      On a restart, PASE token is removed, all other token remains
-     --> this results in an empty AT table which is the default cfg state.
+     -> this results in a nonempty AT table which is NOT the default cfg state (see security leak above)
  
   */
 
@@ -1663,8 +1664,12 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     #ifdef OC_SPAKE
 
-    // get random numbers for rnd, salt & it (number of iterations)
-    oc_spake_get_pbkdf_params(g_pase.rnd, g_pase.salt, &g_pase.it);
+    /*
+      get random numbers for rnd, salt & it (number of iterations) for step 1 PASE parameter exchange
+      - use always random initialized values when starting a new PASE session
+
+    */
+    oc_spake_parameter_exchange(g_pase.rnd, g_pase.salt, &g_pase.it);
 
     OC_DBG_SPAKE("Rnd:");
     OC_LOGbytes_SPAKE(g_pase.rnd, sizeof(g_pase.rnd));
@@ -1709,10 +1714,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     mbedtls_mpi_init(&spake_data.y);
     mbedtls_ecp_point_init(&spake_data.pub_y);
 
-    int ret = oc_spake_get_w0_L(sizeof(g_pase.salt), g_pase.salt, g_pase.it, &spake_data.w0, &spake_data.L);
+    int ret = oc_spake_get_w0_L_params(sizeof(g_pase.salt), g_pase.salt, g_pase.it, &spake_data.w0, &spake_data.L);
     if (ret != 0)
     {
-      OC_ERR("oc_spake_get_w0_L failed with code %d", ret);
+      OC_ERR("oc_spake_get_w0_L_params failed with code %d", ret);
       goto error;
     }
 

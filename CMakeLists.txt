@@ -389,7 +389,7 @@ if(WIN32)
         target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
 
-         if(USE_CONSOLE)
+        if(USE_CONSOLE)
           if(MSVC)
                       set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
                       set(CONSOLE_FLAG "/SUBSYSTEM:CONSOLE")

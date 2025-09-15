@@ -233,11 +233,11 @@ oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_reso
 				resource->name.next = NULL;
 			}
 
-			// uri
+			// path
 			oc_check_uri(resource_path);                        
 			resource->uri.next = NULL;
 			resource->uri.ptr = resource_path;
-			resource->uri.size = strlen(resource_path) + 1;     // include null terminator in size
+			resource->uri.size = strlen(resource_path) + 1; // include null terminator in size
 
 			// types
 			oc_new_string_array(&resource->types, num_resource_types);
