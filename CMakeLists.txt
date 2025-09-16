@@ -407,6 +407,41 @@ if(WIN32)
 
 endif()
 
+if(UNIX)
+    # use system-installed wxWidgets on Linux
+    find_package(wxWidgets REQUIRED net core base)
+    include(${wxWidgets_USE_FILE})
+
+    ## EITT GUI (Linux)
+    add_executable(eitt_virtual_gui
+        ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.cpp
+        ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
+        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+    )
+
+    ## LSSB GUI (Linux)
+    add_executable(lssb_virtual_gui
+        ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.cpp
+        ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
+        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+    )
+
+    ## LSAB GUI (Linux)
+    add_executable(lsab_virtual_gui
+        ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.cpp
+        ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
+        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+    )
+
+    target_link_libraries(eitt_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
+    target_link_libraries(lssb_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
+    target_link_libraries(lsab_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
+
+    target_compile_definitions(eitt_virtual_gui PUBLIC KNX_GUI)
+    target_compile_definitions(lssb_virtual_gui PUBLIC KNX_GUI)
+    target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
+endif()
+
 # When using KNX standard security source MBTLS -> use config definitions defined by Intel
 if(OC_USE_KNX_MBEDTLS)
     target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")

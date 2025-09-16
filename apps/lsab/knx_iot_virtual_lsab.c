@@ -57,6 +57,10 @@
 #include <stdlib.h>
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
+#ifdef KNX_GUI
+  #define NO_MAIN
+#endif
+
 #ifdef __linux__
 #include <pthread.h>
 #ifndef NO_MAIN
@@ -308,7 +312,9 @@ int main(const int argc, char* argv[])
   oc_clock_time_t next_event;
 
 #ifdef KNX_GUI
-  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+  #ifdef _WIN32
+    WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+  #endif
 #endif
 
 #ifdef WIN32
