@@ -16,16 +16,10 @@
  limitations under the License.
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
-#include "oc_rep.h"
-#include "api/oc_knx_dev.h"
+
 #include "oc_api.h"
-#include "oc_core_res.h"
-#include "oc_helpers.h"
-#include "port/oc_clock.h"
 #include "port/oc_storage.h"
-#include <signal.h> // test purpose only; commandline reset
 #include <stdio.h> // defines FILENAME_MAX
-#include <stdlib.h>
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
 #ifdef __linux__
@@ -40,10 +34,10 @@ static struct timespec ts;
 #ifdef WIN32
 #include <windows.h>
 static CONDITION_VARIABLE event_is_pending;
-static CRITICAL_SECTION critical_section;
+
 #include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, windows
-#else // linux,mac specific code
+#define GetCurrentDir _getcwd // path of current working directory, WIN
+#else 
 #include <unistd.h>
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
@@ -59,11 +53,6 @@ const char hostname[] = "knx-00fa10020800";   // default host name (reset uses t
 const char hw_type[] = "Windows";             // 12 string chars, same as eitt test template
 const char dev_model[] = "KNX Certification"; // same as eitt test template
 const uint32_t mid = 667;                     // same as eitt test template
-
-// global variables
-
-volatile int quit = 0; // stop variable, used by handle_signal
-bool g_reset = false; // reset variable, set by commandline arguments
 
 /*
 
@@ -95,8 +84,6 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
 
 // additional parameters
 int_datapoint_t test_parameter = {0, "/p/p1", "urn:knx:dpa.65500.201", ":dpt.propDataType", "Global Test Parameter"};
-
-
 
 /**
  * @brief
@@ -261,10 +248,7 @@ int app_initialize_stack(void)
  */
 void signal_event_loop(void)
 {
-
-#ifndef NO_MAIN
   WakeConditionVariable(&event_is_pending);
-#endif
 }
 #endif
 
@@ -275,170 +259,20 @@ void signal_event_loop(void)
  */
 void signal_event_loop(void)
 {
-#ifndef NO_MAIN
   pthread_mutex_lock(&mutex);
   pthread_cond_signal(&event_is_pending);
   pthread_mutex_unlock(&mutex);
-#endif /* NO_MAIN */
 }
 #endif
 
-/*
- used to run as standalone command line (with main) or embed it
- in a parent code (such as the corresponding GUI applications)
-*/
-#ifndef NO_MAIN
-
 /**
- * @brief handle Ctrl-C
- * @param signal the captured signal
- */
-static void handle_signal(const int signal)
-{
-  (void)signal;
-  signal_event_loop();
-  quit = 1;
-}
-
-/**
- * @brief main application.
- * initializes the global variables
- * registers and starts the handler
- * handles (in a loop) the next event.
- * shuts down the stack
+ * @brief main application, here only used as a placeholder for the GUI version.
  */
 int main(const int argc, char* argv[])
 {
-  oc_clock_time_t next_event;
-  
+  // EITT test application, only available as GUI version
+  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
 
-#ifdef KNX_GUI
-  WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
-#endif
-
-#ifdef WIN32
-  InitializeCriticalSection(&critical_section); // init , but not used in main actively
-  InitializeConditionVariable(&event_is_pending); // init
-  (void)signal(SIGINT, handle_signal); // install Ctrl-C handler
-#endif
-#ifdef __linux__
-  /* Linux specific */
-  struct sigaction sa;
-  sigfillset(&sa.sa_mask);
-  sa.sa_flags = 0;
-  sa.sa_handler = handle_signal;
-  /* install Ctrl-C */
-  sigaction(SIGINT, &sa, NULL);
-#endif
-
-  for (int i = 0; i < argc; i++)
-  {
-    PRINT("argv[%d] = %s", i, argv[i]);
-  }
-
-  // arv[0]= file; reset/help uses one argument
-  if (argc > 1)
-  {
-    if (strcmp(argv[1], "-reset") == 0)
-    {
-      g_reset = true; // ... helper, device is not initiated at this point
-    }
-    if (strcmp(argv[1], "-help") == 0)
-    {
-      PRINTF("usage: no arguments starts the server;                \
-                -help shows this message;                           \
-                -reset does an full device reset (erase code 2)     \
-                -s <serial number> sets the device serial number");
-      exit(0);
-    }
-  }
-  // arv[0]= file; sn uses two arguments
-  // set SN before stack initialization
-  if (argc > 2)
-  {
-    if (strcmp(argv[1], "-s") == 0)
-    {
-      PRINT("use command line serial number %s", argv[2]);
-      app_set_serial_number(argv[2]);
-    }
-  }
-
-  PRINT("KNX-IOT server name : \"%s\"", application_name);
-
-  // ... before this call devices and resources are not existing, return code
-  // issued by .init handler
-  const int code = app_initialize_stack();
-  if (code < 0)
-  {
-    PRINT("stack initialization failed with %d, exiting.", code);
-    exit(-1);
-  }
-
-  // ... now device is initiated
-  if (g_reset)
-  {
-    PRINT("execute command line reset for device '0' with erase code 2 ...");
-    oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
-  }
-
-  const oc_device_info_t* device = oc_core_get_device_info(0);
-
-  // may produce a warning if OC_OSCORE is not specified ...
-  PRINT("OSCORE - %s", OC_OSCORE ? "Enabled" : "Disabled");
-  PRINT("serial number: %s", oc_string(device->serialnumber));
-  PRINT("host name: %s", oc_string(device->hostname));
-
-  // used to refresh (and print) IP addresses
-  oc_connectivity_get_endpoints(0);
-
-  PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
-
-#ifdef WIN32
-  while (quit != 1) // check on Ctrl-C
-  {
-    // loops over all events
-    next_event = oc_main_poll();
-
-    if (next_event == 0)
-    { // no event (timer) is pending, all done, goto sleep
-      SleepConditionVariableCS(&event_is_pending, &critical_section, INFINITE);
-    }
-    else
-    {
-      // time in ticks (tick = ms)
-      const oc_clock_time_t now = oc_clock_time();
-      if (now < next_event)
-      { // next event lays in the future, sleep until next
-        // pending event timer is reached (in ticks/ms)
-        SleepConditionVariableCS(&event_is_pending, &critical_section, (next_event - now) * (1000 / OC_CLOCK_SECOND));
-      }
-      // next event is now ...
-    }
-  }
-#endif
-
-#ifdef __linux__
-  /* Linux specific loop */
-  while (quit != 1)
-  {
-    next_event = oc_main_poll();
-    pthread_mutex_lock(&mutex);
-    if (next_event == 0)
-    {
-      pthread_cond_wait(&event_is_pending, &mutex);
-    }
-    else
-    {
-      ts.tv_sec = (next_event / OC_CLOCK_SECOND);
-      ts.tv_nsec = (next_event % OC_CLOCK_SECOND) * 1.e09 / OC_CLOCK_SECOND;
-      pthread_cond_timedwait(&event_is_pending, &mutex, &ts);
-    }
-    pthread_mutex_unlock(&mutex);
-  }
-#endif
-
-  // shut down the stack
-  oc_main_shutdown();
   return 0;
 }
-#endif
+

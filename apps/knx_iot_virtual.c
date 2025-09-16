@@ -163,9 +163,19 @@ int app_init(void)
   // set provider, no callback/no data
   int ret = oc_init_platform("KNX Association", NULL, NULL);
 
-  //Define 4kb Stdout write buffer, needed for faster console output on gcc debug builds
+  /*
+    define 4kb Stdout write buffer
+    - needed for faster console output on gcc debug builds
+    - can be skipped (see below) when using a msvc (windows) debug build
+
+    Note that on using the buffering, shorter console output logs may be
+    delayed until the buffer is full
+   
+  */
   #ifdef OC_DEBUG
-    setvbuf(stdout, NULL, _IOFBF, 4096); 
+  #ifndef _MSC_VER
+  (void) setvbuf(stdout, NULL, _IOFBF, 4096);
+  #endif
   #endif
 
   // set the application name, version, base url, device serial number

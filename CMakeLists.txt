@@ -281,18 +281,13 @@ endif()
 if(UNIX OR WIN32)
     add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
 
-    ## EITT NON GUI demo (for certification)
-    add_executable(eitt_virtual_cl 
-      ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
-      ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-    )
-
-    ## LSAB/LSSB NON GUI demo
+    ## LSSB NON GUI demo
     add_executable(lssb_virtual_cl 
       ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
       ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
     )
     
+     ## LSAB NON GUI demo
     add_executable(lsab_virtual_cl 
        ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
@@ -316,12 +311,14 @@ if(UNIX)
 endif()
 
 if(WIN32)
+        
         # Add manifest for windows GUI applications when using MinGW
         if(MINGW)
             set(MANIFEST_RC ${CMAKE_SOURCE_DIR}/apps/manifest.rc)
         else()
             set(MANIFEST_RC "")
         endif()
+        
         set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
         target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
 
@@ -399,7 +396,6 @@ if(WIN32)
           endif()
                 
           # Console versions
-          set_target_properties(eitt_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
           set_target_properties(lssb_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
           set_target_properties(lsab_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
 
@@ -436,7 +432,6 @@ endif()
 if(UNIX OR WIN32)
     # Specifies linked libraries (dependencies/references) to build a target
     ## applications ...
-    target_link_libraries(eitt_virtual_cl kisClientServer)
     target_link_libraries(lssb_virtual_cl kisClientServer)
     target_link_libraries(lsab_virtual_cl kisClientServer)
 

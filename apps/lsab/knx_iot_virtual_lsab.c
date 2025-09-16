@@ -360,8 +360,7 @@ int main(const int argc, char* argv[])
 
   PRINT("KNX-IOT server name : \"%s\"", application_name);
 
-  // ... before this call devices and resources are not existing, return code
-  // issued by .init handler
+  // before this call devices and resources are not existing, return code issued by .init handler
   const int code = app_initialize_stack();
   if (code < 0)
   {

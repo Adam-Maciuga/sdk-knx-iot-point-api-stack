@@ -8,20 +8,24 @@ e.g., provide information in how to build an KNX IoT Point API device based on t
 # Example Applications
 
 * The *.c files are windows/linux console applications. 
-* The *.cpp files are windows GUI applications, with several table views and interaction buttons. They 'include' the corresponding *.c files from above for the data definition. 
+* The *.cpp files are windows/linux GUI applications, with several table views and interaction buttons. They 'include' the corresponding *.c files from above for the data definition. 
 
 ## EITT Applications
 
 ### Folder '/eitt'
 
-Used to pass the stack certification with KNX EITT tool.
-
-- **knx_iot_virtual_eitt.c** 
-  > The endpoints and their types are defined as the EITT test template is requesting it (for thsi see the code file). 
+Contains the *.c and *.cpp code files, used to pass the stack certification 
+with the KNX EITT tool.
 
 - **knx_iot_virtual_eitt.cpp** 
-	
 
+The EITT request some predefined settings (serial number, datapoints, clean device,...), 
+as defined in the EITT test template. Therefore this (EITT test) application does not support 
+command line parameterers. Hence this on application startup also a reset (erase code 2) is performed.
+
+For the predefined settings from above see the corresponding *.c file. 
+Note the c-file is only used to define the data (it is no indiviudal console application). 
+  
 ## ETS Applications 
 
 ETS demo applications, used to test the stack with KNX ETS6 tool.

@@ -26,9 +26,6 @@
 #include <wx/wx.h>
 #endif
 
-// main is used from here
-#define NO_MAIN
-
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
@@ -60,11 +57,6 @@ enum : uint16_t
 };
 
 extern lsxb_channel_t lsab[NUM_CHANNELS];
-
-static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
-  {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
-
-wxCmdLineParser* g_cmd;
 
 class CustomDialog : public wxDialog
 {
@@ -168,18 +160,14 @@ wxIMPLEMENT_APP(MyApp);
  */
 bool MyApp::OnInit()
 {
-  int argc = wxAppConsole::argc;
-  wxChar** argv = wxAppConsole::argv;
+  // call in c-code
+  app_initialize_stack();
 
-  g_cmd = new wxCmdLineParser(argc, argv);
-  g_cmd->SetDesc(g_cmdLineDesc);
-  g_cmd->Parse(true);
+  // reset the device (for EITT tests)
+  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
 
+  // empty string (no command line available) - checked inside MyFrame
   wxString serial_number;
-  if (g_cmd->Found("s", &serial_number))
-  {
-  }
-
   MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
 
   frame->Fit();
@@ -277,8 +265,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
     app_set_serial_number(serial_number);
   }
 
-  // call in c-code
-  app_initialize_stack();
+  
 
   constexpr int width_size = 180; // size of the knx info widgets
   char text[500];

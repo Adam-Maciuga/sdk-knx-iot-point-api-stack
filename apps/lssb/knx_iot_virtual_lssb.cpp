@@ -181,6 +181,9 @@ bool MyApp::OnInit()
   g_cmd->SetDesc(g_cmdLineDesc);
   g_cmd->Parse(true);
 
+  // call in c-code
+  app_initialize_stack();
+
   wxString serial_number;
   if (g_cmd->Found("s", &serial_number))
   {
@@ -323,8 +326,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     app_set_serial_number(serial_number);
   }
 
-  // call in c-code 
-  app_initialize_stack();
 
   constexpr int width_size = 180; // size of the knx info widgets
   char text[500]; 
