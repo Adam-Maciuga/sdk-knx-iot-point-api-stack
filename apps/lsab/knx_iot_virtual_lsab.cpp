@@ -403,9 +403,31 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
                                   wxSize(width_size, 25), wxTE_RICH);
   static_text2->SetEditable(false);
 
-    // update the UI
+  // update the UI
   this->updateDeviceData();
   this->updateCheckBoxesFromLiveSOOData();
+
+  // Calculate bounding box of all children to make Window correct size
+  int maxRight = 0;
+  int maxBottom = 0;
+
+  for (wxWindowList::iterator it = GetChildren().begin(); it != GetChildren().end(); ++it)
+  {
+      wxWindow* child = *it;
+      if (child) {
+          wxRect rect = child->GetRect();
+          maxRight = std::max(maxRight, rect.GetRight());
+          maxBottom = std::max(maxBottom, rect.GetBottom());
+      }
+  }
+
+  // Add some padding (status bar, borders, etc.)
+  int paddingX = 40;
+  int paddingY = 60;
+
+  // Set minimum size dynamically
+  this->SetMinSize(wxSize(maxRight + paddingX, maxBottom + paddingY));
+  this->SetSize(this->GetMinSize());
 
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
