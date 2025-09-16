@@ -67,7 +67,7 @@ int oc_spake_free(void);
  * @param it The number of iterations to be used for PBKDF2
  * @return int 0 on success, mbedtls error code on failure
  */
-int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, uint32_t* it);
+int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt);
 
 /**
  * @brief get the W0 and L values for SPAKE exchange
@@ -77,10 +77,8 @@ int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, uint32_t* it);
  *
  * @param salt 32-byte array containing the salt
  * @param it the number of iterations to perform within PBKDF2
- * @param w0 the w0 parameter as defined by SPAKE2+. Must be initialized by the
- * caller.
- * @param L the L parameter as defined by SPAKE2+. Must be initialized by the
- * caller.
+ * @param w0 the w0 parameter as defined by SPAKE2+. Must be initialized by the caller.
+ * @param L the L parameter as defined by SPAKE2+. Must be initialized by the caller.
  * @return int 0 on success, mbedtls error code on failure
  */
 int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t *salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L);

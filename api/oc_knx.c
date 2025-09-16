@@ -38,7 +38,7 @@
 // ---------------------------Variables --------------------------------------
 
 static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
-static oc_pase_t g_pase;            // holds the negotiated pase parameter 
+static oc_pase_t g_pase;            // holds the negotiated pase parameter (IMPORTANT consider the notes on oc_pase_t type definition)
 static oc_string_t g_idevid;
 static oc_string_t g_ldevid;
 static int pase_step = 0;           // covers the current running pase step 
@@ -1662,14 +1662,19 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   // step 1
   if (pase_step == SPAKE_RND)
   {
+    // return 2.04 changed, frame rnd, salt, it , ...
+
     #ifdef OC_SPAKE
 
     /*
-      get random numbers for rnd, salt & it (number of iterations) for step 1 PASE parameter exchange
-      - use always random initialized values when starting a new PASE session
+      PASE parameter exchange (step 1)
+
+      - get random numbers for rnd and salt when starting a new PASE session
+      - set fixed compile time value for number of iterations (IMPORTANT consider the notes on oc_pase_t type definition)
 
     */
-    oc_spake_parameter_exchange(g_pase.rnd, g_pase.salt, &g_pase.it);
+    g_pase.it = OC_SPAKE_IT;
+    oc_spake_parameter_exchange(g_pase.rnd, g_pase.salt);
 
     OC_DBG_SPAKE("Rnd:");  OC_LOGbytes_SPAKE(g_pase.rnd, sizeof(g_pase.rnd));
     OC_DBG_SPAKE("Salt:"); OC_LOGbytes_SPAKE(g_pase.salt, sizeof(g_pase.salt));
@@ -1700,7 +1705,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   // step 2
   if (pase_step == SPAKE_PA_SHARE_P)
   {
-    // return changed, frame pb (11) & cb (13)
+    // return 2.04 changed, frame shareV, confirmV
 
     mbedtls_mpi_free(&spake_data.w0);
     mbedtls_ecp_point_free(&spake_data.L);
@@ -1755,12 +1760,17 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_spake_calc_confirmV(spake_data.K_main, g_pase.confirmV, g_pase.shareP);
     mbedtls_ecp_point_free(&pB);
 
+    // return 2.04 changed, frame shareV (11) & confirmV (13)
+
     oc_rep_begin_root_object();
+
     // shareV (11)
     oc_rep_i_set_byte_string(root, SPAKE_PB_SHARE_V, g_pase.shareV, sizeof(g_pase.shareV));
     // confirmV (13)
     oc_rep_i_set_byte_string(root, SPAKE_CB_CONFIRM_V, g_pase.confirmV, sizeof(g_pase.confirmV));
+
     oc_rep_end_root_object();
+
     oc_send_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
@@ -1768,6 +1778,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   // step 3
   if (pase_step == SPAKE_CA_CONFIRM_P)
   {
+    // return 2.04 changed, empty payload
+
     // calculate expected cA
     uint8_t expected_ca[32];
 
@@ -1825,7 +1837,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
     memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
     memset(g_pase.salt, 0, sizeof(g_pase.salt));
-    g_pase.it = 100000;
+    g_pase.it = OC_SPAKE_IT;
     return OC_EVENT_DONE;
   }
 
@@ -1852,7 +1864,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
   memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
-  g_pase.it = 100000;
+  g_pase.it = OC_SPAKE_IT;
 
 #ifdef OC_SPAKE
   increment_counter();

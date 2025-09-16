@@ -41,28 +41,40 @@ extern "C"
   /**
    * @brief Pase Resource Object
    *
-   * Example Json:
-   * ```
+   *  Key Translation
+   *  ===============
+   *
+   *  | Json Key | Integer Value |  type       |
+   *  | -------- | ------------- |-------------|
+   *  | salt     | 5             | byte string |
+   *  | shareP   | 10            | byte string |
+   *  | shareV   | 11            | byte string |
+   *  | pbkdf2   | 12            | map         |
+   *  | confirmV | 13            | byte string |
+   *  | confirmP | 14            | byte string |
+   *  | rnd      | 15            | byte string |
+   *  | it       | 16            | unsigned    |
+   *
+   *  (1)
+   *  The iteration value (it) is a fixed value, that needs to in accordance to server device hardware calculation capabilities.
+   *  The stack allows to define this value as part of the CMake compile definitions
+   *
+   *  (2)
+   *  The salt goes always together with an individual password 
+   *
+   *  Example JSON
+   *  ============
+   * 
    *  { "rnd"    : x}
    *  { "shareP" : x}
    *  { "shareV" : x}
    *  { "ca"     : x}
-   *  { "pbkdf2" : { "salt" : "xxxx", "it" : 5}}}
-   * ```
+   *  { "pbkdf2" : { "salt" : "xxxx", "it" : 5}}
+   * 
    *
-   * Key translation
-   * | Json Key | Integer Value |  type       |
-   * | -------- | ------------- |-------------|
-   * | salt     | 5             | byte string |
-   * | shareP   | 10            | byte string |
-   * | shareV   | 11            | byte string |
-   * | pbkdf2   | 12            | map         |
-   * | cb       | 13            | byte string |
-   * | ca       | 14            | byte string |
-   * | rnd      | 15            | byte string |
-   * | it       | 16            | unsigned    |
-   *
-   * note no storage needed for map
+   * @note
+   *  - no extra storage needed for map (12)
+   *  - 
    */
   typedef struct oc_pase_t
   {
@@ -72,8 +84,8 @@ extern "C"
     uint8_t shareV[65];   // pb from RFC 9382 in Spake2+ = shareV
     uint8_t confirmP[32]; // ca from RFC 9382 in Spake2+ = confirmP
     uint8_t confirmV[32]; // cb from RFC 9382 in Spake2+ = confirmV
-    uint8_t rnd[32];      // rnd
-    uint32_t it;          // iterations 
+    uint8_t rnd[32];      // random
+    uint32_t it;          // iterations (see hints above) 
   } oc_pase_t;
 
   /**

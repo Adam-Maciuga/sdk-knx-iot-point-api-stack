@@ -61,11 +61,10 @@ set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher tab
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
-set(KNX_SPAKE_MIN_IT "1000" CACHE STRING "Minimum number of SHA256 iterations used within the SPAKE2+ handshake")
-set(KNX_SPAKE_MAX_IT "100000" CACHE STRING "Maximum number of SHA256 iterations used within the SPAKE2+ handshake")
+set(KNX_SPAKE_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake")
 
 # dont show below variables in any (command) GUI
-mark_as_advanced(KNX_SPAKE_MIN_IT KNX_SPAKE_MAX_IT)
+mark_as_advanced(KNX_SPAKE_ITERATIONS)
 
 set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/oc_base64.c
@@ -473,8 +472,7 @@ add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server def
 if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_OSCORE)
    target_compile_definitions(kis-common INTERFACE OC_SPAKE)
-   target_compile_definitions(kis-common INTERFACE KNX_MIN_IT=${KNX_SPAKE_MIN_IT})
-   target_compile_definitions(kis-common INTERFACE KNX_MAX_IT=${KNX_SPAKE_MAX_IT})
+   target_compile_definitions(kis-common INTERFACE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
 endif()
 
 if(OC_PRINT_ENABLED)

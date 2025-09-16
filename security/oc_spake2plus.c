@@ -157,24 +157,13 @@ int oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
                                         &olen, out, kPubKeySize);
 }
 
-int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, uint32_t* it)
+int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt)
 {
-  unsigned int it_seed;
-
   // used AND assigned inside macro
   int ret;
  
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, rand, KNX_RNG_LEN));
   MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, salt, KNX_SALT_LEN));
-  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, (unsigned char*)&it_seed, sizeof(it_seed)));
-
-  /*
-     spans from at least min to max, example with 
-     min = 1000, max = 100000, it_seed = 1234567
-     -> 1234567 mod 99000 + 1000 = 12 + 1000 = 1012
-
-  */
-  *it = it_seed % (KNX_MAX_IT - KNX_MIN_IT) + KNX_MIN_IT;
 
   // jumped from inside macro
   cleanup:
@@ -260,7 +249,7 @@ cleanup:
  * caller.
  * @return int 0 on success, mbedtls error code on failure
  */
-static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
+static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
 {
   int ret;
   mbedtls_mpi w1;
@@ -275,7 +264,8 @@ static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* sa
 
 int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
 {
-  // TODO precalculate salt, w0 L, it and get from application callback 
+  // TODO precalculate salt, w0 L, it and get from application callback for demo applications (add note for real devices)
+  // IMPORTANT consider the notes on oc_pase_t type definition 
   const int ret = oc_spake_calc_w0_L(password, len_salt, salt, it, w0, L);
 
   if (ret != 0)
