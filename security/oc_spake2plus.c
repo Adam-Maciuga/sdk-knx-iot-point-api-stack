@@ -157,9 +157,9 @@ int oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
                                         &olen, out, kPubKeySize);
 }
 
-int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it)
+int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, uint32_t* it)
 {
-  int it_seed;
+  unsigned int it_seed;
 
   // used AND assigned inside macro
   int ret;
@@ -273,8 +273,9 @@ static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* sa
   return ret;
 }
 
-int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
+int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
 {
+  // TODO precalculate salt, w0 L, it and get from application callback 
   const int ret = oc_spake_calc_w0_L(password, len_salt, salt, it, w0, L);
 
   if (ret != 0)

@@ -67,7 +67,7 @@ int oc_spake_free(void);
  * @param it The number of iterations to be used for PBKDF2
  * @return int 0 on success, mbedtls error code on failure
  */
-int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it);
+int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, uint32_t* it);
 
 /**
  * @brief get the W0 and L values for SPAKE exchange
@@ -83,8 +83,7 @@ int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt, int* it);
  * caller.
  * @return int 0 on success, mbedtls error code on failure
  */
-int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t *salt,
-                      int it, mbedtls_mpi *w0, mbedtls_ecp_point *L);
+int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t *salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L);
 
 /**
  * @brief Get the currently set Spake2+ password

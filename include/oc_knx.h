@@ -73,7 +73,7 @@ extern "C"
     uint8_t confirmP[32]; // ca from RFC 9382 in Spake2+ = confirmP
     uint8_t confirmV[32]; // cb from RFC 9382 in Spake2+ = confirmV
     uint8_t rnd[32];      // rnd
-    int it;               // iterations
+    uint32_t it;          // iterations 
   } oc_pase_t;
 
   /**

@@ -1671,11 +1671,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     */
     oc_spake_parameter_exchange(g_pase.rnd, g_pase.salt, &g_pase.it);
 
-    OC_DBG_SPAKE("Rnd:");
-    OC_LOGbytes_SPAKE(g_pase.rnd, sizeof(g_pase.rnd));
-    OC_DBG_SPAKE("Salt:");
-    OC_LOGbytes_SPAKE(g_pase.salt, sizeof(g_pase.salt));
-    OC_DBG_SPAKE("Iterations: %d", g_pase.it);
+    OC_DBG_SPAKE("Rnd:");  OC_LOGbytes_SPAKE(g_pase.rnd, sizeof(g_pase.rnd));
+    OC_DBG_SPAKE("Salt:"); OC_LOGbytes_SPAKE(g_pase.salt, sizeof(g_pase.salt));
+    OC_DBG_SPAKE("Iterations: %u", g_pase.it);
 
     #endif 
 
@@ -1687,7 +1685,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_rep_i_set_key(&root_map, SPAKE_PBKDF2);
     oc_rep_begin_object(&root_map, pbkdf2);
     // it (16)
-    oc_rep_i_set_int(pbkdf2, SPAKE_IT, g_pase.it);
+    oc_rep_i_set_uint(pbkdf2, SPAKE_IT, g_pase.it);
     // salt (5)
     oc_rep_i_set_byte_string(pbkdf2, SPAKE_SALT, g_pase.salt, 32);
     oc_rep_end_object(&root_map, pbkdf2);
