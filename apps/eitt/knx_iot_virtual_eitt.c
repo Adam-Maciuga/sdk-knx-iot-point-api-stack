@@ -313,7 +313,7 @@ int main(const int argc, char* argv[])
   
 
 #ifdef KNX_GUI
-  WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
+  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
 #endif
 
 #ifdef WIN32
