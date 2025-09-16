@@ -509,20 +509,20 @@ void MyFrame::updateDeviceData()
   const uint16_t ia_l = device->ia >> 8 & 0xF; // line
   const uint16_t ia_d = device->ia & 0x00FF; // device
   (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
-  m_ia_text->SetLabelText(text);
+  m_ia_text->SetValue(text);
 
   (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_pm_text->SetLabelText(text);
+  m_pm_text->SetValue(text);
 
   (void)sprintf(text, "Programming Mode : %d", device->pm);
-  m_ls_text->SetLabelText(text);
+  m_ls_text->SetValue(text);
 
   strcpy(text, "IID : ");
   this->int2grpidtext(device->iid, text, iid_conversion);
-  m_iid_text->SetLabelText(text);
+  m_iid_text->SetValue(text);
 
   (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
-  m_hn_text->SetLabelText(text);
+  m_hn_text->SetValue(text);
 
   // set in menu the programming mode to what the device has
   m_menuFile->Check(CHECK_PM, device->pm);

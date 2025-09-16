@@ -232,7 +232,15 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_lsab_%s", app_get_serial_number());
+
+  #ifdef __linux__
+    // use absolute path so storage works regardless of cwd
+    snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_lsab_%s", dir, app_get_serial_number());
+  #else
+    // Windows (keep existing relative path)
+    sprintf(storage, "./knx_iot_virtual_lsab_%s", app_get_serial_number());
+  #endif
+  
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
