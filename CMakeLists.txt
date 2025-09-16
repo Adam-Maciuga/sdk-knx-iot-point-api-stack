@@ -359,6 +359,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.cpp
             ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${MANIFEST_RC} 
         )
 
         ## LSSB GUI 
