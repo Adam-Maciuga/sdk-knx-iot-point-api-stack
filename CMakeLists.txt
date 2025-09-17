@@ -378,7 +378,6 @@ if(WIN32)
         )
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
-        target_compile_definitions(eitt_virtual_gui PUBLIC KNX_GUI)
 
         target_link_libraries(lssb_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_compile_definitions(lssb_virtual_gui PUBLIC KNX_GUI)
@@ -437,7 +436,6 @@ if(UNIX)
     target_link_libraries(lssb_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
     target_link_libraries(lsab_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
 
-    target_compile_definitions(eitt_virtual_gui PUBLIC KNX_GUI)
     target_compile_definitions(lssb_virtual_gui PUBLIC KNX_GUI)
     target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
 endif()
