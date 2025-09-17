@@ -22,17 +22,11 @@
 #include <stdio.h> // defines FILENAME_MAX
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
-#ifdef KNX_GUI
-  #define NO_MAIN
-#endif
-
 #ifdef __linux__
 #include <pthread.h>
-#ifndef NO_MAIN
 static pthread_mutex_t mutex;
 static pthread_cond_t event_is_pending;
 static struct timespec ts;
-#endif
 #endif
 
 #ifdef WIN32
@@ -274,16 +268,16 @@ void signal_event_loop(void)
   pthread_mutex_unlock(&mutex);
 }
 #endif
-
+#ifdef _WIN32
 /**
  * @brief main application, here only used as a placeholder for the GUI version.
  */
 int main(const int argc, char* argv[])
 {
   // EITT test application, only available as GUI version
-  #ifdef _WIN32
+  
     WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
-  #endif
+
   return 0;
 }
-
+  #endif
