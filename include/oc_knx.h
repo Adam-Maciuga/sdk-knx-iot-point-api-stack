@@ -50,7 +50,6 @@ extern "C"
    *  The virtual demo applications uses the password also on server side, a real device shall use the password derivative,
    *  see SPAKE2+, 3.2. Offline Registration. 
    *
-   *
    *  The steps for the key enrolment are described in KNX IoT specification 3/10/5 clause 3.6.6.3
    *
    *  Key Translation

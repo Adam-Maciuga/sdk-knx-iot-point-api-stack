@@ -54,17 +54,22 @@
 
    value types
 
-   - must respect the bit size definition in the MaC (ETS) product, e.g.; here 32-bit int, in ETS product 8...32 bit uint
+   - must respect the bit size definition of a MaC (ETS) product, e.g.; 32-bit int or bool
+
+   id
+   - used for an n-fold channel oriented application to define a generic PUT/GET handler for all channels,
+     the addressed channel and datapoint can be identified from the generic handler, e.g. by setting the value
+     to ch# << 16 + point# (see code application examples)
 
 */
 typedef struct
 {
-  volatile bool value; 
+  volatile bool value; // the actual datapoint type, see notes above
   char* resource_path;
-  char* dpa;
-  char* dpt;
-  char* name;
-  char* id;  // used to identify for a generic PUT/GET handler the channel number/ datapoint number
+  char* dpa;    // annotated datapoint, see in KNX ioT specification 3/10/5 
+  char* dpt;    // datapoint type, see in KNX ioT specification 3/10/5 
+  char* name;   // used 
+  uint32_t id;  // see note above
 } bool_datapoint_t;
 
 

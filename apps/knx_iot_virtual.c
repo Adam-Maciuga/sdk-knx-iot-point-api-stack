@@ -24,9 +24,6 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
-// use it in upper case, IMPORTANT consider the notes on oc_pase_t type definition
-//const char password[33] = "2X4W3TE0DFLLS19Y1FCH";
-
 // global variables (12 x char + /0), maybe overwritten by CL option
 char g_serial_number[SERIAL_NUM_SIZE + 1]; 
 
@@ -222,7 +219,7 @@ const char* app_get_serial_number(void)
   return g_serial_number;
 }
 
-// defied individually in specific LSAB/LSSB/EITT application code
+// defied individually in the corresponding LSAB/LSSB/EITT application code
 extern lsxb_channel_t lsxb[];
 extern int_datapoint_t test_parameter;
 
@@ -285,8 +282,8 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   (void)interfaces;
   bool error_state = true;
 
-  // user data host the HEX encoded channel/datapoint 
-  const uint32_t channel_and_datapoint = strtol(user_data,NULL,16);
+  // user data host the pointer to a 32 bit encoded channel/datapoint
+  const uint32_t channel_and_datapoint = (uint32_t)user_data;
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
@@ -440,8 +437,8 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the HEX encoded channel/datapoint 
-  const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
+  // user data host the pointer to a 32 bit encoded channel/datapoint 
+  const uint32_t channel_and_datapoint = (uint32_t)user_data;
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
@@ -514,8 +511,8 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the HEX encoded channel/datapoint
-  const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
+  // user data host the pointer to a 32 bit encoded channel/datapoint
+  const uint32_t channel_and_datapoint = (uint32_t)user_data;
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
@@ -756,7 +753,7 @@ char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)
   return lsxb[channel].point[point].resource_path;
 }
 
-// PARAMETER code - needs to be defined in case of specific parameter handing
+// PARAMETER code - needs to be defined in case of specific parameter handling
 
 char* app_get_parameter_url(int index) { return NULL; }
 char* app_get_parameter_name(int index) { return NULL; }

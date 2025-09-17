@@ -75,11 +75,11 @@ const uint32_t mid = 667;                     // same as eitt test template
 // LSAB/LSSB channel 0..1 + included EPs switch control/status
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
   {{
-    {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", "LSAB soo", "0000"},   // 0 << 8 + 0 
-    {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", "LSAB ioo", "0001"}}}, // 0 << 8 + 1  
+    {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", "LSAB soo", (0 << 16) + 0}, 
+    {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", "LSAB ioo", (0 << 16) + 1}}},
   {{
-    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", "0100"},   // 1 << 8 + 0 
-    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo", "0101"}}}, // 1 << 8 + 1 
+    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", (1 << 16) + 0},
+    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo", (1 << 16) + 1}}},
 };
 
 // additional parameters

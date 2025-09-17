@@ -111,13 +111,12 @@ bool g_reset = false; // reset variable, set by commandline arguments
 // define LSSB channel 0..1 + included EPs switch control/status
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
   {{
-    {false, "/p/lssb/0/soo", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", "0000"},  // 0 << 8 + 0 
-    {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSSB ioo", "0001"}}, // 0 << 8 + 1 
-  },
+    {false, "/p/lssb/0/soo", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", (0 << 16) + 0},   
+    {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSSB ioo", (0 << 16) + 1}}},  
   {{
-    {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", "0100"},  // 1 << 8 + 0 
-    {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSSB ioo", "0101"}}, // 1 << 8 + 1 
-  }};
+    {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", (1 << 16) + 0},  
+    {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", "LSSB ioo", (1 << 16) + 1}}}
+};
 
 // additional parameters
 int_datapoint_t test_parameter = {
