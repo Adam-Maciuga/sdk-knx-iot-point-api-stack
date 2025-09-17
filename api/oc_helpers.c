@@ -513,32 +513,28 @@ oc_string_is_hex_array(oc_string_t hex_string)
   return 0;
 }
 
-int
-oc_char_print_hex(const char* str, int str_len)
+size_t oc_char_print_hex(const char* str, size_t str_len)
 {
-  for (int i = 0; i < str_len; i++)
+  for (size_t i = 0; i < str_len; i++)
   {
     PRINTF("%02x", (unsigned char) str[i]);
   }
   return str_len;
 }
 
-int
-oc_string_print_hex(oc_string_t hex_string)
+size_t oc_string_print_hex(oc_string_t hex_string)
 {
   char* str = oc_string(hex_string);
-  int length = oc_byte_string_len(hex_string);
+  size_t length = oc_byte_string_len(hex_string);
   return oc_char_print_hex(str, length);
 }
 
-int
-oc_string_println_hex(oc_string_t hex_string)
+size_t oc_string_println_hex(oc_string_t hex_string)
 {
   return oc_string_print_hex(hex_string);
 }
 
-int
-oc_char_println_hex(const char* str, int str_len)
+size_t oc_char_println_hex(const char* str, size_t str_len)
 {
   return oc_char_print_hex(str, str_len);
 }

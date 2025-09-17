@@ -442,7 +442,7 @@ extern "C" {
 	 * @param[in] hex_string the input string to be printed
 	 * @return int printed amount of %x
 	 */
-	int oc_string_print_hex(oc_string_t hex_string);
+  size_t oc_string_print_hex(oc_string_t hex_string);
 
 	/**
 	 * @brief prints the input as hex string with newline (\n) at the end.
@@ -450,7 +450,7 @@ extern "C" {
 	 * @param[in] hex_string the input string to be printed
 	 * @return int printed amount of %x
 	 */
-	int oc_string_println_hex(oc_string_t hex_string);
+  size_t oc_string_println_hex(oc_string_t hex_string);
 
 	/**
 	 * @brief converts the input string to lower case
@@ -467,7 +467,7 @@ extern "C" {
 	 * @param[in] str_len the length of the input string
 	 * @return int printed amount of %x
 	 */
-	int oc_char_print_hex(const char* str, int str_len);
+  size_t oc_char_print_hex(const char* str, size_t str_len);
 	/**
 	 * @brief prints the input as hex string with newline (\n) at the end.
 	 *
@@ -475,7 +475,7 @@ extern "C" {
 	 * @param[in] str_len the length of the input string
 	 * @return int printed amount of %x
 	 */
-	int oc_char_println_hex(const char* str, int str_len);
+  size_t oc_char_println_hex(const char* str, size_t str_len);
 
 	/**
 	 * @brief checks if the uri contains a wildcard (e.g. "*")

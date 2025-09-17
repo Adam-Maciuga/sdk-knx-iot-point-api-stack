@@ -936,7 +936,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
  * @see oc_rep_begin_array
  */
 #define oc_rep_i_set_key(parent, key)                                          \
-  if ((uint64_t)(key) != 0)                                                    \
+  if ((int64_t)(key) != 0)                                                    \
     g_err |= cbor_encode_int(parent, (int64_t)(key))
 
 /**
