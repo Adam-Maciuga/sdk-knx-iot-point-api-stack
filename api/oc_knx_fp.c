@@ -2824,7 +2824,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
         // called from GET /p handler so always truncate resources URN's
         oc_add_resource_to_response_payload(
           oc_ri_get_app_resource_by_resource_path(oc_string(g_got[index].href), oc_string_len(g_got[index].href)),
-          request, response_length, true);
+          response_length, true);
         return_value = true;
       }
     }

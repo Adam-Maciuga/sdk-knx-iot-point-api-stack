@@ -57,7 +57,6 @@ bool oc_check_resource_by_request(const oc_resource_t *resource, oc_request_t *r
  * @brief add the resource (uri, if, rt, ct) to the response in application link format
  *
  * @param resource the resource
- * @param request  the request
  * @param response_length the response length (to be increased)
  * @param truncate if true the response payload SHALL not carry 'urn:knx' as part of the resource and interface types
  *
@@ -67,7 +66,7 @@ bool oc_check_resource_by_request(const oc_resource_t *resource, oc_request_t *r
  * @return true 
  * @return false (if resource or resource uri are not present) 
  */
-bool oc_add_resource_to_response_payload(const oc_resource_t *resource, oc_request_t *request,
+bool oc_add_resource_to_response_payload(const oc_resource_t *resource,
                                          size_t *response_length,
                                          const bool truncate);
 

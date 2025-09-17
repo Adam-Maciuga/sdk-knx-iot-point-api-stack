@@ -46,7 +46,7 @@ int basic_resources[] =
 // (size of all)/(size of one) : 5 x int (4) / 4 = 20/4 = 5 
 #define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
 
-bool oc_add_resource_to_response_payload(const oc_resource_t* resource, oc_request_t* request, size_t* response_length, const bool truncate)
+bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, const bool truncate)
 {
 
 	if (resource == NULL || oc_string_len(resource->uri) == 0)
@@ -172,8 +172,8 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, oc_reque
 }
 
 bool oc_check_resource_by_request(const oc_resource_t* resource, oc_request_t* request,
-                        size_t* response_length, int* skipped,
-                        const int first_entry, bool truncate)
+																	size_t* response_length, int* skipped,
+																	const int first_entry, bool truncate)
 {
 	// note, matches also when 'rt' key is not part of request query parameter
   if (!oc_check_resource_by_rt(resource, request))
@@ -214,7 +214,7 @@ bool oc_check_resource_by_request(const oc_resource_t* resource, oc_request_t* r
 		// result see above, last column
 	}
 
-	return oc_add_resource_to_response_payload(resource, request, response_length, truncate);
+	return oc_add_resource_to_response_payload(resource, response_length, truncate);
 }
 
 // filter for application resources (not all of them may be able to discover)

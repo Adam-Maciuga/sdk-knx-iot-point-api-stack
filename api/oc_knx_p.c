@@ -36,7 +36,7 @@ static bool oc_was_adding_data_points_to_response(oc_request_t* request, const o
     }
 
     // called from GET /p handler so always truncate resources URN's
-    oc_add_resource_to_response_payload(resource, request, response_length, true);
+    oc_add_resource_to_response_payload(resource, response_length, true);
     matches++;
   }
 

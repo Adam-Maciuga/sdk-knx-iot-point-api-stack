@@ -506,7 +506,7 @@ oc_parse_rep_value_array(CborValue *value, oc_rep_t **rep, CborError *err)
       if (len >= STRING_ARRAY_ITEM_MAX_LEN) {
         len = STRING_ARRAY_ITEM_MAX_LEN - 1;
       }
-      uint8_t *size = (uint8_t *)oc_string_array_get_item(cur->value.array, k);
+      // uint8_t *size = (uint8_t *)oc_string_array_get_item(cur->value.array, k); -> not used at all
       *err |= cbor_value_copy_text_string(
         &array, (uint8_t *)oc_string_array_get_item(cur->value.array, k), &len,
         NULL);
@@ -1083,8 +1083,7 @@ oc_rep_i_get_mixed_array(oc_rep_t *rep, int key, oc_rep_t **value)
  * function is set to true. It helps produce output with reasonably human
  * readable white-space.
  */
-size_t
-oc_rep_to_json_tab(char *buf, size_t buf_size, int tab_depth)
+static size_t oc_rep_to_json_tab(char *buf, size_t buf_size, int tab_depth)
 {
   size_t num_char_printed = 0;
   size_t total_char_printed = 0;
@@ -1143,8 +1142,7 @@ oc_rep_to_json_base64_encoded_byte_string(char *buf, size_t buf_size,
  *
  * Currently does not handle OC_REP_ARRAY data type.
  */
-size_t
-oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, int tab_depth,
+static size_t oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, int tab_depth,
                       bool pretty_print)
 {
   (void)buf;
