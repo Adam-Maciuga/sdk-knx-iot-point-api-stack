@@ -26,7 +26,6 @@
 #include "util/oc_process.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
-#include "oc_signal_event_loop.h"
 #include "oc_knx.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
@@ -47,7 +46,7 @@ static bool drop_commands[OC_MAX_NUM_DEVICES];
 static bool initialized = false;  
 
 static const oc_handler_t* app_callbacks;
-static oc_factory_presets_t factory_presets = { NULL, NULL };       
+static oc_factory_presets_t app_factory_presets = { NULL, NULL };       
 static oc_reset_t app_reset = { NULL, NULL };                       
 static oc_restart_t app_restart = { NULL, NULL };
 static oc_hostname_t app_hostname = { NULL, NULL };
@@ -72,13 +71,13 @@ oc_swu_t* oc_get_swu_cb(void)
 
 void oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void* data)
 {
-  factory_presets.cb = cb;
-  factory_presets.data = data;
+  app_factory_presets.cb = cb;
+  app_factory_presets.data = data;
 }
 
 oc_factory_presets_t* oc_get_factory_presets_cb(void)
 {
-  return &factory_presets;
+  return &app_factory_presets;
 }
 
 // -----------------------------------------------------------------------------
