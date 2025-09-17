@@ -148,22 +148,6 @@ extern "C"
   char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point);
 
   /**
-   * @brief Get an int
-   *
-   * @param url the url for the bool to get
-   * @return int variable
-   */
-  int app_retrieve_int_variable(const char* url);
-
-  /**
-   * @brief checks if the url represents a parameter
-   *
-   * @param url the url
-   * @return true the url represents a parameter
-   */
-  bool app_is_url_parameter(char* url);
-
-  /**
    * @brief retrieves the url of a parameter
    * index starts at 1
    * @param index the index to retrieve the url from
