@@ -14,7 +14,7 @@
 // limitations under the License.
 */
 /**
-  @brief security: spake2plus implementation
+  @brief security: SPAKE2+ implementation
   @file
 */
 
@@ -85,23 +85,6 @@ int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t *salt, uint32_t it, 
 
 /**
  * @brief Get the currently set Spake2+ password
- *
- * @return Null-terminated string holding the password
- */
-const char *oc_spake_get_password(void);
-
-/**
- * @brief Set the Spake2+ password
- *
- * @param new_password Null-terminated string containing the password
- */
-void oc_spake_set_password(const char *new_password);
-
-
-
-
-
-/**
  * @brief Generate an ECP keypair to be used within the Spake2+ handshake
  *
  * @param y The private part. Do not leak.
@@ -199,14 +182,14 @@ size_t encode_uint(uint64_t value, uint8_t* buffer);
 size_t encode_string(const char* str, uint8_t* buffer);
 
 
-  /**
- * @brief  point as length followed by bytes
- *
- * @param group string
- * @param point point
- * @param buffer buffer, must be able to fit 8 bytes
- * @return number of bytes written
- */
+/**
+* @brief  point as length followed by bytes
+*
+* @param group string
+* @param point point
+* @param buffer buffer, must be able to fit 8 bytes
+* @return number of bytes written
+*/
 size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, uint8_t* buffer);
 
 int oc_spake_calc_K_shared_256(uint8_t *K_main, uint8_t K_shared[32]);

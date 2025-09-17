@@ -43,7 +43,8 @@ static bool* drop_commands;
 static bool drop_commands[OC_MAX_NUM_DEVICES];
 #endif
 
-static bool initialized = false;  // marker if init was done, to handle a shutdown without init
+// marker if init was done, to handle a shutdown without init
+static bool initialized = false;  
 
 static const oc_handler_t* app_callbacks;
 static oc_factory_presets_t factory_presets = { NULL, NULL };       

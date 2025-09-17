@@ -62,7 +62,6 @@ uint8_t bytes_N[] = {
  - init with 0 + /0 (end of string)
 
 */
-static char password[33] = { 0 };   
 
 #define KNX_RNG_LEN (32)
 #define KNX_SALT_LEN (32)
@@ -87,17 +86,6 @@ int oc_spake_free(void)
 {
   mbedtls_ecp_group_free(&grp);
   return 0;
-}
-
-const char* oc_spake_get_password(void)
-{
-  return password;
-}
-
-void oc_spake_set_password(const char* new_password)
-{
-  // copies sizeof(password) bytes,if new password is less than this size 'dst' will be filled with '0' 
-  strncpy(password, new_password, sizeof(password));
 }
 
 size_t encode_uint(const uint64_t value, uint8_t* buffer)
@@ -264,9 +252,16 @@ static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* sa
 
 int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
 {
+
   // TODO precalculate salt, w0 L, it and get from application callback for demo applications (add note for real devices)
+
+  // define prototype here to not the entire *h file
+  char* app_get_password(void);
+
+  const char* pwd_ptr = app_get_password();
+
   // IMPORTANT consider the notes on oc_pase_t type definition 
-  const int ret = oc_spake_calc_w0_L(password, len_salt, salt, it, w0, L);
+  const int ret = oc_spake_calc_w0_L(pwd_ptr, len_salt, salt, it, w0, L);
 
   if (ret != 0)
   {

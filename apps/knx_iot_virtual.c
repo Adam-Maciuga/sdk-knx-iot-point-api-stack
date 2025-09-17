@@ -24,9 +24,8 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
-#ifdef OC_SPAKE
-#include "security/oc_spake2plus.h" // security enrollment by password
-#endif
+// use it in upper case, IMPORTANT consider the notes on oc_pase_t type definition
+//const char password[33] = "2X4W3TE0DFLLS19Y1FCH";
 
 // global variables (12 x char + /0), maybe overwritten by CL option
 char g_serial_number[SERIAL_NUM_SIZE + 1]; 
@@ -47,6 +46,7 @@ void app_str_to_upper(char* str)
   }
 }
 
+// IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
 char* app_get_password(void) { return PASSWORD; }
 
 static oc_event_callback_retval_t send_delayed_response(void* context)
@@ -205,16 +205,12 @@ int app_init(void)
 
 #ifdef OC_SPAKE
 
-  // if current (negotiated) pwd is not set (e.g. on a handover), use application definition
-  if (strlen(oc_spake_get_password()) == 0)
-    oc_spake_set_password(PASSWORD);
-
   // convert in upper case (12 x char + /0)
   char sn_upper[SERIAL_NUM_SIZE + 1];
   memcpy(sn_upper, sn_lower_case, SERIAL_NUM_SIZE +1);
   app_str_to_upper(sn_upper);
 
-  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, oc_spake_get_password());
+  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, app_get_password());
 
 #endif
 

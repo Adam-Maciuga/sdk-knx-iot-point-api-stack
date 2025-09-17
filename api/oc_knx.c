@@ -49,7 +49,7 @@ enum SpakeKeys
 {
   SPAKE_ID = 0,
   SPAKE_SALT = 5,
-  SPAKE_PW = 8, // For device handover, not implemented yet
+  SPAKE_PW = 8, // for device handover, not implemented yet
   SPAKE_PA_SHARE_P = 10,
   SPAKE_PB_SHARE_V = 11,
   SPAKE_PBKDF2 = 12,
@@ -1831,13 +1831,16 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     mbedtls_mpi_init(&spake_data.w0);
     mbedtls_mpi_init(&spake_data.y);
 
+    // reset pase object, except id (it holds an allocated oc_string stack memory)
     memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
     memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
     memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
     memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
     memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
     memset(g_pase.salt, 0, sizeof(g_pase.salt));
+
     g_pase.it = OC_SPAKE_IT;
+
     return OC_EVENT_DONE;
   }
 
@@ -1856,14 +1859,16 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   mbedtls_ecp_point_init(&spake_data.pub_y);
   mbedtls_mpi_init(&spake_data.w0);
   mbedtls_mpi_init(&spake_data.y);
-#endif 
+  #endif 
 
+  // reset pase object, except id (it holds an allocated oc_string stack memory)
   memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
   memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
   memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
   memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
   memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
+
   g_pase.it = OC_SPAKE_IT;
 
 #ifdef OC_SPAKE

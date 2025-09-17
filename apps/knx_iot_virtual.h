@@ -41,6 +41,7 @@
 
 
 // use it in upper case (min 6, max 32)
+// IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
 
 /*
@@ -179,8 +180,10 @@ extern "C"
   char* app_get_parameter_name(int index);
 
   /**
-   * @brief returns the password, used from external application hence defined as
-   * separate method.
+   * @brief returns the SPAKE2+ client password, used from external application hence defined as
+   *        separate method.
+   *
+   * @note  IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
    */
   char* app_get_password(void);
 
@@ -223,7 +226,7 @@ extern "C"
   /**
    * @brief function to set the input string to upper case
    *
-   * @note extra function defined, since '_strupr' from <string.h> is Microsof (Windows) 
+   * @note extra function defined, since '_strupr' from <string.h> is Microsoft (Windows) 
            specific and not available in Linux in <string.h>
    *
    * @param str the string to make upper case

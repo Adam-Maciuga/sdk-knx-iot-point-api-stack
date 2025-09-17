@@ -39,7 +39,19 @@ extern "C"
 #define RESET_TO_DEFAULT_WO_IA (7)  // factory reset w/o IA
 
   /**
-   * @brief Pase Resource Object
+   * @brief PASE Resource Object 
+   *
+   *  - A PAKE (Password Authenticated Key Exchange) 'protocol' is used to authenticate
+   *    communication partners by establishing PASE (Password Authenticated Session Establishment) session keys
+   *    between the parties. 
+   *  - SPAKE2+ is an augmented/extended PAKE 'protocol', where only one party (usually a MaC) knows (and uses) the password.
+   *    The other party (usually the server device) knows only a derivative of the password. 
+   *
+   *  The virtual demo applications uses the password also on server side, a real device shall use the password derivative,
+   *  see SPAKE2+, 3.2. Offline Registration. 
+   *
+   *
+   *  The steps for the key enrolment are described in KNX IoT specification 3/10/5 clause 3.6.6.3
    *
    *  Key Translation
    *  ===============
@@ -56,11 +68,14 @@ extern "C"
    *  | it       | 16            | unsigned    |
    *
    *  (1)
-   *  The iteration value (it) is a fixed value, that needs to in accordance to server device hardware calculation capabilities.
-   *  The stack allows to define this value as part of the CMake compile definitions
+   *  The iteration value (it) is a fixed value, that needs to be set in accordance to
+   *  the server device hardware calculation capabilities.
+   *  The stack allows to define this (it) value as part of the CMake compile definitions.
+   *  Note that a randomized iteration value (it) at runtime does not increase the security,
+   *  it only reduces the effort for an attacker.  
    *
    *  (2)
-   *  The salt goes always together with an individual password 
+   *  The salt goes always together with an individual password.  
    *
    *  Example JSON
    *  ============
