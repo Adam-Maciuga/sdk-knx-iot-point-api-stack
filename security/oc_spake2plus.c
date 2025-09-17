@@ -255,12 +255,12 @@ int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, uint32_t it, 
 
   // TODO precalculate salt, w0 L, it and get from application callback for demo applications (add note for real devices)
 
-  // define prototype here to not the entire *h file
+  // define prototype here to not include the entire *h file
   char* app_get_password(void);
 
   const char* pwd_ptr = app_get_password();
 
-  // IMPORTANT consider the notes on oc_pase_t type definition 
+  // IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
   const int ret = oc_spake_calc_w0_L(pwd_ptr, len_salt, salt, it, w0, L);
 
   if (ret != 0)
@@ -387,7 +387,7 @@ int calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc
 {
   int ret = 0;
   mbedtls_ecp_point Z, V, shareP;
-  uint8_t ttbuf[2048];
+  uint8_t ttbuf[2048] = {0};
   size_t ttlen = 0;
 
   mbedtls_ecp_point_init(&Z);
@@ -455,7 +455,7 @@ int calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1, mbedtls_mpi* x, 
 {
   int ret;
   mbedtls_ecp_point Y, Z, V;
-  uint8_t ttbuf[2048];
+  uint8_t ttbuf[2048] = {0};
   size_t ttlen = 0;
   mbedtls_ecp_point_init(&Y);
   mbedtls_ecp_point_init(&Z);
