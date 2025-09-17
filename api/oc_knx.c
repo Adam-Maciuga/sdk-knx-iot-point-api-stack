@@ -347,7 +347,7 @@ const oc_resource_t core_resource_knx = {(oc_resource_t*)&core_resource_knx_fp_g
                                          &core_resource_knx_data};
 PRAGMA_OUT
 
-void oc_create_knx_resource(int resource_idx, size_t device)
+static void oc_create_knx_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /knx resources");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
@@ -434,7 +434,7 @@ const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
 
 
 // LSM handler, stores the new state and returns if event was OK (true)
-bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
+static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
 {
   if (lsm_e == LSM_E_NOP)
   {
@@ -596,7 +596,7 @@ const oc_resource_t core_resource_a_lsm = {(oc_resource_t*)&core_resource_knx_sp
                                            &core_resource_a_lsm_data};
 PRAGMA_OUT
 
-void oc_create_a_lsm_resource(int resource_idx, size_t device)
+static void oc_create_a_lsm_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /a/lsm resources");
 
@@ -638,6 +638,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
+  (void)iface_mask;
   (void)data;
   char ip_address[100];
 
@@ -1141,7 +1142,7 @@ const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fi
                                            &core_resource_knx_k_data};
 
 
-void oc_create_knx_k_resource(int resource_idx, size_t device)
+static void oc_create_knx_k_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /k resources");
   oc_core_populate_resource(resource_idx, device, "/k", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1200,7 +1201,7 @@ const oc_resource_t core_resource_knx_fingerprint = {(oc_resource_t*)&core_resou
                                                      &core_resource_knx_fingerprint_data};
 PRAGMA_OUT
 
-void oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
+static void oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /k/f resources");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx/f", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1290,7 +1291,7 @@ const oc_resource_t core_resource_knx_ia = {(oc_resource_t*)&core_resource_knx,
                                             &core_resource_knx_ia_data};
 PRAGMA_OUT
 
-void oc_create_knx_ia(int resource_idx, size_t device)
+static void oc_create_knx_ia(int resource_idx, size_t device)
 {
   OC_DBG("create /knx/ia resources");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ia", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1343,7 +1344,7 @@ const oc_resource_t core_resource_knx_ldevid = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_ldevid_data};
 PRAGMA_OUT
 
-void oc_create_knx_ldevid_resource(int resource_idx, size_t device)
+static void oc_create_knx_ldevid_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_ldevid_resource");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ldevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
@@ -1797,8 +1798,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     }
 
     // shared_key is 16-byte array - NOT NULL TERMINATED
-    const uint8_t shared_key[16];
-    const uint8_t shared_key_len = sizeof(shared_key);
+    uint8_t shared_key[16] = {0};
     oc_spake_calc_K_shared(spake_data.K_main, shared_key);
 
     // set the /auth/at entry with the calculated shared key
@@ -1808,13 +1808,15 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
 
     // debugging
-    PRINT("set id : (%llu) ", oc_byte_string_len(g_pase.id)); oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
-    PRINT("set ms : (%2d) ", shared_key_len);                 oc_char_println_hex(shared_key, shared_key_len);
+    PRINT("set id : (%llu) ", oc_byte_string_len(g_pase.id));
+    oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
+    PRINT("set ms : (%llu) ", sizeof(shared_key));
+    oc_char_println_hex(shared_key, sizeof(shared_key));
 
     // - create the token & store in at table (usually at position 0)
     // - note there should be no entries, if there is an entry then overwrite it
     // - it is a by MaC freely chosen id
-    oc_oscore_set_auth_shared(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, shared_key_len);
+    oc_oscore_set_auth_shared(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, sizeof(shared_key));
 
     // empty payload
     oc_send_empty_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
@@ -1902,7 +1904,7 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
                                                &core_resource_knx_spake_data};
 PRAGMA_OUT
 
-void oc_create_knx_spake_resource(int resource_idx, size_t device)
+static void oc_create_knx_spake_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_spake_resource");
   oc_core_populate_resource(resource_idx, device, "/.well-known/knx/spake", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,

@@ -134,7 +134,7 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   &core_resource_knx_auth_o_osndelay_data};
 PRAGMA_OUT
 
-void oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
+static void oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_auth_o_osndelay_resource");
   //
@@ -222,7 +222,7 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   &core_resource_knx_auth_o_replwdo_data};
 PRAGMA_OUT
 
-void oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
+static void oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_auth_o_replwdo_resource");
   //
@@ -335,7 +335,7 @@ const oc_resource_t core_resource_knx_auth_o = {
   &core_resource_knx_auth_o_data};
 PRAGMA_OUT
 
-void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
+static void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 {
   OC_DBG("create /aut/o resources");
   oc_core_populate_resource(resource_idx, device_index, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
@@ -428,7 +428,7 @@ const oc_resource_t core_resource_knx_a_sen = {
   &core_resource_knx_a_sen_data};
 PRAGMA_OUT
 
-void oc_create_a_sen_resource(int resource_idx, size_t device)
+static void oc_create_a_sen_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_a_sen_resource");
 
@@ -451,11 +451,11 @@ static int find_empty_at_index(void)
   return -1;
 }
 
-static int find_index_from_access_token_string(const char* at, const int len_at)
+static int find_index_from_access_token_string(const char* at, size_t len_at)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
-    const int len = oc_string_len(g_at_entries[i].id);
+    const size_t len = oc_string_len(g_at_entries[i].id);
     if (len > 0 && len == len_at && strncmp(at, oc_string(g_at_entries[i].id), len) == 0)
     {
       return i;
@@ -1015,7 +1015,7 @@ const oc_resource_t core_resource_knx_auth_at = {
   &core_resource_knx_auth_at_data};
 PRAGMA_OUT
 
-void oc_create_auth_at_resource(int resource_idx, size_t device)
+static void oc_create_auth_at_resource(int resource_idx, size_t device)
 {
   oc_core_populate_resource(resource_idx, device, "/auth/at", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_auth_at_get_handler, 0, oc_core_auth_at_post_handler, oc_core_auth_at_delete_handler, 1,
@@ -1220,7 +1220,7 @@ const oc_resource_t core_resource_knx_auth_at_x = {
   &core_resource_knx_auth_at_x_data};
 PRAGMA_OUT
 
-void oc_create_auth_at_x_resource(int resource_idx, size_t device)
+static void oc_create_auth_at_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_auth_at_x_resource");
 
@@ -1336,7 +1336,7 @@ const oc_resource_t core_resource_knx_auth = {
   &core_resource_knx_auth_data};
 PRAGMA_OUT
 
-void oc_create_knx_auth_resource(int resource_idx, size_t device)
+static void oc_create_knx_auth_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_auth_resource");
   oc_core_populate_resource(resource_idx, device, "/auth", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1394,7 +1394,7 @@ void oc_print_auth_at_entry(int index)
 #endif
 }
 
-oc_acl_mask_t oc_at_get_scope_mask(int entry)
+static oc_acl_mask_t oc_at_get_scope_mask(int entry)
 {
   return entry < 0 || entry >= G_AT_MAX_ENTRIES ? OC_ACL_NONE : g_at_entries[entry].scope;
 }
@@ -1643,7 +1643,7 @@ static void oc_load_at_table_entry(int entry)
   free(buf);
 }
 
-int oc_core_find_at_entry_with_id(char* id)
+static int oc_core_find_at_entry_with_id(char* id)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
@@ -1693,7 +1693,7 @@ int oc_core_find_at_entry_empty_slot(void)
   return -1;
 }
 
-void oc_load_at_table(void)
+static void oc_load_at_table(void)
 {
   PRINT("Loading AT Table from persistent storage");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
