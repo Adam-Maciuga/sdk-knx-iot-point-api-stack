@@ -140,12 +140,6 @@ void CustomDialog::on_close(wxCommandEvent& event)
   EndModal(wxID_OK);
 }
 
-
-
-
-
-
-
 class MyApp : public wxApp
 {
 public:
