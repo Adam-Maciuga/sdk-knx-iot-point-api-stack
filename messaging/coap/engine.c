@@ -302,8 +302,9 @@ int coap_receive(oc_message_t* incoming_message)
 
     #ifdef OC_DEBUG
 
-		OC_DBG("parsed: CoAP version: %u, token: 0x%02X%02X, mid: %u",
-					 incoming_coap_message->version, incoming_coap_message->token[0], incoming_coap_message->token[1], 
+		OC_DBG("parsed: CoAP version: %u, (first 2 bytes) token: 0x%02X%02X ..., mid: %u",
+					 incoming_coap_message->version, 
+					 incoming_coap_message->token[0], incoming_coap_message->token[1], 
 					 incoming_coap_message->mid);
 
 		switch (incoming_coap_message->type)

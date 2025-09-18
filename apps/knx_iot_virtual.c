@@ -516,7 +516,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
   // handle the different request sources, here included as an example to distinguish
   // the caller source (e.g.; called by /p or /k s-mode message EP) 

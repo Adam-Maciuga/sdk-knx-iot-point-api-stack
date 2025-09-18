@@ -130,8 +130,6 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
-  void OnPressed_LSAB_0_IOO(wxCommandEvent& event); // trigger by hand a status "write" 
-  void OnPressed_LSAB_1_IOO(wxCommandEvent& event); // trigger by hand a status "write" 
 
   void updateCheckBoxesFromLiveSOOData();
   void updateDeviceData();
@@ -160,8 +158,6 @@ private:
 
   // channel 0
   wxCheckBox *m_LSAB_0_SOO, *m_LSAB_1_SOO;
-  wxButton *m_LSAB_0_IOO, *m_LSAB_1_IOO;
-
 };
 
 wxIMPLEMENT_APP(MyApp);
@@ -264,7 +260,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
 
   // channel 0 - actuator
   {
-    
     row = 0;
     column = 0;
 
@@ -281,17 +276,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     m_LSAB_0_SOO->Set3StateValue(wxCHK_UNDETERMINED);
     m_LSAB_0_SOO->Enable(false);
 
-
-    row = 0;
-    column = 1;
-
-    // control
-    m_LSAB_0_IOO = new wxButton(this, LSAB_0_IOO, _T("IOO, press me ..."),
-                                wxPoint(140 + column * x_width, 10 + x_height * row), 
-                                wxSize(x_width, x_height), 0);
-
-    m_LSAB_0_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_0_IOO, this);
-    m_LSAB_0_IOO->Enable(true);
   }
 
   // channel 1 - actuator
@@ -310,17 +294,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
                                   wxSize(x_width, x_height), wxCHK_3STATE);
     m_LSAB_1_SOO->Set3StateValue(wxCHK_UNDETERMINED);
     m_LSAB_1_SOO->Enable(false);
-
-
-    row = 1;
-    column = 1;
-
-    // control
-    m_LSAB_1_IOO = new wxButton(this, LSAB_1_IOO, _T("IOO, press me ..."),
-                                wxPoint(140 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
-
-    m_LSAB_1_IOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_1_IOO, this);
-    m_LSAB_1_IOO->Enable(true);
   }
 
   // serial number
@@ -973,7 +946,6 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   this->updateDeviceData();
 }
 
-
 /**
  * @brief update the UI e.g. check boxes in the UI
  * updates:
@@ -1178,50 +1150,4 @@ void MyFrame::double2text(double value, char* text)
   char new_text[200];
   sprintf(new_text, " %f", value);
   strcat(text, new_text);
-}
-
-// trigger by hand a status request "write"
-void MyFrame::OnPressed_LSAB_0_IOO(wxCommandEvent& event)
-{
-  // get url from IOO
-  char* url = app_retrieve_href_from_channel(0, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(0, IOO);
-
-  // send out current state (do NOT change the state), multicast
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
-
-  // update button text
-  char text[200];
-  strcpy(text, "IOO = ");
-
-  this->add_bool_to_text(p, text);
-  m_LSAB_0_IOO->SetLabel(text);
-
-  // show in status bar
-  char statusBarText[100];
-  (void)sprintf(statusBarText, "Info On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
-  SetStatusText(statusBarText);
-}
-
-// trigger by hand a status request "write"
-void MyFrame::OnPressed_LSAB_1_IOO(wxCommandEvent& event)
-{
-  // get url from IOO
-  char* url = app_retrieve_href_from_channel(1, IOO);
-  bool p = app_retrieve_bool_variable_from_channel(1, IOO);
-
-  // send out current state (do NOT change the state), multicast
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
-
-  // update button text
-  char text[200];
-  strcpy(text, "IOO = ");
-
-  this->add_bool_to_text(p, text);
-  m_LSAB_1_IOO->SetLabel(text);
-
-  // show in status bar
-  char statusBarText[100];
-  (void)sprintf(statusBarText, "Info On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
-  SetStatusText(statusBarText);
 }
