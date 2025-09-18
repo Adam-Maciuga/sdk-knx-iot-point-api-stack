@@ -1662,7 +1662,9 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
     {
       oc_delete_at_table_entry(i);      // delete entry from AT table
+#ifdef OC_OSCORE
       oc_oscore_free_contexts_at_id(i); // removes possible references
+#endif
       PRINT("PASE key found at id : %d, invalidated...", i);
     }
   }

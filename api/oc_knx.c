@@ -376,6 +376,7 @@ int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state)
     return -1;
   }
 
+  // set state for device (RAM) and file storage (tests on LSM uses device property) 
   device->lsm_s = new_state;
   oc_storage_write(KNX_STORAGE_LSM, (uint8_t*)&new_state, sizeof(new_state));
 
@@ -1871,11 +1872,11 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
 
-  g_pase.it = OC_SPAKE_IT;
 
-#ifdef OC_SPAKE
+  #ifdef OC_SPAKE
+  g_pase.it = OC_SPAKE_IT;
   increment_counter();
-#endif
+  #endif
 
   oc_send_separate_response(&spake_separate_rsp, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
