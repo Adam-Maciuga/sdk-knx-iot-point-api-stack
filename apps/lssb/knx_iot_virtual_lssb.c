@@ -57,6 +57,10 @@
 #include <stdlib.h>
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
+#ifdef KNX_GUI
+  #define NO_MAIN
+#endif
+
 #ifdef __linux__
 #include <pthread.h>
 #ifndef NO_MAIN
@@ -176,8 +180,8 @@ void register_resources(void)
     oc_resource_set_observable(ioo_resource, true);
 
     // define user data for PUT/GET, needed to distinguish the call source
-    void* soo_user_data = lsxb[i].point[SOO].id;
-    void* ioo_user_data = lsxb[i].point[IOO].id;
+    void* soo_user_data = (void*)(uintptr_t)lsxb[i].point[SOO].id;
+    void* ioo_user_data = (void*)(uintptr_t)lsxb[i].point[IOO].id;
 
     // LSSB defines
     // soo
@@ -230,7 +234,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_lssb_%s", app_get_serial_number());
+  (void)snprintf(storage, sizeof(storage), "./knx_iot_virtual_lsab_%s", app_get_serial_number());snprintf(storage, sizeof(storage), "./knx_iot_virtual_lssb_%s", app_get_serial_number());
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
@@ -310,7 +314,9 @@ int main(const int argc, char* argv[])
   oc_clock_time_t next_event;
 
 #ifdef KNX_GUI
-  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+  #ifdef _WIN32
+    WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+  #endif
 #endif
 
 #ifdef WIN32
