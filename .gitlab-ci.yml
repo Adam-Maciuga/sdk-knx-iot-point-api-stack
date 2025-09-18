@@ -12,7 +12,7 @@ before_script:
 
 build_linux_debug:
   stage: build
-  image: gcc:latest
+  image: luftd/knx-ci:latest
   script:
     - cmake --preset linux-debug
     - cmake --build $BUILD_DIR
@@ -23,7 +23,7 @@ build_linux_debug:
 
 lint:
   stage: lint
-  image: gcc:latest
+  image: luftd/knx-ci:latest
   script:
     - cmake --preset linux-debug
     - cmake --build $BUILD_DIR
