@@ -408,8 +408,23 @@ endif()
 
 if(UNIX)
     # use system-installed wxWidgets on Linux
-    find_package(wxWidgets REQUIRED net core base)
-    include(${wxWidgets_USE_FILE})
+    #find_package(wxWidgets REQUIRED net core base)
+    #include(${wxWidgets_USE_FILE})
+
+    #Fetching wxWidgets manually, because not all Linux distributions handle installing the same way
+    FetchContent_Declare(
+        wxWidgets
+        URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.8/wxWidgets-3.2.8.7z
+        DOWNLOAD_EXTRACT_TIMESTAMP true
+    )
+    # wxWidgets build options
+    set(wxBUILD_SHARED OFF CACHE BOOL "" FORCE) # build static
+    set(wxBUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(wxBUILD_DEMOS OFF CACHE BOOL "" FORCE)
+    set(wxBUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+
+    message(STATUS "Fetching wxWidgets, kindly wait...")
+    FetchContent_MakeAvailable(wxWidgets)
 
     ## EITT GUI (Linux)
     add_executable(eitt_virtual_gui
