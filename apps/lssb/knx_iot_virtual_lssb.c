@@ -285,12 +285,6 @@ void signal_event_loop(void)
 }
 #endif
 
-/*
- used to run as standalone command line (with main) or embed it
- in a parent code (such as the corresponding GUI applications) 
-*/
-#ifndef NO_MAIN
-
 /**
  * @brief handle Ctrl-C
  * @param signal the captured signal
@@ -443,4 +437,3 @@ int main(const int argc, char* argv[])
   oc_main_shutdown();
   return 0;
 }
-#endif

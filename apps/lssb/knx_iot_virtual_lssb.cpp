@@ -22,6 +22,11 @@
 // For compilers that support precompilation, includes "wx/wx.h".
 #include <wx/cmdline.h>
 #include <wx/wxprec.h>
+
+//temporary fix for wxWidgets precompiled headers issue
+#undef WX_PRECOMP
+
+
 #ifndef WX_PRECOMP
 #include <wx/wx.h>
 #include <wx/display.h>
