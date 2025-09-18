@@ -427,9 +427,31 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
                                   wxSize(width_size, 25), wxTE_RICH);
   static_text2->SetEditable(false);
 
-    // update the UI
+  // update the UI
   this->updateDeviceData();
   this->updateCheckBoxesFromLiveIOOData();
+
+  // Calculate bounding box of all children to make Window correct size
+  int maxRight = 0;
+  int maxBottom = 0;
+
+  for (wxWindowList::iterator it = GetChildren().begin(); it != GetChildren().end(); ++it)
+  {
+      wxWindow* child = *it;
+      if (child) {
+          wxRect rect = child->GetRect();
+          maxRight = std::max(maxRight, rect.GetRight());
+          maxBottom = std::max(maxBottom, rect.GetBottom());
+      }
+  }
+
+  // Add some padding (status bar, borders, etc.)
+  int paddingX = 40;
+  int paddingY = 60;
+
+  // Set minimum size dynamically
+  this->SetMinSize(wxSize(maxRight + paddingX, maxBottom + paddingY));
+  this->SetSize(this->GetMinSize());
 
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
@@ -509,20 +531,20 @@ void MyFrame::updateDeviceData()
   const uint16_t ia_l = device->ia >> 8 & 0xF; // line
   const uint16_t ia_d = device->ia & 0x00FF; // device
   (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
-  m_ia_text->SetLabelText(text);
+  m_ia_text->SetValue(text);
 
   (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_pm_text->SetLabelText(text);
+  m_pm_text->SetValue(text);
 
   (void)sprintf(text, "Programming Mode : %d", device->pm);
-  m_ls_text->SetLabelText(text);
+  m_ls_text->SetValue(text);
 
   strcpy(text, "IID : ");
   this->int2grpidtext(device->iid, text, iid_conversion);
-  m_iid_text->SetLabelText(text);
+  m_iid_text->SetValue(text);
 
   (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
-  m_hn_text->SetLabelText(text);
+  m_hn_text->SetValue(text);
 
   // set in menu the programming mode to what the device has
   m_menuFile->Check(CHECK_PM, device->pm);

@@ -24,11 +24,9 @@
 
 #ifdef __linux__
 #include <pthread.h>
-#ifndef NO_MAIN
 static pthread_mutex_t mutex;
 static pthread_cond_t event_is_pending;
 static struct timespec ts;
-#endif
 #endif
 
 #ifdef WIN32
@@ -218,8 +216,8 @@ int app_initialize_stack(void)
 
   char storage[400];
   char dir[FILENAME_MAX] = "";
-  (void) GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_eitt_%s", app_get_serial_number());
+  GetCurrentDir(dir, FILENAME_MAX);
+  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_eitt_%s", dir, app_get_serial_number());
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
@@ -264,15 +262,16 @@ void signal_event_loop(void)
   pthread_mutex_unlock(&mutex);
 }
 #endif
-
+#ifdef _WIN32
 /**
  * @brief main application, here only used as a placeholder for the GUI version.
  */
 int main(const int argc, char* argv[])
 {
   // EITT test application, only available as GUI version
-  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+  
+    WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
 
   return 0;
 }
-
+#endif
