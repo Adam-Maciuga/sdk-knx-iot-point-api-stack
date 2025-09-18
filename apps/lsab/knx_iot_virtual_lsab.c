@@ -232,7 +232,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  snprintf(storage, sizeof(storage), "./knx_iot_virtual_lsab_%s", app_get_serial_number());
+  (void)snprintf(storage, sizeof(storage), "./knx_iot_virtual_lsab_%s", app_get_serial_number());
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
