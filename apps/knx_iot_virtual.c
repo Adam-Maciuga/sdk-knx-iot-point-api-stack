@@ -29,9 +29,11 @@ char g_serial_number[SERIAL_NUM_SIZE + 1];
 
 bool app_is_secure(void)
 {
-  // may produce a warning if OC_OSCORE is not specified ...
-  // but here it is integral part of CMake
-  return OC_OSCORE ? true : false;
+ // may be build without OSCORE ...
+ #ifdef OC_OSCORE
+  return true;
+ #endif
+  return false;
 }
 
 void app_str_to_upper(char* str)

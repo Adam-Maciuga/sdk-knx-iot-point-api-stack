@@ -383,8 +383,6 @@ int main(const int argc, char* argv[])
 
   const oc_device_info_t* device = oc_core_get_device_info(0);
 
-  // may produce a warning if OC_OSCORE is not specified ...
-  PRINT("OSCORE - %s", OC_OSCORE ? "Enabled" : "Disabled");
   PRINT("serial number: %s", oc_string(device->serialnumber));
   PRINT("host name: %s", oc_string(device->hostname));
 
