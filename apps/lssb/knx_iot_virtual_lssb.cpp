@@ -24,6 +24,7 @@
 #include <wx/wxprec.h>
 #ifndef WX_PRECOMP
 #include <wx/wx.h>
+#include <wx/display.h>
 #endif
 
 // main is used from here
@@ -59,7 +60,9 @@ enum : uint16_t
   LSSB_0_SOO = CHECK_PM + 1, 
   LSSB_0_IOO = CHECK_PM + 2,
   LSSB_1_SOO = CHECK_PM + 3,
-  LSSB_1_IOO = CHECK_PM + 4
+  LSSB_1_IOO = CHECK_PM + 4,
+
+  LIST_ALL = LSSB_1_IOO + 1
 };
 
 extern lsxb_channel_t lsab[NUM_CHANNELS];
@@ -78,33 +81,70 @@ private:
   void on_close(wxCommandEvent& event);
 };
 
-void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
-
-CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
-    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
+CustomDialog::CustomDialog(const wxString& title, const wxString& text)
+  : wxDialog(NULL, wxID_ANY, title,
+             wxDefaultPosition, wxDefaultSize,
+             wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX)
 {
-  int size_x = 520;
-  int size_y = 300;
-
-  wxPanel* panel = new wxPanel(this, -1);
-
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
 
-  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+  wxTextCtrl* tc = new wxTextCtrl(this, wxID_ANY, text,
+                                  wxDefaultPosition, wxDefaultSize,
+                                  wxTE_MULTILINE | wxTE_READONLY | wxHSCROLL);
 
-  wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
+  vbox->Add(tc, 1, wxEXPAND | wxALL, 10);
+
+  wxButton* closeButton = new wxButton(this, wxID_OK, "Close");
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  vbox->Add(closeButton, 0, wxALIGN_CENTER | wxALL, 10);
 
-  hbox->Add(closeButton, 1, wxLEFT, 5);
-  vbox->Add(panel, 1);
-  vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+  SetSizer(vbox);
 
-  SetSizerAndFit(vbox);
+  // ---- Compute content-based size ----
+  wxClientDC dc(this);
+  dc.SetFont(tc->GetFont());
+
+  wxArrayString lines = wxSplit(text, '\n');
+  int lineHeight = dc.GetCharHeight();
+  int maxWidth = 0;
+  for (auto& line : lines) {
+    int w, h;
+    dc.GetTextExtent(line, &w, &h);
+    if (w > maxWidth) maxWidth = w;
+  }
+
+  // Estimated natural size
+  int width = maxWidth + 75;                // padding
+  int height = (lines.size() * lineHeight) + 150; // +button space
+
+  // ---- Cap to 80% of screen ----
+  wxDisplay display(wxDisplay::GetFromWindow(this));
+  wxRect screenRect = display.GetGeometry();
+
+  int maxW = screenRect.GetWidth() * 0.8;
+  int maxH = screenRect.GetHeight() * 0.8;
+
+  width = std::min(width, maxW);
+  height = std::min(height, maxH);
+
+  // Apply and allow resizing
+  SetSize(width, height);
+  SetMinSize(wxSize(100, 100));  // reasonable min
+
   Centre();
   ShowModal();
-  Destroy();
 }
+
+void CustomDialog::on_close(wxCommandEvent& event)
+{
+  EndModal(wxID_OK);
+}
+
+
+
+
+
+
 
 class MyApp : public wxApp
 {
@@ -118,11 +158,7 @@ public:
   MyFrame(const char* serial_number);
 
 private:
-  void OnGroupObjectTable(wxCommandEvent& event);
-  void OnPublisherTable(wxCommandEvent& event);
-  void OnRecipientTable(wxCommandEvent& event);
-  void OnParameterList(wxCommandEvent& event);
-  void OnAuthTable(wxCommandEvent& event);
+  void OnListAll(wxCommandEvent& event);
   void OnProgrammingMode(wxCommandEvent& event);
   void OnSleepyMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
@@ -141,6 +177,12 @@ private:
   void int2grpidtext(uint64_t value, char* text, bool as_ets);
   void int2scopetext(uint32_t value, char* text);
   void double2text(double value, char* text);
+
+  wxString dumpGroupObjectTable();
+  wxString dumpPublisherTable();
+  wxString dumpRecipientTable();
+  wxString dumpParameterList();
+  wxString dumpAuthTable();
 
   wxMenu* m_menuFile;
   wxMenu* m_menuDisplay;
@@ -204,11 +246,7 @@ bool MyApp::OnInit()
 MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX virtual sensor (LSSB)")
 {
   m_menuFile = new wxMenu;
-  m_menuFile->Append(GOT_TABLE_ID, "List Group Object Table", "List the Group object table", false);
-  m_menuFile->Append(PUB_TABLE_ID, "List Publisher Table", "List the Publisher table", false);
-  m_menuFile->Append(REC_TABLE_ID, "List Recipient Table", "List the Recipient table", false);
-  m_menuFile->Append(PARAMETER_LIST_ID, "List Parameters", "List the parameters of the device", false);
-  m_menuFile->Append(AT_TABLE_ID, "List Auth/AT Table", "List the security data of the device", false);
+  m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
   m_menuFile->Append(CHECK_PM, "Programming Mode", "Sets the application in programming mode", true);
   m_menuFile->Append(RESET_TABLE, "Reset (7) (Tables)", "Reset 7 (Reset to default without IA).", false);
   m_menuFile->Append(RESET, "Reset (2)(ex-factory)", "Reset 2 (Reset to default state)", false);
@@ -244,12 +282,8 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
   wxFrameBase::SetStatusText("Welcome to KNX virtual sensor!");
 
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
+  Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
   Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
-  Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
-  Bind(wxEVT_MENU, &MyFrame::OnPublisherTable, this, PUB_TABLE_ID);
-  Bind(wxEVT_MENU, &MyFrame::OnRecipientTable, this, REC_TABLE_ID);
-  Bind(wxEVT_MENU, &MyFrame::OnParameterList, this, PARAMETER_LIST_ID);
-  Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
@@ -529,390 +563,38 @@ void MyFrame::OnReset(wxCommandEvent& event)
 }
 
 /**
- * @brief shows the group object table in a window
+ * @brief shows all tables combined in a window
  *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-
-  strcpy(text, "");
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL)
-  {
-    return;
-  }
-  int total = oc_core_get_group_object_table_total_size();
-  for (int index = 0; index < total; index++)
-  {
-    oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(index);
-
-    if (entry && entry->ga_len > 0)
-    {
-      sprintf(line, "Index %d ", index);
-      strcat(text, line);
-      sprintf(line, "  id: '%d'  ", entry->id);
-      strcat(text, line);
-      sprintf(line, "  url: '%s' ", oc_string(entry->href));
-      strcat(text, line);
-      sprintf(line, "  cflags : '%d' ", static_cast<int>(entry->cflags));
-      oc_cflags_as_string(line, entry->cflags);
-      strcat(text, line);
-      strcpy(line, "  ga : [");
-      for (int i = 0; i < entry->ga_len; i++)
-      {
-        this->int2gatext(entry->ga[i], line, ga_conversion);
-      }
-      strcat(line, " ]");
-      strcat(text, line);
-      strcat(text, "\n"); // break to next entry 
-    }
-    
-  }
-  strcpy(windowtext, "Group Object Table  ");
-  strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
-  SetStatusText("List Group Object Table");
-}
-
-/**
- * @brief shows the Publisher table in a window
+ * Opens a CustomDialog and concatenates the outputs of:
+ * - Group Object Table
+ * - Publisher Table
+ * - Recipient Table
+ * - Parameter List
+ * - Auth/AT Table
  *
- * @param event command triggered by a menu button
+ * Each section is separated with headers.
+ *
+ * @param event command triggered by the menu button
  */
-void MyFrame::OnPublisherTable(wxCommandEvent& event)
+void MyFrame::OnListAll(wxCommandEvent& event)
 {
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
-
-  strcpy(text, "");
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL)
-  {
+  oc_device_info_t* device = oc_core_get_device_info(0);
+  if (!device) {
     return;
   }
 
-  int total = oc_core_get_publisher_table_size();
-  for (int index = 0; index < total; index++)
-  {
-    oc_group_table_t* entry = oc_core_get_publisher_table_entry(index);
+  wxString all;
+  all << dumpGroupObjectTable() << "\n\n"
+      << dumpPublisherTable()   << "\n\n"
+      << dumpRecipientTable()   << "\n\n"
+      << dumpParameterList()    << "\n\n"
+      << dumpAuthTable();
 
-    if (entry && entry->id >= 0)
-    {
-      sprintf(line, "Index %d ", index);
-      strcat(text, line);
-      sprintf(line, "  id: '%d'  ", entry->id);
-      strcat(text, line);
-      if (entry->ia >= 0)
-      {
-        sprintf(line, "  ia: '%d' ", entry->ia);
-        strcat(text, line);
-      }
-      if (entry->iid >= 0)
-      {
-        strcpy(line, "  iid: ");
-        this->int2grpidtext(entry->iid, line, iid_conversion);
-        strcat(text, line);
-      }
-      if (entry->fid >= 0)
-      {
-        sprintf(line, "  fid: '%lld' ", entry->fid);
-        strcat(text, line);
-      }
-      if (entry->grpid > 0)
-      {
-        // sprintf(line, "  grpid: '%u' ", entry->grpid);
-        strcpy(line, "  grpid: ");
-        this->int2grpidtext(entry->grpid, line, grpid_conversion);
-        strcat(text, line);
-      }
-      if (oc_string_len(entry->at) > 0)
-      {
-        sprintf(line, "  at: '%s' ", oc_string(entry->at));
-        strcat(text, line);
-      }
-      if (entry->ga_len > 0)
-      {
-        strcpy(line, "  ga : [");
-        for (int i = 0; i < entry->ga_len; i++)
-        {
-          this->int2gatext(entry->ga[i], line, ga_conversion);
-        }
-        strcat(line, " ]");
-        strcat(text, line);
-      }
-      strcat(text, "\n"); // break to next entry 
-    }
-  }
-  strcpy(windowtext, "Publisher Table  ");
-  strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
-  SetStatusText("List Publisher Table");
-}
+  wxString title;
+  title.Printf("LSSB - All Tables - %s", oc_string(device->serialnumber));
 
-/**
- * @brief shows the Recipient table in a window
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnRecipientTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
-
-  strcpy(text, "");
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL)
-  {
-    return;
-  }
-
-  int total = oc_core_get_recipient_table_size();
-  for (int index = 0; index < total; index++)
-  {
-    oc_group_table_t* entry = oc_core_get_recipient_table_entry(index);
-
-    if (entry && entry->id >= 0)
-    {
-      sprintf(line, "Index %d ", index);
-      strcat(text, line);
-      sprintf(line, "  id: '%d'  ", entry->id);
-      strcat(text, line);
-      if (entry->ia >= 0)
-      {
-        sprintf(line, "  ia: '%d' ", entry->ia);
-        strcat(text, line);
-      }
-      if (entry->iid >= 0)
-      {
-        strcpy(line, "  iid: ");
-        this->int2grpidtext(entry->iid, line, iid_conversion);
-        strcat(text, line);
-      }
-      if (entry->fid >= 0)
-      {
-        sprintf(line, "  fid: '%lld' ", entry->fid);
-        strcat(text, line);
-      }
-      if (entry->grpid > 0)
-      {
-        strcpy(line, "  grpid: ");
-        this->int2grpidtext(entry->grpid, line, grpid_conversion);
-        strcat(text, line);
-      }
-      if (oc_string_len(entry->at) > 0)
-      {
-        sprintf(line, "  at: '%s' ", oc_string(entry->at));
-        strcat(text, line);
-      }
-      if (entry->ga_len > 0)
-      {
-        strcpy(line, "  ga : [");
-        for (int i = 0; i < entry->ga_len; i++)
-        {
-          this->int2gatext(entry->ga[i], line, ga_conversion);
-        }
-        strcat(line, " ]");
-        strcat(text, line);
-      }
-      strcat(text, "\n"); // break to next entry 
-    }
-  }
-  strcpy(windowtext, "Recipient Table  ");
-  strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
-  SetStatusText("List Recipient Table");
-}
-/**
- * @brief shows a window containing the parameters and current values of the application
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnParameterList(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 + (200 * 0)];
-  char line[200];
-  char windowtext[200];
-
-  strcpy(text, "");
-
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL)
-  {
-    return;
-  }
-
-  int index = 1;
-  char* url = app_get_parameter_url(index);
-  if (url == NULL)
-  {
-    strcat(text, "no parameters in this device");
-  }
-  while (url)
-  {
-    sprintf(line, "\nIndex %02d ", index);
-    strcat(text, line);
-    sprintf(line, "  url : '%s'  ", url);
-    strcat(text, line);
-    char* name = app_get_parameter_name(index);
-    if (name)
-    {
-      sprintf(line, "  name: '%s'  ", app_get_parameter_name(index));
-      strcat(text, line);
-    }
-
-
-    // if (app_is_string_url(url)) {
-    //   sprintf(line, "  value : '%s'  ", app_retrieve_string_variable(url));
-    //   strcat(text, line);
-    // }
-    index++;
-    url = app_get_parameter_url(index);
-  }
-  strcpy(windowtext, "Parameter List ");
-  strcat(windowtext, oc_string(device->serialnumber));
-  // wxMessageBox(text, windowtext,
-  //   wxOK | wxICON_NONE);
-  CustomDialog(windowtext, text);
-  SetStatusText("List Parameters and their current set values");
-}
-
-/**
- * @brief shows the (loaded) auth/at table
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnAuthTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 10];
-  char line[500];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  char windowtext[200];
-  int max_entries = oc_core_get_at_table_size();
-  int index = 1;
-
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
-  if (device == NULL)
-  {
-    return;
-  }
-
-  strcpy(text, "");
-  for (index = 0; index < max_entries; index++)
-  {
-
-    oc_auth_at_t* my_entry = oc_get_auth_at_entry(index);
-    if (my_entry)
-    {
-      if (oc_string_len(my_entry->id))
-      {
-        sprintf(line, "index : '%d' id = '%s' ", index, oc_string(my_entry->id));
-        strcat(text, line);
-        sprintf(line, "  profile : %d (%s)", my_entry->profile, oc_at_profile_to_string(my_entry->profile));
-        strcat(text, line);
-        if (my_entry->profile == OC_PROFILE_COAP_DTLS)
-        {
-          if (oc_string_len(my_entry->sub) > 0)
-          {
-            sprintf(line, "    sub           : %s", oc_string(my_entry->sub));
-            strcat(text, line);
-          }
-          if (oc_string_len(my_entry->kid) > 0)
-          {
-            sprintf(line, "  kid : %s", oc_string(my_entry->kid));
-            strcat(text, line);
-          }
-        }
-        if (my_entry->profile == OC_PROFILE_COAP_OSCORE)
-        {
-          if (oc_byte_string_len(my_entry->osc_id) > 0)
-          {
-            sprintf(line, "  osc_id [%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_id)));
-            strcat(text, line);
-            char* ms = oc_string(my_entry->osc_id);
-            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_id));
-            for (int i = 0; i < length; i++)
-            {
-              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          
-          if (oc_byte_string_len(my_entry->osc_ms) > 0)
-          {
-            sprintf(line, "  osc_ms [%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_ms)));
-            strcat(text, line);
-            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_ms));
-            char* ms = oc_string(my_entry->osc_ms);
-            for (int i = 0; i < length; i++)
-            {
-              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          if (oc_byte_string_len(my_entry->osc_contextid) > 0)
-          {
-            sprintf(line, "  osc_contextid (o)[%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_contextid)));
-            strcat(text, line);
-            char* ms = oc_string(my_entry->osc_contextid);
-            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_contextid));
-            for (int i = 0; i < length; i++)
-            {
-              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          
-          if (my_entry->scope == OC_ACL_GA)
-          {
-            sprintf(line, "  osc_ga : [");
-            strcat(text, line);
-            for (int i = 0; i < my_entry->ga_len; i++)
-            {
-              this->int2gatext(my_entry->ga[i], text, ga_conversion);
-            }
-            sprintf(line, " ]\n");
-            strcat(text, line);
-          }
-          else
-          {
-            sprintf(line, "  scope : ");
-            this->int2scopetext(my_entry->scope, line);
-            strcat(text, line);
-            strcat(text, "\n");
-          }
-        }
-      }
-    }
-  }
-
-  strcpy(windowtext, "Auth AT Table ");
-  strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
-  SetStatusText("List security entries");
+  CustomDialog(title, all);
+  SetStatusText("List All Tables");
 }
 
 /**
@@ -1236,4 +918,271 @@ void MyFrame::OnPressed_LSSB_1_SOO(wxCommandEvent& event)
   char statusBarText[100];
   (void)sprintf(statusBarText, "Switch On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
   SetStatusText(statusBarText);
+}
+
+/**
+ * @brief dump the Group Object Table into a string
+ *
+ * Iterates through all group object entries and prints:
+ * - Index
+ * - id
+ * - url
+ * - cflags (numeric and textual)
+ * - group addresses (GA list)
+ *
+ * @return wxString containing formatted Group Object Table
+ */
+wxString MyFrame::dumpGroupObjectTable()
+{
+  wxString out("=== Group Object Table ===\n");
+  char line[512];
+  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+
+  int total = oc_core_get_group_object_table_total_size();
+  for (int i = 0; i < total; i++) {
+    oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(i);
+    if (entry && entry->ga_len > 0) {
+      sprintf(line, "Index %d ", i);
+      out += line;
+
+      sprintf(line, "  id: '%d'  ", entry->id);
+      out += line;
+
+      sprintf(line, "  url: '%s' ", oc_string(entry->href));
+      out += line;
+
+      // numeric + textual cflags in ONE go
+      sprintf(line, "  cflags : '%d' ", (int)entry->cflags);
+      oc_cflags_as_string(line, entry->cflags);
+      out += line;
+
+      // ga list
+      strcpy(line, "  ga : [");
+      for (int j = 0; j < entry->ga_len; j++) {
+        this->int2gatext(entry->ga[j], line, ga_conversion);
+      }
+      strcat(line, " ]");
+      out += line;
+
+      out += "\n";
+    }
+  }
+  return out;
+}
+
+
+/**
+ * @brief dump the Publisher Table into a string
+ *
+ * Iterates through all publisher table entries and prints:
+ * - Index
+ * - id, ia, iid, fid
+ * - grpid (converted if enabled)
+ * - at string
+ * - group addresses (GA list)
+ *
+ * @return wxString containing formatted Publisher Table
+ */
+wxString MyFrame::dumpPublisherTable()
+{
+  wxString out("=== Publisher Table ===\n");
+  char line[256];
+  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
+  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+
+  int total = oc_core_get_publisher_table_size();
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_publisher_table_entry(i);
+    if (entry && entry->id >= 0) {
+      sprintf(line, "Index %d ", i); out += line;
+      sprintf(line, "  id: '%d'  ", entry->id); out += line;
+      if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
+      if (entry->iid >= 0) { strcpy(line, "  iid: "); this->int2grpidtext(entry->iid, line, iid_conversion); out += line; }
+      if (entry->fid >= 0) { sprintf(line, "  fid: '%lld' ", entry->fid); out += line; }
+      if (entry->grpid > 0) { strcpy(line, "  grpid: "); this->int2grpidtext(entry->grpid, line, grpid_conversion); out += line; }
+      if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
+      if (entry->ga_len > 0) {
+        strcpy(line, "  ga : [");
+        for (int j = 0; j < entry->ga_len; j++) {
+          this->int2gatext(entry->ga[j], line, ga_conversion);
+        }
+        strcat(line, " ]");
+        out += line;
+      }
+      out += "\n";
+    }
+  }
+  return out;
+}
+
+/**
+ * @brief dump the Recipient Table into a string
+ *
+ * Iterates through all recipient table entries and prints:
+ * - Index
+ * - id, ia, iid, fid
+ * - grpid (converted if enabled)
+ * - at string
+ * - group addresses (GA list)
+ *
+ * @return wxString containing formatted Recipient Table
+ */
+wxString MyFrame::dumpRecipientTable()
+{
+  wxString out("=== Recipient Table ===\n");
+  char line[256];
+  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
+  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+
+  int total = oc_core_get_recipient_table_size();
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
+    if (entry && entry->id >= 0) {
+      sprintf(line, "Index %d ", i); out += line;
+      sprintf(line, "  id: '%d'  ", entry->id); out += line;
+      if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
+      if (entry->iid >= 0) { strcpy(line, "  iid: "); this->int2grpidtext(entry->iid, line, iid_conversion); out += line; }
+      if (entry->fid >= 0) { sprintf(line, "  fid: '%lld' ", entry->fid); out += line; }
+      if (entry->grpid > 0) { strcpy(line, "  grpid: "); this->int2grpidtext(entry->grpid, line, grpid_conversion); out += line; }
+      if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
+      if (entry->ga_len > 0) {
+        strcpy(line, "  ga : [");
+        for (int j = 0; j < entry->ga_len; j++) {
+          this->int2gatext(entry->ga[j], line, ga_conversion);
+        }
+        strcat(line, " ]");
+        out += line;
+      }
+      out += "\n";
+    }
+  }
+  return out;
+}
+
+/**
+ * @brief dump the Parameter List into a string
+ *
+ * Iterates through all application parameters and prints:
+ * - Index
+ * - URL
+ * - name
+ *
+ * If no parameters exist, prints "no parameters in this device".
+ *
+ * @return wxString containing formatted Parameter List
+ */
+wxString MyFrame::dumpParameterList()
+{
+  wxString out("=== Parameter List ===\n");
+  char line[256];
+
+  int index = 1;
+  char* url = app_get_parameter_url(index);
+  if (url == NULL) {
+    out += "no parameters in this device\n";
+  }
+  while (url) {
+    sprintf(line, "\nIndex %02d ", index); out += line;
+    sprintf(line, "  url : '%s'  ", url); out += line;
+    char* name = app_get_parameter_name(index);
+    if (name) { sprintf(line, "  name: '%s'  ", name); out += line; }
+    index++;
+    url = app_get_parameter_url(index);
+  }
+  return out;
+}
+
+/**
+ * @brief dump the Auth/AT Table into a string
+ *
+ * Iterates through all authentication/authorization entries and prints:
+ * - Index
+ * - id
+ * - profile
+ * - For DTLS: sub, kid
+ * - For OSCORE: osc_id, osc_ms, osc_contextid (hex dumps)
+ * - scope or osc_ga (with GA list)
+ *
+ * @return wxString containing formatted Auth/AT Table
+ */
+wxString MyFrame::dumpAuthTable()
+{
+  wxString out("=== Auth/AT Table ===\n");
+  char line[512];
+  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+
+  int max_entries = oc_core_get_at_table_size();
+  for (int i = 0; i < max_entries; i++) {
+    oc_auth_at_t* entry = oc_get_auth_at_entry(i);
+    if (entry && oc_string_len(entry->id)) {
+      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
+      out += line;
+      sprintf(line, "  profile : %d (%s)", entry->profile,
+              oc_at_profile_to_string(entry->profile));
+      out += line;
+
+      if (entry->profile == OC_PROFILE_COAP_DTLS) {
+        if (oc_string_len(entry->sub) > 0) {
+          sprintf(line, "  sub : %s", oc_string(entry->sub)); out += line;
+        }
+        if (oc_string_len(entry->kid) > 0) {
+          sprintf(line, "  kid : %s", oc_string(entry->kid)); out += line;
+        }
+      }
+
+      if (entry->profile == OC_PROFILE_COAP_OSCORE) {
+        // osc_id
+        if (oc_byte_string_len(entry->osc_id) > 0) {
+          sprintf(line, "  osc_id [%d]: ",
+                  (int)oc_byte_string_len(entry->osc_id));
+          out += line;
+          char* ms = oc_string(entry->osc_id);
+          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++) {
+            sprintf(line, "%02x", (unsigned char)ms[j]);
+            out += line;
+          }
+        }
+        // osc_ms
+        if (oc_byte_string_len(entry->osc_ms) > 0) {
+          sprintf(line, "  osc_ms [%d]: ",
+                  (int)oc_byte_string_len(entry->osc_ms));
+          out += line;
+          char* ms = oc_string(entry->osc_ms);
+          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++) {
+            sprintf(line, "%02x", (unsigned char)ms[j]);
+            out += line;
+          }
+        }
+        // osc_contextid
+        if (oc_byte_string_len(entry->osc_contextid) > 0) {
+          sprintf(line, "  osc_contextid [%d]: ",
+                  (int)oc_byte_string_len(entry->osc_contextid));
+          out += line;
+          char* ms = oc_string(entry->osc_contextid);
+          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++) {
+            sprintf(line, "%02x", (unsigned char)ms[j]);
+            out += line;
+          }
+        }
+        // scope / osc_ga
+        if (entry->scope == OC_ACL_GA) {
+          strcpy(line, "  osc_ga : [");
+          out += line;
+          for (int j = 0; j < entry->ga_len; j++) {
+            this->int2gatext(entry->ga[j], line, ga_conversion);
+          }
+          strcat(line, " ]");
+          out += line;
+        } else {
+          sprintf(line, "  scope : ");
+          this->int2scopetext(entry->scope, line);
+          out += line;
+        }
+      }
+      out += "\n";
+    }
+  }
+  return out;
 }
