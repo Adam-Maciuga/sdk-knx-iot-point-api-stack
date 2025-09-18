@@ -21,3 +21,6 @@ deps/**
 
 # EITT test configuration files 
 /tests/eitt/**
+
+# GitHub files
+.github

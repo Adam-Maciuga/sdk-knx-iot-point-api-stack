@@ -6,8 +6,6 @@ variables:
   BUILD_DIR: out/build/linux-debug
 
 before_script:
-  - apt-get update -qq
-  - apt-get install -y cmake ninja-build build-essential git clang-tidy libwxgtk3.2-dev wx3.2-headers
   - git submodule update --init --recursive
 
 build_linux_debug:
