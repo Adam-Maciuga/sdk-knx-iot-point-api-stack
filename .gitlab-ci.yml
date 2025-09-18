@@ -1,2 +1,35 @@
-# The Docker image that will be used to build your app
-image: KNXIoTPointAPIStack
+stages:
+  - build
+  - lint
+
+variables:
+  BUILD_DIR: out/build/linux-debug
+
+before_script:
+  - apt-get update -qq
+  - apt-get install -y cmake ninja-build build-essential git clang-tidy
+  - git submodule update --init --recursive
+
+build_linux_debug:
+  stage: build
+  image: gcc:latest
+  script:
+    - cmake --preset linux-debug
+    - cmake --build $BUILD_DIR
+  artifacts:
+    paths:
+      - $BUILD_DIR/
+    expire_in: 1 week
+
+lint:
+  stage: lint
+  image: gcc:latest
+  script:
+    - cmake --preset linux-debug
+    - cmake --build $BUILD_DIR
+    - ninja -C $BUILD_DIR tidy || true
+  artifacts:
+    when: always
+    paths:
+      - $BUILD_DIR/
+    expire_in: 1 week
