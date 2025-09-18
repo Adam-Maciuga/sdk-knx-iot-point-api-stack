@@ -150,10 +150,10 @@ void register_resources(void)
     oc_resource_set_observable(ioo_resource_lssb, true);
 
     // define user data for PUT/GET, needed to distinguish the call source
-    void* soo_user_data_lsab = lsxb[LSAB].point[SOO].id;
-    void* ioo_user_data_lsab = lsxb[LSAB].point[IOO].id;
-    void* soo_user_data_lssb = lsxb[LSSB].point[SOO].id;
-    void* ioo_user_data_lssb = lsxb[LSSB].point[IOO].id;
+    void* soo_user_data_lsab = (void*)(uintptr_t)lsxb[LSAB].point[SOO].id;
+    void* ioo_user_data_lsab = (void*)(uintptr_t)lsxb[LSAB].point[IOO].id;
+    void* soo_user_data_lssb = (void*)(uintptr_t)lsxb[LSSB].point[SOO].id;
+    void* ioo_user_data_lssb = (void*)(uintptr_t)lsxb[LSSB].point[IOO].id;
 
     // LSAB defines
     // soo
