@@ -8,14 +8,13 @@ variables:
 before_script:
   - apt-get update -qq
   - apt-get install -y cmake ninja-build build-essential git clang-tidy
+  - git submodule update --init --recursive
 
 build_linux_debug:
   stage: build
   image: gcc:latest
   script:
-    # Configure with the linux-debug preset
     - cmake --preset linux-debug
-    # Build using the preset's binaryDir
     - cmake --build $BUILD_DIR
   artifacts:
     paths:
@@ -26,11 +25,8 @@ lint:
   stage: lint
   image: gcc:latest
   script:
-    # Configure with the linux-debug preset
     - cmake --preset linux-debug
-    # Build everything
     - cmake --build $BUILD_DIR
-    # Run clang-tidy if available (doesn't fail pipeline)
     - ninja -C $BUILD_DIR tidy || true
   artifacts:
     when: always
