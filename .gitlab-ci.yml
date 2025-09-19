@@ -20,7 +20,7 @@ build_linux_debug_gcc:
     expire_in: 1 week
 
 lint:
-  stage: lint
+  stage: lint_linux_debug
   image: luftd/knx-ci:latest
   script:
     - cmake --preset linux-debug-gcc
