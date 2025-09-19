@@ -1,6 +1,6 @@
 stages:
-  - build
-  - lint
+  - build_linux_debug_gcc
+  - lint_linux_debug
 
 variables:
   BUILD_DIR: out/build/linux-debug-gcc
@@ -8,8 +8,8 @@ variables:
 before_script:
   - git submodule update --init --recursive
 
-build_linux_debug:
-  stage: build
+build_linux_debug_gcc:
+  stage: build_linux_debug_gcc
   image: luftd/knx-ci:latest
   script:
     - cmake --preset linux-debug-gcc
