@@ -41,8 +41,8 @@
       }
     },
     {
-      "name": "linux-debug",
-      "displayName": "Linux Debug",
+      "name": "linux-debug-gcc",
+      "displayName": "Linux Debug(gcc)",
       "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -60,8 +60,8 @@
       }
     },
     {
-      "name": "windows-gcc-debug",
-      "displayName": "Windows GCC Debug",
+      "name": "windows-debug-gcc",
+      "displayName": "Windows Debug(gcc)",
       "description": "Build with MinGW-w64 GCC in Debug mode",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -81,8 +81,8 @@
     }
   },
   {
-    "name": "windows-gcc-release",
-    "displayName": "Windows GCC Release",
+    "name": "windows-release-gcc",
+    "displayName": "Windows Release(gcc)",
     "description": "Build with MinGW-w64 GCC in Release mode",
     "generator": "Ninja",
     "binaryDir": "${sourceDir}/out/build/${presetName}",
