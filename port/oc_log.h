@@ -52,7 +52,7 @@
 // for clock function in debug output, maybe used for debugging in release builds, hence included globally 
 #include "oc_clock.h"
 
-#ifdef WIN32
+#ifdef _WIN32
   #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #else
   #define __FILENAME__ (strrchr(__FILE__, '/')  ? strrchr(__FILE__, '/')  + 1 : __FILE__)

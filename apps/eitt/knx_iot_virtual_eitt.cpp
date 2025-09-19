@@ -18,18 +18,13 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-
-// For compilers that support precompilation, includes "wx/wx.h".
-#include <wx/cmdline.h>
-#include <wx/wxprec.h>
-
-//temporary fix for wxWidgets precompiled headers issue
+//needs to be undefined so wxwidgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
 
-#ifndef WX_PRECOMP
+#include <wx/cmdline.h>
+#include <wx/wxprec.h>
 #include <wx/wx.h>
 #include <wx/display.h>
-#endif
 
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"

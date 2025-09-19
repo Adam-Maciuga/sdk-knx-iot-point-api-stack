@@ -22,20 +22,10 @@
 #include <stdio.h> // defines FILENAME_MAX
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
-#ifdef __linux__
-#include <pthread.h>
-static pthread_mutex_t mutex;
-static pthread_cond_t event_is_pending;
-static struct timespec ts;
-#endif
-
-#ifdef WIN32
-#include <windows.h>
-static CONDITION_VARIABLE event_is_pending;
-
+#ifdef _WIN32
 #include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, WIN
-#else 
+#define GetCurrentDir _getcwd // path of current working directory, windows
+#else // linux,mac specific code
 #include <unistd.h>
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
@@ -239,39 +229,12 @@ int app_initialize_stack(void)
   return oc_main_init(&handler);
 }
 
-#ifdef WIN32
 /**
- * @brief signal the event loop (windows version)
- * wakes up the main function to handle the next callback
+ * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
+ * so we don't need to wake up a blocking loop.
  */
 void signal_event_loop(void)
 {
-  WakeConditionVariable(&event_is_pending);
+  //DO NOTHING, wxTimer drives oc_main_poll()
 }
-#endif
 
-#ifdef __linux__
-/**
- * @brief signal the event loop (Linux)
- * wakes up the main function to handle the next callback
- */
-void signal_event_loop(void)
-{
-  pthread_mutex_lock(&mutex);
-  pthread_cond_signal(&event_is_pending);
-  pthread_mutex_unlock(&mutex);
-}
-#endif
-#ifdef _WIN32
-/**
- * @brief main application, here only used as a placeholder for the GUI version.
- */
-int main(const int argc, char* argv[])
-{
-  // EITT test application, only available as GUI version
-  
-    WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
-
-  return 0;
-}
-#endif
