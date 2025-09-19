@@ -193,7 +193,7 @@ private:
   wxCheckBox *m_LSAB_0_SOO, *m_LSAB_1_SOO;
 };
 
-wxIMPLEMENT_APP(MyApp);
+wxIMPLEMENT_APP_CONSOLE(MyApp);
 
 /**
  * @brief initialization of the application

@@ -373,10 +373,8 @@ if(WIN32)
         if(USE_CONSOLE)
           if(MSVC)
                       set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
-                      set(CONSOLE_FLAG "/SUBSYSTEM:CONSOLE")
           else()
                       set(GUI_FLAG "-mconsole")
-                      set(CONSOLE_FLAG "-mconsole")
           endif()
                 
           # GUI versions

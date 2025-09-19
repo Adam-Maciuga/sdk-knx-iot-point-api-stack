@@ -187,7 +187,7 @@ private:
   wxButton *m_EITT_SOO;
 };
 
-wxIMPLEMENT_APP(MyApp);
+wxIMPLEMENT_APP_CONSOLE(MyApp);
 
 /**
  * @brief initialization of the application
