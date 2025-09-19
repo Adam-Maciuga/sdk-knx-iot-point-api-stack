@@ -39,21 +39,14 @@
  * - OC_OSCORE, oscore is enabled as compile flag
  *
  */
-#include "oc_rep.h"
-#include "api/oc_knx_dev.h"
 #include "oc_api.h"
-#include "oc_core_res.h"
-#include "oc_helpers.h"
-#include "port/oc_clock.h"
 #include "port/oc_storage.h"
-#include <signal.h> // test purpose only; commandline reset
 #include <stdio.h> // defines FILENAME_MAX
-#include <stdlib.h>
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
 #ifdef _WIN32
 #include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, windows
+#define GetCurrentDir _getcwd // path of current working directory, WIN
 #else // linux,mac specific code
 #include <unistd.h>
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
@@ -66,11 +59,6 @@ const char hostname[] = "knx-00fa10020900";   // default host name (reset uses t
 const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
-
-// global variables
-
-volatile int quit = 0; // stop variable, used by handle_signal
-bool g_reset = false; // reset variable, set by commandline arguments
 
 /*
 
@@ -239,16 +227,4 @@ int app_initialize_stack(void)
 void signal_event_loop(void)
 {
   //DO NOTHING, wxTimer drives oc_main_poll()
-}
-
-
-/**
- * @brief handle Ctrl-C
- * @param signal the captured signal
- */
-static void handle_signal(const int signal)
-{
-  (void)signal;
-  signal_event_loop();
-  quit = 1;
 }

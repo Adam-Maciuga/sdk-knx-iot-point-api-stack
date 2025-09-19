@@ -460,7 +460,11 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
  *
  * @param event command triggered by the framework
  */
-void MyFrame::OnExit(wxCommandEvent& event) { Close(true); }
+void MyFrame::OnExit(wxCommandEvent& event)
+{
+  oc_main_shutdown();
+  Close(true);
+}
 
 /**
  * @brief checks/unchecks the programming mode

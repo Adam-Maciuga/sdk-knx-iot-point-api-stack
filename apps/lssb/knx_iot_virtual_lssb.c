@@ -37,20 +37,15 @@
  * - WIN32,  build for Windows
  * - OC_OSCORE, oscore is enabled as compile flag
  */
-#include "oc_rep.h"
-#include "api/oc_knx_dev.h"
+
 #include "oc_api.h"
-#include "oc_core_res.h"
-#include "oc_helpers.h"
-#include "port/oc_clock.h"
 #include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
-#include <stdlib.h>
 #include "apps/knx_iot_virtual.h" // application constants + methods
 
 #ifdef _WIN32
 #include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, windows
+#define GetCurrentDir _getcwd // path of current working directory, WIN
 #else // linux,mac specific code
 #include <unistd.h>
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC

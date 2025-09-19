@@ -395,7 +395,11 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
  *
  * @param event command triggered by the framework
  */
-void MyFrame::OnExit(wxCommandEvent& event) { Close(true); }
+void MyFrame::OnExit(wxCommandEvent& event)
+{
+  oc_main_shutdown();
+  Close(true);
+}
 
 /**
  * @brief checks/unchecks the programming mode
@@ -562,7 +566,7 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  * - check boxes
  * - info buttons
  * - text buttons
- * does a oc_main_poll to give a tick to the stack
+ * does an oc_main_poll to give a tick to the stack
  * takes into account if the device is sleepy
  * e.g. then it only does an poll each 20 seconds
  * @param event triggered by a timer

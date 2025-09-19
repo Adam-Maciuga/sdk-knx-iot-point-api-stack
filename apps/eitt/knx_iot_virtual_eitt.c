@@ -24,7 +24,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, windows
+#define GetCurrentDir _getcwd // path of current working directory, WIN
 #else // linux,mac specific code
 #include <unistd.h>
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
@@ -237,4 +237,3 @@ void signal_event_loop(void)
 {
   //DO NOTHING, wxTimer drives oc_main_poll()
 }
-
