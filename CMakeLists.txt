@@ -279,18 +279,6 @@ endif()
 
 if(UNIX OR WIN32)
     add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
-
-    ## LSSB NON GUI demo
-    add_executable(lssb_virtual_cl 
-      ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
-      ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-    )
-    
-     ## LSAB NON GUI demo
-    add_executable(lsab_virtual_cl 
-       ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
-       ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-    )
 endif()
 
 # Detect the used platform and pick the right port
@@ -378,12 +366,9 @@ if(WIN32)
         )
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
-
         target_link_libraries(lssb_virtual_gui wx::net wx::core wx::base kisClientServer)
-        target_compile_definitions(lssb_virtual_gui PUBLIC KNX_GUI)
-
         target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
-        target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
+
 
         if(USE_CONSOLE)
           if(MSVC)
@@ -394,10 +379,6 @@ if(WIN32)
                       set(CONSOLE_FLAG "-mconsole")
           endif()
                 
-          # Console versions
-          set_target_properties(lssb_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
-          set_target_properties(lsab_virtual_cl PROPERTIES LINK_FLAGS ${CONSOLE_FLAG})
-
           # GUI versions
           set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
           set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
@@ -435,9 +416,6 @@ if(UNIX)
     target_link_libraries(eitt_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
     target_link_libraries(lssb_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
     target_link_libraries(lsab_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
-
-    target_compile_definitions(lssb_virtual_gui PUBLIC KNX_GUI)
-    target_compile_definitions(lsab_virtual_gui PUBLIC KNX_GUI)
 endif()
 
 # When using KNX standard security source MBTLS -> use config definitions defined by Intel
@@ -464,11 +442,6 @@ endif()
 
 if(UNIX OR WIN32)
     # Specifies linked libraries (dependencies/references) to build a target
-    ## applications ...
-    target_link_libraries(lssb_virtual_cl kisClientServer)
-    target_link_libraries(lsab_virtual_cl kisClientServer)
-
-    ## ... from
     target_link_libraries(kis-port PUBLIC kis-common mbedtls)
     target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
 endif()
