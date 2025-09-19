@@ -3,7 +3,7 @@ stages:
   - lint
 
 variables:
-  BUILD_DIR: out/build/linux-debug
+  BUILD_DIR: out/build/linux-debug-gcc
 
 before_script:
   - git submodule update --init --recursive
@@ -12,7 +12,7 @@ build_linux_debug:
   stage: build
   image: luftd/knx-ci:latest
   script:
-    - cmake --preset linux-debug
+    - cmake --preset linux-debug-gcc
     - cmake --build $BUILD_DIR
   artifacts:
     paths:
@@ -23,7 +23,7 @@ lint:
   stage: lint
   image: luftd/knx-ci:latest
   script:
-    - cmake --preset linux-debug
+    - cmake --preset linux-debug-gcc
     - cmake --build $BUILD_DIR
     - ninja -C $BUILD_DIR tidy || true
   artifacts:
