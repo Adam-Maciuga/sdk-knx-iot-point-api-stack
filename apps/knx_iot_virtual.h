@@ -18,7 +18,7 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-// include file, used for all CL/GUI applications (EITT/LSAB/LSSB)
+// include file, used for all GUI applications (EITT/LSAB/LSSB)
 
 
 #ifndef KNX_IOT_VIRTUAL_H
@@ -264,7 +264,27 @@ extern "C"
   // need to define prototype, used by an init method
   void signal_event_loop(void);
 
-  // proto defined, to remove complier warning
+  /**
+   * @brief Register all the data point resources to the stack.
+   * 
+   * Each resource path is bind to a specific function for the supported methods:
+   *   - GET (called from /p and /k)
+   *   - PUT (called from /p and /k)
+   *   - POST/DELETE/FETCH  (not supported from stack for the application)
+   *
+   * Each resource is:
+   *   - secure
+   *   - observable
+   *   - discoverable through well-known/core
+   *   - used interfaces as dpa.x.y (x : function block number, y : data point number)
+   *
+   * @note
+   *	Periodic observable to be used when one wants to send an event per time
+      slice (period is 1 second) with oc_resource_set_periodic_observable(res_InfoOnOff_?, 1).
+      Set observable events are send when oc_notify_observers(oc_resource_t *resource) is called.
+      This function must be called when the value changes, preferable on an interrupt when
+      something is read from the hardware.
+ */
   void register_resources(void);
 
 #ifdef __cplusplus

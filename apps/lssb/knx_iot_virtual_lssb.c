@@ -20,22 +20,8 @@
 /**
  * @file
  *
- * KNX virtual sensor
+ * KNX virtual actuator LSSB, for more details see 'knx_iot_application_template' c-file.
  *
- * ## Application Design
- *
- * - app_init, initializes the stack values.
- *
- * - register_resources, function that registers all endpoints, e.g. sets the GET/.../DELETE
- *   handlers for each end point
- *
- *
- * - callback handlers for the implemented methods, see callback handler 'Callback Notes'
- *   
- * ## stack specific defines
- * - __linux__, build for Linux
- * - WIN32,  build for Windows
- * - OC_OSCORE, oscore is enabled as compile flag
  */
 
 #include "oc_api.h"
@@ -91,32 +77,6 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
 int_datapoint_t test_parameter = {
   0, "/p/globalTestParameter", "urn:knx:dpa.65500.201", ":dpt.value2Ucount", "Global Test Parameter"};
 
-
-/**
- * @brief function to set up the device.
- * @brief
- * register all the data point resources to the stack this function registers
- * all data point level resources:
- * each resource path is bind to a specific function for the supported methods:
- *   - GET (called from /p and /k)
- *   - PUT (called from /p and /k)
- *   - POST/DELETE/FETCH  (not supported from stack for the application)
- *
- * each resource is:
- *   - secure
- *   - observable
- *   - discoverable through well-known/core
- *   - used interfaces as: dpa.xxx.yyy
- *      - xxx : function block number
- *      - yyy : data point function number
- *
- * @note
- *	periodic observable to be used when one wants to send an event per time
-    slice (period is 1 second) with oc_resource_set_periodic_observable(res_InfoOnOff_?, 1);
-    Set observable events are send when oc_notify_observers(oc_resource_t *resource) is called.
-    This function must be called when the value changes, preferable on an interrupt when
-    something is read from the hardware.
- */
 void register_resources(void)
 {
   PRINT("Register LSSB 0...1 channel control/status resource");
@@ -194,6 +154,8 @@ int app_initialize_stack(void)
     The final storage folder depends on the build system/ current directory on Linux/ Windows,
     the folder name is defined by the file name + serial number.
     Code below should work both on Linux/Windows.
+
+    For a specific embedded OS usually this functionality needs to be adapted. 
   */
 
   char storage[400];
@@ -206,11 +168,11 @@ int app_initialize_stack(void)
   // initialize the 'application' runtime variables
   initialize_variables();
 
-  // set the stack handler callbacks
-  static oc_handler_t handler = {.init = app_init, // called always
-                                 .signal_event_loop = signal_event_loop, // called always
-                                 .register_resources = register_resources, // called for a server (one time)
-                                 .requests_entry = NULL}; // called for a client
+  // set the stack handler callbacks, details for each handler see oc_handler_t
+  static oc_handler_t handler = {.init = app_init,
+                                 .signal_event_loop = signal_event_loop, 
+                                 .register_resources = register_resources, 
+                                 .requests_entry = NULL};
 
   // set the application handler callbacks
   oc_set_hostname_cb(hostname_cb, NULL);
