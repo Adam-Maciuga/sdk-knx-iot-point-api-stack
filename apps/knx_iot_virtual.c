@@ -261,7 +261,9 @@ extern int_datapoint_t test_parameter;
      datapoint (GO), this can damage your hardware. Reading an input datapoint is less critical,
      but requires a kind of caching the value. Hence, the specification demands:
 
-     - GET is mandatory for 's-mode' and 'property' communication /w and w/o metadata m=(mandatory) 
+     - GET is mandatory for 's-mode' and 'property' communication /w and w/o metadata m= m/o parameters 
+       - mandatory parameters (id, value, rt, if, dpt, ga, href)
+       - optional parameters (desc, unit, min, max, mrt, cov, hbt, sns)
      - PUT is optional for 's-mode'
      - PUT is mandatory for 'property'
 
@@ -387,13 +389,6 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         if (strncmp(m, "href", m_len) == 0 || strncmp(m, "*", m_len) == 0)
         {
           oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
-
-          error_state = false;
-        }
-        // description (optional)
-        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, desc, oc_string(request->resource->name));
 
           error_state = false;
         }
@@ -663,13 +658,6 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
               oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
             }
           }
-          error_state = false;
-        }
-        // description
-        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, desc, oc_string(request->resource->name));
-
           error_state = false;
         }
       }
