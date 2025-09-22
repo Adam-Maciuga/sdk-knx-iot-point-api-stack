@@ -48,8 +48,8 @@
 #endif 
 
 #ifdef OC_SERVER
-OC_LIST(app_resources);
-OC_LIST(observe_callbacks);
+OC_LIST(app_resources);				// application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
+OC_LIST(observe_callbacks);   // callback handlers 
 OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);
 OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);
 #endif 
@@ -825,16 +825,28 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
 		OC_ERR("oc_ri_free_resource_properties: resource is const");
 		return;
 	}
-	// resource names, resource path and the dpt use the oc_string_t type to point to read-only memory,
-	// so we do not need to free it with oc_free_string(&(resource->name/uri)
-	
-	// name (static)
-	resource->name.ptr = NULL;
-	resource->name.size = 0;
 
-	// path (static)
-	resource->uri.ptr = NULL;
-	resource->uri.size = 0;
+	/*
+	  here wa are on an application resource, frees PROPERTIES:
+
+		- uri (static)
+		  in oc_new_resource method simply assigned (resource MUST be already present) 
+	    no need to free it with oc_free_string(&(resource->uri)) -> caller must do that if heap allocated
+
+		- types (allocated)
+		  must be de allocated
+
+		- properties (static),
+		  in oc_new_resource method simply assigned
+
+    - handler (static),
+		  in oc_resource_set_request_handler method simply assigned (resource MUST be already present)
+      no need to free it -> caller must do that if heap allocated
+
+    - runtime_data
+      will be deallocated later in 'oc_memb_free' 
+
+  */
 
 	// types (allocated)
 	if (oc_string_array_get_allocated_size(resource->types) > 0)

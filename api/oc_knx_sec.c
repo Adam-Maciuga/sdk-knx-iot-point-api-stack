@@ -115,7 +115,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
   (oc_resource_t*)&core_resource_knx_auth_o,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
   {NULL, (size_t)1 * 32, ((char[1][32]){":dpt:timePeriodMsec"})},
   {NULL, 0, NULL},
@@ -203,7 +202,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
   (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
   {NULL, (size_t)1 * 32, ((char[1][32]){":dpt.value2UCount"})},
   {NULL, 0, NULL},
@@ -316,7 +314,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_data;
 const oc_resource_t core_resource_knx_auth_o = {
   (oc_resource_t*)&core_resource_knx_auth_at,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/auth/o"), "/auth/o"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -409,7 +406,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_a_sen_data;
 const oc_resource_t core_resource_knx_a_sen = {
   (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/a/sen"), "/a/sen"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -996,7 +992,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
   (oc_resource_t*)&core_resource_knx_auth_at_x,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/auth/at"), "/auth/at"},
   {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.at"})},
   {NULL, 0, NULL},
@@ -1201,7 +1196,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_x_data;
 const oc_resource_t core_resource_knx_auth_at_x = {
   (oc_resource_t*)&core_resource_knx_auth,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
   {NULL, (size_t)1 * 32, ((char[1][32]){"dpt.a[n]"})},
   {NULL, 0, NULL},
@@ -1317,7 +1311,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
   (oc_resource_t*)&core_resource_well_known_core,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/auth"), "/auth"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},

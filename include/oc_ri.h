@@ -442,9 +442,16 @@ extern "C" {
 		void* user_data;
 	} oc_properties_cb_t;
 
+	/**
+   * @brief resource structure for a resource's runtime data
+   * @note data is allocated, even if it contains only a byte (but prepared for a later extension)
+   *        - from heap for application resources such as /p/1/...
+   *				- from code for stack resources such as a/lsm (see definitions in code files)
+   *
+   */
 	typedef struct oc_resource_data_t
 	{
-		uint8_t num_observers; /**< amount of observers */
+		uint8_t num_observers; // amount of observers
 	} oc_resource_data_t;
 
 	/**
@@ -456,7 +463,6 @@ extern "C" {
 	{
     struct oc_resource* next;             // link to next res. (can't be const, application res. changes data + ptr)
 		size_t device;                        // device index 
-		oc_string_t name;                     // resource name (e.g. 'LSAB') 
 		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
 		oc_string_array_t types;              // resource type (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
 		oc_string_t dpt;                      // resource datapoint type
@@ -471,7 +477,7 @@ extern "C" {
 		uint16_t observe_period_seconds;      // observe period in seconds 
 		uint8_t fb_instance;                  // function block instance, default = 0 
 		bool is_const;                        // resource is precompiled (core = true) or not (application = false)
-		oc_resource_data_t* runtime_data;     // runtime modifiable data (number of observers included)
+		oc_resource_data_t* runtime_data;     // for an endpoint at runtime its modifiable data (which one, see resource type)
   };
 
 	// defined to safe space since only the next is of interest 

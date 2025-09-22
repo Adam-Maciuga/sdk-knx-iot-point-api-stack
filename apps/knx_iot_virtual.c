@@ -291,7 +291,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -420,7 +420,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }
 
 // specific PUT for LSAB/EITT applications for SOO (SOO write - IOO will be updated ... )
@@ -439,7 +439,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
   // handle the different request sources, here included as an example to distinguish
   // the caller source (e.g.; called by /p or /k s-mode message EP)
@@ -488,13 +488,13 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
-    PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }
 
 // specific PUT for LSSB/EITT applications for IOO (IOO write - nothing will be updated ... )
@@ -513,7 +513,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   const uint16_t channel = channel_and_datapoint >> 16;
   const uint16_t point = channel_and_datapoint & 0x0000FFFF;
 
-  PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
   // handle the different request sources, here included as an example to distinguish
   // the caller source (e.g.; called by /p or /k s-mode message EP) 
@@ -554,13 +554,13 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
-    PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }
 
 // generic GET for LSSB/LSAB/EITT applications 
@@ -574,7 +574,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   // - input or output, see 'Callback Notes' above
   // - a parameter has interface type GET if.d
 
-  PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -690,7 +690,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }
 
 // generic PUT for LSSB/LSAB/EITT applications
@@ -702,7 +702,7 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   // - input or output, see 'Callback Notes' above
   // - a parameter has interface type PUT if.p
 
-  PRINT("-- Begin PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
   // sets the pointer to the (/k /p) handed over object
   oc_rep_t* rep = request->request_payload;
@@ -729,13 +729,13 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
-    PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }
 
 char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)

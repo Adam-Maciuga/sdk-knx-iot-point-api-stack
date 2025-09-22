@@ -211,7 +211,7 @@ oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_le
 	oc_send_response_raw(request, (const uint8_t*) msg, msg_len, TEXT_PLAIN, response_code);
 }
 
-oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_resource_types, size_t device_index)
+oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, size_t device_index)
 {
 	oc_resource_t* resource = NULL;
 
@@ -225,21 +225,13 @@ oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_reso
 			// device
 			resource->device = device_index;
 
-			// name
-			if (name)
-			{
-				resource->name.ptr = name;
-				resource->name.size = strlen(name) + 1; // include null terminator in size
-				resource->name.next = NULL;
-			}
-
-			// path
+			// uri (href), note that this assigns - with oc_string_t type - an already - by application - allocated resource
 			oc_check_uri(resource_path);                        
 			resource->uri.next = NULL;
 			resource->uri.ptr = resource_path;
 			resource->uri.size = strlen(resource_path) + 1; // include null terminator in size
 
-			// types
+			// types (allocates only the array , types will be assigned later by oc_resource_bind_resource_type)
 			oc_new_string_array(&resource->types, num_resource_types);
 
 			// properties
@@ -274,14 +266,15 @@ oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_reso
 			// note, for precompiled (core) resources it is always true
 			resource->is_const = false;
 
-			// rt data (# observers) 
+			// runtime data
 			resource->runtime_data = data;
 			resource->runtime_data->num_observers = 0;
 		}
 	}
 	else
 	{
-		OC_ERR("resource path longer than 30 bytes: %d", (int) strlen(resource_path));
+		// returns NULL in release build, needs to be checked/caught by the caller
+	  OC_ERR("resource path longer than 30 bytes: %d", (int) strlen(resource_path));
 	}
 
 	return resource;

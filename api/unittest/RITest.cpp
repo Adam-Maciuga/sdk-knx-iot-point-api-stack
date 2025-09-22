@@ -51,7 +51,7 @@ TEST_F(TestOcRi, GetAppResourceByUri_P)
 {
   oc_resource_t *res;
 
-  res = oc_new_resource(RESOURCE_NAME, RESOURCE_URI, 1, 0);
+  res = oc_new_resource(RESOURCE_URI, 1, 0);
   oc_resource_set_discoverable(res, true);
   oc_resource_set_periodic_observable(res, OBSERVERPERIODSECONDS_P);
   oc_resource_set_request_handler(res, OC_GET, onGet, NULL, OC_ACL_NONE, OC_IF_NONE);
@@ -74,7 +74,7 @@ TEST_F(TestOcRi, RiGetAppResource_P)
 {
   oc_resource_t *res;
 
-  res = oc_new_resource(RESOURCE_NAME, RESOURCE_URI, 1, 0);
+  res = oc_new_resource(RESOURCE_URI, 1, 0);
   oc_resource_set_discoverable(res, true);
   oc_resource_set_periodic_observable(res, OBSERVERPERIODSECONDS_P);
   oc_resource_set_request_handler(res, OC_GET, onGet, NULL, OC_ACL_NONE, OC_IF_NONE);
@@ -115,9 +115,9 @@ TEST_F(TestOcRi, RiFreeResourceProperties_P)
 {
   oc_resource_t *res;
 
-  res = oc_new_resource(RESOURCE_NAME, RESOURCE_URI, 1, 0);
+  res = oc_new_resource(RESOURCE_URI, 1, 0);
   oc_ri_free_resource_properties(res);
-  EXPECT_EQ(0, oc_string_len(res->name));
+  EXPECT_EQ(0, oc_string_len(res->uri));
   oc_ri_delete_resource(res);
 }
 
@@ -126,7 +126,7 @@ TEST_F(TestOcRi, RiAddResource_P)
   oc_resource_t *res;
   bool res_check;
 
-  res = oc_new_resource(RESOURCE_NAME, RESOURCE_URI, 1, 0);
+  res = oc_new_resource(RESOURCE_URI, 1, 0);
   oc_resource_set_discoverable(res, true);
   oc_resource_set_periodic_observable(res, OBSERVERPERIODSECONDS_P);
   oc_resource_set_request_handler(res, OC_GET, onGet, NULL, OC_ACL_NONE, OC_IF_NONE);

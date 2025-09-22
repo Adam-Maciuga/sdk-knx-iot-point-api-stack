@@ -227,7 +227,6 @@ extern const oc_resource_t core_resource_knx_swu_protocol;
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_x_data;
 const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_swu_protocol,
                                              0,
-                                             {NULL, 0, NULL},
                                              {NULL, sizeof("/f/*"), "/f/*"},
                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                              {NULL, 0, NULL},
@@ -562,7 +561,6 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_data;
 const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_x,
                                            0,
-                                           {NULL, 0, NULL},
                                            {NULL, sizeof("/f"), "/f"},
                                            {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                            {NULL, 0, NULL},

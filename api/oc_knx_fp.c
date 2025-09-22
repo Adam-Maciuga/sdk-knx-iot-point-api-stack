@@ -685,7 +685,6 @@ extern const oc_resource_t core_resource_knx_fp_g_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_data;
 const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx_fp_g_x,
                                               0,
-                                              {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/g"), "/fp/g"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -798,7 +797,6 @@ extern const oc_resource_t core_resource_knx_fp_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
                                                 0,
-                                                {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -822,7 +820,6 @@ extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 0,
-                                                {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -1257,7 +1254,6 @@ extern const oc_resource_t core_resource_knx_fp_p_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
 const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
                                               0,
-                                              {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -1397,7 +1393,6 @@ extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
 const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 0,
-                                                {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -1850,7 +1845,6 @@ extern const oc_resource_t core_resource_knx_fp_r_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
 const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
                                               0,
-                                              {NULL, 0, NULL},
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -1991,7 +1985,6 @@ extern const oc_resource_t core_resource_knx_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
 const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
                                                 0,
-                                                {NULL, 0, NULL},
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},

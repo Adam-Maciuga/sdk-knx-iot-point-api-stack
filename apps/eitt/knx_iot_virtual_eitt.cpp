@@ -463,6 +463,10 @@ void MyFrame::updateDeviceData()
   // get the device data structure
   oc_device_info_t* device = oc_core_get_device_info(0);
 
+  // may already shut down on exit 
+  if (!device)
+    return; 
+
   const uint16_t ia_a = device->ia >> 12; // area
   const uint16_t ia_l = device->ia >> 8 & 0xF; // line
   const uint16_t ia_d = device->ia & 0x00FF; // device

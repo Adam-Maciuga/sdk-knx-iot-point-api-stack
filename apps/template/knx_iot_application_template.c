@@ -87,14 +87,14 @@ const uint32_t mid = 0x00fa; // first 4 digits of sn_lower_case
 
  */
 
-// define demo channel 0..1 + included EPs to allow a build
+// define demo channel 0..1 + included EPs ->  to allow a possible build (for this you need to add a CMake target)
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
   {{
-    {false, "/p/lssb/0/demo0", "urn:knx:dpa.x.y", ":dpt.na", "demo 0", (0 << 16) + 0},
-    {false, "/p/lssb/0/demo1", "urn:knx:dpa.x.y", ":dpt.na", "demo 1", (0 << 16) + 1}}},
+    {false, "/p/lssb/0/demo0", "urn:knx:dpa.x.y", ":dpt.na", (0 << 16) + 0},
+    {false, "/p/lssb/0/demo1", "urn:knx:dpa.x.y", ":dpt.na", (0 << 16) + 1}}},
   {{
-    {false, "/p/lssb/1/demo0", "urn:knx:dpa.x.y", ":dpt.na", "demo 0", (1 << 16) + 0},
-    {false, "/p/lssb/1/demo1", "urn:knx:dpa.x.y", ":dpt.na", "demo 1", (1 << 16) + 1}}}};
+    {false, "/p/lssb/1/demo0", "urn:knx:dpa.x.y", ":dpt.na", (1 << 16) + 0},
+    {false, "/p/lssb/1/demo1", "urn:knx:dpa.x.y", ":dpt.na", (1 << 16) + 1}}}};
 
 // additional parameters
 int_datapoint_t test_parameter = {0, "/p/demotest", "urn:knx:dpa.x.y", ":dpt.na", "Demo Test Parameter"};

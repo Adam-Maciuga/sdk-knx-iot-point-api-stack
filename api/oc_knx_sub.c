@@ -37,7 +37,6 @@ PRAGMA_IN oc_resource_data_t core_resource_sub_data;
 const oc_resource_t core_resource_sub = {
   (oc_resource_t*)&core_resource_knx_a_sen,
   0,
-  { NULL, 0, NULL },
   { NULL, sizeof("/sub"), "/sub" },
   { NULL, 0, NULL },
   { NULL, 0, NULL },

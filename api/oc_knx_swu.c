@@ -98,7 +98,6 @@ extern const oc_resource_t core_resource_knx_swu_maxdefer;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_protocol_data;
 const oc_resource_t core_resource_knx_swu_protocol = {(oc_resource_t*)&core_resource_knx_swu_maxdefer,
                                                       0,
-                                                      {NULL, 0, NULL},
                                                       {NULL, sizeof("/swu/protocol"), "/swu/protocol"},
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("urn:knx:dpt.protocols"), "urn:knx:dpt.protocols"},
@@ -164,7 +163,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_swu_maxdefer_data;
 const oc_resource_t core_resource_knx_swu_maxdefer = {
   (oc_resource_t*)&core_resource_knx_swu_hwref,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/swu/maxdefer"), "/swu/maxdefer"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.timePeriodSec"), "urn:knx:dpt.timePeriodSec"},
@@ -206,7 +204,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_swu_hwref_data;
 const oc_resource_t core_resource_knx_swu_hwref = {
   (oc_resource_t*)&core_resource_knx_swu_method,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/swu/hwref"), "/swu/hwref"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.varString8559_1"), "urn:knx:dpt.varString8559_1"},
@@ -277,7 +274,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_swu_method_data;
 const oc_resource_t core_resource_knx_swu_method = {
   (oc_resource_t*)&core_resource_knx_lastupdate,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/swu/method"), "/swu/method"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.transferMethod"), "urn:knx:dpt.transferMethod"},
@@ -329,7 +325,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_lastupdate_data;
 const oc_resource_t core_resource_knx_lastupdate = {
   (oc_resource_t*)&core_resource_knx_swu_result,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/swu/lastupdate"), "/swu/lastupdate"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -370,7 +365,6 @@ extern const oc_resource_t core_resource_knx_swu_state;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_result_data;
 const oc_resource_t core_resource_knx_swu_result = {(oc_resource_t*)&core_resource_knx_swu_state,
                                                     0,
-                                                    {NULL, 0, NULL},
                                                     {NULL, sizeof("/swu/result"), "/swu/result"},
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("urn:knx:dpt.updateResult"), "urn:knx:dpt.updateResult"},
@@ -411,7 +405,6 @@ extern const oc_resource_t core_resource_knx_swu_update;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_state_data;
 const oc_resource_t core_resource_knx_swu_state = {(oc_resource_t*)&core_resource_knx_swu_update,
                                                    0,
-                                                   {NULL, 0, NULL},
                                                    {NULL, sizeof("/swu/state"), "/swu/state"},
                                                    {NULL, 0, NULL},
                                                    {NULL, sizeof("urn:knx:dpt.dldState"), "urn:knx:dpt.dldState"},
@@ -487,7 +480,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_swu_update_data;
 const oc_resource_t core_resource_knx_swu_update = {
   (oc_resource_t*)&core_resource_knx_swu_pkgv,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/swu/update"), "/swu/update"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.timePeriodSecZ"), "urn:knx:dpt.timePeriodSecZ"},
@@ -535,7 +527,6 @@ extern const oc_resource_t core_resource_knx_swu_pkgcmd;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgv_data;
 const oc_resource_t core_resource_knx_swu_pkgv = {(oc_resource_t*)&core_resource_knx_swu_pkgcmd,
                                                   0,
-                                                  {NULL, 0, NULL},
                                                   {NULL, sizeof("/swu/pkgv"), "/swu/pkgv"},
                                                   {NULL, 0, NULL},
                                                   {NULL, sizeof("urn:knx:dpt.version"), "urn:knx:dpt.version"},
@@ -636,7 +627,6 @@ extern const oc_resource_t core_resource_knx_swu_pkgbytes;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgcmd_data;
 const oc_resource_t core_resource_knx_swu_pkgcmd = {(oc_resource_t*)&core_resource_knx_swu_pkgbytes,
                                                     0,
-                                                    {NULL, 0, NULL},
                                                     {NULL, sizeof("/a/swu"), "/a/swu"},
                                                     {NULL, 0, NULL},
                                                     {NULL, sizeof("urn:knx:dpt.file"), "urn:knx:dpt.file"},
@@ -677,7 +667,6 @@ extern const oc_resource_t core_resource_knx_swu_pkgqurl;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgbytes_data;
 const oc_resource_t core_resource_knx_swu_pkgbytes = {(oc_resource_t*)&core_resource_knx_swu_pkgqurl,
                                                       0,
-                                                      {NULL, 0, NULL},
                                                       {NULL, sizeof("/swu/pkgbytes"), "/swu/pkgbytes"},
                                                       {NULL, 0, NULL},
                                                       {NULL, sizeof("urn:knx:dpt.value4UCount"), "urn:knx:dpt.value4UCount"},
@@ -742,7 +731,6 @@ extern const oc_resource_t core_resource_knx_swu_pkgnames;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgqurl_data;
 const oc_resource_t core_resource_knx_swu_pkgqurl = {(oc_resource_t*)&core_resource_knx_swu_pkgnames,
                                                      0,
-                                                     {NULL, 0, NULL},
                                                      {NULL, sizeof("/swu/pkgqurl"), "/swu/pkgqurl"},
                                                      {NULL, 0, NULL},
                                                      {NULL, sizeof("urn:knx:dpt.url"), "urn:knx:dpt.url"},
@@ -790,7 +778,6 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_swu_pkgnames_data;
 const oc_resource_t core_resource_knx_swu_pkgnames = {
   (oc_resource_t*)&core_resource_knx_swu,
   0,
-  {NULL, 0, NULL},
   {NULL, sizeof("/swu/pkgname"), "/swu/pkgname"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -889,7 +876,6 @@ extern const oc_resource_t core_resource_sub;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_data;
 const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
                                              0,
-                                             {NULL, 0, NULL},
                                              {NULL, sizeof("/swu"), "/swu"},
                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.swu"})},
                                              {NULL, 0, NULL},

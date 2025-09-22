@@ -734,7 +734,6 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 { // typecast since type of last dummy is different
 	(oc_resource_t*) &core_resource_well_known_core_final,																		 		// ptr to next (here last) resource
 	0,																																												 		// device instance
-	{ NULL, 0, NULL },																						 								// resource name
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
 	{ NULL, (size_t)1 * 32, (char[1][32]){	"well-known-type"} },					        // types (0...n), if 0 => 3 x NULL
 	{ NULL, 0, NULL },																						 								// DPT

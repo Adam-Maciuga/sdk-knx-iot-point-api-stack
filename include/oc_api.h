@@ -617,7 +617,6 @@ extern "C"
    * }
    * ```
    *
-   * @param[in] name the name of the new resource this will set the property `n`
    * @param[in] resource_path the Uniform Resource Identifier for the resource
    * @param[in] num_resource_types the number of Resource Types that will be
    *                               added/bound to the resource
@@ -631,7 +630,7 @@ extern "C"
    * @see oc_resource_set_periodic_observable
    * @see oc_resource_set_request_handler
    */
-  oc_resource_t* oc_new_resource(char* name, char* resource_path, uint8_t num_resource_types, size_t device);
+  oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, size_t device);
 
   /**
    * Add a Resource Type "rt" property to the resource.
