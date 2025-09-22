@@ -66,11 +66,11 @@ const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 // define LSAB channel 0..1 + included EPs switch control/status
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
   {{
-    {false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", "LSAB soo", (0 << 16) + 0},
-    {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", "LSAB ioo", (0 << 16) + 1}}}, 
+    {false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 16) + 0},
+    {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 16) + 1}}}, 
   {{
-    {false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", "LSAB soo", (1 << 16) + 0},
-    {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", "LSAB ioo", (1 << 16) + 1}}}
+    {false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 16) + 0},
+    {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 16) + 1}}}
   };
 
 // additional parameters
@@ -83,8 +83,8 @@ void register_resources(void)
 
   for (int i = 0; i < NUM_CHANNELS; i++)
   {
-    oc_resource_t* soo_resource = oc_new_resource(lsxb[i].point[SOO].name, lsxb[i].point[SOO].resource_path, 1, 0);
-    oc_resource_t* ioo_resource = oc_new_resource(lsxb[i].point[IOO].name, lsxb[i].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource = oc_new_resource(NULL, lsxb[i].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource = oc_new_resource(NULL, lsxb[i].point[IOO].resource_path, 1, 0);
 
     oc_resource_bind_resource_type(soo_resource, lsxb[i].point[SOO].dpa);
     oc_resource_bind_resource_type(ioo_resource, lsxb[i].point[IOO].dpa);

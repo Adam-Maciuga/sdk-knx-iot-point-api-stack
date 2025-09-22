@@ -20,7 +20,7 @@
 /**
  * @file
  *
- * KNX virtual actuator LSAB, for more details see 'knx_iot_application_template' c-file.
+ * KNX virtual EITT, for more details see 'knx_iot_application_template' c-file.
  *
  */
 
@@ -70,11 +70,11 @@ const uint32_t mid = 667;                     // same as eitt test template
 // LSAB/LSSB channel 0..1 + included EPs switch control/status
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
   {{
-    {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", "LSAB soo", (0 << 16) + 0}, 
-    {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", "LSAB ioo", (0 << 16) + 1}}},
+    {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", (0 << 16) + 0}, 
+    {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", (0 << 16) + 1}}},
   {{
-    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", "LSSB soo", (1 << 16) + 0},
-    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", "LSSB ioo", (1 << 16) + 1}}},
+    {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 16) + 0},
+    {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", (1 << 16) + 1}}},
 };
 
 // additional parameters
@@ -84,10 +84,10 @@ void register_resources(void)
 {
   PRINT("Register LSAB/LSSB 0...1 channel control/status resource");
   {
-    oc_resource_t* soo_resource_lsab = oc_new_resource(lsxb[LSAB].point[SOO].name, lsxb[LSAB].point[SOO].resource_path, 1, 0);
-    oc_resource_t* ioo_resource_lsab = oc_new_resource(lsxb[LSAB].point[IOO].name, lsxb[LSAB].point[IOO].resource_path, 1, 0);
-    oc_resource_t* soo_resource_lssb = oc_new_resource(lsxb[LSSB].point[SOO].name, lsxb[LSSB].point[SOO].resource_path, 1, 0);
-    oc_resource_t* ioo_resource_lssb = oc_new_resource(lsxb[LSSB].point[IOO].name, lsxb[LSSB].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource_lsab = oc_new_resource(NULL, lsxb[LSAB].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource_lsab = oc_new_resource(NULL, lsxb[LSAB].point[IOO].resource_path, 1, 0);
+    oc_resource_t* soo_resource_lssb = oc_new_resource(NULL, lsxb[LSSB].point[SOO].resource_path, 1, 0);
+    oc_resource_t* ioo_resource_lssb = oc_new_resource(NULL, lsxb[LSSB].point[IOO].resource_path, 1, 0);
 
     oc_resource_bind_resource_type(soo_resource_lsab, lsxb[LSAB].point[SOO].dpa);
     oc_resource_bind_resource_type(ioo_resource_lsab, lsxb[LSAB].point[IOO].dpa);

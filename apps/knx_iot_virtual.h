@@ -67,8 +67,7 @@ typedef struct
   volatile bool value; // the actual datapoint type, see notes above
   char* resource_path; // the resource path such as /p/...
   char* dpa;    // annotated datapoint, see in KNX ioT specification 3/10/5 
-  char* dpt;    // datapoint type, see in KNX ioT specification 3/10/5 
-  char* name;   // used 
+  char* dpt;    // datapoint type, see in KNX ioT specification 3/10/5
   uint32_t id;  // see note above
 } bool_datapoint_t;
 
