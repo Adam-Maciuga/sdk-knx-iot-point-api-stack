@@ -48,7 +48,7 @@
 #endif 
 
 #ifdef OC_SERVER
-OC_LIST(app_resources);				// application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
+OC_LIST(app_resources);				// root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
 OC_LIST(observe_callbacks);   // callback handlers 
 OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);
 OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);
