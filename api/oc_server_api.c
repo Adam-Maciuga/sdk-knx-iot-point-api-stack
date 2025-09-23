@@ -218,9 +218,9 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, 
 
   if (strlen(resource_path) < OC_MAX_URL_LENGTH)
 	{
-		// allocate resource HEAP,  content is not cleared
+		// allocate resource HEAP, content is cleared
     resource = oc_ri_alloc_resource();
-    // allocate resource runtime modifiable data,  content is not cleared
+    // allocate resource runtime modifiable data, content is cleared
 		oc_resource_data_t* data = oc_ri_alloc_resource_data();
 
 		if (resource && data)

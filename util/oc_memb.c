@@ -58,16 +58,18 @@ void* _oc_memb_alloc(
 {
   if (!m) 
   {
-    OC_ERR("oc_memb is NULL");
+    OC_ERR("memory root node is NULL");
     return NULL;
   }
 
   void *ptr = NULL;
 
+  // on dynamic allocation this number will remain always '0' 
   if (m->num > 0) 
   {
     int i;
-    for (i = 0; i < m->num; i++) {
+    for (i = 0; i < m->num; i++) 
+    {
       if (m->count[i] == 0) 
       {
       /*
@@ -90,13 +92,14 @@ void* _oc_memb_alloc(
 #ifdef OC_DYNAMIC_ALLOCATION
   else 
   {
+    // dynamic allocation, allocate block with m->size and wipe it with '0'
     ptr = calloc(1, m->size);
   }
 #endif
 
   if (!ptr) 
   {
-    // no free block was found, so we return NULL to indicate failure to allocate block. 
+    // no block was found or allocated, so we return NULL to indicate failure to allocate block. 
     return NULL;
   }
 
@@ -115,7 +118,7 @@ char _oc_memb_free(
 {
   if (!m) 
   {
-    OC_ERR("oc_memb is NULL");
+    OC_ERR("memory root node is NULL");
     return -1;
   }
 
@@ -123,6 +126,7 @@ char _oc_memb_free(
   oc_mem_trace_add_pace(func, m->size, MEM_TRACE_FREE, ptr);
 #endif
 
+  // on dynamic allocation this number will remain always '0' 
   if (m->num > 0) 
   {
     // walk through the list of blocks and try to find the block to which the pointer "ptr" points to
@@ -145,6 +149,7 @@ char _oc_memb_free(
 #ifdef OC_DYNAMIC_ALLOCATION
   else 
   {
+    // dynamic allocation, free block
     free(ptr);
   }
 #endif 

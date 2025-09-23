@@ -91,6 +91,13 @@ extern "C" {
 #ifdef __cplusplus
 extern "C" {
 #endif
+/*
+   allocates a memory block with 'name' and sizeof 'structure',
+   'num' is only used on static allocation to define the array size, 
+   on dynamic allocation it statically it defines one block element, 
+   whereas all other 'oc_memb' block properties (num, count, ...) are ignored on 
+   alloc/free calls. 
+*/
 #define OC_MEMB(name, structure, num)                                          \
   static struct oc_memb name = { sizeof(structure), 0, 0, 0, 0 }
 #define OC_MEMB_STATIC(name, structure, num)                                   \
@@ -99,14 +106,20 @@ extern "C" {
   static struct oc_memb name = { sizeof(structure), num,                       \
                                  CC_CONCAT(name, _memb_count),                 \
                                  (void *)CC_CONCAT(name, _memb_mem), 0 }
-#else /* OC_DYNAMIC_ALLOCATION */
+#else 
+/*
+   allocates a memory block with 'name' and sizeof 'structure',
+   'num' is only used on static allocation, on dynamic allocation its one
+   structure element whereas all other 'oc_memb' block properties
+   (num, count, ...) are ignored
+*/
 #define OC_MEMB(name, structure, num)                                          \
   static char CC_CONCAT(name, _memb_count)[num];                               \
   static structure CC_CONCAT(name, _memb_mem)[num];                            \
   static struct oc_memb name = { sizeof(structure), num,                       \
                                  CC_CONCAT(name, _memb_count),                 \
                                  (void *)CC_CONCAT(name, _memb_mem), 0 }
-#endif /* !OC_DYNAMIC_ALLOCATION */
+#endif
 
 typedef void (*oc_memb_buffers_avail_callback_t)(int);
 
