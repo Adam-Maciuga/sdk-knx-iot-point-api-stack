@@ -443,10 +443,10 @@ extern "C" {
 	} oc_properties_cb_t;
 
 	/**
-   * @brief resource structure for a resource's runtime data
-   * @note data is allocated, even if it contains only a byte (but prepared for a later extension)
-   *        - from heap for application resources such as /p/1/...
-   *				- from code for stack resources such as a/lsm (see definitions in code files)
+   * @brief resource structure for a resource's (in RAM) modifiable data at runtime 
+   * @note data MUST be RAM allocated, even it is part of compiled stack resources (and is of only one byte) 
+   *        - for application resources (/p/1/...) it is allocated from HEAP -> oc_new_resource  
+   *				- for stack resources (a/lsm, ...) it is allocated from RAM -> core_resource_well_known_core and others 
    *
    */
 	typedef struct oc_resource_data_t
@@ -477,7 +477,7 @@ extern "C" {
 		uint16_t observe_period_seconds;      // observe period in seconds 
 		uint8_t fb_instance;                  // function block instance, default = 0 
 		bool is_const;                        // resource is precompiled (core = true) or not (application = false)
-		oc_resource_data_t* runtime_data;     // for an endpoint at runtime its modifiable data (which one, see resource type)
+		oc_resource_data_t* runtime_data;     // for an endpoint its modifiable data AT RUNTIME (which one, see resource type)
   };
 
 	// defined to safe space since only the next is of interest 

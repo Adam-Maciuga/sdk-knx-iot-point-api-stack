@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2016 Intel Corporation
 // Copyright (c) 2022 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -217,8 +218,10 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, 
 
   if (strlen(resource_path) < OC_MAX_URL_LENGTH)
 	{
-		resource = oc_ri_alloc_resource();	// content is not cleared
-		oc_resource_data_t* data = oc_ri_alloc_resource_data(); // content is not cleared
+		// allocate resource HEAP,  content is not cleared
+    resource = oc_ri_alloc_resource();
+    // allocate resource runtime modifiable data,  content is not cleared
+		oc_resource_data_t* data = oc_ri_alloc_resource_data();
 
 		if (resource && data)
 		{
@@ -266,7 +269,7 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, 
 			// note, for precompiled (core) resources it is always true
 			resource->is_const = false;
 
-			// runtime data
+			// runtime modifiable data
 			resource->runtime_data = data;
 			resource->runtime_data->num_observers = 0;
 		}

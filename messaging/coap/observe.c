@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2016 Intel Corporation
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -760,35 +761,36 @@ leave_notify_observers:;
 
 /*---------------------------------------------------------------------------*/
 #ifdef OC_BLOCK_WISE
-int
-coap_observe_handler(void *request, void *response,
-                     const oc_resource_t *resource, uint16_t block2_size,
-                     oc_endpoint_t *endpoint, oc_interface_mask_t iface_mask)
-#else  /* OC_BLOCK_WISE */
-int
-coap_observe_handler(void *request, void *response,
-                     const oc_resource_t *resource, oc_endpoint_t *endpoint,
-                     oc_interface_mask_t iface_mask)
-#endif /* !OC_BLOCK_WISE */
+int coap_observe_handler(void *request, void *response, const oc_resource_t *resource, uint16_t block2_size, 
+                         oc_endpoint_t *endpoint, oc_interface_mask_t iface_mask)
+#else 
+int coap_observe_handler(void *request, void *response, const oc_resource_t *resource, 
+                         oc_endpoint_t *endpoint, oc_interface_mask_t iface_mask)
+#endif 
 {
-  coap_packet_t *const coap_req = (coap_packet_t *)request;
-  coap_packet_t *const coap_res = (coap_packet_t *)response;
+  coap_packet_t *const coap_req = request;
+  coap_packet_t *const coap_res = response;
+
   int dup = -1;
-  if (coap_req->code == COAP_GET && coap_res->code < 128) {
+
+  if (coap_req->code == COAP_GET && coap_res->code < BAD_REQUEST_4_00) 
+  {
+    // A GET without a positive response
     if (IS_OPTION(coap_req, COAP_OPTION_OBSERVE)) {
-      if (coap_req->observe == 0) {
-        dup =
+      if (coap_req->observe == 0) 
+      { // register
+        
 #ifdef OC_BLOCK_WISE
-          add_observer(resource, block2_size, endpoint, coap_req->token,
-                       coap_req->token_len, coap_req->uri_path,
-                       coap_req->uri_path_len, iface_mask);
-#else  /* OC_BLOCK_WISE */
-          add_observer(resource, endpoint, coap_req->token, coap_req->token_len,
+        dup = add_observer(resource, block2_size, endpoint, coap_req->token, coap_req->token_len, 
                        coap_req->uri_path, coap_req->uri_path_len, iface_mask);
-#endif /* !OC_BLOCK_WISE */
-      } else if (coap_req->observe == 1) {
-        dup = coap_remove_observer_by_token(endpoint, coap_req->token,
-                                            coap_req->token_len);
+#else  
+        dup = add_observer(resource, endpoint, coap_req->token, coap_req->token_len,
+                       coap_req->uri_path, coap_req->uri_path_len, iface_mask);
+#endif 
+      }
+      else if (coap_req->observe == 1) 
+      { // deregister
+        dup = coap_remove_observer_by_token(endpoint, coap_req->token, coap_req->token_len);
       }
     }
   }
@@ -796,4 +798,4 @@ coap_observe_handler(void *request, void *response,
 }
 /*---------------------------------------------------------------------------*/
 
-#endif /* OC_SERVER */
+#endif

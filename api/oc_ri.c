@@ -50,8 +50,8 @@
 #ifdef OC_SERVER
 OC_LIST(app_resources);				// root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
 OC_LIST(observe_callbacks);   // callback handlers 
-OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);
-OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);
+OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);						// 
+OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);	// 
 #endif 
 
 #ifdef OC_CLIENT
@@ -836,15 +836,15 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
 		- types (allocated)
 		  must be de allocated
 
-		- properties (static),
+		- properties (static)
 		  in oc_new_resource method simply assigned
 
-    - handler (static),
+    - handler (static)
 		  in oc_resource_set_request_handler method simply assigned (resource MUST be already present)
       no need to free it -> caller must do that if heap allocated
 
     - runtime_data
-      will be deallocated later in 'oc_memb_free' 
+      not released here, will ONLY be deallocated in 'oc_memb_free' 
 
   */
 
@@ -855,8 +855,7 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
 	}
 }
 
-const oc_resource_t*
-oc_ri_resource_next(const oc_resource_t* resource)
+const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource)
 {
 	if (resource == NULL)
 		return NULL;

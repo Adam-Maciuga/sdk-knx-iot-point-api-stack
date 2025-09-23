@@ -50,47 +50,53 @@ oc_memb_init(struct oc_memb *m)
   }
 }
 /*---------------------------------------------------------------------------*/
-void *
-_oc_memb_alloc(
+void* _oc_memb_alloc(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
   struct oc_memb *m)
 {
-  if (!m) {
+  if (!m) 
+  {
     OC_ERR("oc_memb is NULL");
     return NULL;
   }
 
-  int i = m->num;
   void *ptr = NULL;
-  if (m->num > 0) {
+
+  if (m->num > 0) 
+  {
+    int i;
     for (i = 0; i < m->num; i++) {
-      if (m->count[i] == 0) {
-        /* If this block was unused, we increase the reference count to
-     indicate that it now is used and return a pointer to the
-     memory block. */
+      if (m->count[i] == 0) 
+      {
+      /*
+        If this block was unused, we increase the reference count to
+        indicate that it now is used and return a pointer to the memory block.
+      */
         ++(m->count[i]);
         break;
       }
     }
 
-    if (i < m->num) {
+    if (i < m->num) 
+    {
+      // wipe memory 
       int offset = i * (int)m->size;
       ptr = (void *)((char *)m->mem + offset);
       memset(ptr, 0, m->size);
     }
   }
 #ifdef OC_DYNAMIC_ALLOCATION
-  else {
+  else 
+  {
     ptr = calloc(1, m->size);
-    // OC_DBG("==> calloc %p size=%d", ptr, m->size);
   }
-#endif /* OC_DYNAMIC_ALLOCATION */
+#endif
 
-  if (!ptr) {
-    /* No free block was found, so we return NULL to indicate failure to
-       allocate block. */
+  if (!ptr) 
+  {
+    // no free block was found, so we return NULL to indicate failure to allocate block. 
     return NULL;
   }
 
@@ -101,14 +107,14 @@ _oc_memb_alloc(
   return ptr;
 }
 /*---------------------------------------------------------------------------*/
-char
-_oc_memb_free(
+char _oc_memb_free(
 #ifdef OC_MEMORY_TRACE
   const char *func,
 #endif
   struct oc_memb *m, void *ptr)
 {
-  if (!m) {
+  if (!m) 
+  {
     OC_ERR("oc_memb is NULL");
     return -1;
   }
@@ -117,18 +123,18 @@ _oc_memb_free(
   oc_mem_trace_add_pace(func, m->size, MEM_TRACE_FREE, ptr);
 #endif
 
-  int i = m->num;
-  char *ptr2 = NULL;
-  if (m->num > 0) {
-    /* Walk through the list of blocks and try to find the block to
-       which the pointer "ptr" points to. */
-    ptr2 = (char *)m->mem;
-    for (i = 0; i < m->num; ++i) {
-      if (ptr2 == (char *)ptr) {
-        /* We've found to block to which "ptr" points so we decrease the
-           reference count and return the new value of it. */
-        if (m->count[i] > 0) {
-          /* Make sure that we don't deallocate free memory. */
+  if (m->num > 0) 
+  {
+    // walk through the list of blocks and try to find the block to which the pointer "ptr" points to
+    const char* ptr2 = m->mem;
+    for (int i = 0; i < m->num; ++i) 
+    {
+      if (ptr2 == (char *)ptr) 
+      {
+        // we've found to block to which "ptr" points so we decrease the reference count and return the new value of it
+        if (m->count[i] > 0) 
+        {
+          // make sure that we don't deallocate free memory
           --(m->count[i]);
         }
         break;
@@ -137,12 +143,13 @@ _oc_memb_free(
     }
   }
 #ifdef OC_DYNAMIC_ALLOCATION
-  else {
+  else 
+  {
     free(ptr);
-    // OC_DBG(" ==< free %p", ptr);
   }
-#endif /* OC_DYNAMIC_ALLOCATION */
-  if (m->buffers_avail_cb) {
+#endif 
+  if (m->buffers_avail_cb) 
+  {
     m->buffers_avail_cb(oc_memb_numfree(m));
   }
   return 0;
