@@ -129,7 +129,7 @@ void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
 
   // using group addressing 
   oc_endpoint_t group_multicast_local_endpoint = { 0 };
-  group_multicast_local_endpoint = oc_create_multicast_group_address(group_multicast_local_endpoint, grpid, iid, ipv6_adr_scope);
+  group_multicast_local_endpoint = oc_create_multicast_group_address_with_port(group_multicast_local_endpoint, grpid, iid, ipv6_adr_scope, COAP_DEFAULT_PORT);
 
 #endif
 

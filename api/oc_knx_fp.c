@@ -2874,11 +2874,6 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   return in;
 }
 
-oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope)
-{
-  return oc_create_multicast_group_address_with_port(in, group_nr, iid, scope, 5683);
-}
-
 void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope and port
@@ -2897,7 +2892,7 @@ void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
   // create the multicast address from group and scope
   oc_endpoint_t group_mcast = {0};
 
-  group_mcast = oc_create_multicast_group_address(group_mcast, group_nr, iid, scope);
+  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, COAP_DEFAULT_PORT);
 
   // subscribe
   oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
@@ -2922,7 +2917,7 @@ void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
   oc_endpoint_t group_mcast;
   memset(&group_mcast, 0, sizeof(group_mcast));
 
-  group_mcast = oc_create_multicast_group_address(group_mcast, group_nr, iid, scope);
+  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, COAP_DEFAULT_PORT);
 
   // un subscribe
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);

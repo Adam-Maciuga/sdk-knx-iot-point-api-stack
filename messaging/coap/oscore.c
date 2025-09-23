@@ -60,8 +60,8 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 		// copy original endpoint to local message
 	  memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 
-	  OC_DBG_OSCORE("removing OSCORE flag for error return code");
-		message->endpoint.flags &= ~OSCORE;
+	  //OC_DBG_OSCORE("removing OSCORE flag for error return code");
+		// message->endpoint.flags &= ~OSCORE;
 
 		// copy token
 		if (oscore_pkt->token_len > 0)

@@ -579,18 +579,6 @@ extern "C"
   void oc_free_knx_table_resources(void);
 
   /**
-   * @brief create the group multicast address
-   * using the default port 5683
-   *
-   * @param in the endpoint to adapt
-   * @param group_nr the group number
-   * @param iid the installation id
-   * @param scope the address scope
-   * @return oc_endpoint_t the modified endpoint
-   */
-  oc_endpoint_t oc_create_multicast_group_address(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope);
-
-  /**
    * @brief create the group multicast address with port
    *
    * create the multicast address from group and scope with a supplied port number
