@@ -48,6 +48,22 @@ void app_str_to_upper(char* str)
 // IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
 char* app_get_password(void) { return PASSWORD; }
 
+
+#ifdef OC_DEBUG
+#ifndef _MSC_VER
+// Periodic stdout flush callback for debug builds
+static oc_event_callback_retval_t flush_stdout_callback(void* context)
+{
+  (void)context;
+  fflush(stdout);
+  // Schedule next flush in 2 seconds
+  oc_set_delayed_callback(NULL, flush_stdout_callback, 2);
+  return OC_EVENT_DONE;
+}
+#endif
+#endif
+
+
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
   oc_separate_response_t* response = context;
@@ -168,12 +184,21 @@ int app_init(void)
     - can be skipped (see below) when using a msvc (windows) debug build
 
     Note that on using the buffering, shorter console output logs may be
-    delayed until the buffer is full
+    delayed until the buffer is full. We add periodic flushing to ensure
+    timely output while maintaining performance.
    
   */
   #ifdef OC_DEBUG
   #ifndef _MSC_VER
   (void) setvbuf(stdout, NULL, _IOFBF, 4096);
+  #endif
+  #endif
+
+  // Set up periodic stdout flushing for debug builds
+  #ifdef OC_DEBUG
+  #ifndef _MSC_VER
+  // Flush stdout every 2 seconds to prevent delayed output
+  oc_set_delayed_callback(NULL, flush_stdout_callback, 2);
   #endif
   #endif
 
