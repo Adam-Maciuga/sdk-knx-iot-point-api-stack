@@ -156,26 +156,23 @@ extern "C" {
   bool oc_main_initialized(void);
 
   /**
-   * Set acceptance of new commands(GET/PUT/POST/DELETE) for logical device
+   * Set acceptance of new commands(GET/PUT/POST/DELETE)
    *
    * The device drops/accepts new commands when the drop is set to true/false.
    *
    * @note If OC_SECURITY is set, this call is used to drop all new incoming
    *       commands during closing TLS sessions (CLOSE_ALL_TLS_SESSIONS).
    *
-   * @param[in] device index of the logical device
    * @param[in] drop set whether all new commands will be accepted/dropped
    */
-  void oc_set_drop_commands(size_t device, bool drop);
+  void oc_set_drop_commands(bool drop);
 
   /**
-   * Get status of dropping of logical device.
+   * Get status of dropping new commands.
    *
-   * @param[in] device the index of the logical device
-   *
-   * @return true if the device dropping new commands
+   * @return true if dropping new commands
    */
-  bool oc_drop_command(size_t device);
+  bool oc_drop_command(void);
 
 #ifdef __cplusplus
 }

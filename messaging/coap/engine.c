@@ -228,7 +228,7 @@ close_all_tls_sessions_callback(void* data)
 {
 	(void)data; // Unused in single-device mode
 	oc_close_all_tls_sessions();
-	oc_set_drop_commands(0, false);
+	oc_set_drop_commands(false);
 	return OC_EVENT_DONE;
 }
 #endif /* OC_SECURITY */
@@ -820,7 +820,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 					if (!request_buffer && block1_num == 0)
 					{
-						if (oc_drop_command(incoming_message->endpoint.device) &&
+						if (oc_drop_command() &&
 								incoming_coap_message->code >= COAP_GET && incoming_coap_message->code <= COAP_DELETE)
 						{
 							OC_WRN("cannot process new request during closing TLS sessions");
@@ -958,7 +958,7 @@ int coap_receive(oc_message_t* incoming_message)
 									OC_BLOCKWISE_SERVER);
 								if (!request_buffer)
 								{
-									if (oc_drop_command(incoming_message->endpoint.device) &&
+									if (oc_drop_command() &&
 											incoming_coap_message->code >= COAP_GET &&
 											incoming_coap_message->code <= COAP_DELETE)
 									{
@@ -998,7 +998,7 @@ int coap_receive(oc_message_t* incoming_message)
 				else
 				{
 					OC_DBG("no block options; processing regular request");
-					if (oc_drop_command(incoming_message->endpoint.device) &&
+					if (oc_drop_command() &&
 							incoming_coap_message->code >= COAP_GET && incoming_coap_message->code <= COAP_DELETE)
 					{
 						OC_WRN("cannot process new request during closing TLS sessions");
@@ -1517,7 +1517,7 @@ send_message:
 	//#ifdef OC_OSCORE
 	if (coap_status_code == CLOSE_ALL_TLS_SESSIONS)
 	{
-		oc_set_drop_commands(0, true);
+		oc_set_drop_commands(true);
 		oc_set_delayed_callback(NULL, &close_all_tls_sessions_callback, 2);
 	}
 	#endif 

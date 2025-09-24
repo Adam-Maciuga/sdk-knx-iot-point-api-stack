@@ -39,7 +39,7 @@
 #include <stdlib.h>
 static bool* drop_commands;
 #else 
-static bool drop_commands[OC_MAX_NUM_DEVICES];
+static bool drop_commands;
 #endif
 
 // marker if init was done, to handle a shutdown without init
@@ -406,7 +406,7 @@ void oc_main_shutdown(void)
   free(drop_commands);
   drop_commands = NULL;
   #else
-  memset(drop_commands, 0, sizeof(bool) * OC_MAX_NUM_DEVICES);
+  drop_commands = false;
   #endif
 
   app_callbacks = NULL;
@@ -430,16 +430,22 @@ void _oc_signal_event_loop(void)
   }
 }
 
-// TODO check if still needed, dev > 1 anyhow not work
 void
-oc_set_drop_commands(size_t device, bool drop)
+oc_set_drop_commands(bool drop)
 {
-  drop_commands[device] = drop;
+#ifdef OC_DYNAMIC_ALLOCATION
+  *drop_commands = drop;
+#else
+  drop_commands = drop;
+#endif
 }
 
-// TODO check if still needed, dev > 1 anyhow not work 
 bool
-oc_drop_command(size_t device)
+oc_drop_command(void)
 {
-  return drop_commands[device];
+#ifdef OC_DYNAMIC_ALLOCATION
+  return *drop_commands;
+#else
+  return drop_commands;
+#endif
 }
