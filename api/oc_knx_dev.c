@@ -1613,6 +1613,34 @@ void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mo
   device->pm = programming_mode;
 }
 
+void oc_knx_device_restart()
+{
+  PRINT("restart device");
+
+  /* Specification demands
+     - reset a possible PRG mode
+     - terminate a possible PASE token (removes all, even that only one should be present)
+     - apply (changed) configuration parameters latest after 30s
+
+  */
+
+  oc_device_info_t* device = oc_core_get_device_info(0);
+  device->pm = false;
+
+  // delete PASE token
+  oc_core_find_and_remove_pase_token_in_at_table();
+
+  // check and send on i-flags
+  oc_init_datapoints_at_initialization();
+
+  // application restart callback handler
+  const oc_restart_t* my_restart = oc_get_restart_cb();
+  if (my_restart && my_restart->cb)
+  {
+    my_restart->cb(0, my_restart->data);
+  }
+}
+
 void oc_create_knx_device_resources(size_t device_index)
 {
   OC_DBG("oc_create_knx_device_resources");

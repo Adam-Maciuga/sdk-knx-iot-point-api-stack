@@ -29,6 +29,7 @@
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
+#include "oc_knx.h"
 #include "apps/knx_iot_virtual.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
@@ -55,7 +56,8 @@ enum : uint16_t
 
   EITT_SOO = CHECK_PM + 1,
 
-  LIST_ALL = EITT_SOO + 1
+  LIST_ALL = EITT_SOO + 1,
+  RESTART_DEVICE = LIST_ALL + 1
 };
 
 extern lsxb_channel_t lsab[NUM_CHANNELS];
@@ -146,6 +148,7 @@ private:
   void OnSleepyMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
+  void OnRestartDevice(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
@@ -224,6 +227,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
   m_menuFile->Append(CHECK_PM, "Programming Mode", "Sets the application in programming mode", true);
   m_menuFile->Append(RESET_TABLE, "Reset (7) (Tables)", "Reset 7 (Reset to default without IA).", false);
   m_menuFile->Append(RESET, "Reset (2)(ex-factory)", "Reset 2 (Reset to default state)", false);
+  m_menuFile->Append(RESTART_DEVICE, "Restart Device", "Simulate a device restart", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
 
@@ -261,6 +265,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
+  Bind(wxEVT_MENU, &MyFrame::OnRestartDevice, this, RESTART_DEVICE);
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
@@ -516,6 +521,25 @@ void MyFrame::OnReset(wxCommandEvent& event)
   oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
   // update the UI
   this->updateDeviceData();
+}
+
+/**
+ * @brief initiate a restart of the stack 
+ *
+ * @param event command triggered by the gui menu
+ */
+void MyFrame::OnRestartDevice(wxCommandEvent& event)
+{
+  SetStatusText("Restarting...");
+
+  // Use the new public API to trigger the exact same restart as the KNX stack
+  oc_knx_device_restart();
+
+  // Update the UI immediately (restart happens asynchronously)
+  this->updateDeviceData();
+  this->updateCheckBoxesFromLiveIOOData();
+
+  SetStatusText("Restart Initiated");
 }
 
 /**

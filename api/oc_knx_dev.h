@@ -110,6 +110,19 @@ bool oc_knx_device_in_programming_mode(size_t device_index);
  */
 void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mode);
 
+/**
+ * @brief Restart the KNX device
+ *
+ * Performs the KNX restart operation:
+ * - resets programming mode to false
+ * - terminates PASE token
+ * - applies configuration parameters
+ * - calls application restart callback handler
+ *
+ */
+void oc_knx_device_restart();
+
+
 #ifdef __cplusplus
 }
 #endif
