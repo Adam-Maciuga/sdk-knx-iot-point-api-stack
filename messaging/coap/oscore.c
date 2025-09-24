@@ -64,8 +64,6 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 			coap_set_token(msg, oscore_pkt->token, oscore_pkt->token_len);
 		}
 
-    message->endpoint.flags &= ~OSCORE;
-
 		// no max age = no caching 
 		coap_set_header_max_age(msg, 0);
 

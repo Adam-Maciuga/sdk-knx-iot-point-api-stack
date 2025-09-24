@@ -222,10 +222,16 @@ static int oc_oscore_receive_message(oc_message_t* msg)
        - response + outer option problem = 8.4, step NA  = stop processing
        - request + outer option problem  = 8.2, step 6   = unsecured 4.02
       */
-      // msg->endpoint.flags &= ~OSCORE;
 
-      OC_ERR("### error parsing outer OSCORE message ###");
-      oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
+      if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH)
+      {
+        // request
+        msg->endpoint.flags &= ~OSCORE;
+        OC_ERR("***error parsing outer message, unsecured 4.02***");
+        oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
+      }
+
+      // response 
       goto oscore_recv_error;
     }
 
@@ -262,25 +268,22 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
           oc_message_t* original_message = oc_replay_find_msg_by_token(oscore_pkt->token, oscore_pkt->token_len);
 
-          // ignore an echo challenge from outside if not from me send beforehand
-          // or my is already released (timeout)
+          // ignore an echo challenge from outside if not from me send beforehand, was mine but already released (timeout)
           if (!original_message)
           {
             goto oscore_recv_error;
           }
 
-          // find auth/at entry with corresponding kid
-          // RFC 9203 osc:id as part of access token (SENDER ID)
+          // find auth/at entry with corresponding kid, RFC 9203 osc:id as part of access token (SENDER ID)
           int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
           if (idx == -1)
           {
             /*
-               response (echo challenge) = KNX IoT Point API (8.4 step 2) = stop processing
+               response (echo challenge) not found = KNX IoT Point API (8.4 step 2) = stop processing
                - inform AL on failed echo challenge would be needed
             */
 
-            OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
-            oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint);
+            OC_ERR("***Could not find Access Token matching KID, stop processing***");
             goto oscore_recv_error;
           }
 
@@ -310,12 +313,14 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         {
           
           /*
-            request + encrypted problem = 8.2 step 2 = unsecured 4.01
-            - a GA that does not match to the server PUB table but is using the same multicast address 
+            request + secure key material (no matching kid) = 8.2 step 2 = unsecured 4.01
+            - a GA that does not match to the server PUB table but is using the same multicast address
+              - mc later ignored
+              - uc 4.01
           */
-          // msg->endpoint.flags &= ~OSCORE;
+          msg->endpoint.flags &= ~OSCORE;
 
-          OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
+          OC_ERR("***Could not find Access Token matching 'kid', unsecured 4.01***");
           oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint);
           goto oscore_recv_error;
         }
@@ -365,9 +370,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
               - = 8.2 step 2 = unsecured 5.00
               - maybe an RST can also be implemented
             */
-            // msg->endpoint.flags &= ~OSCORE;
+            msg->endpoint.flags &= ~OSCORE;
 
-            OC_ERR("***Could not create oscore recipient context!***");
+            OC_ERR("***Could not create oscore recipient context, unsecured 5.00***");
             oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint);
             goto oscore_recv_error;
           }
@@ -405,9 +410,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
            request + decryption problem = 8.2 step 2 = unsecured (4.02)
            - TODO check 3.6.5
         */
-        // msg->endpoint.flags &= ~OSCORE;
+        msg->endpoint.flags &= ~OSCORE;
 
-        OC_ERR("***OSCORE protected request lacks kid param***");
+        OC_ERR("***OSCORE protected request lacks kid param, unsecured 4.02***");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
         goto oscore_recv_error;
       }
@@ -515,10 +520,16 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         response + encrypted problem = 8.04 step 5  = stop processing
         request + encrypted problem = 8.2 step 6 = unsecured 4.00
       */
-      // msg->endpoint.flags &= ~OSCORE;
 
-      OC_ERR("***error decrypting/verifying response : (%d)***", ret);
-      oscore_send_error(oscore_pkt, BAD_REQUEST_4_00, &msg->endpoint);
+      if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH)
+      {
+        // request
+        msg->endpoint.flags &= ~OSCORE;
+        OC_ERR("***error decrypting/verifying response : (%d), unsecured 4.00***", ret);
+        oscore_send_error(oscore_pkt, BAD_REQUEST_4_00, &msg->endpoint);
+      }
+
+      // response
       goto oscore_recv_error;
     }
 
@@ -539,10 +550,15 @@ static int oc_oscore_receive_message(oc_message_t* msg)
          response + encryption problem = ignore
          request +  problem with inner options  = 4.02 secured (EITT test 5.10.5.3)
       */
-      // msg->endpoint.flags &= ~OSCORE;
+      
+      if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH)
+      {
+        // request
+        OC_ERR("***error parsing inner message, secured 4.02***");
+        oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
+      }
 
-      OC_ERR("***error parsing inner message***");
-      oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
+      // response 
       goto oscore_recv_error;
     }
 
