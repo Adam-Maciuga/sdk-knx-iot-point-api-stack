@@ -233,9 +233,12 @@ close_all_tls_sessions(void* data)
 }
 #endif /* OC_SECURITY */
 
-/*---------------------------------------------------------------------------*/
-/*- Internal API ------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
+/**
+  @brief
+
+  @param incoming_message the message, pushed to queue INBOUND_RI_EVENT since the previous oscore decryption was ok, or it was a plain message
+
+*/
 int coap_receive(oc_message_t* incoming_message)
 {
 	coap_status_code = COAP_NO_ERROR;

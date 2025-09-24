@@ -60,8 +60,6 @@ extern "C" {
 OC_PROCESS_NAME(coap_engine);
 
 void coap_init_engine(void);
-/*---------------------------------------------------------------------------*/
-int coap_receive(oc_message_t *message);
 
 /**
  * @brief Check if a replay telegram is pending
