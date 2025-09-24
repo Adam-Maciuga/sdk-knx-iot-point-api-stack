@@ -209,18 +209,12 @@ oc_network_event_handler_mutex_destroy(void)
 }
 
 ip_context_t *
-get_ip_context_for_device(size_t device)
+get_ip_context_for_device()
 {
 #ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = oc_list_head(ip_contexts);
-  while (dev != NULL && dev->device != device) {
-    dev = dev->next;
-  }
-  if (!dev) {
-    return NULL;
-  }
 #else  /* OC_DYNAMIC_ALLOCATION */
-  ip_context_t *dev = &devices[device];
+  ip_context_t *dev = &devices[0];
 #endif /* !OC_DYNAMIC_ALLOCATION */
   return dev;
 }
@@ -499,14 +493,13 @@ static int
 process_interface_change_event(void)
 {
   int ret = 0;
-  size_t num_devices = oc_core_get_num_devices(), i;
   ifaddr_t *ifaddr_list = get_network_addresses();
   if (!ifaddr_list) {
     return -1;
   }
 
-  for (i = 0; i < num_devices; i++) {
-    ip_context_t *dev = get_ip_context_for_device(i);
+
+    ip_context_t *dev = get_ip_context_for_device();
     if (dev != NULL) {
       ret += update_mcast_socket(dev->mcast_sock, AF_INET6, ifaddr_list);
 #ifdef OC_IPV4
@@ -516,9 +509,8 @@ process_interface_change_event(void)
       refresh_endpoints_list(dev, ifaddr_list);
       oc_network_event_handler_mutex_unlock();
     } else {
-      OC_ERR("IP context for dev %d is NULL", (int)i);
+      OC_ERR("IP context is NULL");
     }
-  }
 
 #ifdef OC_NETWORK_MONITOR
   bool if_up = false;
@@ -904,7 +896,7 @@ network_event_thread_error:
 oc_endpoint_t *
 oc_connectivity_get_endpoints(size_t device)
 {
-  ip_context_t *dev = get_ip_context_for_device(device);
+  ip_context_t *dev = get_ip_context_for_device();
   if (!dev) {
     return NULL;
   }
@@ -1128,7 +1120,7 @@ oc_send_buffer(oc_message_t *message)
   }
   SOCKET send_sock = INVALID_SOCKET;
 
-  ip_context_t *dev = get_ip_context_for_device(message->endpoint.device);
+  ip_context_t *dev = get_ip_context_for_device();
   if (dev == NULL) {
     OC_ERR("NO IP context for device");
     return -1;
@@ -1182,7 +1174,7 @@ oc_send_discovery_request(oc_message_t *message)
   ifaddr_t *ifaddr_list = get_network_addresses();
   ifaddr_t *ifaddr;
 
-  ip_context_t *dev = get_ip_context_for_device(message->endpoint.device);
+  ip_context_t *dev = get_ip_context_for_device();
   if (dev == NULL) {
     OC_ERR("ip_context_t is null");
     return;
@@ -1708,9 +1700,9 @@ oc_connectivity_init(size_t device)
 }
 
 void
-oc_connectivity_shutdown(size_t device)
+oc_connectivity_shutdown()
 {
-  ip_context_t *dev = get_ip_context_for_device(device);
+  ip_context_t *dev = get_ip_context_for_device();
   dev->terminate = TRUE;
   /* signal WSASelectEvent() in the thread to leave */
   WSASetEvent(dev->event_server_handle);
@@ -1745,7 +1737,7 @@ oc_connectivity_shutdown(size_t device)
   free(dev);
 #endif /* OC_DYNAMIC_ALLOCATION */
 
-  OC_DBG("oc_connectivity_shutdown for device %zd", device);
+  OC_DBG("oc_connectivity_shutdown for device");
 }
 
 #ifdef OC_TCP
@@ -1753,7 +1745,7 @@ void
 oc_connectivity_end_session(oc_endpoint_t *endpoint)
 {
   if (endpoint->flags & TCP) {
-    ip_context_t *dev = get_ip_context_for_device(endpoint->device);
+    ip_context_t *dev = get_ip_context_for_device();
     if (dev) {
       oc_tcp_end_session(endpoint);
     }
@@ -1810,7 +1802,7 @@ oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags flags)
 
 void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
-  ip_context_t *dev = get_ip_context_for_device(address->device);
+  ip_context_t *dev = get_ip_context_for_device();
 
   if (dev == NULL) {
     OC_ERR(" dev is NULL");
@@ -1856,7 +1848,7 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 void
 oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 {
-  ip_context_t *dev = get_ip_context_for_device(address->device);
+  ip_context_t *dev = get_ip_context_for_device();
 
   if (dev == NULL) {
     OC_ERR(" dev is NULL");

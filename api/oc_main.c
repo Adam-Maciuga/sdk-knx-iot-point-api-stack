@@ -255,11 +255,7 @@ oc_get_block_size(void)
 
 static void oc_shutdown_all_devices(void)
 {
-  for (size_t device = 0; device < oc_core_get_num_devices(); device++)
-  {
-    oc_connectivity_shutdown(device);
-  }
-
+  oc_connectivity_shutdown();
   oc_network_event_handler_mutex_destroy();
   oc_core_shutdown();
 }
@@ -309,7 +305,7 @@ int oc_main_init(const oc_handler_t* handler)
     
   }
 #ifdef OC_DYNAMIC_ALLOCATION
-  drop_commands = (bool*) calloc(oc_core_get_num_devices(), sizeof(bool));
+  drop_commands = (bool*) calloc(1, sizeof(bool));
   if (!drop_commands)
   {
     oc_abort("Insufficient stack memory");
@@ -327,22 +323,18 @@ int oc_main_init(const oc_handler_t* handler)
   }
 #endif
 
-  for (size_t device = 0; device < oc_core_get_num_devices(); device++)
-  {
-    oc_knx_load_device(device);
-    oc_knx_load_fingerprint();
-  }
+oc_knx_load_device();
+oc_knx_load_fingerprint();
+
 
 #ifdef OC_SECURITY
-  size_t device;
-  for (device = 0; device < oc_core_get_num_devices(); device++)
-  {
-    oc_sec_load_unique_ids(device);
+
+  oc_sec_load_unique_ids(0);
   #ifdef OC_PKI
     OC_DBG("oc_main_init(): loading ECDSA keypair");
-    oc_sec_load_ecdsa_keypair(device);
+    oc_sec_load_ecdsa_keypair(0);
   #endif /* OC_PKI */
-  }
+
 #endif
 
 #ifdef OC_SERVER

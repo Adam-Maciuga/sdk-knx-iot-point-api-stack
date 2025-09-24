@@ -164,7 +164,7 @@ static oc_event_callback_retval_t reset(void* context)
   }
 
   // delete data
-  oc_knx_device_storage_reset(0, cached_erase_code_value);
+  oc_knx_device_storage_reset(cached_erase_code_value);
 
   // application reset callback handler
   const oc_reset_t* my_reset_cb = oc_get_reset_cb();
@@ -366,12 +366,12 @@ oc_lsm_state_t oc_knx_get_lsm(size_t device_index)
   return device->lsm_s;
 }
 
-int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state)
+int oc_knx_set_and_store_lsm(oc_lsm_state_t new_state)
 {
   oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
-    OC_ERR("device not found %d", (int)device_index);
+    OC_ERR("device not found");
     return -1;
   }
 
@@ -443,18 +443,18 @@ static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
   }
   if (lsm_e == LSM_E_STARTLOADING)
   {
-    oc_knx_set_and_store_lsm(device_index, LSM_S_LOADING);
+    oc_knx_set_and_store_lsm(LSM_S_LOADING);
     return true;
   }
   if (lsm_e == LSM_E_LOADCOMPLETE)
   {
-    oc_knx_set_and_store_lsm(device_index, LSM_S_LOADED);
+    oc_knx_set_and_store_lsm(LSM_S_LOADED);
     return true;
   }
   if (lsm_e == LSM_E_UNLOAD)
   {
     // LSM (first to prevent any runtime messaging in/out)
-    oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
+    oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
     // do a reset like erase code 2 but not the AT table, ia, iid, fid -> EITT test
     oc_delete_group_tables();

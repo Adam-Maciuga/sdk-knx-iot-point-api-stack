@@ -479,7 +479,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// handle programming mode
 	if (if_len == 13 && strncmp(if_request, "urn:knx:if.pm", 13) == 0)
 	{
-		if (oc_knx_device_in_programming_mode(0))
+		if (oc_knx_device_in_programming_mode())
 		{ // PRG mode on
 			/*
 				 - add only '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' when the interface

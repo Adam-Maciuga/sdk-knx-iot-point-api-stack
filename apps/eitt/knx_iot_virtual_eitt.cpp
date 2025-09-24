@@ -201,7 +201,7 @@ bool MyApp::OnInit()
   app_initialize_stack();
 
   // reset the device (for EITT tests)
-  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
 
   // empty string (no command line available) - checked inside MyFrame
   wxString serial_number;
@@ -499,7 +499,7 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
   // reset the device
-  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_WO_IA);
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
   // update the UI
   this->updateDeviceData();
 }
@@ -513,7 +513,7 @@ void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
   // reset the device
-  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
   // update the UI
   this->updateDeviceData();
 }
@@ -593,7 +593,7 @@ void MyFrame::OnTimer(wxTimerEvent& event)
       do_poll = true;
       m_sleep_counter = 0;
     }
-    if (oc_knx_device_in_programming_mode(0))
+    if (oc_knx_device_in_programming_mode())
     {
       // make sure that the device is reactive in programming mode, so keep on polling
       do_poll = true;

@@ -165,7 +165,7 @@ int oc_connectivity_init(size_t device);
  *
  * @param device the device index
  */
-void oc_connectivity_shutdown(size_t device);
+void oc_connectivity_shutdown();
 
 /**
  * @brief send discovery request

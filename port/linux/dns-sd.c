@@ -28,7 +28,7 @@
 static pid_t avahi_pid = 0;
 static char sp_text_record[16] = ""; // may be filled at runtime with sleep seconds
 
-uint16_t knx_get_used_port(void) { return get_ip_context_for_device(0)->port; }
+uint16_t knx_get_used_port(void) { return get_ip_context_for_device()->port; }
 
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
