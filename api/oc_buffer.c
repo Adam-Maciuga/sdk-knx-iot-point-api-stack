@@ -263,9 +263,8 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 		  oc_message_t* message = data;
 
 		  /*
-		    1. handle OSCORE (mc/uc) messages first, to encrypt the outgoing message before sending it 
-		       - processing a possible (multicast) discovery follows as second step, since 
-		         DISCOVERY flag is also set on creating a mc address such as used for OSCORE messages
+		    1. handle OSCORE (mc/uc) messages first, encrypt the outgoing message before sending it (pass to OSCORE)
+				2. handle multicast discovery as second step
 
 		  */
 			#if OC_OSCORE

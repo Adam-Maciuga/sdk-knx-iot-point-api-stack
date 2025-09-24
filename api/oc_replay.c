@@ -92,7 +92,7 @@ static struct oc_replay_record* get_empty_record(void)
 	return oldest_rec;
 }
 
-// find record with KID and CTX
+// find record with 'kid' and 'kid Context'
 static struct oc_replay_record* get_record(const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
 {
 	if (oc_byte_string_len(rx_kid) == 0)

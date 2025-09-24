@@ -159,7 +159,6 @@ extern "C"
    * | iid      | 26            |
    * | fid      | 25            |
    * | grpid    | 13            |
-   * | url      | 10            |   // TODO url will be removed in new specification
    * | ga       | 7             |
    * | non      | -             |
    *
