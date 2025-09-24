@@ -1652,7 +1652,7 @@ oc_connectivity_shutdown()
   oc_list_remove(ip_contexts, dev);
   oc_memb_free(&ip_context_s, dev);
 
-  OC_DBG("oc_connectivity_shutdown for device %zd", device);
+  OC_DBG("oc_connectivity_shutdown");
 }
 
 #ifdef OC_TCP
