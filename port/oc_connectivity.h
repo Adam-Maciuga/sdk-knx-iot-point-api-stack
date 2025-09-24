@@ -207,7 +207,7 @@ void oc_dns_clear_cache(void);
  * @param device the device index
  * @return oc_endpoint_t* list of endpoints
  */
-oc_endpoint_t *oc_connectivity_get_endpoints(size_t device);
+oc_endpoint_t *oc_connectivity_get_endpoints();
 
 /**
  * @brief the callback function for an network change

@@ -50,8 +50,6 @@ typedef enum {
 /**
  * Add the manufactures PKI identity certificate.
  *
- * @param[in] device index of the logical device the identity certificate
- *                   belongs to
  * @param[in] cert pointer to a string containing a PEM encoded identity
  *                 certificate
  * @param[in] cert_size the size of the `cert` string
@@ -63,15 +61,13 @@ typedef enum {
  *    chain
  *  - `-1` on failure
  */
-int oc_pki_add_mfg_cert(size_t device, const unsigned char *cert,
+int oc_pki_add_mfg_cert(const unsigned char *cert,
                         size_t cert_size, const unsigned char *key,
                         size_t key_size);
 
 /**
  * Add an intermediate manufacture CA certificate.
  *
- * @param[in] device index of the logical device the certificate chain belongs
- * to
  * @param[in] credid the credential ID of the /oic/sec/cred entry containing the
  *                   end-entity certificate
  * @param[in] cert pointer to a string containing a PEM encoded certificate
@@ -82,14 +78,13 @@ int oc_pki_add_mfg_cert(size_t device, const unsigned char *cert,
  *     chain
  *   - `-1` on failure
  */
-int oc_pki_add_mfg_intermediate_cert(size_t device, int credid,
+int oc_pki_add_mfg_intermediate_cert(int credid,
                                      const unsigned char *cert,
                                      size_t cert_size);
 
 /**
  * Add manufacture trust anchor CA
  *
- * @param[in] device index of the logical device the trust anchor CA belongs to
  * @param[in] cert pointer to a string containing a PEM encoded certificate
  * @param[in] cert_size the size of the `cert` string
  *
@@ -98,13 +93,12 @@ int oc_pki_add_mfg_intermediate_cert(size_t device, int credid,
  *    chain
  *  - `-1` on failure
  */
-int oc_pki_add_mfg_trust_anchor(size_t device, const unsigned char *cert,
+int oc_pki_add_mfg_trust_anchor(const unsigned char *cert,
                                 size_t cert_size);
 
 /**
  * Add trust anchor CA
  *
- * @param[in] device index of the logical device the trust anchor CA belongs to
  * @param[in] cert pointer to a string containing a PEM encoded certificate
  * @param[in] cert_size the size of the `cert` strung
  *
@@ -113,7 +107,7 @@ int oc_pki_add_mfg_trust_anchor(size_t device, const unsigned char *cert,
  *    chain
  *  - `-1` on failure
  */
-int oc_pki_add_trust_anchor(size_t device, const unsigned char *cert,
+int oc_pki_add_trust_anchor(const unsigned char *cert,
                             size_t cert_size);
 
 /**
@@ -126,7 +120,6 @@ int oc_pki_add_trust_anchor(size_t device, const unsigned char *cert,
  * There are currently five types of Security Profiles.
  *
  *
- * @param[in] device index of the logical device the security profile is be set
  * on
  * @param[in] supported_profiles a bitwise OR list of oc_sp_types_t that are
  *                               supported by the device. The current_profile
@@ -137,7 +130,7 @@ int oc_pki_add_trust_anchor(size_t device, const unsigned char *cert,
  * @param[in] mfg_credid the credential ID of the entry containing
  *                       the manufactures end-entity certificate
  */
-void oc_pki_set_security_profile(size_t device,
+void oc_pki_set_security_profile(
                                  oc_sp_types_t supported_profiles,
                                  oc_sp_types_t current_profile, int mfg_credid);
 #ifdef __cplusplus

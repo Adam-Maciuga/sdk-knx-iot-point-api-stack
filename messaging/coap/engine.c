@@ -629,7 +629,7 @@ int coap_receive(oc_message_t* incoming_message)
 			bool is_myself = false;
 
 			// check if incoming message is from myself, if so, then return with bad request
-			for (oc_endpoint_t* ep_i = oc_connectivity_get_endpoints(0); ep_i; ep_i = ep_i->next)
+			for (oc_endpoint_t* ep_i = oc_connectivity_get_endpoints(); ep_i; ep_i = ep_i->next)
 			{
 				#ifdef OC_DEBUG
 

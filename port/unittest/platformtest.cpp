@@ -55,7 +55,7 @@ TEST(TestConnectivity_init, oc_connectivity_init)
 
 TEST_F(TestConnectivity, oc_connectivity_get_endpoints)
 {
-  oc_endpoint_t *ep = oc_connectivity_get_endpoints(device);
+  oc_endpoint_t *ep = oc_connectivity_get_endpoints();
   EXPECT_NE((oc_endpoint_t *)NULL, ep);
 }
 
@@ -145,7 +145,7 @@ TEST_F(TestConnectivity, oc_tcp_get_csm_state_N)
 
 TEST_F(TestConnectivity, oc_tcp_update_csm_state_P)
 {
-  oc_endpoint_t *ep = oc_connectivity_get_endpoints(device);
+  oc_endpoint_t *ep = oc_connectivity_get_endpoints();
   while (ep) {
     if (ep->flags & TCP && !(ep->flags & SECURED) && ep->flags & IPV4)
       break;
@@ -170,7 +170,7 @@ TEST_F(TestConnectivity, oc_tcp_update_csm_state_P)
 
 TEST_F(TestConnectivity, oc_tcp_update_csm_state_N)
 {
-  oc_endpoint_t *ep = oc_connectivity_get_endpoints(device);
+  oc_endpoint_t *ep = oc_connectivity_get_endpoints();
   while (ep) {
     if (ep->flags & TCP && !(ep->flags & SECURED) && ep->flags & IPV4)
       break;

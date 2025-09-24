@@ -291,7 +291,7 @@ const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
                                            &core_resource_knx_p_data};
 PRAGMA_OUT
 
-void oc_create_p_resource(int resource_idx, size_t device)
+void oc_create_p_resource(int resource_idx)
 {
   OC_DBG("oc_create_p_resource");
   // note that this resource is listed in /.well-known/core so it should have

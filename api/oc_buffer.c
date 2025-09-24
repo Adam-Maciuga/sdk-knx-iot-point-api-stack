@@ -69,7 +69,6 @@ allocate_message(struct oc_memb* pool)
 		message->next = 0;
 		message->ref_count = 1;
 		message->endpoint.interface_index = -1;
-		message->endpoint.device = 0;
 		message->endpoint.group_address = 0;
 		message->soft_ref_cb = NULL;
 

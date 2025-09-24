@@ -224,7 +224,7 @@ int main(void)
   }
 
   // refresh device IP addresses
-  oc_connectivity_get_endpoints(0);
+  oc_connectivity_get_endpoints();
 
   PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
 
