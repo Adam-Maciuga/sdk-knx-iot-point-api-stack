@@ -298,7 +298,6 @@ extern "C" {
 	 * to save memory, the maximum length of each resource type is 32 bytes.
 	 */
 	void oc_core_populate_resource(int core_resource_index,
-																 size_t device_index,
 																 char* uri,
 																 oc_content_format_t content_type0,
 																 oc_content_format_t content_type1,
@@ -316,7 +315,7 @@ extern "C" {
 	 * @param core_resource_index the resource index
 	 * @param dpt the DPT value of the resource
 	 */
-	void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt);
+	void oc_core_bind_dpt_resource(int core_resource_index, const char* dpt);
 
 	/**
 	 * @brief checks for the presence of 'urn:knx' in ANY of the request query parameter value's

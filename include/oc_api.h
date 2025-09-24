@@ -304,11 +304,10 @@ extern "C"
   /**
    * Preset callback data
    *
-   * @param[in] device the device index
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_factory_presets_cb_t)(size_t device, void* data);
+  typedef void (*oc_factory_presets_cb_t)( void* data);
 
   /**
    * Set the factory presets callback.
@@ -329,12 +328,11 @@ extern "C"
   /**
    * Reset callback data.
    *
-   * @param[in] device the device index
    * @param[in] reset_value reset value per KNX
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_reset_cb_t)(size_t device, int reset_value, void* data);
+  typedef void (*oc_reset_cb_t)( int reset_value, void* data);
 
   /**
    * Set the reset callback.
@@ -354,11 +352,10 @@ extern "C"
   /**
    * Restart callback data.
    *
-   * @param[in] device the device index
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_restart_cb_t)(size_t device, void* data);
+  typedef void (*oc_restart_cb_t)( void* data);
 
   /**
    * Set the restart callback.
@@ -383,12 +380,11 @@ extern "C"
   /**
    * Callback invoked by the stack to set the host name
    *
-   * @param[in] device the device index
    * @param[in] host_name the host name to be set
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_hostname_cb_t)(size_t device, oc_string_t host_name, void* data);
+  typedef void (*oc_hostname_cb_t)(oc_string_t host_name, void* data);
 
   /**
    * Host name (set) callback.
@@ -412,13 +408,12 @@ extern "C"
    * set the programming mode of the device via a call to
    * oc_knx_device_set_programming_mode();
    *
-   * @param[in] device the device index
    * @param[in] programming_mode whether to set the programming mode to true or
    * false
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_programming_mode_cb_t)(size_t device, bool programming_mode, void* data);
+  typedef void (*oc_programming_mode_cb_t)(bool programming_mode, void* data);
 
   /**
    * Set the programming mode callback

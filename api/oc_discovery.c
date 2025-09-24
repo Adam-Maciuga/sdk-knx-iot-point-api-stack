@@ -437,7 +437,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		PRINT("group address: %d", group_address);
 
 		// if not in 'runtime' just return
-		if (!oc_is_device_in_runtime(0))
+		if (!oc_is_device_in_runtime())
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
 			PRINT("device not at 'runtime'");

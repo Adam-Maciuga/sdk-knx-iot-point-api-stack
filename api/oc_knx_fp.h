@@ -562,7 +562,7 @@ extern "C"
    *
    * @note a href leading forward '/' is ignored when checking, href after the '/' must be non-zero
    */
-  bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index);
+  bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable);
 
   /**
    * @brief Creation of the KNX feature point resources.

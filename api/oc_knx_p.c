@@ -139,7 +139,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   }
 
   // get from the request the addressed device as index
-  size_t device_index = request->resource->device;
+
 
   // check first if the url is implemented on the device (performance)
   oc_rep_t* rep = request->request_payload;
@@ -156,7 +156,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
         // href = CBOR KEY 11, value = string = MANDATORY according to specification
         if (entry_object->iname == 11 && entry_object->type == OC_REP_STRING)
         {
-          if (!oc_belongs_href_to_resource(entry_object->value.string, false, device_index))
+          if (!oc_belongs_href_to_resource(entry_object->value.string, false))
           {
             // there is no href in all application resources that fits to the request href
             error = true;
@@ -298,6 +298,6 @@ void oc_create_p_resource(int resource_idx, size_t device)
   OC_DBG("oc_create_p_resource");
   // note that this resource is listed in /.well-known/core so it should have
   // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, device, "/p", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/p", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_p_get_handler, 0, oc_core_p_post_handler, 0, 1, "urn:knx:fb.0");
 }

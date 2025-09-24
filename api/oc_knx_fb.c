@@ -67,14 +67,14 @@ void store_in_array(int value, int instance)
 }
 
 // -----------------------------------------------------------------------------
-static int oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_value)
+static int oc_core_count_dp_in_fb(int instance, int fb_value)
 {
   int counter = 0;
 
   const oc_resource_t* resource = oc_ri_get_app_resources();
   for (; resource; resource = resource->next)
   {
-    if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
+    if (resource->device != 0 || !(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -132,10 +132,10 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   PRINT("instance: %d ", instance);
 
-  size_t device_index = request->resource->device;
+
 
   // current resource amount
-  const int total = oc_core_count_dp_in_fb(device_index, instance, fb_value);
+  const int total = oc_core_count_dp_in_fb(instance, fb_value);
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -163,7 +163,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int skipped = 0;
   for (; resource; resource = resource->next)
   {
-    if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
+    if (resource->device != 0 || !(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -249,7 +249,7 @@ void oc_create_fb_x_resource(int resource_idx, size_t device)
   OC_DBG("create /f/x resources");
   // note that this resource is listed in /.well-known/core so it should have
   // the full rt with urn:knx prefix.
-  oc_core_populate_resource(resource_idx, device, "/f/*", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/f/*", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_fb_x_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
 }
 
@@ -583,6 +583,6 @@ void oc_create_fb_resource(int resource_idx, size_t device)
   OC_DBG("create /f resources");
   // note that this resource is listed in /.well-known/core so it should have
   // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, device, "/f", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/f", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_fb_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
 }

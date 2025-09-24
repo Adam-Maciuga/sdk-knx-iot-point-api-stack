@@ -160,7 +160,7 @@ static oc_event_callback_retval_t reset(void* context)
   if (my_preset_cb && my_preset_cb->cb)
   {
     PRINT("Factory PRESET callback handler is called");
-    my_preset_cb->cb(0, my_preset_cb->data);
+    my_preset_cb->cb(my_preset_cb->data);
   }
 
   // delete data
@@ -171,7 +171,7 @@ static oc_event_callback_retval_t reset(void* context)
   if (my_reset_cb && my_reset_cb->cb)
   {
     PRINT("Factory RESET callback handler is called");
-    my_reset_cb->cb(0, cached_erase_code_value, my_reset_cb->data);
+    my_reset_cb->cb(cached_erase_code_value, my_reset_cb->data);
   }
 
   PRINT("Re-register mDNS with new data of ia, iid , pm mode (values are usually changed after a reset)");
@@ -205,7 +205,7 @@ static oc_event_callback_retval_t restart(void* context)
   const oc_restart_t* my_restart = oc_get_restart_cb();
   if (my_restart && my_restart->cb)
   {
-    my_restart->cb(0, my_restart->data);
+    my_restart->cb(my_restart->data);
   }
 
   return OC_EVENT_DONE;
@@ -349,17 +349,17 @@ PRAGMA_OUT
 static void oc_create_knx_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /knx resources");
-  oc_core_populate_resource(resource_idx, device, "/.well-known/knx", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/.well-known/knx", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_get_handler, 0, oc_core_knx_post_handler, 0, 0);
 }
 
 
-oc_lsm_state_t oc_knx_get_lsm(size_t device_index)
+oc_lsm_state_t oc_knx_get_lsm()
 {
   oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
-    OC_ERR("device not found %d", (int)device_index);
+    OC_ERR("device not found");
     return LSM_S_UNLOADED;
   }
 
@@ -434,7 +434,7 @@ const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
 
 
 // LSM handler, stores the new state and returns if event was OK (true)
-static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e, size_t device_index)
+static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e)
 {
   if (lsm_e == LSM_E_NOP)
   {
@@ -478,7 +478,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
   }
 
   // get from the request the addressed device as index
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (device == NULL)
@@ -487,7 +487,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  oc_lsm_state_t lsm = oc_knx_get_lsm(device_index);
+  oc_lsm_state_t lsm = oc_knx_get_lsm();
 
   oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 3, lsm);
@@ -511,7 +511,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   // get from the request the addressed device as index
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (device == NULL)
@@ -542,17 +542,17 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
   PRINT("load event %d [%s]", event, oc_core_get_lsm_event_as_string(event));
 
   // LSM state changed correctly ?
-  if (oc_lsm_event_to_state(event, device_index))
+  if (oc_lsm_event_to_state(event))
   {
     const oc_loadstate_t* my_cb = oc_get_lsm_change_cb();
 
     if (my_cb && my_cb->cb)
     { // application callback handler for LSM present ...
-      my_cb->cb(device_index, oc_knx_get_lsm(device_index), my_cb->data);
+      my_cb->cb(oc_knx_get_lsm(), my_cb->data);
     }
 
     // if LSM is loaded , e.g; application is running ...
-    if (oc_is_device_in_runtime(device_index))
+    if (oc_is_device_in_runtime())
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
@@ -562,7 +562,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     // create response
     oc_rep_new(request->response->response_buffer->buffer, (int)request->response->response_buffer->buffer_size);
     oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 3, oc_knx_get_lsm(device_index));
+    oc_rep_i_set_int(root, 3, oc_knx_get_lsm());
     oc_rep_end_root_object();
 
     // note that also on event 'NOP' a 'changed' is returned
@@ -599,7 +599,7 @@ static void oc_create_a_lsm_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /a/lsm resources");
 
-  oc_core_populate_resource(resource_idx, device, "/a/lsm", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/a/lsm", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_a_lsm_get_handler, 0, oc_core_a_lsm_post_handler, 0, 0);
 }
 
@@ -744,7 +744,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     rep = rep->next;
   }
 
-  if (oc_is_device_in_runtime(0) == false)
+  if (oc_is_device_in_runtime() == false)
   {
     PRINT("device not in runtime state:%d - ignore message", device->lsm_s);
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
@@ -1143,7 +1143,7 @@ const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fi
 static void oc_create_knx_k_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /k resources");
-  oc_core_populate_resource(resource_idx, device, "/k", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/k", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_k_get_handler, 0, oc_core_knx_k_post_handler, 0, 1, "urn:knx:g.s");
 }
 
@@ -1159,8 +1159,8 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
   }
 
   // check if the state is loaded
-  size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADED)
+
+  if (oc_knx_get_lsm() != LSM_S_LOADED)
   {
     OC_ERR("not in loaded state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
@@ -1201,7 +1201,7 @@ PRAGMA_OUT
 static void oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
 {
   OC_DBG("create /k/f resources");
-  oc_core_populate_resource(resource_idx, device, "/.well-known/knx/f", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/.well-known/knx/f", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_fingerprint_get_handler, 0, 0, 0, 0);
 }
 
@@ -1250,7 +1250,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
   // iid/ia are mandatory
   if (iid_set && ia_set)
   {
-    if (oc_is_device_in_runtime(0))
+    if (oc_is_device_in_runtime())
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
@@ -1290,7 +1290,7 @@ PRAGMA_OUT
 static void oc_create_knx_ia(int resource_idx, size_t device)
 {
   OC_DBG("create /knx/ia resources");
-  oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ia", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/.well-known/knx/ia", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             NULL, 0, oc_core_knx_ia_post_handler, 0, 0);
 }
 
@@ -1342,7 +1342,7 @@ PRAGMA_OUT
 static void oc_create_knx_ldevid_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_ldevid_resource");
-  oc_core_populate_resource(resource_idx, device, "/.well-known/knx/ldevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
+  oc_core_populate_resource(resource_idx, "/.well-known/knx/ldevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
                             OC_DISCOVERABLE, oc_core_knx_ldevid_get_handler, 0, 0, 0, 1, ":dpt.a[n]");
 }
 
@@ -1394,7 +1394,7 @@ PRAGMA_OUT
 void oc_create_knx_idevid_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_idevid_resource");
-  oc_core_populate_resource(resource_idx, device, "/.well-known/knx/idevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
+  oc_core_populate_resource(resource_idx, "/.well-known/knx/idevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
                             OC_DISCOVERABLE, oc_core_knx_idevid_get_handler, 0, 0, 0, 1, ":dpt.a[n]");
 }
 
@@ -1900,7 +1900,7 @@ PRAGMA_OUT
 static void oc_create_knx_spake_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_spake_resource");
-  oc_core_populate_resource(resource_idx, device, "/.well-known/knx/spake", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/.well-known/knx/spake", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             0, 0, oc_core_knx_spake_post_handler, 0, 0);
 }
 
@@ -1947,7 +1947,7 @@ void oc_knx_increase_fingerprint(void)
   oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
-bool oc_is_device_in_runtime(size_t device_index)
+bool oc_is_device_in_runtime()
 {
   oc_device_info_t* device = oc_core_get_device_info();
 
