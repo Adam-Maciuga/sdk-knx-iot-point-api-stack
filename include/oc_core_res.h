@@ -269,7 +269,7 @@ extern "C" {
 	 * @param device the device index
 	 * @return oc_device_info_t* the device info
 	 */
-	oc_device_info_t* oc_core_get_device_info(size_t device);
+	oc_device_info_t* oc_core_get_device_info(void);
 
 	/**
 	 * @brief retrieve the platform information

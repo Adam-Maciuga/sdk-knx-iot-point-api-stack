@@ -353,8 +353,7 @@ extern "C" {
 		OC_KNX_SWU_PKGBYTES,			/**< swu package bytes*/
 		OC_KNX_SWU_PKGQURL,				/**< swu query url */
 		OC_KNX_SWU_PKGNAMES,			/**< swu package names*/
-		OC_KNX_SWU,								/**< swu top level */
-		OC_KNX_SUB,								/**< delete all device subscriptions */
+		OC_KNX_SWU,
 		OC_KNX_A_SEN,							/**< a/sen resource */
 		OC_KNX_AUTH_O_REPLWDO,		/**< oscore replay window*/
 		OC_KNX_AUTH_O_OSNDELAY,		/**< oscore osn delay*/

@@ -586,16 +586,3 @@ void oc_create_fb_resource(int resource_idx, size_t device)
   oc_core_populate_resource(resource_idx, device, "/f", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_fb_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
 }
-
-void oc_create_knx_fb_resources(size_t device_index)
-{
-  OC_DBG("oc_create_knx_fb_resources");
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX functional block resources created statically");
-    return;
-  }
-  oc_create_fb_x_resource(OC_KNX_F_X, device_index);
-  oc_create_fb_resource(OC_KNX_F, device_index); // should be last of the knx/xxx resources, it will list those.
-}

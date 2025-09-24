@@ -1815,26 +1815,12 @@ oc_auth_at_t* oc_get_auth_at_entry(int index)
   return index < 0 || index >= G_AT_MAX_ENTRIES ? NULL : &g_at_entries[index];
 }
 
-void oc_create_knx_sec_resources(size_t device_index)
+void oc_create_knx_sec_resources(void)
 {
   OC_DBG("oc_create_knx_sec_resources");
 
   oc_load_at_table();
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX security resources created statically");
-    return;
-  }
-
-  oc_create_knx_auth_o_replwdo_resource(OC_KNX_AUTH_O_REPLWDO, device_index);
-  oc_create_knx_auth_o_osndelay_resource(OC_KNX_AUTH_O_OSNDELAY, device_index);
-  oc_create_knx_auth_o_resource(OC_KNX_AUTH_O, device_index);
-  oc_create_a_sen_resource(OC_KNX_A_SEN, device_index);
-
-  oc_create_auth_at_resource(OC_KNX_AUTH_AT, device_index);
-  oc_create_auth_at_x_resource(OC_KNX_AUTH_AT_X, device_index);
-  oc_create_knx_auth_resource(OC_KNX_AUTH, device_index);
+  return;
 }
 
 void oc_init_oscore_from_storage(const bool read_ssn_from_storage)

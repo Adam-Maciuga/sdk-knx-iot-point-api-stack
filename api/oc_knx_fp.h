@@ -569,7 +569,7 @@ extern "C"
    * @param device_index index of the device to which the resource are to be
    * created
    */
-  void oc_create_knx_fp_resources(size_t device_index);
+  void oc_create_knx_fp_resources(void);
 
   /**
    * @brief free the GO/PUB/SUB tables in RAM
