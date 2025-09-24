@@ -359,7 +359,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	}
 
 	// get from device 0 info
-	const oc_device_info_t* device = oc_core_get_device_info(0);
+	const oc_device_info_t* device = oc_core_get_device_info();
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
 
@@ -751,22 +751,6 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	&core_resource_well_known_core_data																												 		// ptr to user runtime data					
 };
 PRAGMA_OUT																																									 		// compiler specific
-
-void oc_create_discovery_resource(const int resource_idx, const size_t device_index)
-{
-	OC_DBG("create /.well-known/core resources");
-
-	if (device_index == 0)
-	{
-		OC_DBG("device 0: KNX device resources created statically");
-		return;
-	}
-
-	oc_core_populate_resource(resource_idx, device_index, "/.well-known/core",
-														APPLICATION_LINK_FORMAT, CONTENT_NONE,
-														OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
-														0, 0, 1, "well-known-type");
-}
 
 oc_discovery_flags_t
 oc_ri_process_discovery_payload(const uint8_t* payload, const int len,

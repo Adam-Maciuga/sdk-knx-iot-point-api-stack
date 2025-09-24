@@ -175,7 +175,7 @@ static oc_event_callback_retval_t reset(void* context)
   }
 
   PRINT("Re-register mDNS with new data of ia, iid , pm mode (values are usually changed after a reset)");
-  const oc_device_info_t* device = oc_core_get_device_info(0);
+  const oc_device_info_t* device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return OC_EVENT_DONE;
@@ -192,7 +192,7 @@ static oc_event_callback_retval_t restart(void* context)
 
   */
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   device->pm = false;
 
   // delete PASE token
@@ -356,7 +356,7 @@ static void oc_create_knx_resource(int resource_idx, size_t device)
 
 oc_lsm_state_t oc_knx_get_lsm(size_t device_index)
 {
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
     OC_ERR("device not found %d", (int)device_index);
@@ -368,7 +368,7 @@ oc_lsm_state_t oc_knx_get_lsm(size_t device_index)
 
 int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state)
 {
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
     OC_ERR("device not found %d", (int)device_index);
@@ -479,7 +479,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
   // get from the request the addressed device as index
   size_t device_index = request->resource->device;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   if (device == NULL)
   {
@@ -512,7 +512,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 
   // get from the request the addressed device as index
   size_t device_index = request->resource->device;
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   if (device == NULL)
   {
@@ -615,7 +615,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -667,7 +667,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
@@ -1254,7 +1254,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
-      oc_device_info_t* device = oc_core_get_device_info(0);
+      oc_device_info_t* device = oc_core_get_device_info();
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -1947,28 +1947,9 @@ void oc_knx_increase_fingerprint(void)
   oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
-void oc_create_knx_resources(size_t device_index)
-{
-  OC_DBG("oc_create_knx_resources");
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX common resources created statically");
-    return;
-  }
-
-  oc_create_a_lsm_resource(OC_A_LSM, device_index);
-  oc_create_knx_k_resource(OC_KNX_K, device_index);
-  oc_create_knx_fingerprint_resource(OC_KNX_FINGERPRINT, device_index);
-  oc_create_knx_ia(OC_KNX_IA, device_index);
-  oc_create_knx_ldevid_resource(OC_KNX_LDEVID, device_index);
-  oc_create_knx_idevid_resource(OC_KNX_IDEVID, device_index);
-  oc_create_knx_spake_resource(OC_KNX_SPAKE, device_index);
-  oc_create_knx_resource(OC_KNX, device_index);
-}
-
 bool oc_is_device_in_runtime(size_t device_index)
 {
-  oc_device_info_t* device = oc_core_get_device_info(device_index);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   if (device->iid == 0)
   {

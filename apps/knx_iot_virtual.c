@@ -330,7 +330,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();
@@ -606,7 +606,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();

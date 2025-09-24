@@ -56,14 +56,6 @@ bool oc_was_adding_function_blocks_to_response(oc_request_t *request, bool short
                                         int last_entry);
 
 /**
- *@brief Creation of the KNX function block resources.
- * - /fb
- * - /fb/X
- *@param device index of the device to which the resource is to be created
- */
-void oc_create_knx_fb_resources(size_t device);
-
-/**
  *@brief count functional blocks in a device
  */
 int oc_count_functional_blocks(void);

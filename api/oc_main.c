@@ -378,7 +378,7 @@ int oc_main_init(const oc_handler_t* handler)
 
   // note - only advertising for the first device, if multiple devices per KNX instance are desired,
   // the implementation of this service must change
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return 0;

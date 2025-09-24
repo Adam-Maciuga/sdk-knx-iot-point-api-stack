@@ -27,7 +27,6 @@
 #include "oc_knx_p.h"
 #include "oc_knx_swu.h"
 #include "oc_knx_sec.h"
-#include "oc_knx_sub.h"
 #include "port/oc_assert.h"
 #include <stdarg.h>
 #include "port/oc_storage.h"
@@ -87,12 +86,9 @@ void oc_core_shutdown(void)
 	if (oc_device_info)
 	{
 		#endif 
-		for (i = 0; i < device_count; ++i)
-		{
-			oc_device_info_t* oc_device_info_item = &oc_device_info[i];
-			oc_core_free_device_info_properties(oc_device_info_item);
-		}
 
+		oc_device_info_t* oc_device_info_item = oc_device_info;
+		oc_core_free_device_info_properties(oc_device_info_item);
 		oc_free_knx_table_resources();
 		
 
@@ -106,13 +102,11 @@ void oc_core_shutdown(void)
 	if (core_resources)
 	{
 		#endif 
-		size_t max_resource =
-			1 + (WELLKNOWNCORE * (device_count ? device_count - 1 : 0));
-		for (i = 0; i < max_resource; ++i)
-		{
-			oc_resource_t* core_resource = &core_resources[i];
-			oc_ri_free_resource_properties(core_resource);
-		}
+		size_t max_resource = 1;
+
+		oc_resource_t* core_resource = &core_resources[0];
+		oc_ri_free_resource_properties(core_resource);
+
 		#ifdef OC_DYNAMIC_ALLOCATION
 		free(core_resources);
 		core_resources = NULL;
@@ -286,37 +280,11 @@ int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid)
 oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char* serialnumber, oc_core_add_device_cb_t add_device_cb, void* data)
 {
 	(void) data;
-	#ifndef OC_DYNAMIC_ALLOCATION
-	if (device_count == OC_MAX_NUM_DEVICES)
+
+	#ifdef OC_DYNAMIC_ALLOCATION
+	if (!oc_device_info)
 	{
-		OC_ERR("device limit reached");
-		return NULL;
-	}
-	#else
-
-	// note, there is always 1 resource present, the initial one in the list
-	// per device 'WELLKNOWNCORE' resources needed 
-	const size_t new_num = 1 + WELLKNOWNCORE * device_count;
-
-	// reallocate (expand) present device resources with new device resources
-	core_resources = (oc_resource_t*) realloc(core_resources, new_num * sizeof(oc_resource_t));
-
-	if (!core_resources)
-	{
-		oc_abort("Insufficient memory");
-	}
-
-	if (device_count > 0)
-	{
-		// clear all NEW resources (e.g. for device count 2 : 115-57 -> 58..115)
-		oc_resource_t* device_resources = &core_resources[new_num - WELLKNOWNCORE];
-		memset(device_resources, 0, WELLKNOWNCORE * sizeof(oc_resource_t));
-	}
-	else
-	{
-		// device count is 0 
-		oc_device_info = (oc_device_info_t*) realloc(oc_device_info, sizeof(oc_device_info_t));
-
+		oc_device_info = (oc_device_info_t*) malloc(sizeof(oc_device_info_t));
 		if (!oc_device_info)
 		{
 			oc_abort("Insufficient memory");
@@ -325,45 +293,28 @@ oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char
 		// define extern for below usage
 		extern oc_resource_t core_resource_dev_sn;
 
-	  // add as first list element the 'sn' resource 
-	  oc_list_add_block(core_resource_list, &core_resource_dev_sn);
+		// add as first list element the 'sn' resource
+		oc_list_add_block(core_resource_list, &core_resource_dev_sn);
 	}
-
-	oc_device_info = (oc_device_info_t*) realloc(oc_device_info, (device_count + 1) * sizeof(oc_device_info_t));
-
-	if (!oc_device_info)
-	{
-		oc_abort("Insufficient memory");
-	}
-
-	memset(&oc_device_info[device_count], 0, sizeof(oc_device_info_t));
-	oc_device_info[device_count].ia = 0xffff;
-
 	#endif /* OC_DYNAMIC_ALLOCATION */
 
-	/* Construct device resource */
-	// int properties = OC_DISCOVERABLE;
+	memset(oc_device_info, 0, sizeof(oc_device_info_t));
+	oc_device_info->ia = 0xffff;
 
 	// ensure that the serial number is in lower case
 	// it changes the original, but it must be anyhow lower case...
 	oc_charstream_convert_to_lower(serialnumber);
 
-	oc_new_string(&oc_device_info[device_count].serialnumber, serialnumber, strlen(serialnumber));
-	oc_device_info[device_count].add_device_cb = add_device_cb;
+	oc_new_string(&oc_device_info->serialnumber, serialnumber, strlen(serialnumber));
+	oc_device_info->add_device_cb = add_device_cb;
 
-	oc_create_discovery_resource(WELLKNOWNCORE, device_count);
-	oc_create_knx_device_resources(device_count);
-	oc_create_knx_resources(device_count);
-	oc_create_knx_fb_resources(device_count);
-	oc_create_knx_fp_resources(device_count);
-	oc_create_knx_p_resources(device_count);
-	oc_create_knx_sec_resources(device_count);
-	oc_create_knx_swu_resources(device_count);
-	oc_create_sub_resource(OC_KNX_SUB, device_count);
+	oc_create_knx_fp_resources();
+	oc_create_knx_sec_resources();
+	oc_create_knx_swu_resources();
 
-	oc_device_info[device_count].data = data;
+	oc_device_info->data = data;
 
-	if (oc_connectivity_init(device_count) < 0)
+	if (oc_connectivity_init(0) < 0)
 	{
 		oc_abort("error initializing connectivity for device");
 	}
@@ -371,9 +322,9 @@ oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char
 	/* must be before the increase of device_count */
 	oc_init_oscore_from_storage(true);
 
-	device_count++;
+	device_count = 1;
 
-	return &oc_device_info[device_count - 1];
+	return oc_device_info;
 }
 
 oc_platform_info_t* oc_core_init_platform(const char* mfg_name, oc_core_init_platform_cb_t init_cb, void* data)
@@ -480,13 +431,9 @@ void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, con
 	oc_resource_bind_dpt((oc_resource_t*) r, dpt);
 }
 
-oc_device_info_t* oc_core_get_device_info(size_t device)
+oc_device_info_t* oc_core_get_device_info(void)
 {
-	if (device >= device_count)
-	{
-		return NULL;
-	}
-	return &oc_device_info[device];
+	return oc_device_info;
 }
 
 oc_platform_info_t* oc_core_get_platform_info(void)

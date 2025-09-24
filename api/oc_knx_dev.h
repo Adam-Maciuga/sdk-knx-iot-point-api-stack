@@ -36,25 +36,6 @@ extern "C" {
 #define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
 
 /**
- * @brief create device resources.
- *  - sn (serial number)
- *  - hwv (hardware version)
- *  - fwv (firmware version)
- *  - hwt (hardware type)
- *  - model (device model)
- *  - sa (sub address)
- *  - da (device address)
- *  - ipv6 (ipv6 address)
- *  - hname (host name)
- *  - ia (internal address)
- *  - iid (installation identifier)
- *  - port (port address)
- *
- * @param device index of the device to which the resource is to be created
- */
-void oc_create_knx_device_resources(size_t device);
-
-/**
 @brief load the device from storage (file system)
  *  
  *  - hname (host name)

@@ -2747,27 +2747,10 @@ static void oc_init_tables(void)
   }
 }
 
-void oc_create_knx_fp_resources(size_t device_index)
+void oc_create_knx_fp_resources(void)
 {
   OC_DBG("oc_create_knx_fp_resources");
 
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX function point resources created statically");
-  }
-  else
-  {
-    oc_create_fp_g_resource(OC_KNX_FP_G, device_index);
-    oc_create_fp_g_x_resource(OC_KNX_FP_G_X, device_index);
-
-#ifdef OC_PUBLISHER_TABLE
-    oc_create_fp_p_resource(OC_KNX_FP_P, device_index);
-    oc_create_fp_p_x_resource(OC_KNX_FP_P_X, device_index);
-#endif
-
-    oc_create_fp_r_resource(OC_KNX_FP_R, device_index);
-    oc_create_fp_r_x_resource(OC_KNX_FP_R_X, device_index);
-  }
   oc_init_tables();
   oc_load_group_object_table();
   oc_load_object_table();
@@ -2947,7 +2930,7 @@ void oc_register_group_multicasts(void)
 #ifdef OC_PUBLISHER_TABLE
 
   // register only if publisher is active, installation id will be used as ULA prefix
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (!device)
   {
     PRINT("oc_register_group_multicasts: no device info");
@@ -3003,7 +2986,7 @@ void oc_init_datapoints_at_initialization(void)
 
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 
-          oc_device_info_t* device = oc_core_get_device_info(0);
+          oc_device_info_t* device = oc_core_get_device_info();
           uint16_t sia_value = device->ia;
           uint64_t iid = device->iid;
 

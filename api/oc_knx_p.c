@@ -301,16 +301,3 @@ void oc_create_p_resource(int resource_idx, size_t device)
   oc_core_populate_resource(resource_idx, device, "/p", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_p_get_handler, 0, oc_core_p_post_handler, 0, 1, "urn:knx:fb.0");
 }
-
-void oc_create_knx_p_resources(size_t device_index)
-{
-  OC_DBG("oc_create_knx_p_resources");
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX parameter resources created statically");
-    return;
-  }
-
-  oc_create_p_resource(OC_KNX_P, device_index);
-}

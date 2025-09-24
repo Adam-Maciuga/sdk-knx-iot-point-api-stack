@@ -872,9 +872,9 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
 // resource definition, details/comments see on
 // 'core_resource_well_known_core_final'
-extern const oc_resource_t core_resource_sub;
+extern const oc_resource_t core_resource_knx_a_sen;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_data;
-const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
+const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_knx_a_sen,
                                              0,
                                              {NULL, sizeof("/swu"), "/swu"},
                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.swu"})},
@@ -893,7 +893,7 @@ const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
                                              &core_resource_knx_swu_data};
 PRAGMA_OUT
 
-void oc_create_knx_swu_resources(size_t device_index)
+void oc_create_knx_swu_resources(void)
 {
   OC_DBG("oc_create_knx_swu_resources");
 
