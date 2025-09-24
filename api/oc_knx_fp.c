@@ -403,7 +403,6 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  const size_t device_index = request->resource->device;
   if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
@@ -973,7 +972,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  const size_t device_index = request->resource->device;
   if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
@@ -1520,7 +1518,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  const size_t device_index = request->resource->device;
   if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");

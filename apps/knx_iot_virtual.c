@@ -202,7 +202,7 @@ int app_init(void)
 
   // set the application name, version, base url, device serial number
   // init also the device resources such as /dev, /.well-known/core, ...
-  ret |= oc_add_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
+  ret |= oc_set_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
 
   // set the hardware version 0.0.1, value used from EITT for testing
   oc_core_set_device_hwv(0, 0, 1);

@@ -182,7 +182,7 @@ void oc_oscore_free_lru_recipient_context(void);
 oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_address);
 
 oc_oscore_context_t *oc_oscore_find_context_by_kid(oc_oscore_context_t *ctx,
-                                                   size_t device, uint8_t *kid,
+                                                   uint8_t *kid,
                                                    uint8_t kid_len);
 
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(

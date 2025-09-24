@@ -791,9 +791,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
   {
     return;
   }
-
-  const size_t device_index = request->resource->device;
-
+  
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;

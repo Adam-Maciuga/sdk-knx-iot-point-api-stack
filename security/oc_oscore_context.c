@@ -44,7 +44,7 @@ void oc_oscore_free_lru_recipient_context(void)
 }
 
 // checking against receiver in contexts
-oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, size_t device_index,
+oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx,
                               uint8_t* kid, uint8_t kid_len)
 {
   if (!ctx)
@@ -55,7 +55,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, siz
   if (kid_len == 0)
     return NULL;
 
-  PRINT("oc_oscore_find_context_by_kid : dev=%d  kid:(%d) :", (int) device_index,
+  PRINT("oc_oscore_find_context_by_kid : kid:(%d) :", 
         kid_len);
   oc_char_println_hex((char*) (kid), kid_len);
 

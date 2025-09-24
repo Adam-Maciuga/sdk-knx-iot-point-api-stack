@@ -187,8 +187,6 @@ extern "C"
   /**
  * @brief
  * Application factory preset callback handler for the device
-
- * @param device_index the device identifier of the list of devices
  * @param data the supplied data.
  */
   void factory_presets_cb(void* data);
@@ -204,7 +202,6 @@ extern "C"
    * @brief
    * Application host name callback handler for the device
    *
-   * @param device_index the device identifier of the list of devices
    * @param host_name the host name of the device to be maintained (check/set,
    * print, ...)
    * @param data the supplied data.

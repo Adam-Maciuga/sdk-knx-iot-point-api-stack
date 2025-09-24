@@ -39,7 +39,7 @@ static int
 app_init(void)
 {
   int ret = oc_init_platform("Cascoda", NULL, NULL);
-  ret |= oc_add_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
+  ret |= oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
   return ret;
 }
 

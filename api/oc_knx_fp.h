@@ -554,7 +554,6 @@ extern "C"
    *
    * @param href the url to be checked of the device
    * @param discoverable if true checks the device and its discoverable resources (otherwise all resources)
-   * @param device_index The device index
    *
    * @return true
    * @return false
@@ -566,7 +565,6 @@ extern "C"
   /**
    * @brief Creation of the KNX feature point resources.
    *
-   * @param device_index index of the device to which the resource are to be
    * created
    */
   void oc_create_knx_fp_resources(void);
