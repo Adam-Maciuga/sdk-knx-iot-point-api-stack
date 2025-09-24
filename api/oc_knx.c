@@ -1206,18 +1206,18 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 12)
       {
         PRINT("received 12 (ia) : %d", (int)rep->value.integer);
-        oc_core_set_and_store_device_ia(0, (uint16_t)rep->value.integer);
+        oc_core_set_and_store_device_ia((uint16_t)rep->value.integer);
         ia_set = true;
       }
       else if (rep->iname == 25)
       {
         PRINT("received 25 (fid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_and_store_device_fid(0, rep->value.integer);
+        oc_core_set_and_store_device_fid(rep->value.integer);
       }
       else if (rep->iname == 26)
       {
         PRINT("received 26 (iid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_and_store_device_iid(0, rep->value.integer);
+        oc_core_set_and_store_device_iid(rep->value.integer);
         iid_set = true;
       }
     }

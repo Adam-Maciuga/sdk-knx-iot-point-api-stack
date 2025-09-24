@@ -356,7 +356,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
         PRINT("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));
 
         // set hostname for the device
-        oc_core_set_device_hostname(device_index, oc_string(rep->value.string));
+        oc_core_set_device_hostname(oc_string(rep->value.string));
 
         // update storage
         oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(rep->value.string), oc_string_len(rep->value.string));
@@ -459,7 +459,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_iid_put_handler received : %lld", rep->value.integer);
-        oc_core_set_and_store_device_iid(device_index, rep->value.integer);
+        oc_core_set_and_store_device_iid(rep->value.integer);
 
         // do the run time installation
         if (oc_is_device_in_runtime(device_index))
@@ -1044,7 +1044,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_fid_put_handler received : %lld", rep->value.integer);
-        oc_core_set_and_store_device_fid(device_index, rep->value.integer);
+        oc_core_set_and_store_device_fid(rep->value.integer);
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }
@@ -1252,7 +1252,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
       return;
     }
 
-    oc_core_set_and_store_device_application_version(device_index, (int)array[0], (int)array[1], (int)array[2]);
+    oc_core_set_and_store_device_application_version((int)array[0], (int)array[1], (int)array[2]);
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
     return;
@@ -1493,7 +1493,7 @@ void oc_knx_load_device(size_t device_index)
   // read host name from storage (on error = empty string "" else '0' terminated oc_string)
   char hostname[255] = "";
   oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hostname, 255);
-  oc_core_set_device_hostname(device_index, hostname);
+  oc_core_set_device_hostname(hostname);
   PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
 
   // read major/minor/patch version from storage (on error = '0.0.0')

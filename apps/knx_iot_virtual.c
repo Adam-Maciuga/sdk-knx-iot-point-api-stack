@@ -207,22 +207,22 @@ int app_init(void)
   ret |= oc_add_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
 
   // set the hardware version 0.0.1, value used from EITT for testing
-  oc_core_set_device_hwv(0, 0, 0, 1);
+  oc_core_set_device_hwv(0, 0, 1);
 
   // set the hardware version 0.0.1, value used from EITT for testing
-  oc_core_set_device_fwv(0, 0, 0, 1);
+  oc_core_set_device_fwv(0, 0, 1);
 
   // set manufacturer id, value used from EITT for testing
-  oc_core_set_device_mid(0, mid);
+  oc_core_set_device_mid(mid);
 
   // set the hardware type -> 12 chars, value used from EITT for testing
-  oc_core_set_device_hwt(0, hw_type);
+  oc_core_set_device_hwt(hw_type);
 
   // set device model, value used from EITT for testing
-  oc_core_set_device_model(0, dev_model);
+  oc_core_set_device_model(dev_model);
 
   // set host name, value used from EITT for testing
-  oc_core_set_device_hostname(0, hostname);
+  oc_core_set_device_hostname(hostname);
 
   // set response callback (if needed must be filled with code)
   oc_set_s_mode_response_cb(oc_s_mode_response_cb);

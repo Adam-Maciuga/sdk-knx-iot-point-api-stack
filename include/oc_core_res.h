@@ -151,92 +151,83 @@ extern "C" {
 	 * @param patch the zzz number of xxx.yyy.zzz
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_fwv(size_t device_index, int major, int minor, int patch);
+	int oc_core_set_device_fwv(int major, int minor, int patch);
 
 	/**
 	 * @brief sets the hardware version number
 	 *
-	 * @param device_index the device index
 	 * @param major the xxx number of xxx.yyy.zzz
 	 * @param minor the yyy number of xxx.yyy.zz
 	 * @param patch the zzz number of xxx.yyy.zzz
 	 * @return int  error status, 0 = OK
 	 */
-	int oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch);
+	int oc_core_set_device_hwv(int major, int minor, int patch);
 	/**
 	 * @brief sets the application version number
 	 *
-	 * @param device_index the device index
 	 * @param major the xxx number of xxx.yyy.zzz
 	 * @param minor the yyy number of xxx.yyy.zz
 	 * @param patch the zzz number of xxx.yyy.zzz
 	 * @return int  error status, 0 = OK
 	 */
-	int oc_core_set_device_apv(size_t device_index, int major, int minor, int patch);
+	int oc_core_set_device_apv(int major, int minor, int patch);
 
 	/**
 	 * @brief sets the manufacturer id
 	 *
-	 * @param device_index the device index
 	 * @param mid the manufacturer id
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_mid(size_t device_index, uint32_t mid);
+	int oc_core_set_device_mid(uint32_t mid);
 
 	/**
 	 * @brief sets and stores the individual address
 	 *
-	 * @param device_index the device index
 	 * @param ia the individual address
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia);
+	int oc_core_set_and_store_device_ia(uint16_t ia);
 
 	/**
 	 * @brief sets the hardware type (string)
 	 * input string should not be larger than 6
 	 *
-	 * @param device_index the device index
 	 * @param hardware_type the hardware type
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_hwt(size_t device_index, const char* hardware_type);
+	int oc_core_set_device_hwt(const char* hardware_type);
 
 	/**
 	 * @brief sets the model (string)
 	 *
-	 * @param device_index the device index
 	 * @param model the device model
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_model(size_t device_index, const char* model);
+	int oc_core_set_device_model(const char* model);
 
 	/**
 	 * @brief sets the host name (string)
 	 *
-	 * @param device_index the device index
 	 * @param host_name the host name
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_hostname(size_t device_index, const char* host_name);
+	int oc_core_set_device_hostname(const char* host_name);
 
 	/**
 	 * @brief sets the installation identifier (iid) and store it
 	 *
-	 * @param device_index the device index
 	 * @param iid the KNX installation id
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_and_store_device_iid(size_t device_index, uint64_t iid);
+	int oc_core_set_and_store_device_iid(uint64_t iid);
 
 	/**
 	 * @brief sets the fabric identifier (fid)
 	 *
-	 * @param device_index the device index
 	 * @param fid the fabric id
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid);
+	int oc_core_set_and_store_device_fid(uint64_t fid);
 
 	/**
 	 * @brief gets the installation identifier (iid) (unsigned int)
@@ -248,13 +239,12 @@ extern "C" {
 	/**
    * @brief sets the application version identifier
    *
-   * @param device_index the device index
    * @param major major version
    * @param minor minor version
    * @param patch patch version 
-   * @return The KNX installation id
+   * @return int error status, 0 = OK
    */
-	int oc_core_set_and_store_device_application_version(size_t device_index, int major, int minor, int patch);
+	int oc_core_set_and_store_device_application_version(int major, int minor, int patch);
 
 	/**
 	 * @brief retrieve the amount of devices
@@ -301,7 +291,6 @@ extern "C" {
 	 * mainly used for creation of core resources
 	 *
 	 * @param core_resource_index the resource index
-	 * @param device_index the device index
 	 * @param uri the URI for the resource
 	 * @param content_type0 the (first) content type that will be listed as ct in link-format responses (mandatory)
 	 * @param content_type1 the (second) content type that will be listed as ct in link-format responses (optional)
@@ -332,7 +321,6 @@ extern "C" {
 	 * @brief bind a dpt to a (already created) core resource
 	 *
 	 * @param core_resource_index the resource index
-	 * @param device_index the device index
 	 * @param dpt the DPT value of the resource
 	 */
 	void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt);
