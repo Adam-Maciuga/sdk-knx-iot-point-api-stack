@@ -130,7 +130,7 @@ extern "C"
      *  - value less than zero to indicate failure initializing the application
      *
      * @see oc_activate_interrupt_handler
-     * @see oc_add_device
+     * @see oc_set_device
      * @see oc_init_platform
      */
     int (*init)(void);
@@ -227,7 +227,7 @@ extern "C"
    *
    * @param[in] data context pointer that comes from the oc_set_device() function
    *
-   * @see oc_add_device
+   * @see oc_set_device
    * @see oc_set_custom_device_property
    */
   typedef void (*oc_init_platform_cb_t)(void* data);
@@ -255,7 +255,7 @@ extern "C"
    * @param[in] data context pointer that comes from the oc_init_platform()
    * function
    *
-   * @see oc_add_device
+   * @see oc_set_device
    * @see oc_set_custom_device_property
    */
   typedef void (*oc_set_device_cb_t)(void* data);
@@ -461,35 +461,11 @@ extern "C"
   void oc_set_swu_cb(oc_swu_cb_t cb, void* data);
 
   /**
-   * Add a device to the stack.
-   *
-   * This function is typically called as part of the stack initialization
-   * process from inside the `init` callback handler.
-   *
-   * The `oc_add_device` function may be called as many times as needed.
-   * Each call will add a new device to the stack with its own port address.
-   * Each device is automatically assigned a number starting with zero and
-   * incremented by one each time the function is called. This number is not
-   * returned therefore it is important to know the order devices are added.
-   *
-   * Example:
-   * ```
-   * //app_init is an instance of the `init` callback handler.
-   * static int app_init(void)
-   * {
-   *   int ret = oc_init_platform("Refrigerator", NULL, NULL);
-   *   ret |= oc_set_device("my_name", "1.0", "//",
-   *                        "0123456", NULL, NULL);
-
-   *   return ret;
-   * }
-   * ```
-   *
    * @param[in] name the user readable name of the device
    * @param[in] version The api version e.g. "1.0.0"
    * @param[in] base the base url e.g. "/"
    * @param[in] serial_number the serial number of the device
-   * @param[in] add_device_cb callback function invoked during oc_set_device().
+   * @param[in] set_device_cb callback function invoked during oc_set_device().
    * The purpose is to add additional device properties that are not supplied to
    * oc_set_device() function call.
    * @param[in] data context pointer that is passed to the oc_set_device_cb_t
@@ -500,7 +476,7 @@ extern "C"
    * @see init
    */
   int oc_set_device(const char* name, const char* version, const char* base, const char* serial_number,
-                    oc_set_device_cb_t add_device_cb, void* data);
+                    oc_set_device_cb_t set_device_cb, void* data);
 
 /**
  * Set custom device property
@@ -513,7 +489,7 @@ extern "C"
  * @param[in] value the value of the custom property being added to the device
  *
  * @see oc_set_device_cb_t for example code using this function
- * @see oc_add_device
+ * @see oc_set_device
  */
 #define oc_set_custom_device_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
 

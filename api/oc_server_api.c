@@ -31,10 +31,10 @@ static size_t query_iterator;
 
 int
 oc_set_device(const char* name, const char* version, const char* base,
-							const char* serialnumber, oc_set_device_cb_t add_device_cb,
+							const char* serialnumber, oc_set_device_cb_t set_device_cb,
 							void* data)
 {
-	if (!oc_core_set_device(name, version, base, serialnumber, add_device_cb, data))
+	if (!oc_core_set_device(name, version, base, serialnumber, set_device_cb, data))
 		return -1;
 
 	return 0;
