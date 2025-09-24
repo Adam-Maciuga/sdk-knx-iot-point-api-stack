@@ -23,7 +23,7 @@
 #include "messaging/coap/coap_signal.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/transactions.h"
-#include "oc_api.h"
+
 #include "oc_client_state.h"
 #include "oc_oscore.h"
 #include "oc_oscore_context.h"
@@ -76,191 +76,163 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   }
 }
 
+/*
+  GENERAL RULE
+  ============
+  For an incoming request or response, if I can decode it successfully,
+  my answer is always secure.
+
+  MESSAGE
+  =======
+  An oscore context shares the client and server side context (optimization).
+
+  # | - Message   | Client (1)        | Server (2)        | Derived Key
+  A | - Request   | Sender Context    | Recipient Context | Request Key
+  B | - Response  | Recipient Context | Sender Context    | Response Key
+
+  A1: client composing a request
+      - OSCORE 8.1 https://www.rfc-editor.org/rfc/rfc8613.html#section-8.1
+      - 'oc_oscore_send_unicast_message',
+      - 'oc_oscore_send_multicast_message'
+
+  A2: server receiving a request
+      - OSCORE 8.2 https://www.rfc-editor.org/rfc/rfc8613.html#section-8.2
+      - 'oc_oscore_receive_message'
+
+  B2: server composing a response (from A2)
+      - OSCORE 8.3 https://www.rfc-editor.org/rfc/rfc8613.html#section-8.3
+      - 'oc_oscore_receive_message'
+
+        from 8.2 step 8     -> decryption successful, process message further in CoAP layer,
+                               respond later on secured
+        from 8.2 step 2/3/6 -> decryption failed, respond with 4.x
+
+        4.01 -  unsecured, kid not present
+        4.02 -  unsecured, oscore coap option (9) wrong (outer)
+        4.02 -  coap option from RFC 5.4.1 and critical (odd) and unknown and
+                inner = secured   (usually all other options)
+                outer = unsecured (usually ONLY the OSCORE option, optionally proxy, max age)
+
+        4.02    unsecured, Recipient Context present but decryption failed
+
+        ignore - coap option from RFC 5.4.1 and elective (even) and unknown
+   
+
+  B1: client processing a received response
+      - OSCORE 8.4 https://www.rfc-editor.org/rfc/rfc8613.html#section-8.4
+      - 'oc_oscore_receive_message'
+
+        -> step 1     ignore outer class E options
+        -> step 2..5  decrypt
+        -> step 6     reconstruct org. message
+        -> step 7     decryption successful, process message further in CoAP layer,
+                      no own response for a received response 
+        -> step 8     decryption failed, stop processing and ignore
+
+  STEPS 
+  =====
+
+  Receive a message
+  =================
+
+    Sender (IA 2.0.1)
+    -----------------
+      Access Token (configured by MaC)
+      - osc.id 0001 (usually the sending GA (mc) or device SN (uc))
+      - osc.ms <ms_1>
+      - osc.salt <salt_1>
+      - osc.contextId 2001140921 (IA + time stamp (seconds))
+
+      Sender Context
+      - Sender, ID 0001
+      - ID Context, 2001140921
+      > AES Key, by device generated 
+
+    Message (unicast or multicast)
+    ------------------------------
+    - kid 0001
+    - kid_context 2001140921
+
+    Receiver (IA 2.0.2)
+    -------------------
+      Access Token (configured by MaC)
+      - osc.id 0001 (usually the sending GA (mc) or device SN (uc))
+      - osc.ms <ms_1>
+      - osc.salt <salt_1>
+      - osc.contextId 2002140922 (IA + time stamp (seconds))
+
+      Recipient Context
+      - Recipient ID, ? 
+      - ID Context, ?
+      > AES Key, ?
+
+      1. Step: try find (kid/ kid_context) in list of Recipient Contexts
+               (usually saved to avoid a resynchronization after a device restart)
+      2. Step: if nothing found in step 1, create a new Recipient Context
+
+               Step A: look at kid in <Message> to get Recipient ID => 0001
+               Step B: find access token with kid => 0001 to get corresponding master secret <ms_1>
+               Step C: look at kid_context in <Message> to get ID Context => 2001140921
+
+      3. Recipient Context (created - see 2 - or already present)
+         - Recipient ID 0001
+         - ID Context 2001140921 (from <Message>)
+         - Master secret <ms_1> (from Receiver - Access Token)
+         - Replay window <UNINITIALIZED>
+         > AES Key, by device generated 
+*/
 
 /**
   @brief 
 
-  @param message 
+  @param msg the message, pushed to queue INBOUND_OSCORE_EVENT since the previous oscore header check was ok
 
-
-  @note See details in description below this comment 
+  @note See details in description on top of this file 
 
 */
-static int oc_oscore_receive_message(oc_message_t* message)
+static int oc_oscore_receive_message(oc_message_t* msg)
 {
-  
-  /*
-
-  The message was pushed to queue INBOUND_OSCORE_EVENT since oscore header check = TRUE
-
-  GENERAL RULE
-  ============
-  For an incoming request or response, if I can decode it successfully, my answer is always secure.
-
-  ERROR CASES
-  ===========
-  SERVER PROCESSING  REQUEST
-       * RFC OSCORE 8.2 -> step 6 (RCP KID context present, KID present --> decryption failed ...)
-       *
-       * SERVER COMPOSING RESPONSE trough request from 8.2
-         * RFC OSCORE 8.3
-         *  -> 2/3/6 from 8.2 --> unsecured (decryptipon not succesful )
-         *  -> 8     from 8.2 --> secured  (decryptipon succesful ) -
-         *
-         *  4.01 - kid not present
-         *  4.02 - oscore coap option (9) wrong (outer)
-         *
-         *  4.02   - coap option from RFC 5.4.1 and critical (odd) and unknown and
-         *          inner = secured    (usually all others)
-         *          outer = unsecured  (usually ONLY the OSCORE option, optionally proxy , max age)
-         *  ignore - coap option from RFC 5.4.1 and elective (even) and unknown
-       *
-   CLIENT PROCESSING RESPONSE  (in unicast)
-   RFC OSCORE 8.4
-   -> step 1     ignore outer class E options
-   -> step 2..5  decrypt
-   -> step 8     decryption failed -- stop (ignore)
-       
-  MESSAGE
-  =======
-
-  An oscore context shares the client and server side context.
-  # | - Message   | Client            | Server            | Derived Key
-  A | - Request   | Sender Context    | Recipient Context | Request Key
-  B | - Response  | Recipient Context | Sender Context    | Response Key
-
-  
-
-  STEPS
-  =====
-
-  Sender (IA 2.0.1)
-  =================
-    Access Token (configured by MaC)
-    - osc.id 0001 (usually the sending GA (mc) or device SN (uc))
-    - osc.ms <ms_1>
-    - osc.salt <salt_1>
-    - osc.contextId 2001140921 (IA + time stamp (seconds))
-     
-    Sender Context
-    - Sender ID 0001
-    - ID Context 2001140921
-    > by device generated AES Key
-     
-  Message (unicast or multicast)
-  ==============================
-  - kid 0001
-  - kid_context 2001140921
-     
-  Receiver (IA 2.0.2)
-  =================   
-    Access Token (configured by MaC)
-    - osc.id 0001 (usually the sending GA (mc) or device SN (uc))
-    - osc.ms <ms_1>
-    - osc.salt <salt_1>
-    - osc.contextId 2002140922 (IA + time stamp (seconds))
-     
-    Recipient Context
-    - Recipient ID 
-    - ID Context 
-    > AES Key
-     
-    1. Step: try find (kid/ kid_context) in list of Recipient Contexts 
-             (usually saved to avoid resynchronization after a device restart)
-    2. Step: if nothing found in step 1, create a new Recipient Context
-     
-             Step A: look at kid in <Message> to get Recipient ID => 0001
-             Step B: find access token with kid => 0001 to get corresponding master secret <ms_1>
-             Step C: look at kid_context in <Message> to get ID Context => 2001140921
-     
-    3. Recipient Context (created - see 2 - or already present)
-       - Recipient ID 0001
-       - ID Context 2001140921 (from <Message>)
-       - Master secret <ms_1> (from Receiver - Access Token)
-       - Replay window <UNINITIALIZED>
-       > by device generated AES Key
-
-    
-
-      */
-
-  /* OSCORE layer receive path pseudocode
-   * ------------------------------------
-   * If incoming oc_message_t is an OSCORE message:
-   *   OSCORE context = nil
-   *   Parse OSCORE message
-   *   If parse unsuccessful:
-   *     Discard message and return error
-   *   If packet is a request and is received over UDP:
-   *     Check if packet is duplicate by mid; if so, discard
-   *   If received kid param:
-   *     Search for OSCORE context by kid
-   *   Else:
-   *     If message is response:
-   *       Search for OSCORE context by token
-   *     Else:
-   *       OSCORE request lacks kid param; Return error
-   *   If OSCORE context is nil, return error
-   *   If unicast message protected using group OSCORE context, silently ignore
-   *   Copy subjectuuid of OSCORE cred entry into oc_message_t->endpoint
-   *   Set context->recipient_key as the decryption key
-   *   If received partial IV:
-   *     If message is request:
-   *       Check if replayed request and discard
-   *       Compose AAD using received piv and context->recipient_id
-   *     Copy received piv into oc_message_t->endpoint
-   *     Compute nonce using received piv and context->recipient_id
-   *   If message is response:
-   *     if oc_message_t->endpoint.piv is 0:
-   *       Copy request_piv from client cb/transaction into
-   oc_message_t->endpoint
-   *       Compute nonce using request_piv and sender_id
-   *     Compose AAD using request_piv and sender_id
-   *   Decrypt OSCORE payload
-   *   Parse inner/protected CoAP options/payload
-   *   If non-UPDATE mcast message protected using OSCORE group context,
-   silently ignore
-   *   Copy fields: type, version, mid, token, observe from the OSCORE packet to
-   *   CoAP Packet
-   *   Serialize full CoAP packet to oc_message
-   * Dispatch oc_message_t to the CoAP layer
-   */
-
   {
     bool s_mode_re_request = false;
     OC_DBG_OSCORE("### process OSCORE message ###");
 
-    // here we are sure that it is an OSCORE message (not necessarily one for us, we are able to decrypt)
-    message->endpoint.flags |= OSCORE;
+    /*
+      here we know (and set as default) it is an OSCORE message (it host the OSCORE option header)
+      - not necessarily a message for us, we are able to decrypt
+      - not necessarily a message without errors 
+
+    */
+    msg->endpoint.flags |= OSCORE;
 
     // defaults
     oc_oscore_context_t* oscore_ctx = NULL;
     uint8_t* decryption_key = NULL;
 
-    // local COAP copy 
+    // temp local COAP packet copy 
     coap_packet_t oscore_pkt[1];
 
     uint8_t AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
     OC_DBG_OSCORE("### parse OUTER OSCORE message ###");
-    if (oscore_parse_outer_message(message, oscore_pkt) != COAP_NO_ERROR)
+    if (oscore_parse_outer_message(msg, oscore_pkt) != COAP_NO_ERROR)
     {
       /*
-       Here we are still in the normal COAP message (not yet in the OSCORE part)
+       Here we are still scan normal COAP message content (not yet in the OSCORE part)
 
        - response + outer option problem = 8.4, step NA  = stop processing
        - request + outer option problem  = 8.2, step 6   = unsecured 4.02
       */
+      // msg->endpoint.flags &= ~OSCORE;
 
       OC_ERR("### error parsing outer OSCORE message ###");
-      oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
+      oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
       goto oscore_recv_error;
     }
 
     // check duplication on incoming UDP requests (GET, ...)
     if (oscore_pkt->transport_type == COAP_TRANSPORT_UDP && oscore_pkt->code <= OC_FETCH)
     {
-      if (oc_coap_check_if_duplicate(oscore_pkt->mid, message->endpoint.addr.ipv6.port, message->endpoint.addr.ipv6.address))
+      if (oc_coap_check_if_duplicate(oscore_pkt->mid, msg->endpoint.addr.ipv6.port, msg->endpoint.addr.ipv6.address))
       {
         // ignore duplicate request
         goto oscore_recv_error;
@@ -302,11 +274,13 @@ static int oc_oscore_receive_message(oc_message_t* message)
           int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
           if (idx == -1)
           {
-            // response (echo challenge)  = KNX IoT Point API (8.4 step 2) = stop processing
-            // inform AL on failed echo challenge
+            /*
+               response (echo challenge) = KNX IoT Point API (8.4 step 2) = stop processing
+               - inform AL on failed echo challenge would be needed
+            */
 
             OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
-            oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
+            oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint);
             goto oscore_recv_error;
           }
 
@@ -335,11 +309,14 @@ static int oc_oscore_receive_message(oc_message_t* message)
         if (idx == -1)
         {
           
-          // request + encrypted problem = 8.2 step 2 = unsecured 4.01
-          // a GA that does not match to the server but using the same MC 
+          /*
+            request + encrypted problem = 8.2 step 2 = unsecured 4.01
+            - a GA that does not match to the server PUB table but is using the same multicast address 
+          */
+          // msg->endpoint.flags &= ~OSCORE;
 
           OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
-          oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
+          oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint);
           goto oscore_recv_error;
         }
 
@@ -388,9 +365,10 @@ static int oc_oscore_receive_message(oc_message_t* message)
               - = 8.2 step 2 = unsecured 5.00
               - maybe an RST can also be implemented
             */
+            // msg->endpoint.flags &= ~OSCORE;
 
             OC_ERR("***Could not create oscore recipient context!***");
-            oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &message->endpoint);
+            oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint);
             goto oscore_recv_error;
           }
         }
@@ -400,39 +378,46 @@ static int oc_oscore_receive_message(oc_message_t* message)
     { // kid IS NOT present - message is a ... 
 
       if (oscore_pkt->code > OC_FETCH)
-      { // ... response ... (such as STATUS_OK = CONTENT_2_05 = 69)
+      { // ... response without KID (such as STATUS_OK = CONTENT_2_05 = 69)
 
         OC_DBG_OSCORE("### searching for OSCORE context by token ###");
         oscore_ctx = oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len,
                                                          oscore_pkt->mid, &request_piv, &request_piv_len,
-                                                         message->endpoint.flags & TCP);
+                                                         msg->endpoint.flags & TCP);
 
         if (!oscore_ctx)
         { // ... response ... without existing transaction associated with a security context  
 
-          // RFC 8613, clause 8.4 - silently ignore (stop processing)
+          /*
+           response + decryption failed = 8.4 step 8 = ignore
+           - TODO check 3.6.5
+        */
+
           OC_ERR("***could not find matching OSCORE context, ignore silently ***");
           goto oscore_recv_error;
         }
 
       }
       else
-      { // ... request ... without KID  
+      { // ... request without KID  
 
-        
-        // request + encrypted problem = 8.2 step 2 = unsecured (4.02) // TODO check 3.6.5
+        /*
+           request + decryption problem = 8.2 step 2 = unsecured (4.02)
+           - TODO check 3.6.5
+        */
+        // msg->endpoint.flags &= ~OSCORE;
 
         OC_ERR("***OSCORE protected request lacks kid param***");
-        oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
+        oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
         goto oscore_recv_error;
       }
     }
 
     // set access token index that was used to decrypt 
-    message->endpoint.auth_at_index = oscore_ctx->auth_at_index;
+    msg->endpoint.auth_at_index = oscore_ctx->auth_at_index;
 
     // TODO check is always h'' why used 
-    oc_endpoint_set_oscore_id(&message->endpoint, (char*)oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    oc_endpoint_set_oscore_id(&msg->endpoint, (char*)oscore_ctx->sender_id, oscore_ctx->sender_id_len);
 
     // use recipient key for decryption
     decryption_key = oscore_ctx->recipient_key;
@@ -458,8 +443,8 @@ static int oc_oscore_receive_message(oc_message_t* message)
       /* Copy received piv into oc_message_t->endpoint for requests */
       if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_DELETE)
       {
-        memcpy(message->endpoint.request_piv, oscore_pkt->piv, oscore_pkt->piv_len);
-        message->endpoint.request_piv_len = oscore_pkt->piv_len;
+        memcpy(msg->endpoint.request_piv, oscore_pkt->piv, oscore_pkt->piv_len);
+        msg->endpoint.request_piv_len = oscore_pkt->piv_len;
         OC_DBG_OSCORE("---> caching Partial IV for later use ...");
       }
 
@@ -526,12 +511,14 @@ static int oc_oscore_receive_message(oc_message_t* message)
     {
       
 
-      // response + encrypted problem = 8.04 step 5  = stop processing
-      // request + encrypted problem = 8.2 step 6 = unsecured 4.00  
-
+      /*
+        response + encrypted problem = 8.04 step 5  = stop processing
+        request + encrypted problem = 8.2 step 6 = unsecured 4.00
+      */
+      // msg->endpoint.flags &= ~OSCORE;
 
       OC_ERR("***error decrypting/verifying response : (%d)***", ret);
-      oscore_send_error(oscore_pkt, BAD_REQUEST_4_00, &message->endpoint);
+      oscore_send_error(oscore_pkt, BAD_REQUEST_4_00, &msg->endpoint);
       goto oscore_recv_error;
     }
 
@@ -541,17 +528,21 @@ static int oc_oscore_receive_message(oc_message_t* message)
      */
     oscore_pkt->payload_len -= OSCORE_AEAD_TAG_LEN;
 
+    // local CoAP packet 
     coap_packet_t coap_pkt[1];
 
     OC_DBG_OSCORE("### parse INNER OSCORE message ###");
     if (oscore_parse_inner_message(oscore_pkt->payload, oscore_pkt->payload_len, &coap_pkt) != COAP_NO_ERROR)
     {
 
-      // response + encrypted problem = ignore
-      // request +  problem with inner options  = 4.02 secured (EITT test 5.10.5.3)
+      /*
+         response + encryption problem = ignore
+         request +  problem with inner options  = 4.02 secured (EITT test 5.10.5.3)
+      */
+      // msg->endpoint.flags &= ~OSCORE;
 
       OC_ERR("***error parsing inner message***");
-      oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
+      oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
       goto oscore_recv_error;
     }
 
@@ -576,21 +567,21 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
     /* Also copy kid, kid_ctx and ssn, for replay protection */
 
-    message->endpoint.kid_len = oscore_pkt->kid_len;
-    memcpy(message->endpoint.kid, oscore_pkt->kid, oscore_pkt->kid_len);
-    message->endpoint.kid_ctx_len = oscore_pkt->kid_ctx_len;
-    memcpy(message->endpoint.kid_ctx, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
+    msg->endpoint.kid_len = oscore_pkt->kid_len;
+    memcpy(msg->endpoint.kid, oscore_pkt->kid, oscore_pkt->kid_len);
+    msg->endpoint.kid_ctx_len = oscore_pkt->kid_ctx_len;
+    memcpy(msg->endpoint.kid_ctx, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
     OC_DBG_OSCORE("### serializing CoAP message ###");
     /* Serialize fully decrypted CoAP packet to message->data buffer */
-    message->length = coap_oscore_serialize_message((void*)coap_pkt, message->data, true, true, true);
+    msg->length = coap_oscore_serialize_message((void*)coap_pkt, msg->data, true, true, true);
 
     OC_DBG_OSCORE("### setting OSCORE and OSCORE_DECRYPTED ###");
 
     /* set the oscore encryption and decryption flags*/
-    message->endpoint.flags |= OSCORE_DECRYPTED + OSCORE + IPV6;
+    msg->endpoint.flags |= OSCORE_DECRYPTED + OSCORE + IPV6;
 
-    PRINTipaddr_flags(message->endpoint);
+    PRINTipaddr_flags(msg->endpoint);
 
     OC_DBG_OSCORE("### serialized decrypted CoAP message to dispatch to the CoAP layer ###");
 
@@ -603,7 +594,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
   OC_DBG_OSCORE("#################################");
 
   // dispatch the (received and decrypted) message to the CoAP layer
-  if (oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], message) == OC_PROCESS_ERR_FULL)
+  if (oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], msg) == OC_PROCESS_ERR_FULL)
   {
     // error is > 0 ...
     goto oscore_recv_error;
@@ -611,12 +602,20 @@ static int oc_oscore_receive_message(oc_message_t* message)
   return 0;
 
 oscore_recv_error:
-  oc_message_unref(message);
+  oc_message_unref(msg);
   return -1;
 }
 
 #ifdef OC_CLIENT
-static int oc_oscore_send_multicast_message(oc_message_t* message)
+/**
+  @brief
+
+  @param msg the message, pushed to queue OUTBOUND_OSCORE_EVENT since the OSCORE flag and MULTICAST flag is set
+
+  @note See details in description on top of this file
+
+*/
+static int oc_oscore_send_multicast_message(oc_message_t* msg)
 {
   /* OSCORE layer secure multicast pseudocode
    * ----------------------------------------
@@ -640,7 +639,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
    * Dispatch oc_message_t to IP layer
    */
 
-  const uint32_t group_address = message->endpoint.group_address;
+  const uint32_t group_address = msg->endpoint.group_address;
   if (group_address == 0)
   {
     OC_ERR("group_address id == 0");
@@ -660,7 +659,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     OC_DBG_OSCORE("### parse CoAP message ###");
     /* Parse CoAP message */
     coap_packet_t coap_pkt[1];
-    coap_status_t code = coap_udp_parse_message(coap_pkt, message->data, message->length);
+    coap_status_t code = coap_udp_parse_message(coap_pkt, msg->data, msg->length);
 
     if (code != COAP_NO_ERROR)
     {
@@ -706,24 +705,24 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
     */
     if (coap_pkt->payload_len > 0)
     {
-      memmove(message->data + 2 * COAP_MAX_HEADER_SIZE, coap_pkt->payload, coap_pkt->payload_len);
+      memmove(msg->data + 2 * COAP_MAX_HEADER_SIZE, coap_pkt->payload, coap_pkt->payload_len);
 
       /* Store the new payload location in the CoAP packet */
-      coap_pkt->payload = message->data + 2 * COAP_MAX_HEADER_SIZE;
+      coap_pkt->payload = msg->data + 2 * COAP_MAX_HEADER_SIZE;
     }
 
     OC_DBG_OSCORE("### serializing OSCORE plaintext ###");
     /* Serialize OSCORE plain text at offset COAP_MAX_HEADER_SIZE
        (code, inner options, payload)
     */
-    size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, message->data + COAP_MAX_HEADER_SIZE);
+    size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, msg->data + COAP_MAX_HEADER_SIZE);
 
     OC_DBG_OSCORE("### serialized OSCORE plaintext: %zd bytes ###", plaintext_size);
 
     /* Set the OSCORE packet payload to point to location of the serialized
        inner message.
     */
-    coap_pkt->payload = message->data + COAP_MAX_HEADER_SIZE;
+    coap_pkt->payload = msg->data + COAP_MAX_HEADER_SIZE;
     coap_pkt->payload_len = plaintext_size;
 
     /* Encrypt OSCORE plaintext */
@@ -757,7 +756,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
 
     /* Serialize OSCORE message to oc_message_t */
     OC_DBG_OSCORE("### serializing OSCORE message ###");
-    message->length = oscore_serialize_message(coap_pkt, message->data);
+    msg->length = oscore_serialize_message(coap_pkt, msg->data);
     OC_DBG_OSCORE("### serialized OSCORE message ###");
   }
   else
@@ -769,17 +768,25 @@ static int oc_oscore_send_multicast_message(oc_message_t* message)
   OC_DBG_OSCORE("#################################");
   /* Dispatch oc_message_t to the IP layer */
   OC_DBG_OSCORE("Outbound network event: forwarding to IP Connectivity layer");
-  oc_send_discovery_request(message);
-  oc_message_unref(message);
+  oc_send_discovery_request(msg);
+  oc_message_unref(msg);
   return 0;
 
 oscore_group_send_error:
   OC_ERR("received malformed CoAP packet from stack");
-  oc_message_unref(message);
+  oc_message_unref(msg);
   return -1;
 }
 #endif 
 
+/**
+  @brief
+
+  @param msg the message, pushed to queue OUTBOUND_OSCORE_EVENT since the OSCORE flag is set and MULTICAST flag is NOT set 
+
+  @note See details in description on top of this file
+
+*/
 static int oc_oscore_send_unicast_message(oc_message_t* msg)
 {
   /* OSCORE layer sending path pseudocode
