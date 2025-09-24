@@ -156,17 +156,13 @@ extern "C"
   /**
    * @brief retrieve the current LSM state
    *
-   * @param device_index index of the device to which the resource is to be
-   * created
    * @return the LSM state
    */
-  oc_lsm_state_t oc_knx_get_lsm(size_t device_index);
+  oc_lsm_state_t oc_knx_get_lsm(void);
 
   /**
    * @brief sets the current LSM state and writes it to storage
    *
-   * @param device_index index of the device to which the resource is to be
-   * created
    * @param new_state the new LSM
    * @return 0 == success
    */
@@ -191,12 +187,11 @@ extern "C"
   /**
    * Callback invoked by the stack to inform the change of the lsm
    *
-   * @param[in] device the device index
    * @param[out] lsm_state the new state of the lsm
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_lsm_change_cb_t)(size_t device, oc_lsm_state_t lsm_state, void* data);
+  typedef void (*oc_lsm_change_cb_t)(oc_lsm_state_t lsm_state, void* data);
 
   /**
    * Set the load state machine change callback.
@@ -220,11 +215,10 @@ extern "C"
    * @note devices from manufacturing will not work out of the box, only
    * if a MaC was setting the iid to a value > 0
    *
-   * @param device_index The device index.
    * @return true in runtime
    * @return false not in run time
    */
-  bool oc_is_device_in_runtime(size_t device_index);
+  bool oc_is_device_in_runtime();
 
   /**
    * @brief sets the idevid

@@ -276,8 +276,7 @@ void oc_check_uri(const char* uri)
   oc_assert(uri[0] == '/');
 }
 
-void oc_core_populate_resource(int core_resource_index,
-															 size_t device_index,
+void oc_core_populate_resource(								int core_resource_index,
 															 char* uri,
 															 oc_content_format_t content_type0,
 															 oc_content_format_t content_type1,
@@ -344,7 +343,7 @@ void oc_core_populate_resource(int core_resource_index,
 
 }
 
-void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt)
+void oc_core_bind_dpt_resource(int core_resource_index, const char* dpt)
 {
 	const oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index);
 	if (!r)

@@ -135,15 +135,13 @@ void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
   PRINT("oc_s_mode_response_cb %s", url);
 }
 
-void factory_presets_cb(size_t device_index, void* data)
+void factory_presets_cb(void* data)
 {
-  (void)device_index;
   (void)data;
 }
 
-void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
+void hostname_cb(const oc_string_t host_name, void* data)
 {
-  (void)device_index;
   (void)data;
 
   PRINT("host name callback called with host name: %s", oc_string(host_name));

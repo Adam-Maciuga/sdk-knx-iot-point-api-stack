@@ -41,7 +41,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -86,10 +86,10 @@ void oc_create_dev_sn_resource(int resource_idx, size_t device)
   OC_DBG("oc_create_dev_sn_resource");
   // rt :dpa:0.11
   // rt :dpt.serNum
-  oc_core_populate_resource(resource_idx, device, "/dev/sn", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/sn", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_sn_get_handler, 0, 0, 0, 1, "urn:knx:dpa:0.11");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.serNum");
+  oc_core_bind_dpt_resource(resource_idx, "urn:knx:dpt.serNum");
 }
 
 // -----------------------------------------------------------------------------
@@ -105,7 +105,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
   }
   PRINT("oc_core_dev_hwv_get_handler");
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -146,10 +146,10 @@ PRAGMA_OUT
 void oc_create_dev_hwv_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_hwv_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/hwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/hwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_hwv_get_handler, 0, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.version");
+  oc_core_bind_dpt_resource(resource_idx, "urn:knx:dpt.version");
 }
 
 // -----------------------------------------------------------------------------
@@ -166,7 +166,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
 
   PRINT("oc_core_dev_fwv_get_handler - start");
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -209,10 +209,10 @@ PRAGMA_OUT
 void oc_create_dev_fwv_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_fwv_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/fwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/fwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_fwv_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.25");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.version");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.version");
 }
 
 // -----------------------------------------------------------------------------
@@ -227,7 +227,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL && oc_string(device->hwt) != NULL)
   {
@@ -268,10 +268,10 @@ void oc_create_dev_hwt_resource(int resource_idx, size_t device)
   OC_DBG("oc_create_dev_hwt_resource");
 
   // cbor rt :dpt.varString8859_1
-  oc_core_populate_resource(resource_idx, device, "/dev/hwt", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/hwt", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_hwt_get_handler, 0, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.varString8859_1");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.varString8859_1");
 }
 
 // -----------------------------------------------------------------------------
@@ -286,7 +286,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL && oc_string(device->model) != NULL)
   {
@@ -325,10 +325,10 @@ PRAGMA_OUT
 void oc_create_dev_model_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_model_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/model", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/model", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_model_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.15");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.utf8");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.utf8");
 }
 
 // -----------------------------------------------------------------------------
@@ -343,7 +343,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_rep_t* rep = request->request_payload;
 
   while (rep)
@@ -365,7 +365,7 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
         const oc_hostname_t* my_hostname = oc_get_hostname_cb();
         if (my_hostname && my_hostname->cb)
         {
-          my_hostname->cb(device_index, rep->value.string, my_hostname->data);
+          my_hostname->cb(rep->value.string, my_hostname->data);
         }
 
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -390,7 +390,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (device)
@@ -431,10 +431,10 @@ PRAGMA_OUT
 void oc_create_dev_hostname_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_hostname_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/hname", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/hname", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_hostname_get_handler, oc_core_dev_hostname_put_handler, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.varString8859_1");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.varString8859_1");
 }
 
 // -----------------------------------------------------------------------------
@@ -449,7 +449,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_rep_t* rep = request->request_payload;
 
   while (rep)
@@ -462,7 +462,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
         oc_core_set_and_store_device_iid(rep->value.integer);
 
         // do the run time installation
-        if (oc_is_device_in_runtime(device_index))
+        if (oc_is_device_in_runtime())
         {
           oc_register_group_multicasts();
           oc_init_datapoints_at_initialization();
@@ -490,7 +490,7 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -531,10 +531,10 @@ PRAGMA_OUT
 void oc_create_dev_iid_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_iid_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/iid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/iid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_iid_get_handler, oc_core_dev_iid_put_handler, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value8Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value8Ucount");
 }
 
 // -----------------------------------------------------------------------------
@@ -653,10 +653,10 @@ PRAGMA_OUT
 void oc_create_dev_ipv6_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_ipv6_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/ipv6", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/ipv6", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_ipv6_get_handler, 0, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.ipv6");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.ipv6");
 }
 
 // -----------------------------------------------------------------------------
@@ -674,7 +674,7 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (device != NULL)
@@ -704,7 +704,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   oc_rep_t* rep = request->request_payload;
   const oc_programming_mode_t* my_cb = oc_get_programming_mode_cb();
@@ -719,7 +719,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
 
         // application programming mode callback handler, if not present PM it is set directly
         if (my_cb && my_cb->cb)
-          my_cb->cb(device_index, rep->value.boolean, my_cb->data);
+          my_cb->cb(rep->value.boolean, my_cb->data);
         else
           device->pm = rep->value.boolean;
 
@@ -761,10 +761,10 @@ PRAGMA_OUT
 void oc_create_dev_pm_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_pm_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/pm", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/pm", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_pm_get_handler, oc_core_dev_pm_put_handler, 0, 0, 1, "urn:knx:dpa.0.54");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.binaryValue");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.binaryValue");
 }
 
 // -----------------------------------------------------------------------------
@@ -874,7 +874,7 @@ void oc_create_dev_dev_resource(int resource_idx, size_t device)
   OC_DBG("oc_create_dev_dev_resource");
   // note that this resource is listed in /.well-known/core so it should have
   // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, device, "/dev", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_dev_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
 }
 
@@ -891,7 +891,7 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -933,10 +933,10 @@ PRAGMA_OUT
 static void oc_create_dev_sa_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_sa_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/sna", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/sna", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_sa_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.57");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value1Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value1Ucount");
 }
 
 // -----------------------------------------------------------------------------
@@ -952,7 +952,7 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -994,10 +994,10 @@ PRAGMA_OUT
 static void oc_create_dev_da_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_da_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/da", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/da", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_da_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.58");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value1Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value1Ucount");
 }
 
 static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1010,7 +1010,7 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   const oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -1035,7 +1035,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_rep_t* rep = request->request_payload;
   while (rep != NULL)
   {
@@ -1081,10 +1081,10 @@ PRAGMA_OUT
 static void oc_create_dev_fid_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_fid_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/fid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/fid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_fid_get_handler, oc_core_dev_fid_put_handler, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value8Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value8Ucount");
 }
 
 
@@ -1098,7 +1098,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -1138,10 +1138,10 @@ PRAGMA_OUT
 static void oc_create_dev_port_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_port_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_port_get_handler, 0, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
 }
 
 static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1154,7 +1154,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -1194,10 +1194,10 @@ PRAGMA_OUT
 void oc_create_dev_mport_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_mport_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/multicast_port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/multicast_port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_mport_get_handler, 0, 0, 0, 0);
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
 }
 
 static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1210,7 +1210,7 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -1237,7 +1237,7 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_rep_t* rep = request->request_payload;
 
   OC_DBG("oc_core_ap_x_put_handler type: %d", rep ? rep->type : OC_REP_NIL);
@@ -1286,10 +1286,10 @@ PRAGMA_OUT
 void oc_create_ap_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_ap_x_resource");
-  oc_core_populate_resource(resource_idx, device, "/ap/pv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/ap/pv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_ap_x_get_handler, oc_core_ap_x_put_handler, 0, 0, 1, "urn:knx:dpa.3.13");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.programVersion");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.programVersion");
 }
 
 static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1314,7 +1314,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-  size_t device_index = request->resource->device;
+
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -1392,10 +1392,10 @@ PRAGMA_OUT
 void oc_create_ap_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_ap_resource");
-  oc_core_populate_resource(resource_idx, device, "/ap", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/ap", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_ap_get_handler, 0, 0, 0, 1, "urn:knx:fb.3");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
 }
 
 
@@ -1410,7 +1410,7 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  size_t device_index = request->resource->device;
+
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
@@ -1448,10 +1448,10 @@ PRAGMA_OUT
 static void oc_create_dev_mid_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_dev_mid_resource");
-  oc_core_populate_resource(resource_idx, device, "/dev/mid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/dev/mid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_dev_mid_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.12");
 
-  oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
+  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
 }
 
 void oc_knx_load_device()

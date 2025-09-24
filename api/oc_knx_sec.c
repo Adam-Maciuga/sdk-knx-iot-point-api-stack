@@ -137,7 +137,7 @@ static void oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t devi
 {
   OC_DBG("oc_create_knx_auth_o_osndelay_resource");
   //
-  oc_core_populate_resource(resource_idx, device, "/auth/o/osndelay", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/auth/o/osndelay", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_auth_o_osndelay_get_handler, oc_core_knx_auth_o_osndelay_put_handler, 0, 0, 1,
                             ":dpt:timePeriodMsec");
 }
@@ -224,7 +224,7 @@ static void oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t devic
 {
   OC_DBG("oc_create_knx_auth_o_replwdo_resource");
   //
-  oc_core_populate_resource(resource_idx, device, "/auth/o/replwdo", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/auth/o/replwdo", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_auth_o_replwdo_get_handler, oc_core_knx_auth_o_replwdo_put_handler, 0, 0, 1,
                             ":dpt.value2UCount");
 }
@@ -254,7 +254,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-  size_t device_index = request->resource->device;
+
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -335,7 +335,7 @@ PRAGMA_OUT
 static void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
 {
   OC_DBG("create /aut/o resources");
-  oc_core_populate_resource(resource_idx, device_index, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_auth_o_get_handler, 0, 0, 0, 0);
 }
 
@@ -428,7 +428,7 @@ static void oc_create_a_sen_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_a_sen_resource");
 
-  oc_core_populate_resource(resource_idx, device, "/a/sen", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE, 0, 0,
+  oc_core_populate_resource(resource_idx, "/a/sen", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE, 0, 0,
                             oc_core_a_sen_post_handler, 0, 0);
 }
 
@@ -1012,7 +1012,7 @@ PRAGMA_OUT
 
 static void oc_create_auth_at_resource(int resource_idx, size_t device)
 {
-  oc_core_populate_resource(resource_idx, device, "/auth/at", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/auth/at", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_auth_at_get_handler, 0, oc_core_auth_at_post_handler, oc_core_auth_at_delete_handler, 1,
                             "urn:knx:fb.at");
 }
@@ -1218,7 +1218,7 @@ static void oc_create_auth_at_x_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_auth_at_x_resource");
 
-  oc_core_populate_resource(resource_idx, device, "/auth/at/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/auth/at/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_auth_at_x_get_handler, 0, 0, oc_core_auth_at_x_delete_handler, 1, "dpt.a[n]");
 }
 
@@ -1249,7 +1249,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
     return;
   }
 
-  size_t device_index = request->resource->device;
+
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -1332,7 +1332,7 @@ PRAGMA_OUT
 static void oc_create_knx_auth_resource(int resource_idx, size_t device)
 {
   OC_DBG("oc_create_knx_auth_resource");
-  oc_core_populate_resource(resource_idx, device, "/auth", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
+  oc_core_populate_resource(resource_idx, "/auth", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_knx_auth_get_handler, 0, 0, 0, 0);
 }
 
