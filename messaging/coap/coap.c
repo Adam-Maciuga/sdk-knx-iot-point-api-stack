@@ -998,7 +998,10 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				
 				if (option_number & 1)
 				{
-          // check if critical option (odd) TODO check, some critical options are NOT odd (must be in check above) 
+					/*
+					  RFC Coap 5.4.6 critical options 
+					 */
+				  // check if critical option (odd) TODO check, some critical options are NOT odd (must be in check above) 
 				  OC_WRN("unsupported critical option");
 					return BAD_OPTION_4_02;
 				}

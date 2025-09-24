@@ -57,7 +57,9 @@ typedef struct oc_rwin_t
   @note An oscore context shares the client and server side context
    - Message  | Client            | Server            | Derived Key 
    - Request  | Sender Context    | Recipient Context | Request Key
-   - Response | Recipient Context | Sender Context    | Response Key 
+   - Response | Recipient Context | Sender Context    | Response Key
+
+  The structure has a dual use, as sender context and recipient context. 
 
  */
 typedef struct oc_oscore_context_t

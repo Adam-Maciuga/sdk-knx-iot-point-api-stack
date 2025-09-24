@@ -77,15 +77,59 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 }
 
 
- /*
+/**
+  @brief 
 
-  DATA
-  ====
+  @param message 
+
+
+  @note See details in description below this comment 
+
+*/
+static int oc_oscore_receive_message(oc_message_t* message)
+{
+  
+  /*
+
+  The message was pushed to queue INBOUND_OSCORE_EVENT since oscore header check = TRUE
+
+  GENERAL RULE
+  ============
+  For an incoming request or response, if I can decode it successfully, my answer is always secure.
+
+  ERROR CASES
+  ===========
+  SERVER PROCESSING  REQUEST
+       * RFC OSCORE 8.2 -> step 6 (RCP KID context present, KID present --> decryption failed ...)
+       *
+       * SERVER COMPOSING RESPONSE trough request from 8.2
+         * RFC OSCORE 8.3
+         *  -> 2/3/6 from 8.2 --> unsecured (decryptipon not succesful )
+         *  -> 8     from 8.2 --> secured  (decryptipon succesful ) -
+         *
+         *  4.01 - kid not present
+         *  4.02 - oscore coap option (9) wrong (outer)
+         *
+         *  4.02   - coap option from RFC 5.4.1 and critical (odd) and unknown and
+         *          inner = secured    (usually all others)
+         *          outer = unsecured  (usually ONLY the OSCORE option, optionally proxy , max age)
+         *  ignore - coap option from RFC 5.4.1 and elective (even) and unknown
+       *
+   CLIENT PROCESSING RESPONSE  (in unicast)
+   RFC OSCORE 8.4
+   -> step 1     ignore outer class E options
+   -> step 2..5  decrypt
+   -> step 8     decryption failed -- stop (ignore)
+       
+  MESSAGE
+  =======
 
   An oscore context shares the client and server side context.
-  - Message   | Client            | Server            | Derived Key
-  - Request   | Sender Context    | Recipient Context | Request Key
-  - Response  | Recipient Context | Sender Context    | Response Key
+  # | - Message   | Client            | Server            | Derived Key
+  A | - Request   | Sender Context    | Recipient Context | Request Key
+  B | - Response  | Recipient Context | Sender Context    | Response Key
+
+  
 
   STEPS
   =====
@@ -136,22 +180,9 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
        - Replay window <UNINITIALIZED>
        > by device generated AES Key
 
+    
 
-  
-
- */
-/**
-  @brief 
-
-  @param message (was pushed to queue INBOUND_OSCORE_EVENT since oscore header check = TRUE
-
-
-  @note See details in description above this comment 
-
-*/
-static int oc_oscore_receive_message(oc_message_t* message)
-{
-  
+      */
 
   /* OSCORE layer receive path pseudocode
    * ------------------------------------
@@ -206,7 +237,7 @@ static int oc_oscore_receive_message(oc_message_t* message)
     oc_oscore_context_t* oscore_ctx = NULL;
     uint8_t* decryption_key = NULL;
 
-    // local copy 
+    // local COAP copy 
     coap_packet_t oscore_pkt[1];
 
     uint8_t AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
@@ -214,6 +245,13 @@ static int oc_oscore_receive_message(oc_message_t* message)
     OC_DBG_OSCORE("### parse OUTER OSCORE message ###");
     if (oscore_parse_outer_message(message, oscore_pkt) != COAP_NO_ERROR)
     {
+      /*
+       Here we are still in the normal COAP message (not yet in the OSCORE part)
+
+       - response + outer option problem = 8.4, step NA  = stop processing
+       - request + outer option problem  = 8.2, step 6   = unsecured 4.02
+      */
+
       OC_ERR("### error parsing outer OSCORE message ###");
       oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
       goto oscore_recv_error;
@@ -252,15 +290,21 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
           oc_message_t* original_message = oc_replay_find_msg_by_token(oscore_pkt->token, oscore_pkt->token_len);
 
+          // ignore an echo challenge from outside if not from me send beforehand
+          // or my is already released (timeout)
           if (!original_message)
           {
             goto oscore_recv_error;
           }
 
           // find auth/at entry with corresponding kid
+          // RFC 9203 osc:id as part of access token (SENDER ID)
           int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
           if (idx == -1)
           {
+            // response (echo challenge)  = KNX IoT Point API (8.4 step 2) = stop processing
+            // inform AL on failed echo challenge
+
             OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
             oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
             goto oscore_recv_error;
@@ -290,6 +334,10 @@ static int oc_oscore_receive_message(oc_message_t* message)
         int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
         if (idx == -1)
         {
+          
+          // request + encrypted problem = 8.2 step 2 = unsecured 4.01
+          // a GA that does not match to the server but using the same MC 
+
           OC_ERR("***Could not find Access Token matching KID, returning UNAUTHORIZED***");
           oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
           goto oscore_recv_error;
@@ -333,8 +381,16 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
           if (!oscore_ctx)
           {
+
+            /*
+              This should not happen, because there was with LRU a context released, 
+              in case of it is request + server alloc problem before any decryption.
+              - = 8.2 step 2 = unsecured 5.00
+              - maybe an RST can also be implemented
+            */
+
             OC_ERR("***Could not create oscore recipient context!***");
-            oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &message->endpoint);
+            oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &message->endpoint);
             goto oscore_recv_error;
           }
         }
@@ -362,6 +418,9 @@ static int oc_oscore_receive_message(oc_message_t* message)
       }
       else
       { // ... request ... without KID  
+
+        
+        // request + encrypted problem = 8.2 step 2 = unsecured (4.02) // TODO check 3.6.5
 
         OC_ERR("***OSCORE protected request lacks kid param***");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
@@ -465,6 +524,12 @@ static int oc_oscore_receive_message(oc_message_t* message)
 
     if (ret != 0)
     {
+      
+
+      // response + encrypted problem = 8.04 step 5  = stop processing
+      // request + encrypted problem = 8.2 step 6 = unsecured 4.00  
+
+
       OC_ERR("***error decrypting/verifying response : (%d)***", ret);
       oscore_send_error(oscore_pkt, BAD_REQUEST_4_00, &message->endpoint);
       goto oscore_recv_error;
@@ -481,6 +546,10 @@ static int oc_oscore_receive_message(oc_message_t* message)
     OC_DBG_OSCORE("### parse INNER OSCORE message ###");
     if (oscore_parse_inner_message(oscore_pkt->payload, oscore_pkt->payload_len, &coap_pkt) != COAP_NO_ERROR)
     {
+
+      // response + encrypted problem = ignore
+      // request +  problem with inner options  = 4.02 secured (EITT test 5.10.5.3)
+
       OC_ERR("***error parsing inner message***");
       oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &message->endpoint);
       goto oscore_recv_error;
