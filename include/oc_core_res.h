@@ -98,7 +98,7 @@ extern "C" {
 		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test' */
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
-		oc_core_set_device_cb_t add_device_cb;    /**< callback when device is changed */
+		oc_core_set_device_cb_t set_device_cb;    /**< callback when device is changed */
 		void* data;                               /**< user data */
 	} oc_device_info_t;
 
@@ -133,13 +133,13 @@ extern "C" {
 	 * @param version the version of the KNX spec
 	 * @param base the base url
 	 * @param serialnumber the serial number of the device
-	 * @param add_device_cb device callback
+	 * @param set_device_cb device callback
 	 * @param data the supplied user data
 	 * @return oc_device_info_t* the device structure
 	 */
 	oc_device_info_t* oc_core_set_device(char* name, char* version, char* base,
 																			 char* serialnumber,
-																			 oc_core_set_device_cb_t add_device_cb,
+																			 oc_core_set_device_cb_t set_device_cb,
 																			 void* data);
 
 	/**

@@ -209,7 +209,7 @@ int oc_core_set_and_store_device_fid(uint64_t fid)
 	return 0;
 }
 
-oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char* serialnumber, oc_core_set_device_cb_t add_device_cb, void* data)
+oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char* serialnumber, oc_core_set_device_cb_t set_device_cb, void* data)
 {
 	(void) data;
 
@@ -227,7 +227,7 @@ oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char
 
 		// add as first list element the 'sn' resource
 		oc_list_add_block(core_resource_list, &core_resource_dev_sn);
-	}
+	} 
 	#endif /* OC_DYNAMIC_ALLOCATION */
 
 	memset(oc_device_info, 0, sizeof(oc_device_info_t));
@@ -238,7 +238,7 @@ oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char
 	oc_charstream_convert_to_lower(serialnumber);
 
 	oc_new_string(&oc_device_info->serialnumber, serialnumber, strlen(serialnumber));
-	oc_device_info->add_device_cb = add_device_cb;
+	oc_device_info->set_device_cb = set_device_cb;
 
 	oc_create_knx_fp_resources();
 	oc_create_knx_sec_resources();
