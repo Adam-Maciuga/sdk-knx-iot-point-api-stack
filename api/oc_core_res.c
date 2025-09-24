@@ -45,7 +45,6 @@ static oc_device_info_t oc_device_info[OC_MAX_NUM_DEVICES];
 #endif 
 
 static oc_platform_info_t oc_platform_info; // platform provider     
-static size_t device_count = 0;             // holds the current number of allocated devices 
 
 void oc_core_init(void)
 {
@@ -112,12 +111,6 @@ void oc_core_shutdown(void)
 		core_resources = NULL;
 	}
 	#endif 
-	device_count = 0;
-}
-
-size_t oc_core_get_num_devices(void)
-{
-	return device_count;
 }
 
 int oc_core_set_device_fwv(int major, int minor, int patch)
@@ -257,11 +250,8 @@ oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char
 	{
 		oc_abort("error initializing connectivity for device");
 	}
-
-	/* must be before the increase of device_count */
+	
 	oc_init_oscore_from_storage(true);
-
-	device_count = 1;
 
 	return oc_device_info;
 }

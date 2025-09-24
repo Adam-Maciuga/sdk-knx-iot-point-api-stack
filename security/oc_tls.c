@@ -544,9 +544,7 @@ oc_tls_refresh_certs(oc_sec_credusage_t credusage,
                      check_if_known_cert_cb is_known_cert,
                      add_new_cert_cb add_new_cert)
 {
-  size_t device;
-  for (device = 0; device < oc_core_get_num_devices(); device++) {
-    oc_sec_creds_t *creds = oc_sec_get_creds(device);
+    oc_sec_creds_t *creds = oc_sec_get_creds(0);
     oc_sec_cred_t *cred = (oc_sec_cred_t *)oc_list_head(creds->creds);
     for (; cred != NULL; cred = cred->next) {
       /* Pick all "leaf" certificiates with matching credusage */
@@ -556,10 +554,9 @@ oc_tls_refresh_certs(oc_sec_credusage_t credusage,
           continue;
         }
 
-        add_new_cert(cred, device);
+        add_new_cert(cred, 0);
       }
     }
-  }
 }
 
 static bool

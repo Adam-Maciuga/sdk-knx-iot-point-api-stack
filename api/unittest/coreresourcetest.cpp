@@ -78,7 +78,7 @@ TEST_F(TestCoreResource, CoreDevice_P)
   oc_add_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
 
   // ASSERT_NE(addcoredevice, NULL);
-  numcoredevice = oc_core_get_num_devices();
+  numcoredevice = 1;
   EXPECT_EQ(1, numcoredevice);
 
   oc_connectivity_shutdown(0);

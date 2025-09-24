@@ -1454,20 +1454,14 @@ static void oc_create_dev_mid_resource(int resource_idx, size_t device)
   oc_core_bind_dpt_resource(resource_idx, device, "urn:knx:dpt.value2Ucount");
 }
 
-void oc_knx_load_device(size_t device_index)
+void oc_knx_load_device()
 {
   PRINT("Loading device configuration from persistent storage");
-
-  if (device_index >= oc_core_get_num_devices())
-  {
-    PRINT("device_index %d too large", (int)device_index);
-    return;
-  }
 
   oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
   {
-    OC_ERR("could not get device %d", (int)device_index);
+    OC_ERR("could not get device");
   }
 
   // read IA from storage (on error = 0xFFFF)
@@ -1514,14 +1508,8 @@ void oc_knx_load_device(size_t device_index)
   */
 }
 
-void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
+void oc_knx_device_storage_reset(int reset_mode)
 {
-  if (device_index >= oc_core_get_num_devices())
-  {
-    PRINT("oc_knx_device_storage_reset: device_index %d too large", (int)device_index);
-    return;
-  }
-
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (device == NULL)
@@ -1533,7 +1521,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
   if (reset_mode == RESET_TO_DEFAULT_STATE)
   {
     // LSM (first to prevent any runtime messaging in/out)
-    oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
+    oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
     // set to KNX defaults (ports see below)
     device->pm = false;
@@ -1571,7 +1559,7 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
   if (reset_mode == RESET_TO_DEFAULT_WO_IA)
   {
     // LSM (first to prevent any runtime messaging in/out)
-    oc_knx_set_and_store_lsm(device_index, LSM_S_UNLOADED);
+    oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
     // set the ia to KNX defaults (ports see above)
     device->pm = false;
@@ -1587,28 +1575,14 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
   }
 }
 
-bool oc_knx_device_in_programming_mode(size_t device_index)
+bool oc_knx_device_in_programming_mode(void)
 {
-
-  if (device_index >= oc_core_get_num_devices())
-  {
-    PRINT("device_index %d too large", (int)device_index);
-    return false;
-  }
-
   oc_device_info_t* device = oc_core_get_device_info();
   return device->pm;
 }
 
-void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mode)
+void oc_knx_device_set_programming_mode(bool programming_mode)
 {
-
-  if (device_index >= oc_core_get_num_devices())
-  {
-    PRINT("device_index %d too large", (int)device_index);
-    return;
-  }
-
   oc_device_info_t* device = oc_core_get_device_info();
   device->pm = programming_mode;
 }

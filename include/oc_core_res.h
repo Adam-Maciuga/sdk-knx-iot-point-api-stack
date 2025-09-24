@@ -247,13 +247,6 @@ extern "C" {
 	int oc_core_set_and_store_device_application_version(int major, int minor, int patch);
 
 	/**
-	 * @brief retrieve the amount of devices
-	 *
-	 * @return size_t the amount of devices
-	 */
-	size_t oc_core_get_num_devices(void);
-
-	/**
 	 * @brief retrieve the device info from the device index
 	 *
 	 * @param device the device index

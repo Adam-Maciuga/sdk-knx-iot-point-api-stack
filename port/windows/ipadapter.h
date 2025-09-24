@@ -20,6 +20,6 @@
 
 #include "ipcontext.h"
 
-ip_context_t *get_ip_context_for_device(size_t device);
+ip_context_t *get_ip_context_for_device();
 
 #endif /* IPADAPTER_H */

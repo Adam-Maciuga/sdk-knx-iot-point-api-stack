@@ -170,7 +170,7 @@ extern "C"
    * @param new_state the new LSM
    * @return 0 == success
    */
-  int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state);
+  int oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
 
   /**
    * @brief convert the load state machine (lsm) event to string
