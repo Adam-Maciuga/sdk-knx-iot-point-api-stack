@@ -159,7 +159,7 @@ extern "C"
      * ```
      * static void register_resources(void)
      * {
-     *   oc_resource_t *bswitch = oc_new_resource(NULL, "/switch", 1, 0);
+     *   oc_resource_t *bswitch = oc_new_resource(NULL, "/switch", 1);
      *   oc_resource_bind_resource_type(bswitch, "urn:knx:dpa.417.61");
      *   oc_resource_bind_dpt(bswitch, "urn:knx:dpt.switch");
      *   oc_resource_bind_resource_interface(bswitch, OC_IF_A);
@@ -577,7 +577,7 @@ extern "C"
    * ```
    * static void register_resources(void)
    * {
-   *   oc_resource_t *switch = oc_new_resource("light switch", "/switch", 1, 0);
+   *   oc_resource_t *switch = oc_new_resource("light switch", "/switch", 1);
    *   oc_resource_bind_resource_type(switch, "urn:knx:dpa.417.61");
    *   oc_resource_bind_dpt(switch, "urn:knx:dpt.switch");
    *   oc_resource_set_observable(switch, true);
