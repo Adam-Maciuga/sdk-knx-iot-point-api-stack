@@ -109,13 +109,6 @@ int oc_buffer_num_free_incoming(void);
 int oc_buffer_num_free_outgoing(void);
 
 /**
- * @brief close all tls session for the specific device
- *
- * @param device the device index
- */
-void oc_close_all_tls_sessions_for_device(size_t device);
-
-/**
  * @brief close all tls sessions
  *
  */
