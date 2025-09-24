@@ -117,9 +117,9 @@ extern "C"
      * added.
      *
      *  - oc_init_platform()
-     *  - oc_add_device()
+     *  - oc_set_device()
      *
-     * Multiple devices can be added by making multiple calls to oc_add_device().
+     * Multiple devices can be added by making multiple calls to oc_set_device().
      *
      * Other actions may be taken in the init handler
      *  - Set up an interrupt handler oc_activate_interrupt_handler()
@@ -221,11 +221,11 @@ extern "C"
    * {
    *   int ret = oc_init_platform("My Platform",
    *      set_additional_platform_properties, NULL);
-   *   ret |= oc_add_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
+   *   ret |= oc_set_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
    * }
    * ```
    *
-   * @param[in] data context pointer that comes from the oc_add_device() function
+   * @param[in] data context pointer that comes from the oc_set_device() function
    *
    * @see oc_add_device
    * @see oc_set_custom_device_property
@@ -233,8 +233,8 @@ extern "C"
   typedef void (*oc_init_platform_cb_t)(void* data);
 
   /**
-   * Callback invoked during oc_add_device(). The purpose is to add any additional
-   * device properties that are not supplied to oc_add_device() function call.
+   * Callback invoked during oc_set_device(). The purpose is to add any additional
+   * device properties that are not supplied to oc_set_device() function call.
    *
    * Example:
    * ```
@@ -247,7 +247,7 @@ extern "C"
    * static int app_init(void)
    * {
    *   int ret = oc_init_platform("My Platform", NULL, NULL);
-   *   ret |= oc_add_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
+   *   ret |= oc_set_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
    *   return ret;
    * }
    * ```
@@ -258,7 +258,7 @@ extern "C"
    * @see oc_add_device
    * @see oc_set_custom_device_property
    */
-  typedef void (*oc_add_device_cb_t)(void* data);
+  typedef void (*oc_set_device_cb_t)(void* data);
 
   /**
    * Register and call handler functions responsible for controlling the
@@ -478,7 +478,7 @@ extern "C"
    * static int app_init(void)
    * {
    *   int ret = oc_init_platform("Refrigerator", NULL, NULL);
-   *   ret |= oc_add_device("my_name", "1.0", "//",
+   *   ret |= oc_set_device("my_name", "1.0", "//",
    *                        "0123456", NULL, NULL);
 
    *   return ret;
@@ -489,30 +489,30 @@ extern "C"
    * @param[in] version The api version e.g. "1.0.0"
    * @param[in] base the base url e.g. "/"
    * @param[in] serial_number the serial number of the device
-   * @param[in] add_device_cb callback function invoked during oc_add_device().
+   * @param[in] add_device_cb callback function invoked during oc_set_device().
    * The purpose is to add additional device properties that are not supplied to
-   * oc_add_device() function call.
-   * @param[in] data context pointer that is passed to the oc_add_device_cb_t
+   * oc_set_device() function call.
+   * @param[in] data context pointer that is passed to the oc_set_device_cb_t
    *
    * @return 0 = success
    * @return -1 = failure
    *
    * @see init
    */
-  int oc_add_device(const char* name, const char* version, const char* base, const char* serial_number,
-                    oc_add_device_cb_t add_device_cb, void* data);
+  int oc_set_device(const char* name, const char* version, const char* base, const char* serial_number,
+                    oc_set_device_cb_t add_device_cb, void* data);
 
 /**
  * Set custom device property
  *
  * The purpose is to add additional device properties that are not supplied to
- * oc_add_device() function call. This function will likely only be used inside
- * the oc_add_device_cb_t().
+ * oc_set_device() function call. This function will likely only be used inside
+ * the oc_set_device_cb_t().
  *
  * @param[in] prop the name of the custom property being added to the device
  * @param[in] value the value of the custom property being added to the device
  *
- * @see oc_add_device_cb_t for example code using this function
+ * @see oc_set_device_cb_t for example code using this function
  * @see oc_add_device
  */
 #define oc_set_custom_device_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
@@ -625,7 +625,7 @@ extern "C"
    * @see oc_resource_set_periodic_observable
    * @see oc_resource_set_request_handler
    */
-  oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, size_t device);
+  oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types);
 
   /**
    * Add a Resource Type "rt" property to the resource.

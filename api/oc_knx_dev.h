@@ -68,7 +68,6 @@ void oc_knx_load_device();
  *   - group object / recipient / publisher object table
  *   - access token table (except entries with 'if.sec')
  *
- * @param device_index The device index
  * @param reset_mode the KNX reset mode
  */
 void oc_knx_device_storage_reset(int reset_mode);
@@ -76,7 +75,6 @@ void oc_knx_device_storage_reset(int reset_mode);
 /**
  * @brief function checks if the device is in programming mode
  *
- * @param device_index the device index
  * @return true in programming mode
  * @return false not in programming mode
  */
@@ -85,7 +83,6 @@ bool oc_knx_device_in_programming_mode();
 /**
  * @brief function set the programming mode of the device to true or false
  *
- * @param device_index the device index
  * @param programming_mode true to set the device in programming mode, false
  * otherwise
  */

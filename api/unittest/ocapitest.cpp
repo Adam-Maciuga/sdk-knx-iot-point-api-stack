@@ -77,7 +77,7 @@ public:
   static int appInit(void)
   {
     int result = oc_init_platform(MANUFACTURER_NAME, NULL, NULL);
-    result |= oc_add_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
+    result |= oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
     return result;
   }
 

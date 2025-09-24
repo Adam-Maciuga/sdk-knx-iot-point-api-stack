@@ -332,7 +332,7 @@ const oc_resource_t core_resource_knx_auth_o = {
   &core_resource_knx_auth_o_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
+static void oc_create_knx_auth_o_resource(int resource_idx)
 {
   OC_DBG("create /aut/o resources");
   oc_core_populate_resource(resource_idx, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,

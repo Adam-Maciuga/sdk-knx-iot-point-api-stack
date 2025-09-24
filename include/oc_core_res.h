@@ -54,7 +54,7 @@ extern "C" {
 	 * @brief callback for adding a device
 	 *
 	 */
-	typedef void (*oc_core_add_device_cb_t)(void* data);
+	typedef void (*oc_core_set_device_cb_t)(void* data);
 
 	/**
 	 * @brief platform information
@@ -98,7 +98,7 @@ extern "C" {
 		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test' */
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
-		oc_core_add_device_cb_t add_device_cb;    /**< callback when device is changed */
+		oc_core_set_device_cb_t add_device_cb;    /**< callback when device is changed */
 		void* data;                               /**< user data */
 	} oc_device_info_t;
 
@@ -137,15 +137,14 @@ extern "C" {
 	 * @param data the supplied user data
 	 * @return oc_device_info_t* the device structure
 	 */
-	oc_device_info_t* oc_core_add_device(char* name, char* version, char* base,
+	oc_device_info_t* oc_core_set_device(char* name, char* version, char* base,
 																			 char* serialnumber,
-																			 oc_core_add_device_cb_t add_device_cb,
+																			 oc_core_set_device_cb_t add_device_cb,
 																			 void* data);
 
 	/**
 	 * @brief set the firmware version
 	 *
-	 * @param device_index the device index
 	 * @param major the xxx number of xxx.yyy.zzz
 	 * @param minor the yyy number of xxx.yyy.zz
 	 * @param patch the zzz number of xxx.yyy.zzz

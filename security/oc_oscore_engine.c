@@ -773,8 +773,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   {
     // TODO do we need also ID Context ?
     OC_DBG_OSCORE("### Found auth at entry, getting context ###");
-    oscore_ctx = oc_oscore_find_context_by_kid(NULL, 
-                                               msg->endpoint.device,
+    oscore_ctx = oc_oscore_find_context_by_kid(NULL,
                                                (uint8_t*)oc_string(entry->osc_id),
                                                oc_byte_string_len(entry->osc_id));
   }

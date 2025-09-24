@@ -23,14 +23,14 @@
 #include "oc_discovery.h"
 
 // add application datapoint's to the response and return true if at least one was added
-static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource, size_t device_index,
+static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
                                                   size_t* response_length, const int page_size)
 {
   int matches = 0;
 
   for (; resource && matches < page_size; resource = resource->next)
   {
-    if (resource->device != device_index)
+    if (resource->device != 0)
     {
       continue;
     }
@@ -60,13 +60,11 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
     return;
   }
 
-  const size_t device_index = request->resource->device;
-
   // calculate total properties
   const oc_resource_t* my_p = oc_ri_get_app_resources();
   for (; my_p; my_p = my_p->next)
   {
-    if (my_p->device != device_index)
+    if (my_p->device != 0)
     {
       continue;
     }
@@ -105,7 +103,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
   // add ONLY application datapoint's to response
-  if (oc_was_adding_data_points_to_response(request, my_p, device_index, &response_length, query_ps))
+  if (oc_was_adding_data_points_to_response(request, my_p, &response_length, query_ps))
   {
     // add only a page hint if at least one response entry is in
     if (more_request_needed)
