@@ -224,11 +224,11 @@ static void coap_send_unauth_echo_response(const coap_message_type_t type, const
 
 #ifdef OC_SECURITY
 static oc_event_callback_retval_t
-close_all_tls_sessions(void* data)
+close_all_tls_sessions_callback(void* data)
 {
-	size_t device = (size_t) data;
-	oc_close_all_tls_sessions_for_device(device);
-	oc_set_drop_commands(device, false);
+	(void)data; // Unused in single-device mode
+	oc_close_all_tls_sessions();
+	oc_set_drop_commands(0, false);
 	return OC_EVENT_DONE;
 }
 #endif /* OC_SECURITY */
@@ -1517,9 +1517,8 @@ send_message:
 	//#ifdef OC_OSCORE
 	if (coap_status_code == CLOSE_ALL_TLS_SESSIONS)
 	{
-		oc_set_drop_commands(incoming_message->endpoint.device, true);
-		oc_set_delayed_callback((void*) incoming_message->endpoint.device,
-														&close_all_tls_sessions, 2);
+		oc_set_drop_commands(0, true);
+		oc_set_delayed_callback(NULL, &close_all_tls_sessions_callback, 2);
 	}
 	#endif 
 
