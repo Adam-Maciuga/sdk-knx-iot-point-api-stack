@@ -27,24 +27,23 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	// retype pointer
 	coap_packet_t const* oscore_pkt = (coap_packet_t*) packet;
 
-	// set mid as default from request/ response  
-  uint16_t mid = oscore_pkt->mid;
-
-  // set type as default 
-  coap_message_type_t type = COAP_TYPE_NON;
+  uint16_t mid;
+  coap_message_type_t type;
 
 	if (oscore_pkt->type == COAP_TYPE_CON)
 	{
-		// in case of confirmable send ack with mid from request 
+		// in case of confirmable send ack with mid from request as ACK
 	  type = COAP_TYPE_ACK;
+    mid = oscore_pkt->mid;
 	}
 	else
 	{
-		// send any message other than ack with OWN (next) mid
+    // send any message other than ack with OWN (next) mid as NON
+	  type = COAP_TYPE_NON;
 		mid = coap_get_next_mid();
 	}
 
-	// one static message
+	// one static CoAP packet
 	coap_packet_t msg[1];
 
 	// init and set all in msg to zero 
@@ -53,21 +52,19 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	// UDP/ TCP
 	msg->transport_type = oscore_pkt->transport_type;
 
-
 	oc_message_t* message = oc_internal_allocate_outgoing_message();
 	if (message)
 	{
 		// copy original endpoint to local message
 	  memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 
-	  //OC_DBG_OSCORE("removing OSCORE flag for error return code");
-		// message->endpoint.flags &= ~OSCORE;
-
 		// copy token
 		if (oscore_pkt->token_len > 0)
 		{
 			coap_set_token(msg, oscore_pkt->token, oscore_pkt->token_len);
 		}
+
+    message->endpoint.flags &= ~OSCORE;
 
 		// no max age = no caching 
 		coap_set_header_max_age(msg, 0);
@@ -458,7 +455,7 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 	return COAP_NO_ERROR;
 }
 
-// checks message header to find an OSCORE header
+// checks message header to find the CoAP OSCORE option header
 bool oscore_is_oscore_message(oc_message_t* msg)
 {
 	const uint8_t* current_option = NULL;
@@ -487,7 +484,7 @@ bool oscore_is_oscore_message(oc_message_t* msg)
   size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >>	COAP_HEADER_TOKEN_LEN_POSITION;
 	current_option += token_len;
 
-	// parse outer options, fist option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
+	// parse outer options, first option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
 	unsigned int option_number = 0;
 
   while (current_option < msg->data + msg->length)
