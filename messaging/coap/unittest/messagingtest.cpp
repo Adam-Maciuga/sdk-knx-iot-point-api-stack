@@ -53,7 +53,7 @@ protected:
   static void SetUpTestCase()
   {
     oc_main_init(&handler);
-    oc_endpoint_t *ep = oc_connectivity_get_endpoints(device);
+    oc_endpoint_t *ep = oc_connectivity_get_endpoints();
     while (ep) {
       if (ep->flags & TCP && !(ep->flags & SECURED) && ep->flags & IPV4)
         break;

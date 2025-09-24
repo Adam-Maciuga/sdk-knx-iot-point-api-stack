@@ -701,7 +701,7 @@ const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx
                                               &core_resource_knx_fp_g_data};
 PRAGMA_OUT
 
-void oc_create_fp_g_resource(int resource_idx, size_t device)
+void oc_create_fp_g_resource(int resource_idx)
 {
   OC_DBG("oc_create_fp_g_resource");
   oc_core_populate_resource(resource_idx, "/fp/g", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -837,7 +837,7 @@ const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_k
 PRAGMA_OUT
 #endif
 
-void oc_create_fp_g_x_resource(int resource_idx, size_t device)
+void oc_create_fp_g_x_resource(int resource_idx)
 {
   OC_DBG("oc_create_fp_g_x_resource");
   oc_core_populate_resource(resource_idx, "/fp/g/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1269,7 +1269,7 @@ const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx
                                               &core_resource_knx_fp_p_data};
 PRAGMA_OUT
 
-void oc_create_fp_p_resource(int resource_idx, size_t device)
+void oc_create_fp_p_resource(int resource_idx)
 {
   OC_DBG("oc_create_fp_p_resource");
   oc_core_populate_resource(resource_idx, "/fp/p", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1408,7 +1408,7 @@ const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_fp_p_x_data};
 PRAGMA_OUT
 
-void oc_create_fp_p_x_resource(int resource_idx, size_t device)
+void oc_create_fp_p_x_resource(int resource_idx)
 {
   OC_DBG("oc_create_fp_p_x_resource");
   oc_core_populate_resource(resource_idx, "/fp/p/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1859,7 +1859,7 @@ const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx
                                               &core_resource_knx_fp_r_data};
 PRAGMA_OUT
 
-void oc_create_fp_r_resource(int resource_idx, size_t device)
+void oc_create_fp_r_resource(int resource_idx)
 {
   OC_DBG("oc_create_fp_r_resource");
   oc_core_populate_resource(resource_idx, "/fp/r", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1999,7 +1999,7 @@ const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_fp_r_x_data};
 PRAGMA_OUT
 
-void oc_create_fp_r_x_resource(int resource_idx, size_t device)
+void oc_create_fp_r_x_resource(int resource_idx)
 {
   OC_DBG("oc_create_fp_r_x_resource");
   oc_core_populate_resource(resource_idx, "/fp/r/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,

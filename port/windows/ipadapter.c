@@ -791,8 +791,6 @@ network_event_thread(void *data)
           break;
         }
 
-        message->endpoint.device = dev->device;
-
         if (i == SERVER6) {
           int count = recv_msg(dev->server_sock, message->data, OC_PDU_SIZE,
                                &message->endpoint, false, &message->mcast_dest);
@@ -894,7 +892,7 @@ network_event_thread_error:
 }
 
 oc_endpoint_t *
-oc_connectivity_get_endpoints(size_t device)
+oc_connectivity_get_endpoints()
 {
   ip_context_t *dev = get_ip_context_for_device();
   if (!dev) {

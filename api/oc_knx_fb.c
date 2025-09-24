@@ -244,7 +244,7 @@ const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_
                                              &core_resource_knx_f_x_data};
 PRAGMA_OUT
 
-void oc_create_fb_x_resource(int resource_idx, size_t device)
+void oc_create_fb_x_resource(int resource_idx)
 {
   OC_DBG("create /f/x resources");
   // note that this resource is listed in /.well-known/core so it should have
@@ -578,7 +578,7 @@ const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_
                                            &core_resource_knx_f_data};
 PRAGMA_OUT
 
-void oc_create_fb_resource(int resource_idx, size_t device)
+void oc_create_fb_resource(int resource_idx)
 {
   OC_DBG("create /f resources");
   // note that this resource is listed in /.well-known/core so it should have

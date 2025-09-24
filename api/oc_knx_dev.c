@@ -81,7 +81,7 @@ const oc_resource_t core_resource_dev_sn = {(oc_resource_t*)&core_resource_dev_h
                                             &core_resource_dev_sn_data};
 PRAGMA_OUT
 
-void oc_create_dev_sn_resource(int resource_idx, size_t device)
+void oc_create_dev_sn_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_sn_resource");
   // rt :dpa:0.11
@@ -143,7 +143,7 @@ const oc_resource_t core_resource_dev_hwv = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_hwv_data};
 PRAGMA_OUT
 
-void oc_create_dev_hwv_resource(int resource_idx, size_t device)
+void oc_create_dev_hwv_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_hwv_resource");
   oc_core_populate_resource(resource_idx, "/dev/hwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -206,7 +206,7 @@ const oc_resource_t core_resource_dev_fwv = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_fwv_data};
 PRAGMA_OUT
 
-void oc_create_dev_fwv_resource(int resource_idx, size_t device)
+void oc_create_dev_fwv_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_fwv_resource");
   oc_core_populate_resource(resource_idx, "/dev/fwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -263,7 +263,7 @@ const oc_resource_t core_resource_dev_hwt = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_hwt_data};
 PRAGMA_OUT
 
-void oc_create_dev_hwt_resource(int resource_idx, size_t device)
+void oc_create_dev_hwt_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_hwt_resource");
 
@@ -322,7 +322,7 @@ const oc_resource_t core_resource_dev_model = {(oc_resource_t*)&core_resource_de
                                                &core_resource_dev_model_data};
 PRAGMA_OUT
 
-void oc_create_dev_model_resource(int resource_idx, size_t device)
+void oc_create_dev_model_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_model_resource");
   oc_core_populate_resource(resource_idx, "/dev/model", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -428,7 +428,7 @@ const oc_resource_t core_resource_dev_hostname = {
   &core_resource_dev_hostname_data};
 PRAGMA_OUT
 
-void oc_create_dev_hostname_resource(int resource_idx, size_t device)
+void oc_create_dev_hostname_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_hostname_resource");
   oc_core_populate_resource(resource_idx, "/dev/hname", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -528,7 +528,7 @@ const oc_resource_t core_resource_dev_iid = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_iid_data};
 PRAGMA_OUT
 
-void oc_create_dev_iid_resource(int resource_idx, size_t device)
+void oc_create_dev_iid_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_iid_resource");
   oc_core_populate_resource(resource_idx, "/dev/iid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -558,7 +558,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   // calculate total properties
-  const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints(0);
+  const oc_endpoint_t* my_ep = oc_connectivity_get_endpoints();
   while (my_ep != NULL)
   {
     my_ep = my_ep->next;
@@ -584,7 +584,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   // set to first property for the requested page
   // example 1: IPv6 addresses #1..#4, (pn=1,ps=1) , set ptr to IPv6 address #2)
   // example 2: IPv6 addresses #1..#4, (pn=0,ps=1) , set ptr to IPv6 address #1)
-  my_ep = oc_connectivity_get_endpoints(0);
+  my_ep = oc_connectivity_get_endpoints();
   for (int i = 0; i < first_entry; i++)
   {
     my_ep = my_ep->next;
@@ -650,7 +650,7 @@ const oc_resource_t core_resource_dev_ipv6 = {(oc_resource_t*)&core_resource_dev
                                               &core_resource_dev_ipv6_data};
 PRAGMA_OUT
 
-void oc_create_dev_ipv6_resource(int resource_idx, size_t device)
+void oc_create_dev_ipv6_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_ipv6_resource");
   oc_core_populate_resource(resource_idx, "/dev/ipv6", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -758,7 +758,7 @@ const oc_resource_t core_resource_dev_pm = {(oc_resource_t*)&core_resource_dev_i
                                             &core_resource_dev_pm_data};
 PRAGMA_OUT
 
-void oc_create_dev_pm_resource(int resource_idx, size_t device)
+void oc_create_dev_pm_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_pm_resource");
   oc_core_populate_resource(resource_idx, "/dev/pm", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -867,7 +867,7 @@ const oc_resource_t core_resource_dev = {(oc_resource_t*)&core_resource_app,
                                          &core_resource_dev_data};
 PRAGMA_OUT
 
-void oc_create_dev_dev_resource(int resource_idx, size_t device)
+void oc_create_dev_dev_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_dev_resource");
   // note that this resource is listed in /.well-known/core so it should have
@@ -928,7 +928,7 @@ const oc_resource_t core_resource_dev_sa = {(oc_resource_t*)&core_resource_dev_d
                                             &core_resource_dev_sa_data};
 PRAGMA_OUT
 
-static void oc_create_dev_sa_resource(int resource_idx, size_t device)
+static void oc_create_dev_sa_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_sa_resource");
   oc_core_populate_resource(resource_idx, "/dev/sna", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -989,7 +989,7 @@ const oc_resource_t core_resource_dev_da = {(oc_resource_t*)&core_resource_dev_f
                                             &core_resource_dev_da_data};
 PRAGMA_OUT
 
-static void oc_create_dev_da_resource(int resource_idx, size_t device)
+static void oc_create_dev_da_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_da_resource");
   oc_core_populate_resource(resource_idx, "/dev/da", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1076,7 +1076,7 @@ const oc_resource_t core_resource_dev_fid = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_fid_data};
 PRAGMA_OUT
 
-static void oc_create_dev_fid_resource(int resource_idx, size_t device)
+static void oc_create_dev_fid_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_fid_resource");
   oc_core_populate_resource(resource_idx, "/dev/fid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1133,7 +1133,7 @@ const oc_resource_t core_resource_dev_port = {(oc_resource_t*)&core_resource_dev
                                               &core_resource_dev_port_data};
 PRAGMA_OUT
 
-static void oc_create_dev_port_resource(int resource_idx, size_t device)
+static void oc_create_dev_port_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_port_resource");
   oc_core_populate_resource(resource_idx, "/dev/port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1189,7 +1189,7 @@ const oc_resource_t core_resource_dev_mport = {(oc_resource_t*)&core_resource_de
                                                &core_resource_dev_mport_data};
 PRAGMA_OUT
 
-void oc_create_dev_mport_resource(int resource_idx, size_t device)
+void oc_create_dev_mport_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_mport_resource");
   oc_core_populate_resource(resource_idx, "/dev/multicast_port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1281,7 +1281,7 @@ const oc_resource_t core_resource_app_x = {(oc_resource_t*)&core_resource_a_lsm,
                                            &core_resource_app_x_data};
 PRAGMA_OUT
 
-void oc_create_ap_x_resource(int resource_idx, size_t device)
+void oc_create_ap_x_resource(int resource_idx)
 {
   OC_DBG("oc_create_ap_x_resource");
   oc_core_populate_resource(resource_idx, "/ap/pv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1387,7 +1387,7 @@ const oc_resource_t core_resource_app = {(oc_resource_t*)&core_resource_app_x,
                                          &core_resource_app_data};
 PRAGMA_OUT
 
-void oc_create_ap_resource(int resource_idx, size_t device)
+void oc_create_ap_resource(int resource_idx)
 {
   OC_DBG("oc_create_ap_resource");
   oc_core_populate_resource(resource_idx, "/ap", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1443,7 +1443,7 @@ const oc_resource_t core_resource_dev_mid = {(oc_resource_t*)&core_resource_dev,
                                              &core_resource_dev_mid_data};
 PRAGMA_OUT
 
-static void oc_create_dev_mid_resource(int resource_idx, size_t device)
+static void oc_create_dev_mid_resource(int resource_idx)
 {
   OC_DBG("oc_create_dev_mid_resource");
   oc_core_populate_resource(resource_idx, "/dev/mid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,

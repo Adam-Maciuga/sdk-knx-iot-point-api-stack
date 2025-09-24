@@ -539,7 +539,7 @@ refresh_endpoints_list(ip_context_t *dev)
 }
 
 oc_endpoint_t *
-oc_connectivity_get_endpoints(size_t device)
+oc_connectivity_get_endpoints()
 {
   ip_context_t *dev = get_ip_context_for_device();
 

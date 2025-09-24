@@ -133,7 +133,7 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   &core_resource_knx_auth_o_osndelay_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
+static void oc_create_knx_auth_o_osndelay_resource(int resource_idx)
 {
   OC_DBG("oc_create_knx_auth_o_osndelay_resource");
   //
@@ -220,7 +220,7 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   &core_resource_knx_auth_o_replwdo_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
+static void oc_create_knx_auth_o_replwdo_resource(int resource_idx)
 {
   OC_DBG("oc_create_knx_auth_o_replwdo_resource");
   //
@@ -424,7 +424,7 @@ const oc_resource_t core_resource_knx_a_sen = {
   &core_resource_knx_a_sen_data};
 PRAGMA_OUT
 
-static void oc_create_a_sen_resource(int resource_idx, size_t device)
+static void oc_create_a_sen_resource(int resource_idx)
 {
   OC_DBG("oc_create_a_sen_resource");
 
@@ -1010,7 +1010,7 @@ const oc_resource_t core_resource_knx_auth_at = {
   &core_resource_knx_auth_at_data};
 PRAGMA_OUT
 
-static void oc_create_auth_at_resource(int resource_idx, size_t device)
+static void oc_create_auth_at_resource(int resource_idx)
 {
   oc_core_populate_resource(resource_idx, "/auth/at", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
                             oc_core_auth_at_get_handler, 0, oc_core_auth_at_post_handler, oc_core_auth_at_delete_handler, 1,
@@ -1214,7 +1214,7 @@ const oc_resource_t core_resource_knx_auth_at_x = {
   &core_resource_knx_auth_at_x_data};
 PRAGMA_OUT
 
-static void oc_create_auth_at_x_resource(int resource_idx, size_t device)
+static void oc_create_auth_at_x_resource(int resource_idx)
 {
   OC_DBG("oc_create_auth_at_x_resource");
 
@@ -1329,7 +1329,7 @@ const oc_resource_t core_resource_knx_auth = {
   &core_resource_knx_auth_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_resource(int resource_idx, size_t device)
+static void oc_create_knx_auth_resource(int resource_idx)
 {
   OC_DBG("oc_create_knx_auth_resource");
   oc_core_populate_resource(resource_idx, "/auth", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,

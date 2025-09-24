@@ -302,9 +302,6 @@ void oc_core_populate_resource(								int core_resource_index,
 		return;
 	}
 
-	// device index
-	r->device = 0;
-
 	// uri 
 	oc_check_uri(uri);
 	r->uri.next = NULL;

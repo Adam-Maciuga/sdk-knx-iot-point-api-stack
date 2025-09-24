@@ -346,7 +346,7 @@ const oc_resource_t core_resource_knx = {(oc_resource_t*)&core_resource_knx_fp_g
                                          &core_resource_knx_data};
 PRAGMA_OUT
 
-static void oc_create_knx_resource(int resource_idx, size_t device)
+static void oc_create_knx_resource(int resource_idx)
 {
   OC_DBG("create /knx resources");
   oc_core_populate_resource(resource_idx, "/.well-known/knx", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
@@ -595,7 +595,7 @@ const oc_resource_t core_resource_a_lsm = {(oc_resource_t*)&core_resource_knx_sp
                                            &core_resource_a_lsm_data};
 PRAGMA_OUT
 
-static void oc_create_a_lsm_resource(int resource_idx, size_t device)
+static void oc_create_a_lsm_resource(int resource_idx)
 {
   OC_DBG("create /a/lsm resources");
 
@@ -1140,7 +1140,7 @@ const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fi
                                            &core_resource_knx_k_data};
 
 
-static void oc_create_knx_k_resource(int resource_idx, size_t device)
+static void oc_create_knx_k_resource(int resource_idx)
 {
   OC_DBG("create /k resources");
   oc_core_populate_resource(resource_idx, "/k", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1198,7 +1198,7 @@ const oc_resource_t core_resource_knx_fingerprint = {(oc_resource_t*)&core_resou
                                                      &core_resource_knx_fingerprint_data};
 PRAGMA_OUT
 
-static void oc_create_knx_fingerprint_resource(int resource_idx, size_t device)
+static void oc_create_knx_fingerprint_resource(int resource_idx)
 {
   OC_DBG("create /k/f resources");
   oc_core_populate_resource(resource_idx, "/.well-known/knx/f", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1287,7 +1287,7 @@ const oc_resource_t core_resource_knx_ia = {(oc_resource_t*)&core_resource_knx,
                                             &core_resource_knx_ia_data};
 PRAGMA_OUT
 
-static void oc_create_knx_ia(int resource_idx, size_t device)
+static void oc_create_knx_ia(int resource_idx)
 {
   OC_DBG("create /knx/ia resources");
   oc_core_populate_resource(resource_idx, "/.well-known/knx/ia", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
@@ -1339,7 +1339,7 @@ const oc_resource_t core_resource_knx_ldevid = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_ldevid_data};
 PRAGMA_OUT
 
-static void oc_create_knx_ldevid_resource(int resource_idx, size_t device)
+static void oc_create_knx_ldevid_resource(int resource_idx)
 {
   OC_DBG("oc_create_knx_ldevid_resource");
   oc_core_populate_resource(resource_idx, "/.well-known/knx/ldevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
@@ -1391,7 +1391,7 @@ const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_idevid_data};
 PRAGMA_OUT
 
-void oc_create_knx_idevid_resource(int resource_idx, size_t device)
+void oc_create_knx_idevid_resource(int resource_idx)
 {
   OC_DBG("oc_create_knx_idevid_resource");
   oc_core_populate_resource(resource_idx, "/.well-known/knx/idevid", APPLICATION_PKCS7_CMC_REQUEST, CONTENT_NONE,
@@ -1897,7 +1897,7 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
                                                &core_resource_knx_spake_data};
 PRAGMA_OUT
 
-static void oc_create_knx_spake_resource(int resource_idx, size_t device)
+static void oc_create_knx_spake_resource(int resource_idx)
 {
   OC_DBG("oc_create_knx_spake_resource");
   oc_core_populate_resource(resource_idx, "/.well-known/knx/spake", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,

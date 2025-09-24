@@ -517,8 +517,7 @@ oc_endpoint_compare(const oc_endpoint_t* ep1, const oc_endpoint_t* ep2)
 		return -1;
 
 	if ((ep1->flags & ~(MULTICAST | ACCEPTED)) !=
-			(ep2->flags & ~(MULTICAST | ACCEPTED)) ||
-			ep1->device != ep2->device)
+			(ep2->flags & ~(MULTICAST | ACCEPTED)))
 	{
 		return -1;
 	}
@@ -583,7 +582,7 @@ oc_endpoint_set_local_address(oc_endpoint_t* ep, int interface_index)
 	{
 		return;
 	}
-	oc_endpoint_t* e = oc_connectivity_get_endpoints(ep->device);
+	oc_endpoint_t* e = oc_connectivity_get_endpoints();
 	enum transport_flags conn = (ep->flags & IPV6) ? IPV6 : IPV4;
 	while (e)
 	{
