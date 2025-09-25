@@ -287,7 +287,7 @@ bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable)
   {
     if (discoverable)
     {
-      if (resource->device != 0 || !(resource->properties & OC_DISCOVERABLE))
+      if (!(resource->properties & OC_DISCOVERABLE))
       {
         // skip non discoverable resources
         continue;
@@ -683,7 +683,6 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 extern const oc_resource_t core_resource_knx_fp_g_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_data;
 const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx_fp_g_x,
-                                              0,
                                               {NULL, sizeof("/fp/g"), "/fp/g"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -795,7 +794,6 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_knx_fp_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
-                                                0,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -818,7 +816,6 @@ PRAGMA_OUT
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_r,
-                                                0,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -1251,7 +1248,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 extern const oc_resource_t core_resource_knx_fp_p_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
 const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
-                                              0,
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -1390,7 +1386,6 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
 const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
-                                                0,
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -1841,7 +1836,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 extern const oc_resource_t core_resource_knx_fp_r_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
 const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
-                                              0,
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -1981,7 +1975,6 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_knx_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
 const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
-                                                0,
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},

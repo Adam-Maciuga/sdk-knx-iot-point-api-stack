@@ -30,10 +30,6 @@ static bool oc_was_adding_data_points_to_response(oc_request_t* request, const o
 
   for (; resource && matches < page_size; resource = resource->next)
   {
-    if (resource->device != 0)
-    {
-      continue;
-    }
 
     // called from GET /p handler so always truncate resources URN's
     oc_add_resource_to_response_payload(resource, response_length, true);
@@ -64,10 +60,6 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   const oc_resource_t* my_p = oc_ri_get_app_resources();
   for (; my_p; my_p = my_p->next)
   {
-    if (my_p->device != 0)
-    {
-      continue;
-    }
     if (oc_string(my_p->uri) != NULL)
     {
       total++;
@@ -273,7 +265,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 extern const oc_resource_t core_resource_knx_f;
 PRAGMA_IN oc_resource_data_t core_resource_knx_p_data;
 const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
-                                           0,
                                            {NULL, sizeof("/p"), "/p"},
                                            {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                            {NULL, 0, NULL},

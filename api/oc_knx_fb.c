@@ -74,7 +74,7 @@ static int oc_core_count_dp_in_fb(int instance, int fb_value)
   const oc_resource_t* resource = oc_ri_get_app_resources();
   for (; resource; resource = resource->next)
   {
-    if (resource->device != 0 || !(resource->properties & OC_DISCOVERABLE))
+    if (!(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -163,7 +163,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int skipped = 0;
   for (; resource; resource = resource->next)
   {
-    if (resource->device != 0 || !(resource->properties & OC_DISCOVERABLE))
+    if (!(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -226,7 +226,6 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 extern const oc_resource_t core_resource_knx_swu_protocol;
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_x_data;
 const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_swu_protocol,
-                                             0,
                                              {NULL, sizeof("/f/*"), "/f/*"},
                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                              {NULL, 0, NULL},
@@ -560,7 +559,6 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_data;
 const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_x,
-                                           0,
                                            {NULL, sizeof("/f"), "/f"},
                                            {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                            {NULL, 0, NULL},
