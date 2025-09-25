@@ -1242,7 +1242,7 @@ done:
 static int
 connectivity_ipv4_init(ip_context_t *dev)
 {
-  OC_DBG("Initializing IPv4 connectivity for device %zd", dev->device);
+  OC_DBG("Initializing IPv4 connectivity");
   memset(&dev->mcast4, 0, sizeof(dev->mcast4));
   memset(&dev->server4, 0, sizeof(dev->server4));
 
@@ -1354,8 +1354,7 @@ connectivity_ipv4_init(ip_context_t *dev)
   dev->dtls4_port = ntohs(sm->sin_port);
 #endif /* OC_SECURITY */
 
-  OC_DBG("Successfully initialized IPv4 connectivity for device %zd",
-         dev->device);
+  OC_DBG("Successfully initialized IPv4 connectivity");
 
   return 0;
 }
@@ -1513,7 +1512,6 @@ oc_connectivity_init(void)
 #else  /* OC_DYNAMIC_ALLOCATION */
   ip_context_t *dev = &device;
 #endif /* !OC_DYNAMIC_ALLOCATION */
-  dev->device = 0;
   OC_LIST_STRUCT_INIT(dev, eps);
   memset(&dev->mcast, 0, sizeof(dev->mcast));
   memset(&dev->server, 0, sizeof(dev->server));
@@ -1733,7 +1731,7 @@ oc_connectivity_shutdown()
   free(dev);
 #endif /* OC_DYNAMIC_ALLOCATION */
 
-  OC_DBG("oc_connectivity_shutdown for device");
+  OC_DBG("oc_connectivity_shutdown");
 }
 
 #ifdef OC_TCP

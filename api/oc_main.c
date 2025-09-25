@@ -253,7 +253,7 @@ oc_get_block_size(void)
 }
 #endif /* OC_DYNAMIC_ALLOCATION */
 
-static void oc_shutdown_all_devices(void)
+static void oc_shutdown_device(void)
 {
   oc_connectivity_shutdown();
   oc_network_event_handler_mutex_destroy();
@@ -288,7 +288,7 @@ int oc_main_init(const oc_handler_t* handler)
     OC_ERR("Error in SPAKE2+ initialization, spake data init failed");
 
     oc_ri_shutdown();
-    oc_shutdown_all_devices();
+    oc_shutdown_device();
     return -1;
   }
 
@@ -300,7 +300,7 @@ int oc_main_init(const oc_handler_t* handler)
     OC_ERR("Error in stack initialization, application init handler failed");
 
     oc_ri_shutdown();
-    oc_shutdown_all_devices();
+    oc_shutdown_device();
     return -1;
     
   }
@@ -318,7 +318,7 @@ int oc_main_init(const oc_handler_t* handler)
   if (ret < 0)
   {
     oc_ri_shutdown();
-    oc_shutdown_all_devices();
+    oc_shutdown_device();
     goto err;
   }
 #endif
@@ -368,8 +368,6 @@ oc_knx_load_fingerprint();
   oc_init_datapoints_at_initialization();
 #endif
 
-  // note - only advertising for the first device, if multiple devices per KNX instance are desired,
-  // the implementation of this service must change
   oc_device_info_t* device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
@@ -400,7 +398,7 @@ void oc_main_shutdown(void)
   oc_tls_shutdown();
   #endif 
 
-  oc_shutdown_all_devices();
+  oc_shutdown_device();
 
   #ifdef OC_DYNAMIC_ALLOCATION
   free(drop_commands);

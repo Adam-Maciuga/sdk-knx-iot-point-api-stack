@@ -119,8 +119,6 @@ extern "C"
      *  - oc_init_platform()
      *  - oc_set_device()
      *
-     * Multiple devices can be added by making multiple calls to oc_set_device().
-     *
      * Other actions may be taken in the init handler
      *  - Set up an interrupt handler oc_activate_interrupt_handler()
      *  - Initialize application specific variables

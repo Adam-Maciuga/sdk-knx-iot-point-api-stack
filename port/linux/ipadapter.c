@@ -1260,7 +1260,7 @@ handle_session_event_callback(const oc_endpoint_t *endpoint,
 static int
 connectivity_ipv4_init(ip_context_t *dev)
 {
-  OC_DBG("Initializing IPv4 connectivity for device %zd", dev->device);
+  OC_DBG("Initializing IPv4 connectivity");
   memset(&dev->mcast4, 0, sizeof(struct sockaddr_storage));
   memset(&dev->server4, 0, sizeof(struct sockaddr_storage));
 
@@ -1361,8 +1361,7 @@ connectivity_ipv4_init(ip_context_t *dev)
   dev->dtls4_port = ntohs(sm->sin_port);
 #endif /* OC_SECURITY */
 
-  OC_DBG("Successfully initialized IPv4 connectivity for device %zd",
-         dev->device);
+  OC_DBG("Successfully initialized IPv4 connectivity");
 
   return 0;
 }
@@ -1395,7 +1394,6 @@ oc_connectivity_init(void)
     oc_abort("Insufficient memory");
   }
   oc_list_add(ip_contexts, dev);
-  dev->device = 0;
   OC_LIST_STRUCT_INIT(dev, eps);
 
   if (pthread_mutex_init(&dev->rfds_mutex, NULL) != 0) {

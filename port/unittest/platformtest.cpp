@@ -27,7 +27,6 @@ extern "C" {
 #include "port/oc_connectivity.h"
 }
 
-static const size_t device = 0;
 static bool is_callback_received = false;
 
 class TestConnectivity : public testing::Test {

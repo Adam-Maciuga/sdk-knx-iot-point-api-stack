@@ -106,7 +106,6 @@ typedef struct ip_context_t
   HANDLE event_server_handle;
   DWORD event_thread;
   BOOL terminate;
-  size_t device;
 } ip_context_t;
 
 #ifdef __cplusplus

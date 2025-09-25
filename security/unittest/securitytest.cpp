@@ -57,7 +57,7 @@ protected:
   {
     oc_ri_shutdown();
     oc_tls_shutdown();
-    oc_connectivity_shutdown(0);
+    oc_connectivity_shutdown();
     oc_network_event_handler_mutex_destroy();
     oc_core_shutdown();
   }
