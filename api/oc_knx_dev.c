@@ -43,6 +43,8 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 
 
   oc_device_info_t* device = oc_core_get_device_info();
+
+  oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
     // Content-Format: "application/cbor"
@@ -1560,12 +1562,6 @@ bool oc_knx_device_in_programming_mode(void)
   return device->pm;
 }
 
-void oc_knx_device_set_programming_mode(bool programming_mode)
-{
-  oc_device_info_t* device = oc_core_get_device_info();
-  device->pm = programming_mode;
-}
-
 void oc_knx_device_restart()
 {
   PRINT("restart device");
@@ -1577,7 +1573,7 @@ void oc_knx_device_restart()
 
   */
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   device->pm = false;
 
   // delete PASE token
@@ -1592,35 +1588,4 @@ void oc_knx_device_restart()
   {
     my_restart->cb(0, my_restart->data);
   }
-}
-
-void oc_create_knx_device_resources(size_t device_index)
-{
-  OC_DBG("oc_create_knx_device_resources");
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX device resources created statically");
-    return;
-  }
-
-  oc_create_dev_sn_resource(OC_DEV_SN, device_index);
-  oc_create_dev_hwv_resource(OC_DEV_HWV, device_index);
-  oc_create_dev_fwv_resource(OC_DEV_FWV, device_index);
-  oc_create_dev_hwt_resource(OC_DEV_HWT, device_index);
-  oc_create_dev_model_resource(OC_DEV_MODEL, device_index);
-  oc_create_dev_hostname_resource(OC_DEV_HOSTNAME, device_index);
-  oc_create_dev_iid_resource(OC_DEV_IID, device_index);
-  oc_create_dev_pm_resource(OC_DEV_PM, device_index);
-  oc_create_dev_ipv6_resource(OC_DEV_IPV6, device_index);
-  oc_create_dev_sa_resource(OC_DEV_SA, device_index);
-  oc_create_dev_da_resource(OC_DEV_DA, device_index);
-  oc_create_dev_fid_resource(OC_DEV_FID, device_index);
-  oc_create_dev_port_resource(OC_DEV_PORT, device_index);
-  oc_create_dev_mport_resource(OC_DEV_MPORT, device_index);
-  oc_create_dev_mid_resource(OC_DEV_MID, device_index);
-  oc_create_ap_resource(OC_APP, device_index);
-  oc_create_ap_x_resource(OC_APP_X, device_index);
-  // should be last of the dev/xxx resources, it will list those.
-  oc_create_dev_dev_resource(OC_DEV, device_index);
 }
