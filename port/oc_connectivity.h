@@ -153,17 +153,15 @@ oc_message_t *oc_get_incoming_message_with_ptr(uint8_t *data);
 int oc_connectivity_set_port(uint16_t port);
 
 /**
- * @brief initialize the connectivity (e.g. open sockets) for the device
+ * @brief initialize the connectivity (e.g. open sockets)
  *
- * @param device the device index
  * @return int 0 = success
  */
-int oc_connectivity_init(size_t device);
+int oc_connectivity_init(void);
 
 /**
- * @brief shut down the connectivity for device at device index
+ * @brief shut down the connectivity
  *
- * @param device the device index
  */
 void oc_connectivity_shutdown();
 
@@ -204,7 +202,6 @@ void oc_dns_clear_cache(void);
 /**
  * @brief retrieve list of endpoints for the device
  *
- * @param device the device index
  * @return oc_endpoint_t* list of endpoints
  */
 oc_endpoint_t *oc_connectivity_get_endpoints();

@@ -67,9 +67,9 @@ int ifchange_sock;
 bool ifchange_initialized;
 
 OC_LIST(ip_contexts);
-OC_MEMB(ip_context_s, ip_context_t, OC_MAX_NUM_DEVICES);
+OC_MEMB(ip_context_s, ip_context_t, 1);
 
-OC_MEMB(device_eps, oc_endpoint_t, 8 * OC_MAX_NUM_DEVICES); // fix
+OC_MEMB(device_eps, oc_endpoint_t, 8); // simplified for single device
 
 #ifdef OC_NETWORK_MONITOR
 /**
@@ -846,12 +846,8 @@ network_event_thread(void *data)
 
   fd_set setfds;
   FD_ZERO(&dev->rfds);
-  /* Monitor network interface changes on the platform from only the 0th logical
-   * device
-   */
-  if (dev->device == 0) {
-    FD_SET(ifchange_sock, &dev->rfds);
-  }
+  /* Monitor network interface changes on the platform */
+  FD_SET(ifchange_sock, &dev->rfds);
   FD_SET(dev->shutdown_pipe[0], &dev->rfds);
 
   oc_udp_add_socks_to_fd_set(dev);
@@ -878,14 +874,12 @@ network_event_thread(void *data)
     }
 
     for (i = 0; i < n; i++) {
-      if (dev->device == 0) {
-        if (FD_ISSET(ifchange_sock, &setfds)) {
-          if (process_interface_change_event() < 0) {
-            OC_WRN("caught errors while handling a network interface change");
-          }
-          FD_CLR(ifchange_sock, &setfds);
-          continue;
+      if (FD_ISSET(ifchange_sock, &setfds)) {
+        if (process_interface_change_event() < 0) {
+          OC_WRN("caught errors while handling a network interface change");
         }
+        FD_CLR(ifchange_sock, &setfds);
+        continue;
       }
 
       oc_message_t *message = oc_allocate_message();
@@ -1392,16 +1386,16 @@ oc_connectivity_set_port(uint16_t port)
 }
 
 int
-oc_connectivity_init(size_t device)
+oc_connectivity_init(void)
 {
-  OC_DBG("Initializing connectivity for device %zd", device);
+  OC_DBG("Initializing connectivity");
 
   ip_context_t *dev = (ip_context_t *)oc_memb_alloc(&ip_context_s);
   if (!dev) {
     oc_abort("Insufficient memory");
   }
   oc_list_add(ip_contexts, dev);
-  dev->device = device;
+  dev->device = 0;
   OC_LIST_STRUCT_INIT(dev, eps);
 
   if (pthread_mutex_init(&dev->rfds_mutex, NULL) != 0) {
@@ -1604,7 +1598,7 @@ oc_connectivity_init(size_t device)
   }
 
   oc_add_network_interface_event_callback(register_multicasts);
-  OC_DBG("Successfully initialized connectivity for device %zd", device);
+  OC_DBG("Successfully initialized connectivity");
 
   return 0;
 }

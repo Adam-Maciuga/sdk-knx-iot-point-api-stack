@@ -246,9 +246,8 @@ extern "C" {
 	int oc_core_set_and_store_device_application_version(int major, int minor, int patch);
 
 	/**
-	 * @brief retrieve the device info from the device index
+	 * @brief retrieve the device info
 	 *
-	 * @param device the device index
 	 * @return oc_device_info_t* the device info
 	 */
 	oc_device_info_t* oc_core_get_device_info(void);

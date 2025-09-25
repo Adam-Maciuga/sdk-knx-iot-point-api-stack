@@ -591,7 +591,6 @@ extern "C"
    * @param[in] resource_path the Uniform Resource Identifier for the resource
    * @param[in] num_resource_types the number of Resource Types that will be
    *                               added/bound to the resource
-   * @param[in] device index of the logical device the resource will be added to
    *
    * @see oc_resource_bind_resource_interface
    * @see oc_resource_bind_resource_type

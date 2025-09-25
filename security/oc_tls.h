@@ -91,7 +91,7 @@ void oc_tls_select_psk_ciphersuite(void);
 void oc_tls_select_anon_ciphersuite(void);
 
 /* Internal interface for checking supported OTMs */
-bool oc_tls_is_cert_otm_supported(size_t device);
+bool oc_tls_is_cert_otm_supported(void);
 
 /* Internal interface for generating a random PIN */
 // void oc_tls_generate_random_pin(void);

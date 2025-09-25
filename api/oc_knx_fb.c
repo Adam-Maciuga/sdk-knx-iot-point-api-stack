@@ -101,8 +101,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -260,7 +259,6 @@ int oc_count_functional_blocks(void)
 
   if (g_nr_functional_blocks > 0)
   { // cached..., if calculated once, return value instead of compute it again
-    // TODO , works only for the same device-index since cache is only one time available for all devices
     return g_nr_functional_blocks;
   }
 
@@ -500,8 +498,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;

@@ -77,7 +77,7 @@ static LPFN_WSASENDMSG PWSASendMsg;
 #ifdef OC_DYNAMIC_ALLOCATION
 OC_LIST(ip_contexts);
 #else  /* OC_DYNAMIC_ALLOCATION */
-static ip_context_t devices[OC_MAX_NUM_DEVICES];
+static ip_context_t device;
 #endif /* !OC_DYNAMIC_ALLOCATION */
 
 OC_MEMB(device_eps, oc_endpoint_t, 1);
@@ -214,7 +214,7 @@ get_ip_context_for_device()
 #ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = oc_list_head(ip_contexts);
 #else  /* OC_DYNAMIC_ALLOCATION */
-  ip_context_t *dev = &devices[0];
+  ip_context_t *dev = &device;
 #endif /* !OC_DYNAMIC_ALLOCATION */
   return dev;
 }
@@ -722,11 +722,9 @@ network_event_thread(void *data)
   DWORD events_list_size = 0;
   WSAEVENT events_list[7];
   DWORD IFCHANGE = 0;
-  if (dev->device == 0) {
-    events_list[0] = ifchange_event.hEvent;
-    events_list_size++;
-    process_interface_change_event();
-  }
+  events_list[0] = ifchange_event.hEvent;
+  events_list_size++;
+  process_interface_change_event();
   DWORD MCAST6 = events_list_size;
   events_list[events_list_size] = mcast6_event;
   events_list_size++;
@@ -770,7 +768,7 @@ network_event_thread(void *data)
         if (WSAResetEvent(events_list[i]) == FALSE) {
           OC_WRN("WSAResetEvent returned error: %d", WSAGetLastError());
         }
-        if (dev->device == 0 && i == IFCHANGE) {
+        if (i == IFCHANGE) {
           process_interface_change_event();
           DWORD bytes_returned = 0;
           if (WSAIoctl(ifchange_sock, SIO_ADDRESS_LIST_CHANGE, NULL, 0, NULL, 0,
@@ -1498,14 +1496,14 @@ oc_connectivity_set_port(uint16_t port)
 }
 
 int
-oc_connectivity_init(size_t device)
+oc_connectivity_init(void)
 {
   if (!ifchange_initialized) {
     WSADATA wsadata;
     WSAStartup(MAKEWORD(2, 2), &wsadata);
   }
 
-  OC_DBG("Initializing connectivity for device %zd", device);
+  OC_DBG("Initializing connectivity");
 #ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = (ip_context_t *)calloc(1, sizeof(ip_context_t));
   if (!dev) {
@@ -1513,9 +1511,9 @@ oc_connectivity_init(size_t device)
   }
   oc_list_add(ip_contexts, dev);
 #else  /* OC_DYNAMIC_ALLOCATION */
-  ip_context_t *dev = &devices[device];
+  ip_context_t *dev = &device;
 #endif /* !OC_DYNAMIC_ALLOCATION */
-  dev->device = device;
+  dev->device = 0;
   OC_LIST_STRUCT_INIT(dev, eps);
   memset(&dev->mcast, 0, sizeof(dev->mcast));
   memset(&dev->server, 0, sizeof(dev->server));
@@ -1692,7 +1690,7 @@ oc_connectivity_init(size_t device)
     return -1;
   }
 
-  OC_DBG("Successfully initialized connectivity for device %zd", device);
+  OC_DBG("Successfully initialized connectivity");
 
   return 0;
 }

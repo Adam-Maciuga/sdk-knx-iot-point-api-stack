@@ -476,8 +476,6 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  // get from the request the addressed device as index
-
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (device == NULL)
@@ -508,8 +506,6 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
   {
     return;
   }
-
-  // get from the request the addressed device as index
 
   oc_device_info_t* device = oc_core_get_device_info();
 

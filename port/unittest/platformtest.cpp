@@ -36,21 +36,21 @@ protected:
   {
     is_callback_received = false;
     oc_network_event_handler_mutex_init();
-    oc_connectivity_init(device);
+    oc_connectivity_init();
   }
 
   virtual void TearDown()
   {
-    oc_connectivity_shutdown(device);
+    oc_connectivity_shutdown();
     oc_network_event_handler_mutex_destroy();
   }
 };
 
 TEST(TestConnectivity_init, oc_connectivity_init)
 {
-  int ret = oc_connectivity_init(device);
+  int ret = oc_connectivity_init();
   EXPECT_EQ(0, ret);
-  oc_connectivity_shutdown(device);
+  oc_connectivity_shutdown();
 }
 
 TEST_F(TestConnectivity, oc_connectivity_get_endpoints)
