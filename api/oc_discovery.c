@@ -727,7 +727,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 * 
 */
 
-oc_resource_dummy_t core_resource_well_known_core_final = { NULL, -1 };					 		// next resource (here NULL)
+oc_resource_dummy_t core_resource_well_known_core_final = { NULL};					 		// next resource (here NULL)
 PRAGMA_IN																																										 		// compiler specific
 oc_resource_data_t core_resource_well_known_core_data;																			 		// at runtime modifiable (RAM) data for th endpoint
 const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition 

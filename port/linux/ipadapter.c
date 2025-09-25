@@ -894,8 +894,6 @@ network_event_thread(void *data)
         break;
       }
 
-      message->endpoint.device = dev->device;
-
       if (oc_udp_receive_message(dev, &setfds, message) ==
           ADAPTER_STATUS_RECEIVE) {
         goto common;

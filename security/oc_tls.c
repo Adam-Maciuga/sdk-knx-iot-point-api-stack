@@ -997,7 +997,7 @@ verify_certificate(void *opq, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
      * after validating the end-entity certificate to authorize the
      * the peer per the Specification. */
     oc_x509_crt_t *id_cert = get_identity_cert_for_session(&peer->ssl_conf);
-    oc_sec_pstat_t *ps = oc_sec_get_pstat(peer->endpoint.device);
+    oc_sec_pstat_t *ps = oc_sec_get_pstat(0);
     if (oc_certs_validate_non_end_entity_cert(crt, true, ps->s == OC_DOS_RFOTM,
                                               depth) < 0) {
       if (oc_certs_validate_non_end_entity_cert(
@@ -1185,14 +1185,12 @@ oc_tls_populate_ssl_config(mbedtls_ssl_config *conf, size_t device, int role,
 }
 
 int
-oc_tls_num_peers(size_t device)
+oc_tls_num_peers(void)
 {
   int num_peers = 0;
   oc_tls_peer_t *peer = (oc_tls_peer_t *)oc_list_head(tls_peers);
   while (peer) {
-    if (peer->endpoint.device == device) {
-      ++num_peers;
-    }
+    ++num_peers;
     peer = peer->next;
   }
   return num_peers;

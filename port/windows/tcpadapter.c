@@ -752,13 +752,11 @@ fill_sockets_handlers(ip_context_t *dev, sockets_handler_t *s)
   oc_tcp_adapter_mutex_lock();
   tcp_session_t *session = (tcp_session_t *)oc_list_head(session_list);
   while (session != NULL && n < MAXIMUM_WAIT_OBJECTS) {
-    if (session->endpoint.device == dev->device) {
-      s->handlers[n] = session->sock_event;
-      s->cbks[n] = recv_message;
-      s->ctxs[n] = session;
-      s->sockets[n] = session->sock;
-      n++;
-    }
+    s->handlers[n] = session->sock_event;
+    s->cbks[n] = recv_message;
+    s->ctxs[n] = session;
+    s->sockets[n] = session->sock;
+    n++;
     session = session->next;
   }
   oc_tcp_adapter_mutex_unlock();
