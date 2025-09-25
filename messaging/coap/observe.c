@@ -332,7 +332,7 @@ coap_notify_observers(const oc_resource_t *resource,
   }
 
 #ifdef OC_SECURITY
-  oc_sec_pstat_t *ps = oc_sec_get_pstat(resource->device);
+  oc_sec_pstat_t *ps = oc_sec_get_pstat(0);
   if (ps->s != OC_DOS_RFNOP) {
     OC_WRN("coap_notify_observers: device not in RFNOP; skipping notification");
     return 0;

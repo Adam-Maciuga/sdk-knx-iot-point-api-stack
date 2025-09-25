@@ -225,9 +225,6 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 
 		if (resource && data)
 		{
-			// device
-			resource->device = 0;
-
 			// uri (href), note that this assigns - with oc_string_t type - an already - by application - allocated resource
 			oc_check_uri(resource_path);                        
 			resource->uri.next = NULL;

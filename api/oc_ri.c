@@ -717,7 +717,7 @@ bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
 	if (!_resource)
 		return false;
 	const oc_resource_t* dummy_resource = _resource;
-	while (dummy_resource && dummy_resource->device != -1)
+	while (dummy_resource && dummy_resource->next != NULL)
 	{
 		dummy_resource = dummy_resource->next;
 	}
@@ -862,9 +862,9 @@ const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource)
 	do
 	{
 		resource = resource->next;
-		// device = -1 means dummy resource (MUST BE IN RAM)
+		// next = NULL means dummy resource (MUST BE IN RAM)
 	}
-	while (resource && resource->device == -1);
+	while (resource && resource->next == NULL);
 	return resource;
 }
 
