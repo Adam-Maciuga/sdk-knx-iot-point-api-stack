@@ -297,7 +297,7 @@ int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resourc
 
   if (!oc_is_device_in_runtime())
   {
-    PRINT("device '0' is not running, load state is: %d", device->lsm_s);
+    PRINT("device is not running, load state is: %d", device->lsm_s);
     return -1;
   }
 
