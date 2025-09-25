@@ -280,7 +280,7 @@ coap_remove_observer_by_resource(const oc_resource_t *rsc)
 
 #ifdef OC_SECURITY
 int
-coap_remove_observers_on_dos_change(size_t device, bool reset)
+coap_remove_observers_on_dos_change(bool reset)
 {
   /* iterate over observers */
   coap_observer_t *obs = (coap_observer_t *)oc_list_head(observers_list);

@@ -45,9 +45,8 @@ extern "C" {
  *  - fid (fabric id)
  *  - ap (application version)
  *  - lsm (load state)
-
-@param device index of the device to which the data is to be read
-*/
+ *
+ */
 void oc_knx_load_device();
 
 /**

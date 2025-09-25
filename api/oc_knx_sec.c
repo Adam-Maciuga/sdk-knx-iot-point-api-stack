@@ -234,8 +234,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0;   // how many (to this device applicable) query parameter key/value pair
-                                            // matches where found
+  int query_parameter_kvpair_matches = 0;   // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -518,8 +517,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair
-                                          // matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -1223,8 +1221,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair
-                                          // matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;

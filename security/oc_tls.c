@@ -83,18 +83,16 @@ oc_auto_assert_roles(bool auto_assert)
 typedef struct oc_x509_cacrt_t
 {
   struct oc_x509_cacrt_t *next;
-  size_t device;
   oc_sec_cred_t *cred;
   mbedtls_x509_crt *cert;
 } oc_x509_cacrt_t;
 
-OC_MEMB(ca_certs_s, oc_x509_cacrt_t, OC_MAX_NUM_DEVICES);
+OC_MEMB(ca_certs_s, oc_x509_cacrt_t, 1);
 OC_LIST(ca_certs);
 
 typedef struct oc_x509_crt_t
 {
   struct oc_x509_crt_t *next;
-  size_t device;
   oc_sec_cred_t *cred;
   mbedtls_x509_crt cert;
   mbedtls_pk_context pk;
@@ -102,7 +100,7 @@ typedef struct oc_x509_crt_t
 } oc_x509_crt_t;
 
 #include "oc_certs.h"
-OC_MEMB(identity_certs_s, oc_x509_crt_t, 2 * OC_MAX_NUM_DEVICES);
+OC_MEMB(identity_certs_s, oc_x509_crt_t, 2);
 OC_LIST(identity_certs);
 
 mbedtls_x509_crt trust_anchors;
@@ -339,12 +337,11 @@ oc_tls_remove_peer(oc_endpoint_t *endpoint)
 
 #ifdef OC_PKI
 bool
-oc_tls_is_cert_otm_supported(size_t device)
+oc_tls_is_cert_otm_supported(void)
 {
   oc_x509_crt_t *crt = (oc_x509_crt_t *)oc_list_head(identity_certs);
   while (crt) {
-    if (crt->device == device &&
-        crt->cred->credusage == OC_CREDUSAGE_MFG_CERT) {
+    if (crt->cred->credusage == OC_CREDUSAGE_MFG_CERT) {
       return true;
     }
     crt = crt->next;
@@ -666,7 +663,6 @@ add_new_identity_cert(oc_sec_cred_t *cred, size_t device)
     return;
   }
 
-  cert->device = device;
   cert->cred = cred;
 
   mbedtls_x509_crt_init(&cert->cert);
@@ -764,7 +760,7 @@ oc_tls_configure_end_entity_cert_chain(mbedtls_ssl_config *conf, size_t device,
   oc_x509_crt_t *cert = (oc_x509_crt_t *)oc_list_head(identity_certs);
 
   while (cert != NULL) {
-    if (cert->device == device && cert->cred->credusage == credusage &&
+    if (cert->cred->credusage == credusage &&
         (credid == -1 || cert->cred->credid == credid)) {
       break;
     }
@@ -828,7 +824,6 @@ add_new_trust_anchor(oc_sec_cred_t *cred, size_t device)
     return;
   }
 
-  cert->device = device;
   cert->cred = cred;
   mbedtls_x509_crt *c = &trust_anchors;
   while (c->next) {
@@ -893,7 +888,7 @@ oc_tls_set_ciphersuites(mbedtls_ssl_config *conf, oc_endpoint_t *endpoint)
 #ifdef OC_CLIENT
   bool loaded_chain = false;
 #endif /* OC_CLIENT */
-  size_t device = endpoint->device;
+  size_t device = 0;
   oc_sec_doxm_t *doxm = oc_sec_get_doxm(device);
   /* Decide between configuring the identity cert chain vs manufacturer cert
    * chain for this device based on device ownership status.
@@ -1013,8 +1008,7 @@ verify_certificate(void *opq, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
       if (id_cert && id_cert->cred->credusage == OC_CREDUSAGE_IDENTITY_CERT) {
         oc_x509_cacrt_t *ca_cert = (oc_x509_cacrt_t *)oc_list_head(ca_certs);
         while (ca_cert) {
-          if (ca_cert->device == id_cert->device &&
-              ca_cert->cred->credusage == OC_CREDUSAGE_TRUSTCA &&
+          if (ca_cert->cred->credusage == OC_CREDUSAGE_TRUSTCA &&
               crt->raw.len == ca_cert->cert->raw.len &&
               memcmp(crt->raw.p, ca_cert->cert->raw.p, crt->raw.len) == 0) {
             id_cert->ctx = ca_cert;
@@ -1072,8 +1066,7 @@ verify_certificate(void *opq, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
       OC_DBG(
         "looking for a matching trustca entry currently tracked by oc_tls");
       oc_x509_cacrt_t *ca_cert = (oc_x509_cacrt_t *)oc_list_head(ca_certs);
-      for (; ca_cert != NULL && ca_cert->device == id_cert->device &&
-             ca_cert->cred->credusage == OC_CREDUSAGE_TRUSTCA;
+      for (; ca_cert != NULL && ca_cert->cred->credusage == OC_CREDUSAGE_TRUSTCA;
            ca_cert = ca_cert->next) {
         if (root_crt->raw.len == ca_cert->cert->raw.len &&
             memcmp(root_crt->raw.p, ca_cert->cert->raw.p, root_crt->raw.len) ==
@@ -1122,7 +1115,7 @@ verify_certificate(void *opq, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
 #endif /* OC_PKIx */
 
 static int
-oc_tls_populate_ssl_config(mbedtls_ssl_config *conf, size_t device, int role,
+oc_tls_populate_ssl_config(mbedtls_ssl_config *conf, int role,
                            int transport_type)
 {
   mbedtls_ssl_config_init(conf);
@@ -1236,7 +1229,7 @@ oc_tls_add_peer(oc_endpoint_t *endpoint, int role)
                              ? MBEDTLS_SSL_TRANSPORT_STREAM
                              : MBEDTLS_SSL_TRANSPORT_DATAGRAM;
 
-      if (oc_tls_populate_ssl_config(&peer->ssl_conf, endpoint->device, role,
+      if (oc_tls_populate_ssl_config(&peer->ssl_conf, role,
                                      transport_type) < 0) {
         OC_ERR("oc_tls: error in tls_populate_ssl_config");
         oc_tls_free_peer(peer, false);

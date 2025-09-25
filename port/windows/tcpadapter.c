@@ -1046,8 +1046,7 @@ oc_tcp_connectivity_shutdown(ip_context_t *dev)
   tcp_session_t *session = (tcp_session_t *)oc_list_head(session_list), *next;
   while (session != NULL) {
     next = session->next;
-    if (session->dev->device == dev->device) {
-      oc_endpoint_t endpoint;
+    oc_endpoint_t endpoint;
       SOCKET sock;
       HANDLE sock_event;
       free_tcp_session_locked(session, &endpoint, &sock, &sock_event);
@@ -1057,7 +1056,6 @@ oc_tcp_connectivity_shutdown(ip_context_t *dev)
         oc_session_end_event(&endpoint);
       }
       OC_DBG("freed TCP session");
-    }
     session = next;
   }
   oc_tcp_adapter_mutex_unlock();

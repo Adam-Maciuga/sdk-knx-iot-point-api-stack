@@ -237,7 +237,6 @@ extern "C" {
 	 * optional:
 	 * - a/sen
 	 *
-	 * @param device index of the device to which the resources are to be created
 	 */
 	void oc_create_knx_sec_resources(void);
 

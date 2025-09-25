@@ -577,7 +577,7 @@ extern "C" {
 	bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
 
 	/**
-	 * @brief retrieve the application resource that fits to the given uri (and device index)
+	 * @brief retrieve the application resource that fits to the given uri
 	 *
 	 * @param resource_path the resource path
 	 * @param resource_path_len the length of the resource path

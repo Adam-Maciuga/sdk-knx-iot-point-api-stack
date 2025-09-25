@@ -39,9 +39,9 @@ static oc_resource_t* core_resources = NULL;
 // dynamic list of device resources, TODO it will be only one ... 
 static oc_device_info_t* oc_device_info = NULL;
 #else  
- // TODO fix this for static allocation, this is not used at the moment..
-static oc_resource_t core_resources[1 + OCF_D * (OC_MAX_NUM_DEVICES - 1)];
-static oc_device_info_t oc_device_info[OC_MAX_NUM_DEVICES];
+ // Single device static allocation
+static oc_resource_t core_resources[1];
+static oc_device_info_t oc_device_info;
 #endif 
 
 static oc_platform_info_t oc_platform_info; // platform provider     
@@ -246,7 +246,7 @@ oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char
 
 	oc_device_info->data = data;
 
-	if (oc_connectivity_init(0) < 0)
+	if (oc_connectivity_init() < 0)
 	{
 		oc_abort("error initializing connectivity for device");
 	}

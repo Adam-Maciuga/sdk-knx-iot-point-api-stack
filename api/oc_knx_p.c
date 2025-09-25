@@ -86,7 +86,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   my_p = oc_ri_get_app_resources();
   for (int i = 0; i < first_entry; i++)
   {
-    my_p = my_p->next; // TODO check why correct device is not considered here (fails if > 0 device)
+    my_p = my_p->next;
   }
 
   // entries don't fit in a single page -> more pages are needed to get the full list
@@ -127,9 +127,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   {
     return;
   }
-
-  // get from the request the addressed device as index
-
 
   // check first if the url is implemented on the device (performance)
   oc_rep_t* rep = request->request_payload;

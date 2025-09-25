@@ -307,7 +307,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  // how many (to this device applicable) query parameter key/value pair matches where found
+  // query parameter key/value pair matches found
   int query_parameter_kvpair_matches = 0; 
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
@@ -874,8 +874,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -1419,8 +1418,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
