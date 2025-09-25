@@ -865,7 +865,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // will be found only in case of a response 
   if (entry)
   {
-    // TODO do we need also ID Context ?
+    // TODO do we need also ID Context here --> if we have same kid from several
+    // sender (context) then we pick the first hit 
     OC_DBG_OSCORE("### Found auth at entry, getting context ###");
     oscore_ctx = oc_oscore_find_context_by_kid(NULL, 
                                                msg->endpoint.device,
@@ -945,7 +946,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     goto oscore_send_error;
   }
 
+  // is an (unicast) echo challenge for a mc s-mode request  
   bool s_mode_echo = false;
+
+
+  // TODO check on mc/uc directly and then decide 
 
   // Allocate a temp S-Mode Echo Challenge Responder Context
   if (coap_pkt->code > OC_FETCH // Response
@@ -1091,10 +1096,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         increment_ssn_in_context(oscore_ctx);
 
       // RFC 8613, 8.3 or KNX IoT 3.6.5 (# 2870)
-      // TODO empty ack is not encrypted
+      // TODO an empty ack (4 byte) is not and cannot be encrypted
       // sep response goes to lower path (check implications)
       // echo challenge needs to be in upper path (see 3.6.5 point api ) otherwise it may cause nonce reuse
-      if (is_empty_ack || is_separate_response || s_mode_echo)
+      if (is_empty_ack || is_separate_response || s_mode_echo )
       {
         // RFC 8613, 8.3, point 3 lower * 
         // ack and separate responses use a new PIV 
@@ -1262,6 +1267,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         oc_oscore_free_context(oscore_ctx);
       }
 
+      // TODO here also the  uc echo response must end up 
       coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, kid_context, kid_context_len);
     }
     else

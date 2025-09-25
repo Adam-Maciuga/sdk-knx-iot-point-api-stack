@@ -659,7 +659,7 @@ int coap_receive(oc_message_t* incoming_message)
 				oc_string_t kid_ctx = { 0 }; // init default kid_context
 				uint64_t ssn;                // local ssn (PIV)
 
-				// fill kid/kid context/ssn -> kid : multicast = GA / unicast = SN in case of MaC ETS
+				// fill kid/kid context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
 				oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
         oc_new_byte_string(&kid_ctx, (char*)incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
 				oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
@@ -676,7 +676,7 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					if (sync_state != SYNCED)
 					{
-						// external client is not synchronised, can be 
+						// external client is not synchronised, can be:
 						// a: a regular (first) request message from an external client
 						// b: an echo 're-request' unicast message from the external client (after sending an own echo response, = a)
 
@@ -709,7 +709,9 @@ int coap_receive(oc_message_t* incoming_message)
 
 							if (sync_state == REPLAY)
 							{
-								// send unicast EMPTY echo response (use type from request) --> may be suppressed if it is a multicast 
+								// send unicast EMPTY echo response (use type from request)
+								// -> may be suppressed if it is a multicast
+								// -> 4.0.1 -> with response sender context 
 								coap_send_empty_response(incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
 																				 incoming_coap_message->mid, incoming_coap_message->token, incoming_coap_message->token_len,
 																				 UNAUTHORIZED_4_01, &incoming_message->endpoint);

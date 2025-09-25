@@ -30,6 +30,7 @@
 #define AT_STORE "at_store"
 #define AT_SIZE (sizeof(AT_STORE) + 6)              // support of '_99999' at FILE entries
 
+// RAM variables
 uint32_t g_oscore_replay_window_size = 32;          // default (32) according to RFC OSCORE --> able to be modified by PUT
 uint32_t g_oscore_osn_delay_ms = 1000;              // default (1000 ms) defined by iot specification --> able to modify by PUT
 static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // static init with '0', included strings next/ptr/size are '0' are not valid

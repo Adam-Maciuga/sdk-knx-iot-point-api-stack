@@ -1554,6 +1554,10 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_delete_group_tables();
     oc_delete_at_table();
 
+    // reset security related variables to default values, may be overwritten
+    g_oscore_replay_window_size = 32;
+    g_oscore_osn_delay_ms = 1000;
+
     /*
        writing all above reset values to storage (LSM already written)
        - note that the used uc port will be advertised with each mDNS such as on every startup, so no need to store
@@ -1581,6 +1585,10 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_delete_group_tables();
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
+
+    // reset security related variables to default values, may be overwritten
+    g_oscore_replay_window_size = 32;
+    g_oscore_osn_delay_ms = 1000;
 
     // writing all above reset values to storage (LSM already written)
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
