@@ -177,7 +177,7 @@ int oc_core_set_device_hostname(const char* host_name)
 
 uint64_t oc_core_get_device_iid()
 {
-	return oc_device_info[0].iid;
+	return oc_device_info->iid;
 }
 
 int oc_core_set_and_store_device_iid(uint64_t iid)
