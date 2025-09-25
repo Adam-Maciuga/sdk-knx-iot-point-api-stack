@@ -268,13 +268,15 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
           oc_message_t* original_message = oc_replay_find_msg_by_token(oscore_pkt->token, oscore_pkt->token_len);
 
-          // ignore an echo challenge from outside if not from me send beforehand, was mine but already released (timeout)
+          // ignore an echo challenge from outside if
+          // - not from me send beforehand (within timeout),
+          // - was mine but already released (outside of timeout)
           if (!original_message)
           {
             goto oscore_recv_error;
           }
 
-          // find auth/at entry with corresponding kid, RFC 9203 osc:id as part of access token (SENDER ID)
+          // find auth/at entry with corresponding 'kid' from message, as osc:id part of access token
           int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
           if (idx == -1)
           {

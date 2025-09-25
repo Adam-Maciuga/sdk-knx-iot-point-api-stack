@@ -25,9 +25,9 @@ extern "C" {
 
 typedef enum replay_state
 {
-  SYNCED = 0,   // replay window present Y   -> pass msg to AL
-  REPLAY = 1,   // replay window present Y   -> 4.01 
-  ECHO   = 2,   // replay window present Y+N -> 4.01 + ECHO 
+  SYNCED = 0,   // -> pass msg to AL (out of right window bound or in window, not received) 
+  REPLAY = 1,   // -> 4.01 (in window, already received)
+  ECHO   = 2,   // -> 4.01 + ECHO (out of left window bound)
 } replay_state_t;
 
 

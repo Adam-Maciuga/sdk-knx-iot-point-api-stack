@@ -133,26 +133,32 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	position of bits indicate the SSN being considered, and the value
 	of the bit indicates whether the packet has been received before
 
-	The entire bitfield is left shifted whenever the recorded SSN increases,
-	thus 'sliding' the window in a very efficient manner. Here's an example
-	of the algorithm in operation, with a REDUCED bitfield for readability:
+	The entire bitfield is LEFT shifted whenever the recorded SSN increases,
+	thus 'sliding' the (left) window in a very efficient manner. Here's an example
+	of the algorithm in operation, with a REDUCED 8-bit bitfield for readability:
 
-	max ssn = 8, bitfield = 0b0100'0001
-	rx 6, bit 8 - 6 = 2, bit is not set -> delayed msg: accept msg & set bit 2
+	                                   1234 5678
+	max received ssn = 8, bitfield = 0b0000'0001
+	rcv ssn 6, 8 - 6 = bit 2, inside window + free -> accept delayed msg, set bit 2 
+	:
+  max received ssn = 8, bitfield = 0b0000'0101
+  rcv ssn 0, 8 - 0 = bit 8, left side window -> send echo for unknown msg 
 	:
 	:
-	max ssn = 8, bitfield = 0b0100'0101
-	rx 2, bit 8 - 2 = 6, bit is set -> replayed msg: ssn 6 received again, throw msg
-	rx 8, bit 8 - 8 = 0, bit is set -> replayed msg: ssn 8 received again, throw msg
+	max received ssn = 8, bitfield = 0b0000'0101
+  rcv ssn 8, 8 - 8 = bit 0, inside window + blocked -> throw replayed msg with ssn 8
 	:
 	:
-	rx 9, bit 8 - 9 = -1, fresh msg: change ssn, left shift bitfield by 1, set bit 0
-	max ssn = 9, bitfield = 0b1000'1011
+	max received ssn = 8, bitfield = 0b0000'0101
+	rcv ssn 9, 8 - 9 = bit -1, right side window -> accept fresh msg, update ssn, 1 x l-shift bitfield, set bit 0
 	:
+	:                                  2345 6789
+	max received ssn = 9, bitfield = 0b0000'1011
+	rcv ssn 99, 9 - 99 = bit -90, right side window -> accept fresh msg, update ssn, 90 x l-shift bitfield, set bit 0
 	:
-	rx 99, bit 9 - 99 = bit -90, fresh msg: change ssn, left shift bitfield by 90, set bit 0
-	max ssn = 99, bitfield = 0b0000'0001
-
+	:                                           99
+	max received ssn = 99, bitfield = 0b0000'0001
+	:
 	*/
 
 	struct oc_replay_record* rec = get_record(rx_kid, rx_kid_ctx);
@@ -169,7 +175,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	// should be kept around - update the time (to prevent a release from heap)  
 	rec->time = oc_clock_time();
 
-	// rx_ssn = 32 bit, hence unproblematic
+	// rx_ssn (ssn from received message) = max value used is 32 bit, hence unproblematic
   const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn); 
 
 	PRINT("new ssn = %llu", rx_ssn);                // %llu = 64 bit ulong
@@ -178,19 +184,22 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	PRINT("wnd old : %llu", rec->window);           // %llu = 64 bit ulong bit field 
 	PRINT("ssn_diff = %lli", ssn_diff);             // 64 bit int
 
-	// new SSN <= max value of received SSN -> either new SSN is within window or out of left bound  
 	if (ssn_diff >= 0)
 	{
-		PRINT("ssn_diff = %lli >= 0", ssn_diff);
+    // received SSN <= max value of received SSN , either received SSN is
+    // - in window 
+    // - out of left bound
+	  PRINT("ssn_diff = %lli >= 0", ssn_diff);
 
-		// diff >= size (32) -> out of left bound (max ssn = size (32), rx = 0 -> SSN of 1...size (32) can be windowed) 
+		// diff >= window size -> out of left window bound
+		// example: diff from 0...31 = is in 32 bit window ; diff >= 32 is on left side window  
 		if (ssn_diff >= g_oscore_replay_window_size)
 		{
 			PRINT("out of window left bound");
 			return ECHO; // not known if it was (ever) received before  
 		}
 
-		// diff < size (32) -> within the window (max ssn = size (32), rx = 1 -> SSN 1...size -1 (31) can be windowed)
+		// diff < size -> inside window
 		// see if it has been received before, so this can be a replay
 		if (rec->window & 1 << ssn_diff)
 		{
@@ -199,28 +208,31 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 		}
 
 		// SSN not received before, tick that this SSN is now occupied
-		// DO NOT remember SSN, it is not the highest one
+		// DO NOT remember SSN, it was not the max value of received SSN's
 		rec->window |= 1 << ssn_diff;
 
 		PRINT("within window, new msg");
 		return SYNCED;
 	}
 
-	// new SSN > old SSN -> fresh message, slide the window and accept the packet
+	// received SSN > max value of received SSN -> fresh message, slide the window and accept the packet
 	// note that shifting by an amount larger than the size of the type
 	// is undefined behaviour, so we must zero the window manually here
-
+	
+	
 	if (-ssn_diff >= g_oscore_replay_window_size)
-		rec->window = 0;            // 00000000'..'..'00000001' << size (32)    = 00000000'..'..'00000000'
+    // 1 << 32++ = undefined for a 32 -bit value
+		rec->window = 0;            
 	else
-		rec->window <<= -ssn_diff;  // 00000000'..'..'00000001' << size -1 (31) = 10000000'..'..'00000000'
+    // 1 << 31 = ok for a 32-bit value = 10000000'..'..'00000000'
+		rec->window <<= -ssn_diff;  
 
 	// set bit 0, indicating ssn 'rec->rx_ssn' has been received
-	// DO remember SSN, it is now the highest one
+	// DO remember SSN, it is now the max value of received SSN's
 	rec->window |= 1;
 	rec->rx_ssn = rx_ssn;
 
-	PRINT("out of window right bound");
+	PRINT("out of window right bound, new msg");
 	return SYNCED;
 }
 

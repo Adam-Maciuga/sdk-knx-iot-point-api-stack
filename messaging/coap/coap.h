@@ -183,11 +183,11 @@ extern "C" {
 		uint8_t piv_len;
 		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN];
 		uint8_t kid_ctx_len;
-		uint8_t kid[OSCORE_SENDER_ID_LEN];
+		uint8_t kid[OSCORE_SENDER_ID_LEN]; // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
 		uint8_t kid_len;
 		#endif 
 
-		uint8_t echo[COAP_ECHO_LEN];
+		uint8_t echo[COAP_ECHO_LEN]; // echo challenge random data (in stack time is used)
 		size_t echo_len;
 
 		uint32_t payload_len;

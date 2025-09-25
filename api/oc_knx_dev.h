@@ -120,7 +120,7 @@ void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mo
  * - calls application restart callback handler
  *
  */
-void oc_knx_device_restart();
+void oc_knx_device_restart(void);
 
 
 #ifdef __cplusplus

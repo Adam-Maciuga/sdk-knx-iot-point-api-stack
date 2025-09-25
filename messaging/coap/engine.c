@@ -290,9 +290,8 @@ int coap_receive(oc_message_t* incoming_message)
 
 	if (coap_status_code == COAP_NO_ERROR)
 	{
-		/* here it can be a req or response
-
-		echo should be defined for:
+		/*
+		Here it can be a request or response. An echo should be defined for:
 		- 1 NON multicast (track buffer)   
 		- 2 CON unicast s-mode (transaction buffer)
     - 3 NON unicast s-mode (track buffer)    
@@ -364,8 +363,9 @@ int coap_receive(oc_message_t* incoming_message)
 		  transaction = coap_get_transaction_by_mid(incoming_coap_message->mid);
 
 			// assume inbound request of a former outbound request, check by INBOUND token ...
-			// - response from extern to match with beforehand send out request
-			// - token matches in piggybacked and separate responses 
+			//- messages with token
+			// - response from extern, check match with beforehand send out request
+			//   (token matches in piggybacked and separate responses) 
 		  if (!transaction)
 				transaction =	coap_get_transaction_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
 
@@ -547,8 +547,11 @@ int coap_receive(oc_message_t* incoming_message)
 					return 0;
 				}
 
-		    // clear message after a received 'coap_no_error' confirmation for NON message type (we are in coap receive + present track message),
+		    /*
+		      clear message after a received 'coap_no_error' confirmation for NON message type
+		      (we are in coap receive + present track message),
 		    // except on an inbound 4.01 + echo
+        */
         oc_replay_message_untrack(original_message);
 			}
 		}
@@ -652,20 +655,22 @@ int coap_receive(oc_message_t* incoming_message)
 			if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
 			{
 
-				oc_string_t kid = { 0 };            // init default kid (multicast: GA / unicast: SN in case of MaC ETS)
-				oc_string_t kid_ctx = { 0 };        // init default kid_context
-				uint64_t ssn;                       // local ssn (PIV)
+				oc_string_t kid = { 0 };     // init default kid 
+				oc_string_t kid_ctx = { 0 }; // init default kid_context
+				uint64_t ssn;                // local ssn (PIV)
 
-				// fill kid/kid context/ssn 
+				// fill kid/kid context/ssn -> kid : multicast = GA / unicast = SN in case of MaC ETS
 				oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
         oc_new_byte_string(&kid_ctx, (char*)incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
 				oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
 
 				replay_state_t sync_state = oc_replay_check_client(ssn, kid, kid_ctx);
 
-				// Server-side logic for sending responses with an echo option,
-				// and checking whether the echo option included in a retransmitted
-				// request is fresh enough.
+				/*
+				   Server-side logic for:
+				   - sending 'echo response' with an echo option,
+				   - checking whether the echo option included in an 'echo re-request' is fresh enough
+				*/
 
 				if (!is_myself) // message is not an own loopback response 
 				{
@@ -673,7 +678,7 @@ int coap_receive(oc_message_t* incoming_message)
 					{
 						// external client is not synchronised, can be 
 						// a: a regular (first) request message from an external client
-						// b: an echo re-request unicast message from the external client (after sending an own echo response, = a)
+						// b: an echo 're-request' unicast message from the external client (after sending an own echo response, = a)
 
 						uint8_t echo_value[COAP_ECHO_LEN];
 						size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
@@ -704,8 +709,6 @@ int coap_receive(oc_message_t* incoming_message)
 
 							if (sync_state == REPLAY)
 							{
-								OC_DBG("Request from unsycned client, sending 4.01 ACK");
-
 								// send unicast EMPTY echo response (use type from request) --> may be suppressed if it is a multicast 
 								coap_send_empty_response(incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
 																				 incoming_coap_message->mid, incoming_coap_message->token, incoming_coap_message->token_len,
@@ -714,7 +717,7 @@ int coap_receive(oc_message_t* incoming_message)
 								// can handle NULL pointer ...
 								coap_clear_transaction(transaction);
 
-								OC_ERR("CoAP send 4.01 ACK");
+								OC_ERR("Request from unsycned client, send 4.01 Unauthorized");
 								return UNAUTHORIZED_4_01;
 							}
 						}
