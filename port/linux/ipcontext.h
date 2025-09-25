@@ -96,7 +96,6 @@ typedef struct ip_context_t
 #endif
   pthread_t event_thread;
   int terminate;
-  size_t device;
   pthread_mutex_t rfds_mutex;
   fd_set rfds;
   int shutdown_pipe[2];

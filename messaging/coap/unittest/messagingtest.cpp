@@ -27,7 +27,6 @@
 
 #ifdef OC_TCP
 
-static const size_t device = 0;
 static oc_endpoint_t *target_ep;
 
 static void

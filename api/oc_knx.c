@@ -1785,8 +1785,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_spake_calc_K_shared(spake_data.K_main, shared_key);
 
     // set the /auth/at entry with the calculated shared key
-    // knx does not have multiple devices per instance (for now), so hardcode the use of the first device
-
     // update pase token in AT table
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
 

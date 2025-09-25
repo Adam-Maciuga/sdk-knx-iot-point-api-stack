@@ -657,7 +657,7 @@ oc_tcp_send_buffer_done:
 static int
 tcp_connectivity_ipv4_init(ip_context_t *dev)
 {
-  OC_DBG("Initializing TCP adapter IPv4 for device %zd", dev->device);
+  OC_DBG("Initializing TCP adapter IPv4");
 
   memset(&dev->tcp.server4, 0, sizeof(struct sockaddr_storage));
   struct sockaddr_in *l = (struct sockaddr_in *)&dev->tcp.server4;
@@ -713,8 +713,7 @@ tcp_connectivity_ipv4_init(ip_context_t *dev)
     ntohs(((struct sockaddr_in *)&dev->tcp.secure4)->sin_port);
 #endif /* OC_SECURITY */
 
-  OC_DBG("Successfully initialized TCP adapter IPv4 for device %zd",
-         dev->device);
+  OC_DBG("Successfully initialized TCP adapter IPv4");
 
   return 0;
 }
@@ -723,7 +722,7 @@ tcp_connectivity_ipv4_init(ip_context_t *dev)
 int
 oc_tcp_connectivity_init(ip_context_t *dev)
 {
-  OC_DBG("Initializing TCP adapter for device %zd", dev->device);
+  OC_DBG("Initializing TCP adapter");
 
   memset(&dev->tcp.server, 0, sizeof(struct sockaddr_storage));
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->tcp.server;
@@ -806,7 +805,7 @@ oc_tcp_connectivity_init(ip_context_t *dev)
 #endif
 #endif
 
-  OC_DBG("Successfully initialized TCP adapter for device %zd", dev->device);
+  OC_DBG("Successfully initialized TCP adapter");
 
   return 0;
 }
@@ -840,7 +839,7 @@ oc_tcp_connectivity_shutdown(ip_context_t *dev)
   process_free_tcp_session_locked();
   pthread_mutex_unlock(&mutex);
 
-  OC_DBG("oc_tcp_connectivity_shutdown for device %zd", dev->device);
+  OC_DBG("oc_tcp_connectivity_shutdown");
 }
 
 tcp_csm_state_t

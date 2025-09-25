@@ -534,7 +534,7 @@ ssl_get_timer(void *ctx)
 
 #ifdef OC_PKIx
 typedef bool (*check_if_known_cert_cb)(oc_sec_cred_t *cred);
-typedef void (*add_new_cert_cb)(oc_sec_cred_t *cred, size_t device);
+typedef void (*add_new_cert_cb)(oc_sec_cred_t *cred);
 
 static void
 oc_tls_refresh_certs(oc_sec_credusage_t credusage,
@@ -551,7 +551,7 @@ oc_tls_refresh_certs(oc_sec_credusage_t credusage,
           continue;
         }
 
-        add_new_cert(cred, 0);
+        add_new_cert(cred);
       }
     }
 }
@@ -655,7 +655,7 @@ next_cred_in_chain:
 }
 
 static void
-add_new_identity_cert(oc_sec_cred_t *cred, size_t device)
+add_new_identity_cert(oc_sec_cred_t *cred)
 {
   oc_x509_crt_t *cert = oc_memb_alloc(&identity_certs_s);
   if (!cert) {
@@ -754,7 +754,7 @@ oc_tls_remove_trust_anchor(oc_sec_cred_t *cred)
 }
 
 static int
-oc_tls_configure_end_entity_cert_chain(mbedtls_ssl_config *conf, size_t device,
+oc_tls_configure_end_entity_cert_chain(mbedtls_ssl_config *conf,
                                        oc_sec_credusage_t credusage, int credid)
 {
   oc_x509_crt_t *cert = (oc_x509_crt_t *)oc_list_head(identity_certs);
@@ -776,20 +776,20 @@ oc_tls_configure_end_entity_cert_chain(mbedtls_ssl_config *conf, size_t device,
 }
 
 static int
-oc_tls_load_mfg_cert_chain(mbedtls_ssl_config *conf, size_t device, int credid)
+oc_tls_load_mfg_cert_chain(mbedtls_ssl_config *conf, int credid)
 {
   OC_DBG("loading manufacturer cert chain");
-  return oc_tls_configure_end_entity_cert_chain(conf, device,
+  return oc_tls_configure_end_entity_cert_chain(conf,
                                                 OC_CREDUSAGE_MFG_CERT, credid);
 }
 
 static int
-oc_tls_load_identity_cert_chain(mbedtls_ssl_config *conf, size_t device,
+oc_tls_load_identity_cert_chain(mbedtls_ssl_config *conf,
                                 int credid)
 {
   OC_DBG("loading identity cert chain");
   return oc_tls_configure_end_entity_cert_chain(
-    conf, device, OC_CREDUSAGE_IDENTITY_CERT, credid);
+    conf, OC_CREDUSAGE_IDENTITY_CERT, credid);
 }
 
 static bool
@@ -807,9 +807,8 @@ is_known_trust_anchor(oc_sec_cred_t *cred)
 }
 
 static void
-add_new_trust_anchor(oc_sec_cred_t *cred, size_t device)
+add_new_trust_anchor(oc_sec_cred_t *cred)
 {
-  (void)device;
   int ret = mbedtls_x509_crt_parse(
     &trust_anchors, (const unsigned char *)oc_string(cred->publicdata.data),
     oc_string_len(cred->publicdata.data) + 1);
@@ -888,17 +887,16 @@ oc_tls_set_ciphersuites(mbedtls_ssl_config *conf, oc_endpoint_t *endpoint)
 #ifdef OC_CLIENT
   bool loaded_chain = false;
 #endif /* OC_CLIENT */
-  size_t device = 0;
-  oc_sec_doxm_t *doxm = oc_sec_get_doxm(device);
+  oc_sec_doxm_t *doxm = oc_sec_get_doxm();
   /* Decide between configuring the identity cert chain vs manufacturer cert
    * chain for this device based on device ownership status.
    */
   if (doxm->owned &&
-      oc_tls_load_identity_cert_chain(conf, device, selected_id_cred) == 0) {
+      oc_tls_load_identity_cert_chain(conf, selected_id_cred) == 0) {
 #ifdef OC_CLIENT
     loaded_chain = true;
 #endif /* OC_CLIENT */
-  } else if (oc_tls_load_mfg_cert_chain(conf, device, selected_mfg_cred) == 0) {
+  } else if (oc_tls_load_mfg_cert_chain(conf, selected_mfg_cred) == 0) {
 #ifdef OC_CLIENT
     loaded_chain = true;
 #endif /* OC_CLIENT */
@@ -907,11 +905,11 @@ oc_tls_set_ciphersuites(mbedtls_ssl_config *conf, oc_endpoint_t *endpoint)
   selected_id_cred = -1;
 #endif /* OC_PKI */
   /*
-  oc_sec_pstat_t *ps = oc_sec_get_pstat(endpoint->device);
+  oc_sec_pstat_t *ps = oc_sec_get_pstat();
   if (conf->endpoint == MBEDTLS_SSL_IS_SERVER && ps->s == OC_DOS_RFOTM) {
     OC_DBG(
       "oc_tls_set_ciphersuites: server selecting OTM ciphersuite priority");
-    oc_sec_doxm_t *d = oc_sec_get_doxm(endpoint->device);
+    oc_sec_doxm_t *d = oc_sec_get_doxm();
     switch (d->oxmsel) {
     case OC_OXMTYPE_JW:
       OC_DBG("oc_tls: selected JW OTM priority");
@@ -992,7 +990,7 @@ verify_certificate(void *opq, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
      * after validating the end-entity certificate to authorize the
      * the peer per the Specification. */
     oc_x509_crt_t *id_cert = get_identity_cert_for_session(&peer->ssl_conf);
-    oc_sec_pstat_t *ps = oc_sec_get_pstat(0);
+    oc_sec_pstat_t *ps = oc_sec_get_pstat();
     if (oc_certs_validate_non_end_entity_cert(crt, true, ps->s == OC_DOS_RFOTM,
                                               depth) < 0) {
       if (oc_certs_validate_non_end_entity_cert(
