@@ -44,7 +44,6 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 
   oc_device_info_t* device = oc_core_get_device_info();
 
-  oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
     // Content-Format: "application/cbor"
@@ -1586,6 +1585,6 @@ void oc_knx_device_restart()
   const oc_restart_t* my_restart = oc_get_restart_cb();
   if (my_restart && my_restart->cb)
   {
-    my_restart->cb(0, my_restart->data);
+    my_restart->cb(my_restart->data);
   }
 }
