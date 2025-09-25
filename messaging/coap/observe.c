@@ -285,8 +285,7 @@ coap_remove_observers_on_dos_change(size_t device, bool reset)
   /* iterate over observers */
   coap_observer_t *obs = (coap_observer_t *)oc_list_head(observers_list);
   while (obs != NULL) {
-    if (obs->endpoint.device == device &&
-        (reset || !oc_sec_check_acl(OC_GET, obs->resource, &obs->endpoint))) {
+    if (reset || !oc_sec_check_acl(OC_GET, obs->resource, &obs->endpoint)) {
       coap_observer_t *o = obs;
       coap_packet_t notification[1];
 #ifdef OC_TCP

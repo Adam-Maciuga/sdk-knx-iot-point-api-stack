@@ -344,7 +344,6 @@ oc_tcp_receive_message(ip_context_t *dev, fd_set *fds, oc_message_t *message)
   goto oc_tcp_receive_message_done
 
   adapter_receive_state_t ret = ADAPTER_STATUS_ERROR;
-  message->endpoint.device = dev->device;
 
   if (FD_ISSET(dev->tcp.server_sock, fds)) {
     message->endpoint.flags = IPV6 | TCP | ACCEPTED;
@@ -835,9 +834,7 @@ oc_tcp_connectivity_shutdown(ip_context_t *dev)
   tcp_session_t *session = (tcp_session_t *)oc_list_head(session_list), *next;
   while (session != NULL) {
     next = session->next;
-    if (session->endpoint.device == dev->device) {
-      free_tcp_session(session);
-    }
+    free_tcp_session(session);
     session = next;
   }
   process_free_tcp_session_locked();
