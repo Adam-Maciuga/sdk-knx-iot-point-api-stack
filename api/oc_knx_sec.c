@@ -132,15 +132,6 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   &core_resource_knx_auth_o_osndelay_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_o_osndelay_resource(int resource_idx)
-{
-  OC_DBG("oc_create_knx_auth_o_osndelay_resource");
-  //
-  oc_core_populate_resource(resource_idx, "/auth/o/osndelay", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_o_osndelay_get_handler, oc_core_knx_auth_o_osndelay_put_handler, 0, 0, 1,
-                            ":dpt:timePeriodMsec");
-}
-
 static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -217,15 +208,6 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   true,
   &core_resource_knx_auth_o_replwdo_data};
 PRAGMA_OUT
-
-static void oc_create_knx_auth_o_replwdo_resource(int resource_idx)
-{
-  OC_DBG("oc_create_knx_auth_o_replwdo_resource");
-  //
-  oc_core_populate_resource(resource_idx, "/auth/o/replwdo", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_o_replwdo_get_handler, oc_core_knx_auth_o_replwdo_put_handler, 0, 0, 1,
-                            ":dpt.value2UCount");
-}
 
 // ----------------------------------------------------------------------------
 
@@ -328,13 +310,6 @@ const oc_resource_t core_resource_knx_auth_o = {
   &core_resource_knx_auth_o_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_o_resource(int resource_idx)
-{
-  OC_DBG("create /aut/o resources");
-  oc_core_populate_resource(resource_idx, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_o_get_handler, 0, 0, 0, 0);
-}
-
 // ----------------------------------------------------------------------------
 
 #define LDEVID_RENEW 1
@@ -418,14 +393,6 @@ const oc_resource_t core_resource_knx_a_sen = {
   true,
   &core_resource_knx_a_sen_data};
 PRAGMA_OUT
-
-static void oc_create_a_sen_resource(int resource_idx)
-{
-  OC_DBG("oc_create_a_sen_resource");
-
-  oc_core_populate_resource(resource_idx, "/a/sen", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE, 0, 0,
-                            oc_core_a_sen_post_handler, 0, 0);
-}
 
 // ----------------------------------------------------------------------------
 
@@ -1003,13 +970,6 @@ const oc_resource_t core_resource_knx_auth_at = {
   &core_resource_knx_auth_at_data};
 PRAGMA_OUT
 
-static void oc_create_auth_at_resource(int resource_idx)
-{
-  oc_core_populate_resource(resource_idx, "/auth/at", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_auth_at_get_handler, 0, oc_core_auth_at_post_handler, oc_core_auth_at_delete_handler, 1,
-                            "urn:knx:fb.at");
-}
-
 // ----------------------------------------------------------------------------
 
 static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1205,15 +1165,6 @@ const oc_resource_t core_resource_knx_auth_at_x = {
   true,
   &core_resource_knx_auth_at_x_data};
 PRAGMA_OUT
-
-static void oc_create_auth_at_x_resource(int resource_idx)
-{
-  OC_DBG("oc_create_auth_at_x_resource");
-
-  oc_core_populate_resource(resource_idx, "/auth/at/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_auth_at_x_get_handler, 0, 0, oc_core_auth_at_x_delete_handler, 1, "dpt.a[n]");
-}
-
 // ----------------------------------------------------------------------------
 
 static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1318,13 +1269,6 @@ const oc_resource_t core_resource_knx_auth = {
   true,
   &core_resource_knx_auth_data};
 PRAGMA_OUT
-
-static void oc_create_knx_auth_resource(int resource_idx)
-{
-  OC_DBG("oc_create_knx_auth_resource");
-  oc_core_populate_resource(resource_idx, "/auth", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_get_handler, 0, 0, 0, 0);
-}
 
 void oc_print_auth_at_entry(int index)
 {

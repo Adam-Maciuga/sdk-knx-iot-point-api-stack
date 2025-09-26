@@ -242,15 +242,6 @@ const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_
                                              &core_resource_knx_f_x_data};
 PRAGMA_OUT
 
-void oc_create_fb_x_resource(int resource_idx)
-{
-  OC_DBG("create /f/x resources");
-  // note that this resource is listed in /.well-known/core so it should have
-  // the full rt with urn:knx prefix.
-  oc_core_populate_resource(resource_idx, "/f/*", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fb_x_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
-}
-
 // -----------------------------------------------------------------------------
 
 int oc_count_functional_blocks(void)
@@ -572,12 +563,3 @@ const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_
                                            1,
                                            &core_resource_knx_f_data};
 PRAGMA_OUT
-
-void oc_create_fb_resource(int resource_idx)
-{
-  OC_DBG("create /f resources");
-  // note that this resource is listed in /.well-known/core so it should have
-  // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, "/f", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fb_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
-}

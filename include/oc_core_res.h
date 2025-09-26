@@ -278,44 +278,6 @@ extern "C" {
 	void oc_check_uri(const char* uri);
 
 	/**
-	 * @brief populate core resource
-	 * mainly used for creation of core resources
-	 *
-	 * @param core_resource_index the resource index
-	 * @param uri the URI for the resource
-	 * @param content_type0 the (first) content type that will be listed as ct in link-format responses (mandatory)
-	 * @param content_type1 the (second) content type that will be listed as ct in link-format responses (optional)
-	 * @param properties the properties (as mask)
-	 * @param get_cb get callback function
-	 * @param put_cb put callback function
-	 * @param post_cb post callback function
-	 * @param delete_cb delete callback function
-	 * @param num_resource_types amount of resource types, listed as variable
-	 * arguments after this argument
-	 * @param ... Resource types, passed as zero-terminated strings. In order
-	 * to save memory, the maximum length of each resource type is 32 bytes.
-	 */
-	void oc_core_populate_resource(int core_resource_index,
-																 char* uri,
-																 oc_content_format_t content_type0,
-																 oc_content_format_t content_type1,
-																 int properties,
-																 oc_request_callback_t get_cb,
-																 oc_request_callback_t put_cb,
-																 oc_request_callback_t post_cb,
-																 oc_request_callback_t delete_cb,
-																 int num_resource_types,
-																 ...);
-
-	/**
-	 * @brief bind a dpt to a (already created) core resource
-	 *
-	 * @param core_resource_index the resource index
-	 * @param dpt the DPT value of the resource
-	 */
-	void oc_core_bind_dpt_resource(int core_resource_index, const char* dpt);
-
-	/**
 	 * @brief checks for the presence of 'urn:knx' in ANY of the request query parameter value's
 	 *
 	 * @param request the request to scan

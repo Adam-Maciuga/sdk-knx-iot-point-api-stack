@@ -700,13 +700,6 @@ const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx
                                               &core_resource_knx_fp_g_data};
 PRAGMA_OUT
 
-void oc_create_fp_g_resource(int resource_idx)
-{
-  OC_DBG("oc_create_fp_g_resource");
-  oc_core_populate_resource(resource_idx, "/fp/g", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_g_get_handler, 0, oc_core_fp_g_post_handler, 0, 1, "urn:knx:if.c");
-}
-
 static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -833,13 +826,6 @@ const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_fp_g_x_data};
 PRAGMA_OUT
 #endif
-
-void oc_create_fp_g_x_resource(int resource_idx)
-{
-  OC_DBG("oc_create_fp_g_x_resource");
-  oc_core_populate_resource(resource_idx, "/fp/g/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_g_x_get_handler, 0, 0, oc_core_fp_g_x_del_handler, 1, "urn:knx:if.c");
-}
 
 // -PUBLISHER-
 
@@ -1264,13 +1250,6 @@ const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx
                                               &core_resource_knx_fp_p_data};
 PRAGMA_OUT
 
-void oc_create_fp_p_resource(int resource_idx)
-{
-  OC_DBG("oc_create_fp_p_resource");
-  oc_core_populate_resource(resource_idx, "/fp/p", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_p_get_handler, 0, oc_core_fp_p_post_handler, 0, 1, "urn:knx:if.c");
-}
-
 static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1401,14 +1380,6 @@ const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_k
                                                 1,
                                                 &core_resource_knx_fp_p_x_data};
 PRAGMA_OUT
-
-void oc_create_fp_p_x_resource(int resource_idx)
-{
-  OC_DBG("oc_create_fp_p_x_resource");
-  oc_core_populate_resource(resource_idx, "/fp/p/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_p_x_get_handler, 0, 0, oc_core_fp_p_x_del_handler, 0, 1, "urn:knx:if.c");
-}
-
 #endif
 
 // -RECIPIENT-
@@ -1851,13 +1822,6 @@ const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx
                                               &core_resource_knx_fp_r_data};
 PRAGMA_OUT
 
-void oc_create_fp_r_resource(int resource_idx)
-{
-  OC_DBG("oc_create_fp_r_resource");
-  oc_core_populate_resource(resource_idx, "/fp/r", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_r_get_handler, 0, oc_core_fp_r_post_handler, 0, 1, "urn:knx:if.c");
-}
-
 static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1989,13 +1953,6 @@ const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_k
                                                 1,
                                                 &core_resource_knx_fp_r_x_data};
 PRAGMA_OUT
-
-void oc_create_fp_r_x_resource(int resource_idx)
-{
-  OC_DBG("oc_create_fp_r_x_resource");
-  oc_core_populate_resource(resource_idx, "/fp/r/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_r_x_get_handler, 0, 0, oc_core_fp_r_x_del_handler, 1, "urn:knx:if.c");
-}
 
 bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_address)
 {

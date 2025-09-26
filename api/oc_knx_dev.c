@@ -81,17 +81,6 @@ const oc_resource_t core_resource_dev_sn = {(oc_resource_t*)&core_resource_dev_h
                                             &core_resource_dev_sn_data};
 PRAGMA_OUT
 
-void oc_create_dev_sn_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_sn_resource");
-  // rt :dpa:0.11
-  // rt :dpt.serNum
-  oc_core_populate_resource(resource_idx, "/dev/sn", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_sn_get_handler, 0, 0, 0, 1, "urn:knx:dpa:0.11");
-
-  oc_core_bind_dpt_resource(resource_idx, "urn:knx:dpt.serNum");
-}
-
 // -----------------------------------------------------------------------------
 
 static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -141,15 +130,6 @@ const oc_resource_t core_resource_dev_hwv = {(oc_resource_t*)&core_resource_dev_
                                              true,
                                              &core_resource_dev_hwv_data};
 PRAGMA_OUT
-
-void oc_create_dev_hwv_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_hwv_resource");
-  oc_core_populate_resource(resource_idx, "/dev/hwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_hwv_get_handler, 0, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx, "urn:knx:dpt.version");
-}
 
 // -----------------------------------------------------------------------------
 
@@ -204,15 +184,6 @@ const oc_resource_t core_resource_dev_fwv = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_fwv_data};
 PRAGMA_OUT
 
-void oc_create_dev_fwv_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_fwv_resource");
-  oc_core_populate_resource(resource_idx, "/dev/fwv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_fwv_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.25");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.version");
-}
-
 // -----------------------------------------------------------------------------
 
 static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -260,17 +231,6 @@ const oc_resource_t core_resource_dev_hwt = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_hwt_data};
 PRAGMA_OUT
 
-void oc_create_dev_hwt_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_hwt_resource");
-
-  // cbor rt :dpt.varString8859_1
-  oc_core_populate_resource(resource_idx, "/dev/hwt", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_hwt_get_handler, 0, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.varString8859_1");
-}
-
 // -----------------------------------------------------------------------------
 
 static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -317,15 +277,6 @@ const oc_resource_t core_resource_dev_model = {(oc_resource_t*)&core_resource_de
                                                true,
                                                &core_resource_dev_model_data};
 PRAGMA_OUT
-
-void oc_create_dev_model_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_model_resource");
-  oc_core_populate_resource(resource_idx, "/dev/model", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_model_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.15");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.utf8");
-}
 
 // -----------------------------------------------------------------------------
 
@@ -423,15 +374,6 @@ const oc_resource_t core_resource_dev_hostname = {
   &core_resource_dev_hostname_data};
 PRAGMA_OUT
 
-void oc_create_dev_hostname_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_hostname_resource");
-  oc_core_populate_resource(resource_idx, "/dev/hname", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_hostname_get_handler, oc_core_dev_hostname_put_handler, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.varString8859_1");
-}
-
 // -----------------------------------------------------------------------------
 
 static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -521,15 +463,6 @@ const oc_resource_t core_resource_dev_iid = {(oc_resource_t*)&core_resource_dev_
                                              true,
                                              &core_resource_dev_iid_data};
 PRAGMA_OUT
-
-void oc_create_dev_iid_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_iid_resource");
-  oc_core_populate_resource(resource_idx, "/dev/iid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_iid_get_handler, oc_core_dev_iid_put_handler, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value8Ucount");
-}
 
 // -----------------------------------------------------------------------------
 
@@ -643,15 +576,6 @@ const oc_resource_t core_resource_dev_ipv6 = {(oc_resource_t*)&core_resource_dev
                                               &core_resource_dev_ipv6_data};
 PRAGMA_OUT
 
-void oc_create_dev_ipv6_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_ipv6_resource");
-  oc_core_populate_resource(resource_idx, "/dev/ipv6", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_ipv6_get_handler, 0, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.ipv6");
-}
-
 // -----------------------------------------------------------------------------
 
 // internal, can only be used/linked from this file
@@ -749,15 +673,6 @@ const oc_resource_t core_resource_dev_pm = {(oc_resource_t*)&core_resource_dev_i
                                             true,
                                             &core_resource_dev_pm_data};
 PRAGMA_OUT
-
-void oc_create_dev_pm_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_pm_resource");
-  oc_core_populate_resource(resource_idx, "/dev/pm", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_pm_get_handler, oc_core_dev_pm_put_handler, 0, 0, 1, "urn:knx:dpa.0.54");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.binaryValue");
-}
 
 // -----------------------------------------------------------------------------
 
@@ -857,15 +772,6 @@ const oc_resource_t core_resource_dev = {(oc_resource_t*)&core_resource_app,
                                          &core_resource_dev_data};
 PRAGMA_OUT
 
-void oc_create_dev_dev_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_dev_resource");
-  // note that this resource is listed in /.well-known/core so it should have
-  // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, "/dev", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_dev_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
-}
-
 // -----------------------------------------------------------------------------
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
@@ -917,15 +823,6 @@ const oc_resource_t core_resource_dev_sa = {(oc_resource_t*)&core_resource_dev_d
                                             &core_resource_dev_sa_data};
 PRAGMA_OUT
 
-static void oc_create_dev_sa_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_sa_resource");
-  oc_core_populate_resource(resource_idx, "/dev/sna", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_sa_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.57");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value1Ucount");
-}
-
 // -----------------------------------------------------------------------------
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
@@ -976,15 +873,6 @@ const oc_resource_t core_resource_dev_da = {(oc_resource_t*)&core_resource_dev_f
                                             true,
                                             &core_resource_dev_da_data};
 PRAGMA_OUT
-
-static void oc_create_dev_da_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_da_resource");
-  oc_core_populate_resource(resource_idx, "/dev/da", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_da_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.58");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value1Ucount");
-}
 
 static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1063,16 +951,6 @@ const oc_resource_t core_resource_dev_fid = {(oc_resource_t*)&core_resource_dev_
                                              &core_resource_dev_fid_data};
 PRAGMA_OUT
 
-static void oc_create_dev_fid_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_fid_resource");
-  oc_core_populate_resource(resource_idx, "/dev/fid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_fid_get_handler, oc_core_dev_fid_put_handler, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value8Ucount");
-}
-
-
 static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1119,15 +997,6 @@ const oc_resource_t core_resource_dev_port = {(oc_resource_t*)&core_resource_dev
                                               &core_resource_dev_port_data};
 PRAGMA_OUT
 
-static void oc_create_dev_port_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_port_resource");
-  oc_core_populate_resource(resource_idx, "/dev/port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_port_get_handler, 0, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
-}
-
 static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1173,15 +1042,6 @@ const oc_resource_t core_resource_dev_mport = {(oc_resource_t*)&core_resource_de
                                                1,
                                                &core_resource_dev_mport_data};
 PRAGMA_OUT
-
-void oc_create_dev_mport_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_mport_resource");
-  oc_core_populate_resource(resource_idx, "/dev/multicast_port", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_mport_get_handler, 0, 0, 0, 0);
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
-}
 
 static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1264,15 +1124,6 @@ const oc_resource_t core_resource_app_x = {(oc_resource_t*)&core_resource_a_lsm,
                                            1,
                                            &core_resource_app_x_data};
 PRAGMA_OUT
-
-void oc_create_ap_x_resource(int resource_idx)
-{
-  OC_DBG("oc_create_ap_x_resource");
-  oc_core_populate_resource(resource_idx, "/ap/pv", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_ap_x_get_handler, oc_core_ap_x_put_handler, 0, 0, 1, "urn:knx:dpa.3.13");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.programVersion");
-}
 
 static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1370,16 +1221,6 @@ const oc_resource_t core_resource_app = {(oc_resource_t*)&core_resource_app_x,
                                          &core_resource_app_data};
 PRAGMA_OUT
 
-void oc_create_ap_resource(int resource_idx)
-{
-  OC_DBG("oc_create_ap_resource");
-  oc_core_populate_resource(resource_idx, "/ap", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_ap_get_handler, 0, 0, 0, 1, "urn:knx:fb.3");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
-}
-
-
 static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -1424,15 +1265,6 @@ const oc_resource_t core_resource_dev_mid = {(oc_resource_t*)&core_resource_dev,
                                              1,
                                              &core_resource_dev_mid_data};
 PRAGMA_OUT
-
-static void oc_create_dev_mid_resource(int resource_idx)
-{
-  OC_DBG("oc_create_dev_mid_resource");
-  oc_core_populate_resource(resource_idx, "/dev/mid", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_dev_mid_get_handler, 0, 0, 0, 1, "urn:knx:dpa.0.12");
-
-  oc_core_bind_dpt_resource(resource_idx,  "urn:knx:dpt.value2Ucount");
-}
 
 void oc_knx_load_device()
 {
