@@ -27,6 +27,7 @@
 #include "oc_knx_p.h"
 #include "oc_knx_swu.h"
 #include "oc_knx_sec.h"
+#include "oc_knx_sub.h"
 #include "port/oc_assert.h"
 #include <stdarg.h>
 #include "port/oc_storage.h"
