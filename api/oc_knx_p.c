@@ -23,17 +23,13 @@
 #include "oc_discovery.h"
 
 // add application datapoint's to the response and return true if at least one was added
-static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource, size_t device_index,
+static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
                                                   size_t* response_length, const int page_size)
 {
   int matches = 0;
 
   for (; resource && matches < page_size; resource = resource->next)
   {
-    if (resource->device != device_index)
-    {
-      continue;
-    }
 
     // called from GET /p handler so always truncate resources URN's
     oc_add_resource_to_response_payload(resource, response_length, true);
@@ -60,16 +56,10 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
     return;
   }
 
-  const size_t device_index = request->resource->device;
-
   // calculate total properties
   const oc_resource_t* my_p = oc_ri_get_app_resources();
   for (; my_p; my_p = my_p->next)
   {
-    if (my_p->device != device_index)
-    {
-      continue;
-    }
     if (oc_string(my_p->uri) != NULL)
     {
       total++;
@@ -96,7 +86,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   my_p = oc_ri_get_app_resources();
   for (int i = 0; i < first_entry; i++)
   {
-    my_p = my_p->next; // TODO check why correct device is not considered here (fails if > 0 device)
+    my_p = my_p->next;
   }
 
   // entries don't fit in a single page -> more pages are needed to get the full list
@@ -105,7 +95,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
   // add ONLY application datapoint's to response
-  if (oc_was_adding_data_points_to_response(request, my_p, device_index, &response_length, query_ps))
+  if (oc_was_adding_data_points_to_response(request, my_p, &response_length, query_ps))
   {
     // add only a page hint if at least one response entry is in
     if (more_request_needed)
@@ -138,9 +128,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-  // get from the request the addressed device as index
-  size_t device_index = request->resource->device;
-
   // check first if the url is implemented on the device (performance)
   oc_rep_t* rep = request->request_payload;
   while (rep)
@@ -156,7 +143,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
         // href = CBOR KEY 11, value = string = MANDATORY according to specification
         if (entry_object->iname == 11 && entry_object->type == OC_REP_STRING)
         {
-          if (!oc_belongs_href_to_resource(entry_object->value.string, false, device_index))
+          if (!oc_belongs_href_to_resource(entry_object->value.string, false))
           {
             // there is no href in all application resources that fits to the request href
             error = true;
@@ -275,7 +262,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 extern const oc_resource_t core_resource_knx_f;
 PRAGMA_IN oc_resource_data_t core_resource_knx_p_data;
 const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
-                                           0,
                                            {NULL, sizeof("/p"), "/p"},
                                            {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                            {NULL, 0, NULL},
@@ -292,25 +278,3 @@ const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
                                            1,
                                            &core_resource_knx_p_data};
 PRAGMA_OUT
-
-void oc_create_p_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_p_resource");
-  // note that this resource is listed in /.well-known/core so it should have
-  // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, device, "/p", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_p_get_handler, 0, oc_core_p_post_handler, 0, 1, "urn:knx:fb.0");
-}
-
-void oc_create_knx_p_resources(size_t device_index)
-{
-  OC_DBG("oc_create_knx_p_resources");
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX parameter resources created statically");
-    return;
-  }
-
-  oc_create_p_resource(OC_KNX_P, device_index);
-}

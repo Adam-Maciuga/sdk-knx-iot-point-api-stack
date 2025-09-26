@@ -36,7 +36,6 @@ extern const oc_resource_t core_resource_knx_a_sen;
 PRAGMA_IN oc_resource_data_t core_resource_sub_data;
 const oc_resource_t core_resource_sub = {
   (oc_resource_t*)&core_resource_knx_a_sen,
-  0,
   { NULL, sizeof("/sub"), "/sub" },
   { NULL, 0, NULL },
   { NULL, 0, NULL },
@@ -50,21 +49,7 @@ const oc_resource_t core_resource_sub = {
   { NULL, NULL },
   0,
   0,
-  true,  &core_resource_sub_data
+  true,
+  &core_resource_sub_data
 };
 PRAGMA_OUT
-
-void
-oc_create_sub_resource(int resource_idx, size_t device_index)
-{
-  OC_DBG("create /sub resources");
-
-  if (device_index == 0) {
-    OC_DBG("device 0: KNX device resources created statically");
-    return;
-  }
-
-  oc_core_populate_resource(resource_idx, device_index, "/sub",
-                            APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE, 0,
-                            0, 0, oc_core_sub_delete_handler, 0);
-}

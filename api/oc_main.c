@@ -39,7 +39,7 @@
 #include <stdlib.h>
 static bool* drop_commands;
 #else 
-static bool drop_commands[OC_MAX_NUM_DEVICES];
+static bool drop_commands;
 #endif
 
 // marker if init was done, to handle a shutdown without init
@@ -253,13 +253,9 @@ oc_get_block_size(void)
 }
 #endif /* OC_DYNAMIC_ALLOCATION */
 
-static void oc_shutdown_all_devices(void)
+static void oc_shutdown_device(void)
 {
-  for (size_t device = 0; device < oc_core_get_num_devices(); device++)
-  {
-    oc_connectivity_shutdown(device);
-  }
-
+  oc_connectivity_shutdown();
   oc_network_event_handler_mutex_destroy();
   oc_core_shutdown();
 }
@@ -292,7 +288,7 @@ int oc_main_init(const oc_handler_t* handler)
     OC_ERR("Error in SPAKE2+ initialization, spake data init failed");
 
     oc_ri_shutdown();
-    oc_shutdown_all_devices();
+    oc_shutdown_device();
     return -1;
   }
 
@@ -304,12 +300,12 @@ int oc_main_init(const oc_handler_t* handler)
     OC_ERR("Error in stack initialization, application init handler failed");
 
     oc_ri_shutdown();
-    oc_shutdown_all_devices();
+    oc_shutdown_device();
     return -1;
     
   }
 #ifdef OC_DYNAMIC_ALLOCATION
-  drop_commands = (bool*) calloc(oc_core_get_num_devices(), sizeof(bool));
+  drop_commands = (bool*) calloc(1, sizeof(bool));
   if (!drop_commands)
   {
     oc_abort("Insufficient stack memory");
@@ -322,27 +318,23 @@ int oc_main_init(const oc_handler_t* handler)
   if (ret < 0)
   {
     oc_ri_shutdown();
-    oc_shutdown_all_devices();
+    oc_shutdown_device();
     goto err;
   }
 #endif
 
-  for (size_t device = 0; device < oc_core_get_num_devices(); device++)
-  {
-    oc_knx_load_device(device);
-    oc_knx_load_fingerprint();
-  }
+oc_knx_load_device();
+oc_knx_load_fingerprint();
+
 
 #ifdef OC_SECURITY
-  size_t device;
-  for (device = 0; device < oc_core_get_num_devices(); device++)
-  {
-    oc_sec_load_unique_ids(device);
+
+  oc_sec_load_unique_ids(0);
   #ifdef OC_PKI
     OC_DBG("oc_main_init(): loading ECDSA keypair");
-    oc_sec_load_ecdsa_keypair(device);
+    oc_sec_load_ecdsa_keypair(0);
   #endif /* OC_PKI */
-  }
+
 #endif
 
 #ifdef OC_SERVER
@@ -376,9 +368,7 @@ int oc_main_init(const oc_handler_t* handler)
   oc_init_datapoints_at_initialization();
 #endif
 
-  // note - only advertising for the first device, if multiple devices per KNX instance are desired,
-  // the implementation of this service must change
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return 0;
@@ -408,13 +398,13 @@ void oc_main_shutdown(void)
   oc_tls_shutdown();
   #endif 
 
-  oc_shutdown_all_devices();
+  oc_shutdown_device();
 
   #ifdef OC_DYNAMIC_ALLOCATION
   free(drop_commands);
   drop_commands = NULL;
   #else
-  memset(drop_commands, 0, sizeof(bool) * OC_MAX_NUM_DEVICES);
+  drop_commands = false;
   #endif
 
   app_callbacks = NULL;
@@ -438,16 +428,22 @@ void _oc_signal_event_loop(void)
   }
 }
 
-// TODO check if still needed, dev > 1 anyhow not work
 void
-oc_set_drop_commands(size_t device, bool drop)
+oc_set_drop_commands(bool drop)
 {
-  drop_commands[device] = drop;
+#ifdef OC_DYNAMIC_ALLOCATION
+  *drop_commands = drop;
+#else
+  drop_commands = drop;
+#endif
 }
 
-// TODO check if still needed, dev > 1 anyhow not work 
 bool
-oc_drop_command(size_t device)
+oc_drop_command(void)
 {
-  return drop_commands[device];
+#ifdef OC_DYNAMIC_ALLOCATION
+  return *drop_commands;
+#else
+  return drop_commands;
+#endif
 }

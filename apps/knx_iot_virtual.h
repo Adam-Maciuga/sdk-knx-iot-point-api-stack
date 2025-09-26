@@ -187,11 +187,9 @@ extern "C"
   /**
  * @brief
  * Application factory preset callback handler for the device
-
- * @param device_index the device identifier of the list of devices
  * @param data the supplied data.
  */
-  void factory_presets_cb(size_t device_index, void* data);
+  void factory_presets_cb(void* data);
 
   /**
    * @brief initializes the global variables
@@ -204,12 +202,11 @@ extern "C"
    * @brief
    * Application host name callback handler for the device
    *
-   * @param device_index the device identifier of the list of devices
    * @param host_name the host name of the device to be maintained (check/set,
    * print, ...)
    * @param data the supplied data.
    */
-  void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data);
+  void hostname_cb(const oc_string_t host_name, void* data);
 
   /**
    * @brief function to set the input string to upper case

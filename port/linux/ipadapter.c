@@ -67,9 +67,9 @@ int ifchange_sock;
 bool ifchange_initialized;
 
 OC_LIST(ip_contexts);
-OC_MEMB(ip_context_s, ip_context_t, OC_MAX_NUM_DEVICES);
+OC_MEMB(ip_context_s, ip_context_t, 1);
 
-OC_MEMB(device_eps, oc_endpoint_t, 8 * OC_MAX_NUM_DEVICES); // fix
+OC_MEMB(device_eps, oc_endpoint_t, 8); // simplified for single device
 
 #ifdef OC_NETWORK_MONITOR
 /**
@@ -234,15 +234,9 @@ oc_network_event_handler_mutex_destroy(void)
 }
 
 ip_context_t *
-get_ip_context_for_device(size_t device)
+get_ip_context_for_device()
 {
   ip_context_t *dev = oc_list_head(ip_contexts);
-  while (dev != NULL && dev->device != device) {
-    dev = dev->next;
-  }
-  if (!dev) {
-    return NULL;
-  }
   return dev;
 }
 
@@ -545,9 +539,9 @@ refresh_endpoints_list(ip_context_t *dev)
 }
 
 oc_endpoint_t *
-oc_connectivity_get_endpoints(size_t device)
+oc_connectivity_get_endpoints()
 {
-  ip_context_t *dev = get_ip_context_for_device(device);
+  ip_context_t *dev = get_ip_context_for_device();
 
   if (!dev) {
     return NULL;
@@ -569,7 +563,7 @@ oc_connectivity_get_endpoints(size_t device)
 static int
 process_interface_change_event(void)
 {
-  int ret = 0, i, num_devices = oc_core_get_num_devices();
+  int ret = 0, i;
   struct nlmsghdr *response = NULL;
 
   int guess = 512, response_len;
@@ -613,20 +607,16 @@ process_interface_change_event(void)
           if (attr->rta_type == IFA_ADDRESS) {
 #ifdef OC_IPV4
             if (ifa->ifa_family == AF_INET) {
-              for (i = 0; i < num_devices; i++) {
-                ip_context_t *dev = get_ip_context_for_device(i);
+                ip_context_t *dev = get_ip_context_for_device();
                 ret += add_mcast_sock_to_ipv4_mcast_group(
                   dev->mcast4_sock, RTA_DATA(attr), ifa->ifa_index);
-              }
             } else
 #endif /* OC_IPV4 */
               if (ifa->ifa_family == AF_INET6 &&
                   ifa->ifa_scope == RT_SCOPE_LINK) {
-                for (i = 0; i < num_devices; i++) {
-                  ip_context_t *dev = get_ip_context_for_device(i);
+                  ip_context_t *dev = get_ip_context_for_device();
                   ret += add_mcast_sock_to_ipv6_mcast_group(dev->mcast_sock,
                                                             ifa->ifa_index);
-                }
               }
           }
           attr = RTA_NEXT(attr, att_len);
@@ -648,12 +638,10 @@ process_interface_change_event(void)
   }
 
   if (if_state_changed) {
-    for (i = 0; i < num_devices; i++) {
-      ip_context_t *dev = get_ip_context_for_device(i);
-      oc_network_event_handler_mutex_lock();
-      refresh_endpoints_list(dev);
-      oc_network_event_handler_mutex_unlock();
-    }
+    ip_context_t *dev = get_ip_context_for_device();
+    oc_network_event_handler_mutex_lock();
+    refresh_endpoints_list(dev);
+    oc_network_event_handler_mutex_unlock();
   }
 
   return ret;
@@ -858,12 +846,8 @@ network_event_thread(void *data)
 
   fd_set setfds;
   FD_ZERO(&dev->rfds);
-  /* Monitor network interface changes on the platform from only the 0th logical
-   * device
-   */
-  if (dev->device == 0) {
-    FD_SET(ifchange_sock, &dev->rfds);
-  }
+  /* Monitor network interface changes on the platform */
+  FD_SET(ifchange_sock, &dev->rfds);
   FD_SET(dev->shutdown_pipe[0], &dev->rfds);
 
   oc_udp_add_socks_to_fd_set(dev);
@@ -890,14 +874,12 @@ network_event_thread(void *data)
     }
 
     for (i = 0; i < n; i++) {
-      if (dev->device == 0) {
-        if (FD_ISSET(ifchange_sock, &setfds)) {
-          if (process_interface_change_event() < 0) {
-            OC_WRN("caught errors while handling a network interface change");
-          }
-          FD_CLR(ifchange_sock, &setfds);
-          continue;
+      if (FD_ISSET(ifchange_sock, &setfds)) {
+        if (process_interface_change_event() < 0) {
+          OC_WRN("caught errors while handling a network interface change");
         }
+        FD_CLR(ifchange_sock, &setfds);
+        continue;
       }
 
       oc_message_t *message = oc_allocate_message();
@@ -905,8 +887,6 @@ network_event_thread(void *data)
       if (!message) {
         break;
       }
-
-      message->endpoint.device = dev->device;
 
       if (oc_udp_receive_message(dev, &setfds, message) ==
           ADAPTER_STATUS_RECEIVE) {
@@ -1052,7 +1032,7 @@ oc_send_buffer(oc_message_t *message)
   }
   int send_sock = -1;
 
-  ip_context_t *dev = get_ip_context_for_device(message->endpoint.device);
+  ip_context_t *dev = get_ip_context_for_device();
 
   if (!dev) {
     return -1;
@@ -1105,7 +1085,7 @@ oc_send_discovery_request(oc_message_t *message)
          sizeof(message->endpoint.addr_local));
   message->endpoint.interface_index = 0;
 
-  ip_context_t *dev = get_ip_context_for_device(message->endpoint.device);
+  ip_context_t *dev = get_ip_context_for_device();
 
 #define IN6_IS_ADDR_MC_REALM_LOCAL(addr)                                       \
   IN6_IS_ADDR_MULTICAST(addr) && ((((const uint8_t *)(addr))[1] & 0x0f) == 0x03)
@@ -1280,7 +1260,7 @@ handle_session_event_callback(const oc_endpoint_t *endpoint,
 static int
 connectivity_ipv4_init(ip_context_t *dev)
 {
-  OC_DBG("Initializing IPv4 connectivity for device %zd", dev->device);
+  OC_DBG("Initializing IPv4 connectivity");
   memset(&dev->mcast4, 0, sizeof(struct sockaddr_storage));
   memset(&dev->server4, 0, sizeof(struct sockaddr_storage));
 
@@ -1381,8 +1361,7 @@ connectivity_ipv4_init(ip_context_t *dev)
   dev->dtls4_port = ntohs(sm->sin_port);
 #endif /* OC_SECURITY */
 
-  OC_DBG("Successfully initialized IPv4 connectivity for device %zd",
-         dev->device);
+  OC_DBG("Successfully initialized IPv4 connectivity");
 
   return 0;
 }
@@ -1406,16 +1385,15 @@ oc_connectivity_set_port(uint16_t port)
 }
 
 int
-oc_connectivity_init(size_t device)
+oc_connectivity_init(void)
 {
-  OC_DBG("Initializing connectivity for device %zd", device);
+  OC_DBG("Initializing connectivity");
 
   ip_context_t *dev = (ip_context_t *)oc_memb_alloc(&ip_context_s);
   if (!dev) {
     oc_abort("Insufficient memory");
   }
   oc_list_add(ip_contexts, dev);
-  dev->device = device;
   OC_LIST_STRUCT_INIT(dev, eps);
 
   if (pthread_mutex_init(&dev->rfds_mutex, NULL) != 0) {
@@ -1618,15 +1596,15 @@ oc_connectivity_init(size_t device)
   }
 
   oc_add_network_interface_event_callback(register_multicasts);
-  OC_DBG("Successfully initialized connectivity for device %zd", device);
+  OC_DBG("Successfully initialized connectivity");
 
   return 0;
 }
 
 void
-oc_connectivity_shutdown(size_t device)
+oc_connectivity_shutdown()
 {
-  ip_context_t *dev = get_ip_context_for_device(device);
+  ip_context_t *dev = get_ip_context_for_device();
   dev->terminate = 1;
   if (write(dev->shutdown_pipe[1], "", 1) < 0) {
     OC_WRN("cannot wakeup network thread");
@@ -1664,7 +1642,7 @@ oc_connectivity_shutdown(size_t device)
   oc_list_remove(ip_contexts, dev);
   oc_memb_free(&ip_context_s, dev);
 
-  OC_DBG("oc_connectivity_shutdown for device %zd", device);
+  OC_DBG("oc_connectivity_shutdown");
 }
 
 #ifdef OC_TCP
@@ -1672,7 +1650,7 @@ void
 oc_connectivity_end_session(oc_endpoint_t *endpoint)
 {
   if (endpoint->flags & TCP) {
-    ip_context_t *dev = get_ip_context_for_device(endpoint->device);
+    ip_context_t *dev = get_ip_context_for_device();
     if (dev) {
       oc_tcp_end_session(dev, endpoint);
     }
@@ -1853,7 +1831,7 @@ ip_context_rfds_fd_copy(ip_context_t *dev)
 void
 oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
-  ip_context_t *dev = get_ip_context_for_device(address->device);
+  ip_context_t *dev = get_ip_context_for_device();
 
   if (dev == NULL) {
     OC_ERR(" dev is NULL");
@@ -1908,7 +1886,7 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 void
 oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 {
-  ip_context_t *dev = get_ip_context_for_device(address->device);
+  ip_context_t *dev = get_ip_context_for_device();
 
   if (dev == NULL) {
     OC_ERR(" dev is NULL");

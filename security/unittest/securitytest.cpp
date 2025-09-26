@@ -48,16 +48,16 @@ protected:
     oc_network_event_handler_mutex_init();
     oc_core_init();
     oc_init_platform(MANUFACTURER_NAME, NULL, NULL);
-    // oc_add_device(DEVICE_URI, DEVICE_TYPE, DEVICE_NAME, OCF_SPEC_VERSION,
+    // oc_set_device(DEVICE_URI, DEVICE_TYPE, DEVICE_NAME, OCF_SPEC_VERSION,
     //              OCF_DATA_MODEL_VERSION, NULL, NULL);
-    oc_add_device("my_name", "1.0.0", "//", "000001", NULL, NULL);
+    oc_set_device("my_name", "1.0.0", "//", "000001", NULL, NULL);
   }
 
   virtual void TearDown()
   {
     oc_ri_shutdown();
     oc_tls_shutdown();
-    oc_connectivity_shutdown(0);
+    oc_connectivity_shutdown();
     oc_network_event_handler_mutex_destroy();
     oc_core_shutdown();
   }

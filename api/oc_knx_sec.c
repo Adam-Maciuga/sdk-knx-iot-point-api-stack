@@ -122,7 +122,6 @@ extern const oc_resource_t core_resource_knx_auth_o;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
   (oc_resource_t*)&core_resource_knx_auth_o,
-  0,
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
   {NULL, (size_t)1 * 32, ((char[1][32]){":dpt:timePeriodMsec"})},
   {NULL, 0, NULL},
@@ -140,15 +139,6 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   true,
   &core_resource_knx_auth_o_osndelay_data};
 PRAGMA_OUT
-
-static void oc_create_knx_auth_o_osndelay_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_knx_auth_o_osndelay_resource");
-  //
-  oc_core_populate_resource(resource_idx, device, "/auth/o/osndelay", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_o_osndelay_get_handler, oc_core_knx_auth_o_osndelay_put_handler, 0, 0, 1,
-                            ":dpt:timePeriodMsec");
-}
 
 static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -211,7 +201,6 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
   (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
-  0,
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
   {NULL, (size_t)1 * 32, ((char[1][32]){":dpt.value2UCount"})},
   {NULL, 0, NULL},
@@ -230,15 +219,6 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   &core_resource_knx_auth_o_replwdo_data};
 PRAGMA_OUT
 
-static void oc_create_knx_auth_o_replwdo_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_knx_auth_o_replwdo_resource");
-  //
-  oc_core_populate_resource(resource_idx, device, "/auth/o/replwdo", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_o_replwdo_get_handler, oc_core_knx_auth_o_replwdo_put_handler, 0, 0, 1,
-                            ":dpt.value2UCount");
-}
-
 // ----------------------------------------------------------------------------
 
 static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -246,8 +226,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0;   // how many (to this device applicable) query parameter key/value pair
-                                            // matches where found
+  int query_parameter_kvpair_matches = 0;   // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -264,7 +243,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-  size_t device_index = request->resource->device;
+
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -323,7 +302,6 @@ extern const oc_resource_t core_resource_knx_auth_at;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_data;
 const oc_resource_t core_resource_knx_auth_o = {
   (oc_resource_t*)&core_resource_knx_auth_at,
-  0,
   {NULL, sizeof("/auth/o"), "/auth/o"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -341,13 +319,6 @@ const oc_resource_t core_resource_knx_auth_o = {
   true,
   &core_resource_knx_auth_o_data};
 PRAGMA_OUT
-
-static void oc_create_knx_auth_o_resource(int resource_idx, size_t device_index)
-{
-  OC_DBG("create /aut/o resources");
-  oc_core_populate_resource(resource_idx, device_index, "/auth/o", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_o_get_handler, 0, 0, 0, 0);
-}
 
 // ----------------------------------------------------------------------------
 
@@ -415,7 +386,6 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 PRAGMA_IN oc_resource_data_t core_resource_knx_a_sen_data;
 const oc_resource_t core_resource_knx_a_sen = {
   (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
-  0,
   {NULL, sizeof("/a/sen"), "/a/sen"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -433,14 +403,6 @@ const oc_resource_t core_resource_knx_a_sen = {
   true,
   &core_resource_knx_a_sen_data};
 PRAGMA_OUT
-
-static void oc_create_a_sen_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_a_sen_resource");
-
-  oc_core_populate_resource(resource_idx, device, "/a/sen", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE, 0, 0,
-                            oc_core_a_sen_post_handler, 0, 0);
-}
 
 // ----------------------------------------------------------------------------
 
@@ -532,8 +494,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair
-                                          // matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -1001,7 +962,6 @@ extern const oc_resource_t core_resource_knx_auth_at_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
   (oc_resource_t*)&core_resource_knx_auth_at_x,
-  0,
   {NULL, sizeof("/auth/at"), "/auth/at"},
   {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.at"})},
   {NULL, 0, NULL},
@@ -1019,13 +979,6 @@ const oc_resource_t core_resource_knx_auth_at = {
   true,
   &core_resource_knx_auth_at_data};
 PRAGMA_OUT
-
-static void oc_create_auth_at_resource(int resource_idx, size_t device)
-{
-  oc_core_populate_resource(resource_idx, device, "/auth/at", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_auth_at_get_handler, 0, oc_core_auth_at_post_handler, oc_core_auth_at_delete_handler, 1,
-                            "urn:knx:fb.at");
-}
 
 // ----------------------------------------------------------------------------
 
@@ -1205,7 +1158,6 @@ extern const oc_resource_t core_resource_knx_auth;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_x_data;
 const oc_resource_t core_resource_knx_auth_at_x = {
   (oc_resource_t*)&core_resource_knx_auth,
-  0,
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
   {NULL, (size_t)1 * 32, ((char[1][32]){"dpt.a[n]"})},
   {NULL, 0, NULL},
@@ -1223,15 +1175,6 @@ const oc_resource_t core_resource_knx_auth_at_x = {
   true,
   &core_resource_knx_auth_at_x_data};
 PRAGMA_OUT
-
-static void oc_create_auth_at_x_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_auth_at_x_resource");
-
-  oc_core_populate_resource(resource_idx, device, "/auth/at/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_auth_at_x_get_handler, 0, 0, oc_core_auth_at_x_delete_handler, 1, "dpt.a[n]");
-}
-
 // ----------------------------------------------------------------------------
 
 static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1239,8 +1182,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // how many (to this device applicable) query parameter key/value pair
-                                          // matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -1259,7 +1201,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
     return;
   }
 
-  size_t device_index = request->resource->device;
+
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -1320,7 +1262,6 @@ extern const oc_resource_t core_resource_well_known_core;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
   (oc_resource_t*)&core_resource_well_known_core,
-  0,
   {NULL, sizeof("/auth"), "/auth"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1338,13 +1279,6 @@ const oc_resource_t core_resource_knx_auth = {
   true,
   &core_resource_knx_auth_data};
 PRAGMA_OUT
-
-static void oc_create_knx_auth_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_knx_auth_resource");
-  oc_core_populate_resource(resource_idx, device, "/auth", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_knx_auth_get_handler, 0, 0, 0, 0);
-}
 
 void oc_print_auth_at_entry(int index)
 {
@@ -1825,26 +1759,12 @@ oc_auth_at_t* oc_get_auth_at_entry(int index)
   return index < 0 || index >= G_AT_MAX_ENTRIES ? NULL : &g_at_entries[index];
 }
 
-void oc_create_knx_sec_resources(size_t device_index)
+void oc_create_knx_sec_resources(void)
 {
   OC_DBG("oc_create_knx_sec_resources");
 
   oc_load_at_table();
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX security resources created statically");
-    return;
-  }
-
-  oc_create_knx_auth_o_replwdo_resource(OC_KNX_AUTH_O_REPLWDO, device_index);
-  oc_create_knx_auth_o_osndelay_resource(OC_KNX_AUTH_O_OSNDELAY, device_index);
-  oc_create_knx_auth_o_resource(OC_KNX_AUTH_O, device_index);
-  oc_create_a_sen_resource(OC_KNX_A_SEN, device_index);
-
-  oc_create_auth_at_resource(OC_KNX_AUTH_AT, device_index);
-  oc_create_auth_at_x_resource(OC_KNX_AUTH_AT_X, device_index);
-  oc_create_knx_auth_resource(OC_KNX_AUTH, device_index);
+  return;
 }
 
 void oc_init_oscore_from_storage(const bool read_ssn_from_storage)

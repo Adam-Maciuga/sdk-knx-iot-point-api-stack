@@ -40,13 +40,12 @@ static oc_resource_t* core_resources = NULL;
 // dynamic list of device resources, TODO it will be only one ... 
 static oc_device_info_t* oc_device_info = NULL;
 #else  
- // TODO fix this for static allocation, this is not used at the moment..
-static oc_resource_t core_resources[OCF_D + OCF_D * (OC_MAX_NUM_DEVICES - 1)];
-static oc_device_info_t oc_device_info[OC_MAX_NUM_DEVICES];
+ // Single device static allocation
+static oc_resource_t core_resources[1];
+static oc_device_info_t oc_device_info;
 #endif 
 
 static oc_platform_info_t oc_platform_info; // platform provider     
-static size_t device_count = 0;             // holds the current number of allocated devices 
 
 void oc_core_init(void)
 {
@@ -87,12 +86,9 @@ void oc_core_shutdown(void)
 	if (oc_device_info)
 	{
 		#endif 
-		for (i = 0; i < device_count; ++i)
-		{
-			oc_device_info_t* oc_device_info_item = &oc_device_info[i];
-			oc_core_free_device_info_properties(oc_device_info_item);
-		}
 
+		oc_device_info_t* oc_device_info_item = oc_device_info;
+		oc_core_free_device_info_properties(oc_device_info_item);
 		oc_free_knx_table_resources();
 		
 
@@ -106,162 +102,98 @@ void oc_core_shutdown(void)
 	if (core_resources)
 	{
 		#endif 
-		size_t max_resource =
-			1 + (WELLKNOWNCORE * (device_count ? device_count - 1 : 0));
-		for (i = 0; i < max_resource; ++i)
-		{
-			oc_resource_t* core_resource = &core_resources[i];
-			oc_ri_free_resource_properties(core_resource);
-		}
+		size_t max_resource = 1;
+
+		oc_resource_t* core_resource = &core_resources[0];
+		oc_ri_free_resource_properties(core_resource);
+
 		#ifdef OC_DYNAMIC_ALLOCATION
 		free(core_resources);
 		core_resources = NULL;
 	}
 	#endif 
-	device_count = 0;
 }
 
-size_t oc_core_get_num_devices(void)
+int oc_core_set_device_fwv(int major, int minor, int patch)
 {
-	return device_count;
-}
-
-int oc_core_set_device_fwv(size_t device_index, int major, int minor, int patch)
-{
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_device_info[device_index].fwv.major = major;
-	oc_device_info[device_index].fwv.minor = minor;
-	oc_device_info[device_index].fwv.patch = patch;
+	oc_device_info->fwv.major = major;
+	oc_device_info->fwv.minor = minor;
+	oc_device_info->fwv.patch = patch;
 	return 0;
 }
 
-int oc_core_set_device_hwv(size_t device_index, int major, int minor, int patch)
+int oc_core_set_device_hwv(int major, int minor, int patch)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-
-	oc_device_info[device_index].hwv.major = major;
-	oc_device_info[device_index].hwv.minor = minor;
-	oc_device_info[device_index].hwv.patch = patch;
+	oc_device_info->hwv.major = major;
+	oc_device_info->hwv.minor = minor;
+	oc_device_info->hwv.patch = patch;
 	return 0;
 }
 
-int oc_core_set_device_apv(size_t device_index, int major, int minor, int patch)
+int oc_core_set_device_apv(int major, int minor, int patch)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-
-	oc_device_info[device_index].ap.major = major;
-	oc_device_info[device_index].ap.minor = minor;
-	oc_device_info[device_index].ap.patch = patch;
+	oc_device_info->ap.major = major;
+	oc_device_info->ap.minor = minor;
+	oc_device_info->ap.patch = patch;
 	return 0;
 }
 
-int oc_core_set_device_mid(size_t device_index, uint32_t mid)
+int oc_core_set_device_mid(uint32_t mid)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_device_info[device_index].mid = mid;
+	oc_device_info->mid = mid;
 	return 0;
 }
 
-int oc_core_set_and_store_device_ia(size_t device_index, uint16_t ia)
+int oc_core_set_and_store_device_ia(uint16_t ia)
 {
-	if (device_index >= oc_core_get_num_devices())
-  {
-    OC_ERR("device_index %d too large", (int)device_index);
-    return -1;
-  }
-
-  oc_device_info[device_index].ia = ia;
+  oc_device_info->ia = ia;
   oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia));
 
   return 0;
 }
 
-int oc_core_set_device_hwt(const size_t device_index, const char* hardware_type)
+int oc_core_set_device_hwt(const char* hardware_type)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %llu too large", device_index);
-		return -1;
-	}
-
-	oc_free_string(&oc_device_info[device_index].hwt);
-  oc_new_string(&oc_device_info[device_index].hwt, hardware_type, strlen(hardware_type));
+	oc_free_string(&oc_device_info->hwt);
+  oc_new_string(&oc_device_info->hwt, hardware_type, strlen(hardware_type));
 
 	return 0;
 }
 
-int oc_core_set_device_model(const size_t device_index, const char* model)
+int oc_core_set_device_model(const char* model)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_free_string(&oc_device_info[device_index].model);
-	oc_new_string(&oc_device_info[device_index].model, model, strlen(model));
+	oc_free_string(&oc_device_info->model);
+	oc_new_string(&oc_device_info->model, model, strlen(model));
 
 	return 0;
 }
 
-int oc_core_set_device_hostname(const size_t device_index, const char* host_name)
+int oc_core_set_device_hostname(const char* host_name)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_free_string(&oc_device_info[device_index].hostname);
-	oc_new_string(&oc_device_info[device_index].hostname, host_name, strlen(host_name));
+	oc_free_string(&oc_device_info->hostname);
+	oc_new_string(&oc_device_info->hostname, host_name, strlen(host_name));
 
 	return 0;
 }
 
 uint64_t oc_core_get_device_iid()
 {
-	return oc_device_info[0].iid;
+	return oc_device_info->iid;
 }
 
-int oc_core_set_and_store_device_iid(size_t device_index, uint64_t iid)
+int oc_core_set_and_store_device_iid(uint64_t iid)
 {
-  if (device_index >= oc_core_get_num_devices())
-  {
-    OC_ERR("device_index %d too large", (int)device_index);
-    return -1;
-  }
-
-  oc_device_info[device_index].iid = iid;
+  oc_device_info->iid = iid;
   oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid));
 
   return 0;
 }
 
-int oc_core_set_and_store_device_application_version(size_t device_index, int major, int minor, int patch)
+int oc_core_set_and_store_device_application_version(int major, int minor, int patch)
 {
-  if (device_index >= oc_core_get_num_devices())
-  {
-    OC_ERR("device_index %d too large", (int)device_index);
-    return -1;
-  }
-
-	oc_device_info[device_index].ap.major = major;
-  oc_device_info[device_index].ap.minor = minor;
-  oc_device_info[device_index].ap.patch = patch;
+	oc_device_info->ap.major = major;
+  oc_device_info->ap.minor = minor;
+  oc_device_info->ap.patch = patch;
 
 	oc_storage_write(KNX_STORAGE_AP_MAJOR, (uint8_t*)&major, sizeof(major));
   oc_storage_write(KNX_STORAGE_AP_MINOR, (uint8_t*)&minor, sizeof(minor));
@@ -270,53 +202,22 @@ int oc_core_set_and_store_device_application_version(size_t device_index, int ma
   return 0;
 }
 
-int oc_core_set_and_store_device_fid(size_t device_index, uint64_t fid)
+int oc_core_set_and_store_device_fid(uint64_t fid)
 {
-	if (device_index >= oc_core_get_num_devices())
-	{
-		OC_ERR("device_index %d too large", (int) device_index);
-		return -1;
-	}
-	oc_device_info[device_index].fid = fid;
+	oc_device_info->fid = fid;
   oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
 
 	return 0;
 }
 
-oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char* serialnumber, oc_core_add_device_cb_t add_device_cb, void* data)
+oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char* serialnumber, oc_core_set_device_cb_t set_device_cb, void* data)
 {
 	(void) data;
-	#ifndef OC_DYNAMIC_ALLOCATION
-	if (device_count == OC_MAX_NUM_DEVICES)
+
+	#ifdef OC_DYNAMIC_ALLOCATION
+	if (!oc_device_info)
 	{
-		OC_ERR("device limit reached");
-		return NULL;
-	}
-	#else
-
-	// note, there is always 1 resource present, the initial one in the list
-	// per device 'WELLKNOWNCORE' resources needed 
-	const size_t new_num = 1 + WELLKNOWNCORE * device_count;
-
-	// reallocate (expand) present device resources with new device resources
-	core_resources = (oc_resource_t*) realloc(core_resources, new_num * sizeof(oc_resource_t));
-
-	if (!core_resources)
-	{
-		oc_abort("Insufficient memory");
-	}
-
-	if (device_count > 0)
-	{
-		// clear all NEW resources (e.g. for device count 2 : 115-57 -> 58..115)
-		oc_resource_t* device_resources = &core_resources[new_num - WELLKNOWNCORE];
-		memset(device_resources, 0, WELLKNOWNCORE * sizeof(oc_resource_t));
-	}
-	else
-	{
-		// device count is 0 
-		oc_device_info = (oc_device_info_t*) realloc(oc_device_info, sizeof(oc_device_info_t));
-
+		oc_device_info = (oc_device_info_t*) malloc(sizeof(oc_device_info_t));
 		if (!oc_device_info)
 		{
 			oc_abort("Insufficient memory");
@@ -325,55 +226,35 @@ oc_device_info_t* oc_core_add_device(char* name, char* version, char* base, char
 		// define extern for below usage
 		extern oc_resource_t core_resource_dev_sn;
 
-	  // add as first list element the 'sn' resource 
-	  oc_list_add_block(core_resource_list, &core_resource_dev_sn);
-	}
-
-	oc_device_info = (oc_device_info_t*) realloc(oc_device_info, (device_count + 1) * sizeof(oc_device_info_t));
-
-	if (!oc_device_info)
-	{
-		oc_abort("Insufficient memory");
-	}
-
-	memset(&oc_device_info[device_count], 0, sizeof(oc_device_info_t));
-	oc_device_info[device_count].ia = 0xffff;
-
+		// add as first list element the 'sn' resource
+		oc_list_add_block(core_resource_list, &core_resource_dev_sn);
+	} 
 	#endif /* OC_DYNAMIC_ALLOCATION */
 
-	/* Construct device resource */
-	// int properties = OC_DISCOVERABLE;
+	memset(oc_device_info, 0, sizeof(oc_device_info_t));
+	oc_device_info->ia = 0xffff;
 
 	// ensure that the serial number is in lower case
 	// it changes the original, but it must be anyhow lower case...
 	oc_charstream_convert_to_lower(serialnumber);
 
-	oc_new_string(&oc_device_info[device_count].serialnumber, serialnumber, strlen(serialnumber));
-	oc_device_info[device_count].add_device_cb = add_device_cb;
+	oc_new_string(&oc_device_info->serialnumber, serialnumber, strlen(serialnumber));
+	oc_device_info->set_device_cb = set_device_cb;
 
-	oc_create_discovery_resource(WELLKNOWNCORE, device_count);
-	oc_create_knx_device_resources(device_count);
-	oc_create_knx_resources(device_count);
-	oc_create_knx_fb_resources(device_count);
-	oc_create_knx_fp_resources(device_count);
-	oc_create_knx_p_resources(device_count);
-	oc_create_knx_sec_resources(device_count);
-	oc_create_knx_swu_resources(device_count);
-	oc_create_sub_resource(OC_KNX_SUB, device_count);
+	oc_create_knx_fp_resources();
+	oc_create_knx_sec_resources();
+	oc_create_knx_swu_resources();
 
-	oc_device_info[device_count].data = data;
+	oc_device_info->data = data;
 
-	if (oc_connectivity_init(device_count) < 0)
+	if (oc_connectivity_init() < 0)
 	{
 		oc_abort("error initializing connectivity for device");
 	}
-
-	/* must be before the increase of device_count */
+	
 	oc_init_oscore_from_storage(true);
 
-	device_count++;
-
-	return &oc_device_info[device_count - 1];
+	return oc_device_info;
 }
 
 oc_platform_info_t* oc_core_init_platform(const char* mfg_name, oc_core_init_platform_cb_t init_cb, void* data)
@@ -396,97 +277,10 @@ void oc_check_uri(const char* uri)
   oc_assert(uri[0] == '/');
 }
 
-void oc_core_populate_resource(int core_resource_index,
-															 size_t device_index,
-															 char* uri,
-															 oc_content_format_t content_type0,
-															 oc_content_format_t content_type1,
-															 int properties,
-															 oc_request_callback_t get_cb,
-															 oc_request_callback_t put_cb,
-															 oc_request_callback_t post_cb,
-															 oc_request_callback_t delete_cb,
-															 int num_resource_types,
-															 ...)
+
+oc_device_info_t* oc_core_get_device_info(void)
 {
-	oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index);
-
-	if (!r)
-	{
-		return;
-	}
-
-	// const are precompiled resources (device 0 or higher)
-	if (r->is_const)
-	{
-		OC_ERR("oc_core_populate_resource: resource %d is const", core_resource_index);
-		return;
-	}
-
-	// device index
-	r->device = device_index;
-
-	// uri 
-	oc_check_uri(uri);
-	r->uri.next = NULL;
-	r->uri.ptr = uri;
-	r->uri.size = strlen(uri) + 1; // include null terminator in size
-
-	// properties
-	r->properties = properties;
-
-	// rt types, use variable arguments (stdarg.h)
-	va_list rt_list;
-	va_start(rt_list, num_resource_types);
-	if (num_resource_types > 0)
-	{
-		oc_new_string_array(&r->types, num_resource_types);
-		for (int i = 0; i < num_resource_types; i++)
-		{
-			const char* resource_type = va_arg(rt_list, const char*);
-			oc_assert(strlen(resource_type) < STRING_ARRAY_ITEM_MAX_LEN);
-			oc_string_array_add_item(r->types, resource_type);
-		}
-	}
-	va_end(rt_list);
-
-	r->content_type[0] = content_type0;
-	r->content_type[1] = content_type1;
-
-	// caller handler
-	r->get_handler.cb = get_cb;
-	r->put_handler.cb = put_cb;
-	r->post_handler.cb = post_cb;
-	r->delete_handler.cb = delete_cb;
-
-	// scopes/ interfaces
-	// TODO must be set according to 'non const' resource
-
-}
-
-void oc_core_bind_dpt_resource(int core_resource_index, size_t device_index, const char* dpt)
-{
-	const oc_resource_t* r = oc_core_get_resource_by_index(core_resource_index);
-	if (!r)
-	{
-		return;
-	}
-	if (r->is_const)
-	{
-		OC_ERR("resource is const");
-		return;
-	}
-
-	oc_resource_bind_dpt((oc_resource_t*) r, dpt);
-}
-
-oc_device_info_t* oc_core_get_device_info(size_t device)
-{
-	if (device >= device_count)
-	{
-		return NULL;
-	}
-	return &oc_device_info[device];
+	return oc_device_info;
 }
 
 oc_platform_info_t* oc_core_get_platform_info(void)

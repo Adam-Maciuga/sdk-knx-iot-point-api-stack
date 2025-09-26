@@ -22,20 +22,4 @@
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @brief Creation of the /sub resource.
- *
- * @param resource_idx the resource index
- * @param device_index the device to which the resource belongs
- */
-void oc_create_sub_resource(int resource_idx, size_t device_index);
-
-#ifdef __cplusplus
-}
-#endif
-
 #endif /* OC_KNX_SUB_INTERNAL_H */

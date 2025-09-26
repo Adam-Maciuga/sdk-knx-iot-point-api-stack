@@ -359,7 +359,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	}
 
 	// get from device 0 info
-	const oc_device_info_t* device = oc_core_get_device_info(0);
+	const oc_device_info_t* device = oc_core_get_device_info();
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
 
@@ -437,7 +437,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		PRINT("group address: %d", group_address);
 
 		// if not in 'runtime' just return
-		if (!oc_is_device_in_runtime(0))
+		if (!oc_is_device_in_runtime())
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
 			PRINT("device not at 'runtime'");
@@ -479,7 +479,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// handle programming mode
 	if (if_len == 13 && strncmp(if_request, "urn:knx:if.pm", 13) == 0)
 	{
-		if (oc_knx_device_in_programming_mode(0))
+		if (oc_knx_device_in_programming_mode())
 		{ // PRG mode on
 			/*
 				 - add only '<>; ep="knx://sn.<serial-number> knx://ia.<ia>"' when the interface
@@ -727,13 +727,12 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 * 
 */
 
-oc_resource_dummy_t core_resource_well_known_core_final = { NULL, -1 };					 		// next resource (here NULL)
+oc_resource_dummy_t core_resource_well_known_core_final = { NULL};					 		// next resource (here NULL)
 PRAGMA_IN																																										 		// compiler specific
 oc_resource_data_t core_resource_well_known_core_data;																			 		// at runtime modifiable (RAM) data for th endpoint
 const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition 
 { // typecast since type of last list dummy is different
 	(oc_resource_t*) &core_resource_well_known_core_final,																		 		// ptr to next (here last) resource
-	0,																																												 		// device instance
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
 	{ NULL, (size_t)1 * 32, (char[1][32]){	"well-known-type"} },					        // types (0...n), if 0 => 3 x NULL
 	{ NULL, 0, NULL },																						 								// DPT
@@ -751,22 +750,6 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	&core_resource_well_known_core_data																												 		// ptr to user runtime data					
 };
 PRAGMA_OUT																																									 		// compiler specific
-
-void oc_create_discovery_resource(const int resource_idx, const size_t device_index)
-{
-	OC_DBG("create /.well-known/core resources");
-
-	if (device_index == 0)
-	{
-		OC_DBG("device 0: KNX device resources created statically");
-		return;
-	}
-
-	oc_core_populate_resource(resource_idx, device_index, "/.well-known/core",
-														APPLICATION_LINK_FORMAT, CONTENT_NONE,
-														OC_DISCOVERABLE, oc_wkcore_discovery_handler, 0,
-														0, 0, 1, "well-known-type");
-}
 
 oc_discovery_flags_t
 oc_ri_process_discovery_payload(const uint8_t* payload, const int len,

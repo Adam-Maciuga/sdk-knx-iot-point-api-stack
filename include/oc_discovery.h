@@ -27,14 +27,6 @@ extern "C" {
 #endif
 
 /**
- * @brief create a resource that is discoverable.
- *
- * @param resource_idx the resource index
- * @param device_index the device to which the resource belongs
- */
-void oc_create_discovery_resource(int resource_idx, size_t device_index);
-
-/**
  * @brief  filters on an individual resource for a match with the request query parameters, on 
  *         a match include the resource in the response (in link-format)
  *

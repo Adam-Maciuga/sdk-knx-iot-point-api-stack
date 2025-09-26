@@ -117,9 +117,7 @@ extern "C"
      * added.
      *
      *  - oc_init_platform()
-     *  - oc_add_device()
-     *
-     * Multiple devices can be added by making multiple calls to oc_add_device().
+     *  - oc_set_device()
      *
      * Other actions may be taken in the init handler
      *  - Set up an interrupt handler oc_activate_interrupt_handler()
@@ -130,7 +128,7 @@ extern "C"
      *  - value less than zero to indicate failure initializing the application
      *
      * @see oc_activate_interrupt_handler
-     * @see oc_add_device
+     * @see oc_set_device
      * @see oc_init_platform
      */
     int (*init)(void);
@@ -159,7 +157,7 @@ extern "C"
      * ```
      * static void register_resources(void)
      * {
-     *   oc_resource_t *bswitch = oc_new_resource(NULL, "/switch", 1, 0);
+     *   oc_resource_t *bswitch = oc_new_resource(NULL, "/switch", 1);
      *   oc_resource_bind_resource_type(bswitch, "urn:knx:dpa.417.61");
      *   oc_resource_bind_dpt(bswitch, "urn:knx:dpt.switch");
      *   oc_resource_bind_resource_interface(bswitch, OC_IF_A);
@@ -221,20 +219,20 @@ extern "C"
    * {
    *   int ret = oc_init_platform("My Platform",
    *      set_additional_platform_properties, NULL);
-   *   ret |= oc_add_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
+   *   ret |= oc_set_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
    * }
    * ```
    *
-   * @param[in] data context pointer that comes from the oc_add_device() function
+   * @param[in] data context pointer that comes from the oc_set_device() function
    *
-   * @see oc_add_device
+   * @see oc_set_device
    * @see oc_set_custom_device_property
    */
   typedef void (*oc_init_platform_cb_t)(void* data);
 
   /**
-   * Callback invoked during oc_add_device(). The purpose is to add any additional
-   * device properties that are not supplied to oc_add_device() function call.
+   * Callback invoked during oc_set_device(). The purpose is to add any additional
+   * device properties that are not supplied to oc_set_device() function call.
    *
    * Example:
    * ```
@@ -247,7 +245,7 @@ extern "C"
    * static int app_init(void)
    * {
    *   int ret = oc_init_platform("My Platform", NULL, NULL);
-   *   ret |= oc_add_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
+   *   ret |= oc_set_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
    *   return ret;
    * }
    * ```
@@ -255,10 +253,10 @@ extern "C"
    * @param[in] data context pointer that comes from the oc_init_platform()
    * function
    *
-   * @see oc_add_device
+   * @see oc_set_device
    * @see oc_set_custom_device_property
    */
-  typedef void (*oc_add_device_cb_t)(void* data);
+  typedef void (*oc_set_device_cb_t)(void* data);
 
   /**
    * Register and call handler functions responsible for controlling the
@@ -304,11 +302,10 @@ extern "C"
   /**
    * Preset callback data
    *
-   * @param[in] device the device index
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_factory_presets_cb_t)(size_t device, void* data);
+  typedef void (*oc_factory_presets_cb_t)( void* data);
 
   /**
    * Set the factory presets callback.
@@ -329,12 +326,11 @@ extern "C"
   /**
    * Reset callback data.
    *
-   * @param[in] device the device index
    * @param[in] reset_value reset value per KNX
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_reset_cb_t)(size_t device, int reset_value, void* data);
+  typedef void (*oc_reset_cb_t)( int reset_value, void* data);
 
   /**
    * Set the reset callback.
@@ -354,11 +350,10 @@ extern "C"
   /**
    * Restart callback data.
    *
-   * @param[in] device the device index
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_restart_cb_t)(size_t device, void* data);
+  typedef void (*oc_restart_cb_t)( void* data);
 
   /**
    * Set the restart callback.
@@ -383,12 +378,11 @@ extern "C"
   /**
    * Callback invoked by the stack to set the host name
    *
-   * @param[in] device the device index
    * @param[in] host_name the host name to be set
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_hostname_cb_t)(size_t device, oc_string_t host_name, void* data);
+  typedef void (*oc_hostname_cb_t)(oc_string_t host_name, void* data);
 
   /**
    * Host name (set) callback.
@@ -412,13 +406,12 @@ extern "C"
    * set the programming mode of the device via a call to
    * oc_knx_device_set_programming_mode();
    *
-   * @param[in] device the device index
    * @param[in] programming_mode whether to set the programming mode to true or
    * false
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_programming_mode_cb_t)(size_t device, bool programming_mode, void* data);
+  typedef void (*oc_programming_mode_cb_t)(bool programming_mode, void* data);
 
   /**
    * Set the programming mode callback
@@ -466,59 +459,35 @@ extern "C"
   void oc_set_swu_cb(oc_swu_cb_t cb, void* data);
 
   /**
-   * Add a device to the stack.
-   *
-   * This function is typically called as part of the stack initialization
-   * process from inside the `init` callback handler.
-   *
-   * The `oc_add_device` function may be called as many times as needed.
-   * Each call will add a new device to the stack with its own port address.
-   * Each device is automatically assigned a number starting with zero and
-   * incremented by one each time the function is called. This number is not
-   * returned therefore it is important to know the order devices are added.
-   *
-   * Example:
-   * ```
-   * //app_init is an instance of the `init` callback handler.
-   * static int app_init(void)
-   * {
-   *   int ret = oc_init_platform("Refrigerator", NULL, NULL);
-   *   ret |= oc_add_device("my_name", "1.0", "//",
-   *                        "0123456", NULL, NULL);
-
-   *   return ret;
-   * }
-   * ```
-   *
    * @param[in] name the user readable name of the device
    * @param[in] version The api version e.g. "1.0.0"
    * @param[in] base the base url e.g. "/"
    * @param[in] serial_number the serial number of the device
-   * @param[in] add_device_cb callback function invoked during oc_add_device().
+   * @param[in] set_device_cb callback function invoked during oc_set_device().
    * The purpose is to add additional device properties that are not supplied to
-   * oc_add_device() function call.
-   * @param[in] data context pointer that is passed to the oc_add_device_cb_t
+   * oc_set_device() function call.
+   * @param[in] data context pointer that is passed to the oc_set_device_cb_t
    *
    * @return 0 = success
    * @return -1 = failure
    *
    * @see init
    */
-  int oc_add_device(const char* name, const char* version, const char* base, const char* serial_number,
-                    oc_add_device_cb_t add_device_cb, void* data);
+  int oc_set_device(const char* name, const char* version, const char* base, const char* serial_number,
+                    oc_set_device_cb_t set_device_cb, void* data);
 
 /**
  * Set custom device property
  *
  * The purpose is to add additional device properties that are not supplied to
- * oc_add_device() function call. This function will likely only be used inside
- * the oc_add_device_cb_t().
+ * oc_set_device() function call. This function will likely only be used inside
+ * the oc_set_device_cb_t().
  *
  * @param[in] prop the name of the custom property being added to the device
  * @param[in] value the value of the custom property being added to the device
  *
- * @see oc_add_device_cb_t for example code using this function
- * @see oc_add_device
+ * @see oc_set_device_cb_t for example code using this function
+ * @see oc_set_device
  */
 #define oc_set_custom_device_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
 
@@ -606,7 +575,7 @@ extern "C"
    * ```
    * static void register_resources(void)
    * {
-   *   oc_resource_t *switch = oc_new_resource("light switch", "/switch", 1, 0);
+   *   oc_resource_t *switch = oc_new_resource("light switch", "/switch", 1);
    *   oc_resource_bind_resource_type(switch, "urn:knx:dpa.417.61");
    *   oc_resource_bind_dpt(switch, "urn:knx:dpt.switch");
    *   oc_resource_set_observable(switch, true);
@@ -620,7 +589,6 @@ extern "C"
    * @param[in] resource_path the Uniform Resource Identifier for the resource
    * @param[in] num_resource_types the number of Resource Types that will be
    *                               added/bound to the resource
-   * @param[in] device index of the logical device the resource will be added to
    *
    * @see oc_resource_bind_resource_interface
    * @see oc_resource_bind_resource_type
@@ -630,7 +598,7 @@ extern "C"
    * @see oc_resource_set_periodic_observable
    * @see oc_resource_set_request_handler
    */
-  oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, size_t device);
+  oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types);
 
   /**
    * Add a Resource Type "rt" property to the resource.

@@ -554,22 +554,20 @@ extern "C"
    *
    * @param href the url to be checked of the device
    * @param discoverable if true checks the device and its discoverable resources (otherwise all resources)
-   * @param device_index The device index
    *
    * @return true
    * @return false
    *
    * @note a href leading forward '/' is ignored when checking, href after the '/' must be non-zero
    */
-  bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index);
+  bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable);
 
   /**
    * @brief Creation of the KNX feature point resources.
    *
-   * @param device_index index of the device to which the resource are to be
    * created
    */
-  void oc_create_knx_fp_resources(size_t device_index);
+  void oc_create_knx_fp_resources(void);
 
   /**
    * @brief free the GO/PUB/SUB tables in RAM

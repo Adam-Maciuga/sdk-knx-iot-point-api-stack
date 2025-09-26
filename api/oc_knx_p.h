@@ -31,14 +31,6 @@
 extern "C" {
 #endif
 
-/**
- *@brief Creation of the KNX /p resource.
- * - /p
- *
- *@param device index of the device to which the resource is to be created
- */
-void oc_create_knx_p_resources(size_t device);
-
 #ifdef __cplusplus
 }
 #endif

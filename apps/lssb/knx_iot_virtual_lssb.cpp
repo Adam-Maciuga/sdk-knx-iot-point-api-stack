@@ -362,7 +362,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
 
   // serial number 
   strcpy(text, "Serial Number : ");
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   strcat(text, oc_string(device->serialnumber));
 
   wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, 
@@ -481,7 +481,7 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   SetStatusText("Changing programming mode");
 
   bool my_val = m_menuFile->IsChecked(CHECK_PM);
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   device->pm = my_val;
 
   // update the UI
@@ -501,7 +501,7 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
   SetStatusText("Changing sleepy mode");
 
   bool my_sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   if (my_sleepy)
   {
@@ -531,7 +531,7 @@ void MyFrame::updateDeviceData()
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   // may already shut down on exit
   if (!device)
@@ -569,7 +569,7 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
   // reset the device
-  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_WO_IA);
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
   // update the UI
   this->updateDeviceData();
 }
@@ -583,7 +583,7 @@ void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
   // reset the device
-  oc_knx_device_storage_reset(0, RESET_TO_DEFAULT_STATE);
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
   // update the UI
   this->updateDeviceData();
 }
@@ -604,7 +604,7 @@ void MyFrame::OnReset(wxCommandEvent& event)
  */
 void MyFrame::OnListAll(wxCommandEvent& event)
 {
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (!device) {
     return;
   }
@@ -663,7 +663,7 @@ void MyFrame::OnTimer(wxTimerEvent& event)
       do_poll = true;
       m_sleep_counter = 0;
     }
-    if (oc_knx_device_in_programming_mode(0))
+    if (oc_knx_device_in_programming_mode())
     {
       // make sure that the device is reactive in programming mode, so keep on polling
       do_poll = true;

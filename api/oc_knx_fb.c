@@ -67,14 +67,14 @@ void store_in_array(int value, int instance)
 }
 
 // -----------------------------------------------------------------------------
-static int oc_core_count_dp_in_fb(size_t device_index, int instance, int fb_value)
+static int oc_core_count_dp_in_fb(int instance, int fb_value)
 {
   int counter = 0;
 
   const oc_resource_t* resource = oc_ri_get_app_resources();
   for (; resource; resource = resource->next)
   {
-    if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
+    if (!(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -101,8 +101,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -132,10 +131,10 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   PRINT("instance: %d ", instance);
 
-  size_t device_index = request->resource->device;
+
 
   // current resource amount
-  const int total = oc_core_count_dp_in_fb(device_index, instance, fb_value);
+  const int total = oc_core_count_dp_in_fb(instance, fb_value);
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -163,7 +162,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int skipped = 0;
   for (; resource; resource = resource->next)
   {
-    if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
+    if (!(resource->properties & OC_DISCOVERABLE))
     {
       continue;
     }
@@ -226,7 +225,6 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 extern const oc_resource_t core_resource_knx_swu_protocol;
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_x_data;
 const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_swu_protocol,
-                                             0,
                                              {NULL, sizeof("/f/*"), "/f/*"},
                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                              {NULL, 0, NULL},
@@ -244,15 +242,6 @@ const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_
                                              &core_resource_knx_f_x_data};
 PRAGMA_OUT
 
-void oc_create_fb_x_resource(int resource_idx, size_t device)
-{
-  OC_DBG("create /f/x resources");
-  // note that this resource is listed in /.well-known/core so it should have
-  // the full rt with urn:knx prefix.
-  oc_core_populate_resource(resource_idx, device, "/f/*", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fb_x_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
-}
-
 // -----------------------------------------------------------------------------
 
 int oc_count_functional_blocks(void)
@@ -261,7 +250,6 @@ int oc_count_functional_blocks(void)
 
   if (g_nr_functional_blocks > 0)
   { // cached..., if calculated once, return value instead of compute it again
-    // TODO , works only for the same device-index since cache is only one time available for all devices
     return g_nr_functional_blocks;
   }
 
@@ -501,8 +489,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -560,7 +547,6 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 // resource definition, details/comments see on 'core_resource_well_known_core_final'
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_data;
 const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_x,
-                                           0,
                                            {NULL, sizeof("/f"), "/f"},
                                            {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
                                            {NULL, 0, NULL},
@@ -577,25 +563,3 @@ const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_
                                            1,
                                            &core_resource_knx_f_data};
 PRAGMA_OUT
-
-void oc_create_fb_resource(int resource_idx, size_t device)
-{
-  OC_DBG("create /f resources");
-  // note that this resource is listed in /.well-known/core so it should have
-  // the full rt with urn:knx prefix
-  oc_core_populate_resource(resource_idx, device, "/f", APPLICATION_LINK_FORMAT, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fb_get_handler, 0, 0, 0, 1, "urn:knx:fb.0");
-}
-
-void oc_create_knx_fb_resources(size_t device_index)
-{
-  OC_DBG("oc_create_knx_fb_resources");
-
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX functional block resources created statically");
-    return;
-  }
-  oc_create_fb_x_resource(OC_KNX_F_X, device_index);
-  oc_create_fb_resource(OC_KNX_F, device_index); // should be last of the knx/xxx resources, it will list those.
-}

@@ -462,7 +462,6 @@ extern "C" {
 	struct oc_resource
 	{
     struct oc_resource* next;             // link to next res. (can't be const, application res. changes data + ptr)
-		size_t device;                        // device index 
 		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
 		oc_string_array_t types;              // resource type (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
 		oc_string_t dpt;                      // resource datapoint type
@@ -484,7 +483,6 @@ extern "C" {
 	typedef struct oc_resource_dummy_s
 	{
 		struct oc_resource* next;   // next resource
-		size_t device;              // should ALWAYS be -1 for dummy node
 	} oc_resource_dummy_t;
 
 
@@ -579,7 +577,7 @@ extern "C" {
 	bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
 
 	/**
-	 * @brief retrieve the application resource that fits to the given uri (and device index)
+	 * @brief retrieve the application resource that fits to the given uri
 	 *
 	 * @param resource_path the resource path
 	 * @param resource_path_len the length of the resource path

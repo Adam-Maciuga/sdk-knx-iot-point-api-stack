@@ -281,13 +281,13 @@ static int oc_core_items_used_in_rcp_table(void)
   return counter;
 }
 
-bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable, size_t device_index)
+bool oc_belongs_href_to_resource(oc_string_t href, bool discoverable)
 {
   for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
     if (discoverable)
     {
-      if (resource->device != device_index || !(resource->properties & OC_DISCOVERABLE))
+      if (!(resource->properties & OC_DISCOVERABLE))
       {
         // skip non discoverable resources
         continue;
@@ -307,7 +307,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  // how many (to this device applicable) query parameter key/value pair matches where found
+  // query parameter key/value pair matches found
   int query_parameter_kvpair_matches = 0; 
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
@@ -403,8 +403,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  const size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
@@ -626,7 +625,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           do_save = false;
           OC_ERR("href is longer than %d", OC_MAX_URL_LENGTH);
         }
-        if (!oc_belongs_href_to_resource(tmp_go_entry.href, true, 0))
+        if (!oc_belongs_href_to_resource(tmp_go_entry.href, true))
         {
           do_save = false;
           OC_ERR("href '%s' does not belong to device", oc_string_checked(tmp_go_entry.href));
@@ -684,7 +683,6 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 extern const oc_resource_t core_resource_knx_fp_g_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_data;
 const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx_fp_g_x,
-                                              0,
                                               {NULL, sizeof("/fp/g"), "/fp/g"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -701,13 +699,6 @@ const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx
                                               1,
                                               &core_resource_knx_fp_g_data};
 PRAGMA_OUT
-
-void oc_create_fp_g_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_fp_g_resource");
-  oc_core_populate_resource(resource_idx, device, "/fp/g", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_g_get_handler, 0, oc_core_fp_g_post_handler, 0, 1, "urn:knx:if.c");
-}
 
 static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -762,8 +753,8 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
   (void)iface_mask;
   PRINT("oc_core_fp_g_x_del_handler - start");
 
-  size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
+
+  if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -796,7 +787,6 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_knx_fp_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
-                                                0,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -819,7 +809,6 @@ PRAGMA_OUT
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_r,
-                                                0,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -837,13 +826,6 @@ const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_fp_g_x_data};
 PRAGMA_OUT
 #endif
-
-void oc_create_fp_g_x_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_fp_g_x_resource");
-  oc_core_populate_resource(resource_idx, device, "/fp/g/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_g_x_get_handler, 0, 0, oc_core_fp_g_x_del_handler, 1, "urn:knx:if.c");
-}
 
 // -PUBLISHER-
 
@@ -878,8 +860,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -973,8 +954,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  const size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
@@ -1253,7 +1233,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 extern const oc_resource_t core_resource_knx_fp_p_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
 const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
-                                              0,
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -1270,13 +1249,6 @@ const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx
                                               1,
                                               &core_resource_knx_fp_p_data};
 PRAGMA_OUT
-
-void oc_create_fp_p_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_fp_p_resource");
-  oc_core_populate_resource(resource_idx, device, "/fp/p", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_p_get_handler, 0, oc_core_fp_p_post_handler, 0, 1, "urn:knx:if.c");
-}
 
 static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1360,8 +1332,8 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
   (void)iface_mask;
   PRINT("oc_core_fp_p_x_del_handler - start");
 
-  size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
+
+  if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1392,7 +1364,6 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
 const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
-                                                0,
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -1409,14 +1380,6 @@ const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_k
                                                 1,
                                                 &core_resource_knx_fp_p_x_data};
 PRAGMA_OUT
-
-void oc_create_fp_p_x_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_fp_p_x_resource");
-  oc_core_populate_resource(resource_idx, device, "/fp/p/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_p_x_get_handler, 0, 0, oc_core_fp_p_x_del_handler, 0, 1, "urn:knx:if.c");
-}
-
 #endif
 
 // -RECIPIENT-
@@ -1426,8 +1389,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches =
-    0; // how many (to this device applicable) query parameter key/value pair matches where found
+  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -1520,8 +1482,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  const size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
+  if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
@@ -1844,7 +1805,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 extern const oc_resource_t core_resource_knx_fp_r_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
 const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
-                                              0,
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
                                               {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                               {NULL, 0, NULL},
@@ -1861,13 +1821,6 @@ const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx
                                               1,
                                               &core_resource_knx_fp_r_data};
 PRAGMA_OUT
-
-void oc_create_fp_r_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_fp_r_resource");
-  oc_core_populate_resource(resource_idx, device, "/fp/r", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_r_get_handler, 0, oc_core_fp_r_post_handler, 0, 1, "urn:knx:if.c");
-}
 
 static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1952,8 +1905,8 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
   (void)iface_mask;
   PRINT("oc_core_fp_r_x_del_handler");
 
-  size_t device_index = request->resource->device;
-  if (oc_knx_get_lsm(device_index) != LSM_S_LOADING)
+
+  if (oc_knx_get_lsm() != LSM_S_LOADING)
   {
     OC_ERR("not in loading state");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1984,7 +1937,6 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 extern const oc_resource_t core_resource_knx_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
 const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
-                                                0,
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},
                                                 {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
                                                 {NULL, 0, NULL},
@@ -2001,13 +1953,6 @@ const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_k
                                                 1,
                                                 &core_resource_knx_fp_r_x_data};
 PRAGMA_OUT
-
-void oc_create_fp_r_x_resource(int resource_idx, size_t device)
-{
-  OC_DBG("oc_create_fp_r_x_resource");
-  oc_core_populate_resource(resource_idx, device, "/fp/r/*", APPLICATION_CBOR, CONTENT_NONE, OC_DISCOVERABLE,
-                            oc_core_fp_r_x_get_handler, 0, 0, oc_core_fp_r_x_del_handler, 1, "urn:knx:if.c");
-}
 
 bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_address)
 {
@@ -2747,27 +2692,10 @@ static void oc_init_tables(void)
   }
 }
 
-void oc_create_knx_fp_resources(size_t device_index)
+void oc_create_knx_fp_resources(void)
 {
   OC_DBG("oc_create_knx_fp_resources");
 
-  if (device_index == 0)
-  {
-    OC_DBG("device 0: KNX function point resources created statically");
-  }
-  else
-  {
-    oc_create_fp_g_resource(OC_KNX_FP_G, device_index);
-    oc_create_fp_g_x_resource(OC_KNX_FP_G_X, device_index);
-
-#ifdef OC_PUBLISHER_TABLE
-    oc_create_fp_p_resource(OC_KNX_FP_P, device_index);
-    oc_create_fp_p_x_resource(OC_KNX_FP_P_X, device_index);
-#endif
-
-    oc_create_fp_r_resource(OC_KNX_FP_R, device_index);
-    oc_create_fp_r_x_resource(OC_KNX_FP_R_X, device_index);
-  }
   oc_init_tables();
   oc_load_group_object_table();
   oc_load_object_table();
@@ -2947,7 +2875,7 @@ void oc_register_group_multicasts(void)
 #ifdef OC_PUBLISHER_TABLE
 
   // register only if publisher is active, installation id will be used as ULA prefix
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
   if (!device)
   {
     PRINT("oc_register_group_multicasts: no device info");
@@ -3003,7 +2931,7 @@ void oc_init_datapoints_at_initialization(void)
 
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 
-          oc_device_info_t* device = oc_core_get_device_info(0);
+          oc_device_info_t* device = oc_core_get_device_info();
           uint16_t sia_value = device->ia;
           uint64_t iid = device->iid;
 

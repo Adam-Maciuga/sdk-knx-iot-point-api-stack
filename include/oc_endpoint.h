@@ -78,7 +78,6 @@ extern "C" {
   typedef struct oc_endpoint_t
   {
     struct oc_endpoint_t* next;           /**< pointer to the next structure */
-    size_t device;                        /**< device index */
     enum transport_flags flags;           /**< the transport flags */
     char oscore_id[OSCORE_SENDER_ID_LEN]; // cnf:osc:id, max 7 bytes
     size_t oscore_id_len;                 // len 
@@ -116,7 +115,6 @@ extern "C" {
 
 #define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)              \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
-                             .device = 0,                                      \
                              .group_address = 0,                               \
                              .addr.ipv6 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }

@@ -30,11 +30,11 @@
 static size_t query_iterator;
 
 int
-oc_add_device(const char* name, const char* version, const char* base,
-							const char* serialnumber, oc_add_device_cb_t add_device_cb,
+oc_set_device(const char* name, const char* version, const char* base,
+							const char* serialnumber, oc_set_device_cb_t set_device_cb,
 							void* data)
 {
-	if (!oc_core_add_device(name, version, base, serialnumber, add_device_cb, data))
+	if (!oc_core_set_device(name, version, base, serialnumber, set_device_cb, data))
 		return -1;
 
 	return 0;
@@ -212,7 +212,7 @@ oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_le
 	oc_send_response_raw(request, (const uint8_t*) msg, msg_len, TEXT_PLAIN, response_code);
 }
 
-oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, size_t device_index)
+oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 {
 	oc_resource_t* resource = NULL;
 
@@ -225,9 +225,6 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types, 
 
 		if (resource && data)
 		{
-			// device
-			resource->device = device_index;
-
 			// uri (href), note that this assigns - with oc_string_t type - an already - by application - allocated resource
 			oc_check_uri(resource_path);                        
 			resource->uri.next = NULL;

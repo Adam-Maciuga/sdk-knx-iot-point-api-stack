@@ -135,15 +135,13 @@ void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
   PRINT("oc_s_mode_response_cb %s", url);
 }
 
-void factory_presets_cb(size_t device_index, void* data)
+void factory_presets_cb(void* data)
 {
-  (void)device_index;
   (void)data;
 }
 
-void hostname_cb(const size_t device_index, const oc_string_t host_name, void* data)
+void hostname_cb(const oc_string_t host_name, void* data)
 {
-  (void)device_index;
   (void)data;
 
   PRINT("host name callback called with host name: %s", oc_string(host_name));
@@ -204,25 +202,25 @@ int app_init(void)
 
   // set the application name, version, base url, device serial number
   // init also the device resources such as /dev, /.well-known/core, ...
-  ret |= oc_add_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
+  ret |= oc_set_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
 
   // set the hardware version 0.0.1, value used from EITT for testing
-  oc_core_set_device_hwv(0, 0, 0, 1);
+  oc_core_set_device_hwv(0, 0, 1);
 
   // set the hardware version 0.0.1, value used from EITT for testing
-  oc_core_set_device_fwv(0, 0, 0, 1);
+  oc_core_set_device_fwv(0, 0, 1);
 
   // set manufacturer id, value used from EITT for testing
-  oc_core_set_device_mid(0, mid);
+  oc_core_set_device_mid(mid);
 
   // set the hardware type -> 12 chars, value used from EITT for testing
-  oc_core_set_device_hwt(0, hw_type);
+  oc_core_set_device_hwt(hw_type);
 
   // set device model, value used from EITT for testing
-  oc_core_set_device_model(0, dev_model);
+  oc_core_set_device_model(dev_model);
 
   // set host name, value used from EITT for testing
-  oc_core_set_device_hostname(0, hostname);
+  oc_core_set_device_hostname(hostname);
 
   // set response callback (if needed must be filled with code)
   oc_set_s_mode_response_cb(oc_s_mode_response_cb);
@@ -330,7 +328,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();
@@ -606,7 +604,7 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info(0);
+  oc_device_info_t* device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();

@@ -61,7 +61,7 @@ OC_MEMB(client_cbs_s, oc_client_cb_t, OC_MAX_NUM_CONCURRENT_REQUESTS + 1);
 #endif 
 
 OC_LIST(timed_callbacks);
-OC_MEMB(event_callbacks_s, oc_event_callback_t, 1 + WELLKNOWNCORE * OC_MAX_NUM_DEVICES + OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS * 2);
+OC_MEMB(event_callbacks_s, oc_event_callback_t, 1 + WELLKNOWNCORE + OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS * 2);
 
 OC_PROCESS(timed_callback_events, "OC timed callbacks");
 
@@ -717,7 +717,7 @@ bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
 	if (!_resource)
 		return false;
 	const oc_resource_t* dummy_resource = _resource;
-	while (dummy_resource && dummy_resource->device != -1)
+	while (dummy_resource && dummy_resource->next != NULL)
 	{
 		dummy_resource = dummy_resource->next;
 	}
@@ -862,9 +862,9 @@ const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource)
 	do
 	{
 		resource = resource->next;
-		// device = -1 means dummy resource (MUST BE IN RAM)
+		// next = NULL means dummy resource (MUST BE IN RAM)
 	}
-	while (resource && resource->device == -1);
+	while (resource && resource->next == NULL);
 	return resource;
 }
 

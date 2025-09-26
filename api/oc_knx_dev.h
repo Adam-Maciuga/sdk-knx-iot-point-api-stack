@@ -36,25 +36,6 @@ extern "C" {
 #define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
 
 /**
- * @brief create device resources.
- *  - sn (serial number)
- *  - hwv (hardware version)
- *  - fwv (firmware version)
- *  - hwt (hardware type)
- *  - model (device model)
- *  - sa (sub address)
- *  - da (device address)
- *  - ipv6 (ipv6 address)
- *  - hname (host name)
- *  - ia (internal address)
- *  - iid (installation identifier)
- *  - port (port address)
- *
- * @param device index of the device to which the resource is to be created
- */
-void oc_create_knx_device_resources(size_t device);
-
-/**
 @brief load the device from storage (file system)
  *  
  *  - hname (host name)
@@ -64,10 +45,9 @@ void oc_create_knx_device_resources(size_t device);
  *  - fid (fabric id)
  *  - ap (application version)
  *  - lsm (load state)
-
-@param device index of the device to which the data is to be read
-*/
-void oc_knx_load_device(size_t device);
+ *
+ */
+void oc_knx_load_device();
 
 /**
  * @brief clear the persistent storage
@@ -87,28 +67,25 @@ void oc_knx_load_device(size_t device);
  *   - group object / recipient / publisher object table
  *   - access token table (except entries with 'if.sec')
  *
- * @param device_index The device index
  * @param reset_mode the KNX reset mode
  */
-void oc_knx_device_storage_reset(size_t device_index, int reset_mode);
+void oc_knx_device_storage_reset(int reset_mode);
 
 /**
  * @brief function checks if the device is in programming mode
  *
- * @param device_index the device index
  * @return true in programming mode
  * @return false not in programming mode
  */
-bool oc_knx_device_in_programming_mode(size_t device_index);
+bool oc_knx_device_in_programming_mode();
 
 /**
  * @brief function set the programming mode of the device to true or false
  *
- * @param device_index the device index
  * @param programming_mode true to set the device in programming mode, false
  * otherwise
  */
-void oc_knx_device_set_programming_mode(size_t device_index, bool programming_mode);
+void oc_knx_device_set_programming_mode(bool programming_mode);
 
 /**
  * @brief Restart the KNX device

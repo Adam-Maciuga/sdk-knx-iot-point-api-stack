@@ -156,21 +156,17 @@ extern "C"
   /**
    * @brief retrieve the current LSM state
    *
-   * @param device_index index of the device to which the resource is to be
-   * created
    * @return the LSM state
    */
-  oc_lsm_state_t oc_knx_get_lsm(size_t device_index);
+  oc_lsm_state_t oc_knx_get_lsm(void);
 
   /**
    * @brief sets the current LSM state and writes it to storage
    *
-   * @param device_index index of the device to which the resource is to be
-   * created
    * @param new_state the new LSM
    * @return 0 == success
    */
-  int oc_knx_set_and_store_lsm(size_t device_index, oc_lsm_state_t new_state);
+  int oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
 
   /**
    * @brief convert the load state machine (lsm) event to string
@@ -191,12 +187,11 @@ extern "C"
   /**
    * Callback invoked by the stack to inform the change of the lsm
    *
-   * @param[in] device the device index
    * @param[out] lsm_state the new state of the lsm
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_lsm_change_cb_t)(size_t device, oc_lsm_state_t lsm_state, void* data);
+  typedef void (*oc_lsm_change_cb_t)(oc_lsm_state_t lsm_state, void* data);
 
   /**
    * Set the load state machine change callback.
@@ -220,11 +215,10 @@ extern "C"
    * @note devices from manufacturing will not work out of the box, only
    * if a MaC was setting the iid to a value > 0
    *
-   * @param device_index The device index.
    * @return true in runtime
    * @return false not in run time
    */
-  bool oc_is_device_in_runtime(size_t device_index);
+  bool oc_is_device_in_runtime();
 
   /**
    * @brief sets the idevid
@@ -255,25 +249,6 @@ extern "C"
    *
    */
   void oc_knx_load_fingerprint(void);
-
-
-  /**
-   * @brief Creation of the KNX device resources.
-   *
-   * creates and handles the following resources:
-   * - /a/lsm
-   * - /k
-   * - /.well-known/knx
-   * - /.well-known/knx/osn
-   * - /.well-known/knx/f (fingerprint)
-   * - /.well-known/knx/ldevid (optional)
-   * - /.well-known/knx/idevid (optional)
-   * - /.well-known/knx/spake
-   *
-   * @param device index of the device to which the resource is to be created
-   *
-   */
-  void oc_create_knx_resources(size_t device);
 
   /**
    * @delete entry from Group Mapping Table

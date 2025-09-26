@@ -27,7 +27,6 @@
 
 #ifdef OC_TCP
 
-static const size_t device = 0;
 static oc_endpoint_t *target_ep;
 
 static void
@@ -39,7 +38,7 @@ static int
 app_init(void)
 {
   int ret = oc_init_platform("Cascoda", NULL, NULL);
-  ret |= oc_add_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
+  ret |= oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
   return ret;
 }
 
@@ -53,7 +52,7 @@ protected:
   static void SetUpTestCase()
   {
     oc_main_init(&handler);
-    oc_endpoint_t *ep = oc_connectivity_get_endpoints(device);
+    oc_endpoint_t *ep = oc_connectivity_get_endpoints();
     while (ep) {
       if (ep->flags & TCP && !(ep->flags & SECURED) && ep->flags & IPV4)
         break;
