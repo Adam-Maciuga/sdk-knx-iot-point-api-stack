@@ -35,9 +35,6 @@ extern "C" {
 #define KNX_STORAGE_AP_MINOR  "knx_ap_minor"
 #define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
 
-extern uint32_t g_oscore_replay_window_size;
-extern uint32_t g_oscore_osn_delay_ms;
-
 /**
  * @brief create device resources.
  *  - sn (serial number)

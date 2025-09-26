@@ -95,7 +95,7 @@ extern "C" {
 		uint32_t mid;                             /**< knx manufacturer id */
 		uint64_t fid;                             /**< knx fabric id */
 		uint16_t ia;                              /**< 16-bit knx individual address */
-		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test' */
+		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test') */
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
 		oc_core_add_device_cb_t add_device_cb;    /**< callback when device is changed */

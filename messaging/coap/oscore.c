@@ -338,21 +338,24 @@ coap_parse_oscore_option(void* packet, uint8_t* current_option, size_t option_le
 	return 0;
 }
 
-size_t
-coap_serialize_oscore_option(unsigned int* current_number, void* packet,
-														 uint8_t* buffer)
+size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, uint8_t* buffer)
 {
-	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
+	coap_packet_t* const coap_pkt = packet;
 
-	/* Calculate OSCORE option value length */
-	size_t option_length =
-		coap_pkt->piv_len + coap_pkt->kid_len + coap_pkt->kid_ctx_len;
-	if (coap_pkt->kid_ctx_len > 0)
-	{
+	/*
+	 * calculate OSCORE option value length (piv, kid context + kid)
+	 *
+	 *
+	 */
+	size_t option_length =	coap_pkt->piv_len + coap_pkt->kid_len + coap_pkt->kid_ctx_len;
+
+  if (coap_pkt->kid_ctx_len > 0)
+	{ // context is present so increase option number
 		++option_length;
 	}
-	if (coap_pkt->oscore_flags > 0)
-	{
+
+  if (coap_pkt->oscore_flags > 0)
+	{ // flags are present so increase option number
 		++option_length;
 	}
 

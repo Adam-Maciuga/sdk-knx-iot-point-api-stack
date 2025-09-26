@@ -20,6 +20,7 @@
 #include "oc_config.h"
 #include "messaging/coap/constants.h"
 #include "oc_api.h"
+#include "oc_knx_sec.h"
 
 #ifndef OC_MAX_REPLAY_RECORDS
 #define OC_MAX_REPLAY_RECORDS (20) 
@@ -32,8 +33,6 @@
 #ifndef OC_REPLAY_RECORD_TIMEOUT
 #define OC_REPLAY_RECORD_TIMEOUT (5)
 #endif
-
-extern uint32_t g_oscore_replay_window_size;
 
 static struct oc_replay_record
 {
@@ -176,7 +175,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	rec->time = oc_clock_time();
 
 	// rx_ssn (ssn from received message) = max value used is 32 bit, hence unproblematic
-  const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn); 
+  const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn);
+  const uint32_t replay_window_size = get_oscore_replay_window_size();
 
 	PRINT("new ssn = %llu", rx_ssn);                // %llu = 64 bit ulong
 	PRINT("old ssn = %llu", rec->rx_ssn);           // %llu = 64 bit ulong
@@ -193,7 +193,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 
 		// diff >= window size -> out of left window bound
 		// example: diff from 0...31 = is in 32 bit window ; diff >= 32 is on left side window  
-		if (ssn_diff >= g_oscore_replay_window_size)
+		if (ssn_diff >= replay_window_size)
 		{
 			PRINT("out of window left bound");
 			return ECHO; // not known if it was (ever) received before  
@@ -220,7 +220,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	// is undefined behaviour, so we must zero the window manually here
 	
 	
-	if (-ssn_diff >= g_oscore_replay_window_size)
+	if (-ssn_diff >= replay_window_size)
     // 1 << 32++ = undefined for a 32 -bit value
 		rec->window = 0;            
 	else

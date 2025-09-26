@@ -130,12 +130,14 @@ bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16]
 }
 #endif
 
-static void coap_send_empty_response(const coap_message_type_t type, const uint16_t mid,
-																		 const uint8_t* token, const size_t token_len, const uint8_t code,
-																		 const oc_endpoint_t* endpoint)
-{
-	OC_DBG("CoAP send empty message: mid=%u, code=%u", mid, code);
 
+static void coap_send_empty_response(const coap_message_type_t type, 
+																		 const uint16_t mid,
+																		 const uint8_t* token, const size_t token_len, 
+																		 const uint8_t code,
+																		 const oc_endpoint_t* endpoint,
+                                     const uint8_t* echo, const size_t echo_len)
+{
 	coap_packet_t coap_msg; 
 	coap_udp_init_message(&coap_msg, type, code, mid);
 	oc_message_t* plain_msg = oc_internal_allocate_outgoing_message();
@@ -156,61 +158,30 @@ static void coap_send_empty_response(const coap_message_type_t type, const uint1
 		  coap_set_token(&coap_msg, token, token_len);
 		}
 
-		// coap msg will contain serialized data 
-		size_t len = coap_oscore_serialize_message(&coap_msg, plain_msg->data, true, true, false);
+		// when echo is included then it will be sent with OSCORE, see below 
+    const bool echo_included = echo && echo_len > 0;
 
-		if (len > 0)
-		{
-			plain_msg->length = len;
-			coap_send_message(plain_msg);
-		}
+		OC_DBG("CoAP send empty message: mid=%u, code=%u, echo=%s", mid, code, echo_included ? "yes" : "no");
 
-		// if message is not referenced anymore 
-		if (plain_msg->ref_count == 0)
-		{
-			oc_message_unref(plain_msg);
-		}
-	}
-}
+		if (echo_included)
+    { // we want an echo option to be included
 
-static void coap_send_unauth_echo_response(const coap_message_type_t type, const uint16_t mid,
-																					 const uint8_t* token, const size_t token_len,
-																					 uint8_t* echo, const size_t echo_len,
-																					 const oc_endpoint_t* endpoint)
-{
-	OC_WRN("CoAP now sending Unauthorised Echo Response message: mid=%u", mid);
+			/*
+          According to RFC8613 the PIV is not included, in KNX IoT it is included:
+          - from second observe response onwards
+          - on all echo challenge responses (specification, clause 3.6.5)
+      */
 
-  coap_packet_t coap_msg;
-	coap_udp_init_message(&coap_msg, type, UNAUTHORIZED_4_01, mid);
-  oc_message_t* plain_msg = oc_internal_allocate_outgoing_message();
+		  // set echo option (uses a time stamp)
+      coap_set_header_echo(&coap_msg, echo, echo_len);
+    }
 
-  if (plain_msg)
-	{
-		// copy incoming src EP to tmp EP (IP address/port/data ptr/...) 
-	  memcpy(&plain_msg->endpoint, endpoint, sizeof(*endpoint));
-
-		// convert incoming src EP to unicast (for the response)
-    #define UNICAST (0b1111111110111111)
-    plain_msg->endpoint.flags &= UNICAST;
-
-		// sanity check 
-		if (token && token_len > 0)
-		{
-			// set token 
-		  coap_set_token(&coap_msg, token, token_len);
-		}
-
-		// set echo option (uses a time stamp)
-		coap_set_header_echo(&coap_msg, echo, echo_len);
-
-		// RFC8613: partial IV is not included
-		// KNX IoT: except from second observe response onwards AND on all echo challenge responses (clause 3.6.5)
-		// coap msg will contain serialized data 
-		const size_t packet_len = coap_oscore_serialize_message(&coap_msg, plain_msg->data, true, true, true);
+		// serialize data, add all options and include/exclude OSCORE options
+    size_t packet_len = coap_oscore_serialize_message(&coap_msg, plain_msg->data, true, true, echo_included);
 
 		if (packet_len > 0)
 		{
-			plain_msg->length = packet_len;
+      plain_msg->length = packet_len;
 			coap_send_message(plain_msg);
 		}
 
@@ -231,7 +202,7 @@ close_all_tls_sessions(void* data)
 	oc_set_drop_commands(device, false);
 	return OC_EVENT_DONE;
 }
-#endif /* OC_SECURITY */
+#endif 
 
 /**
   @brief
@@ -668,8 +639,8 @@ int coap_receive(oc_message_t* incoming_message)
 
 				/*
 				   Server-side logic for:
-				   - sending 'echo response' with an echo option,
-				   - checking whether the echo option included in an 'echo re-request' is fresh enough
+				   - sending an 'echo response' with an echo option
+				   - receiving an 'echo re-request' and checking whether the echo option included in is fresh enough
 				*/
 
 				if (!is_myself) // message is not an own loopback response 
@@ -690,14 +661,16 @@ int coap_receive(oc_message_t* incoming_message)
 							{
 								OC_DBG("Request from unsycned client, sending 4.01 ACK + Echo Challenge");
 
-								// TODO check for CON use same mid, for NON use diff mid (check if code is present from own EP )
-
-							  // send unicast NONEMPTY echo response (use type from request)
-								coap_send_unauth_echo_response(
+							  // send EMPTY echo response (use type from request, CON use incoming mid, NON use own next mid)
+                // -> multicast : will be suppressed
+                // -> unicast   : 4.01 with response sender context
+								coap_send_empty_response(
 									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-									incoming_coap_message->mid, incoming_coap_message->token, incoming_coap_message->token_len,
-									(uint8_t*) &current_time, sizeof(current_time),
-									&incoming_message->endpoint);
+									incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
+									incoming_coap_message->token, incoming_coap_message->token_len,
+									UNAUTHORIZED_4_01,
+                  &incoming_message->endpoint, 
+									(uint8_t*)&current_time, sizeof(current_time));
 
 								// server sends out a response, no own transaction is needed
                 // can handle NULL pointer ...
@@ -709,12 +682,16 @@ int coap_receive(oc_message_t* incoming_message)
 
 							if (sync_state == REPLAY)
 							{
-								// send unicast EMPTY echo response (use type from request)
-								// -> may be suppressed if it is a multicast
-								// -> 4.0.1 -> with response sender context 
-								coap_send_empty_response(incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-																				 incoming_coap_message->mid, incoming_coap_message->token, incoming_coap_message->token_len,
-																				 UNAUTHORIZED_4_01, &incoming_message->endpoint);
+                // send EMPTY response (use type from request, CON use incoming mid, NON use own next mid)
+                // -> multicast : will be suppressed
+                // -> unicast   : 4.01 with response sender context 
+								coap_send_empty_response(
+									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
+									incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(), 
+									incoming_coap_message->token,	incoming_coap_message->token_len,
+									UNAUTHORIZED_4_01,
+									&incoming_message->endpoint,
+									NULL,0);
 
 								// can handle NULL pointer ...
 								coap_clear_transaction(transaction);
@@ -726,17 +703,21 @@ int coap_receive(oc_message_t* incoming_message)
 						else
 						{ // b: 
 
-							// check received len is the same as send out (len = must be same as from first server response with echo included)
+							// check received len is the same as from send out echo response
 							if (echo_len != sizeof(oc_clock_time_t))
 							{
 								OC_DBG("Request from unsycned client with bad 'Echo' size %d, sending 4.02", (int) echo_len);
 
-								// TODO check for CON use same mid, for NON use diff mid (check if code is present from own EP )
-
+								// send EMPTY response (use type from request, CON use incoming mid, NON use own next mid)
+                // -> multicast : will be suppressed
+                // -> unicast   : 4.01 with response sender context 
 								coap_send_empty_response(
 									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-									incoming_coap_message->mid, incoming_coap_message->token, incoming_coap_message->token_len,
-									BAD_OPTION_4_02, &incoming_message->endpoint);
+									incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
+									incoming_coap_message->token,	incoming_coap_message->token_len,
+									BAD_OPTION_4_02, 
+									&incoming_message->endpoint,
+									NULL,0);
 
 								// server sends out a response, no own transaction is needed
 								// can handle NULL pointer ...
@@ -753,7 +734,7 @@ int coap_receive(oc_message_t* incoming_message)
 							// check of time difference, RFC 9175 clause 2.3
 							oc_clock_time_t received_timestamp = *(oc_clock_time_t*) echo_value;
 
-							OC_DBG("Included Echo timestamp difference %lu, threshold %ld", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
+							OC_DBG("Included Echo timestamp difference %llu, threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
 
 							if (current_time - received_timestamp > OC_ECHO_FRESHNESS_TIME)
 							{
@@ -761,12 +742,16 @@ int coap_receive(oc_message_t* incoming_message)
 								OC_DBG("Stale request from unsycned client, sending 4.01 + Echo Challenge");
 								OC_ERR("Current time %" PRIu64 ", received time %" PRIu64, current_time, received_timestamp);
 
-								// send unicast NONEMPTY echo response (use type from request)
-								coap_send_unauth_echo_response(
+								// send EMPTY echo response (use type from request, CON use incoming mid, NON use own next mid)
+                // -> multicast : will be suppressed
+                // -> unicast   : 4.01 with response sender context
+								coap_send_empty_response(
 									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-									incoming_coap_message->mid, incoming_coap_message->token, incoming_coap_message->token_len,
-									(uint8_t*) &current_time, sizeof(current_time),
-									&incoming_message->endpoint);
+									incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
+									incoming_coap_message->token, incoming_coap_message->token_len, 
+									UNAUTHORIZED_4_01,
+									&incoming_message->endpoint, 
+									(uint8_t*)&current_time, sizeof(current_time));
 
 								// server sends out a response, no own transaction is needed
 								// can handle NULL pointer ...
@@ -865,8 +850,12 @@ int coap_receive(oc_message_t* incoming_message)
 								OC_DBG("received all blocks for payload");
 								if (incoming_coap_message->type == COAP_TYPE_CON)
 								{
-									coap_send_empty_response(COAP_TYPE_ACK, incoming_coap_message->mid, NULL, 0,
-																					 0, &incoming_message->endpoint);
+									coap_send_empty_response(COAP_TYPE_ACK, 
+																					 incoming_coap_message->mid, 
+																					 NULL, 0,
+																					 0, 
+																					 &incoming_message->endpoint, 
+																					 NULL,0);
 								}
 								coap_udp_init_message(outgoing_coap_response, COAP_TYPE_CON, CONTENT_2_05,
 																			coap_get_next_mid());
@@ -921,8 +910,12 @@ int coap_receive(oc_message_t* incoming_message)
 							{
 								if (incoming_coap_message->type == COAP_TYPE_CON)
 								{
-									coap_send_empty_response(COAP_TYPE_ACK, incoming_coap_message->mid, NULL, 0,
-																					 0, &incoming_message->endpoint);
+									coap_send_empty_response(COAP_TYPE_ACK, 
+																					 incoming_coap_message->mid, 
+																					 NULL, 0,
+																					 0, 
+																					 &incoming_message->endpoint, 
+																					 NULL,0);
 								}
 								coap_udp_init_message(outgoing_coap_response, COAP_TYPE_CON, CONTENT_2_05,
 																			coap_get_next_mid());
@@ -1178,16 +1171,21 @@ int coap_receive(oc_message_t* incoming_message)
 
 			if (incoming_coap_message->type == COAP_TYPE_CON)
 			{
-				coap_send_empty_response(COAP_TYPE_ACK, incoming_coap_message->mid, incoming_coap_message->token,
-																 incoming_coap_message->token_len, 0, &incoming_message->endpoint);
+				coap_send_empty_response(COAP_TYPE_ACK, 
+																 incoming_coap_message->mid, 
+																 incoming_coap_message->token, incoming_coap_message->token_len,
+																 0, 
+																 &incoming_message->endpoint,
+																 NULL,0);
 			}
-			else if (incoming_coap_message->type == COAP_TYPE_ACK)  // TODO why this is an empty statement 
+			else if (incoming_coap_message->type == COAP_TYPE_ACK)  
 			{
+        // simply accept the ack and proceed 
 			}
 			else if (incoming_coap_message->type == COAP_TYPE_RST)
 			{
 				#ifdef OC_SERVER
-				/* cancel possible subscriptions */
+				// cancel possible subscriptions
 				coap_remove_observer_by_mid(&incoming_message->endpoint, incoming_coap_message->mid);
 				#endif
 			}
@@ -1411,19 +1409,19 @@ int coap_receive(oc_message_t* incoming_message)
 		{
 			coap_send_empty_response(COAP_TYPE_NON,
 															 0, 
-															 incoming_coap_message->token,
-															 incoming_coap_message->token_len,
+															 incoming_coap_message->token, incoming_coap_message->token_len,
 															 (uint8_t)coap_status_code,
-															 &incoming_message->endpoint);
+															 &incoming_message->endpoint, 
+															 NULL, 0);
 		}
 		else
 		{
 			coap_send_empty_response(incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
-															 incoming_coap_message->mid, 
-															 incoming_coap_message->token, 
-															 incoming_coap_message->token_len,
+                               incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(), 
+															 incoming_coap_message->token, incoming_coap_message->token_len,
                                (uint8_t)coap_status_code, 
-															 &incoming_message->endpoint);
+															 &incoming_message->endpoint,
+															 NULL, 0);
 		}
 		return coap_status_code;
 	}

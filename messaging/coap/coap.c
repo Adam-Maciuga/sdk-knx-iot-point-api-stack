@@ -435,18 +435,33 @@ coap_serialize_signal_options(void* packet, uint8_t* option_array)
 }
 #endif 
 
-// It just calculates size of option when option_array is NULL, otherwise it adds the options to the *packet
+/**
+  @brief Calculates the size of the options OR adds the options to the *packet
+
+  @param option_array array to add the serialized options, if NULL it only calculates the options size
+  @param inner if true possible options are added to the options as part of the COSE Object (encrypted)
+  @param outer if true possible options are added to the standard CoAP options (not encrypted)
+  @param oscore if true possible OSCORE options are considered (calculated or added)
+
+  @note - the options must be serialized in the order of their numbers (CoAP RFC, clause 3.1), hence the code
+	        is defined according to this
+        - the OSCORE RFC , cause 4.1 defines E = Encrypt and Integrity Protect (Inner) and U = Unprotected (Outer)
+				  options
+
+  @return options size
+ 
+ */
 static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool inner, bool outer, bool oscore)
 {
 	(void) oscore;
 
-  coap_packet_t* const coap_pkt = packet;		// copy of org, name used in macros below 
-	uint8_t* option = option_array;						// copy of org, name used in macros below 
-	unsigned int current_number = 0;					// copy of org, name used in macros below 
+  coap_packet_t* const coap_pkt = packet;		// the alias name used in macros below 
+	uint8_t* option = option_array;						// the alias name used in macros below
+	unsigned int current_number = 0;					// the alias name used in macros below
 
   size_t option_length = 0;
 
-	OC_DBG("Options are : %s ", option ? "serialized" : "size calculated");
+	OC_DBG("%s options", option ? "Serializing" : "Calculating");
 
 	#ifdef OC_TCP
 	if (coap_check_signal_message(packet))
@@ -455,13 +470,11 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 	}
 	#endif 
 
-	// NOTE! the options must be serialized in the order of their numbers (CoAP RFC, clause 3.1)
-
 	// not used...
 	// COAP_SERIALIZE_BYTE_OPTION(COAP_OPTION_IF_MATCH, if_match, "If-Match");
 
 	if (outer)
-	{
+	{ 
 		COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_URI_HOST, uri_host, '\0', "Uri-Host");
 	}
 
@@ -484,16 +497,17 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 	// not used...
 	// COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
-	//  add data if OSCORE option is enabled
 	#if defined(OC_OSCORE)
 
 	if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE))
-	{
-		// count length ...
+	{ // add OSCORE option
+
+		// adjust total option len
 		option_length += coap_serialize_oscore_option(&current_number, coap_pkt, option);
 		if (option)
-		{
-			// here the options would be added, not only counted ...
+		{ // do not count, add
+
+		  // set pointer to end of last option
 			option = option_array + option_length;
 		}
 	}
@@ -1193,8 +1207,9 @@ static void coap_udp_set_header_fields(void* packet)
 /**
  * @brief 
  *
- *  - inner = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
- *  - outer = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
+ *  - inner  = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
+ *  - outer  = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
+ *	- oscore = true: add 
  *
  */
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore)
@@ -1268,8 +1283,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 				coap_pkt->buffer = NULL;
 				return 0;
 			}
-
-			OC_DBG("Serializing MID %u to address %p", coap_pkt->mid, (void*) coap_pkt->buffer);
 			coap_udp_set_header_fields(coap_pkt);
 		}
 	}
@@ -1283,11 +1296,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 	if (outer)
 	{
-		if (oscore)
-		{
-			OC_DBG("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
-		}
-
+		OC_DBG("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
 		OC_DBG("Token (len %u) : ", coap_pkt->token_len);
 		OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
@@ -1306,7 +1315,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 	{
 		// TODO outer = false, but inner may be also false => not tested here! 
 
-		OC_DBG("inner CoAP code: %d", coap_pkt->code);
+		OC_DBG("Inner CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
 
 		coap_pkt->buffer[0] = coap_pkt->code;
 		option = coap_pkt->buffer + 1;

@@ -14,12 +14,13 @@
  // limitations under the License.
  */
 
+#define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
+
 #include "api/oc_knx_sec.h"
 #include <stdio.h>
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"
-#define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 #include <inttypes.h>
 #include "oc_knx_fp.h"
 #include "security/oc_oscore_context.h"
@@ -28,14 +29,20 @@
 
 // AT storage data
 #define AT_STORE "at_store"
-#define AT_SIZE (sizeof(AT_STORE) + 6)              // support of '_99999' at FILE entries
+#define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
 
 // RAM variables
-uint32_t g_oscore_replay_window_size = 32;          // default (32) according to RFC OSCORE --> able to be modified by PUT
-uint32_t g_oscore_osn_delay_ms = 1000;              // default (1000 ms) defined by iot specification --> able to modify by PUT
+static uint32_t g_oscore_replay_window_size = DEFAULT_REP_WDO_SIZE;
+static uint32_t g_oscore_osn_delay_ms = DEFAULT_OSN_DELAY;
 static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // static init with '0', included strings next/ptr/size are '0' are not valid
 
 // ----------------------------------------------------------------------------
+
+uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size; }
+void set_oscore_replay_window_size(uint32_t size) { g_oscore_replay_window_size = size; }
+
+uint32_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms; }
+void set_oscore_osn_delay_ms(uint32_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
 
 static void oc_store_at_table_entry(int entry);
 
@@ -73,7 +80,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, g_oscore_osn_delay_ms);
+  oc_rep_i_set_uint(root, 1, g_oscore_osn_delay_ms); // use direct access
   oc_rep_end_root_object();
 
   PRINT("oc_core_knx_auth_o_osndelay_get_handler - done");
@@ -98,7 +105,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
       if (rep->iname == 1)
       {
         PRINT("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int)rep->type, (int)rep->value.integer);
-        g_oscore_osn_delay_ms = (uint32_t)rep->value.integer;
+        g_oscore_osn_delay_ms = (uint32_t)rep->value.integer; // use direct access
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }
@@ -154,7 +161,7 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, g_oscore_replay_window_size);
+  oc_rep_i_set_uint(root, 1, g_oscore_replay_window_size); // use direct access
   oc_rep_end_root_object();
 
   PRINT("oc_core_knx_auth_o_replwdo_get_handler - done");
@@ -181,12 +188,14 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
       {
         /*
           If the window is changed at runtime, two scenarios are possible (see oc_replay.c)
-          - from hi to low --> all before inside the window marked ssn are invalid
-          - from low to hi --> all before echoed frames are now marked as new 
+          - from hi to low --> all before inside the window
+            - marked ssn's are now left outside  = issue new echo challenge request
+            - free ssn's are now left outside = issue new echo challenge request
+          - from low to hi --> all before - would be - echoed frames are now marked as in window = pass msg
          */
 
         PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d", rep->type, (int)rep->value.integer);
-        g_oscore_replay_window_size = (uint32_t)rep->value.integer;
+        g_oscore_replay_window_size = (uint32_t)rep->value.integer; // use direct access
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }

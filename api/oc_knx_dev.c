@@ -14,6 +14,7 @@
  // limitations under the License.
  */
 
+#define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 #include "oc_api.h"
 #include "oc_knx_dev.h"
 #include <oc_storage.h>
@@ -23,13 +24,10 @@
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "port/dns-sd.h"
-
 #include <stdio.h>
 #include "oc_core_res.h"
 #include "oc_discovery.h"
-#define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 #include <inttypes.h>
-
 
 static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1555,8 +1553,8 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_delete_at_table();
 
     // reset security related variables to default values, may be overwritten
-    g_oscore_replay_window_size = 32;
-    g_oscore_osn_delay_ms = 1000;
+    set_oscore_replay_window_size(DEFAULT_REP_WDO_SIZE);
+    set_oscore_osn_delay_ms(DEFAULT_OSN_DELAY);
 
     /*
        writing all above reset values to storage (LSM already written)
@@ -1587,8 +1585,8 @@ void oc_knx_device_storage_reset(size_t device_index, int reset_mode)
     oc_delete_at_table_except_sec_scope_entries();
 
     // reset security related variables to default values, may be overwritten
-    g_oscore_replay_window_size = 32;
-    g_oscore_osn_delay_ms = 1000;
+    set_oscore_replay_window_size(DEFAULT_REP_WDO_SIZE);
+    set_oscore_osn_delay_ms(DEFAULT_OSN_DELAY);
 
     // writing all above reset values to storage (LSM already written)
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));

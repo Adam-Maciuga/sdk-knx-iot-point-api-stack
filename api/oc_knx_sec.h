@@ -27,6 +27,9 @@
 extern "C" {
 #endif
 
+	#define DEFAULT_REP_WDO_SIZE (32)	// default according to RFC OSCORE -> able to be modified by PUT
+  #define DEFAULT_OSN_DELAY (1000)	// default (ms) defined by iot specification -> able to be modified by PUT
+
 	/**
 	 * @brief The token profiles
 	 * see section 3.5.4.2 Access Token Resource Object
@@ -292,7 +295,41 @@ extern "C" {
 	 * @return int -1 : AT entry not found
 	 * @return int >=0 : index to place entry
 	 */
-    int oc_core_find_at_entry_with_osc_id(uint8_t* osc_id, size_t osc_id_len);
+  int oc_core_find_at_entry_with_osc_id(uint8_t* osc_id, size_t osc_id_len);
+
+	/**
+   * @brief get OSCORE Replay Window Size
+   *
+   * @return window size
+   */
+	uint32_t get_oscore_replay_window_size(void);
+
+	/**
+   * @brief set OSCORE Replay Window Size
+   *
+   * @param size window size
+   *
+   * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible) 
+   *
+   */
+  void set_oscore_replay_window_size(uint32_t size);
+
+	/**
+   * @brief get OSCORE OSN Delay Time
+   *
+   * @return delay time (ms)
+   */
+	uint32_t get_oscore_osn_delay_ms(void);
+
+	/**
+   * @brief set OSCORE OSN Delay Time
+   *
+   * @param milliseconds time
+   *
+   * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible)
+   *
+   */
+  void set_oscore_osn_delay_ms(uint32_t milliseconds);
 
 #ifdef __cplusplus
 }
