@@ -438,6 +438,7 @@ coap_serialize_signal_options(void* packet, uint8_t* option_array)
 /**
   @brief Calculates the size of the options OR adds the options to the *packet
 
+  @param packet destination to serialize the data
   @param option_array array to add the serialized options, if NULL it only calculates the options size
   @param inner if true possible options are added to the options as part of the COSE Object (encrypted)
   @param outer if true possible options are added to the standard CoAP options (not encrypted)
@@ -1209,7 +1210,7 @@ static void coap_udp_set_header_fields(void* packet)
  *
  *  - inner  = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
  *  - outer  = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
- *	- oscore = true: add 
+ *	- oscore = true: add OSCORE option data (kid, kid context, piv)
  *
  */
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore)
@@ -1287,7 +1288,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 		}
 	}
 
-	// empty packet, don't need to do more stuff (code = 0, token len = 0 , means not set)
+	// empty packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
 	if (outer && !coap_pkt->code && coap_pkt->token_len == 0)
 	{
 		OC_DBG("done serializing empty message");
@@ -1433,7 +1434,7 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 	// real ptr to option 
 	current_option += coap_pkt->token_len;
 
-	// parse inner and outer, on present OSCORE option ... = 4.02 bad option (DON'T take over secure content) 
+	// parse inner and outer, on present OSCORE option ... = 4.02 (here the OSCORE payload must be already extracted) 
 	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 	if (ret != COAP_NO_ERROR)
 	{
@@ -2040,10 +2041,10 @@ coap_set_header_size1(void* packet, uint32_t size)
 	return 1;
 }
 /*---------------------------------------------------------------------------*/
-int
-coap_get_header_echo(void* packet, uint8_t echo[COAP_ECHO_LEN])
+int coap_get_header_echo(void* packet, const uint8_t* echo)
 {
-	coap_packet_t* const coap_pkt = packet;
+	// copy needed since name is used in macro
+  coap_packet_t* const coap_pkt = packet;
 
 	if (!IS_OPTION(coap_pkt, COAP_OPTION_ECHO))
 	{
@@ -2052,10 +2053,10 @@ coap_get_header_echo(void* packet, uint8_t echo[COAP_ECHO_LEN])
 	memcpy(echo, coap_pkt->echo, coap_pkt->echo_len);
 	return (int) coap_pkt->echo_len;
 }
-int
-coap_set_header_echo(void* packet, uint8_t* echo, size_t len)
+int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len)
 {
-	coap_packet_t* const coap_pkt = packet;
+  // copy needed since name is used in macro
+  coap_packet_t* const coap_pkt = packet;
 
 	memcpy(coap_pkt->echo, echo, len);
 	coap_pkt->echo_len = len;

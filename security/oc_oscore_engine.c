@@ -225,13 +225,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
       if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH)
       {
-        // request
+        // error in request
         msg->endpoint.flags &= ~OSCORE;
         OC_ERR("***error parsing outer message, unsecured 4.02***");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
       }
 
-      // response 
+      // error in response 
       goto oscore_recv_error;
     }
 
@@ -775,7 +775,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     /* Serialize OSCORE message to oc_message_t */
     OC_DBG_OSCORE("### serializing OSCORE message ###");
     msg->length = oscore_serialize_message(coap_pkt, msg->data);
-    OC_DBG_OSCORE("### serialized OSCORE message ###");
   }
   else
   {
@@ -861,12 +860,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   oc_oscore_context_t* oscore_ctx = NULL;
 
-  // if found, get the corresponding context for the access token,
-  // will be found only in case of a response 
   if (entry)
-  {
+  { 
     // TODO do we need also ID Context here --> if we have same kid from several
-    // sender (context) then we pick the first hit 
+    // get the corresponding sender context for the access token, will be found only in case former inbound request, pick the first hit 
     OC_DBG_OSCORE("### Found auth at entry, getting context ###");
     oscore_ctx = oc_oscore_find_context_by_kid(NULL,
                                                (uint8_t*)oc_string(entry->osc_id),
@@ -874,7 +871,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   }
 
   // search for OSCORE context using addressing information usually on request 
-  PRINT("SID ");
+  PRINT("Sender ID ");
   oc_char_println_hex(msg->endpoint.oscore_id, (int)msg->endpoint.oscore_id_len);
 
   if (oscore_ctx == NULL)
@@ -967,14 +964,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     oscore_read_piv(message->endpoint.request_piv, message->endpoint.request_piv_len, &request_ssn);
 
     oscore_ctx = oc_oscore_add_context(
-        oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), // Sender Id is osc.id
-      oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), // Recipient ID (gets used as request_kid for the AAD composition => use Request Sender ID)
-        request_ssn, // one time use anyway
-        oc_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms),
-        oc_string(entry->osc_salt), oc_byte_string_len(entry->osc_salt),
-        (char*)rnd, 10, 
-        message->endpoint.auth_at_index, false);
-
+      oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id), // Sender ID is osc.id
+      oc_string(entry->osc_id), oc_byte_string_len(entry->osc_id),// Recipient ID (used as request_kid for the AAD composition => use Request Sender ID)
+      request_ssn, // one time use anyway
+      oc_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms),
+      oc_string(entry->osc_salt), oc_byte_string_len(entry->osc_salt),
+      (char*)rnd, 10, 
+      message->endpoint.auth_at_index, 
+      false);
 
     s_mode_echo = true;
   }

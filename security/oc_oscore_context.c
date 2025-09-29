@@ -44,8 +44,7 @@ void oc_oscore_free_lru_recipient_context(void)
 }
 
 // checking against receiver in contexts
-oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx,
-                              uint8_t* kid, uint8_t kid_len)
+oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, uint8_t* kid, uint8_t kid_len)
 {
   if (!ctx)
   {
