@@ -32,37 +32,43 @@
 #include <stdarg.h>
 #include "port/oc_storage.h"
 
-#ifdef OC_DYNAMIC_ALLOCATION
+// Static allocation approach - no hardcoded resource lists needed
 
-// dynamic list of core resources 
-OC_LIST(core_resource_list);
-static oc_resource_t* core_resources = NULL;
-// dynamic list of device resources, TODO it will be only one ... 
-static oc_device_info_t* oc_device_info = NULL;
-#else  
- // Single device static allocation
-static oc_resource_t core_resources[1];
+// Single device static allocation
+static oc_resource_t core_resources[WELLKNOWNCORE + 1]; // +1 for OC_DEV_SN resource
+static bool core_resources_initialized = false;
 static oc_device_info_t oc_device_info;
-#endif 
+static oc_platform_info_t oc_platform_info; // platform provider
 
-static oc_platform_info_t oc_platform_info; // platform provider     
+// Initialize core resources
+static void oc_core_init_resources(void)
+{
+	if (core_resources_initialized) {
+		return;
+	}
+
+	// Initialize static core resources array to zero
+	memset(core_resources, 0, sizeof(core_resources));
+
+	// Copy the entire linked list of resources into our static array
+	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
+	const oc_resource_t* res = &core_resource_dev_sn;
+	int index = 0;
+
+	// Walk the linked list and copy each resource into static memory
+	while (res && index <= WELLKNOWNCORE) {
+		memcpy(&core_resources[index], res, sizeof(oc_resource_t));
+		res = res->next;
+		index++;
+	}
+
+	core_resources_initialized = true;
+}
 
 void oc_core_init(void)
 {
 	oc_core_shutdown();
-
-	#ifdef OC_DYNAMIC_ALLOCATION
-
-	// calloc also deletes the content with '0'
-	core_resources = (oc_resource_t*) calloc(1, sizeof(oc_resource_t));
-	if (!core_resources)
-	{
-		printf("COULD NOT ALLOCATE CORE RESOURCE");
-		oc_abort("Insufficient stack memory to allocate device resources");
-	}
-
-	oc_device_info = NULL;
-	#endif 
+	oc_core_init_resources();
 }
 
 static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
@@ -81,72 +87,42 @@ void oc_core_shutdown(void)
 {
 	size_t i;
 	oc_free_string(&oc_platform_info.mfg_name);
-
-	#ifdef OC_DYNAMIC_ALLOCATION
-	if (oc_device_info)
-	{
-		#endif 
-
-		oc_device_info_t* oc_device_info_item = oc_device_info;
-		oc_core_free_device_info_properties(oc_device_info_item);
-		oc_free_knx_table_resources();
-		
-
-		#ifdef OC_DYNAMIC_ALLOCATION
-		free(oc_device_info);
-		oc_device_info = NULL;
-	}
-	#endif
-
-	#ifdef OC_DYNAMIC_ALLOCATION
-	if (core_resources)
-	{
-		#endif 
-		size_t max_resource = 1;
-
-		oc_resource_t* core_resource = &core_resources[0];
-		oc_ri_free_resource_properties(core_resource);
-
-		#ifdef OC_DYNAMIC_ALLOCATION
-		free(core_resources);
-		core_resources = NULL;
-	}
-	#endif 
+	core_resources_initialized = false;
 }
 
 int oc_core_set_device_fwv(int major, int minor, int patch)
 {
-	oc_device_info->fwv.major = major;
-	oc_device_info->fwv.minor = minor;
-	oc_device_info->fwv.patch = patch;
+	oc_device_info.fwv.major = major;
+	oc_device_info.fwv.minor = minor;
+	oc_device_info.fwv.patch = patch;
 	return 0;
 }
 
 int oc_core_set_device_hwv(int major, int minor, int patch)
 {
-	oc_device_info->hwv.major = major;
-	oc_device_info->hwv.minor = minor;
-	oc_device_info->hwv.patch = patch;
+	oc_device_info.hwv.major = major;
+	oc_device_info.hwv.minor = minor;
+	oc_device_info.hwv.patch = patch;
 	return 0;
 }
 
 int oc_core_set_device_apv(int major, int minor, int patch)
 {
-	oc_device_info->ap.major = major;
-	oc_device_info->ap.minor = minor;
-	oc_device_info->ap.patch = patch;
+	oc_device_info.ap.major = major;
+	oc_device_info.ap.minor = minor;
+	oc_device_info.ap.patch = patch;
 	return 0;
 }
 
 int oc_core_set_device_mid(uint32_t mid)
 {
-	oc_device_info->mid = mid;
+	oc_device_info.mid = mid;
 	return 0;
 }
 
 int oc_core_set_and_store_device_ia(uint16_t ia)
 {
-  oc_device_info->ia = ia;
+  oc_device_info.ia = ia;
   oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia));
 
   return 0;
@@ -154,36 +130,36 @@ int oc_core_set_and_store_device_ia(uint16_t ia)
 
 int oc_core_set_device_hwt(const char* hardware_type)
 {
-	oc_free_string(&oc_device_info->hwt);
-  oc_new_string(&oc_device_info->hwt, hardware_type, strlen(hardware_type));
+	oc_free_string(&oc_device_info.hwt);
+  oc_new_string(&oc_device_info.hwt, hardware_type, strlen(hardware_type));
 
 	return 0;
 }
 
 int oc_core_set_device_model(const char* model)
 {
-	oc_free_string(&oc_device_info->model);
-	oc_new_string(&oc_device_info->model, model, strlen(model));
+	oc_free_string(&oc_device_info.model);
+	oc_new_string(&oc_device_info.model, model, strlen(model));
 
 	return 0;
 }
 
 int oc_core_set_device_hostname(const char* host_name)
 {
-	oc_free_string(&oc_device_info->hostname);
-	oc_new_string(&oc_device_info->hostname, host_name, strlen(host_name));
+	oc_free_string(&oc_device_info.hostname);
+	oc_new_string(&oc_device_info.hostname, host_name, strlen(host_name));
 
 	return 0;
 }
 
 uint64_t oc_core_get_device_iid()
 {
-	return oc_device_info->iid;
+	return oc_device_info.iid;
 }
 
 int oc_core_set_and_store_device_iid(uint64_t iid)
 {
-  oc_device_info->iid = iid;
+  oc_device_info.iid = iid;
   oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid));
 
   return 0;
@@ -191,9 +167,9 @@ int oc_core_set_and_store_device_iid(uint64_t iid)
 
 int oc_core_set_and_store_device_application_version(int major, int minor, int patch)
 {
-	oc_device_info->ap.major = major;
-  oc_device_info->ap.minor = minor;
-  oc_device_info->ap.patch = patch;
+	oc_device_info.ap.major = major;
+  oc_device_info.ap.minor = minor;
+  oc_device_info.ap.patch = patch;
 
 	oc_storage_write(KNX_STORAGE_AP_MAJOR, (uint8_t*)&major, sizeof(major));
   oc_storage_write(KNX_STORAGE_AP_MINOR, (uint8_t*)&minor, sizeof(minor));
@@ -204,7 +180,7 @@ int oc_core_set_and_store_device_application_version(int major, int minor, int p
 
 int oc_core_set_and_store_device_fid(uint64_t fid)
 {
-	oc_device_info->fid = fid;
+	oc_device_info.fid = fid;
   oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
 
 	return 0;
@@ -214,38 +190,21 @@ oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char
 {
 	(void) data;
 
-	#ifdef OC_DYNAMIC_ALLOCATION
-	if (!oc_device_info)
-	{
-		oc_device_info = (oc_device_info_t*) malloc(sizeof(oc_device_info_t));
-		if (!oc_device_info)
-		{
-			oc_abort("Insufficient memory");
-		}
-
-		// define extern for below usage
-		extern oc_resource_t core_resource_dev_sn;
-
-		// add as first list element the 'sn' resource
-		oc_list_add_block(core_resource_list, &core_resource_dev_sn);
-	} 
-	#endif /* OC_DYNAMIC_ALLOCATION */
-
-	memset(oc_device_info, 0, sizeof(oc_device_info_t));
-	oc_device_info->ia = 0xffff;
+	memset(&oc_device_info, 0, sizeof(oc_device_info_t));
+	oc_device_info.ia = 0xffff;
 
 	// ensure that the serial number is in lower case
 	// it changes the original, but it must be anyhow lower case...
 	oc_charstream_convert_to_lower(serialnumber);
 
-	oc_new_string(&oc_device_info->serialnumber, serialnumber, strlen(serialnumber));
-	oc_device_info->set_device_cb = set_device_cb;
+	oc_new_string(&oc_device_info.serialnumber, serialnumber, strlen(serialnumber));
+	oc_device_info.set_device_cb = set_device_cb;
 
 	oc_create_knx_fp_resources();
 	oc_create_knx_sec_resources();
 	oc_create_knx_swu_resources();
 
-	oc_device_info->data = data;
+	oc_device_info.data = data;
 
 	if (oc_connectivity_init() < 0)
 	{
@@ -254,7 +213,7 @@ oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char
 	
 	oc_init_oscore_from_storage(true);
 
-	return oc_device_info;
+	return &oc_device_info;
 }
 
 oc_platform_info_t* oc_core_init_platform(const char* mfg_name, oc_core_init_platform_cb_t init_cb, void* data)
@@ -280,7 +239,7 @@ void oc_check_uri(const char* uri)
 
 oc_device_info_t* oc_core_get_device_info(void)
 {
-	return oc_device_info;
+	return &oc_device_info;
 }
 
 oc_platform_info_t* oc_core_get_platform_info(void)
@@ -288,28 +247,23 @@ oc_platform_info_t* oc_core_get_platform_info(void)
 	return &oc_platform_info;
 }
 
+
 oc_resource_t* oc_core_get_resource_by_index(int index)
 {
-	#ifndef OC_DYNAMIC_ALLOCATION
-	if (type == OC_DEV_SN)
-	{
-		return &core_resources[0];
+	// Ensure resources are initialized
+	if (!core_resources_initialized) {
+		oc_core_init_resources();
 	}
-	return &core_resources[WELLKNOWNCORE * device + type];
-	#else
 
-	// need to traverse the 'linked' list of CONST device core resources
-	// starts with index 0 = OC_DEV_SN = serial number of device
-	oc_resource_t* res = oc_list_head(core_resource_list);
-	while (index && res)
-	{
-		// index > 0
-		res = oc_list_item_next(res);
-		index--;
+	// Return from static array - true static allocation
+	if (index >= 0 && index <= WELLKNOWNCORE) {
+		// Check if this index has a valid resource (non-zero URI size)
+		if (core_resources[index].uri.size > 0) {
+			return &core_resources[index];
+		}
 	}
-	// returns the nth pointer such as for type OC_KNX_SWU (48) it is the 48' pointer 
-	return res;
-	#endif
+
+	return NULL;
 }
 
 bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
