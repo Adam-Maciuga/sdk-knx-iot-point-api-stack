@@ -142,8 +142,17 @@ oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
 	return 0;
 }
 
-uint32_t
-oscore_get_outer_code(void* packet)
+/**
+ * @brief get for a request/ response the OUTER CoAp code for a CoAp message
+ *
+ * @note
+ * A request uses always POST a response always 2.04 Changed,
+ * except on a present observe option (FETCH, 2.05 OK)
+ *
+ * @param packet the CoAp packet to be scanned
+ *
+ */
+oc_method_t oscore_get_outer_code(void* packet)
 {
 	coap_packet_t const* coap_pkt = (coap_packet_t*) packet;
 
@@ -153,33 +162,17 @@ oscore_get_outer_code(void* packet)
 		observe = true;
 	}
 
-	if ((coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE)
+	if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE
 			#ifdef OC_TCP
-			|| (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 ||
-			coap_pkt->code == CSM_7_01)
-			#endif /* OC_TCP */
+			|| (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01)
+			#endif 
 			)
-	{
-		/* Requests */
-		if (observe)
-		{
-			return OC_FETCH;
-		}
-		else
-		{
-			return OC_POST;
-		}
+	{ // requests
+	  return observe ? OC_FETCH : OC_POST;
 	}
-	else
-	{
-		/* Responses */
-		if (observe)
-		{
-			return oc_status_code(OC_STATUS_OK);
-		}
-	}
-
-	return oc_status_code(OC_STATUS_CHANGED);
+	
+	// responses
+  return observe ? oc_status_code(OC_STATUS_OK) : oc_status_code(OC_STATUS_CHANGED);
 }
 
 int

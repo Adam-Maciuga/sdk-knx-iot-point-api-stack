@@ -156,7 +156,7 @@ bool oc_do_multicast_update(void)
   }
   else 
   {
-    // here it may jump with a NULL ptr to th error handling but this is cached there
+    // here it may jump with a NULL ptr to the error handling but this is checked there
     goto do_multicast_update_error;
   }
 

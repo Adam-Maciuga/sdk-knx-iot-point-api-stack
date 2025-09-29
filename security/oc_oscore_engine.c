@@ -681,11 +681,11 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     if (code != COAP_NO_ERROR)
     {
-      OC_ERR("***error parsing CoAP packet***");
+      OC_ERR("***error parsing multicast CoAP packet***");
       goto oscore_group_send_error;
     }
 
-    OC_DBG_OSCORE("### parsed CoAP message ###");
+    OC_DBG_OSCORE("### parsed CoAP multicast message ###");
 
     uint8_t piv[OSCORE_PIV_LEN], piv_len = 0,
             kid[OSCORE_SENDER_ID_LEN], kid_len = 0,
@@ -694,9 +694,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     OC_DBG_OSCORE("### protecting multicast request ###");
 
-    // use SSN as Partial IV
+    // request - use SSN as Partial IV
     oscore_store_piv(oscore_ctx->ssn, piv, &piv_len);
-    // OC_DBG_OSCORE("---using SSN as Partial IV: %lu", oscore_ctx->ssn);
     OC_LOGbytes_OSCORE(piv, piv_len);
 
     /* Increment SSN */
@@ -710,12 +709,12 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
                          OSCORE_AEAD_NONCE_LEN);
 
-    OC_DBG_OSCORE("---computed AEAD nonce using Partial IV (SSN) and Sender ID");
+    OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID");
     OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 
     /* Compose AAD using partial IV and context->sender_id */
     oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, AAD, &AAD_len);
-    OC_DBG_OSCORE("---composed AAD using Partial IV (SSN) and Sender ID");
+    OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID");
     OC_LOGbytes_OSCORE(AAD, AAD_len);
 
     /* Move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE to accommodate for
@@ -760,7 +759,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     /* Adjust payload length to include the size of the authentication tag */
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
 
-    /* Set the Outer code for the OSCORE packet (POST/FETCH:2.04/2.05) */
+    /* Set the Outer code for the OSCORE packet (on mc request = POST) */
     coap_pkt->code = OC_POST;
 
     /* Wireshark fix - include the context ID on the wire as well */
@@ -845,15 +844,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
    * Dispatch oc_message_t to the (TLS or) network layer
    */
 
-  // no multicast response to a (previous) secure multicast request message 
-  // TODO cannot happen here, check to remove 
-  if (msg->endpoint.flags & MULTICAST)
-  {
-    OC_DBG_OSCORE("### secure multicast requests do not elicit a response, discard ###");
-    oc_message_unref(msg);
-    return 0;
-  }
-
   // most common case for unicast response to a (uc/mc) request, 
   // we just get the cached index from the original (multicast) request
   oc_auth_at_t* entry = oc_get_auth_at_entry(msg->endpoint.auth_at_index);
@@ -865,9 +855,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     // TODO do we need also ID Context here --> if we have same kid from several
     // get the corresponding sender context for the access token, will be found only in case former inbound request, pick the first hit 
     OC_DBG_OSCORE("### Found auth at entry, getting context ###");
-    oscore_ctx = oc_oscore_find_context_by_kid(NULL,
-                                               (uint8_t*)oc_string(entry->osc_id),
-                                               oc_byte_string_len(entry->osc_id));
+    oscore_ctx = oc_oscore_find_context_by_kid(
+      NULL,
+      (uint8_t*)oc_string(entry->osc_id),
+      oc_byte_string_len(entry->osc_id));
   }
 
   // search for OSCORE context using addressing information usually on request 
@@ -899,7 +890,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   memcpy(message->data, msg->data, msg->length);
   memcpy(&message->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
 
-  // 
+  // msg is 'tracked' 
   bool msg_valid = msg->ref_count > 1 ? true: false;
   oc_message_unref(msg);
 
@@ -922,11 +913,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   if (code != COAP_NO_ERROR)
   {
-    OC_ERR("***error parsing CoAP packet***");
+    OC_ERR("***error parsing CoAP unicast packet***");
     goto oscore_send_error;
   }
 
-  OC_DBG_OSCORE("### parsed CoAP message ###");
+  OC_DBG_OSCORE("### parsed CoAP unicast message ###");
 
   // search for context using token/mid 
   if (oscore_ctx == NULL)
@@ -986,8 +977,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     uint8_t* key = oscore_ctx->sender_key;
 
     // names from RFC OSCORE option 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, kid_context[OSCORE_ID_CONTEXT_LEN], kid_context_len = 0,
-                                 nonce[OSCORE_AEAD_NONCE_LEN], AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0,
+    kid[OSCORE_SENDER_ID_LEN], kid_len = 0,
+    kid_context[OSCORE_ID_CONTEXT_LEN], kid_context_len = 0,
+    nonce[OSCORE_AEAD_NONCE_LEN],
+    AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0;
 
     /* If CoAP message is request */
     if ((coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE)
@@ -998,12 +992,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     {
 
       OC_DBG_OSCORE("### protecting outgoing request ###");
-      
-      /* Request */
-      /* Use context->SSN as Partial IV */
+
+      // request - use SSN as Partial IV
       oscore_store_piv(oscore_ctx->ssn, piv, &piv_len);
-      // oscore_store_piv(0, piv, &piv_len);
-      // OC_DBG_OSCORE("---using SSN as Partial IV: %lu", oscore_ctx->ssn);
       OC_LOGbytes_OSCORE(piv, piv_len);
 
       // increment SSN for the original request, retransmissions below max retransmits (4) use the same SSN
@@ -1029,7 +1020,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           cb->piv_len = piv_len;
         }
       }
-#endif /* OC_CLIENT */
+#endif
 
       /* Use context-sender_id as kid */
       memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
@@ -1043,15 +1034,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
                            OSCORE_AEAD_NONCE_LEN);
 
-      OC_DBG_OSCORE("---computed AEAD nonce using Partial IV (SSN) and Sender ID");
+      OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID");
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
-      OC_DBG_OSCORE("---");
+      
 
       /* Compose AAD using partial IV and context->sender_id */
       oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, AAD, &AAD_len);
-      OC_DBG_OSCORE("---composed AAD using Partial IV (SSN) and Sender ID");
+      OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID");
       OC_LOGbytes_OSCORE(AAD, AAD_len);
-      OC_DBG_OSCORE("---");
+     
 
       /* Copy partial IV into incoming oc_message_t (*msg), if valid */
       if (msg_valid)
@@ -1233,7 +1224,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     /* Adjust payload length to include the size of the authentication tag */
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
 
-    /* Set the Outer code for the OSCORE packet (POST/FETCH:2.04/2.05) */
+    /* Set the Outer code for the OSCORE packet (on uc request = POST/FETCH, response = 2.04/2.05) */
     coap_pkt->code = oscore_get_outer_code(coap_pkt);
 
     /* If outer code is 2.05, then set the Max-Age option */

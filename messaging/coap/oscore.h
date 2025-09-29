@@ -18,6 +18,7 @@
 #ifndef OSCORE_H
 #define OSCORE_H
 #include "constants.h"
+#include "oc_ri.h"
 #include "port/oc_connectivity.h"
 
 #ifdef __cplusplus
@@ -32,7 +33,7 @@ extern "C"
 
   int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len);
 
-  uint32_t oscore_get_outer_code(void* packet);
+  oc_method_t oscore_get_outer_code(void* packet);
 
   bool oscore_is_oscore_message(oc_message_t* msg);
 

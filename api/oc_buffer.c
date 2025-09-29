@@ -83,10 +83,10 @@ allocate_message(struct oc_memb* pool)
 	else
 	{
 		// no unused buffers, so go through buffers with soft references and
-		// free one (with the lowest ref count 1). Said buffer can no longer be used for e.g. retransmitting
-		// requests when challenged with an Echo option. however, freeing up
-		// one of these means that it can no longer be used for its original
-		// purpose
+		// free one (with the lowest ref count 1). Said buffer can no longer be
+		// used for e.g. retransmitting requests when challenged with an Echo option.
+		// However, freeing up one of these means that it can no longer be used for
+		// its original purpose.
 		for (int i = 0; i < pool->num; ++i)
 		{
 			int offset = pool->size * i;
@@ -94,10 +94,8 @@ allocate_message(struct oc_memb* pool)
 
 			if (message->ref_count == 1 && message->soft_ref_cb != NULL)
 			{
-				// OC_WRN("Freeing echo retransmission candidate %p");
 				message->soft_ref_cb(message);
-				// we know that was the last reference, so now we can allocate
-				// a new message successfully
+				// was the last reference (=1), so now we can allocate a new message successfully
 				return allocate_message(pool);
 			}
 		}

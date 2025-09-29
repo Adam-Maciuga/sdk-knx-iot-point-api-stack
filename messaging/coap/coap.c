@@ -1288,10 +1288,10 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 		}
 	}
 
-	// empty packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
+	// empty coap packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
 	if (outer && !coap_pkt->code && coap_pkt->token_len == 0)
 	{
-		OC_DBG("done serializing empty message");
+		OC_DBG("done serializing coap empty ack message");
 		return token_location;
 	}
 
