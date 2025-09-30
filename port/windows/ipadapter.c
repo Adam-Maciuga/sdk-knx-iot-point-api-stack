@@ -45,18 +45,6 @@
 
 #define COAP_PORT_UNSECURED (5683)
 
-// OCF not used 
-#if 0
-static const uint8_t ALL_OCF_NODES_LL[] = {
-  0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x58
-};
-static const uint8_t ALL_OCF_NODES_RL[] = {
-  0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x58
-};
-static const uint8_t ALL_OCF_NODES_SL[] = {
-  0xff, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x58
-};
-#endif
 
 static const uint8_t ALL_COAP_NODES_LL[] = { 0xff, 0x02, 0, 0, 0, 0, 0, 0,
                                              0,    0,    0, 0, 0, 0, 0, 0xFD };

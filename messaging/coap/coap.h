@@ -125,7 +125,7 @@ extern "C" {
 		uint8_t version; // current version is '1'
 		coap_message_type_t type;
 		uint8_t code;
-		uint16_t mid;	// used in coap to detect duplicate messages 
+		uint16_t mid;	// used in coap to relate a CON message with an ACK message (used also for messages deduplication)
 
 		uint8_t token_len;
 		uint8_t token[COAP_TOKEN_LEN]; // used in coap to match a request with a response 
@@ -368,8 +368,8 @@ extern "C" {
 	int coap_get_header_size1(void* packet, uint32_t* size);
 	int coap_set_header_size1(void* packet, uint32_t size);
 
-	int coap_get_header_echo(void* packet, uint8_t echo[COAP_ECHO_LEN]);
-	int coap_set_header_echo(void* packet, uint8_t* echo, size_t len);
+	int coap_get_header_echo(void* packet, const uint8_t* echo);
+	int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len);
 
 	int coap_get_payload(void* packet, const uint8_t** payload);
 	int coap_set_payload(void* packet, const void* payload, size_t length);
