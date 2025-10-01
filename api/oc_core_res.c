@@ -40,9 +40,8 @@ static oc_platform_info_t oc_platform_info; // platform provider
 
 void oc_core_init(void)
 {
-	oc_core_shutdown();
 	if (core_resources_initialized) {
-		return;
+		oc_core_shutdown();
 	}
 
 	// Initialize static core resources array to zero
