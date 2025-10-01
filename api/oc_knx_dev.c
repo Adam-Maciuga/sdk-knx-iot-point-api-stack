@@ -1264,7 +1264,7 @@ const oc_resource_t core_resource_dev_mid = {(oc_resource_t*)&core_resource_dev,
                                              &core_resource_dev_mid_data};
 PRAGMA_OUT
 
-void oc_knx_load_device()
+void oc_knx_load_device(void)
 {
   PRINT("Loading device configuration from persistent storage");
 
@@ -1312,6 +1312,15 @@ void oc_knx_load_device()
   device->lsm_s = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*)&lsm, sizeof(lsm)) > 0 ? lsm : LSM_S_UNLOADED;
   PRINT("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm));
 
+  // load security related variables
+  uint16_t osc;
+  uint16_t w_size = oc_storage_read(OSC_STORAGE_REP_SIZE, (uint8_t*)&osc, sizeof(osc)) > 0 ? osc : DEFAULT_REP_WDO_SIZE;
+  uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc, sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
+
+  set_oscore_replay_window_size(w_size);
+  set_oscore_osn_delay_ms(d_size);
+  PRINT("oscore (storage) replay window size (%u), osn delay (%u) ms ", w_size, d_size);
+
   /*
     - note that the used uc port will be advertised with each mDNS such as on every startup, so no need to store and read here
     - note that the used mc port for discovery is fixed, so no need to store and read here
@@ -1339,10 +1348,12 @@ void oc_knx_device_storage_reset(int reset_mode)
     device->iid = 0;
     device->fid = 0;
 
-    // set default host name to device serial number with leading 'knx-'
+    /*
+      set default host name to device serial number and leading
+      'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
+    */
     oc_free_string(&device->hostname);
 
-    // 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
     char hostname[20] = "knx-";
     strcat(hostname, oc_string(device->serialnumber));
     oc_new_string(&device->hostname, hostname, strlen(hostname));
@@ -1351,10 +1362,6 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_delete_group_object_table();
     oc_delete_group_tables();
     oc_delete_at_table();
-
-    // reset security related variables to default values, may be overwritten
-    set_oscore_replay_window_size(DEFAULT_REP_WDO_SIZE);
-    set_oscore_osn_delay_ms(DEFAULT_OSN_DELAY);
 
     /*
        writing all above reset values to storage (LSM already written)
@@ -1366,6 +1373,13 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
     oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->hostname), oc_string_len(device->hostname));
+
+    // reset security related variables to default values
+    uint16_t w_size = DEFAULT_REP_WDO_SIZE;
+    uint16_t d_size = DEFAULT_OSN_DELAY;
+
+    oc_storage_write(OSC_STORAGE_REP_SIZE, (uint8_t*)&w_size, sizeof(w_size));
+    oc_storage_write(OSC_STORAGE_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
 
     return;
   }
@@ -1384,9 +1398,7 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
 
-    // reset security related variables to default values, may be overwritten
-    set_oscore_replay_window_size(DEFAULT_REP_WDO_SIZE);
-    set_oscore_osn_delay_ms(DEFAULT_OSN_DELAY);
+    // don't reset security related "replay window size" and "osn delay"
 
     // writing all above reset values to storage (LSM already written)
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
@@ -1399,7 +1411,7 @@ bool oc_knx_device_in_programming_mode(void)
   return device->pm;
 }
 
-void oc_knx_device_restart()
+void oc_knx_device_restart(void)
 {
   PRINT("restart device");
 

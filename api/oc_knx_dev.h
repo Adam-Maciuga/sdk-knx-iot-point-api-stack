@@ -35,6 +35,9 @@ extern "C" {
 #define KNX_STORAGE_AP_MINOR  "knx_ap_minor"
 #define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
 
+#define OSC_STORAGE_REP_SIZE "oscore_replay_wd_size"
+#define OSC_STORAGE_OSN_DELAY "oscore_osn_delay"
+
 /**
 @brief load the device from storage (file system)
  *  
@@ -45,6 +48,9 @@ extern "C" {
  *  - fid (fabric id)
  *  - ap (application version)
  *  - lsm (load state)
+ *  - oscore osn delay / replay window size 
+ *
+ *  @note if storage cannot be read, their default values will be applied to the properties
  *
  */
 void oc_knx_load_device();

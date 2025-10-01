@@ -31,18 +31,18 @@
 #define AT_STORE "at_store"
 #define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
 
-// RAM variables
-static uint32_t g_oscore_replay_window_size = DEFAULT_REP_WDO_SIZE;
-static uint32_t g_oscore_osn_delay_ms = DEFAULT_OSN_DELAY;
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; // static init with '0', included strings next/ptr/size are '0' are not valid
+// static RAM variables init all with '0' (also in at table included strings next/ptr/size)
+static uint16_t g_oscore_replay_window_size;  // < 65 , see PUT method 
+static uint16_t g_oscore_osn_delay_ms;        // format = dpt.timePeriodMsec
+static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; 
 
 // ----------------------------------------------------------------------------
 
 uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size; }
-void set_oscore_replay_window_size(uint32_t size) { g_oscore_replay_window_size = size; }
+void set_oscore_replay_window_size(uint16_t size) { g_oscore_replay_window_size = size; }
 
 uint32_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms; }
-void set_oscore_osn_delay_ms(uint32_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
+void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
 
 static void oc_store_at_table_entry(int entry);
 
@@ -98,14 +98,14 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
   }
 
   oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+  while (rep)
   {
     if (rep->type == OC_REP_INT)
     {
       if (rep->iname == 1)
       {
         PRINT("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int)rep->type, (int)rep->value.integer);
-        g_oscore_osn_delay_ms = (uint32_t)rep->value.integer; // use direct access
+        g_oscore_osn_delay_ms = (uint16_t)rep->value.integer; // use direct access
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }
@@ -185,7 +185,7 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
          */
 
         PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d", rep->type, (int)rep->value.integer);
-        g_oscore_replay_window_size = (uint32_t)rep->value.integer; // use direct access
+        g_oscore_replay_window_size = (uint16_t)rep->value.integer; // use direct access
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }

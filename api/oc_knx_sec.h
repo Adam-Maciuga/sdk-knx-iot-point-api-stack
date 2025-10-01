@@ -311,7 +311,7 @@ extern "C" {
    * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible) 
    *
    */
-  void set_oscore_replay_window_size(uint32_t size);
+  void set_oscore_replay_window_size(uint16_t size);
 
 	/**
    * @brief get OSCORE OSN Delay Time
@@ -328,7 +328,7 @@ extern "C" {
    * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible)
    *
    */
-  void set_oscore_osn_delay_ms(uint32_t milliseconds);
+  void set_oscore_osn_delay_ms(uint16_t milliseconds);
 
 #ifdef __cplusplus
 }
