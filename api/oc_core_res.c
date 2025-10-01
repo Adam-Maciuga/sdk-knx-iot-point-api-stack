@@ -36,13 +36,6 @@
 static oc_device_info_t oc_device_info;
 static oc_platform_info_t oc_platform_info; // platform provider
 
-void oc_core_init(void)
-{
-	// Core resources are already statically defined as const structures
-	// No initialization needed - core resources are always available
-	// This function is kept for API compatibility but does minimal work
-}
-
 static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
 {
 	if (oc_device_info_item)
@@ -53,11 +46,6 @@ static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info
 		oc_free_string(&oc_device_info_item->model);
 		oc_free_string(&oc_device_info_item->hostname);
 	}
-}
-
-void oc_core_shutdown(void)
-{
-	oc_free_string(&oc_platform_info.mfg_name);
 }
 
 int oc_core_set_device_fwv(int major, int minor, int patch)
@@ -220,22 +208,20 @@ oc_platform_info_t* oc_core_get_platform_info(void)
 
 oc_resource_t* oc_core_get_resource_by_index(int index)
 {
+	// Check bounds first
+	if (index < 0 || index >= OC_NUM_CORE_RESOURCES) {
+		return NULL;
+	}
+
 	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
 	const oc_resource_t* res = &core_resource_dev_sn;
-	int current_index = 0;
 
-	// Walk the linked list to find the resource at the specified index
-	while (res && current_index < index) {
+	// Walk the linked list to the specified index
+	for (int i = 0; i < index && res; i++) {
 		res = res->next;
-		current_index++;
 	}
 
-	// Return the resource if found and valid (has a URI)
-	if (res && res->uri.size > 0) {
-		return (oc_resource_t*)res;
-	}
-
-	return NULL;
+	return (oc_resource_t*)res;
 }
 
 bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)
