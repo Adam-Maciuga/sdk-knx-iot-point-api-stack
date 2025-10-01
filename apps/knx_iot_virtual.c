@@ -82,16 +82,17 @@ static oc_event_callback_retval_t send_delayed_response(void* context)
   return OC_EVENT_DONE;
 }
 
-void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t offset, uint8_t* payload, size_t len, void* data)
+void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, uint8_t* block_data, size_t block_len, void* data)
 {
   (void)binary_size;
   (void)data;
 
   char filename[] = "./downloaded.bin";
-  OC_DBG("swu_cb %s block=%d size=%d ", filename, (int)offset, (int)len);
+  OC_DBG("swu_cb %s block=%d size=%d ", filename, (int)block_offset, (int)block_len);
 
+  // 'ab' = add to the end of file (a) in binary mode (b)
   FILE* write_ptr = fopen("downloaded_bin", "ab");
-  const size_t n = fwrite(payload, sizeof(*payload), len, write_ptr);
+  const size_t n = fwrite(block_data, sizeof(*block_data), block_len, write_ptr);
   const size_t r = fclose(write_ptr);
   OC_DBG("written data: %llu, operation ok (=0): %llu", n, r);
 

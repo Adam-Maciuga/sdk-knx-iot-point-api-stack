@@ -549,12 +549,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   size_t key_len = 0;
   size_t value_len = 0;
 
-  int binary_size = 0;
-  int block_size = 0;
-  int block_offset = 0; // bytes to skip, default if query parameter 'po' is missing
+  int pkgs_package_size = 0;  // in bytes 
+  int ps_block_size = 0;      // page size 
+  int po_block_offset = 0;    // page offset, bytes to skip, default =0 if query parameter 'po' is missing
 
-  const uint8_t* payload_ptr = NULL;
-  size_t payload_size = 0;
+  uint8_t* payload_ptr = NULL;
+  size_t payload_size = 0; 
 
   OC_DBG("oc_knx_swu_a_put_handler - start");
 
@@ -570,24 +570,24 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   {
     if (strncmp(key, "po", key_len) == 0)
     {
-      block_offset = atoi(value);
+      po_block_offset = atoi(value);
     }
     if (strncmp(key, "ps", key_len) == 0)
     {
-      block_size = atoi(value);
+      ps_block_size = atoi(value);
     }
     if (strncmp(key, "pkgs", key_len) == 0)
     {
-      // first PUT contains the size, ignore from second (if present)
-      binary_size = atoi(value);
+      // first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present)
+      pkgs_package_size = atoi(value);
     }
   }
 
-  OC_DBG("binary size: %d", binary_size);
-  OC_DBG("block size: %d", block_size);
-  OC_DBG("block offset: %d", block_offset);
+  OC_DBG("binary package byte size: %d", pkgs_package_size);
+  OC_DBG("block size: %d", ps_block_size);
+  OC_DBG("block offset: %d", po_block_offset);
 
-  // if swu blob data are present ...
+  // if swu blob data are present ... TODO only a copy, used pointer directly OR return a BAD REQUEST
   if (request->_payload && request->_payload_len > 0)
   {
     payload_ptr = request->_payload;
@@ -601,8 +601,13 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   if (application_swu_cb && application_swu_cb->cb)
   {
     oc_indicate_separate_response(request, &s_delayed_response_swu);
+
     // call application handler including user data (can be NULL)
-    application_swu_cb->cb(&s_delayed_response_swu, binary_size, block_offset, payload_ptr, payload_size,
+    application_swu_cb->cb(&s_delayed_response_swu, 
+                           pkgs_package_size, 
+                           po_block_offset, 
+                           payload_ptr, 
+                           payload_size,
                            application_swu_cb->data);
   }
   else

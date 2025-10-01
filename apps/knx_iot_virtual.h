@@ -225,12 +225,12 @@ extern "C"
    *
    * @param response the instance of an internal struct that is used to track the state of the separate response
    * @param binary_size the full size of the binary
-   * @param offset the offset of the image
-   * @param payload the image data
-   * @param len the length of the image data
+   * @param block_offset the offset of the image
+   * @param block_data the image data
+   * @param block_len the length of the image data
    * @param data the user data
    */
-  void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t offset, uint8_t* payload, size_t len, void* data);
+  void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, uint8_t* block_data, size_t block_len, void* data);
 
   /**
    * @brief add all short interface urn's to the 'root' object with string key 'if'
