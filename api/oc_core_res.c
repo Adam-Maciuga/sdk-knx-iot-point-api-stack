@@ -57,15 +57,7 @@ static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info
 
 void oc_core_shutdown(void)
 {
-	size_t i;
 	oc_free_string(&oc_platform_info.mfg_name);
-	
-	// Clean up device info properties
-	oc_core_free_device_info_properties(&oc_device_info);
-	
-	// Free KNX table resources first
-	oc_free_knx_table_resources();
-	
 }
 
 int oc_core_set_device_fwv(int major, int minor, int patch)
@@ -240,7 +232,6 @@ oc_resource_t* oc_core_get_resource_by_index(int index)
 
 	// Return the resource if found and valid (has a URI)
 	if (res && res->uri.size > 0) {
-		// casting away const here because the interface expects non-const
 		return (oc_resource_t*)res;
 	}
 
