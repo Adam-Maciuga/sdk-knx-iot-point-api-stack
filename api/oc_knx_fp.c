@@ -792,7 +792,7 @@ const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_k
                                                 {NULL, 0, NULL},
                                                 {APPLICATION_CBOR, CONTENT_NONE},
                                                 OC_DISCOVERABLE,
-                                                {oc_core_fp_g_x_get_handler, NULL, OC_ACL_P, OC_IF_P}, // TODO wrong , change after clarification 
+                                                {oc_core_fp_g_x_get_handler, NULL, OC_ACL_D, OC_IF_D},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {oc_core_fp_g_x_del_handler, NULL, OC_ACL_C, OC_IF_C},
