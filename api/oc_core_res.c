@@ -33,18 +33,14 @@
 #include "port/oc_storage.h"
 
 
-static bool core_resources_initialized = false;
 static oc_device_info_t oc_device_info;
 static oc_platform_info_t oc_platform_info; // platform provider
 
 void oc_core_init(void)
 {
 	// Core resources are already statically defined as const structures
-	// Only call shutdown to clean up any previous state
-	if (core_resources_initialized) {
-		oc_core_shutdown();
-	}
-	core_resources_initialized = true;
+	// No initialization needed - core resources are always available
+	// This function is kept for API compatibility but does minimal work
 }
 
 static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
@@ -69,7 +65,7 @@ void oc_core_shutdown(void)
 	
 	// Free KNX table resources first
 	oc_free_knx_table_resources();
-	core_resources_initialized = false;
+	
 }
 
 int oc_core_set_device_fwv(int major, int minor, int patch)
@@ -232,12 +228,6 @@ oc_platform_info_t* oc_core_get_platform_info(void)
 
 oc_resource_t* oc_core_get_resource_by_index(int index)
 {
-	// Ensure resources are initialized
-	if (!core_resources_initialized) {
-		oc_core_init();
-	}
-
-	// Traverse const linked list
 	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
 	const oc_resource_t* res = &core_resource_dev_sn;
 	int current_index = 0;
@@ -250,8 +240,7 @@ oc_resource_t* oc_core_get_resource_by_index(int index)
 
 	// Return the resource if found and valid (has a URI)
 	if (res && res->uri.size > 0) {
-		// Note: We're casting away const here because the interface expects non-const
-		// The const resources should not be modified through this pointer
+		// casting away const here because the interface expects non-const
 		return (oc_resource_t*)res;
 	}
 
