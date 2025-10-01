@@ -1232,7 +1232,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		const oc_resource_t* tmp_resource;
 
 		// check core resources
-		for (int i = 0; i < OC_NUM_CORE_RESOURCES; i++)
+		for (int i = 0; i < OC_NUM_CORE_RESOURCES_PER_DEVICE; i++)
 		{
 			tmp_resource = oc_core_get_resource_by_index(i);
 

@@ -367,7 +367,7 @@ extern "C" {
 		/* List of resources on a logical device: end */
 	} oc_core_resource_t;
 
-#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE)
+#define OC_NUM_CORE_RESOURCES_PER_DEVICE (1 + WELLKNOWNCORE)
 
 	typedef struct oc_resource oc_resource_t;
 
