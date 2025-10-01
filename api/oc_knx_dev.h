@@ -50,7 +50,7 @@ extern "C" {
  *  - lsm (load state)
  *  - oscore osn delay / replay window size 
  *
- *  @note of storage cannot be read default values will be applied to the properties
+ *  @note if storage cannot be read, their default values will be applied to the properties
  *
  */
 void oc_knx_load_device();
