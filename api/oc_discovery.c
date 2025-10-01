@@ -727,12 +727,12 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 * 
 */
 
-oc_resource_dummy_t core_resource_well_known_core_final = { NULL};					 		// next resource (here NULL)
+
 PRAGMA_IN																																										 		// compiler specific
 oc_resource_data_t core_resource_well_known_core_data;																			 		// at runtime modifiable (RAM) data for th endpoint
 const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition 
 { // typecast since type of last list dummy is different
-	(oc_resource_t*) &core_resource_well_known_core_final,																		 		// ptr to next (here last) resource
+	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
 	{ NULL, (size_t)1 * 32, (char[1][32]){	"well-known-type"} },					        // types (0...n), if 0 => 3 x NULL
 	{ NULL, 0, NULL },																						 								// DPT
