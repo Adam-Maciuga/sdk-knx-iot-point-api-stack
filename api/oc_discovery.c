@@ -739,9 +739,9 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },																							 		// content formats (max 2)
 	OC_DISCOVERABLE,																																					 		// resource properties
 	{ oc_wkcore_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },		// get callback
-	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// put callback
-	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// post callback
-	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// delete callback
+	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// put callback, if not defined use if.none, to return 4.05 instead of 4.01
+	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// post callback, if not defined use if.none, to return 4.05 instead of 4.01
+	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// delete callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL },																										 		// property get callback
 	{ NULL, NULL },																										 		// property set callback 
 	0,																																												 		// observe period

@@ -307,7 +307,6 @@ const oc_resource_t core_resource_knx_auth_o = {
   {NULL, 0, NULL},
   {APPLICATION_LINK_FORMAT, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
   {oc_core_knx_auth_o_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
