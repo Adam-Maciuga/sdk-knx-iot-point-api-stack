@@ -257,7 +257,6 @@ static void oc_shutdown_device(void)
 {
   oc_connectivity_shutdown();
   oc_network_event_handler_mutex_destroy();
-  oc_core_shutdown();
 }
 
 int oc_main_init(const oc_handler_t* handler)
@@ -277,7 +276,6 @@ int oc_main_init(const oc_handler_t* handler)
 #endif
 
   oc_ri_init();
-  oc_core_init();
   oc_network_event_handler_mutex_init();
 
   #ifdef OC_SPAKE

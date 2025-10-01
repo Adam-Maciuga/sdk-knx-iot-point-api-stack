@@ -103,18 +103,6 @@ extern "C" {
 	} oc_device_info_t;
 
 	/**
-	 * @brief initialize the core functionality
-	 *
-	 */
-	void oc_core_init(void);
-
-	/**
-	 * @brief shutdown the core functionality
-	 *
-	 */
-	void oc_core_shutdown(void);
-
-	/**
 	 * @brief initialize the platform
 	 *
 	 * @param mfg_name the manufacturer name
