@@ -32,32 +32,18 @@
 #include <stdarg.h>
 #include "port/oc_storage.h"
 
-// Single device static allocation
-static oc_resource_t core_resources[OC_NUM_CORE_RESOURCES];
+
 static bool core_resources_initialized = false;
 static oc_device_info_t oc_device_info;
 static oc_platform_info_t oc_platform_info; // platform provider
 
 void oc_core_init(void)
 {
+	// Core resources are already statically defined as const structures
+	// Only call shutdown to clean up any previous state
 	if (core_resources_initialized) {
 		oc_core_shutdown();
 	}
-
-	// Initialize static core resources array to zero
-	memset(core_resources, 0, sizeof(core_resources));
-
-	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
-	const oc_resource_t* res = &core_resource_dev_sn;
-	int index = 0;
-
-	// Walk the linked list and copy each resource into static memory
-	while (res && index < OC_NUM_CORE_RESOURCES) {
-		memcpy(&core_resources[index], res, sizeof(oc_resource_t));
-		res = res->next;
-		index++;
-	}
-	
 	core_resources_initialized = true;
 }
 
@@ -83,9 +69,6 @@ void oc_core_shutdown(void)
 	
 	// Free KNX table resources first
 	oc_free_knx_table_resources();
-	
-	// Clean up static core resources 
-	memset(core_resources, 0, sizeof(core_resources));
 	core_resources_initialized = false;
 }
 
@@ -254,12 +237,22 @@ oc_resource_t* oc_core_get_resource_by_index(int index)
 		oc_core_init();
 	}
 
-	// Return from static array - true static allocation
-	if (index >= 0 && index < OC_NUM_CORE_RESOURCES) {
-		// Check if this index has a valid resource (non-zero URI size)
-		if (core_resources[index].uri.size > 0) {
-			return &core_resources[index];
-		}
+	// Traverse const linked list
+	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
+	const oc_resource_t* res = &core_resource_dev_sn;
+	int current_index = 0;
+
+	// Walk the linked list to find the resource at the specified index
+	while (res && current_index < index) {
+		res = res->next;
+		current_index++;
+	}
+
+	// Return the resource if found and valid (has a URI)
+	if (res && res->uri.size > 0) {
+		// Note: We're casting away const here because the interface expects non-const
+		// The const resources should not be modified through this pointer
+		return (oc_resource_t*)res;
 	}
 
 	return NULL;
