@@ -32,17 +32,15 @@
 #include <stdarg.h>
 #include "port/oc_storage.h"
 
-// Static allocation approach - no hardcoded resource lists needed
-
 // Single device static allocation
-static oc_resource_t core_resources[WELLKNOWNCORE + 1]; // +1 for OC_DEV_SN resource
+static oc_resource_t core_resources[OC_NUM_CORE_RESOURCES];
 static bool core_resources_initialized = false;
 static oc_device_info_t oc_device_info;
 static oc_platform_info_t oc_platform_info; // platform provider
 
-// Initialize core resources
-static void oc_core_init_resources(void)
+void oc_core_init(void)
 {
+	oc_core_shutdown();
 	if (core_resources_initialized) {
 		return;
 	}
@@ -50,25 +48,18 @@ static void oc_core_init_resources(void)
 	// Initialize static core resources array to zero
 	memset(core_resources, 0, sizeof(core_resources));
 
-	// Copy the entire linked list of resources into our static array
 	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
 	const oc_resource_t* res = &core_resource_dev_sn;
 	int index = 0;
 
 	// Walk the linked list and copy each resource into static memory
-	while (res && index <= WELLKNOWNCORE) {
+	while (res && index < OC_NUM_CORE_RESOURCES) {
 		memcpy(&core_resources[index], res, sizeof(oc_resource_t));
 		res = res->next;
 		index++;
 	}
-
+	
 	core_resources_initialized = true;
-}
-
-void oc_core_init(void)
-{
-	oc_core_shutdown();
-	oc_core_init_resources();
 }
 
 static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
@@ -87,6 +78,15 @@ void oc_core_shutdown(void)
 {
 	size_t i;
 	oc_free_string(&oc_platform_info.mfg_name);
+	
+	// Clean up device info properties
+	oc_core_free_device_info_properties(&oc_device_info);
+	
+	// Free KNX table resources first
+	oc_free_knx_table_resources();
+	
+	// Clean up static core resources 
+	memset(core_resources, 0, sizeof(core_resources));
 	core_resources_initialized = false;
 }
 
@@ -252,11 +252,11 @@ oc_resource_t* oc_core_get_resource_by_index(int index)
 {
 	// Ensure resources are initialized
 	if (!core_resources_initialized) {
-		oc_core_init_resources();
+		oc_core_init();
 	}
 
 	// Return from static array - true static allocation
-	if (index >= 0 && index <= WELLKNOWNCORE) {
+	if (index >= 0 && index < OC_NUM_CORE_RESOURCES) {
 		// Check if this index has a valid resource (non-zero URI size)
 		if (core_resources[index].uri.size > 0) {
 			return &core_resources[index];
