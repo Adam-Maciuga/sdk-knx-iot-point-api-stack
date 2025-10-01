@@ -363,11 +363,11 @@ extern "C" {
 		OC_KNX_AUTH_AT_X,					/**< auth/at/X resources */
 		OC_KNX_AUTH,							/**< auth list all sub resources */
 		/* List of resources on a logical device: start */
-		WELLKNOWNCORE           /**< well-known/core resource */
+		WELLKNOWNCORE             /**< well-known/core resource, is the last resource in the list  */
 		/* List of resources on a logical device: end */
 	} oc_core_resource_t;
 
-#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE)
+#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE) // note that resources start with "0" 
 
 	typedef struct oc_resource oc_resource_t;
 
