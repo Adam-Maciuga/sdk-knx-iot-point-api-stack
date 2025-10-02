@@ -69,7 +69,7 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
                  serial_no, subtypes, port_str, sp_text_record);
   
   // Set creation flags based on console preference
-  #ifdef DISABLE_CONSOLE_FOR_DNS_SD
+  #ifndef USE_CONSOLE
     DWORD creation_flags = CREATE_NO_WINDOW;    // Hide console window
   #else
     DWORD creation_flags = 0;                   // Show console window
