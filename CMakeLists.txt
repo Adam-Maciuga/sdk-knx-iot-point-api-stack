@@ -371,16 +371,18 @@ if(WIN32)
 
 
         if(USE_CONSOLE)
-          if(MSVC)
-                      set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
-          else()
-                      set(GUI_FLAG "-mconsole")
-          endif()
+            if(MSVC)
+                        set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
+            else()
+                        set(GUI_FLAG "-mconsole")
+            endif()
                 
-          # GUI versions
-          set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-          set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-          set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+            # GUI versions
+            set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+            set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+            set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+
+            target_compile_definitions(kis-port PUBLIC USE_CONSOLE)
         endif()
 
 endif()
