@@ -61,9 +61,10 @@ const uint32_t mid = 667;                     // same as eitt test template
   
   URN's
 
-  - the dpa type is in FULL URN notation
-  - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
-  - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
+  - the dpa type MUST be in FULL URN notation:
+  - a GET {ipv6-unicast}/{point-path}?m asks with SHORT URN (see handler)
+  - a GET {ipv6-multicast}/.well-known/core asks with SHORT URN or FULL URN
+  - scanning all application resources for functional block occurrences demands a FULL URN
  
  */
 

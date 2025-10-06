@@ -25,7 +25,7 @@
 #include "oc_discovery.h"
 
 // -----------------------------------------------------------------------------
-// note this can be optimized.
+// TODO this can be optimized.
 #define ARRAY_SIZE 50 // up to 50 data points in a functional block
 int g_int_array[2][ARRAY_SIZE];
 int g_array_size = 0;
@@ -62,7 +62,7 @@ void store_in_array(int value, int instance)
     return;
   }
   g_int_array[0][g_array_size] = value; // functional block number
-  g_int_array[1][g_array_size] = instance; // instance of the functional block
+  g_int_array[1][g_array_size] = instance; // instance/ occurence of the functional block
   g_array_size++;
 }
 
@@ -246,13 +246,14 @@ PRAGMA_OUT
 
 int oc_count_functional_blocks(void)
 {
-  int counter = 0;
+  int number_of_fbs = 0;
 
   if (g_nr_functional_blocks > 0)
   { // cached..., if calculated once, return value instead of compute it again
     return g_nr_functional_blocks;
   }
 
+  // scan all application resources
   const oc_resource_t* resource = oc_ri_get_app_resources();
   for (; resource; resource = resource->next)
   {
@@ -262,7 +263,7 @@ int oc_count_functional_blocks(void)
       continue;
     }
 
-    // get rt type
+    // get rt type from array
     const oc_string_array_t types = resource->types;
 
     for (int i = 0; i < (int)oc_string_array_get_allocated_size(types); i++)
@@ -271,27 +272,24 @@ int oc_count_functional_blocks(void)
       const char* t = oc_string_array_get_item(types, i);
 
         /*
-           regular functional block, framing by functional block numbers & instances
-           note each FB resource has a 'dpa' type assigned
-           (well-know EP with urn:..., knx specific EP without urn:...)
-           note that a possible present iot router FB is also counted ones
+           framing by functional block numbers & instances, each
+           FB resource has 1...n 'dpa' type(s) assigned with a FULL URN
         */
-        if (strncmp(t, ":dpa", 4) == 0 || strncmp(t, "urn:knx:dpa", 11) == 0)
+        if (strncmp(t, "urn:knx:dpa", 11) == 0)
         {
-          int fp_int = get_fb_number_from_dp(t); 
-          int instance = resource->fb_instance;
+          int fb_number = get_fb_number_from_dp(t); 
+          int fb_instance = resource->fb_instance;
 
-          // if FB and/or its instance not already counted ...
-          if (fp_int > 0 && !is_in_g_array(fp_int, instance))
+          if (fb_number > 0 && !is_in_g_array(fb_number, fb_instance))
           {
-            // add FB and/or its instance
-            store_in_array(fp_int, instance);
-            counter++;
+            // add FB and/or its instance if FB number present and not yet count
+            store_in_array(fb_number, fb_instance);
+            number_of_fbs++;
           }
       }
     }
   }
-  g_nr_functional_blocks = counter;
+  g_nr_functional_blocks = number_of_fbs;
   return g_nr_functional_blocks;
 }
 

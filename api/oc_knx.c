@@ -1866,9 +1866,3 @@ bool oc_is_device_in_runtime()
 
   return true;
 }
-
-void oc_knx_trigger_restart(void)
-{
-  // Use the same restart mechanism as the CoAP POST handler
-  oc_set_delayed_callback_ms(NULL, restart, 100);
-}

@@ -68,6 +68,34 @@ int oc_count_functional_blocks(void);
  */
 bool oc_check_if_functional_blocks_need_to_add(oc_request_t *request);
 
+/**
+ * @brief get FB number from a datapoint (its dpt)
+ *
+ * @param dpt the dpt string
+ *
+ * @return on error -1, else functional block number 
+
+ */
+int get_fb_number_from_dp(const char* dpt);
+
+/**
+ * @brief stores the occurence of a functional block in an array
+ *
+ * @param value the fb number
+ * @param instance the instance of that fb number 
+ *
+ */
+void store_in_array(int value, int instance);
+
+/**
+ * @brief checks if a functional block is in the array
+ *
+ * @param value the fb number
+ * @param instance the instance of that fb number
+ *
+ */
+bool is_in_g_array(int value, int instance);
+
 #ifdef __cplusplus
 }
 #endif

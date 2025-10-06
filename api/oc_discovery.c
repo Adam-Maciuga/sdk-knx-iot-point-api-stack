@@ -381,7 +381,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	{
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
 		{
-			// skip other devices and not "public" resources 
+			// skip not "public" resources 
 			if (my_resource->properties & OC_DISCOVERABLE && oc_string(my_resource->uri))
 			{
         // able to discover + resource path must be present/defined 
