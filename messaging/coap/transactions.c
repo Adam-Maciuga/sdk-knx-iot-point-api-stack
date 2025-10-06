@@ -114,7 +114,7 @@ coap_transaction_t * coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t 
 }
 
 // (re)sends a message by 'transaction' and
-// - NON-confirmable clears the transaction afterwards
+// - NON-confirmable clears the transaction afterward
 // - CON-confirmable MAY clear afterward the transaction (all reps done)
 void coap_send_transaction(coap_transaction_t *t)
 {
@@ -123,7 +123,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #ifdef OC_DEBUG
 
-  OC_DBG("sending transaction(len: %lu) mid %u -> ", t->message->length, t->mid);
+  OC_DBG("sending transaction (len: %llu , mid %u) -> ", t->message->length, t->mid);
   OC_LOGbytes(t->message->data, t->message->length);
 
   if (t == NULL) {
@@ -136,11 +136,9 @@ void coap_send_transaction(coap_transaction_t *t)
     OC_ERR("data in message in transaction == NULL");
   }
 
-  OC_DBG("coap_send_transaction %d", t->message->data[0]);
-
   #endif
 
-  bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION  ? true : false;
+  bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION ? true : false;
 
   #ifdef OC_TCP
   if (!(t->message->endpoint.flags & TCP) && confirmable) {
@@ -149,7 +147,7 @@ void coap_send_transaction(coap_transaction_t *t)
   {
   #endif
 
-    OC_DBG("confirmable message");
+    OC_DBG("send_transaction - CON message");
 
     if (t->retrans_counter < COAP_MAX_RETRANSMIT) 
     {
@@ -176,7 +174,7 @@ void coap_send_transaction(coap_transaction_t *t)
     }
     else 
     {
-      OC_WRN("timed out, removing transaction %u: %p", t->mid, (void*)t);
+      OC_WRN("removing transaction (timed out) with mid %u", t->mid);
       #ifdef OC_SERVER
       coap_remove_observer_by_client(&t->message->endpoint);
       #endif
@@ -200,14 +198,13 @@ void coap_send_transaction(coap_transaction_t *t)
   }
   else 
   {
-    OC_DBG("non-confirmable message");
+    OC_DBG("send_transaction - NON message");
 
     // add ref
     oc_message_add_ref(t->message);
 
     coap_send_message(t->message);
 
-    OC_DBG("removing transaction");
     // removes also the ref 
     coap_clear_transaction(t);
   }
@@ -217,7 +214,7 @@ void coap_clear_transaction(coap_transaction_t *t)
 {
   if (t) 
   {
-    OC_DBG("freeing transaction %u: %p", t->mid, (void *)t);
+    OC_DBG("freeing transaction for MID %u", t->mid);
 
     oc_etimer_stop(&t->retrans_timer);
     oc_message_unref(t->message);
@@ -232,7 +229,7 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
   {
     if (t->mid == mid) 
     {
-      OC_DBG("found transaction for MID %u: %p", t->mid, (void *)t);
+      OC_DBG("found transaction for MID %u", t->mid);
       return t;
     }
   }

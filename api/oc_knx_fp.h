@@ -398,6 +398,12 @@ extern "C"
    */
   void oc_load_group_object_table(void);
 
+  /**
+   * @brief frees a Group Object Table entry (from RAM)
+   *
+   */
+  void oc_free_group_object_table_entry(int entry, bool init);
+
 
   /**
    * @brief frees a GO entry element that is (memory) allocated on the on stack
