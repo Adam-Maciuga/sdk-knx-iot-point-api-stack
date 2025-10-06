@@ -50,9 +50,9 @@ extern "C" {
 	 */
 	typedef struct oc_knx_version_info_t
 	{
-		int major; /**< major version number */
-		int minor; /**< minor version number */
-		int patch; /**< patch version number */
+		uint16_t major;
+    uint16_t minor;
+    uint16_t patch;
 	} oc_knx_version_info_t;
 
 	/**
@@ -63,9 +63,9 @@ extern "C" {
 	typedef struct oc_device_info_t
 	{
 		oc_string_t serialnumber;                 /**< knx serial number */
-		oc_knx_version_info_t hwv;                // knx hardware version as U5U5U6 TODO 3 x 16 bit and check 0... xxx
-		oc_knx_version_info_t fwv;                // fwv firmware version as U5U5U6 TODO 3 x 16 bit and check 0... xxx
-		oc_knx_version_info_t ap;                 // fwv application version as U16U16U8  TODO 3 x 16 bit and check 0... xxx
+		oc_knx_version_info_t hwv;                // hardware ver, set on device init, no PUT at runtime, :dpt.version -> U5U5U6 
+		oc_knx_version_info_t fwv;                // firmware ver, set on device init, no PUT at runtime, :dpt.version -> U5U5U6 
+		oc_knx_version_info_t ap;                 // application ver, set on device init, PUT at runtime, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version)
 		oc_string_t hwt;                          /**< knx hardware type, should not be larger than 6 chars */
 		oc_string_t model;                        /**< knx model */
 		oc_string_t hostname;                     /**< knx host name */
@@ -91,30 +91,43 @@ extern "C" {
 	 * @brief set the firmware version
 	 *
 	 * @param major the xxx number of xxx.yyy.zzz
-	 * @param minor the yyy number of xxx.yyy.zz
+	 * @param minor the yyy number of xxx.yyy.zzz
 	 * @param patch the zzz number of xxx.yyy.zzz
+	 *
+	 * @note according to the type definition it is a U5U5U6,
+	 *       please consider the range (no active range check is implemented)
+	 *
 	 * @return int error status, 0 = OK
 	 */
-	int oc_core_set_device_fwv(int major, int minor, int patch);
+  int oc_core_set_device_fwv(uint16_t major, uint16_t minor, uint16_t patch);
 
 	/**
 	 * @brief sets the hardware version number
 	 *
 	 * @param major the xxx number of xxx.yyy.zzz
-	 * @param minor the yyy number of xxx.yyy.zz
+	 * @param minor the yyy number of xxx.yyy.zzz
 	 * @param patch the zzz number of xxx.yyy.zzz
+	 *
+	 * @note according to the type definition it is a U5U5U6,
+	 *       please consider the range (no active range check is implemented)
+	 *
 	 * @return int  error status, 0 = OK
 	 */
-	int oc_core_set_device_hwv(int major, int minor, int patch);
-	/**
+  int oc_core_set_device_hwv(uint16_t major, uint16_t minor, uint16_t patch);
+
+  /**
 	 * @brief sets the application version number
 	 *
 	 * @param major the xxx number of xxx.yyy.zzz
-	 * @param minor the yyy number of xxx.yyy.zz
+	 * @param minor the yyy number of xxx.yyy.zzz
 	 * @param patch the zzz number of xxx.yyy.zzz
+	 *
+	 * @note according to the type definition it is a U16U16U8,
+	 *       please consider the range (no active range check is implemented)
+	 *
 	 * @return int  error status, 0 = OK
 	 */
-	int oc_core_set_device_apv(int major, int minor, int patch);
+  int oc_core_set_device_apv(uint16_t major, uint16_t minor, uint16_t patch);
 
 	/**
 	 * @brief sets the manufacturer id
@@ -185,10 +198,14 @@ extern "C" {
    *
    * @param major major version
    * @param minor minor version
-   * @param patch patch version 
+   * @param patch patch version
+   *
+   * @note according to the type definition it is a U16U16U8 with vendor id, device type, app. version,
+   *       no active range check is yet implemented for the U8 range of patch (app. version)
+   *
    * @return int error status, 0 = OK
    */
-	int oc_core_set_and_store_device_application_version(int major, int minor, int patch);
+	int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t minor, uint16_t patch);
 
 	/**
 	 * @brief retrieve the device info

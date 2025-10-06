@@ -47,7 +47,7 @@ static void oc_core_free_device_info_string_properties(oc_device_info_t* oc_devi
 	}
 }
 
-int oc_core_set_device_fwv(int major, int minor, int patch)
+int oc_core_set_device_fwv(uint16_t major, uint16_t minor, uint16_t patch)
 {
 	oc_device_info.fwv.major = major;
 	oc_device_info.fwv.minor = minor;
@@ -55,7 +55,7 @@ int oc_core_set_device_fwv(int major, int minor, int patch)
 	return 0;
 }
 
-int oc_core_set_device_hwv(int major, int minor, int patch)
+int oc_core_set_device_hwv(uint16_t major, uint16_t minor, uint16_t patch)
 {
 	oc_device_info.hwv.major = major;
 	oc_device_info.hwv.minor = minor;
@@ -63,7 +63,7 @@ int oc_core_set_device_hwv(int major, int minor, int patch)
 	return 0;
 }
 
-int oc_core_set_device_apv(int major, int minor, int patch)
+int oc_core_set_device_apv(uint16_t major, uint16_t minor, uint16_t patch)
 {
 	oc_device_info.ap.major = major;
 	oc_device_info.ap.minor = minor;
@@ -122,7 +122,7 @@ int oc_core_set_and_store_device_iid(uint64_t iid)
   return 0;
 }
 
-int oc_core_set_and_store_device_application_version(int major, int minor, int patch)
+int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t minor, uint16_t patch)
 {
 	oc_device_info.ap.major = major;
   oc_device_info.ap.minor = minor;

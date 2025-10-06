@@ -207,6 +207,9 @@ int app_init(void)
   // set the hardware version 0.0.1, value used from EITT for testing
   oc_core_set_device_fwv(0, 0, 1);
 
+  // set the application version 1.0.0, value may be overwritten at runtime by MaC PUT
+  oc_core_set_device_apv(1, 0, 0);
+
   // set manufacturer id, value used from EITT for testing
   oc_core_set_device_mid(mid);
 

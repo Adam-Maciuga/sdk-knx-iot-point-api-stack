@@ -96,7 +96,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
-    // cbor with payload: [ 1, 2, 3 ]
+    // cbor with payload: [ major, minor, patch ]
     const uint64_t array[3] = {device->hwv.major, device->hwv.minor, device->hwv.patch};
     oc_rep_begin_root_object();
     oc_rep_i_set_int_array(root, 1, array, 3);
@@ -147,8 +147,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
-    // Content-Format: "application/cbor"
-    // Payload: [ a, b, c ]
+    // cbor with payload: [ major, minor, patch ]
     const uint64_t array[3] = {device->fwv.major, device->fwv.minor, device->fwv.patch};
     oc_rep_begin_root_object();
     oc_rep_i_set_int_array(root, 1, array, 3);
@@ -1055,8 +1054,8 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
-    // Content-Format: "application/cbor"
-    // Payload: [ 1, 2, 3 ]
+    
+    // cbor with payload: [ major, minor, patch ]
     const uint64_t array[3] = {device->ap.major, device->ap.minor, device->ap.patch};
     oc_rep_begin_root_object();
     oc_rep_i_set_int_array(root, 1, array, 3);
@@ -1078,22 +1077,23 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
     return;
   }
 
-
   oc_rep_t* rep = request->request_payload;
 
   OC_DBG("oc_core_ap_x_put_handler type: %d", rep ? rep->type : OC_REP_NIL);
 
-  if (rep != NULL && rep->type == OC_REP_INT_ARRAY)
+  if (rep && rep->type == OC_REP_INT_ARRAY)
   {
     int64_t* array = oc_int_array(rep->value.array);
     size_t array_size = oc_int_array_size(rep->value.array);
+
     if (array_size != 3)
     {
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
-    oc_core_set_and_store_device_application_version((int)array[0], (int)array[1], (int)array[2]);
+    // major, minor, patch, see xxx.ap definition how it is interpreted
+    oc_core_set_and_store_device_application_version((uint16_t)array[0], (uint16_t)array[1], (uint16_t)array[2]);
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
     return;
@@ -1301,7 +1301,7 @@ void oc_knx_load_device(void)
   PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
 
   // read major/minor/patch version from storage (on error = '0.0.0')
-  int value;
+  uint16_t value;
   device->ap.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->ap.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->ap.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
