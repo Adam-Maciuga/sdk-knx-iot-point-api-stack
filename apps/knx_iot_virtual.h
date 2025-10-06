@@ -59,7 +59,7 @@
    id
    - used for an n-fold channel oriented application to define a generic PUT/GET handler for all channels,
      the addressed channel and datapoint can be identified from the generic handler, e.g. by setting the value
-     to ch# << 16 + point# (see code application examples)
+     to ch# << 8 + point# (see code application examples)
 
 */
 typedef struct
@@ -68,7 +68,7 @@ typedef struct
   char* resource_path; // the resource path such as /p/...
   char* dpa;    // annotated datapoint, see in KNX ioT specification 3/10/5 
   char* dpt;    // datapoint type, see in KNX ioT specification 3/10/5
-  uint32_t id;  // see note above
+  uint16_t id;  // see note above
 } bool_datapoint_t;
 
 
@@ -134,7 +134,7 @@ extern "C"
    * @param point the point of the channel for the bool to set
    * @param value value to set
    */
-  void app_set_bool_variable_from_channel(uint16_t channel, uint16_t point, bool value);
+  void app_set_bool_variable_from_channel(uint8_t channel, uint8_t point, bool value);
 
   /**
    * @brief Get a bool
@@ -142,7 +142,7 @@ extern "C"
    * @param channel the channel for the bool to get
    * @param point the point of the channel for the bool to get
    */
-  bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point);
+  bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point);
 
   /**
    * @brief Get a URL
@@ -151,7 +151,7 @@ extern "C"
    * @param point the point of the channel for the URL to get
    * @return boolean variable
    */
-  char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point);
+  char* app_retrieve_href_from_channel(uint8_t channel, uint8_t point);
 
   /**
    * @brief retrieves the url of a parameter

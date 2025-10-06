@@ -306,10 +306,10 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   (void)interfaces;
   bool error_state = true;
 
-  // user data host the pointer to a 32 bit encoded channel/datapoint
-  const uint32_t channel_and_datapoint = (uint32_t)user_data;
-  const uint16_t channel = channel_and_datapoint >> 16;
-  const uint16_t point = channel_and_datapoint & 0x0000FFFF;
+  // user data host the pointer to a 16 bit encoded channel/datapoint
+  const uint16_t channel_and_datapoint = (uint16_t)user_data;
+  const uint8_t channel = channel_and_datapoint >> 8;
+  const uint8_t point = channel_and_datapoint & 0x00FF;
 
   PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
@@ -454,10 +454,10 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the pointer to a 32 bit encoded channel/datapoint 
-  const uint32_t channel_and_datapoint = (uint32_t)user_data;
-  const uint16_t channel = channel_and_datapoint >> 16;
-  const uint16_t point = channel_and_datapoint & 0x0000FFFF;
+  // user data host the pointer to a 16 bit encoded channel/datapoint
+  const uint16_t channel_and_datapoint = (uint16_t)user_data;
+  const uint8_t channel = channel_and_datapoint >> 8;
+  const uint8_t point = channel_and_datapoint & 0x00FF;
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
@@ -528,10 +528,10 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the pointer to a 32 bit encoded channel/datapoint
-  const uint32_t channel_and_datapoint = (uint32_t)user_data;
-  const uint16_t channel = channel_and_datapoint >> 16;
-  const uint16_t point = channel_and_datapoint & 0x0000FFFF;
+  // user data host the pointer to a 16 bit encoded channel/datapoint
+  const uint16_t channel_and_datapoint = (uint16_t)user_data;
+  const uint8_t channel = channel_and_datapoint >> 8;
+  const uint8_t point = channel_and_datapoint & 0x00FF;
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
@@ -758,7 +758,7 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }
 
-char* app_retrieve_href_from_channel(uint16_t channel, uint16_t point)
+char* app_retrieve_href_from_channel(uint8_t channel, uint8_t point)
 {
   return lsxb[channel].point[point].resource_path;
 }
@@ -772,12 +772,12 @@ char* app_get_parameter_name(int index) { return NULL; }
 
 // BOOLEAN code
 
-void app_set_bool_variable_from_channel(uint16_t channel, uint16_t point, bool value)
+void app_set_bool_variable_from_channel(uint8_t channel, uint8_t point, bool value)
 {
   lsxb[channel].point[point].value = value;
 }
 
-bool app_retrieve_bool_variable_from_channel(uint16_t channel, uint16_t point)
+bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point)
 {
   return lsxb[channel].point[point].value;
 }
