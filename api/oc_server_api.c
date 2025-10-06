@@ -30,25 +30,6 @@
 static size_t query_iterator;
 
 int
-oc_set_device(const char* name, const char* version, const char* base,
-							const char* serialnumber, oc_set_device_cb_t set_device_cb,
-							void* data)
-{
-	if (!oc_core_set_device(name, version, base, serialnumber, set_device_cb, data))
-		return -1;
-
-	return 0;
-}
-
-int
-oc_init_platform(const char* mfg_name, oc_init_platform_cb_t init_platform_cb, void* data)
-{
-	if (!oc_core_init_platform(mfg_name, init_platform_cb, data))
-		return -1;
-	return 0;
-}
-
-int
 oc_get_query_value(oc_request_t* request, const char* key, char** value)
 {
 	if (!request)

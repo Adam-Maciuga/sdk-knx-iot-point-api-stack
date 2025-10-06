@@ -48,22 +48,6 @@ protected:
   }
 };
 
-TEST_F(TestCoreResource, InitPlatform_P)
-{
-  int oc_platform_info;
-
-  oc_platform_info = oc_init_platform(MANUFACTURER_NAME, NULL, NULL);
-  EXPECT_EQ(0, oc_platform_info);
-}
-
-TEST_F(TestCoreResource, CoreInitPlatform_P)
-{
-  oc_platform_info_t *oc_platform_info;
-
-  oc_platform_info = oc_core_init_platform(MANUFACTURER_NAME, NULL, NULL);
-  EXPECT_EQ(strlen(MANUFACTURER_NAME),
-            oc_string_len(oc_platform_info->mfg_name));
-}
 
 TEST_F(TestCoreResource, CoreDevice_P)
 {
@@ -75,7 +59,7 @@ TEST_F(TestCoreResource, CoreDevice_P)
   //    ock_set_device(DEVICE_URI, DEVICE_TYPE, DEVICE_NAME,
   //                                       OCF_SPEC_VERSION,
   //                                       OCF_DATA_MODEL_VERSION, NULL, NULL);
-  oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
+  oc_core_set_device("000001", MANUFACTURER_NAME);
 
   // ASSERT_NE(addcoredevice, NULL);
   numcoredevice = 1;
@@ -86,8 +70,7 @@ TEST_F(TestCoreResource, CoreDevice_P)
 
 TEST_F(TestCoreResource, CoreGetResource_Wellknown_core)
 {
-  oc_core_init_platform(MANUFACTURER_NAME, NULL, NULL);
-  oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
+  oc_core_set_device("000001", MANUFACTURER_NAME);
 
   // char uri[] = "/.well-known/core";
   // oc_resource_t *res = oc_core_get_resource_by_uri(uri, 0);

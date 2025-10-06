@@ -109,11 +109,13 @@ extern "C"
 
   /**
    * @brief sets the serial number
-   * should be called before app_initialize_stack()
+   *        
    *
-   * @note used from several applications, hence define it as method.
+   * @note
+   * - used from several applications, hence define it as method
+   * - should be called before app_initialize_stack()
    *
-   * @param serial_number the serial number as string
+   * @param serial_number the serial number as string, MUST be in lower case ASCII
    * @return int 0 == success, -1 error
    */
   int app_set_serial_number(const char* serial_number);

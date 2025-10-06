@@ -37,9 +37,8 @@ signal_event_loop(void)
 static int
 app_init(void)
 {
-  int ret = oc_init_platform("Cascoda", NULL, NULL);
-  ret |= oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
-  return ret;
+  oc_core_set_device("000001", "KNX Association");
+  return 0;
 }
 
 static oc_handler_t handler = { .init = app_init,

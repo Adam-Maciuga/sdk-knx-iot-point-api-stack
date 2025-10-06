@@ -45,29 +45,6 @@ extern "C" {
 	#endif
 
 	/**
-	 * @brief callback for initializing the platform
-	 *
-	 */
-	typedef void (*oc_core_init_platform_cb_t)(void* data);
-
-	/**
-	 * @brief callback for adding a device
-	 *
-	 */
-	typedef void (*oc_core_set_device_cb_t)(void* data);
-
-	/**
-	 * @brief platform information
-	 *
-	 */
-	typedef struct oc_platform_info_t
-	{
-		oc_string_t mfg_name;                         /**< manufacturer name */
-		oc_core_init_platform_cb_t init_platform_cb;  /**< callback function */
-		void* data;                                   /**< user data for the callback function */
-	} oc_platform_info_t;
-
-	/**
 	 * @brief version information
 	 * e.g. [major, minor, patch]
 	 */
@@ -98,37 +75,17 @@ extern "C" {
 		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test') */
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
-		oc_core_set_device_cb_t set_device_cb;    /**< callback when device is changed */
-		void* data;                               /**< user data */
+    oc_string_t mfg_name;											/**< knx device manufacturer 'mfg' name, currently not used in stack*/
 	} oc_device_info_t;
 
 	/**
-	 * @brief initialize the platform
+	 * @brief Set device serial number, mfg name and some default data, init then device (/dev, ...) resources 
 	 *
-	 * @param mfg_name the manufacturer name
-	 * @param init_cb the callback
-	 * @param data  the user data
-	 * @return oc_platform_info_t* the platform information
-	 */
-	oc_platform_info_t* oc_core_init_platform(const char* mfg_name,
-																						oc_core_init_platform_cb_t init_cb,
-																						void* data);
+	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case
+	 * @param mfg_name the user-friendly name of the device manufacturer
 
-	/**
-	 * @brief Add device to the platform
-	 *
-	 * @param name the name of the device
-	 * @param version the version of the KNX spec
-	 * @param base the base url
-	 * @param serialnumber the serial number of the device
-	 * @param set_device_cb device callback
-	 * @param data the supplied user data
-	 * @return oc_device_info_t* the device structure
 	 */
-	oc_device_info_t* oc_core_set_device(char* name, char* version, char* base,
-																			 char* serialnumber,
-																			 oc_core_set_device_cb_t set_device_cb,
-																			 void* data);
+  void oc_core_set_device(const char* serialnumber, const char* mfg_name);
 
 	/**
 	 * @brief set the firmware version
@@ -239,13 +196,6 @@ extern "C" {
 	 * @return oc_device_info_t* the device info
 	 */
 	oc_device_info_t* oc_core_get_device_info(void);
-
-	/**
-	 * @brief retrieve the platform information
-	 *
-	 * @return oc_platform_info_t* the platform information
-	 */
-	oc_platform_info_t* oc_core_get_platform_info(void);
 
 	/**
 	 * @brief retrieve the resource by type (e.g. index) on a specific device

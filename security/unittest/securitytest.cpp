@@ -47,10 +47,7 @@ protected:
     oc_ri_init();
     oc_network_event_handler_mutex_init();
     oc_core_init();
-    oc_init_platform(MANUFACTURER_NAME, NULL, NULL);
-    // oc_set_device(DEVICE_URI, DEVICE_TYPE, DEVICE_NAME, OCF_SPEC_VERSION,
-    //              OCF_DATA_MODEL_VERSION, NULL, NULL);
-    oc_set_device("my_name", "1.0.0", "//", "000001", NULL, NULL);
+    oc_core_set_device("000001", MANUFACTURER_NAME);
   }
 
   virtual void TearDown()

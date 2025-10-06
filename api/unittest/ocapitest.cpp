@@ -76,9 +76,8 @@ private:
 public:
   static int appInit(void)
   {
-    int result = oc_init_platform(MANUFACTURER_NAME, NULL, NULL);
-    result |= oc_set_device("myhname", "1.0.0", "//", "000001", NULL, NULL);
-    return result;
+    oc_core_set_device("000001", MANUFACTURER_NAME);
+    return 0;
   }
 
   static void registerResources(void)

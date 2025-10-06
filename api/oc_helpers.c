@@ -737,8 +737,8 @@ char* oc_strnchr(char* string, char p, int size)
 int
 oc_charstream_convert_to_lower(char* stream)
 {
-  for (; *stream; stream++)       // loops until *str is 0, e.g.; stream ends with \0
-    *stream = tolower(*stream);      
+  for (; *stream; stream++)           // loops until *str is 0, e.g.; stream ends with \0
+    *stream = (char)tolower(*stream);       
   return 0;
 }
 

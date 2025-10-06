@@ -32,19 +32,18 @@
 #include <stdarg.h>
 #include "port/oc_storage.h"
 
+static oc_device_info_t oc_device_info;			// common device data 
 
-static oc_device_info_t oc_device_info;
-static oc_platform_info_t oc_platform_info; // platform provider
-
-static void oc_core_free_device_info_properties(oc_device_info_t* oc_device_info_item)
+static void oc_core_free_device_info_string_properties(oc_device_info_t* oc_device_info_item)
 {
-	if (oc_device_info_item)
-	{
-		// KNX
+  if (oc_device_info_item)
+  {
+    // all device strings
     oc_free_string(&oc_device_info_item->serialnumber);
-		oc_free_string(&oc_device_info_item->hwt);
-		oc_free_string(&oc_device_info_item->model);
-		oc_free_string(&oc_device_info_item->hostname);
+    oc_free_string(&oc_device_info_item->hwt);
+    oc_free_string(&oc_device_info_item->model);
+    oc_free_string(&oc_device_info_item->hostname);
+    oc_free_string(&oc_device_info_item->mfg_name);
 	}
 }
 
@@ -110,7 +109,7 @@ int oc_core_set_device_hostname(const char* host_name)
 	return 0;
 }
 
-uint64_t oc_core_get_device_iid()
+uint64_t oc_core_get_device_iid(void)
 {
 	return oc_device_info.iid;
 }
@@ -144,48 +143,36 @@ int oc_core_set_and_store_device_fid(uint64_t fid)
 	return 0;
 }
 
-oc_device_info_t* oc_core_set_device(char* name, char* version, char* base, char* serialnumber, oc_core_set_device_cb_t set_device_cb, void* data)
+void oc_core_set_device(const char* serialnumber, const char* mfg_name)
 {
-	(void) data;
 
-	memset(&oc_device_info, 0, sizeof(oc_device_info_t));
-	oc_device_info.ia = 0xffff;
+	// release strings and then clear old device context (e.g. after a device restart/ reset)
+  oc_device_info_t* device = oc_core_get_device_info();
+  oc_core_free_device_info_string_properties(device);
+  memset(device, 0, sizeof(oc_device_info_t));
 
-	// ensure that the serial number is in lower case
-	// it changes the original, but it must be anyhow lower case...
-	oc_charstream_convert_to_lower(serialnumber);
+	// assign default ia 
+  oc_device_info.ia = 0xffff;
 
+	// ensure that the hand-over serial number is in ASCII lower case
 	oc_new_string(&oc_device_info.serialnumber, serialnumber, strlen(serialnumber));
-	oc_device_info.set_device_cb = set_device_cb;
 
+	// device vendor 
+	oc_new_string(&oc_device_info.mfg_name, mfg_name, strlen(mfg_name));
+	
+	// init tables
 	oc_create_knx_fp_resources();
 	oc_create_knx_sec_resources();
 	oc_create_knx_swu_resources();
 
-	oc_device_info.data = data;
-
+	// init connectivity ip addresses
 	if (oc_connectivity_init() < 0)
 	{
 		oc_abort("error initializing connectivity for device");
 	}
-	
+
+	// read OSCORE storage data
 	oc_init_oscore_from_storage(true);
-
-	return &oc_device_info;
-}
-
-oc_platform_info_t* oc_core_init_platform(const char* mfg_name, oc_core_init_platform_cb_t init_cb, void* data)
-{
-	if (oc_platform_info.mfg_name.size > 0)
-	{ // already initialized, size derived from base type 'oc_string_t'
-		return &oc_platform_info;
-	}
-
-	oc_new_string(&oc_platform_info.mfg_name, mfg_name, strlen(mfg_name));
-	oc_platform_info.init_platform_cb = init_cb;
-	oc_platform_info.data = data;
-
-	return &oc_platform_info;
 }
 
 void oc_check_uri(const char* uri)
@@ -198,11 +185,6 @@ void oc_check_uri(const char* uri)
 oc_device_info_t* oc_core_get_device_info(void)
 {
 	return &oc_device_info;
-}
-
-oc_platform_info_t* oc_core_get_platform_info(void)
-{
-	return &oc_platform_info;
 }
 
 

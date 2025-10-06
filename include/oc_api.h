@@ -458,24 +458,6 @@ extern "C"
    */
   void oc_set_swu_cb(oc_swu_cb_t cb, void* data);
 
-  /**
-   * @param[in] name the user readable name of the device
-   * @param[in] version The api version e.g. "1.0.0"
-   * @param[in] base the base url e.g. "/"
-   * @param[in] serial_number the serial number of the device
-   * @param[in] set_device_cb callback function invoked during oc_set_device().
-   * The purpose is to add additional device properties that are not supplied to
-   * oc_set_device() function call.
-   * @param[in] data context pointer that is passed to the oc_set_device_cb_t
-   *
-   * @return 0 = success
-   * @return -1 = failure
-   *
-   * @see init
-   */
-  int oc_set_device(const char* name, const char* version, const char* base, const char* serial_number,
-                    oc_set_device_cb_t set_device_cb, void* data);
-
 /**
  * Set custom device property
  *
@@ -490,28 +472,6 @@ extern "C"
  * @see oc_set_device
  */
 #define oc_set_custom_device_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
-
-  /**
-   * Initialize the platform.
-   *
-   * This function is typically called as part of the stack initialization
-   * process from inside the `init` callback handler.
-   *
-   * @param[in] mfg_name the name of the platform manufacture
-   * @param[in] init_platform_cb callback function invoked during
-   *                             oc_init_platform(). The purpose is to add
-   *                             additional device properties that are not
-   *                             supplied to oc_init_platform() function call.
-   * @param[in] data context pointer that is passed to the oc_init_platform_cb_t
-   *
-   * @return
-   *   - `0` on success
-   *   - `-1` on failure
-   *
-   * @see init
-   * @see oc_init_platform_cb_t
-   */
-  int oc_init_platform(const char* mfg_name, oc_init_platform_cb_t init_platform_cb, void* data);
 
 /**
  * Set custom platform property.

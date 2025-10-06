@@ -248,9 +248,10 @@ extern "C" {
 	 *
 	 * @note
 	 * - OSCORE context entries are an internal linked list
-	 * - called after device reset or on POST /auth/at table 
+	 * - called after device reset/ restart or on POST /auth/at table
+	 * - is used to not issue after a reset/ restart for all new requests a 4.01 unauthorized cycle
 	 *
-	 * @param read_ssn_from_storage if content is read from storage (yes/no), this affects how to handle the SSN (true usually after device reset)
+	 * @param read_ssn_from_storage if content is read from storage (yes/no), this affects how to handle the SSN (true usually after device reset/ restart)
 	 */
 	void oc_init_oscore_from_storage(bool read_ssn_from_storage);
 

@@ -25,6 +25,8 @@
 #include "oc_knx_client.h"
 
 // global variables (12 x char + /0), maybe overwritten by CL option
+
+// serial number, must be stored in ASCII lower case 
 char g_serial_number[SERIAL_NUM_SIZE + 1]; 
 
 bool app_is_secure(void)
@@ -173,9 +175,6 @@ int app_init(void)
   extern const uint32_t mid;
   extern const char hw_type[];
   extern const char dev_model[];
-  
-  // set provider, no callback/no data
-  int ret = oc_init_platform("KNX Association", NULL, NULL);
 
   /*
     define 4kb Stdout write buffer
@@ -187,23 +186,20 @@ int app_init(void)
     timely output while maintaining performance.
    
   */
-  #ifdef OC_DEBUG
-  #ifndef _MSC_VER
-  (void) setvbuf(stdout, NULL, _IOFBF, 4096);
-  #endif
-  #endif
 
-  // Set up periodic stdout flushing for debug builds
+  // set up periodic stdout flushing for debug builds
   #ifdef OC_DEBUG
   #ifndef _MSC_VER
-  // Flush stdout every 2 seconds to prevent delayed output
+
+  (void)setvbuf(stdout, NULL, _IOFBF, 4096);
+  // flush stdout every 2 seconds to prevent delayed output
   oc_set_delayed_callback(NULL, flush_stdout_callback, 2);
+
   #endif
   #endif
 
-  // set the application name, version, base url, device serial number
-  // init also the device resources such as /dev, /.well-known/core, ...
-  ret |= oc_set_device(application_name, "1.0.0", "//", app_get_serial_number(), NULL, NULL);
+  // set the device 
+  oc_core_set_device(app_get_serial_number(), "KNX Association");
 
   // set the hardware version 0.0.1, value used from EITT for testing
   oc_core_set_device_hwv(0, 0, 1);
@@ -237,7 +233,7 @@ int app_init(void)
 
 #endif
 
-  return ret;
+  return 0;
 }
 
 const char* app_get_serial_number(void)
