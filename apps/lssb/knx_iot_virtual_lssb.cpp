@@ -297,10 +297,10 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     row = 0;
     column = 0;
 
-    wxStaticText* ch0s =
-      new wxStaticText(this, wxID_ANY, "Ch 0 | Sensor", 
-                       wxPoint(10 + column * x_width, 10 + x_height * row),
-                       wxSize(x_width, x_height), wxALIGN_LEFT);
+    
+    new wxStaticText(this, wxID_ANY, "Ch 0 | Sensor", 
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
 
     // control
     m_LSSB_0_SOO = new wxButton(this, LSSB_0_SOO, _T("SOO, press me ..."),
@@ -327,9 +327,9 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     row = 1;
     column = 0;
 
-    wxStaticText* ch1s =
-      new wxStaticText(this, wxID_ANY, "Ch 1 | Sensor", wxPoint(10 + column * x_width, 10 + x_height * row),
-                       wxSize(x_width, x_height), wxALIGN_LEFT);
+        new wxStaticText(this, wxID_ANY, "Ch 1 | Sensor",
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
 
     // control
     m_LSSB_1_SOO = new wxButton(this, LSSB_1_SOO, _T("SOO, press me ..."),

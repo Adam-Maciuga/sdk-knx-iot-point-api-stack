@@ -280,9 +280,9 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
     row = 0;
     column = 0;
 
-    wxStaticText* ch0s =
-      new wxStaticText(this, wxID_ANY, "EITT | Sensor", wxPoint(10 + column * x_width, 10 + x_height * row),
-                       wxSize(x_width, x_height), wxALIGN_LEFT);
+    new wxStaticText(this, wxID_ANY, "EITT | Sensor",
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
 
     // control
     m_EITT_SOO = new wxButton(this, EITT_SOO, _T("SOO, press me ..."),

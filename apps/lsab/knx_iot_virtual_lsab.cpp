@@ -293,10 +293,10 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     row = 0;
     column = 0;
 
-    wxStaticText* ch0a =
-      new wxStaticText(this, wxID_ANY, "Ch 0 | Actuator", 
-                       wxPoint(10 + column * x_width, 10 + x_height * row),
-                       wxSize(x_width, x_height), wxALIGN_LEFT);
+    
+   new wxStaticText(this, wxID_ANY, "Ch 0 | Actuator", 
+                    wxPoint(10 + column * x_width, 10 + x_height * row),
+                    wxSize(x_width, x_height), wxALIGN_LEFT);
 
 
     // status
@@ -314,10 +314,9 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
     row = 1;
     column = 0;
 
-    wxStaticText* ch1a =
-      new wxStaticText(this, wxID_ANY, "Ch 1 | Actuator", wxPoint(10 + column * x_width, 10 + x_height * row),
-                       wxSize(x_width, x_height), wxALIGN_LEFT);
-
+    new wxStaticText(this, wxID_ANY, "Ch 1 | Actuator",
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
 
     // status
     m_LSAB_1_SOO = new wxCheckBox(this, LSAB_1_SOO, _T("Undefined"), wxPoint(120 + column * x_width, 10 + x_height * row),
