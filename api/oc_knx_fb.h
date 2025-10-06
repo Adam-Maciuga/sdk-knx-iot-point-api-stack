@@ -56,9 +56,9 @@ bool oc_was_adding_function_blocks_to_response(oc_request_t *request, bool short
                                         int last_entry);
 
 /**
- *@brief count functional blocks in a device
+ *@brief count 'application' functional blocks in a device
  */
-int oc_count_functional_blocks(void);
+int oc_count_functional_blocks_from_application(void);
 
 /**
  * @brief check if functional blocks should be added to the response

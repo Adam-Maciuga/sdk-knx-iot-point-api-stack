@@ -221,12 +221,12 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   PRINT("oc_core_fb_x_get_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_swu_protocol;
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_x_data;
 const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_swu_protocol,
                                              {NULL, sizeof("/f/*"), "/f/*"},
-                                             {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
+                                             {NULL, 0, NULL},
                                              {NULL, 0, NULL},
                                              {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                              OC_UNDISCOVERABLE,
@@ -244,7 +244,7 @@ PRAGMA_OUT
 
 // -----------------------------------------------------------------------------
 
-int oc_count_functional_blocks(void)
+int oc_count_functional_blocks_from_application(void)
 {
   int number_of_fbs = 0;
 
@@ -273,7 +273,7 @@ int oc_count_functional_blocks(void)
 
         /*
            framing by functional block numbers & instances, each
-           FB resource has 1...n 'dpa' type(s) assigned with a FULL URN
+           FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
         */
         if (strncmp(t, "urn:knx:dpa", 11) == 0)
         {
@@ -500,7 +500,8 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-  const int total = oc_count_functional_blocks();
+  // number of application FBs
+  const int total = oc_count_functional_blocks_from_application();
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -542,11 +543,11 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   PRINT("oc_core_fb_get_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 PRAGMA_IN oc_resource_data_t core_resource_knx_f_data;
 const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_x,
                                            {NULL, sizeof("/f"), "/f"},
-                                           {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
+                                           {NULL, 0, NULL},
                                            {NULL, 0, NULL},
                                            {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                            OC_UNDISCOVERABLE,

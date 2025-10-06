@@ -679,12 +679,12 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   PRINT("oc_core_fp_g_post_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_fp_g_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_data;
 const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx_fp_g_x,
                                               {NULL, sizeof("/fp/g"), "/fp/g"},
-                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                              {NULL, 0, NULL},
                                               {NULL, 0, NULL},
                                               {APPLICATION_CBOR, CONTENT_NONE},
                                               OC_DISCOVERABLE,
@@ -783,12 +783,12 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 #ifdef OC_PUBLISHER_TABLE
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_fp_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
-                                                {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                                {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
                                                 {APPLICATION_CBOR, CONTENT_NONE},
                                                 OC_DISCOVERABLE,
@@ -805,12 +805,12 @@ const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_k
 PRAGMA_OUT
 #else
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_g_x_data;
 const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
-                                                {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                                {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
                                                 {APPLICATION_CBOR, CONTENT_NONE},
                                                 OC_DISCOVERABLE,
@@ -1229,12 +1229,12 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   PRINT("oc_core_fp_p_post_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_fp_p_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_data;
 const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
-                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                              {NULL, 0, NULL},
                                               {NULL, 0, NULL},
                                               {APPLICATION_CBOR, CONTENT_NONE},
                                               OC_DISCOVERABLE,
@@ -1360,12 +1360,12 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
   PRINT("oc_core_fp_p_x_del_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_fp_r;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_p_x_data;
 const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
-                                                {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                                {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
                                                 {APPLICATION_CBOR, CONTENT_NONE},
                                                 OC_DISCOVERABLE,
@@ -1801,12 +1801,12 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   PRINT("oc_core_fp_r_post_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_fp_r_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_data;
 const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
-                                              {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                              {NULL, 0, NULL},
                                               {NULL, 0, NULL},
                                               {APPLICATION_CBOR, CONTENT_NONE},
                                               OC_DISCOVERABLE,
@@ -1933,12 +1933,12 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
   PRINT("oc_core_fp_r_x_del_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_p;
 PRAGMA_IN oc_resource_data_t core_resource_knx_fp_r_x_data;
 const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},
-                                                {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.c"})},
+                                                {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
                                                 {APPLICATION_CBOR, CONTENT_NONE},
                                                 OC_DISCOVERABLE,

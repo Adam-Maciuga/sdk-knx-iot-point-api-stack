@@ -258,12 +258,12 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   PRINT("oc_core_p_post_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_f;
 PRAGMA_IN oc_resource_data_t core_resource_knx_p_data;
 const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
                                            {NULL, sizeof("/p"), "/p"},
-                                           {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.0"})},
+                                           {NULL, 0, NULL},
                                            {NULL, 0, NULL},
                                            {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                            OC_UNDISCOVERABLE,

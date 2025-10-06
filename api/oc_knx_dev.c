@@ -58,7 +58,7 @@ static void oc_core_dev_sn_get_handler(oc_request_t* request, oc_interface_mask_
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_hwv;
 PRAGMA_IN oc_resource_data_t core_resource_dev_sn_data;
 const oc_resource_t core_resource_dev_sn = {(oc_resource_t*)&core_resource_dev_hwv,
@@ -108,7 +108,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request, oc_interface_mask
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_fwv;
 PRAGMA_IN oc_resource_data_t core_resource_dev_hwv_data;
 const oc_resource_t core_resource_dev_hwv = {(oc_resource_t*)&core_resource_dev_fwv,
@@ -160,7 +160,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request, oc_interface_mask
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_hwt;
 PRAGMA_IN oc_resource_data_t core_resource_dev_fwv_data;
 const oc_resource_t core_resource_dev_fwv = {(oc_resource_t*)&core_resource_dev_hwt,
@@ -207,7 +207,7 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request, oc_interface_mask
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_model;
 PRAGMA_IN oc_resource_data_t core_resource_dev_hwt_data;
 const oc_resource_t core_resource_dev_hwt = {(oc_resource_t*)&core_resource_dev_model,
@@ -254,7 +254,7 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_hostname;
 PRAGMA_IN oc_resource_data_t core_resource_dev_model_data;
 const oc_resource_t core_resource_dev_model = {(oc_resource_t*)&core_resource_dev_hostname,
@@ -349,7 +349,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_iid;
 PRAGMA_IN oc_resource_data_t core_resource_dev_hostname_data;
 const oc_resource_t core_resource_dev_hostname = {
@@ -440,7 +440,7 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request, oc_interface_mask
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_pm;
 PRAGMA_IN oc_resource_data_t core_resource_dev_iid_data;
 const oc_resource_t core_resource_dev_iid = {(oc_resource_t*)&core_resource_dev_pm,
@@ -552,10 +552,10 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
-extern const oc_resource_t core_resource_dev_sa;
+// 'core_resource_well_known_core'
+extern const oc_resource_t core_resource_dev_sna;
 PRAGMA_IN oc_resource_data_t core_resource_dev_ipv6_data;
-const oc_resource_t core_resource_dev_ipv6 = {(oc_resource_t*)&core_resource_dev_sa,
+const oc_resource_t core_resource_dev_ipv6 = {(oc_resource_t*)&core_resource_dev_sna,
                                               {NULL, sizeof("/dev/ipv6"), "/dev/ipv6"},
                                               {NULL, 0, NULL},
                                               {NULL, sizeof("urn:knx:dpt.ipv6"), "urn:knx:dpt.ipv6"},
@@ -651,7 +651,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 PRAGMA_IN oc_resource_data_t core_resource_dev_pm_data;
 const oc_resource_t core_resource_dev_pm = {(oc_resource_t*)&core_resource_dev_ipv6,
                                             {NULL, sizeof("/dev/pm"), "/dev/pm"},
@@ -748,12 +748,12 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_app;
 PRAGMA_IN oc_resource_data_t core_resource_dev_data;
 const oc_resource_t core_resource_dev = {(oc_resource_t*)&core_resource_app,
                                          {NULL, sizeof("/dev"), "/dev"},
-                                         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.0"}},
+                                         {NULL, 0, NULL},
                                          {NULL, 0, NULL},
                                          {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                          OC_DISCOVERABLE,
@@ -799,10 +799,10 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_da;
-PRAGMA_IN oc_resource_data_t core_resource_dev_sa_data;
-const oc_resource_t core_resource_dev_sa = {(oc_resource_t*)&core_resource_dev_da,
+PRAGMA_IN oc_resource_data_t core_resource_dev_sna_data;
+const oc_resource_t core_resource_dev_sna = {(oc_resource_t*)&core_resource_dev_da,
                                             {NULL, sizeof("/dev/sna"), "/dev/sna"},
                                             {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.57"}},
                                             {NULL, sizeof("urn:knx:dpt.value1Ucount"), "urn:knx:dpt.value1Ucount"},
@@ -817,7 +817,7 @@ const oc_resource_t core_resource_dev_sa = {(oc_resource_t*)&core_resource_dev_d
                                             0,
                                             0,
                                             true,
-                                            &core_resource_dev_sa_data};
+                                            &core_resource_dev_sna_data};
 PRAGMA_OUT
 
 // -----------------------------------------------------------------------------
@@ -850,13 +850,13 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_fid;
 PRAGMA_IN oc_resource_data_t core_resource_dev_da_data;
 const oc_resource_t core_resource_dev_da = {(oc_resource_t*)&core_resource_dev_fid,
                                             {NULL, sizeof("/dev/da"), "/dev/da"},
                                             {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.58"}},
-                                            {NULL, sizeof("urn:knx:dpa.0.58"), "urn:knx:dpa.0.58"},
+                                            {NULL, sizeof("urn:knx:dpt.value1Ucount"), "urn:knx:dpt.value1Ucount"},
                                             {APPLICATION_CBOR, CONTENT_NONE},
                                             OC_DISCOVERABLE,
                                             {oc_core_dev_da_get_handler, NULL, OC_ACL_D, OC_IF_D},
@@ -927,7 +927,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_port;
 PRAGMA_IN oc_resource_data_t core_resource_dev_fid_data;
 const oc_resource_t core_resource_dev_fid = {(oc_resource_t*)&core_resource_dev_port,
@@ -973,7 +973,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request, oc_interface_mas
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_mport;
 PRAGMA_IN oc_resource_data_t core_resource_dev_port_data;
 const oc_resource_t core_resource_dev_port = {(oc_resource_t*)&core_resource_dev_mport,
@@ -1019,7 +1019,7 @@ static void oc_core_dev_mport_get_handler(oc_request_t* request, oc_interface_ma
 }
 
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_dev_mid;
 PRAGMA_IN oc_resource_data_t core_resource_dev_mport_data;
 const oc_resource_t core_resource_dev_mport = {(oc_resource_t*)&core_resource_dev_mid,
@@ -1102,10 +1102,10 @@ static void oc_core_ap_x_put_handler(oc_request_t* request, oc_interface_mask_t 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_a_lsm;
 PRAGMA_IN oc_resource_data_t core_resource_app_x_data;
-const oc_resource_t core_resource_app_x = {(oc_resource_t*)&core_resource_a_lsm,
+const oc_resource_t core_resource_app_pv = {(oc_resource_t*)&core_resource_a_lsm,
                                            {NULL, sizeof("/ap/pv"), "/ap/pv"},
                                            {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.3.13"}},
                                            {NULL, sizeof("urn:knx:dpt.programVersion"), "urn:knx:dpt.programVersion"},
@@ -1199,9 +1199,9 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
   PRINT("oc_core_ap_get_handler - end");
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 PRAGMA_IN oc_resource_data_t core_resource_app_data;
-const oc_resource_t core_resource_app = {(oc_resource_t*)&core_resource_app_x,
+const oc_resource_t core_resource_app = {(oc_resource_t*)&core_resource_app_pv,
                                          {NULL, sizeof("/ap"), "/ap"},
                                          {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.3"}},
                                          {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -1244,7 +1244,7 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request, oc_interface_mask
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on 'core_resource_well_known_core_final'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 PRAGMA_IN oc_resource_data_t core_resource_dev_mid_data;
 const oc_resource_t core_resource_dev_mid = {(oc_resource_t*)&core_resource_dev,
                                              {NULL, sizeof("/dev/mid"), "/dev/mid"},

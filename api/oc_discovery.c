@@ -43,7 +43,7 @@ int basic_resources[] =
 	OC_DEV, OC_KNX_K, OC_KNX_SWU, OC_KNX_AUTH
 };
 
-// (size of all)/(size of one) : 5 x int (4) / 4 = 20/4 = 5 
+// (size of all)/(size of one) : 4 x int (4) / 4 = 16/4 = 4 
 #define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
 
 bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, const bool truncate)
@@ -376,7 +376,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// current resource amount
 	int total = OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;
 
-	// count all and add all 'visible' application resources in case of query parameters rt/if are present
+	// add all 'visible' application resources in case of query parameters rt/if are present
 	if (rt_len > 0 || if_len > 0)
 	{
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
@@ -390,8 +390,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 	}
 
-	// add FBs
-	total += oc_count_functional_blocks();
+	// add application FBs
+	total += oc_count_functional_blocks_from_application();
 
 	// handle query parameters l=ps and/or l=total
 	if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -658,7 +658,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	if (!current_page_is_full)
 	{ // page not full, things can still be added
 
-		// add basic device resources
+		// process core resources (and add on a 'hit' to response) 
 		current_page_is_full = oc_process_basic_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 
 		PRINT("oc_wkcore_discovery_handler add common resources on a unicast request ...");
@@ -681,7 +681,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	{
 		// unicast or multicast request
 		// matches/response_length >0/>0
-		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device
+		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device (and added to response)
 
 		// add only a page hint if at least one response entry is in
 		if (more_request_needed)
@@ -696,9 +696,9 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	else
 	{
 		// matches/response_length ?/?
-		// m>0;l=0 : -- > at least one query parameter KEY/VALUE pair found but no hit for this device
+		// m>0;l=0 : -- > at least one query parameter KEY/VALUE pair found but no hit for this device (nothing added to response)
 		// m=0;l>0 : -- > n/a (no query parameter KEY/VALUE pair but a hit ....)
-		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device
+		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device --> 
 
 		if (request->origin && request->origin->flags & MULTICAST)
 		{ // multicast request
@@ -719,11 +719,23 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 * All resources together defines a linked (resource) list, the last 
 * resource of the list uses a link that points to NULL (... this one here)
 *
-* - resource fields, see 'oc_resource_t'
 * - resources are statically defined directly as part of the c-code, 
 *   expanded from macros => different macro definitions for the different 
-    (cross) - compilers are difficult when extending a macro   
+    (cross) - compilers are difficult when extending a macro
+
 * - compiler pragmas remain as macros
+*
+*	- resource fields
+*	  for common infos, see 'oc_resource_t' below, for DAP and DPT see here
+*		- a DPA type is defined as in KNX IoT specification (if defined)
+*		  - 0...n, if none => NULL,0,NULL
+*			- to scan all present application FBs in a device including all core FB, at least one DPA type
+*			  must be defined (such as urn:knx:dpa.0.xx for an FB '0')
+*     - to scan all present core FBs in a device 
+*			  
+*		- a DPT type is defined as in KNX IoT specification (if defined)
+*		  - 0...1, if none => NULL,0,NULL
+*			- 
 * 
 */
 
@@ -734,8 +746,8 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 { 
 	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
-	{ NULL, (size_t)1 * 32, (char[1][32]){	"well-known-type"} },					        // types (0...n), if 0 => 3 x NULL
-	{ NULL, 0, NULL },																						 								// DPT
+	{ NULL, 0, NULL },																														// DPA types, see comment above 
+	{ NULL, 0, NULL },																						 								// DPT type, see comment above - if none => 3 x NULL
 	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },																							 		// content formats (max 2)
 	OC_DISCOVERABLE,																																					 		// resource properties
 	{ oc_wkcore_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },		// get callback

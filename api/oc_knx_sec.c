@@ -117,14 +117,14 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_auth_o;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
   (oc_resource_t*)&core_resource_knx_auth_o,
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
-  {NULL, (size_t)1 * 32, ((char[1][32]){":dpt:timePeriodMsec"})},
   {NULL, 0, NULL},
+  {NULL, sizeof("urn:knx:dpt:timePeriodMsec"), "urn:knx:dpt:timePeriodMsec"},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
@@ -197,13 +197,13 @@ static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_int
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
   (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
-  {NULL, (size_t)1 * 32, ((char[1][32]){":dpt.value2UCount"})},
   {NULL, 0, NULL},
+  {NULL, sizeof("urn:knx:dpt.value2UCount"), "urn:knx:dpt.value2UCount"},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
@@ -297,7 +297,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_auth_at;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_data;
 const oc_resource_t core_resource_knx_auth_o = {
@@ -381,16 +381,15 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
-PRAGMA_IN oc_resource_data_t core_resource_knx_a_sen_data;
-const oc_resource_t core_resource_knx_a_sen = {
+// 'core_resource_well_known_core'
+PRAGMA_IN oc_resource_data_t core_resource_a_sen_data;
+const oc_resource_t core_resource_a_sen = {
   (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
   {NULL, sizeof("/a/sen"), "/a/sen"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {oc_core_a_sen_post_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
@@ -400,7 +399,7 @@ const oc_resource_t core_resource_knx_a_sen = {
   0,
   0,
   true,
-  &core_resource_knx_a_sen_data};
+  &core_resource_a_sen_data};
 PRAGMA_OUT
 
 // ----------------------------------------------------------------------------
@@ -956,17 +955,16 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_auth_at_x;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
   (oc_resource_t*)&core_resource_knx_auth_at_x,
   {NULL, sizeof("/auth/at"), "/auth/at"},
-  {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.at"})},
+  {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.auth"})},
   {NULL, 0, NULL},
   {APPLICATION_LINK_FORMAT, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
   {oc_core_auth_at_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {oc_core_auth_at_post_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
@@ -1152,17 +1150,16 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_auth;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_x_data;
 const oc_resource_t core_resource_knx_auth_at_x = {
   (oc_resource_t*)&core_resource_knx_auth,
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
-  {NULL, (size_t)1 * 32, ((char[1][32]){"dpt.a[n]"})},
+  {NULL, 0, NULL},
   {NULL, 0, NULL},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
   {oc_core_auth_at_x_get_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
@@ -1256,7 +1253,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 }
 
 // resource definition, details/comments see on
-// 'core_resource_well_known_core_final'
+// 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_well_known_core;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
@@ -1266,7 +1263,6 @@ const oc_resource_t core_resource_knx_auth = {
   {NULL, 0, NULL},
   {APPLICATION_LINK_FORMAT, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
   {oc_core_knx_auth_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
