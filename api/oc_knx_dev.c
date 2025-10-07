@@ -400,6 +400,8 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
         {
           oc_register_group_multicasts();
           oc_init_datapoints_at_initialization();
+
+          PRINT("Re-register mDNS after a writing iid)");
           oc_device_info_t* device = oc_core_get_device_info();
           knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
         }
@@ -637,6 +639,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_
         else
           device->pm = rep->value.boolean;
 
+        PRINT("Re-register mDNS after a writing PROG mode)");
         knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
         oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&rep->value.boolean, 1);
 

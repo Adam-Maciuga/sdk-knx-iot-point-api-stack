@@ -271,9 +271,9 @@ int oc_main_init(const oc_handler_t* handler)
   // set application handlers
   app_callbacks = handler;
 
-#ifdef OC_MEMORY_TRACE
+  #ifdef OC_MEMORY_TRACE
   oc_mem_trace_init();
-#endif
+  #endif
 
   oc_ri_init();
   oc_network_event_handler_mutex_init();
@@ -302,15 +302,15 @@ int oc_main_init(const oc_handler_t* handler)
     return -1;
     
   }
-#ifdef OC_DYNAMIC_ALLOCATION
+  #ifdef OC_DYNAMIC_ALLOCATION
   drop_commands = (bool*) calloc(1, sizeof(bool));
   if (!drop_commands)
   {
     oc_abort("Insufficient stack memory");
   }
-#endif
+  #endif
 
-#ifdef OC_SECURITY
+  #ifdef OC_SECURITY
 
   ret = oc_tls_init_context();
   if (ret < 0)
@@ -319,13 +319,13 @@ int oc_main_init(const oc_handler_t* handler)
     oc_shutdown_device();
     goto err;
   }
-#endif
+  #endif
 
 oc_knx_load_device();
 oc_knx_load_fingerprint();
 
 
-#ifdef OC_SECURITY
+  #ifdef OC_SECURITY
 
   oc_sec_load_unique_ids(0);
   #ifdef OC_PKI
@@ -333,9 +333,9 @@ oc_knx_load_fingerprint();
     oc_sec_load_ecdsa_keypair(0);
   #endif /* OC_PKI */
 
-#endif
+  #endif
 
-#ifdef OC_SERVER
+  #ifdef OC_SERVER
 
   // called one time on startup
   if (app_callbacks->register_resources)
@@ -343,18 +343,18 @@ oc_knx_load_fingerprint();
     app_callbacks->register_resources();
   }
 
-#endif 
+  #endif 
 
   OC_DBG("stack initialized ...");
 
   initialized = true;
 
-#ifdef OC_SERVER
+  #ifdef OC_SERVER
   // listen to the group addresses multicasts that are registered in the PUB table
   oc_register_group_multicasts();
-#endif
+  #endif
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
 
   // called one time on startup
   if (app_callbacks->requests_entry)
@@ -364,8 +364,10 @@ oc_knx_load_fingerprint();
 
   // do initialization of the data points according the 'I' flag in group object table
   oc_init_datapoints_at_initialization();
-#endif
 
+  #endif
+
+  PRINT("Re-register mDNS after a stack initialization)");
   oc_device_info_t* device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
