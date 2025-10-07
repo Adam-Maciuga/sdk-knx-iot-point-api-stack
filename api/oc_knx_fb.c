@@ -66,7 +66,7 @@ void store_in_array(int value, int instance)
   g_array_size++;
 }
 
-// -----------------------------------------------------------------------------
+// count number of datapoint(s) in application resources
 static int oc_core_count_dp_in_fb(int instance, int fb_value)
 {
   int counter = 0;
@@ -82,8 +82,13 @@ static int oc_core_count_dp_in_fb(int instance, int fb_value)
     const oc_string_array_t types = resource->types;
     for (int i = 0; i < (int)oc_string_array_get_allocated_size(types); i++)
     {
+      /*
+           framing by functional block numbers & instances, each
+           FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
+      */
+      
       const char* t = oc_string_array_get_item(types, i);
-      if ((strncmp(t, ":dpa", 4) == 0) || (strncmp(t, "urn:knx:dpa", 11) == 0))
+      if (strncmp(t, "urn:knx:dpa", 11) == 0)
       {
         const int fp_int = get_fb_number_from_dp(t);
         if (fp_int == fb_value && instance_resource == instance)
@@ -117,10 +122,12 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int instance = 0;
 
   const int fb_value = oc_uri_get_wildcard_value_as_int(
-    oc_string(request->resource->uri), oc_string_len(request->resource->uri), request->uri_path, request->uri_path_len);
-  PRINT("fb_value: %d", fb_value);
-  PRINT("resource url: %s", oc_string(request->resource->uri));
-  PRINT("request url: %.*s", (int)request->uri_path_len, request->uri_path);
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
+
+  
 
   const bool has_instance = oc_uri_contains_wildcard_value_underscore(
     oc_string(request->resource->uri), oc_string_len(request->resource->uri), request->uri_path, request->uri_path_len);
@@ -129,9 +136,11 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     instance = oc_uri_get_wildcard_value_as_int_after_underscore(
       oc_string(request->resource->uri), oc_string_len(request->resource->uri), request->uri_path, request->uri_path_len);
   }
-  PRINT("instance: %d ", instance);
 
-
+  OC_DBG("request url : %.*s", (int)request->uri_path_len, request->uri_path);
+  OC_DBG("resource url: %s", oc_string(request->resource->uri));
+  OC_DBG("FB value    : %d", fb_value);
+  OC_DBG("FB instance : %d ", instance);
 
   // current resource amount
   const int total = oc_core_count_dp_in_fb(instance, fb_value);
@@ -173,8 +182,13 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     oc_string_array_t types = resource->types;
     for (int i = 0; i < (int)oc_string_array_get_allocated_size(types); i++)
     {
+      /*
+           framing by functional block numbers & instances, each
+           FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
+      */
+
       char* t = oc_string_array_get_item(types, i);
-      if (strncmp(t, ":dpa", 4) == 0 || strncmp(t, "urn:knx:dpa", 11) == 0)
+      if (strncmp(t, "urn:knx:dpa", 11) == 0)
       {
         int fp_int = get_fb_number_from_dp(t);
         if (fp_int == fb_value && instance_resource == instance)

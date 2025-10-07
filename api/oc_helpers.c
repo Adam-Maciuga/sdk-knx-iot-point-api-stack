@@ -645,11 +645,13 @@ oc_uri_get_wildcard_value_as_int(const char* uri_resource, size_t uri_len,
                                  const char* uri_invoked, size_t invoked_len)
 {
   if (uri_resource[uri_len - 1] == '*')
-  {
-    if ((invoked_len + 1) >= uri_len)
-    {
-      int value = atoi(&uri_invoked[uri_len - 2]);
-      return value;
+  { // EP must be defined with a '*' at the end of e.g.; /f/* 
+    if (invoked_len + 1 >= uri_len)
+    { // 'f/4' versus '/f/*' - need a number with at least one digit in the request
+      // that is larger than the EP uri (note invoked uri has no heading /) 
+
+      // set ptr to number by remove heading '/' and trailing '*' = 2
+      return atoi(&uri_invoked[uri_len - 2]);
     }
   }
 
@@ -663,19 +665,21 @@ oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
                                                   size_t invoked_len)
 {
   if (uri_resource[uri_len - 1] == '*')
-  {
-    if ((invoked_len + 1) >= uri_len)
-    {
+  { // EP must be defined with a '*' at the end of e.g.; /f/* 
+    if (invoked_len + 1 >= uri_len)
+    { // 'f/4_01' versus '/f/*' - need a number with at least one digit in the request
+      // that is larger than the EP uri (note invoked uri has no heading /) 
+
+      // scan for '_' after number by remove heading '/' and trailing '*' = 2
       char* underscore = strchr(&uri_invoked[uri_len - 2], '_');
       if (underscore)
-      {
-        int value = atoi(underscore + 1);
-        return value;
+      { 
+        return atoi(underscore + 1);
       }
     }
   }
 
-  return false;
+  return 0;
 }
 
 bool
@@ -685,16 +689,19 @@ oc_uri_contains_wildcard_value_underscore(const char* uri_resource,
                                           size_t invoked_len)
 {
   if (uri_resource[uri_len - 1] == '*')
-  {
-    if ((invoked_len + 1) >= uri_len)
-    {
+  { // EP must be defined with a '*' at the end of e.g.; /f/* 
+    if (invoked_len + 1 >= uri_len)
+    { // 'f/4_01' versus '/f/*' - need a number with at least one digit in the request
+      // that is larger than the EP uri (note invoked uri has no heading /) 
+
+      // scan for '_' after number by remove heading '/' and trailing '*' = 2
       if (strchr(&uri_invoked[uri_len - 2], '_'))
       {
         return true;
       }
     }
   }
-  return -1;
+  return false;
 }
 
 int

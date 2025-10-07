@@ -743,9 +743,11 @@ extern "C"
                                       void* set_props_user_data);
 
   /**
-   * @brief set a resource to a specific function block instance
-   * default is instance 0, if there is just 1 instance of the
-   * function block this function does not have to be called.
+   * @brief set a (FB) resource to a specific function block instance.
+   *
+   * @note If there is just 1 instance of the function block this function does not have
+   *       to be called (the default is FB instance 0).
+   *       In case of more than one FB instance an instance is expresses as fb.xx_01/02/... 
    *
    * @param resource the resource
    * @param instance the instance id.

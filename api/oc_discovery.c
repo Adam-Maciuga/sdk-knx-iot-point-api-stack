@@ -376,7 +376,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// current resource amount
 	int total = OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;
 
-	// add all 'visible' application resources in case of query parameters rt/if are present
+	// TODO why only for application resources 
+  // add all 'visible' application resources in case of query parameters rt/if are present
 	if (rt_len > 0 || if_len > 0)
 	{
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
@@ -390,7 +391,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 	}
 
-	// add application FBs
+	// TODO counting is too much , all added above already 
+  // add application FBs
 	total += oc_count_functional_blocks_from_application();
 
 	// handle query parameters l=ps and/or l=total
