@@ -66,39 +66,35 @@ void store_in_array(int value, int instance)
   g_array_size++;
 }
 
-// count number of datapoint(s) in application resources
-static int oc_core_count_dp_in_fb(int instance, int fb_value)
+// count number of datapoint(s) in all application resources with fb number/ fb instance
+static int oc_core_count_dp_in_fb(int fb_instance, int fb_number)
 {
-  int counter = 0;
+  int number_of_datapoints_in_fb = 0;
 
-  const oc_resource_t* resource = oc_ri_get_app_resources();
-  for (; resource; resource = resource->next)
+  for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
-    if (!(resource->properties & OC_DISCOVERABLE))
+    if (resource->properties & OC_DISCOVERABLE)
     {
-      continue;
-    }
-    const int instance_resource = resource->fb_instance;
-    const oc_string_array_t types = resource->types;
-    for (int i = 0; i < (int)oc_string_array_get_allocated_size(types); i++)
-    {
-      /*
-           framing by functional block numbers & instances, each
-           FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
-      */
-      
-      const char* t = oc_string_array_get_item(types, i);
-      if (strncmp(t, "urn:knx:dpa", 11) == 0)
+      for (int i = 0; i < (int)oc_string_array_get_allocated_size(resource->types); i++)
       {
-        const int fp_int = get_fb_number_from_dp(t);
-        if (fp_int == fb_value && instance_resource == instance)
+        /*
+             framing by functional block numbers & instances, each
+             FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
+        */
+
+        const char* single_type = oc_string_array_get_item(resource->types, i);
+        if (strncmp(single_type, "urn:knx:dpa", 11) == 0)
         {
-          counter++;
+          // here a -1 is compared to a -1,  but resource instance is never -1
+          if (get_fb_number_from_dp(single_type) == fb_number && resource->fb_instance == fb_instance)
+          {
+            number_of_datapoints_in_fb++;
+          }
         }
       }
     }
   }
-  return counter;
+  return number_of_datapoints_in_fb;
 }
 
 static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -118,32 +114,28 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
   }
 
-  // if instance is not set, it is instance 0
-  int instance = 0;
-
-  const int fb_value = oc_uri_get_wildcard_value_as_int(
+  // fb number such as 417
+  const int fb_number = oc_uri_get_wildcard_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path,
     request->uri_path_len);
 
-  
+  // fb instance number such as 1 (assumed a fb is defined as 417_01)
+  const int fb_instance = oc_uri_get_wildcard_value_as_int_after_underscore(
+    oc_string(request->resource->uri), 
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
 
-  const bool has_instance = oc_uri_contains_wildcard_value_underscore(
-    oc_string(request->resource->uri), oc_string_len(request->resource->uri), request->uri_path, request->uri_path_len);
-  if (has_instance)
-  {
-    instance = oc_uri_get_wildcard_value_as_int_after_underscore(
-      oc_string(request->resource->uri), oc_string_len(request->resource->uri), request->uri_path, request->uri_path_len);
-  }
 
   OC_DBG("request url : %.*s", (int)request->uri_path_len, request->uri_path);
   OC_DBG("resource url: %s", oc_string(request->resource->uri));
-  OC_DBG("FB value    : %d", fb_value);
-  OC_DBG("FB instance : %d ", instance);
+  OC_DBG("FB value    : %d", fb_number);
+  OC_DBG("FB instance : %d", fb_instance);
 
-  // current resource amount
-  const int total = oc_core_count_dp_in_fb(instance, fb_value);
+  // current datapoint amount in the FB (if instance/number not found a '-1' is input here)
+  const int total = oc_core_count_dp_in_fb(fb_instance, fb_number);
 
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -166,59 +158,59 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   // - total=4, page number 1, page size 01, first entry = 001 -> more data on next page
   const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
+  int skipped_before_first_entry = 0;
+
   // create data points per functional block instance
-  const oc_resource_t* resource = oc_ri_get_app_resources();
-  int skipped = 0;
-  for (; resource; resource = resource->next)
+  for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
-    if (!(resource->properties & OC_DISCOVERABLE))
+    if (resource->properties & OC_DISCOVERABLE)
     {
-      continue;
-    }
+      // is there something we can add to response 
+      bool frame_resource = false;
 
-    bool frame_resource = false;
-    int instance_resource = resource->fb_instance;
-
-    oc_string_array_t types = resource->types;
-    for (int i = 0; i < (int)oc_string_array_get_allocated_size(types); i++)
-    {
-      /*
-           framing by functional block numbers & instances, each
-           FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
-      */
-
-      char* t = oc_string_array_get_item(types, i);
-      if (strncmp(t, "urn:knx:dpa", 11) == 0)
+      for (int i = 0; i < (int)oc_string_array_get_allocated_size(resource->types); i++)
       {
-        int fp_int = get_fb_number_from_dp(t);
-        if (fp_int == fb_value && instance_resource == instance)
+        /*
+             framing by functional block numbers & instances, each
+             FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
+        */
+
+        const char* single_type = oc_string_array_get_item(resource->types, i);
+        if (strncmp(single_type, "urn:knx:dpa", 11) == 0)
         {
-          frame_resource = true;
+          if (get_fb_number_from_dp(single_type) == fb_number && resource->fb_instance == fb_instance)
+          {
+            frame_resource = true;
+          }
         }
       }
-    }
-    if (frame_resource)
-    {
-      if (skipped < first_entry)
-      {
-        skipped++;
-      }
-      else
-      {
-        // called from GET /fb/x handler so always truncate resources URN's
-        oc_add_resource_to_response_payload(resource, &response_length, true);
-        query_parameter_kvpair_matches++;
 
-        if (query_parameter_kvpair_matches >= query_ps)
-        {
-          break;
+      if (frame_resource)
+      { // hit, will be added to response 
+
+        if (skipped_before_first_entry < first_entry)
+        { // do not add, is lower than needed 
+          skipped_before_first_entry++;
+        }
+        else
+        {// add
+
+          // called from GET /fb/x handler so always truncate resources URN's
+          oc_add_resource_to_response_payload(resource, &response_length, true);
+          query_parameter_kvpair_matches++;
+
+          if (query_parameter_kvpair_matches >= query_ps)
+          {
+            // page is full
+            break;
+          }
         }
       }
     }
   }
 
   if (query_parameter_kvpair_matches > 0)
-  {
+  { // at least one found
     if (more_request_needed)
     {
       // no page # was in the request (query_p =0) = next page 1 else #+1
@@ -228,6 +220,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   else
   {
+    // TODO currently only appl. resources are scanned hence this is incorrect here 
     // some resources are mandatory, hence this can't be correct here
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }

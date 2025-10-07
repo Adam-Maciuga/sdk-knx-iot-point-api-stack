@@ -463,7 +463,7 @@ extern "C" {
 	{
     struct oc_resource* next;             // link to next res. (can't be const, application res. changes data + ptr)
 		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
-		oc_string_array_t types;              // resource type (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
+		oc_string_array_t types;              // resource type array (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
 		oc_string_t dpt;                      // resource datapoint type
 		oc_content_format_t content_type[2];  // resource content types that will be supported (max two, first mandatory, second optional)  
 		oc_resource_properties_t properties;  // resource properties (e.g 'discoverable' - bit mask) 

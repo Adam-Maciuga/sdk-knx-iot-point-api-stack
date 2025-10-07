@@ -504,30 +504,18 @@ extern "C" {
 																			 const char* uri_invoked,
 																			 size_t invoked_len);
 
-	/**
-	 * @brief function to check if in the wild card section is a "_" (underscore)
-	 * underscores can be used in functional block uri to have more than 1 instance
-	 * e.g. fb* as wild card and fb333_1 as url
-	 * @param uri_resource The URI with wild card
-	 * @param uri_len The length of the URI with wild card
-	 * @param uri_invoked The URI that should match a wild card
-	 * @param invoked_len The URI length of the invoked URI
-	 * @return true
-	 * @return false
-	 */
-	bool oc_uri_contains_wildcard_value_underscore(const char* uri_resource,
-																								 size_t uri_len,
-																								 const char* uri_invoked,
-																								 size_t invoked_len);
+	
 
 	/**
 	 * @brief retrieve the integer after the "_" (underscore)
-	 * e.g. retrieve 1 from fb333_1 as url and fb* as wild card
+	 *        e.g. retrieve instance 1 from FB 333_1 as url and fb* as wild card
+	 *
 	 * @param uri_resource The URI with wild card
 	 * @param uri_len The length of the URI with wild card
 	 * @param uri_invoked The URI that should match a wild card
 	 * @param invoked_len The URI length of the invoked URI
-	 * @return int
+	 *
+	 * @return int FB instance number (> 0) or -1 (not found)
 	 */
 	int oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
 																												size_t uri_len,
@@ -566,39 +554,6 @@ extern "C" {
 	 * @return NULL = not found, otherwise position in string
 	 */
 	char* oc_strnchr(char* string, char p, int size);
-
-	/**
-	 * @brief retrieves the serial number and individual address from the ep
-	 * parameter
-	 *
-	 * deprecated!!
-	 *
-	 * @param param the string to be searched
-	 * @param param_len the length of the parameter
-	 * @param sn the sn for storage
-	 * @param sn_len the length of the sn for storage
-	 * @param ia the individual address
-	 * @return 0 == ok
-	 * string
-	 */
-	int oc_get_sn_from_ep(const char* param, int param_len, char* sn, int sn_len,
-												uint32_t* ia);
-
-	/**
-	 * @brief retrieves the serial number and individual address from the ep
-	 * parameter
-	 *
-	 * @param param the string to be searched
-	 * @param param_len the length of the parameter
-	 * @param sn the serial number
-	 * @param sn_len the length of the serial number
-	 * @param ia the individual address
-	 * @param iid the installation id
-	 * @return 0 == ok
-	 * string
-	 */
-	int oc_get_sn_ia_iid_from_ep(const char* param, int param_len, char* sn,
-															 int sn_len, uint32_t* ia, uint64_t* iid);
 
 	/**
 	 * @brief copy string from char*
