@@ -81,20 +81,21 @@ const uint32_t mid = 0x00fa; // first 4 digits of sn_lower_case
 
   URN's
 
-  - the dpa type is in FULL URN notation
-  - on a GET {ipv6-unicast}/{point-path}?m it is specified with SHORT URN (see handler)
-  - on a GET {ipv6-multicast}/.well-known/core it is specified with SHORT or FULL URN
+  - the dpa type MUST be in FULL URN notation:
+  - a GET {ipv6-unicast}/{point-path}?m asks with SHORT URN (see handler)
+  - a GET {ipv6-multicast}/.well-known/core asks with SHORT URN or FULL URN
+  - scanning all application resources for functional block occurrences demands a FULL URN 
 
  */
 
 // define demo channel 0..1 + included EPs ->  to allow a possible build (for this you need to add a CMake target)
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
   {{
-    {false, "/p/lssb/0/demo0", "urn:knx:dpa.x.y", ":dpt.na", (0 << 16) + 0},
-    {false, "/p/lssb/0/demo1", "urn:knx:dpa.x.y", ":dpt.na", (0 << 16) + 1}}},
+    {false, "/p/lssb/0/demo0", "urn:knx:dpa.x.y", ":dpt.na", (0 << 8) + 0},
+    {false, "/p/lssb/0/demo1", "urn:knx:dpa.x.y", ":dpt.na", (0 << 8) + 1}}},
   {{
-    {false, "/p/lssb/1/demo0", "urn:knx:dpa.x.y", ":dpt.na", (1 << 16) + 0},
-    {false, "/p/lssb/1/demo1", "urn:knx:dpa.x.y", ":dpt.na", (1 << 16) + 1}}}};
+    {false, "/p/lssb/1/demo0", "urn:knx:dpa.x.y", ":dpt.na", (1 << 8) + 0},
+    {false, "/p/lssb/1/demo1", "urn:knx:dpa.x.y", ":dpt.na", (1 << 8) + 1}}}};
 
 // additional parameters
 int_datapoint_t test_parameter = {0, "/p/demotest", "urn:knx:dpa.x.y", ":dpt.na", "Demo Test Parameter"};
@@ -127,7 +128,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_lssb_%s", app_get_serial_number());
+  (void)sprintf(storage, "./knx_iot_virtual_template_%s", app_get_serial_number());
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
