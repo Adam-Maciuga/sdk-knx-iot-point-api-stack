@@ -745,12 +745,12 @@ extern "C"
   /**
    * @brief set a (FB) resource to a specific function block instance.
    *
-   * @note If there is just 1 instance of the function block this function does not have
-   *       to be called (the default is FB instance 0).
-   *       In case of more than one FB instance an instance is expresses as fb.xx_01/02/... 
+   * @note If there is just 'one' FB instance this function does not have
+   *       to be called (the default is FB instance 0, expressed as 417).
+   *       In case of more than one FB instance, an instance is expresses as 2-digit 417_01, 417_02, ... 
    *
    * @param resource the resource
-   * @param instance the instance id.
+   * @param instance the instance id, as 1 to n.
    */
   void oc_resource_set_function_block_instance(oc_resource_t* resource, uint8_t instance);
 

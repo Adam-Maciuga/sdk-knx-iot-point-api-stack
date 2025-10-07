@@ -96,8 +96,9 @@ void register_resources(void)
     oc_resource_bind_content_type(soo_resource, APPLICATION_CBOR, CONTENT_NONE);
     oc_resource_bind_content_type(ioo_resource, APPLICATION_CBOR, CONTENT_NONE);
 
-    oc_resource_set_function_block_instance(soo_resource, 1);
-    oc_resource_set_function_block_instance(ioo_resource, 1);
+    // we have 2 x an FB with the same id
+    oc_resource_set_function_block_instance(soo_resource, (uint8_t)i + 1);
+    oc_resource_set_function_block_instance(ioo_resource, (uint8_t)i + 1);
 
     oc_resource_set_discoverable(soo_resource, true);
     oc_resource_set_discoverable(ioo_resource, true);
