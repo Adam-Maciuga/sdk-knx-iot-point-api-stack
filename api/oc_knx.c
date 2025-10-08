@@ -174,7 +174,7 @@ static oc_event_callback_retval_t reset(void* context)
     my_reset_cb->cb(cached_erase_code_value, my_reset_cb->data);
   }
 
-  PRINT("Re-register mDNS with new data of ia, iid , pm mode (values are usually changed after a reset)");
+  PRINT("Re-register mDNS after a reset with erase code 2 or 7)");
   const oc_device_info_t* device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
@@ -377,6 +377,7 @@ const char* oc_core_get_lsm_state_as_string(oc_lsm_state_t lsm)
   return "";
 }
 
+// convert lsm event in a string, used only for debug and test
 const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
 {
   // commands
@@ -386,11 +387,11 @@ const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
   }
   if (lsm == LSM_E_STARTLOADING)
   {
-    return "startLoading";
+    return "start loading";
   }
   if (lsm == LSM_E_LOADCOMPLETE)
   {
-    return "loadComplete";
+    return "load complete";
   }
   if (lsm == LSM_E_UNLOAD)
   {
@@ -400,37 +401,49 @@ const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
   return "";
 }
 
-
-// LSM handler, stores the new state and returns if event was OK (true)
-static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_e)
+static const oc_lsm_state_t event_to_state[5][3] = 
 {
-  if (lsm_e == LSM_E_NOP)
-  {
-    // do nothing
-    return true;
-  }
-  if (lsm_e == LSM_E_STARTLOADING)
-  {
-    oc_knx_set_and_store_lsm(LSM_S_LOADING);
-    return true;
-  }
-  if (lsm_e == LSM_E_LOADCOMPLETE)
-  {
-    oc_knx_set_and_store_lsm(LSM_S_LOADED);
-    return true;
-  }
-  if (lsm_e == LSM_E_UNLOAD)
-  {
-    // LSM (first to prevent any runtime messaging in/out)
-    oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
+  /*                     UNLOADED        LOADED          LOADING        */
+  /* NOP           */ {LSM_S_ERROR,    LSM_S_LOADED,   LSM_S_LOADING, }, // don't allow with NOP to delete tables
+  /* START LOADING */ {LSM_S_LOADING,  LSM_S_LOADING,  LSM_S_LOADING, },
+  /* LOAD COMPLETE */ {LSM_S_ERROR,    LSM_S_LOADED,   LSM_S_LOADED,  },
+  /* N/A           */ {LSM_S_ERROR,    LSM_S_ERROR,    LSM_S_ERROR,   }, // don't allow with N/A to delete tables
+  /* UNLOAD        */ {LSM_S_UNLOADED, LSM_S_UNLOADED, LSM_S_UNLOADED }, // allow in unloaded an unload event
+};
 
-    // do a reset like erase code 2 but not the AT table, ia, iid, fid -> EITT test
+/**
+ * @brief LSM handler, saves the new state to storage and returns true if it was a valid transition
+ *
+ * @param lsm_event the LSM event
+ *
+*/
+static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_event)
+{
+
+  // no event outside table/ specification, keep old state
+  if (lsm_event < LSM_E_NOP || lsm_event > LSM_E_UNLOAD)
+    return false;
+
+  // get new state
+  const oc_lsm_state_t old_lsm_state = oc_core_get_device_info()->lsm_s;
+  const oc_lsm_state_t new_lsm_state = event_to_state[lsm_event][old_lsm_state];
+
+  // don't allow a transition to an error state, keep old state
+  if (new_lsm_state == LSM_S_ERROR)
+    return false;
+
+  // store new state (even it is the old one)
+  oc_knx_set_and_store_lsm(new_lsm_state);
+
+  if (new_lsm_state == LSM_S_UNLOADED)
+  { // extra task on entering or remaining in UNLOADED
+
+    // do a reset like erase code 2 but not for the access token table, ia, iid, fid -> EITT test
     oc_delete_group_tables();
     oc_delete_group_object_table();
-
-    return true;
   }
-  return false;
+
+  return true;
 }
 
 static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -520,6 +533,8 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
+
+      PRINT("Re-register mDNS after a LSM is loaded)");
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
 
@@ -1192,6 +1207,8 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     {
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
+
+      PRINT("Re-register mDNS after a writing ia)");
       oc_device_info_t* device = oc_core_get_device_info();
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }

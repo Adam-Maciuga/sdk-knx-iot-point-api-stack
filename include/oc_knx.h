@@ -132,13 +132,14 @@ extern "C"
    * @brief LSM state values
    *
    */
-  typedef enum oc_lsm_state
+  typedef enum oc_lsm_state 
   {
-    LSM_S_UNLOADED = 0, /**< (0) state is unloaded, e.g. ready for loading */
-    LSM_S_LOADED = 1, /**< (1) state is loaded, e.g. normal operation */
-    LSM_S_LOADING = 2, /**< (2) state is loading. */
-    LSM_S_UNLOADING = 4, /**< (4) state is unloading */
-    LSM_S_LOADCOMPLETING = 5 /**< (5) state is load completing */
+    LSM_S_UNLOADED = 0,       // (0) unloaded, e.g. ready for loading, (m) 
+    LSM_S_LOADED = 1,         // (1) loaded, e.g. normal operation, (m) 
+    LSM_S_LOADING = 2,        // (2) loading, (m) 
+    LSM_S_UNLOADING = 4,      // (4) unloading, (o) 
+    LSM_S_LOADCOMPLETING = 5, // (5) load completing, (o) 
+    LSM_S_ERROR = 6           // (6) error, not defined in KNX IoT specification, but useful to filter events
   } oc_lsm_state_t;
 
   /**
@@ -172,6 +173,9 @@ extern "C"
    * @brief convert the load state machine (lsm) event to string
    *
    * @param lsm_e the event
+   *
+   * @note used only for debug and test
+   *
    * @return const char* The state as string
    */
   const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm_e);
@@ -180,6 +184,9 @@ extern "C"
    * @brief convert the load state machine (lsm) state to string
    *
    * @param lsm_s the state
+   *
+   * @note used only for debug and test
+   *
    * @return const char* The state as string
    */
   const char* oc_core_get_lsm_state_as_string(oc_lsm_state_t lsm_s);
@@ -218,7 +225,7 @@ extern "C"
    * @return true in runtime
    * @return false not in run time
    */
-  bool oc_is_device_in_runtime();
+  bool oc_is_device_in_runtime(void);
 
   /**
    * @brief sets the idevid

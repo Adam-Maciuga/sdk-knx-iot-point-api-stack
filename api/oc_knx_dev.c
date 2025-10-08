@@ -884,7 +884,6 @@ static void oc_core_dev_fid_get_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-
   const oc_device_info_t* device = oc_core_get_device_info();
   if (device != NULL)
   {
