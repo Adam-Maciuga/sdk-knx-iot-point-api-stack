@@ -114,9 +114,6 @@ void register_resources(void)
 
 int app_initialize_stack(void)
 {
-  // set SN before stack initialization
-  app_set_serial_number(sn_lower_case);
-
   /*
     The final storage folder depends on the build system/ current directory on Linux/ Windows,
     the folder name is defined by the file name + serial number.
@@ -128,7 +125,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_template_%s", app_get_serial_number());
+  (void)sprintf(storage, "./knx_iot_virtual_template_%s", sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
@@ -226,8 +223,6 @@ int main(void)
 
   // refresh device IP addresses
   oc_connectivity_get_endpoints();
-
-  PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
 
 #ifdef _WIN32
 

@@ -19,7 +19,7 @@
 */
 
 
-//needs to be undefined so wxwidgets will not use precompiled headers when compiling with msvc
+//needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
 
 #include <wx/cmdline.h>
@@ -65,11 +65,6 @@ enum : uint16_t
 };
 
 extern lsxb_channel_t lsxb[NUM_CHANNELS];
-
-static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
-  {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
-
-wxCmdLineParser* g_cmd;
 
 class CustomDialog : public wxDialog
 {
@@ -148,7 +143,7 @@ public:
 class MyFrame : public wxFrame
 {
 public:
-  MyFrame(const char* serial_number);
+  MyFrame();
 
 private:
   void OnListAll(wxCommandEvent& event);
@@ -206,22 +201,10 @@ wxIMPLEMENT_APP_CONSOLE(MyApp);
  */
 bool MyApp::OnInit()
 {
-  int argc = wxAppConsole::argc;
-  wxChar** argv = wxAppConsole::argv;
-
-  g_cmd = new wxCmdLineParser(argc, argv);
-  g_cmd->SetDesc(g_cmdLineDesc);
-  g_cmd->Parse(true);
-
   // call in c-code
   app_initialize_stack();
 
-  wxString serial_number;
-  if (g_cmd->Found("s", &serial_number))
-  {
-  }
-
-  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
+  MyFrame* frame = new MyFrame();
 
   frame->Fit();
   frame->Show(true);
@@ -233,7 +216,7 @@ bool MyApp::OnInit()
  *
  * @param serial_number
  */
-MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
+MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
 {
   m_menuFile = new wxMenu;
   m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
@@ -323,13 +306,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX vi
                                   wxSize(x_width, x_height), wxCHK_3STATE);
     m_LSAB_1_SOO->Set3StateValue(wxCHK_UNDETERMINED);
     m_LSAB_1_SOO->Enable(false);
-  }
-
-  // serial number
-  if (strlen(serial_number) > 1)
-  {
-    // sn was set by command line 
-    app_set_serial_number(serial_number);
   }
 
   constexpr int width_size = 180; // size of the knx info widgets
@@ -464,7 +440,6 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
-
 
 /**
  * @brief checks/unchecks the sleepy mode
@@ -910,7 +885,6 @@ wxString MyFrame::dumpGroupObjectTable()
   }
   return out;
 }
-
 
 /**
  * @brief dump the Publisher Table into a string

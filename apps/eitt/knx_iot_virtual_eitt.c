@@ -41,9 +41,15 @@
 #define LSSB (1)
 #define LSAB (0)
 
-// EITT definitions 
+/*
+ * EITT definitions
+ *
+ * Note that all below values are statically defined since they do not change during
+ * device lifetime or are predefined in the KNX IoT specification.
+ *
+ */
 const char application_name[] = "KNX virtual EITT certification application";
-const char sn_lower_case[] = "00fa10020800";  // same as eitt test template, deliberated incorrect serial numbers
+const char sn_lower_case[] = "00fa10020800";  // same as eitt test template, deliberated incorrect serial number
 const char hostname[] = "knx-00fa10020800";   // default host name (reset uses this default)
 const char hw_type[] = "Windows";             // 12 string chars, same as eitt test template
 const char dev_model[] = "KNX Certification"; // same as eitt test template
@@ -177,9 +183,6 @@ void register_resources(void)
 
 int app_initialize_stack(void)
 {
-  // set SN before stack initialization
-  app_set_serial_number(sn_lower_case);
-
   /*
      The final storage folder depends on the build system/ current directory on Linux/ Windows,
      the folder name is defined by the file name + serial number.
@@ -189,7 +192,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_eitt_%s", dir, app_get_serial_number());
+  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_eitt_%s", dir, sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 

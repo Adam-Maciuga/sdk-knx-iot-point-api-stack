@@ -24,20 +24,6 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
-// global variables (12 x char + /0), maybe overwritten by CL option
-
-// serial number, must be stored in ASCII lower case 
-char g_serial_number[SERIAL_NUM_SIZE + 1]; 
-
-bool app_is_secure(void)
-{
- // may be build without OSCORE ...
- #ifdef OC_OSCORE
-  return true;
- #endif
-  return false;
-}
-
 void app_str_to_upper(char* str)
 {
   while (*str != '\0')
@@ -161,12 +147,6 @@ void initialize_variables(void)
   /* if wanted to be read them from persistent storage */
 }
 
-int app_set_serial_number(const char* serial_number)
-{
-  // don't copy more than size of SN
-  return strncpy(g_serial_number, serial_number, sizeof(g_serial_number)) != NULL ? 0 : -1;
-}
-
 int app_init(void)
 {
   extern const char application_name[];
@@ -199,7 +179,7 @@ int app_init(void)
   #endif
 
   // set the device 
-  oc_core_set_device(app_get_serial_number(), "KNX Association");
+  oc_core_set_device(sn_lower_case, application_name);
 
   // set the hardware version 0.0.1, value used from EITT for testing
   oc_core_set_device_hwv(0, 0, 1);
@@ -225,23 +205,18 @@ int app_init(void)
   // set response callback (if needed must be filled with code)
   oc_set_s_mode_response_cb(oc_s_mode_response_cb);
 
-#ifdef OC_SPAKE
+#if defined (OC_SPAKE) && defined (OC_DEBUG) 
 
   // convert in upper case (12 x char + /0)
-  char sn_upper[SERIAL_NUM_SIZE + 1];
-  memcpy(sn_upper, sn_lower_case, SERIAL_NUM_SIZE +1);
-  app_str_to_upper(sn_upper);
+  char sn_upper_case[SERIAL_NUM_SIZE + 1];
+  memcpy(sn_upper_case, sn_lower_case, SERIAL_NUM_SIZE +1);
+  app_str_to_upper(sn_upper_case);
 
-  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper, app_get_password());
+  OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper_case, app_get_password());
 
 #endif
 
   return 0;
-}
-
-const char* app_get_serial_number(void)
-{
-  return g_serial_number;
 }
 
 // defied individually in the corresponding LSAB/LSSB/EITT application code

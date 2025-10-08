@@ -37,13 +37,19 @@
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
 
-// LSAB definitions
+/*
+ * LSAB definitions
+ *
+ * Note that all below values are statically defined since they do not change during
+ * device lifetime or are predefined in the KNX IoT specification.
+ *
+*/
 const char application_name[] = "KNX virtual actuator (LSAB)";
-const char sn_lower_case[] = "00fa10020900";  // deliberated incorrect serial numbers
+const char sn_lower_case[] = "00fa10020900";  // deliberated incorrect serial number
 const char hostname[] = "knx-00fa10020900";   // default host name (reset uses this default)
-const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
-const char dev_model[] = "6800";              // reuse mask version from iot device
-const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
+const char hw_type[] = "000102030405";        // 12 string char, MSB = 00
+const char dev_model[] = "6800";              // mask version for KNX IoT device
+const uint32_t mid = 0x00fa;                  // manufacturer id, here KNXA
 
 /*
 
@@ -149,8 +155,6 @@ void register_resources(void)
 
 int app_initialize_stack(void)
 {
-  // set SN before stack initialization
-  app_set_serial_number(sn_lower_case);
 
   /*
     The final storage folder depends on the build system/ current directory on Linux/ Windows,
@@ -163,7 +167,7 @@ int app_initialize_stack(void)
   char storage[400];
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)snprintf(storage, sizeof(storage), "./knx_iot_virtual_lsab_%s", app_get_serial_number());
+  (void)snprintf(storage, sizeof(storage), "./knx_iot_virtual_lsab_%s", sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 

@@ -18,7 +18,7 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-//needs to be undefined so wxwidgets will not use precompiled headers when compiling with msvc
+//needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
 
 #include <wx/cmdline.h>
@@ -130,7 +130,6 @@ void CustomDialog::on_close(wxCommandEvent& event)
   EndModal(wxID_OK);
 }
 
-
 class MyApp : public wxApp
 {
 public:
@@ -140,7 +139,7 @@ public:
 class MyFrame : public wxFrame
 {
 public:
-  MyFrame(const char* serial_number);
+  MyFrame();
 
 private:
   void OnListAll(wxCommandEvent& event);
@@ -206,9 +205,7 @@ bool MyApp::OnInit()
   // reset the device (for EITT tests)
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
 
-  // empty string (no command line available) - checked inside MyFrame
-  wxString serial_number;
-  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
+  MyFrame* frame = new MyFrame();
 
   frame->Fit();
   frame->Show(true);
@@ -218,9 +215,8 @@ bool MyApp::OnInit()
 /**
  * @brief Construct a new My Frame:: My Frame object
  *
- * @param serial_number
  */
-MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
+MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
 {
   m_menuFile = new wxMenu;
   m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
@@ -291,15 +287,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "KNX EI
     m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_SOO, this);
     m_EITT_SOO->Enable(true);
   }
-
-  // serial number
-  if (strlen(serial_number) > 1)
-  {
-    // sn was set by command line
-    app_set_serial_number(serial_number);
-  }
-
-  
 
   constexpr int width_size = 180; // size of the knx info widgets
   char text[500];
@@ -424,7 +411,6 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
-
 
 /**
  * @brief checks/unchecks the sleepy mode
@@ -633,7 +619,6 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   this->updateCheckBoxesFromLiveIOOData();
   this->updateDeviceData();
 }
-
 
 /**
  * @brief update the UI e.g. check boxes in the UI
@@ -898,7 +883,6 @@ wxString MyFrame::dumpGroupObjectTable()
   }
   return out;
 }
-
 
 /**
  * @brief dump the Publisher Table into a string

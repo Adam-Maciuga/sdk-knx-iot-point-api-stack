@@ -95,8 +95,8 @@ extern "C"
 #endif
 
   /**
-   * @brief function to set up the device.
-   *
+   * @brief Function to set up the device on stack startup.
+   *        It is called at the end of 'app_initialize_stack'
    */
   int app_init(void);
 
@@ -106,27 +106,7 @@ extern "C"
    * @return int 0 == success
    */
   int app_initialize_stack(void);
-
-  /**
-   * @brief sets the serial number
-   *        
-   *
-   * @note
-   * - used from several applications, hence define it as method
-   * - should be called before app_initialize_stack()
-   *
-   * @param serial_number the serial number as string, MUST be in lower case ASCII
-   * @return int 0 == success, -1 error
-   */
-  int app_set_serial_number(const char* serial_number);
-
-  /**
-   * @brief returns the serial number
-   * 
-   * @return pointer to serial number
-   */
-  const char* app_get_serial_number(void);
-
+  
   /**
    * @brief Set a bool
    *
@@ -176,15 +156,6 @@ extern "C"
    * @note  IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
    */
   char* app_get_password(void);
-
-  /**
-   * @brief function to report if the (oscore) security is turn on for this
-   * instance
-   *
-   * @return true is secure
-   * @return false is not secure
-   */
-  bool app_is_secure(void);
 
   /**
  * @brief

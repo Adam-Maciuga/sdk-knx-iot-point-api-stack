@@ -70,7 +70,7 @@ extern "C" {
     OSCORE_ENCRYPTED = 1 << 9, /**< OSCORE encrypted message */
   };
 
-#define SERIAL_NUM_SIZE (12) /**< binary: 6 bytes: in hex: 12 bytes*/
+#define SERIAL_NUM_SIZE (12) //binary 6 bytes, in hex 12 bytes
   /**
    * @brief the endpoint information
    *

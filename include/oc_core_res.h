@@ -62,7 +62,7 @@ extern "C" {
 	 */
 	typedef struct oc_device_info_t
 	{
-		oc_string_t serialnumber;                 /**< knx serial number */
+		oc_string_t serialnumber;                 // knx serial number, binary 6 bytes, in hex 12 bytes 
 		oc_knx_version_info_t hwv;                // hardware ver, set on device init, no PUT at runtime, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t fwv;                // firmware ver, set on device init, no PUT at runtime, :dpt.version -> U5U5U6 
 		oc_knx_version_info_t ap;                 // application ver, set on device init, PUT at runtime, :dpt.programVersion -> U16U16U8 (vendor id, device type, app. version)
@@ -75,17 +75,17 @@ extern "C" {
 		uint64_t iid;                             /**< 40-bit knx installation id (checked in 'runtime test') */
 		bool pm;                                  /**< knx programming mode */
 		oc_lsm_state_t lsm_s;                     /**< knx lsm states */
-    oc_string_t mfg_name;											/**< knx device manufacturer 'mfg' name, currently not used in stack*/
+    oc_string_t ap_friendly_name;							/**< knx application 'friendly' name, currently not able to retrieve from any endpoint*/
 	} oc_device_info_t;
 
 	/**
 	 * @brief Set device serial number, mfg name and some default data, init then device (/dev, ...) resources 
 	 *
 	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case
-	 * @param mfg_name the user-friendly name of the device manufacturer
+	 * @param ap_friendly_name the user-friendly name of the application
 
 	 */
-  void oc_core_set_device(const char* serialnumber, const char* mfg_name);
+  void oc_core_set_device(const char* serialnumber, const char* ap_friendly_name);
 
 	/**
 	 * @brief set the firmware version

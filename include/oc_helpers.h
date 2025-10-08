@@ -55,8 +55,8 @@ extern "C" {
   #define oc_byte_string(ocstring) (oc_cast(ocstring, unsigned char))
 
  /**
-	* @brief cast oc_string to string, replace null pointer results
-	* with a pointer to "NULL"
+	* @brief cast 'oc_string' to string, replace null pointer results
+	*        with a pointer to a string "NULL"
 	*
 	*/
 	#define oc_string_checked(ocstring)                                            \
