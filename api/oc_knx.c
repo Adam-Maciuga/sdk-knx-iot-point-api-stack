@@ -175,7 +175,7 @@ static oc_event_callback_retval_t reset(void* context)
   }
 
   PRINT("Re-register mDNS after a reset with erase code 2 or 7)");
-  const oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return OC_EVENT_DONE;
@@ -324,24 +324,13 @@ PRAGMA_OUT
 
 oc_lsm_state_t oc_knx_get_lsm(void)
 {
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    OC_ERR("device not found");
-    return LSM_S_UNLOADED;
-  }
-
+  const oc_device_info_t* const  device = oc_core_get_device_info();
   return device->lsm_s;
 }
 
 int oc_knx_set_and_store_lsm(oc_lsm_state_t new_state)
 {
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    OC_ERR("device not found");
-    return -1;
-  }
+  oc_device_info_t* const device = oc_core_get_device_info();
 
   // set state for device (RAM) and file storage (tests on LSM uses device property) 
   device->lsm_s = new_state;
@@ -458,14 +447,6 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
-
-  if (device == NULL)
-  {
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
-
   oc_lsm_state_t lsm = oc_knx_get_lsm();
 
   oc_rep_begin_root_object();
@@ -489,14 +470,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
-
-  if (device == NULL)
-  {
-    PRINT("oc_core_lsm_post_handler - end");
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   // default setting if nothing will be found
   int event = LSM_E_NOP;
@@ -585,12 +559,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    return;
-  }
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   // TODO OBSERVE is not implemented for (1) 'lt' and 'non' metadata (2.5.9.3/4) and (2) SECOND get request -> response payload (2.5.9.1)
 
@@ -637,12 +606,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
-    return;
-  }
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   // scan received payload for sia/st/ga/value
   oc_rep_t* rep = request->request_payload;
@@ -714,7 +678,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     rep = rep->next;
   }
 
-  if (oc_is_device_in_runtime() == false)
+  if (!oc_is_device_in_runtime())
   {
     PRINT("device not in runtime state:%d - ignore message", device->lsm_s);
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
@@ -1209,7 +1173,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       oc_init_datapoints_at_initialization();
 
       PRINT("Re-register mDNS after a writing iid + ia)");
-      oc_device_info_t* device = oc_core_get_device_info();
+      const oc_device_info_t* const  device = oc_core_get_device_info();
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -1867,17 +1831,11 @@ void oc_knx_increase_fingerprint(void)
 
 bool oc_is_device_in_runtime(void)
 {
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
-  if (device->iid == 0)
+  if (device->iid == 0 || device->lsm_s != LSM_S_LOADED)
   {
     // EITT test this for a reset with code 2
-    return false;
-  }
-
-  if (device->lsm_s != LSM_S_LOADED)
-  {
-
     return false;
   }
 

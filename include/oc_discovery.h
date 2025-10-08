@@ -66,4 +66,4 @@ bool oc_add_resource_to_response_payload(const oc_resource_t *resource,
 }
 #endif
 
-#endif /* OC_DISCOVERY_H */
+#endif 

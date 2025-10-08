@@ -303,102 +303,99 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();
 
-  if (device != NULL)
+  if (oc_query_value_exists(request, "m") != -1)
   {
-    if (oc_query_value_exists(request, "m") != -1)
+    // ... query parameter 'm' is present, check the various values
+    char* m;
+    char* m_key;
+    size_t m_key_len;
+    size_t m_len = oc_get_query_value(request, "m", &m);
+
+    PRINT("Query Parameter: %.*s", (int)m_len, m);
+
+    oc_init_query_iterator();
+
+    // check query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
     {
-      // ... query parameter 'm' is present, check the various values
-      char* m;
-      char* m_key;
-      size_t m_key_len;
-      size_t m_len = oc_get_query_value(request, "m", &m);
-
-      PRINT("Query Parameter: %.*s", (int)m_len, m);
-
-      oc_init_query_iterator();
-
-      // check query parameter
-      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+      // id (mandatory)
+      if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
       {
-        // id (mandatory)
-        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // knx://sn: + max len SN + uri path + \0 = ~ 65
-          char serial_number[65];
+        // knx://sn: + max len SN + uri path + \0 = ~ 65
+        char serial_number[65];
 
-          (void)snprintf(serial_number, 65, "knx://sn:%s%s", 
-                         oc_string(device->serialnumber),
-                         oc_string(request->resource->uri));
+        (void)snprintf(serial_number, 65, "knx://sn:%s%s", 
+                       oc_string(device->serialnumber),
+                       oc_string(request->resource->uri));
 
-          oc_rep_i_set_text_string(root, 0, serial_number);
+        oc_rep_i_set_text_string(root, 0, serial_number);
 
-          error_state = false;
-        }
-        // value (mandatory)
-        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // see 'Callback Notes' above
-          oc_rep_text_set_boolean(root, value, lsxb[channel].point[point].value);
-          error_state = false;
-        }
-        // resource types (mandatory)
-        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // use the first type, skip urn:knx (=7), if more types are used
-          // - add a next in the data structure
-          // - add an extra line
-          const char* first_type = oc_string_array_get_item(request->resource->types, 0);
+        error_state = false;
+      }
+      // value (mandatory)
+      if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        // see 'Callback Notes' above
+        oc_rep_text_set_boolean(root, value, lsxb[channel].point[point].value);
+        error_state = false;
+      }
+      // resource types (mandatory)
+      if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        // use the first type, skip urn:knx (=7), if more types are used
+        // - add a next in the data structure
+        // - add an extra line
+        const char* first_type = oc_string_array_get_item(request->resource->types, 0);
 
-          oc_rep_text_set_text_string(root, rt, first_type + 7);
-          error_state = false;
-        }
-        // interfaces (array of text strings) (mandatory)
-        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        oc_rep_text_set_text_string(root, rt, first_type + 7);
+        error_state = false;
+      }
+      // interfaces (array of text strings) (mandatory)
+      if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        add_all_interface_short_urns_for_a_resource(request->resource);
+        error_state = false;
+      }
+      // dpt (mandatory)
+      if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
+        error_state = false;
+      }
+      // ga (mandatory)
+      if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+        if (index > -1)
         {
-          add_all_interface_short_urns_for_a_resource(request->resource);
-          error_state = false;
-        }
-        // dpt (mandatory)
-        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
-          error_state = false;
-        }
-        // ga (mandatory)
-        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
-          if (index > -1)
+          oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+          if (got_table_entry)
           {
-            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
-            if (got_table_entry)
-            {
-              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
-            }
+            oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
           }
-          error_state = false;
         }
-        // href (mandatory)
-        if (strncmp(m, "href", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
+        error_state = false;
+      }
+      // href (mandatory)
+      if (strncmp(m, "href", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
 
-          error_state = false;
-        }
+        error_state = false;
       }
     }
-    else
-    { // ... no query parameter 'm' present at all, set value for the GET
+  }
+  else
+  { // ... no query parameter 'm' present at all, set value for the GET
 
-      // see 'Callback Notes' above
-      oc_rep_i_set_boolean(root, 1, lsxb[channel].point[point].value);
-      error_state = false;
-    }
+    // see 'Callback Notes' above
+    oc_rep_i_set_boolean(root, 1, lsxb[channel].point[point].value);
+    error_state = false;
   }
 
   // close CBOR
@@ -579,96 +576,93 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
     return;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();
 
-  if (device != NULL)
-  {
-    if (oc_query_value_exists(request, "m") != -1)
-    { // ... query parameter 'm' is present, check the various values
+  if (oc_query_value_exists(request, "m") != -1)
+  { // ... query parameter 'm' is present, check the various values
 
-      char* m;
-      char* m_key;
-      size_t m_key_len;
-      size_t m_len = oc_get_query_value(request, "m", &m);
+    char* m;
+    char* m_key;
+    size_t m_key_len;
+    size_t m_len = oc_get_query_value(request, "m", &m);
 
-      PRINT("Query Parameter: %.*s", (int)m_len, m);
+    PRINT("Query Parameter: %.*s", (int)m_len, m);
 
-      oc_init_query_iterator();
+    oc_init_query_iterator();
 
-      // check query parameter
-      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+    // check query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+    {
+      // unique identifier
+      if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
       {
-        // unique identifier
-        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // knx://sn: + max len SN + uri path + \0 = ~ 65
-          char serial_number[65];
+        // knx://sn: + max len SN + uri path + \0 = ~ 65
+        char serial_number[65];
 
-          (void)snprintf(serial_number, 65, "knx://sn:%s%s", 
-                         oc_string(device->serialnumber),
-                         oc_string(request->resource->uri));
+        (void)snprintf(serial_number, 65, "knx://sn:%s%s", 
+                       oc_string(device->serialnumber),
+                       oc_string(request->resource->uri));
 
-          oc_rep_i_set_text_string(root, 0, serial_number);
+        oc_rep_i_set_text_string(root, 0, serial_number);
 
-          error_state = false;
-        }
-        // value
-        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_int(root, value, test_parameter.value);
-          error_state = false;
-        }
-        // resource types
-        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // use the first type, skip urn:knx (=7), if more types are used
-          // - add a next in the data structure 
-          // - add an extra line
-          const char* first_type = oc_string_array_get_item(request->resource->types, 0);
+        error_state = false;
+      }
+      // value
+      if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        oc_rep_text_set_int(root, value, test_parameter.value);
+        error_state = false;
+      }
+      // resource types
+      if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        // use the first type, skip urn:knx (=7), if more types are used
+        // - add a next in the data structure 
+        // - add an extra line
+        const char* first_type = oc_string_array_get_item(request->resource->types, 0);
 
-          oc_rep_text_set_text_string(root, rt, first_type + 7);
-          error_state = false;
-        }
-        // interfaces (array of text strings)
-        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        oc_rep_text_set_text_string(root, rt, first_type + 7);
+        error_state = false;
+      }
+      // interfaces (array of text strings)
+      if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        add_all_interface_short_urns_for_a_resource(request->resource);
+        error_state = false;
+      }
+      // dpt
+      if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
+        error_state = false;
+      }
+      // ga
+      if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      {
+        int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+        if (index > -1)
         {
-          add_all_interface_short_urns_for_a_resource(request->resource);
-          error_state = false;
-        }
-        // dpt
-        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
-          error_state = false;
-        }
-        // ga
-        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
-          if (index > -1)
+          oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+          if (got_table_entry)
           {
-            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
-            if (got_table_entry)
-            {
-              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
-            }
+            oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
           }
-          error_state = false;
         }
+        error_state = false;
       }
     }
-    else
-    { // ... no query parameter 'm' present at all, set value
+  }
+  else
+  { // ... no query parameter 'm' present at all, set value
 
-      // see 'Callback Notes' above
-      oc_rep_i_set_int(root, 1, test_parameter.value);
+    // see 'Callback Notes' above
+    oc_rep_i_set_int(root, 1, test_parameter.value);
 
-      PRINT("get test parameter to : %u", test_parameter.value);
-      error_state = false;
-    }
+    PRINT("get test parameter to : %u", test_parameter.value);
+    error_state = false;
   }
 
   // close CBOR

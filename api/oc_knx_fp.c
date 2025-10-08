@@ -2891,15 +2891,10 @@ uint32_t oc_find_grpid_in_recipient_table(const uint32_t group_address)
 
 void oc_register_group_multicasts(void)
 {
-#ifdef OC_PUBLISHER_TABLE
+  #ifdef OC_PUBLISHER_TABLE
 
   // register only if publisher is active, installation id will be used as ULA prefix
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
-  {
-    PRINT("oc_register_group_multicasts: no device info");
-    return;
-  }
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   PRINT("multicast port %i", COAP_DEFAULT_PORT);
 
@@ -2928,7 +2923,7 @@ void oc_register_group_multicasts(void)
     }
   }
 
-#endif
+  #endif
 }
 
 void oc_init_datapoints_at_initialization(void)
@@ -2950,7 +2945,7 @@ void oc_init_datapoints_at_initialization(void)
 
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 
-          oc_device_info_t* device = oc_core_get_device_info();
+          const oc_device_info_t* const  device = oc_core_get_device_info();
           uint16_t sia_value = device->ia;
           uint64_t iid = device->iid;
 
@@ -2961,9 +2956,9 @@ void oc_init_datapoints_at_initialization(void)
           if (grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-#ifdef OC_USE_MULTICAST_SCOPE_2
+          #ifdef OC_USE_MULTICAST_SCOPE_2
             oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
-#endif
+          #endif
             oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
           }
           else

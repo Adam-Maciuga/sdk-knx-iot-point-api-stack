@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2016 Intel Corporation
 // Copyright (c) 2021-2023 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +17,6 @@
 */
 
 #include "oc_client_state.h"
-#include "messaging/coap/oc_coap.h"
 #include "oc_api.h"
 #include "oc_discovery.h"
 #include "oc_knx_fb.h"
@@ -24,12 +24,6 @@
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
 #include "oc_knx_helpers.h"
-
-#ifdef OC_OSCORE
-// #include "security/oc_pstat.h" ... former used by OS_SECURITY
-// #include "security/oc_sdi.h"   ... former used by OS_SECURITY
-#include "security/oc_tls.h"
-#endif
 #include <inttypes.h>
 #include "oc_knx_dev.h"
 
@@ -290,7 +284,7 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint16_
 	return response_length;
 }
 
-void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
+void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
 	(void) iface_mask;
 	(void) data;
@@ -359,7 +353,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	}
 
 	// get device 0
-	const oc_device_info_t* device = oc_core_get_device_info();
+	const oc_device_info_t* const device = oc_core_get_device_info();
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
 
@@ -491,7 +485,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 					 needs to respond when the device is in programming mode
 			*/
 
-			PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on");
+			PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on");
 
 			if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 			{ // query parameter if=urn:knx:if.pm AND ep=knx://sn. AND some extra xx data present
@@ -502,7 +496,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 				if (strncmp(oc_string(device->serialnumber), ep_serialnumber, strlen(oc_string(device->serialnumber))) != 0)
 				{ // SN does NOT match, xx data can be anything
 
-					PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
+					PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
 
 					if (request->origin && request->origin->flags & MULTICAST)
 					{
@@ -516,7 +510,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 					}
 					return;
 				}
-				PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN 1:1 match");
+				PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN 1:1 match");
 				// SN does match 1:1, leaves here and continues on 'handle serial number' (with double code)
 			}
 			else
@@ -534,14 +528,14 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 					query_parameter_key_value_pair_matches++;
 				}
 
-				PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode on, SN MAY match");
+				PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN MAY match");
 				// SN may match, leaves here and continues on 'handle serial number' (with double code)
 			}
 		}
 		else
 		{ // PRG mode off
 
-			PRINT("oc_wkcore_discovery_handler PM HANDLING: PRG mode off");
+			PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode off");
 
 			if (request->origin && request->origin->flags & MULTICAST)
 			{
@@ -650,8 +644,8 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 	// handle rt/if query parameters 
 	if (rt_len > 0 || if_len > 0)
 	{
-		PRINT("oc_wkcore_discovery_handler rt='%.*s'", rt_len, rt_request); // first (len) value defines precision 
-		PRINT("oc_wkcore_discovery_handler if='%.*s'", if_len, if_request); // first (len) value defines precision 
+		PRINT("oc_well_known_core_discovery_handler rt='%.*s'", rt_len, rt_request); // first (len) value defines precision 
+		PRINT("oc_well_known_core_discovery_handler if='%.*s'", if_len, if_request); // first (len) value defines precision 
 
 		// process application resources (and add on a 'hit' to response) 
 		current_page_is_full = oc_process_application_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
@@ -663,7 +657,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		// process core resources (and add on a 'hit' to response) 
 		current_page_is_full = oc_process_basic_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 
-		PRINT("oc_wkcore_discovery_handler add common resources on a unicast request ...");
+		PRINT("oc_well_known_core_discovery_handler add common resources on a unicast request ...");
 	}
 
 	if (!current_page_is_full && request->origin && (request->origin->flags & MULTICAST) == 0)
@@ -675,7 +669,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		{
 			oc_was_adding_function_blocks_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 
-			PRINT("oc_wkcore_discovery_handler added present FB resources on a unicast request ...");
+			PRINT("oc_well_known_core_discovery_handler added present FB resources on a unicast request ...");
 		}
 	}
 
@@ -692,7 +686,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
 
-		PRINT("oc_wkcore_discovery_handler send matching response with length = %d", (int) response_length);
+		PRINT("oc_well_known_core_discovery_handler send matching response with length = %d", (int) response_length);
 		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
@@ -704,12 +698,12 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 
 		if (request->origin && request->origin->flags & MULTICAST)
 		{ // multicast request
-      PRINT("oc_wkcore_discovery_handler multicast request, no match -> ignore it");
+      PRINT("oc_well_known_core_discovery_handler multicast request, no match -> ignore it");
       oc_ignore_request(request);
 		}
 		else
 		{ // unicast request
-      PRINT("oc_wkcore_discovery_handler unicast request, no match -> send unicast response with length = 0");
+      PRINT("oc_well_known_core_discovery_handler unicast request, no match -> send unicast response with length = 0");
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		}
 	}
@@ -752,7 +746,7 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	{ NULL, 0, NULL },																						 								// DPT type, see comment above - if none => 3 x NULL
 	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },																							 		// content formats (max 2)
 	OC_DISCOVERABLE,																																					 		// resource properties
-	{ oc_wkcore_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },		// get callback
+	{ oc_well_known_core_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },		// get callback
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// put callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// post callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// delete callback, if not defined use if.none, to return 4.05 instead of 4.01

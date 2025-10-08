@@ -367,7 +367,7 @@ int oc_main_init(const oc_handler_t* handler)
   #endif
 
   PRINT("Re-register mDNS after a stack initialization)");
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return 0;

@@ -174,6 +174,8 @@ extern "C" {
    */
   bool oc_drop_command(void);
 
+  void _oc_signal_event_loop(void);
+
 #ifdef __cplusplus
 }
 #endif

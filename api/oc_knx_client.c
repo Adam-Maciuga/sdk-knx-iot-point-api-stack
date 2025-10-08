@@ -53,8 +53,8 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
   OC_DBG("discovery_ia_cb");
   oc_endpoint_print(endpoint);
 
-  oc_device_info_t* device = oc_core_get_device_info();
-  uint32_t sender_ia = device->ia;
+  const oc_device_info_t* const  device = oc_core_get_device_info();
+  const uint32_t sender_ia = device->ia;
 
   broker_s_mode_userdata_t* cb_data = user_data;
 
@@ -288,12 +288,7 @@ int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resourc
     return -1;
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    PRINT("device is NULL");
-    return -1;
-  }
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   if (!oc_is_device_in_runtime())
   {

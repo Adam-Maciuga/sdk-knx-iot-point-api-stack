@@ -21,11 +21,9 @@
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
 
-#include <wx/cmdline.h>
 #include <wx/wxprec.h>
 #include <wx/wx.h>
 #include <wx/display.h>
-
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
@@ -222,7 +220,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
   m_menuFile->Append(CHECK_PM, "Programming Mode", "Sets the application in programming mode", true);
   m_menuFile->Append(RESET_TABLE, "Reset (7) (Tables)", "Reset 7 (Reset to default without IA).", false);
-  m_menuFile->Append(RESET, "Reset (2)(ex-factory)", "Reset 2 (Reset to default state)", false);
+  m_menuFile->Append(RESET, "Reset (2) (ex-factory)", "Reset 2 (Reset to default state)", false);
   m_menuFile->Append(RESTART_DEVICE, "Restart Device", "Simulate a device restart", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
@@ -293,7 +291,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
 
   // serial number
   strcpy(text, "Serial Number : ");
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
   strcat(text, oc_string(device->serialnumber));
 
   wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 1) * x_height)),
@@ -403,7 +401,7 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   SetStatusText("Changing programming mode");
 
   bool my_val = m_menuFile->IsChecked(CHECK_PM);
-  oc_device_info_t* device = oc_core_get_device_info();
+  oc_device_info_t* const device = oc_core_get_device_info();
   device->pm = my_val;
 
   // update the UI
@@ -422,7 +420,7 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
   SetStatusText("Changing sleepy mode");
 
   bool my_sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   if (my_sleepy)
   {
@@ -452,11 +450,7 @@ void MyFrame::updateDeviceData()
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info();
-
-  // may already shut down on exit 
-  if (!device)
-    return; 
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   const uint16_t ia_a = device->ia >> 12; // area
   const uint16_t ia_l = device->ia >> 8 & 0xF; // line
@@ -474,7 +468,7 @@ void MyFrame::updateDeviceData()
   this->int2grpidtext(device->iid, text, iid_conversion);
   m_iid_text->SetValue(text);
 
-  (void)sprintf(text, "Hostname : %s", oc_string(device->iot_hostname));
+  (void)sprintf(text, "Hostname : %s", oc_string_checked(device->iot_hostname));
   m_hn_text->SetValue(text);
 
   // set in menu the programming mode to what the device has
@@ -544,10 +538,7 @@ void MyFrame::OnRestartDevice(wxCommandEvent& event)
  */
 void MyFrame::OnListAll(wxCommandEvent& event)
 {
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (!device) {
-    return;
-  }
+  const oc_device_info_t* const  device = oc_core_get_device_info();
 
   wxString all;
   all << dumpGroupObjectTable() << "\n\n"

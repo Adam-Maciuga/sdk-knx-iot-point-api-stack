@@ -760,6 +760,8 @@ extern "C" {
 																			oc_response_buffer_t* response_buffer,
 																			oc_response_t* response_obj);
 
+	void allocate_events(void);
+
 #ifdef __cplusplus
 }
 #endif

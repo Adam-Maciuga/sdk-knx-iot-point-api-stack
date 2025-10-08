@@ -217,7 +217,7 @@ extern "C" {
 	 * @brief retrieve the device info for device 0
 	 *
 	 * @note the response can never be a NULL pointer, device 0 is a global static definition
-	 *       (note that some device 0 properties such as serial number may be NULL) 
+	 *       (note that some device properties as such may be '0' (int) or NULL (strings), e.g; a not initialized serial number) 
 	 *
 	 * @return oc_device_info_t* the device info
 	 */
