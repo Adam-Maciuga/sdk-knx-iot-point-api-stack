@@ -52,9 +52,9 @@ int oc_core_set_device_hwv(uint16_t major, uint16_t minor, uint16_t patch)
 
 int oc_core_set_device_apv(uint16_t major, uint16_t minor, uint16_t patch)
 {
-	oc_device_info.ap.major = major;
-	oc_device_info.ap.minor = minor;
-	oc_device_info.ap.patch = patch;
+	oc_device_info.apv.major = major;
+	oc_device_info.apv.minor = minor;
+	oc_device_info.apv.patch = patch;
 	return 0;
 }
 
@@ -82,16 +82,16 @@ int oc_core_set_device_hwt(const char* hardware_type)
 
 int oc_core_set_device_model(const char* model)
 {
-	oc_free_string(&oc_device_info.model);
-	oc_new_string(&oc_device_info.model, model, strlen(model));
+	oc_free_string(&oc_device_info.iot_model);
+  oc_new_string(&oc_device_info.iot_model, model, strlen(model));
 
 	return 0;
 }
 
 int oc_core_set_device_hostname(const char* host_name)
 {
-	oc_free_string(&oc_device_info.hostname);
-	oc_new_string(&oc_device_info.hostname, host_name, strlen(host_name));
+	oc_free_string(&oc_device_info.iot_hostname);
+  oc_new_string(&oc_device_info.iot_hostname, host_name, strlen(host_name));
 
 	return 0;
 }
@@ -111,9 +111,7 @@ int oc_core_set_and_store_device_iid(uint64_t iid)
 
 int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t minor, uint16_t patch)
 {
-	oc_device_info.ap.major = major;
-  oc_device_info.ap.minor = minor;
-  oc_device_info.ap.patch = patch;
+	oc_core_set_device_apv(major, minor, patch);
 
 	oc_storage_write(KNX_STORAGE_AP_MAJOR, (uint8_t*)&major, sizeof(major));
   oc_storage_write(KNX_STORAGE_AP_MINOR, (uint8_t*)&minor, sizeof(minor));
@@ -130,15 +128,15 @@ int oc_core_set_and_store_device_fid(uint64_t fid)
 	return 0;
 }
 
-void oc_core_set_device(const char* serialnumber, const char* mfg_name)
+void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 {
 
 	// release strings (e.g. after a device restart/ reset)
   oc_free_string(&oc_device_info.serialnumber);
   oc_free_string(&oc_device_info.hwt);
-  oc_free_string(&oc_device_info.model);
-  oc_free_string(&oc_device_info.hostname);
-  oc_free_string(&oc_device_info.mfg_name);
+  oc_free_string(&oc_device_info.iot_model);
+  oc_free_string(&oc_device_info.iot_hostname);
+  oc_free_string(&oc_device_info.app_friendly_name);
 
 	// clear old device context 
   memset(&oc_device_info, 0, sizeof(oc_device_info_t));
@@ -149,8 +147,8 @@ void oc_core_set_device(const char* serialnumber, const char* mfg_name)
 	// caller MUST ensure that the hand-over serial number is in ASCII lower case
 	oc_new_string(&oc_device_info.serialnumber, serialnumber, strlen(serialnumber));
 
-	// device vendor 
-	oc_new_string(&oc_device_info.mfg_name, mfg_name, strlen(mfg_name));
+	// device application  friendly name
+	oc_new_string(&oc_device_info.app_friendly_name, app_friendly_name, strlen(app_friendly_name));
 	
 	// init tables
 	oc_create_knx_fp_resources();

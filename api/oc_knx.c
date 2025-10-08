@@ -322,7 +322,7 @@ const oc_resource_t core_resource_knx = {(oc_resource_t*)&core_resource_knx_fp_g
                                          &core_resource_knx_data};
 PRAGMA_OUT
 
-oc_lsm_state_t oc_knx_get_lsm()
+oc_lsm_state_t oc_knx_get_lsm(void)
 {
   oc_device_info_t* device = oc_core_get_device_info();
   if (device == NULL)
@@ -1093,7 +1093,7 @@ extern const oc_resource_t core_resource_knx_fingerprint;
 PRAGMA_IN oc_resource_data_t core_resource_knx_k_data;
 const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fingerprint,
                                            {NULL, sizeof("/k"), "/k"},
-                                           {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.k"})},
+                                           {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.g.s"})},
                                            {NULL, 0, NULL},
                                            {APPLICATION_CBOR, CONTENT_NONE},
                                            OC_DISCOVERABLE,
@@ -1208,7 +1208,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       oc_register_group_multicasts();
       oc_init_datapoints_at_initialization();
 
-      PRINT("Re-register mDNS after a writing ia)");
+      PRINT("Re-register mDNS after a writing iid + ia)");
       oc_device_info_t* device = oc_core_get_device_info();
       knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
     }
@@ -1865,7 +1865,7 @@ void oc_knx_increase_fingerprint(void)
   oc_storage_write(FINGERPRINT_STORE, (uint8_t*)&g_fingerprint, sizeof(g_fingerprint));
 }
 
-bool oc_is_device_in_runtime()
+bool oc_is_device_in_runtime(void)
 {
   oc_device_info_t* device = oc_core_get_device_info();
 

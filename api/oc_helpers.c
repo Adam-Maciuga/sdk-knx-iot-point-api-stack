@@ -641,15 +641,18 @@ oc_uri_contains_wildcard(const char* uri)
 }
 
 int oc_uri_get_wildcard_value_as_int(const char* uri_resource, size_t uri_len,
-                                 const char* uri_invoked, size_t invoked_len)
+                                     const char* uri_invoked, size_t invoked_len)
 {
   if (uri_resource[uri_len - 1] == '*')
   { // EP must be defined with a '*' at the end of e.g.; /f/* 
-    if (invoked_len + 1 >= uri_len)
-    { // 'f/4' versus '/f/*' - need a number with at least one digit in the request
-      // that is larger than the EP uri (note invoked uri has no heading /) 
 
-      // set ptr to number by remove heading '/' and trailing '*' = 2
+    if (invoked_len + 1 >= uri_len)
+    { 
+      // - invoked uri has no heading '/', need at least one digit from invoked uri, 
+      // - 'f/4' versus '/f/*', set pointer - 2 = heading '/' and trailing '*' from '/f/*'
+
+      // convert from pointer after 'f/'
+      // note that f/004 and f/4 results both in 4
       return atoi(&uri_invoked[uri_len - 2]);
     }
   }
@@ -665,13 +668,15 @@ int oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
   if (uri_resource[uri_len - 1] == '*')
   { // EP must be defined with a '*' at the end of e.g.; /f/* 
     if (invoked_len + 1 >= uri_len)
-    { // 'f/4_01' versus '/f/*' - need a number with at least one digit in the request
-      // that is larger than the EP uri (note invoked uri has no heading /) 
+    { // - invoked uri has no heading '/', need at least one digit from invoked uri, 
+      // - 'f/4_1' versus '/f/*', set pointer - 2 = heading '/' and trailing '*' from '/f/*'
 
-      // scan for '_' after number by remove heading '/' and trailing '*' = 2
+      // scan for '_'  
       char* underscore = strchr(&uri_invoked[uri_len - 2], '_');
       if (underscore)
       { 
+        // convert from pointer after 'f/4_',
+        // note that f/4_01 and f/4_1 results both in 1
         return atoi(underscore + 1);
       }
     }
@@ -679,8 +684,6 @@ int oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
 
   return -1;
 }
-
-
 
 int oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resource_len,
                                     const char* uri_invoked, size_t invoked_len,

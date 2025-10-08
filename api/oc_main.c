@@ -321,9 +321,8 @@ int oc_main_init(const oc_handler_t* handler)
   }
   #endif
 
-oc_knx_load_device();
-oc_knx_load_fingerprint();
-
+  oc_knx_load_device();
+  oc_knx_load_fingerprint();
 
   #ifdef OC_SECURITY
 

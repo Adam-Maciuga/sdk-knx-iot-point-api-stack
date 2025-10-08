@@ -528,7 +528,7 @@ void MyFrame::updateDeviceData()
   this->int2grpidtext(device->iid, text, iid_conversion);
   m_iid_text->SetValue(text);
 
-  (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
+  (void)sprintf(text, "Hostname : %s", oc_string(device->iot_hostname));
   m_hn_text->SetValue(text);
 
   // set in menu the programming mode to what the device has

@@ -242,10 +242,10 @@ static void oc_core_dev_model_get_handler(oc_request_t* request, oc_interface_ma
 
 
   oc_device_info_t* device = oc_core_get_device_info();
-  if (device != NULL && oc_string(device->model) != NULL)
+  if (device != NULL && oc_string(device->iot_model) != NULL)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_text_string(root, 1, oc_string(device->model));
+    oc_rep_i_set_text_string(root, 1, oc_string(device->iot_model));
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
@@ -300,10 +300,10 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface
         PRINT("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));
 
         // set hostname for the device
-        oc_core_set_device_hostname(oc_string(rep->value.string));
+        oc_core_set_device_hostname(oc_string_checked(rep->value.string));
 
         // update storage
-        oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(rep->value.string), oc_string_len(rep->value.string));
+        oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string_checked(rep->value.string), oc_string_len(rep->value.string));
 
         // call host name application callback handler
         const oc_hostname_t* my_hostname = oc_get_hostname_cb();
@@ -340,7 +340,7 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface
   if (device)
   {
     oc_rep_begin_root_object();
-    oc_rep_i_set_text_string(root, 1, oc_string(device->hostname));
+    oc_rep_i_set_text_string(root, 1, oc_string(device->iot_hostname));
     oc_rep_end_root_object();
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
@@ -1058,7 +1058,7 @@ static void oc_core_ap_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   {
     
     // cbor with payload: [ major, minor, patch ]
-    const uint64_t array[3] = {device->ap.major, device->ap.minor, device->ap.patch};
+    const uint64_t array[3] = {device->apv.major, device->apv.minor, device->apv.patch};
     oc_rep_begin_root_object();
     oc_rep_i_set_int_array(root, 1, array, 3);
     oc_rep_end_root_object();
@@ -1297,17 +1297,17 @@ void oc_knx_load_device(void)
   PRINT("pm (storage) %d", pm);
 
   // read host name from storage (on error = empty string "" else '0' terminated oc_string)
-  char hostname[255] = "";
-  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hostname, 255);
+  char hostname[128] = "";
+  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hostname, 128);
   oc_core_set_device_hostname(hostname);
-  PRINT("hostname (storage) %s", oc_string_checked(device->hostname));
+  PRINT("hostname (storage) %s", oc_string(device->iot_hostname));
 
   // read major/minor/patch version from storage (on error = '0.0.0')
   uint16_t value;
-  device->ap.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  device->ap.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  device->ap.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  PRINT("app ver (storage) %d.%d.%d", device->ap.major, device->ap.minor, device->ap.patch);
+  device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  PRINT("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
 
   // read lsm mode from storage (on error = unloaded)
   oc_lsm_state_t lsm;
@@ -1354,11 +1354,10 @@ void oc_knx_device_storage_reset(int reset_mode)
       set default host name to device serial number and leading
       'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
     */
-    oc_free_string(&device->hostname);
 
     char hostname[20] = "knx-";
     strcat(hostname, oc_string(device->serialnumber));
-    oc_new_string(&device->hostname, hostname, strlen(hostname));
+    oc_core_set_device_hostname(hostname);
 
     // delete iot device tables
     oc_delete_group_object_table();
@@ -1374,7 +1373,7 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
-    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->hostname), oc_string_len(device->hostname));
+    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname), oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
     uint16_t w_size = DEFAULT_REP_WDO_SIZE;

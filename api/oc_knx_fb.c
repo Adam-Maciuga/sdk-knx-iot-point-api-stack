@@ -121,7 +121,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     request->uri_path,
     request->uri_path_len);
 
-  // fb instance number such as 1 (assumed a fb is defined as 417_01)
+  // fb instance number such as 1 (assumed a fb is defined with 417_1, see code comments)
   const int fb_instance = oc_uri_get_wildcard_value_as_int_after_underscore(
     oc_string(request->resource->uri), 
     oc_string_len(request->resource->uri),
@@ -220,8 +220,8 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   else
   {
-    // TODO currently only appl. resources are scanned hence this is incorrect here 
-    // some resources are mandatory, hence this can't be correct here
+    
+    // an application FB resource without any (visible) datapoint can't be correct here
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 

@@ -32,7 +32,7 @@
 #define GOT_STORE "dev_knx_got_entry"       // GO table base file name
 #define FPT_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' PUB/RCP/GO FILE entries
 
-// identifier for minimum pub/rcp properties 
+// identifier for minimum pub/rcp properties
 #define TABLE_ATREF (1 << 0)
 #define TABLE_GAS (1 << 1)
 
@@ -72,7 +72,7 @@ int oc_table_find_id_from_payload(const oc_rep_t* object)
     {
     case OC_REP_INT:
     {
-      // pub/rcp id (0) is only for type int defined 
+      // pub/rcp id (0) is only for type int defined
       if (object->iname == 0)
       {
         int id = (int)object->value.integer;
@@ -154,7 +154,7 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
   // init with number out of upper range defined so far 0..65535 = error
   int32_t lowest_id = INT_MAX;
   uint32_t corresponding_ga = 0;
-  if (cflags) 
+  if (cflags)
     *cflags = OC_CFLAG_NONE;
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
@@ -177,7 +177,7 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
 
           lowest_id = g_got[i].id;
           // only the first GA can be a sending GA
-          corresponding_ga = g_got[i].ga[0]; 
+          corresponding_ga = g_got[i].ga[0];
           if (cflags)
             *cflags = g_got[i].cflags;
         }
@@ -308,7 +308,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   (void)iface_mask;
 
   // query parameter key/value pair matches found
-  int query_parameter_kvpair_matches = 0; 
+  int query_parameter_kvpair_matches = 0;
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
@@ -417,7 +417,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
     A GO collection is checked per entry, the last return code wins (created/changed).
     Note that on a 4.00 / 5.00 the previously written entries - from
     a collection - are not restored (currently to complicate). This is for sure not
-    a problem if a MaC writes only one entry per request. 
+    a problem if a MaC writes only one entry per request.
   */
 
   // set ptr to collection of 1...n GOs in payload
@@ -466,21 +466,21 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-      #define MANDATORY_GO_PROPERTIES (4) // id, ga, cflags and href must be present
+#define MANDATORY_GO_PROPERTIES (4) // id, ga, cflags and href must be present
       bool id_only = true; // used to delete the GO table entry
 
       uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
       oc_group_object_table_t tmp_go_entry = g_got[array_index]; // fill with live GO (from a present entry or from an empty entry)
 
-      // set GO id 
+      // set GO id
       tmp_go_entry.id = id;
-      int current_go_properties = 1; 
+      int current_go_properties = 1;
 
       while (object)
       {
         switch (object->type)
         {
-        
+
         case OC_REP_INT:
 
           if (object->iname != 0)
@@ -711,8 +711,11 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  const int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                                  request->uri_path, request->uri_path_len);
+  const int id = oc_uri_get_wildcard_value_as_int(
+    oc_string(request->resource->uri), 
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
 
   // find GO index in GO table
   int index = oc_core_find_index_in_group_object_table_from_id(id);
@@ -761,8 +764,12 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                            request->uri_path, request->uri_path_len);
+  int id = oc_uri_get_wildcard_value_as_int(
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
+
   int index = oc_core_find_index_in_group_object_table_from_id(id);
 
   if (index == -1)
@@ -1017,21 +1024,21 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
-      #define MANDATORY_GPT_PROPERTIES (3) 
+// id + ga array (filled or empty) + grpid OR id + ia + at must be present
+#define MANDATORY_GPT_PROPERTIES (3)
 
       // to delete a PUB table entry
-      bool id_only = true; 
+      bool id_only = true;
 
       // identify which "stack" memory resource are allocated during the post
       uint8_t allocator = 0;
 
       // fill with live PUB entry (from a present/empty entry)
-      oc_group_table_t tmp_gpt_entry = g_gpt[array_index]; 
+      oc_group_table_t tmp_gpt_entry = g_gpt[array_index];
 
-      // set PUB id 
+      // set PUB id
       tmp_gpt_entry.id = id;
-      int current_gpt_properties = 1; 
+      int current_gpt_properties = 1;
 
       while (object)
       {
@@ -1047,24 +1054,24 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           // ia (12) - used on unicast
-          if(object->iname == 12) 
+          if (object->iname == 12)
           {
             tmp_gpt_entry.ia = (int)object->value.integer;
             current_gpt_properties++;
           }
           // grpid (13) - used on multicast
-          else if (object->iname == 13) 
+          else if (object->iname == 13)
           {
             tmp_gpt_entry.grpid = (uint32_t)object->value.integer;
             current_gpt_properties++;
           }
           // iid (26) - used on multicast
-          else if (object->iname == 26) 
+          else if (object->iname == 26)
           {
             tmp_gpt_entry.iid = object->value.integer;
-          } 
+          }
           // fid (25) - used on unicast
-          else if (object->iname == 25) 
+          else if (object->iname == 25)
           {
             tmp_gpt_entry.fid = object->value.integer;
           }
@@ -1076,7 +1083,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           id_only = false;
 
           // at (14) - used on unicast
-          if(object->iname == 14)
+          if (object->iname == 14)
           {
             // set (new) at in tmp copy (org ptr still valid)
             oc_new_string(&tmp_gpt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
@@ -1090,7 +1097,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga array (7) - used on multicast 
+          // ga array (7) - used on multicast
           if (object->iname == 7) // resource 'ga array'
           {
             const int64_t* array = oc_int_array(object->value.array);
@@ -1133,7 +1140,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           id_only = false;
 
           // ga array (7) - used on multicast, resource 'ga array' = empty (specification request)
-          if (object->iname == 7) 
+          if (object->iname == 7)
           {
             tmp_gpt_entry.ga_len = 0;
             tmp_gpt_entry.ga = NULL;
@@ -1153,7 +1160,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
-          
         }
         object = object->next;
       }
@@ -1179,7 +1185,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       else
       {
         if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_GPT_PROPERTIES)
-        { // a 
+        { // a
 
           // see details on constant
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
@@ -1261,8 +1267,11 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  const int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                                  request->uri_path, request->uri_path_len);
+  const int id = oc_uri_get_wildcard_value_as_int(
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
 
   const int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
 
@@ -1340,8 +1349,12 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                            request->uri_path, request->uri_path_len);
+  int id = oc_uri_get_wildcard_value_as_int(
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
+
   int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
 
   if (index == -1)
@@ -1547,21 +1560,21 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // non-confirmable flag for a new entry is init to false ONLY once on creation (not on a possible 'changed' update)
       }
 
-      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
-      #define MANDATORY_GRT_PROPERTIES (3)
+// id + ga array (filled or empty) + grpid OR id + ia + at must be present
+#define MANDATORY_GRT_PROPERTIES (3)
 
       // used to delete the RCP table entry
-      bool id_only = true; 
+      bool id_only = true;
 
       // identify which "stack" memory resource are allocated during the post
-      uint8_t allocator = 0; 
+      uint8_t allocator = 0;
 
       // fill with live RCP entry (from a present/empty entry)
-      oc_group_table_t tmp_grt_entry = g_grt[array_index]; 
+      oc_group_table_t tmp_grt_entry = g_grt[array_index];
 
-      // set RCP id 
+      // set RCP id
       tmp_grt_entry.id = id;
-      int current_grt_properties = 1; 
+      int current_grt_properties = 1;
 
       while (object)
       {
@@ -1577,24 +1590,24 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           // ia (12) - used on unicast
-          if (object->iname == 12) 
+          if (object->iname == 12)
           {
             tmp_grt_entry.ia = (int)object->value.integer;
             current_grt_properties++;
           }
           // grpid (13) - used on multicast
-          else if (object->iname == 13) 
+          else if (object->iname == 13)
           {
             tmp_grt_entry.grpid = (uint32_t)object->value.integer;
             current_grt_properties++;
           }
-          // iid (26) - used on multicast 
-          else if (object->iname == 26) 
+          // iid (26) - used on multicast
+          else if (object->iname == 26)
           {
             tmp_grt_entry.iid = object->value.integer;
           }
           // fid (25) - used on unicast
-          else if (object->iname == 25) 
+          else if (object->iname == 25)
           {
             tmp_grt_entry.fid = object->value.integer;
           }
@@ -1657,14 +1670,14 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           break;
-        
+
         case OC_REP_NIL:
 
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
           // ga array (7) - used on multicast, resource 'ga array' = empty (specification request)
-          if (object->iname == 7) 
+          if (object->iname == 7)
           {
             tmp_grt_entry.ga_len = 0;
             tmp_grt_entry.ga = NULL;
@@ -1718,7 +1731,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         - RCP entry 2: (ia) 1235, (at) = 'token1'
 
         A sender would use the same access token (key material) from 'token1' to encrypt a message
-        for ia 1234 and 1235. 
+        for ia 1234 and 1235.
 
         Since there is a replay window with #n entries to the left, an attacker may record the unlock message
         and resend it later again.
@@ -1727,18 +1740,18 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         SSN10  UNLOCK -> (ia) 1234
         SSN11  UNLOCK -> (ia) 1235
         :
-        : 
+        :
         SSN12  LOCK   -> (ia) 1234
         SSN13  LOCK   -> (ia) 1235
         :
         :
         Attacker
-        SSN11  UNLOCK -> (ia) 1234 
+        SSN11  UNLOCK -> (ia) 1234
           -> SSN11 is in left side of replay window from Receiver with ia 1234,
              seen from its last received valid SSN12
           -> the destination ia 1234 is not part of the msg, an attacker needs only the
              IPv6 address of device with ia 1234
-	
+
       */
 
       if (return_status == OC_STATUS_CHANGED && id_only)
@@ -1834,8 +1847,11 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  const int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                                  request->uri_path, request->uri_path_len);
+  const int id = oc_uri_get_wildcard_value_as_int(
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
+    request->uri_path,
+    request->uri_path_len);
 
   const int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 
@@ -1913,8 +1929,12 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-                                            request->uri_path, request->uri_path_len);
+  int id = oc_uri_get_wildcard_value_as_int(
+    oc_string(request->resource->uri),
+    oc_string_len(request->resource->uri),
+    request->uri_path, 
+    request->uri_path_len);
+
   int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 
   if (index == -1)
@@ -2183,7 +2203,7 @@ void oc_load_group_object_table_entry(int entry)
           // ga array (7)
           if (rep->iname == 7)
           {
-            // temp ptr to address the CBOR array 
+            // temp ptr to address the CBOR array
             const int64_t* array = oc_int_array(rep->value.array);
             const int new_array_size = oc_int_array_size(rep->value.array);
 
@@ -2239,7 +2259,7 @@ void oc_free_group_object_table_entry(int entry, bool init)
   g_got[entry].id = -1;
 
   // free "string" data memory only if already initialized
-  // assumes in table uninitialized/random string data - don't release it ... 
+  // assumes in table uninitialized/random string data - don't release it ...
   if (init == false)
   {
     oc_free_string(&g_got[entry].href);
@@ -2258,7 +2278,6 @@ void oc_free_allocated_go_table_elements(oc_group_object_table_t* entry, uint8_t
   if (allocator & GO_HREF)
   {
     oc_free_string(&entry->href);
-    
   }
 
   if (allocator & GO_GAS)
@@ -2441,74 +2460,74 @@ static void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* 
       {
         switch (rep->type)
         {
-          case OC_REP_INT:
-            if (rep->iname == 0)
-            {
-              table[entry].id = (int32_t)rep->value.integer;
-            }
-            if (rep->iname == 12)
-            {
-              table[entry].ia = (uint32_t)rep->value.integer;
-            }
-            if (rep->iname == 13)
-            {
-              table[entry].grpid = (uint32_t)rep->value.integer;
-            }
-            if (rep->iname == 25)
-            {
-              table[entry].fid = rep->value.integer;
-            }
-            if (rep->iname == 26)
-            {
-              table[entry].iid = rep->value.integer;
-            }
-            break;
-          case OC_REP_STRING:
-
-            // at (14)
-            if (rep->iname == 14)
-            {
-              oc_free_string(&table[entry].at);
-              oc_new_string(&table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
-            }
-            break;
-          case OC_REP_INT_ARRAY:
-
-            // ga array (7)
-            if (rep->iname == 7)
-            {
-              // temp ptr to address the CBOR array 
-              const int64_t* array = oc_int_array(rep->value.array);
-              const int new_array_size = (int)oc_int_array_size(rep->value.array);
-
-              // malloc of 'zero' byte return pointer is undefined
-              uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
-              if (new_array && new_array_size > 0)
-              {
-                for (int i = 0; i < new_array_size; i++)
-                {
-                  new_array[i] = (uint32_t)array[i];
-                }
-
-                // release a possible ga array, it will be overwritten,
-                // no selective adding (note it releases the org ptr)
-                // free ignores NULL ptr
-                free(table[entry].ga);
-
-                PRINT("ga size %d", new_array_size);
-
-                // assign only when the new array is allocated correctly
-                table[entry].ga_len = new_array_size;
-                table[entry].ga = new_array;
-              }
-            }
-            break;
-          default:
-            // any other invalid type prints ...
-            // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
-            PRINT("invalid object type detected");
-            break;
+        case OC_REP_INT:
+          if (rep->iname == 0)
+          {
+            table[entry].id = (int32_t)rep->value.integer;
           }
+          if (rep->iname == 12)
+          {
+            table[entry].ia = (uint32_t)rep->value.integer;
+          }
+          if (rep->iname == 13)
+          {
+            table[entry].grpid = (uint32_t)rep->value.integer;
+          }
+          if (rep->iname == 25)
+          {
+            table[entry].fid = rep->value.integer;
+          }
+          if (rep->iname == 26)
+          {
+            table[entry].iid = rep->value.integer;
+          }
+          break;
+        case OC_REP_STRING:
+
+          // at (14)
+          if (rep->iname == 14)
+          {
+            oc_free_string(&table[entry].at);
+            oc_new_string(&table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
+          }
+          break;
+        case OC_REP_INT_ARRAY:
+
+          // ga array (7)
+          if (rep->iname == 7)
+          {
+            // temp ptr to address the CBOR array
+            const int64_t* array = oc_int_array(rep->value.array);
+            const int new_array_size = (int)oc_int_array_size(rep->value.array);
+
+            // malloc of 'zero' byte return pointer is undefined
+            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            if (new_array && new_array_size > 0)
+            {
+              for (int i = 0; i < new_array_size; i++)
+              {
+                new_array[i] = (uint32_t)array[i];
+              }
+
+              // release a possible ga array, it will be overwritten,
+              // no selective adding (note it releases the org ptr)
+              // free ignores NULL ptr
+              free(table[entry].ga);
+
+              PRINT("ga size %d", new_array_size);
+
+              // assign only when the new array is allocated correctly
+              table[entry].ga_len = new_array_size;
+              table[entry].ga = new_array;
+            }
+          }
+          break;
+        default:
+          // any other invalid type prints ...
+          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
+          PRINT("invalid object type detected");
+          break;
+        }
         rep = rep->next;
       }
     }
@@ -2545,7 +2564,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].grpid = 0; // init value, used also in code to check on its validity
 
   // free "string" data memory only if already initialized
-  // assumes in table uninitialized/random string data - don't release it ... 
+  // assumes in table uninitialized/random string data - don't release it ...
   if (init == false)
   {
     oc_free_string(&table[entry].at);
@@ -2566,7 +2585,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
  * @param entry the index of the entry in the Group Table
  * @param store store name (PUB/RCP table)
  * @param table PUB/RCP table pointer
- * @param max_size the size of the table 
+ * @param max_size the size of the table
  */
 static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
@@ -2674,20 +2693,20 @@ static void oc_init_tables(void)
 
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    // init GPT table, assumes in PUB table uninitialized/random string data - don't release it ... 
+    // init GPT table, assumes in PUB table uninitialized/random string data - don't release it ...
     oc_free_group_table_entry(i, g_gpt, true);
   }
 #endif
 
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    // init GRT table,assumes in RCP table uninitialized/random string data - don't release it ... 
+    // init GRT table,assumes in RCP table uninitialized/random string data - don't release it ...
     oc_free_group_table_entry(i, g_grt, true);
   }
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    // init GO table, assumes in GO table uninitialized/random string data - don't release it ... 
+    // init GO table, assumes in GO table uninitialized/random string data - don't release it ...
     oc_free_group_object_table_entry(i, true);
   }
 }
@@ -2744,7 +2763,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
 
         // called from GET /p handler so always truncate resources URN's
         oc_add_resource_to_response_payload(
-          oc_ri_get_app_resource_by_resource_path(oc_string(g_got[index].href), oc_string_len(g_got[index].href)),
+          oc_ri_get_app_resource_by_resource_path(oc_string_checked(g_got[index].href), oc_string_len(g_got[index].href)),
           response_length, true);
         return_value = true;
       }
@@ -2780,9 +2799,9 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   // flags
   int my_transport_flags = IPV6 + MULTICAST;
 
-  #ifdef OC_OSCORE
+#ifdef OC_OSCORE
   my_transport_flags |= OSCORE;
-  #endif
+#endif
 
   oc_make_ipv6_endpoint(group_mcast, my_transport_flags, 
                         port, 0xff, 0x30 + scope, 0, 0x30,        // FF35::30:
@@ -2796,7 +2815,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
 
   group_mcast.group_address = group_nr;
 
-  // copy all from local data to (return) pointer 
+  // copy all from local data to (return) pointer
   memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
 
   return in;
@@ -2857,7 +2876,7 @@ uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uin
   {
     if (is_in_array(group_address, table[index].ga, table[index].ga_len))
     {
-      // break immediately 
+      // break immediately
       return table[index].grpid;
     }
   }
@@ -2908,7 +2927,7 @@ void oc_register_group_multicasts(void)
       }
     }
   }
-  
+
 #endif
 }
 
@@ -2926,7 +2945,7 @@ void oc_init_datapoints_at_initialization(void)
         if (g_got[i].cflags & OC_CFLAG_INIT)
         {
           // read on init cflags is set, fire (after device restart)
-          // no check on -1, there MUST be at least one sending GA 
+          // no check on -1, there MUST be at least one sending GA
           const uint32_t sending_group_address = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href), NULL);
 
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
@@ -2942,9 +2961,9 @@ void oc_init_datapoints_at_initialization(void)
           if (grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-            #ifdef OC_USE_MULTICAST_SCOPE_2
+#ifdef OC_USE_MULTICAST_SCOPE_2
             oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
-            #endif
+#endif
             oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
           }
           else

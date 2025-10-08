@@ -358,7 +358,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 		}
 	}
 
-	// get from device 0 info
+	// get device 0
 	const oc_device_info_t* device = oc_core_get_device_info();
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
@@ -628,7 +628,7 @@ void oc_wkcore_discovery_handler(oc_request_t* request, oc_interface_mask_t ifac
 			strncpy(sn_substr, ep_serialnumber_start_pos, ep_star_pos - ep_serialnumber_start_pos);
 		}
 
-		// - sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP) 
+	  // - sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP) 
 		// - sn.00fa...  fits to the sn entirely (useful on mc)
 		// - sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
 		if (strncmp(ep_serialnumber_start_pos, "*", 1) == 0 ||

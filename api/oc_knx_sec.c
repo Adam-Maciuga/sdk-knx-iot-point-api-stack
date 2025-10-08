@@ -353,14 +353,14 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
   bool changed = false;
 
   const oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+  while (rep)
   {
     PRINT("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name));
     if (rep->type == OC_REP_STRING)
     {
       if (rep->iname == 2) // 2: "renew"
       {
-        cmd = a_sen_convert_cmd(oc_string(rep->value.string));
+        cmd = a_sen_convert_cmd(oc_string_checked(rep->value.string));
         changed = true;
         break;
       }
