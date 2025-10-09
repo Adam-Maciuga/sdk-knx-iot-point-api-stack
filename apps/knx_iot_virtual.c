@@ -51,7 +51,6 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
 #endif
 #endif
 
-
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
   oc_separate_response_t* response = context;
@@ -242,6 +241,8 @@ extern int_datapoint_t test_parameter;
  The callbacks are called from the stack for an 's-mode' call (/k) and for a parameter and diagnostic
  'property' call (/p).
 
+ *Caller*
+
  - For the 's-mode' call the group object table configuration flags (cflags) and service type (w/r/a)
    are considered by the stack, but not for the 'property' call.
 
@@ -249,8 +250,11 @@ extern int_datapoint_t test_parameter;
    by the stack. The request payload (on w/a ->PUT) points to the actual value object.  
  - For a GET/PUT 'property' call the GET/PUT callback handler are called directly.
 
+ *Resource Path*
+
  - A KNX related resource path for the 's-mode' and 'property' communication SHALL be defined with
-   a leading '/p' (e.g.; '/p/lssb/soo'). Hence, the LSAB/LSSB application examples uses the leading '/p',
+   a leading '/p' (e.g.; '/p/lssb/soo'). The resource path SHALL NOT be empty. Hence, the LSAB/LSSB
+   application examples uses the leading '/p' with some application specific extension,
    also the EITT test application requires a leading '/p' for the EITT certification tests.
 
  - The /p callbacks MUST implement also additional required functionality.

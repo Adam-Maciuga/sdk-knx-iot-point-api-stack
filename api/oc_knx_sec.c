@@ -1234,6 +1234,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
       query_parameter_kvpair_matches++;
     }
   }
+
   if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)

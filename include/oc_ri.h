@@ -362,9 +362,7 @@ extern "C" {
 		OC_KNX_AUTH_AT,						/**< auth/at resource listing auth/at/X */
 		OC_KNX_AUTH_AT_X,					/**< auth/at/X resources */
 		OC_KNX_AUTH,							/**< auth list all sub resources */
-		/* List of resources on a logical device: start */
 		WELLKNOWNCORE             /**< well-known/core resource, is the last resource in the list  */
-		/* List of resources on a logical device: end */
 	} oc_core_resource_t;
 
 #define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE) // note that resources start with "0" 
@@ -463,7 +461,7 @@ extern "C" {
 	{
     struct oc_resource* next;             // link to next res. (can't be const, application res. changes data + ptr)
 		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
-		oc_string_array_t types;              // resource type array (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
+		oc_string_array_t types;              // resource type array (for a DPA such as 'urn:knx:dpa.0.58' -> dev/da, for an FB such as 'fb.0' -> dev/) 
 		oc_string_t dpt;                      // resource datapoint type
 		oc_content_format_t content_type[2];  // resource content types that will be supported (max two, first mandatory, second optional)  
 		oc_resource_properties_t properties;  // resource properties (e.g 'discoverable' - bit mask) 

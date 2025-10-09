@@ -38,7 +38,9 @@ extern "C" {
  * @param truncate if true the response payload SHALL carry the short URN for the resource types,
  *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.
  *
- * @note parameter truncate is always false when called from the well-known/core EP 
+ * @note
+ * - parameter truncate is always false when called from the well-known/core EP
+ * - 'invisible' resources are skipped
  *
  * @return true individual resource added to the response payload (incl. rt's, types, ...) 
  * @return false individual resource was not added to the response payload
