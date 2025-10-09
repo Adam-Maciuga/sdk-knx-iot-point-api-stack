@@ -714,7 +714,7 @@ extern const oc_resource_t core_resource_app;
 PRAGMA_IN oc_resource_data_t core_resource_dev_data;
 const oc_resource_t core_resource_dev = {(oc_resource_t*)&core_resource_app,
                                          {NULL, sizeof("/dev"), "/dev"},
-                                         {NULL, 0, NULL},
+                                         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.0"}},
                                          {NULL, 0, NULL},
                                          {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                          OC_DISCOVERABLE,
