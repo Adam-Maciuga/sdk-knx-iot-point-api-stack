@@ -1057,7 +1057,7 @@ extern const oc_resource_t core_resource_knx_fingerprint;
 PRAGMA_IN oc_resource_data_t core_resource_knx_k_data;
 const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fingerprint,
                                            {NULL, sizeof("/k"), "/k"},
-                                           {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:if.g.s"})},
+                                           {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:if.g.s"}},
                                            {NULL, 0, NULL},
                                            {APPLICATION_CBOR, CONTENT_NONE},
                                            OC_DISCOVERABLE,

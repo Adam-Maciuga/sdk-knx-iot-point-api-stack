@@ -711,7 +711,7 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  const int id = oc_uri_get_wildcard_value_as_int(
+  const int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri), 
     oc_string_len(request->resource->uri),
     request->uri_path,
@@ -764,7 +764,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(
+  int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path,
@@ -1267,7 +1267,7 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  const int id = oc_uri_get_wildcard_value_as_int(
+  const int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path,
@@ -1349,7 +1349,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(
+  int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path,
@@ -1847,7 +1847,7 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  const int id = oc_uri_get_wildcard_value_as_int(
+  const int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path,
@@ -1929,7 +1929,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_value_as_int(
+  int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path, 

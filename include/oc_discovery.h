@@ -26,14 +26,40 @@
 extern "C" {
 #endif
 
-/**
+  /**
+   * @brief  filters on an individual resource for a match with the request query parameters, on
+   *         a match include the resource in the response (in link-format)
+   *
+   *         Note it is ALSO a match when no query parameter is present!
+   *
+   * @param index the resource INDEX to be checked
+   * @param request  the request, with all query parameters
+   * @param response_length the current response length
+   * @param skipped number of entries already skipped (in case they fo not fit to the page number)
+   * @param first_entry first entry to be included
+   * @param truncate if true the response payload SHALL carry the short URN for the resource types,
+   *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.
+   *
+   * @note
+   * - parameter truncate is always false when called from the well-known/core EP
+   * - 'invisible' resources are skipped
+   *
+   * @return true individual resource added to the response payload (incl. rt's, types, ...)
+   * @return false individual resource was not added to the response payload
+   */
+  bool oc_check_request_from_index(int index, oc_request_t* request, size_t* response_length,
+                                    int* skipped, int first_entry, bool truncate);
+
+  /**
  * @brief  filters on an individual resource for a match with the request query parameters, on 
  *         a match include the resource in the response (in link-format)
+ *
+ *         Note it is ALSO a match when no query parameter is present! 
  *
  * @param resource the resource to be checked
  * @param request  the request, with all query parameters
  * @param response_length the current response length
- * @param skipped number of entries already skipped
+ * @param skipped number of entries already skipped (in case they fo not fit to the page number)
  * @param first_entry first entry to be included
  * @param truncate if true the response payload SHALL carry the short URN for the resource types,
  *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.
@@ -45,7 +71,7 @@ extern "C" {
  * @return true individual resource added to the response payload (incl. rt's, types, ...) 
  * @return false individual resource was not added to the response payload
  */
-bool oc_check_resource_by_request(const oc_resource_t *resource, oc_request_t *request, size_t *response_length,
+bool oc_check_request_from_resource(const oc_resource_t *resource, oc_request_t *request, size_t *response_length,
                         int *skipped, int first_entry, bool truncate);
 /**
  * @brief add the resource (uri, if, rt, ct) to the response in application link format
@@ -62,7 +88,7 @@ bool oc_check_resource_by_request(const oc_resource_t *resource, oc_request_t *r
  */
 bool oc_add_resource_to_response_payload(const oc_resource_t *resource,
                                          size_t *response_length,
-                                         const bool truncate);
+                                         bool truncate);
 
 #ifdef __cplusplus
 }

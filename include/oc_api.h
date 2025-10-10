@@ -745,9 +745,11 @@ extern "C"
   /**
    * @brief set a (FB) resource to a specific function block instance.
    *
-   * @note If there is just 'one' FB instance this function does not have
-   *       to be called (the default is FB instance 0, expressed as 417).
-   *       In case of more than one FB instance, an instance is expresses as 2-digit 417_01, 417_02, ... 
+   * @note
+   * - If there is just 'one' FB instance this function does not have
+   *   to be called (the default 0 means there is only one FB instance, such as 417).
+   * - In case of more than one FB instance, an instance is expressed in responses as a 2-digit
+   *   417_01, 417_02, ..., consequently the instance has to be set with 1, 2,...
    *
    * @param resource the resource
    * @param instance the instance id, as 1 to n.

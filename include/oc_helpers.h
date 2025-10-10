@@ -487,11 +487,11 @@ extern "C" {
 	bool oc_uri_contains_wildcard(const char* uri);
 
 	/**
-	 * @brief Retrieve the value as integer from an invoked URI whereas the corresponding EP MUST be
-	 *       defined with a wildcard value such as f/ * or g/ *.  
+	 * @brief Retrieve the value as integer from an invoked URI with assumed int values in the request,
+	 *        whereas the corresponding EP MUST be defined with a wildcard value such as fp/g/ *.  
 	 *
 	 * @note The wild card part of the URL should only contain a number, e.g. no prefix to the number.
-	 *       In case of, an invoked uri of 'f/004' or 'f/4' results both in an integer of 4.
+	 *       In case of, an invoked uri of 'fp/g/004' or 'fp/g/4' results both in an integer of 4.
 	 *			 
 	 * @param uri_resource The URI with wild card
 	 * @param uri_len The length of the URI with wild card
@@ -500,24 +500,28 @@ extern "C" {
 	 *
 	 * @return int -1 is error, otherwise the value is the integer value which is used as value for the wild card.
 	 */
-	int oc_uri_get_wildcard_value_as_int(const char* uri_resource, size_t uri_len,
+	int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_len,
 																			 const char* uri_invoked, size_t invoked_len);
 
 	/**
 	 * @brief retrieve the integer after the "_" (underscore)
-	 *        e.g. retrieve instance 1 from FB 333_1 as url and fb* as wild card
+	 *        e.g. retrieve instance 1 from FB url 333_1
 	 *
 	 * @param uri_resource The URI with wild card
 	 * @param uri_len The length of the URI with wild card
 	 * @param uri_invoked The URI that should match a wild card
 	 * @param invoked_len The URI length of the invoked URI
+	 * @param scan_from_left_side The info if value has to be taken from left side (true) of '_' or right side (false)
 	 *
-	 * @return int FB instance number (> 0) or -1 (not found)
+	 * @return int FB instance number
+	 * - instance, if instance url with number was defined
+	 * - 0, no instance url was defined
 	 */
-	int oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
-																												size_t uri_len,
-																												const char* uri_invoked,
-																												size_t invoked_len);
+	int oc_uri_get_wildcard_string_value_as_int(const char* uri_resource,
+                                              size_t uri_len,
+                                              const char* uri_invoked,
+                                              size_t invoked_len,
+                                              bool scan_from_left_side);
 
 	/**
 

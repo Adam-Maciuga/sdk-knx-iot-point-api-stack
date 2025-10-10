@@ -187,8 +187,7 @@ void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t 
 	request->response->response_buffer->code = oc_status_code(response_code);
 }
 
-void
-oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code)
+void oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code)
 {
 	oc_send_response_raw(request, (const uint8_t*) msg, msg_len, TEXT_PLAIN, response_code);
 }
@@ -323,8 +322,7 @@ oc_resource_make_public(oc_resource_t* resource)
 }
 #endif 
 
-void
-oc_resource_set_discoverable(oc_resource_t* resource, bool state)
+void oc_resource_set_discoverable(oc_resource_t* resource, bool state)
 {
 	if (resource == NULL)
 	{

@@ -837,8 +837,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
-    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -868,7 +867,7 @@ extern const oc_resource_t core_resource_sub;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_data;
 const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
                                              {NULL, sizeof("/swu"), "/swu"},
-                                             {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.swu"})},
+                                             {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.swu"}},
                                              {NULL, 0, NULL},
                                              {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                              OC_DISCOVERABLE,

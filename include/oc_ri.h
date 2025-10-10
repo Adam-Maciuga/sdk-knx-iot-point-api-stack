@@ -362,10 +362,10 @@ extern "C" {
 		OC_KNX_AUTH_AT,						/**< auth/at resource listing auth/at/X */
 		OC_KNX_AUTH_AT_X,					/**< auth/at/X resources */
 		OC_KNX_AUTH,							/**< auth list all sub resources */
-		WELLKNOWNCORE             /**< well-known/core resource, is the last resource in the list  */
+		WELLKNOWNCORE,            /**< well-known/core resource, is the last resource in the list  */
 	} oc_core_resource_t;
 
-#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE) // note that resources start with "0" 
+#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE) // number of core resources, note that first resource index is "0" 
 
 	typedef struct oc_resource oc_resource_t;
 
@@ -472,7 +472,7 @@ extern "C" {
 		oc_properties_cb_t get_properties;    // callback for get properties 
 		oc_properties_cb_t set_properties;    // callback for set properties 
 		uint16_t observe_period_seconds;      // observe period in seconds 
-		uint8_t fb_instance;                  // function block instance, default = 0 
+		uint8_t fb_instance;                  // functional block instance, init with 0 as default, means only one instance of this FB is present 
 		bool is_const;                        // resource is precompiled (core = true) or not (application = false)
 		oc_resource_data_t* runtime_data;     // for an endpoint its modifiable data AT RUNTIME (which one, see resource type)
   };

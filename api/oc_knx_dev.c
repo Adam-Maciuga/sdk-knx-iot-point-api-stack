@@ -683,8 +683,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request, oc_interface_mask
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
-    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -1071,8 +1070,6 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-
-
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
@@ -1100,8 +1097,7 @@ static void oc_core_ap_get_handler(oc_request_t* request, oc_interface_mask_t if
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
-    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }

@@ -43,14 +43,14 @@ extern "C" {
  * @param short_urn_form if the urn:knx needs to be added as part of response or not (/well-known vs /f)
  * @param response_length the current response length
  * @param matches number of matches (so far)
- * @param skipped number of entries already skipped
+ * @param skipped number of entries already skipped (in case they fo not fit to the page number)
  * @param first_entry first entry to be included
  * @param last_entry last entry to be included (exclusive)
  * @return true (at least one FB was added)
  * @return false (no FB was added)
  *
  */
-bool oc_was_adding_function_blocks_to_response(oc_request_t *request, bool short_urn_form,
+bool oc_add_functional_blocks_from_application_to_response(oc_request_t *request, bool short_urn_form,
                                         size_t *response_length, int *matches,
                                         int *skipped, int first_entry,
                                         int last_entry);
