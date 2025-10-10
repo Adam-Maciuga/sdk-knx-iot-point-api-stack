@@ -54,31 +54,31 @@
         "OC_DEBUG_ENABLED": true,
         "OC_PRINT_ENABLED": true,
         "OC_DEBUG_OSCORE_ENABLED": true
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
     },
-    "condition": {
-      "type": "equals",
-      "lhs": "${hostSystemName}",
-      "rhs": "Windows"
-    }
-  },
-  {
-    "name": "windows-release-gcc",
-    "displayName": "Windows Release(gcc)",
-    "description": "Build with MinGW-w64 GCC in Release mode",
-    "generator": "Ninja",
-    "binaryDir": "${sourceDir}/out/build/${presetName}",
-    "installDir": "${sourceDir}/out/install/${presetName}",
-    "cacheVariables": {
-      "CMAKE_BUILD_TYPE": "Release",
-      "CMAKE_C_COMPILER": "gcc",
-      "CMAKE_CXX_COMPILER": "g++"
+    {
+      "name": "windows-release-gcc",
+      "displayName": "Windows Release(gcc)",
+      "description": "Build with MinGW-w64 GCC in Release mode",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
     },
-    "condition": {
-      "type": "equals",
-      "lhs": "${hostSystemName}",
-      "rhs": "Windows"
-    }
-  },
     {
       "name": "linux-debug-gcc",
       "displayName": "Linux Debug(gcc)",
@@ -96,6 +96,47 @@
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
+      }
+    },
+    {
+      "name": "EMS-PoC-Debug",
+      "displayName": "EMS-PoC Debug",
+      "description": "Target: Windows, IDE: VS",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "OC_DEBUG_ENABLED": true,
+        "OC_PRINT_ENABLED": true,
+        "OC_DEBUG_OSCORE_ENABLED": true,
+        "OC_REPLAY_PROTECTION_ENABLED": false
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "EMS-PoC-Release",
+      "displayName": "EMS-PoC Release",
+      "description": "Target: Windows, IDE: VS",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "OC_REPLAY_PROTECTION_ENABLED": false
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     }
   ]
