@@ -111,7 +111,7 @@ void register_resources(void)
     oc_resource_bind_content_type(soo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
     oc_resource_bind_content_type(ioo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
 
-    // set instance to 1 (even if there are no more instances) for EITT test 5.7.2.1
+    // set instance to 1 (even if there are no more instances); for EITT test 5.7.2.1 with default template test value 00417_01
     oc_resource_set_function_block_instance(soo_resource_lsab, 1);
     oc_resource_set_function_block_instance(ioo_resource_lsab, 1);
 
@@ -166,8 +166,6 @@ void register_resources(void)
     oc_resource_bind_dpt(tp0, test_parameter.dpt);
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
-
-    oc_resource_set_function_block_instance(tp0, 1);
 
     oc_resource_set_discoverable(tp0, true);
 

@@ -140,8 +140,6 @@ void register_resources(void)
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
 
-    oc_resource_set_function_block_instance(tp0, 1);
-
     oc_resource_set_discoverable(tp0, true);
 
     oc_resource_set_observable(tp0, true);
