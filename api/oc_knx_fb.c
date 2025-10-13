@@ -39,8 +39,15 @@ int get_fb_number_from_dp(const char* dpt)
   // first '.'
   const char* dot = strchr(dpt, '.');
 
-  // number after '.'
-  return dot ? strtol(dot + 1, NULL, 10) : -1;
+  // no dot in 'urn:knx:dpa.0.13'
+  if (!dot)
+    return -1;
+
+  // convert number after first '.' until next non numerical char '.' -> is expected for a DPA scheme
+  errno = 0;
+  const int fb_number = strtol(dot + 1, NULL, 10);
+
+  return errno ? -1 : fb_number;
 }
 
 bool is_in_g_array(int value, int instance)
@@ -376,7 +383,7 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
   int original_matches = *matches;
   int counter = 0;
 
-  // scan all DPA resources to derive from it to the number of used FBs
+  // scan all resources to derive from it to the number of used FBs
   for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
     // skip non discoverable resources
@@ -390,13 +397,11 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
         // get single type
         const char* t = oc_string_array_get_item(types, i);
 
-        /*
-             regular functional block, framing by functional block numbers & instances
-             note each FB resource has a 'dpa' type assigned
-             (well-know EP with urn:..., knx specific EP without urn:...)
-             note that a possible present iot router FB is also counted ones
-        */
-        if (strncmp(t, ":dpa", 4) == 0 || strncmp(t, "urn:knx:dpa", 11) == 0)
+       /*
+          framing by functional block numbers & instances, each
+          FB resource MUST have 1...n 'dpa' type(s) assigned with a FULL URN
+       */
+        if (strncmp(t, "urn:knx:dpa", 11) == 0)
         {
           const int fb_number = get_fb_number_from_dp(t);
           const int fb_instance = resource->fb_instance;
@@ -417,10 +422,12 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
   {
     if (*skipped < first_entry)
     {
+      // less than what is expected for the page 
       (*skipped)++;
     }
     else if (first_entry + *matches >= last_entry)
     {
+      // page full
       return matches;
     }
     else
