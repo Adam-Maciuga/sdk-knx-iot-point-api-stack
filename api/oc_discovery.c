@@ -615,8 +615,8 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			strncpy(ia_str, ep_ia_start_pos, ep_ia_end_pos - ep_ia_dot_pos);
 		}
 
-		// string is hex formatted, on conversion error = 0
-		const uint16_t ia = strtoul(ia_str, NULL, 16);
+		// string is hex formatted, on conversion error = 0 --> ignores request
+		const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
 
 		if (ia == device->ia)
 		{
@@ -634,10 +634,17 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			}
 		}
 
-		// on unicast/multicast request w/ query parameter and NO hit
-		// TODO topic will be decided by iot group (#14 clarification list)
-		oc_ignore_request(request);
-		return;
+		if (request->origin && request->origin->flags & MULTICAST)
+    {
+      // multicast request w/ query parameter and NO hit
+      oc_ignore_request(request);
+    }
+    else
+    {
+      // unicast request w/ query parameter and NO hit
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+    }
+    return;
 	}
 
 	// handle serial number
@@ -787,8 +794,8 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 { 
 	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
-	{ NULL, 0, NULL },																														// DPA types, see comment above 
-	{ NULL, 0, NULL },																						 								// DPT type, see comment above - if none => 3 x NULL
+	{ NULL, 0, NULL },																														// resource types, see comment above 
+	{ NULL, 0, NULL },																						 								// datapoint type, see comment above - if none => 3 x NULL
 	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },																							 		// content formats (max 2)
 	OC_DISCOVERABLE,																																					 		// resource properties
 	{ oc_well_known_core_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },		// get callback
