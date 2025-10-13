@@ -948,18 +948,6 @@ extern "C"
   void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
 
   /**
-   * @brief send the request, no processing
-   *
-   * @param request the request to send
-   * @param payload the payload for the request
-   * @param size the payload size
-   * @param content_format the content format
-   * @param response_code the response code to send
-   */
-  void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size, oc_content_format_t content_format,
-                            oc_status_t response_code);
-
-  /**
    * @brief retrieve the response payload, without processing
    *
    * @param response the response
@@ -971,18 +959,6 @@ extern "C"
    */
   bool oc_get_response_payload_raw(oc_client_response_t* response, const uint8_t** payload, size_t* size,
                                    oc_content_format_t* content_format);
-
-  /**
-   * @brief send a diagnostic payload
-   *
-   * @param request the request
-   * @param msg the message in ASCII
-   * @param msg_len the length of the message
-   * @param response_code the CoAP response code
-   */
-  void oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code);
-
-
   /**
    * Ignore the request
    *

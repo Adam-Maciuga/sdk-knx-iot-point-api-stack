@@ -177,21 +177,6 @@ more_or_done:
 
 #ifdef OC_SERVER
 
-void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size,
-										 oc_content_format_t content_format,
-										 oc_status_t response_code)
-{
-	request->response->response_buffer->content_format = content_format;
-	memcpy(request->response->response_buffer->buffer, payload, size);
-	request->response->response_buffer->response_length = size;
-	request->response->response_buffer->code = oc_status_code(response_code);
-}
-
-void oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code)
-{
-	oc_send_response_raw(request, (const uint8_t*) msg, msg_len, TEXT_PLAIN, response_code);
-}
-
 oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 {
 	oc_resource_t* resource = NULL;
@@ -239,12 +224,12 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 		  resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
 			resource->delete_handler.interface_mask = OC_IF_NONE;
 
-			// observe
-			resource->observe_period_seconds = 0;
+			// observe + functional block instance + is_const are '0', cleared by (c)alloc 
 
-			// for dynamic (application) resources = false,
-			// note, for precompiled (core) resources it is always true
-			resource->is_const = false;
+			// dynamic (application) resources = false, precompiled (core) resources are always true
+			// resource->is_const = false;
+      // resource->observe_period_seconds = 0;
+      // resource->fb_instance = 0;
 
 			// runtime modifiable data
 			resource->runtime_data = data;
@@ -288,7 +273,7 @@ void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt)
 		return;
 	}
 	oc_free_string(&resource->dpt);
-	memset(&resource->dpt, 0, sizeof(oc_string_t));
+	
 	if (dpt)
 	{
 		oc_new_string(&resource->dpt, dpt, strlen(dpt));
@@ -477,7 +462,7 @@ bool oc_resource_get_all_interfaces_for_a_resource(const oc_resource_t* resource
 	if (resource->get_handler.cb)
 	{
     at_least_one_handler_defined = true;
-	  * interfaces|= resource->get_handler.interface_mask;
+	  *interfaces|= resource->get_handler.interface_mask;
 	}
 
 	// PUT defined
