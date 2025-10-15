@@ -37,7 +37,7 @@ extern "C"
 
   bool oscore_is_oscore_message(oc_message_t* msg);
 
-  int coap_parse_oscore_option(void* packet, uint8_t* current_option, size_t option_length);
+  int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t option_length);
 
   size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, uint8_t* buffer);
 

@@ -121,11 +121,11 @@ bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16]
 				history[i].port == port && 
 				memcmp(history[i].address, address, 16) == 0)
 		{
-      OC_DBG("dropping request: is duplicate -> message ID: %d, history[%d]", mid, (int)i);
+      OC_DBG("dropping message, is duplicate with message ID: %d, history[%d]", mid, (int)i);
 			return true;
 		}
 	}
-  OC_DBG("processing request: is new");
+  OC_DBG("processing message ...");
 	return false;
 }
 #endif
@@ -616,12 +616,19 @@ int coap_receive(oc_message_t* incoming_message)
 
 			bool is_myself = false;
 
-			// check if incoming message is from myself, if so, then return with bad request
+			/*
+			  check if incoming message is from myself,
+			  - yes : return with bad request
+				- no : continue
+
+        Note that many 'message payload' identical requests may pop up here,
+        it depends on how many endpoints (IP addresses) are registered.  
+      */
 			for (oc_endpoint_t* ep_i = oc_connectivity_get_endpoints(); ep_i; ep_i = ep_i->next)
 			{
 				#ifdef OC_DEBUG
 
-				PRINT("engine, test on myself for ");
+				PRINT("testing message ...");
 				PRINTipaddr(*ep_i);
 
 				#endif
@@ -630,11 +637,13 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					if (incoming_message->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port)
 					{
-						OC_DBG("handling message: N (same address and port)");
+						OC_DBG("declining message ... (same address and port)");
 						is_myself = true;
 					}
+          #ifdef OC_DEBUG
 					else 
-					  OC_DBG("handling message: Y ");
+					  OC_DBG("accepting message ...");
+          #endif
 				}
 			}
 

@@ -515,11 +515,16 @@ oc_string_is_hex_array(oc_string_t hex_string)
 
 size_t oc_char_print_hex(const char* str, size_t str_len)
 {
+  #ifdef OC_DEBUG
   for (size_t i = 0; i < str_len; i++)
   {
     PRINTF("%02x", (unsigned char) str[i]);
   }
   return str_len;
+  #else
+  retun 0;
+  #endif
+
 }
 
 size_t oc_string_print_hex(oc_string_t hex_string)

@@ -213,7 +213,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     uint8_t AAD[OSCORE_AAD_MAX_LEN], AAD_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
-    OC_DBG_OSCORE("### parse OUTER OSCORE message ###");
+    OC_DBG_OSCORE("parse OUTER OSCORE message");
     if (oscore_parse_outer_message(msg, oscore_pkt) != COAP_NO_ERROR)
     {
       /*
@@ -227,7 +227,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       {
         // error in request
         msg->endpoint.flags &= ~OSCORE;
-        OC_ERR("***error parsing outer message, unsecured 4.02***");
+        OC_ERR("error parsing outer message, unsecured 4.02");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
       }
 
@@ -251,7 +251,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     if (oscore_pkt->kid_len > 0)
     { // kid IS present - message is a request 
 
-      OC_DBG_OSCORE("---> searching OSCORE context from incoming message by kid (len %d) : ", oscore_pkt->kid_len);
+      OC_DBG_OSCORE("searching OSCORE context from incoming message by kid (len %d) : ", oscore_pkt->kid_len);
       OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
 
       oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
@@ -285,7 +285,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
                - inform AL on failed echo challenge would be needed
             */
 
-            OC_ERR("***Could not find Access Token matching KID, stop processing***");
+            OC_ERR("could not find Access Token matching KID, stop processing");
             goto oscore_recv_error;
           }
 
@@ -322,7 +322,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           */
           msg->endpoint.flags &= ~OSCORE;
 
-          OC_ERR("***Could not find Access Token matching 'kid', unsecured 4.01***");
+          OC_ERR("could not find Access Token matching 'kid', unsecured 4.01");
           oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint);
           goto oscore_recv_error;
         }
@@ -374,7 +374,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
             */
             msg->endpoint.flags &= ~OSCORE;
 
-            OC_ERR("***Could not create oscore recipient context, unsecured 5.00***");
+            OC_ERR("could not create oscore recipient context, unsecured 5.00");
             oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint);
             goto oscore_recv_error;
           }
@@ -414,7 +414,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         */
         msg->endpoint.flags &= ~OSCORE;
 
-        OC_ERR("***OSCORE protected request lacks kid param, unsecured 4.02***");
+        OC_ERR("***OSCORE protected request lacks kid param, return unsecured 4.02***");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint);
         goto oscore_recv_error;
       }
@@ -856,7 +856,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     // get the corresponding sender context for the access token, will be found only in case former inbound request, pick the first hit 
     OC_DBG_OSCORE("### Found auth at entry, getting context ###");
     oscore_ctx = oc_oscore_find_context_by_kid(
-      NULL,
       (uint8_t*)oc_string(entry->osc_id),
       oc_byte_string_len(entry->osc_id));
   }
@@ -972,7 +971,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (oscore_ctx)
   {
     OC_DBG_OSCORE("#################################");
-    OC_DBG_OSCORE("found OSCORE context with sender id=%s", oscore_ctx->sender_id);
+    OC_DBG_OSCORE("found OSCORE context with sender id =%p : ", oscore_ctx->sender_id);
 
     /* Use sender key for encryption */
     uint8_t* key = oscore_ctx->sender_key;
