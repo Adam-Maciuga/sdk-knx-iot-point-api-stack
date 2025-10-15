@@ -208,16 +208,16 @@ extern "C" {
 
 	#endif
 
-									/**
-									* @brief Helper macros to create const versions of oc types
-									* These are special and need some help to understand things correctly
-									*/
-									/**
-									* @brief creates a const oc_mmem struct
-									* unlikely to be used outside the library
-									* @param count number of elements
-									* @param ptr pointer to const data
-									*/
+	/**
+	* @brief Helper macros to create const versions of oc types
+	* These are special and need some help to understand things correctly
+	*/
+	/**
+	* @brief creates a const oc_mmem struct
+	* unlikely to be used outside the library
+	* @param count number of elements
+	* @param ptr pointer to const data
+	*/
 	#define oc_mmem_create_const(count, ptr)                                     \
   {                                                                            \
     NULL, count, ptr                                                           \
@@ -250,14 +250,12 @@ extern "C" {
 	#define oc_bool_array_size(ocboolarray) ((ocboolarray).size)
 	#define oc_float_array_size(ocfloatarray) ((ocfloatarray).size)
 	#define oc_double_array_size(ocdoublearray) ((ocdoublearray).size)
-	#define oc_string_array_size(ocstringarray)                                    \
-  ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
+	#define oc_string_array_size(ocstringarray) ((ocstringarray).size / STRING_ARRAY_ITEM_MAX_LEN)
 	#define oc_int_array(ocintarray) (oc_cast(ocintarray, int64_t))
 	#define oc_bool_array(ocboolarray) (oc_cast(ocboolarray, bool))
 	#define oc_float_array(ocfloatarray) (oc_cast(ocfloatarray, float))
 	#define oc_double_array(ocdoublearray) (oc_cast(ocdoublearray, double))
-	#define oc_string_array(ocstringarray)                                         \
-  ((char(*)[STRING_ARRAY_ITEM_MAX_LEN])(OC_MMEM_PTR(&(ocstringarray))))
+	#define oc_string_array(ocstringarray) ((char(*)[STRING_ARRAY_ITEM_MAX_LEN])(OC_MMEM_PTR(&(ocstringarray))))
 
 	#ifdef OC_DYNAMIC_ALLOCATION
 	#define STRING_ARRAY_ITEM_MAX_LEN 32

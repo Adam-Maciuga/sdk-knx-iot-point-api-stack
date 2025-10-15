@@ -258,8 +258,10 @@ extern "C" {
    *
    * @return true
    * - key 'rt' is present and resource interface type DO match the value from the request
-   * - key 'rt' is present and the value from the request is a '*' wildcard (at least one type must be assigned to a resource)
+   * - key 'rt' is present and the value from the request is a '*' wildcard
+   *   (at least one resource type must be assigned that matches the wildcard)
    * - key 'rt' is NOT present
+   *
    * @return false
    * - key 'if' is present and resource interface type DO NOT match the value from the request
    *

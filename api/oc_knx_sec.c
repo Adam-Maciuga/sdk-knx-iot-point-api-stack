@@ -726,6 +726,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             // default, overwritten if GA array was correctly assigned
             g_at_entries[array_index].scope = OC_ACL_NONE;
 
+            // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
             const int new_array_size = oc_int_array_size(object->value.array);
 
@@ -882,10 +883,10 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       /*
-        a: created +  id only/< 5 elements  = ERROR (to few elements)
-        b: created +  5 elements            = OK (create)
-        c: changed +  id only               = OK (delete)
-        d: changed +  1...n elements        = OK (update)
+        a: created +  id only/< min elements = ERROR (to few elements)
+        b: created +  5 elements             = OK (create)
+        c: changed +  id only                = OK (delete)
+        d: changed +  1...n elements         = OK (update)
 
       */
 
@@ -1531,7 +1532,7 @@ static void oc_load_at_table_entry(int entry)
           // ga array with GAs from MaC
           if (rep->iname == 777)
           {
-            // storage array + len
+            // a load command does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(rep->value.array);
             const int new_array_size = oc_int_array_size(rep->value.array);
 

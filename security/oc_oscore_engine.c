@@ -943,7 +943,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (coap_pkt->code > OC_FETCH // Response
       && coap_pkt->echo_len > 0 // With Echo Challenge
       && entry->ga_len > 0 // For an S-Mode Message
-      )
+      /* && message->endpoint.flags & MULTICAST*/
+      ) // TODO request based from  multicast or unicast ? 
   {
     unsigned char rnd[10];
 

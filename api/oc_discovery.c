@@ -331,8 +331,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	char* d_request = 0;    // 'd'
 	int d_len = 0;
 
-
-	int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found 
+	int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
 	size_t response_length = 0;
   int skipped = 0;	// ignore resources that do not fit to the requested page
 	int query_pn = PAGE_NUMBER;
@@ -394,7 +393,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
    * with rt/if query parameter
    * - (a1) core resources (/dev, /k, ...) -> for those the rt/if filter fits 
    * - (b0) see above
-   * - (c1) all 'visible' application resources -> at least one resource type must be defined (such 'urn:knx:dpa.0.xx')
+   * - (c1) all 'visible' application resources -> at least one resource path must be defined (such '/p/1')
    */
 
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
@@ -717,15 +716,16 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	if (!current_page_is_full && request->origin && !(request->origin->flags & MULTICAST))
 	{ // unicast: page not full, things can still be added
 
-		// add FBs in case of .../core discovery request contains matching query parameters,
-		// such as query parameter rt=fb.0 or rt=*
+		// add FBs in case of well-known discovery request contains matching query parameters:
+		// - not present at all
+		// - rt=*, rt=*fb* -> urn:knx:fb.321
+		// - if=*, if=*ll* -> urn:knx:id.ll
 		if (oc_check_if_functional_blocks_need_to_add(request))
 		{
-
 			PRINT("oc_well_known_core_discovery_handler add functional block resources ...");
 
+			// note that this function is reusing the number of counted FBs 
 		  oc_add_functional_blocks_from_application_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
-
 		}
 	}
 
@@ -733,7 +733,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	{
 		// unicast or multicast request
 		// matches/response_length >0/>0
-		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device (and added to response)
+		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device AND added to the response
 
 		// add only a page hint if at least one response entry is in
 		if (more_request_needed)
@@ -750,7 +750,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		// matches/response_length ?/?
 		// m>0;l=0 : -- > at least one query parameter KEY/VALUE pair found but no hit for this device (nothing added to response)
 		// m=0;l>0 : -- > n/a (no query parameter KEY/VALUE pair but a hit ....)
-		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device --> 
+		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device
 
 		if (request->origin && request->origin->flags & MULTICAST)
 		{ // multicast request

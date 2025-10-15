@@ -32,13 +32,12 @@
 #define GOT_STORE "dev_knx_got_entry"       // GO table base file name
 #define FPT_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' PUB/RCP/GO FILE entries
 
-// identifier for minimum pub/rcp properties
-#define TABLE_ATREF (1 << 0)
-#define TABLE_GAS (1 << 1)
+#define TABLE_ATREF (1 << 0) // identifier for pub/rcp table access token ref property
+#define TABLE_GAS (1 << 1) // identifier for pub/rcp table ga list ref property
 
-// identifier for minimum group object properties
-#define GO_HREF (1 << 0)
-#define GO_GAS (1 << 1)
+// identifier for group object properties
+#define GO_HREF (1 << 0) // identifier for go table href ref property
+#define GO_GAS (1 << 1) // identifier for go table ga list ref property
 
 // note static variables are initialized with '0' first time
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
@@ -466,10 +465,14 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-#define MANDATORY_GO_PROPERTIES (4) // id, ga, cflags and href must be present
-      bool id_only = true; // used to delete the GO table entry
+      // id, ga array (filled or empty), cflags and href must be present
+      #define MANDATORY_GO_PROPERTIES (4) 
 
-      uint8_t allocator = 0; // identify which "stack" memory resource are allocated during the post
+      // used to delete the GO table entry
+      bool id_only = true; 
+
+      // identify which 'string' memory resource are allocated during the post
+      uint8_t allocator = 0; 
       oc_group_object_table_t tmp_go_entry = g_got[array_index]; // fill with live GO (from a present entry or from an empty entry)
 
       // set GO id
@@ -523,6 +526,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7)
           if (object->iname == 7)
           {
+            // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
             const int new_array_size = oc_int_array_size(object->value.array);
 
@@ -574,10 +578,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
       }
 
       /*
-        a: created +  id only/< 3 elements  = ERROR (to few elements)
-        b: created +  4 elements            = OK (create)
-        c: changed +  id only               = OK (delete)
-        d: changed +  1..3 elements         = OK (update)
+        a: created +  id only/< min elements = ERROR (to few elements)
+        b: created +  4 elements             = OK (create)
+        c: changed +  id only                = OK (delete)
+        d: changed +  1..3 elements          = OK (update)
 
       */
 
@@ -1024,13 +1028,13 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
       }
 
-// id + ga array (filled or empty) + grpid OR id + ia + at must be present
-#define MANDATORY_GPT_PROPERTIES (3)
+      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
+      #define MANDATORY_GPT_PROPERTIES (3)
 
       // to delete a PUB table entry
       bool id_only = true;
 
-      // identify which "stack" memory resource are allocated during the post
+      // identify which 'string' memory resource are allocated during the post
       uint8_t allocator = 0;
 
       // fill with live PUB entry (from a present/empty entry)
@@ -1100,6 +1104,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7) - used on multicast
           if (object->iname == 7) // resource 'ga array'
           {
+            // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
             const int array_size = oc_int_array_size(object->value.array);
 
@@ -1168,10 +1173,10 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         Options
         -------
 
-        a: created +  id only/< 3 elements  = ERROR (to few elements)
-        b: created +  3 elements            = OK (create)
-        c: changed +  id only               = OK (delete)
-        d: changed +  1/2 elements          = OK (update)
+        a: created +  id only/< min elements = ERROR (to few elements)
+        b: created +  3 elements             = OK (create)
+        c: changed +  id only                = OK (delete)
+        d: changed +  1/2 elements           = OK (update)
 
       */
 
@@ -1560,8 +1565,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // non-confirmable flag for a new entry is init to false ONLY once on creation (not on a possible 'changed' update)
       }
 
-// id + ga array (filled or empty) + grpid OR id + ia + at must be present
-#define MANDATORY_GRT_PROPERTIES (3)
+      // id + ga array (filled or empty) + grpid OR id + ia + at must be present
+      #define MANDATORY_GRT_PROPERTIES (3)
 
       // used to delete the RCP table entry
       bool id_only = true;
@@ -1618,17 +1623,17 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // at (14) - used on unicast, see IMPORTANT notes below (in Options)
+          // at id (14) - used on unicast, see IMPORTANT notes below (in Options)
           if (object->iname == 14)
           {
-            // set (new) at in tmp copy (org ptr still valid)
+            // set (new) at id in tmp copy (org ptr still valid)
             oc_new_string(&tmp_grt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
             allocator |= TABLE_ATREF;
           }
 
           break;
-        case OC_REP_INT_ARRAY:
+        case OC_REP_INT_ARRAY: 
 
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
@@ -1636,6 +1641,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7) - used on multicast
           if (object->iname == 7)
           {
+            // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
             const int new_array_size = oc_int_array_size(object->value.array);
 
@@ -1717,10 +1723,10 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         Options
         -------
 
-        a: created +  id only/< 3 elements  = ERROR (to few elements)
-        b: created +  3 elements            = OK (create)
-        c: changed +  id only               = OK (delete)
-        d: changed +  1/2 elements          = OK (update)
+        a: created +  id only/< min elements = ERROR (to few elements)
+        b: created +  3 elements             = OK (create)
+        c: changed +  id only                = OK (delete)
+        d: changed +  1/2 elements           = OK (update)
 
 
         Notes
@@ -2203,7 +2209,7 @@ void oc_load_group_object_table_entry(int entry)
           // ga array (7)
           if (rep->iname == 7)
           {
-            // temp ptr to address the CBOR array
+            // a load command does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(rep->value.array);
             const int new_array_size = oc_int_array_size(rep->value.array);
 
@@ -2496,7 +2502,7 @@ static void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* 
           // ga array (7)
           if (rep->iname == 7)
           {
-            // temp ptr to address the CBOR array
+            // a load command does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(rep->value.array);
             const int new_array_size = (int)oc_int_array_size(rep->value.array);
 
