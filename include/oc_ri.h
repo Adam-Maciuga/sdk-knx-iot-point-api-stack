@@ -472,10 +472,19 @@ extern "C" {
 		oc_properties_cb_t get_properties;    // callback for get properties 
 		oc_properties_cb_t set_properties;    // callback for set properties 
 		uint16_t observe_period_seconds;      // observe period in seconds 
-		uint8_t fb_instance;                  // functional block instance, init with 0 as default, means only one instance of this FB is present 
-		bool is_const;                        // resource is precompiled (core = true) or not (application = false)
+		uint32_t fb_data;                     // compressed FB data* (see extra details)
+		bool is_const;                        // resource is precompiled (core = true, application = always false, will be dynamically allocated)
 		oc_resource_data_t* runtime_data;     // for an endpoint its modifiable data AT RUNTIME (which one, see resource type)
   };
+
+	/*
+	   * info is encoded PER resource
+	     - the FB number (hi 16 bit) the resource belongs to
+	     - the FB instance (mid 8 bit) the resource belongs to
+	     - the to this FB instance belonging datapoints (low 8 bit), encoded on any resource (there is no parent FB container available in the stack) 
+
+	   init with 0 means instance = 0 = default = only one FB instance present
+	*/
 
 	// defined to safe space since only the next is of interest 
 	typedef struct oc_resource_dummy_s

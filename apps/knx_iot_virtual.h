@@ -46,20 +46,26 @@
 
 /*
 
-  memory
+ Datapoint definitions, used to register/create a datapoint resource in the application, 
+ either the href/description/... data consumes the space this static structure definition, or
+ they are hard coded when you register them, so no space difference but better structured
 
-  - datapoint definitions, used to register/create a datapoint resource in the application, 
-    either the href/description/... data consumes the space this static structure definition, or
-    they are hard coded when you register them, so no space difference but better structured
 
-   value types
+  - value types must respect the bit size definition of a MaC (ETS) product, e.g.; 32-bit int or bool
 
-   - must respect the bit size definition of a MaC (ETS) product, e.g.; 32-bit int or bool
+  - the resource path, details see callback handler 'Callback Notes'
 
-   id
-   - used for an n-fold channel oriented application to define a generic PUT/GET handler for all channels,
-     the addressed channel and datapoint can be identified from the generic handler, e.g. by setting the value
-     to ch# << 8 + point# (see code application examples)
+  - the resource (DPA) type MUST be in FULL URN notation:
+    - a GET {ipv6-unicast}/{point-path}?m asks with SHORT URN (see handler)
+    - a GET {ipv6-multicast}/.well-known/core asks with SHORT URN or FULL URN
+    - scanning all application resources demands a FULL URN
+
+  - the resource (DPT) type
+  
+
+  - the id used for an n-fold channel oriented application to define a generic PUT/GET handler for all channels,
+    the addressed channel and datapoint can be identified from the generic handler, e.g. by setting the value
+    to ch# << 8 + point# (see code application examples)
 
 */
 typedef struct
@@ -81,12 +87,33 @@ typedef struct
   char* name;
 } int_datapoint_t;
 
+/*
+  Defines the basic (channel oriented) structure of a LSAB/LSSB/EITT functional block definition.
 
-// defines the basic (channel oriented) structure of a LSAB/LSSB/EITT functional block definition 
+  An FB consists of a number of datapoints with its values, endpoints (EP) and URNs.
+
+  - the FB number, despite any DPA scheme that is used from the in FB included datapoints
+    (note that an FB such as 417 may also reuse predefined datapoints from other FB's with DPA type 312.xx, 2nn.xx or similar, 
+     FB 421 is NOT only using 'self defined' 417.xx types)
+
+  - the FB instance, 0...n, 0 = only one instance, > 0 more than one instance, see also 'oc_resource_set_function_block_instance'
+
+  - the number of 'visible' datapoint in an FB, note that if this number WOULD change e.g.; when adding/deleting resources or make some invisible   
+    - caused by ETS (e.g, partial download with changed parameter setting)
+    - caused by own application at runtime (e.g, HMI parameter adjustment by user)
+    the correct number must be applied by the application to the FB. 
+
+  - the datapoints, see above
+
+*/
 typedef struct
 {
+  uint16_t fb_number;
+  uint8_t fb_instance;
+  uint8_t fb_number_of_datapoints;
+
   bool_datapoint_t point[NUM_POINTS];
-} lsxb_channel_t;
+} lsxb_channel_t, functional_block_t;
 
 
 #ifdef __cplusplus

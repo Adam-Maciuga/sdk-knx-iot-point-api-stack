@@ -752,9 +752,11 @@ extern "C"
    *   417_01, 417_02, ..., consequently the instance has to be set with 1, 2,...
    *
    * @param resource the resource
-   * @param instance the instance id, as 1 to n.
+   * @param fb_number the fb number
+   * @param fb_instance the fb instance, as 1 to n.
+   * @param fb_number_datapoints the number of datapoint's in this fb
    */
-  void oc_resource_set_function_block_instance(oc_resource_t* resource, uint8_t instance);
+  void oc_resource_set_functional_block_data(oc_resource_t* resource, uint16_t fb_number, uint8_t fb_instance, uint8_t fb_number_datapoints);
 
   /**
    * Add a resource to the stack.

@@ -72,28 +72,16 @@ const uint32_t mid = 0x00fa; // first 4 digits of sn_lower_case
 /*
 
  Below defined datapoints and test parameters are demo data.
-
-  EP's
-
-  - resource path, details see callback handler 'Callback Notes'
-  - functional block demo number
-  - the datapoints
-
-  URN's
-
-  - the dpa type MUST be in FULL URN notation:
-  - a GET {ipv6-unicast}/{point-path}?m asks with SHORT URN (see handler)
-  - a GET {ipv6-multicast}/.well-known/core asks with SHORT URN or FULL URN
-  - scanning all application resources for functional block occurrences demands a FULL URN 
+ Details see on 'lsxb_channel_t' definition.
 
  */
 
 // define demo channel 0..1 + included EPs ->  to allow a possible build (for this you need to add a CMake target)
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {{
+  {417,0,{
     {false, "/p/lssb/0/demo0", "urn:knx:dpa.x.y", ":dpt.na", (0 << 8) + 0},
     {false, "/p/lssb/0/demo1", "urn:knx:dpa.x.y", ":dpt.na", (0 << 8) + 1}}},
-  {{
+  {417,1,{
     {false, "/p/lssb/1/demo0", "urn:knx:dpa.x.y", ":dpt.na", (1 << 8) + 0},
     {false, "/p/lssb/1/demo1", "urn:knx:dpa.x.y", ":dpt.na", (1 << 8) + 1}}}};
 
