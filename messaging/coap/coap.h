@@ -368,7 +368,7 @@ extern "C" {
 	int coap_get_header_size1(void* packet, uint32_t* size);
 	int coap_set_header_size1(void* packet, uint32_t size);
 
-	int coap_get_header_echo(void* packet, const uint8_t* echo);
+	int coap_get_header_echo(void* packet, uint8_t* echo);
 	int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len);
 
 	int coap_get_payload(void* packet, const uint8_t** payload);

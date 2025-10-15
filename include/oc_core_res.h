@@ -232,7 +232,7 @@ extern "C" {
 	 * @param index the index of the resource
 	 * @return oc_resource_t* the resource handle
 	 */
-	oc_resource_t* oc_core_get_core_resource_by_index(int index);
+	const oc_resource_t* oc_core_get_core_resource_by_index(int index);
 
 	/**
 	 * @brief Ensure that the given URI starts with a forward slash '/'.

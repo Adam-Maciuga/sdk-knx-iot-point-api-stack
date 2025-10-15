@@ -178,7 +178,7 @@ oc_device_info_t* oc_core_get_device_info(void)
 }
 
 
-oc_resource_t* oc_core_get_core_resource_by_index(int index)
+const oc_resource_t* oc_core_get_core_resource_by_index(int index)
 {
 	// check index first, first resource index starts with 0 
 	if (index < 0 || index >= OC_NUM_CORE_RESOURCES) 

@@ -2028,7 +2028,7 @@ coap_set_header_size1(void* packet, uint32_t size)
 	return 1;
 }
 /*---------------------------------------------------------------------------*/
-int coap_get_header_echo(void* packet, const uint8_t* echo)
+int coap_get_header_echo(void* packet, uint8_t* echo)
 {
 	// copy needed since name is used in macro
   coap_packet_t* const coap_pkt = packet;
