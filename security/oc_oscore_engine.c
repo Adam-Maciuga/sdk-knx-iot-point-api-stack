@@ -424,7 +424,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     msg->endpoint.auth_at_index = oscore_ctx->auth_at_index;
 
     // TODO check is always h'' why used 
-    oc_endpoint_set_oscore_id(&msg->endpoint, (char*)oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    oc_endpoint_set_oscore_id(&msg->endpoint, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
 
     // use recipient key for decryption
     decryption_key = oscore_ctx->recipient_key;

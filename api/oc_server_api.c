@@ -661,7 +661,8 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 					#endif 
 					if (response_buffer.response_length > 0)
 					{
-						coap_set_payload(response, handle->response_state->buffer,
+						coap_set_payload(response, 
+														 handle->response_state->buffer,
 														 response_buffer.response_length);
 					}
 				coap_set_status_code(response, response_buffer.code);

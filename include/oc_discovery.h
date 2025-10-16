@@ -90,6 +90,20 @@ bool oc_add_resource_to_response_payload(const oc_resource_t *resource,
                                          size_t *response_length,
                                          bool truncate);
 
+/**
+ * @brief well-known discovery handler
+ *
+ * @param request the request
+ * @param iface_mask the caller interface definition
+ * @param data user data to be appended to the call
+ *
+ * @note only used in linked list, added here to skip compiler warnings
+ *
+ */
+void oc_well_known_core_discovery_handler(oc_request_t* request,
+                                          oc_interface_mask_t iface_mask, 
+                                          void* data);
+
 #ifdef __cplusplus
 }
 #endif

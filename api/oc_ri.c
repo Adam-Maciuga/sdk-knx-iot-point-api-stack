@@ -1084,8 +1084,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	/* Parsed CoAP PDU structure. */
 	coap_packet_t* const packet = request;
 
-	/* This function is a server-side entry point solely for requests.
-	*  Hence, "code" contains the CoAP method code.
+	/*
+	   This function is a server-side entry point solely for requests.
+	   Hence, "code" contains the CoAP method code.
 	*/
 	oc_method_t method = packet->code;
 

@@ -220,12 +220,6 @@ close_all_tls_sessions_callback(void* data)
 }
 #endif 
 
-/**
-  @brief
-
-  @param incoming_message the message, pushed to queue INBOUND_RI_EVENT since the previous oscore decryption was ok, or it was a plain message
-
-*/
 int coap_receive(oc_message_t* incoming_message)
 {
 	coap_status_code = COAP_NO_ERROR;
@@ -922,7 +916,7 @@ int coap_receive(oc_message_t* incoming_message)
 					{
 						OC_DBG("continuing ongoing block-wise transfer");
 						uint32_t payload_size = 0;
-						const void* payload = oc_blockwise_dispatch_block(
+						const uint8_t* payload = oc_blockwise_dispatch_block(
 							response_buffer, block2_offset, block2_size, &payload_size);
 						if (payload)
 						{
@@ -1131,7 +1125,7 @@ int coap_receive(oc_message_t* incoming_message)
 					else
 					{
 				#endif 
-						const void* payload = oc_blockwise_dispatch_block(
+						const uint8_t* payload = oc_blockwise_dispatch_block(
 							response_buffer, 0, block2_size, &payload_size);
 						if (payload)
 						{
@@ -1240,7 +1234,7 @@ int coap_receive(oc_message_t* incoming_message)
 							 oc_string_checked(request_buffer->href));
 				client_cb = (oc_client_cb_t*) request_buffer->client_cb;
 				uint32_t payload_size = 0;
-				const void* payload = 0;
+				const uint8_t* payload = 0;
 
 				if (block1)
 				{

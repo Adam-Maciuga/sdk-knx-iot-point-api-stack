@@ -230,7 +230,7 @@ extern "C"
    * @param block_len the length of the image data
    * @param data the user data
    */
-  void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, uint8_t* block_data, size_t block_len, void* data);
+  void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, const uint8_t* block_data, size_t block_len, void* data);
 
   /**
    * @brief add all short interface urn's to the 'root' object with string key 'if'

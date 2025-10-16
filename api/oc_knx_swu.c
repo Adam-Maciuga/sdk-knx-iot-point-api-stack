@@ -552,8 +552,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   int ps_block_size = 0;      // page size 
   int po_block_offset = 0;    // page offset, bytes to skip, default =0 if query parameter 'po' is missing
 
-  const uint8_t* payload_ptr = NULL;
-  size_t payload_size = 0; 
+  
 
   OC_DBG("oc_knx_swu_a_put_handler - start");
 
@@ -586,13 +585,6 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("block size: %d", ps_block_size);
   OC_DBG("block offset: %d", po_block_offset);
 
-  // if swu blob data are present ... TODO only a copy, used pointer directly OR return a BAD REQUEST
-  if (request->_payload && request->_payload_len > 0)
-  {
-    payload_ptr = request->_payload;
-    payload_size = request->_payload_len;
-  }
-
   // get application FWU handler
   // - is usually device hardware and application specific and needs some processing time
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
@@ -605,8 +597,8 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     application_swu_cb->cb(&s_delayed_response_swu, 
                            pkgs_package_size, 
                            po_block_offset, 
-                           payload_ptr, 
-                           payload_size,
+                           request->_payload, // can also be NULL
+                           request->_payload_len, // can also be '0'
                            application_swu_cb->data);
   }
   else

@@ -441,7 +441,7 @@ extern "C"
    *
    */
   typedef void (*oc_swu_cb_t)(oc_separate_response_t* response, size_t binary_size, size_t block_offset,
-                              uint8_t* block_data, size_t block_len, void* data);
+                              const uint8_t* block_data, size_t block_len, void* data);
 
   /**
    * Sets the software update callback,

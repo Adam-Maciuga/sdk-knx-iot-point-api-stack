@@ -371,10 +371,19 @@ extern "C" {
 	int coap_get_header_echo(void* packet, uint8_t* echo);
 	int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len);
 
-	int coap_get_payload(void* packet, const uint8_t** payload);
-	int coap_set_payload(void* packet, const void* payload, size_t length);
+  uint32_t coap_get_payload(void* packet, const uint8_t** payload);
+  uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length);
 
 	size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer);
+
+	/**
+  @brief
+
+  @param incoming_message the message, pushed to queue INBOUND_RI_EVENT since the previous oscore decryption was ok, or it
+  was a plain message
+
+  */
+  int coap_receive(oc_message_t* incoming_message);
 
 	#ifdef OC_TCP
 	void coap_tcp_init_message(void* packet, uint8_t code);
@@ -386,10 +395,10 @@ extern "C" {
 
 	void coap_tcp_parse_message_length(const uint8_t* data, size_t* message_length,
 																		 uint8_t* num_extended_length_bytes);
-	#endif /* OC_TCP */
+	#endif 
 
 	#ifdef __cplusplus
 }
 #endif
 
-#endif /* COAP_H */
+#endif 

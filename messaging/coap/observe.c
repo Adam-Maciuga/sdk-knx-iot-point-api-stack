@@ -486,7 +486,7 @@ coap_notify_observers(const oc_resource_t *resource,
               response_state->payload_size =
                 (uint32_t)response_buf->response_length;
               uint32_t payload_size = 0;
-              const void *payload = oc_blockwise_dispatch_block(
+              const uint8_t* payload = oc_blockwise_dispatch_block(
                 response_state, 0, obs->block2_size, &payload_size);
               if (payload) {
                 coap_set_payload(notification, payload, payload_size);
@@ -692,7 +692,7 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
           response_state->payload_size =
             (uint32_t)response_buf->response_length;
           uint32_t payload_size = 0;
-          const void *payload = oc_blockwise_dispatch_block(
+          const uint8_t* payload = oc_blockwise_dispatch_block(
             response_state, 0, obs->block2_size, &payload_size);
           if (payload) {
             coap_set_payload(notification, payload, payload_size);
@@ -717,7 +717,8 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
                    "client liveness");
             notification->type = COAP_TYPE_CON;
           }
-          coap_set_payload(notification, response_buf->buffer,
+          coap_set_payload(notification, 
+                           response_buf->buffer,
                            response_buf->response_length);
         } //! blockwise transfer
         coap_set_status_code(notification, response_buf->code);

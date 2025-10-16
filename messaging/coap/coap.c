@@ -2018,8 +2018,7 @@ coap_get_header_size1(void* packet, uint32_t* size)
 	*size = coap_pkt->size1;
 	return 1;
 }
-int
-coap_set_header_size1(void* packet, uint32_t size)
+int coap_set_header_size1(void* packet, uint32_t size)
 {
 	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
@@ -2027,7 +2026,7 @@ coap_set_header_size1(void* packet, uint32_t size)
 	SET_OPTION(coap_pkt, COAP_OPTION_SIZE1);
 	return 1;
 }
-/*---------------------------------------------------------------------------*/
+
 int coap_get_header_echo(void* packet, uint8_t* echo)
 {
 	// copy needed since name is used in macro
@@ -2040,6 +2039,7 @@ int coap_get_header_echo(void* packet, uint8_t* echo)
 	memcpy(echo, coap_pkt->echo, coap_pkt->echo_len);
 	return (int) coap_pkt->echo_len;
 }
+
 int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len)
 {
   // copy needed since name is used in macro
@@ -2051,11 +2051,10 @@ int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len)
 	return 1;
 }
 
-/*---------------------------------------------------------------------------*/
-int
-coap_get_payload(void* packet, const uint8_t** payload)
+
+uint32_t coap_get_payload(void* packet, const uint8_t** payload)
 {
-	coap_packet_t* const coap_pkt = packet;
+	const coap_packet_t* coap_pkt = packet;
 
 	if (coap_pkt->payload)
 	{
@@ -2067,23 +2066,24 @@ coap_get_payload(void* packet, const uint8_t** payload)
 	return 0;
 
 }
-int
-coap_set_payload(void* packet, const void* payload, size_t length)
-{
-	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-	coap_pkt->payload = (uint8_t*) payload;
-	#ifdef OC_TCP
+uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length)
+{
+	coap_packet_t* const coap_pkt = packet;
+
+	coap_pkt->payload = payload;
+
+  #ifdef OC_TCP
 	if (coap_pkt->transport_type == COAP_TRANSPORT_TCP)
 	{
 		coap_pkt->payload_len = (uint32_t) length;
 	}
 	else
-		#endif /* OC_TCP */
+	#endif 
 	{
-		coap_pkt->payload_len = (uint32_t) MIN((unsigned) OC_BLOCK_SIZE, length);
+		coap_pkt->payload_len = (uint32_t) MIN(OC_BLOCK_SIZE, length);
 	}
 
 	return coap_pkt->payload_len;
 }
-/*---------------------------------------------------------------------------*/
+
