@@ -36,16 +36,15 @@
 
 OC_MEMB(oc_endpoints_s, oc_endpoint_t, OC_MAX_NUM_ENDPOINTS);
 
-oc_endpoint_t*
-oc_new_endpoint(void)
+oc_endpoint_t* oc_new_endpoint(void)
 {
 #ifndef OC_DYNAMIC_ALLOCATION
 	oc_network_event_handler_mutex_lock();
-#endif /* !OC_DYNAMIC_ALLOCATION */
+#endif 
 	oc_endpoint_t* endpoint = oc_memb_alloc(&oc_endpoints_s);
 #ifndef OC_DYNAMIC_ALLOCATION
 	oc_network_event_handler_mutex_unlock();
-#endif /* !OC_DYNAMIC_ALLOCATION */
+#endif 
 	return endpoint;
 }
 
@@ -67,14 +66,12 @@ oc_endpoint_set_oscore_id_from_str(oc_endpoint_t* endpoint, char* oscore_id)
 																					&endpoint->oscore_id_len);
 }
 
-int
-oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, char* oscore_id,
-													int oscore_id_len)
+void oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, 
+															 uint8_t* oscore_id,
+															 int oscore_id_len)
 {
 	memcpy(endpoint->oscore_id, oscore_id, oscore_id_len);
 	endpoint->oscore_id_len = oscore_id_len;
-
-	return oscore_id_len;
 }
 
 #ifdef OC_IPV4
@@ -112,7 +109,7 @@ oc_ipv4_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str)
 			oc_concat_strings(endpoint_str, OC_SCHEME_COAP, ip);
 		}
 }
-#endif /* OC_IPV4 */
+#endif 
 
 static void
 oc_ipv6_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str)
@@ -262,7 +259,7 @@ oc_parse_ipv4_address(const char* address, size_t len, oc_endpoint_t* endpoint)
 		}
 	}
 }
-#endif /* OC_IPV4 */
+#endif 
 
 int
 oc_endpoint_string_parse_path(oc_string_t* endpoint_str, oc_string_t* path)
@@ -329,7 +326,8 @@ oc_ipv6_endpoint_is_link_local(oc_endpoint_t* endpoint)
 	if (endpoint->addr.ipv6.address[0] == 0xfe &&
 			endpoint->addr.ipv6.address[1] == 0x80)
 	{
-		return 0;
+		// FE:80 = link local addresses 
+	  return 0;
 	}
 	return -1;
 }
@@ -426,8 +424,7 @@ oc_endpoint_list_copy(oc_endpoint_t** dst, oc_endpoint_t* src)
 }
 
 #ifdef OC_CLIENT
-void
-oc_endpoint_set_local_address(oc_endpoint_t* ep, int interface_index)
+void oc_endpoint_set_local_address(oc_endpoint_t* ep, int interface_index)
 {
 	if (!ep)
 	{
@@ -451,11 +448,12 @@ oc_endpoint_set_local_address(oc_endpoint_t* ep, int interface_index)
  * function to print the returned cbor as JSON
  *
  */
-void
-oc_endpoint_print(oc_endpoint_t* ep)
+void oc_endpoint_print(oc_endpoint_t* ep)
 {
-	oc_string_t ip_str;
+#ifdef OC_DEBUG
+  oc_string_t ip_str;
 	oc_endpoint_to_string(ep, &ip_str);
 	PRINT("IP address (ep) to: %s", oc_string_checked(ip_str));
 	oc_free_string(&ip_str);
+#endif
 }

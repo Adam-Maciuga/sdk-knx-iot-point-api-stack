@@ -74,7 +74,7 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 			message->length = len;
 			coap_send_message(message);
 
-			OC_DBG("*** send OSCORE error (%u) ***", code);
+			OC_DBG("*** send OSCORE error (code %u) ***", code);
 		}
 	}
 }
@@ -254,7 +254,7 @@ int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 }
 
 int
-coap_parse_oscore_option(void* packet, uint8_t* current_option, size_t option_length)
+coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t option_length)
 {
 	coap_packet_t* const coap_pkt = packet;
 
@@ -382,7 +382,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 			if (coap_pkt->kid_ctx_len > 0)
 			{
 				/* kid context length */
-				*buffer = (uint8_t) coap_pkt->kid_ctx_len;
+				*buffer = coap_pkt->kid_ctx_len;
 				++buffer;
 
 				memcpy(buffer, coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);

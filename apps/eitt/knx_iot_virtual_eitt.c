@@ -57,29 +57,23 @@ const uint32_t mid = 667;                     // same as eitt test template
 
 /*
 
- Below defined datapoints and test parameters for the EITT test template defaults. 
- 
-  EP's
+ Below defined (artificial) datapoints and test parameters for functional block
+ 417 (LSAB) and 421 (LSBB) EITT test template defaults.
 
-  - resource path, details see callback handler 'Callback Notes'
-  - functional block 417 (LSAB) and 421 (LSBB) command/control
-  - the datapoints are artificial such as dpa 417.61/62
-  
-  URN's
+ Set instance to 1, even if there are no more instances for the specific FB;
+ for EITT test 5.7.2.1 with default template test value 00417_01
 
-  - the dpa type MUST be in FULL URN notation:
-  - a GET {ipv6-unicast}/{point-path}?m asks with SHORT URN (see handler)
-  - a GET {ipv6-multicast}/.well-known/core asks with SHORT URN or FULL URN
-  - scanning all application resources for functional block occurrences demands a FULL URN
+ Details see on 'lsxb_channel_t' definition.
  
  */
 
 // LSAB/LSSB channel 0..1 + included EPs switch control/status
+
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {{
+  {417,1, 2,{
     {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", (0 << 8) + 0}, 
     {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", (0 << 8) + 1}}},
-  {{
+  {421, 1, 2,{
     {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},
     {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", (1 << 8) + 1}}},
 };
@@ -111,9 +105,12 @@ void register_resources(void)
     oc_resource_bind_content_type(soo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
     oc_resource_bind_content_type(ioo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
 
-    // set instance to 1 (even if there are no more instances) for EITT test 5.7.2.1
-    oc_resource_set_function_block_instance(soo_resource_lsab, 1);
-    oc_resource_set_function_block_instance(ioo_resource_lsab, 1);
+    // set instance (see above)
+    oc_resource_set_functional_block_data(soo_resource_lsab, lsxb[LSAB].fb_number, lsxb[LSAB].fb_instance,
+      lsxb[LSAB].fb_number_of_datapoints);
+
+    oc_resource_set_functional_block_data(ioo_resource_lsab, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance,
+      lsxb[LSSB].fb_number_of_datapoints);
 
     oc_resource_set_discoverable(soo_resource_lsab, true);
     oc_resource_set_discoverable(ioo_resource_lsab, true);
@@ -166,8 +163,6 @@ void register_resources(void)
     oc_resource_bind_dpt(tp0, test_parameter.dpt);
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
-
-    oc_resource_set_function_block_instance(tp0, 1);
 
     oc_resource_set_discoverable(tp0, true);
 

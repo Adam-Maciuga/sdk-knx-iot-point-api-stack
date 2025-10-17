@@ -356,20 +356,19 @@ oc_blockwise_find_response_buffer(const char *href, size_t href_len,
                                   endpoint, method, query, query_len, role);
 }
 
-const void *
-oc_blockwise_dispatch_block(oc_blockwise_state_t *buffer, uint32_t block_offset,
-                            uint32_t requested_block_size,
-                            uint32_t *payload_size)
+const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer, uint32_t block_offset,
+                                           uint32_t requested_block_size,
+                                           uint32_t* payload_size)
 {
   if (block_offset < buffer->payload_size) {
     if (buffer->payload_size < requested_block_size)
-      *payload_size = (uint32_t)buffer->payload_size;
+      *payload_size = buffer->payload_size;
     else {
       *payload_size = MIN(requested_block_size,
                           (uint32_t)(buffer->payload_size - block_offset));
     }
     buffer->next_block_offset = block_offset + *payload_size;
-    return (const void *)&buffer->buffer[block_offset];
+    return &buffer->buffer[block_offset];
   }
   return NULL;
 }

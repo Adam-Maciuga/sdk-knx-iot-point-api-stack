@@ -2570,8 +2570,11 @@ void oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print);
 size_t py_oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size,
                          bool pretty_print);
 
+size_t oc_rep_to_json_base64_encoded_byte_string(char* buf, size_t buf_size, char* byte_str, size_t byte_str_size);
+
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_REP_H */
+#endif

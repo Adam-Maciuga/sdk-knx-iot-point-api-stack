@@ -25,48 +25,49 @@
 #include "api/oc_knx_sec.h"
 #include "oc_rep.h"
 #include "port/oc_log.h"
+
 OC_LIST(contexts);
 OC_MEMB(ctx_s, oc_oscore_context_t, 20);
 
 void oc_oscore_free_lru_recipient_context(void)
 {
   oc_oscore_context_t* lru_ctx;
+
+  // get first context of list
   oc_oscore_context_t* ctx = lru_ctx = oc_list_head(contexts);
 
   while (ctx)
   {
     if (ctx->sender_id_len == 0 && ctx->last_used < lru_ctx->last_used)
-      lru_ctx = ctx;
+      lru_ctx = ctx; // catch tmp copy and make it to the LRU item 
 
-    ctx = ctx->next;
+    ctx = ctx->next; // get next 
   }
+  // release tmp copy
   oc_oscore_free_context(lru_ctx);
 }
 
 // checking against receiver in contexts
-oc_oscore_context_t* oc_oscore_find_context_by_kid(oc_oscore_context_t* ctx, uint8_t* kid, uint8_t kid_len)
+oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len)
 {
-  if (!ctx)
-  {
-    ctx = (oc_oscore_context_t*) oc_list_head(contexts);
-  }
 
   if (kid_len == 0)
     return NULL;
 
-  PRINT("oc_oscore_find_context_by_kid : kid:(%d) :", 
-        kid_len);
+  // list start
+  oc_oscore_context_t* ctx = oc_list_head(contexts);
+
+  PRINT("find context by kid : kid:(%d) : ", kid_len);
   oc_char_println_hex((char*) (kid), kid_len);
 
-  while (ctx != NULL)
+  while (ctx)
   {
-    PRINT("---> recipient_id:");
+    PRINT("-> recipient_id : ");
     oc_char_println_hex((char*) (ctx->recipient_id), ctx->recipient_id_len);
 
     if (kid_len == ctx->recipient_id_len && memcmp(kid, ctx->recipient_id, kid_len) == 0)
     {
-      PRINT("oc_oscore_find_context_by_kid FOUND  auth/at index: %d",
-            ctx->auth_at_index);
+      PRINT("find context by kid at auth/at index : %d", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -88,7 +89,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   {
     // debugging  
     PRINT("---> scanning oscore context list (rcv) id:");
-    oc_char_println_hex(ctx->recipient_id_len == 0 ? "empty ...": (char*) ctx->recipient_id, ctx->recipient_id_len);
+    oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
 
     // received frame kid (Sender ID) and kid_context (ID Context) must both match in size and value to an oscore context 
     if (kid_len == ctx->recipient_id_len
@@ -97,7 +98,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
         && memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0)
     {
 
-      PRINT("find context, with auth/at index: %d",ctx->auth_at_index);
+      PRINT("found oscore context, with auth/at index: %d",ctx->auth_at_index);
 
       // update time for a possible release of "last used" - if table is full
       ctx->last_used = oc_clock_time();
@@ -289,6 +290,7 @@ void oc_oscore_free_sender_contexts(void)
 {
   // get first context of list
   oc_oscore_context_t* ctx = oc_list_head(contexts);
+
   while (ctx)
   {
     // tmp copy of next (if released its gone)
@@ -420,13 +422,13 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
     memcpy((char*) &ctx->master_secret, mastersecret, mastersecret_size);
   }
 
-  PRINT("Index         : (%2d)  = ", auth_at_index);
+  PRINT("AT Index      : (%2d)  = ", auth_at_index);
   PRINT("Sender ID     : (%2d)  = ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
   PRINT("Recipient ID  : (%2d)  = ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
   PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
   PRINT("Master Secret : (%2d)  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
   PRINT("Salt          : (%2d)  = ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%lu)  = ", ctx->ssn);
+  PRINT("SSN           : (%llu) = ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len, ctx->id_context, ctx->id_context_len,

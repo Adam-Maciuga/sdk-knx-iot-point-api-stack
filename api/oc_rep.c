@@ -1099,7 +1099,7 @@ static size_t oc_rep_to_json_tab(char *buf, size_t buf_size, int tab_depth)
  * Internal function used to complete the oc_rep_to_json function
  *
  * This function is called when the data type is an OC_REP_BYTE_STRING or
- * an OC_REP_BYTE_STRING_ARRAY. If uses the base64 encoded to encode the
+ * an OC_REP_BYTE_STRING_ARRAY. It uses the base64 encoded to encode the
  * byte_string to a base64 string.
  */
 size_t

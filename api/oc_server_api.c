@@ -165,33 +165,19 @@ bool oc_iterate_query_get_values(oc_request_t* request, const char* key, char** 
 	}
 	while (pos != -1);
 
+	// nothing found, so invalidate len 
 	*value_len = -1;
 
 more_or_done:
 	if (pos == -1 || (size_t) pos >= request->query_len)
 	{
-		return false;
+		// no query parameters at all OR scanned up to the last query parameter but no 'hit'
+	  return false;
 	}
 	return true;
 }
 
 #ifdef OC_SERVER
-
-void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size,
-										 oc_content_format_t content_format,
-										 oc_status_t response_code)
-{
-	request->response->response_buffer->content_format = content_format;
-	memcpy(request->response->response_buffer->buffer, payload, size);
-	request->response->response_buffer->response_length = size;
-	request->response->response_buffer->code = oc_status_code(response_code);
-}
-
-void
-oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code)
-{
-	oc_send_response_raw(request, (const uint8_t*) msg, msg_len, TEXT_PLAIN, response_code);
-}
 
 oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 {
@@ -240,12 +226,13 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 		  resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
 			resource->delete_handler.interface_mask = OC_IF_NONE;
 
-			// observe
-			resource->observe_period_seconds = 0;
+			/*
+			  observe + functional block instance + is_const are '0', cleared by (c)alloc
+			*/
 
-			// for dynamic (application) resources = false,
-			// note, for precompiled (core) resources it is always true
-			resource->is_const = false;
+			// resource->is_const = false; 
+      // resource->observe_period_seconds = 0;
+      // resource->fb_data = 0;
 
 			// runtime modifiable data
 			resource->runtime_data = data;
@@ -289,7 +276,7 @@ void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt)
 		return;
 	}
 	oc_free_string(&resource->dpt);
-	memset(&resource->dpt, 0, sizeof(oc_string_t));
+	
 	if (dpt)
 	{
 		oc_new_string(&resource->dpt, dpt, strlen(dpt));
@@ -323,8 +310,7 @@ oc_resource_make_public(oc_resource_t* resource)
 }
 #endif 
 
-void
-oc_resource_set_discoverable(oc_resource_t* resource, bool state)
+void oc_resource_set_discoverable(oc_resource_t* resource, bool state)
 {
 	if (resource == NULL)
 	{
@@ -379,7 +365,7 @@ void oc_resource_set_periodic_observable(oc_resource_t* resource, uint16_t secon
 	resource->observe_period_seconds = seconds;
 }
 
-void oc_resource_set_function_block_instance(oc_resource_t* resource, uint8_t instance)
+void oc_resource_set_functional_block_data(oc_resource_t* resource, uint16_t fb_number, uint8_t fb_instance, uint8_t fb_number_datapoints)
 {
 	if (resource == NULL)
 	{
@@ -391,7 +377,7 @@ void oc_resource_set_function_block_instance(oc_resource_t* resource, uint8_t in
 		OC_ERR("oc_resource_set_function_block_instance: resource data is const");
 		return;
 	}
-	resource->fb_instance = instance;
+  resource->fb_data = (fb_number << 16) + (fb_instance << 8) + fb_number_datapoints;
 }
 
 void oc_resource_set_properties_cbs(oc_resource_t* resource,
@@ -479,7 +465,7 @@ bool oc_resource_get_all_interfaces_for_a_resource(const oc_resource_t* resource
 	if (resource->get_handler.cb)
 	{
     at_least_one_handler_defined = true;
-	  * interfaces|= resource->get_handler.interface_mask;
+	  *interfaces|= resource->get_handler.interface_mask;
 	}
 
 	// PUT defined
@@ -675,7 +661,8 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 					#endif 
 					if (response_buffer.response_length > 0)
 					{
-						coap_set_payload(response, handle->response_state->buffer,
+						coap_set_payload(response, 
+														 handle->response_state->buffer,
 														 response_buffer.response_length);
 					}
 				coap_set_status_code(response, response_buffer.code);

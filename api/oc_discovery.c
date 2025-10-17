@@ -28,19 +28,22 @@
 #include "oc_knx_dev.h"
 
 /*
-* - below resources must be in the unicast response for well-known/core certification tests,
-*   other resources may be in real products, tests demands only those one
-* - use int type to satisfy directly function call by using the array
-*/
-int basic_resources[] =
-{
-	OC_DEV, OC_KNX_K, OC_KNX_SWU, OC_KNX_AUTH
+ * - below resources must be in the uc/mc response for well-known/core,
+ *   other resources may be added in real products, certification tests demands only the mandatory
+ * - use int type to satisfy directly function call by using the array
+ */
+const int core_resources_for_well_known[] = {
+  OC_DEV, // mandatory
+  OC_KNX_K, // mandatory
+  OC_KNX_SWU, // mandatory
+  OC_KNX_AUTH, // mandatory
+  OC_APP // optional
 };
 
-// (size of all)/(size of one) : 4 x int (4) / 4 = 16/4 = 4 
-#define OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK (int)( sizeof(basic_resources) / sizeof(basic_resources[0]) )
+// number of core resources to be considered for well-known requests  
+#define RESOURCES_FOR_WELL_KNOWN (5)
 
-bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, const bool truncate)
+bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* response_length, bool truncate)
 {
 
 	if (resource == NULL || oc_string_len(resource->uri) == 0)
@@ -165,11 +168,30 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 	return true;
 }
 
-bool oc_check_resource_by_request(const oc_resource_t* resource, oc_request_t* request,
-																	size_t* response_length, int* skipped,
-																	const int first_entry, bool truncate)
+bool oc_check_request_from_index(int index, oc_request_t* request, 
+																size_t* response_length, int* skipped, 
+																int first_entry, bool truncate)
 {
-	// note, matches also when 'rt' key is not part of request query parameter
+  const oc_resource_t* indexed_resource = oc_core_get_core_resource_by_index(index);
+  return oc_check_request_from_resource(indexed_resource, request,response_length, skipped, first_entry, truncate);
+}
+
+bool oc_check_request_from_resource(const oc_resource_t* resource, oc_request_t* request,
+																	size_t* response_length, int* skipped,
+																	int first_entry, bool truncate)
+{
+  if (resource == NULL)
+  {
+    return false;
+  }
+
+  // fast check first 
+	if (!(resource->properties & OC_DISCOVERABLE))
+  {
+    return false;
+  }
+
+  // note, matches also when 'rt' key is not part of request query parameter
   if (!oc_check_resource_by_rt(resource, request))
 	{
 		// key 'rt' is part of query, but value was not found,
@@ -185,14 +207,14 @@ bool oc_check_resource_by_request(const oc_resource_t* resource, oc_request_t* r
 	  return false;
 	}
 
-	if (!(resource->properties & OC_DISCOVERABLE))
-	{
-		return false;
-	}
-
 	if (*skipped < first_entry)
 	{
-		(*skipped)++;
+		/*
+		 * - ignore resources that do not fit to the requested page,
+		 *   such as for page 5 (ps=20) 80 items will be skipped
+		 *   (applicable only when calling  
+    */
+	  (*skipped)++;
 		return false;
 	}
 
@@ -213,40 +235,42 @@ bool oc_check_resource_by_request(const oc_resource_t* resource, oc_request_t* r
 
 // filter for application resources (not all of them may be able to discover)
 static bool oc_process_application_resources(oc_request_t* request,
-                                             size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
-                                             const int first_entry, const int last_entry)
+                                             size_t* response_length, int* query_parameter_kvpair_matches, 
+																						 int* skipped,
+                                             const int first_entry, 
+																						 const int last_entry)
 {
 	for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
 	{
-		// skip non visible application resources
-	  if (resource->properties & OC_DISCOVERABLE)
-    { // not all of them may be able to discover, so check 
-
-	    if (oc_check_resource_by_request(resource, request, response_length, skipped, first_entry, false))
+	    if (oc_check_request_from_resource(resource, request, response_length, skipped, first_entry, false))
       {
         (*query_parameter_kvpair_matches)++;
-        if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
+        if (first_entry + *query_parameter_kvpair_matches >= last_entry)
         {
           // first page entry + current amount of matches exceeds page size
           return true;
         }
       }
-	  }
 	}
 	return false;
 }
 
-// filter for basic device resources (all of them are able to discover)
-static bool oc_process_basic_resources(oc_request_t* request,
-                                       size_t* response_length, int* query_parameter_kvpair_matches, int* skipped,
-                                       const int first_entry, const int last_entry)
+// filter for core resources (all of them are able to discover)
+static bool oc_process_core_resources(oc_request_t* request,
+                                      size_t* response_length, int* query_parameter_kvpair_matches, 
+																			int* skipped,
+																			int first_entry, 
+																			int last_entry)
 {
-	for (int i = 0; i < OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK; i++)
+
+  for (int i = 0; i < RESOURCES_FOR_WELL_KNOWN; i++)
 	{
-		if (oc_check_resource_by_request(oc_core_get_resource_by_index(basic_resources[i]), request, response_length, skipped, first_entry, false))
+    const int index = core_resources_for_well_known[i];
+
+	  if (oc_check_request_from_index(index, request, response_length, skipped, first_entry, false))
 		{
 			(*query_parameter_kvpair_matches)++;
-			if (first_entry + (*query_parameter_kvpair_matches) >= last_entry)
+			if (first_entry + *query_parameter_kvpair_matches >= last_entry)
 			{
 				// first page entry + current amount of matches exceeds page size
 				return true;
@@ -307,10 +331,9 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	char* d_request = 0;    // 'd'
 	int d_len = 0;
 
-
-	int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found 
+	int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
 	size_t response_length = 0;
-	int skipped = 0;
+  int skipped = 0;	// ignore resources that do not fit to the requested page
 	int query_pn = PAGE_NUMBER;
 	int query_ps = PAGE_SIZE;
 
@@ -355,11 +378,29 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// get device 0
 	const oc_device_info_t* const device = oc_core_get_device_info();
 
+  /*
+   * multicast
+   * 
+   * without ANY query parameter
+   * - (m0) empty link with sn + ia such as <>;ep="knx://sn.00fa10020800 knx://ia.0.ffff"
+   *
+   * unicast
+   *
+   * without rt/if query parameter
+   * - (a0) core resources (/dev, /k, ...) -> mandatory/ optional defined ones (see  
+   * - (b0) application functional blocks (FB) -> at least one resource type must be defined (such 'fb.0')
+   *
+   * with rt/if query parameter
+   * - (a1) core resources (/dev, /k, ...) -> for those the rt/if filter fits 
+   * - (b0) see above
+   * - (c1) all 'visible' application resources -> at least one resource path must be defined (such '/p/1')
+   */
+
 	// --- multicast w/wo query parameter OR unicast w/wo query parameter ---
 
+	// (m0)
 	if (request->query_len == 0 && request->origin && request->origin->flags & MULTICAST)
 	{
-    // multicast /wo query parameter, frame sn + iid + ia
 	  response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
 		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 		return;
@@ -367,11 +408,12 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
 	// --- multicast w/ query parameter OR unicast w/wo query parameter ---
 
-	// current resource amount
-	int total = OC_NUM_MANDATORY_CORE_RESOURCES_PER_WK;
+	// (a0) (a1)  
+  int total = RESOURCES_FOR_WELL_KNOWN;
+  // (b0)
+  total += oc_count_functional_blocks_from_application();
 
-	// TODO why only for application resources 
-  // add all 'visible' application resources in case of query parameters rt/if are present
+  // (c1) 
 	if (rt_len > 0 || if_len > 0)
 	{
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
@@ -379,15 +421,11 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			// skip not "public" resources 
 			if (my_resource->properties & OC_DISCOVERABLE && oc_string(my_resource->uri))
 			{
-        // able to discover + resource path must be present/defined 
+        // able to discover + resource path must be defined with a NON-NULL resource path 
 			  total++;
 			}
 		}
 	}
-
-	// TODO counting is too much , all added above already 
-  // add application FBs
-	total += oc_count_functional_blocks_from_application();
 
 	// handle query parameters l=ps and/or l=total
 	if (query_l_was_processed(request, PAGE_SIZE, total))
@@ -517,8 +555,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			{ // query parameter if=urn:knx:if.pm AND some extra xx (nothing up to wildcard)  
 
 				if (skipped < first_entry)
-				{
-					// ???
+				{ // do not add, is lower than needed for thsi page
 					skipped++;
 				}
 				else
@@ -577,8 +614,8 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			strncpy(ia_str, ep_ia_start_pos, ep_ia_end_pos - ep_ia_dot_pos);
 		}
 
-		// string is hex formatted, on conversion error = 0
-		const uint16_t ia = strtoul(ia_str, NULL, 16);
+		// string is hex formatted, on conversion error = 0 --> ignores request
+		const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
 
 		if (ia == device->ia)
 		{
@@ -596,10 +633,17 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			}
 		}
 
-		// on unicast/multicast request w/ query parameter and NO hit
-		// TODO topic will be decided by iot group (#14 clarification list)
-		oc_ignore_request(request);
-		return;
+		if (request->origin && request->origin->flags & MULTICAST)
+    {
+      // multicast request w/ query parameter and NO hit
+      oc_ignore_request(request);
+    }
+    else
+    {
+      // unicast request w/ query parameter and NO hit
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+    }
+    return;
 	}
 
 	// handle serial number
@@ -641,35 +685,47 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		return;
 	}
 
-	// handle rt/if query parameters 
+	/*
+	 * - process FIRST core resources and SECOND application resources
+	 * - add on a 'hit' the resource to the response
+	 */
+
+	PRINT("oc_well_known_core_discovery_handler add core resources ...");
+
+  // core
+  current_page_is_full = oc_process_core_resources(request, &response_length, &query_parameter_key_value_pair_matches,
+                                                    &skipped, first_entry, first_entry + query_ps);
+
+  // add application resources only if query parameters are present
 	if (rt_len > 0 || if_len > 0)
-	{
-		PRINT("oc_well_known_core_discovery_handler rt='%.*s'", rt_len, rt_request); // first (len) value defines precision 
-		PRINT("oc_well_known_core_discovery_handler if='%.*s'", if_len, if_request); // first (len) value defines precision 
+  {
+    PRINT("oc_well_known_core_discovery_handler rt='%.*s' if='%.*s' ", 
+					rt_len, rt_request, 
+					if_len, if_request); // first (len) value defines precision for %.
 
-		// process application resources (and add on a 'hit' to response) 
-		current_page_is_full = oc_process_application_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
-	}
+    // application
+    if (!current_page_is_full)
+    {
+      PRINT("oc_well_known_core_discovery_handler add application resources ...");
 
-	if (!current_page_is_full)
-	{ // page not full, things can still be added
+      current_page_is_full = oc_process_application_resources(request, &response_length, &query_parameter_key_value_pair_matches, 
+																															&skipped, first_entry, first_entry + query_ps);
+    }
+  }
 
-		// process core resources (and add on a 'hit' to response) 
-		current_page_is_full = oc_process_basic_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
-
-		PRINT("oc_well_known_core_discovery_handler add common resources on a unicast request ...");
-	}
-
-	if (!current_page_is_full && request->origin && (request->origin->flags & MULTICAST) == 0)
+	if (!current_page_is_full && request->origin && !(request->origin->flags & MULTICAST))
 	{ // unicast: page not full, things can still be added
 
-		// add FBs in case of .../core discovery request contains matching query parameters,
-		// such as query parameter rt=fb 
+		// add FBs in case of well-known discovery request contains matching query parameters:
+		// - not present at all
+		// - rt=*, rt=*fb* -> urn:knx:fb.321
+		// - if=*, if=*ll* -> urn:knx:id.ll
 		if (oc_check_if_functional_blocks_need_to_add(request))
 		{
-			oc_was_adding_function_blocks_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
+			PRINT("oc_well_known_core_discovery_handler add functional block resources ...");
 
-			PRINT("oc_well_known_core_discovery_handler added present FB resources on a unicast request ...");
+			// note that this function is reusing the number of counted FBs 
+		  oc_add_functional_blocks_from_application_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
 		}
 	}
 
@@ -677,7 +733,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	{
 		// unicast or multicast request
 		// matches/response_length >0/>0
-		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device (and added to response)
+		// m>0;l>0 : -- > at least one query parameter KV pair match was found for this device AND added to the response
 
 		// add only a page hint if at least one response entry is in
 		if (more_request_needed)
@@ -694,7 +750,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		// matches/response_length ?/?
 		// m>0;l=0 : -- > at least one query parameter KEY/VALUE pair found but no hit for this device (nothing added to response)
 		// m=0;l>0 : -- > n/a (no query parameter KEY/VALUE pair but a hit ....)
-		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device --> 
+		// m=0;l=0 : -- > NO query parameter KEY/VALUE pair was found AND (hence this) no hit for this device
 
 		if (request->origin && request->origin->flags & MULTICAST)
 		{ // multicast request
@@ -722,17 +778,13 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 * - compiler pragmas remain as macros
 *
 *	- resource fields
-*	  for common infos, see 'oc_resource_t' below, for DAP and DPT see here
-*		- a DPA type is defined as in KNX IoT specification (if defined)
-*		  - 0...n, if none => NULL,0,NULL
-*			- to scan all present application FBs in a device including all core FB, at least one DPA type
-*			  must be defined (such as urn:knx:dpa.0.xx for an FB '0')
-*     - to scan all present core FBs in a device 
-*			  
-*		- a DPT type is defined as in KNX IoT specification (if defined)
-*		  - 0...1, if none => NULL,0,NULL
-*			- 
-* 
+*	  for common infos, see 'oc_resource_t' below
+*
+*		- a resource type (FB/DPA) is defined as in KNX IoT specification (if defined),
+*		  a datapoint type (DPT) type is defined as in KNX IoT specification (if defined)
+*		  - 1...n for core + application resources  -> see also well-known handler
+*			- 0 -> NULL,0,NULL
+*			
 */
 
 
@@ -742,8 +794,8 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 { 
 	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
-	{ NULL, 0, NULL },																														// DPA types, see comment above 
-	{ NULL, 0, NULL },																						 								// DPT type, see comment above - if none => 3 x NULL
+	{ NULL, 0, NULL },																														// resource types, see comment above 
+	{ NULL, 0, NULL },																						 								// datapoint type, see comment above - if none => 3 x NULL
 	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },																							 		// content formats (max 2)
 	OC_DISCOVERABLE,																																					 		// resource properties
 	{ oc_well_known_core_discovery_handler, NULL, OC_ACL_NONE, OC_IF_NONE },		// get callback

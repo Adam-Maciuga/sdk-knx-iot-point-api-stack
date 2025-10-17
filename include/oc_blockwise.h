@@ -230,12 +230,12 @@ void oc_blockwise_free_response_buffer(oc_blockwise_state_t *buffer);
  * @param block_offset the block offset
  * @param requested_block_size block size to be send
  * @param payload_size the send payload size
- * @return const void*
+ * @return const uint8_t* to buffer
  */
-const void *oc_blockwise_dispatch_block(oc_blockwise_state_t *buffer,
-                                        uint32_t block_offset,
-                                        uint32_t requested_block_size,
-                                        uint32_t *payload_size);
+const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer,
+                                           uint32_t block_offset,
+                                           uint32_t requested_block_size,
+                                           uint32_t* payload_size);
 
 /**
  * @brief handle the incoming block (partial message)

@@ -70,15 +70,16 @@ extern "C" {
     OSCORE_ENCRYPTED = 1 << 9, /**< OSCORE encrypted message */
   };
 
-#define SERIAL_NUM_SIZE (12) //binary 6 bytes, in hex 12 bytes
+  #define SERIAL_NUM_SIZE (12) //binary 6 bytes, in hex 12 bytes
+
   /**
-   * @brief the endpoint information
+   * @brief endpoint information, an endpoint combines uc/mc IP addresses with some security keying material
    *
    */
   typedef struct oc_endpoint_t
   {
-    struct oc_endpoint_t* next;           /**< pointer to the next structure */
-    enum transport_flags flags;           /**< the transport flags */
+    struct oc_endpoint_t* next;           // pointer to the next structure
+    enum transport_flags flags;           // transport flags
     char oscore_id[OSCORE_SENDER_ID_LEN]; // cnf:osc:id, max 7 bytes
     size_t oscore_id_len;                 // len 
 
@@ -152,7 +153,7 @@ extern "C" {
    * @param oscore_id_len the length of the oscore_id
    * @return int 0 success
    */
-  int oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, char* oscore_id, int oscore_id_len);
+void oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, uint8_t* oscore_id, int oscore_id_len);
 
   /**
    * @brief convert the endpoint to a human-readable  string (e.g."coaps://[fe::22]:/")

@@ -206,8 +206,7 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   {NULL, sizeof("urn:knx:dpt.value2UCount"), "urn:knx:dpt.value2UCount"},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
-  {oc_core_knx_auth_o_replwdo_get_handler, NULL, OC_ACL_P, OC_IF_P},
+  {oc_core_knx_auth_o_replwdo_get_handler, NULL, OC_ACL_D, OC_IF_D},
   {oc_core_knx_auth_o_replwdo_put_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
@@ -243,8 +242,6 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-
-
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
@@ -273,8 +270,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
-    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -730,6 +726,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             // default, overwritten if GA array was correctly assigned
             g_at_entries[array_index].scope = OC_ACL_NONE;
 
+            // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
             const int new_array_size = oc_int_array_size(object->value.array);
 
@@ -886,10 +883,10 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       /*
-        a: created +  id only/< 5 elements  = ERROR (to few elements)
-        b: created +  5 elements            = OK (create)
-        c: changed +  id only               = OK (delete)
-        d: changed +  1...n elements        = OK (update)
+        a: created +  id only/< min elements = ERROR (to few elements)
+        b: created +  5 elements             = OK (create)
+        c: changed +  id only                = OK (delete)
+        d: changed +  1...n elements         = OK (update)
 
       */
 
@@ -961,7 +958,7 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
 const oc_resource_t core_resource_knx_auth_at = {
   (oc_resource_t*)&core_resource_knx_auth_at_x,
   {NULL, sizeof("/auth/at"), "/auth/at"},
-  {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.auth"})},
+  {NULL, 0, NULL},
   {NULL, 0, NULL},
   {APPLICATION_LINK_FORMAT, CONTENT_NONE},
   OC_DISCOVERABLE,
@@ -1197,8 +1194,6 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
     return;
   }
 
-
-
   // handle query parameters l=ps and/or l=total
   if (query_l_was_processed(request, PAGE_SIZE, total))
     return;
@@ -1228,12 +1223,12 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
-    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
   }
+
   if (query_parameter_kvpair_matches > 0)
   {
     if (more_request_needed)
@@ -1259,7 +1254,7 @@ PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
 const oc_resource_t core_resource_knx_auth = {
   (oc_resource_t*)&core_resource_well_known_core,
   {NULL, sizeof("/auth"), "/auth"},
-  {NULL, 0, NULL},
+  {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.auth"}},
   {NULL, 0, NULL},
   {APPLICATION_LINK_FORMAT, CONTENT_NONE},
   OC_DISCOVERABLE,
@@ -1537,7 +1532,7 @@ static void oc_load_at_table_entry(int entry)
           // ga array with GAs from MaC
           if (rep->iname == 777)
           {
-            // storage array + len
+            // a load command does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(rep->value.array);
             const int new_array_size = oc_int_array_size(rep->value.array);
 

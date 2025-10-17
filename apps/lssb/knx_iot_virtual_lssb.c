@@ -54,30 +54,19 @@ const uint32_t mid = 0x00fa;                  // manufacturer id, here KNXA
 /*
  
  Below defined datapoints and test parameters for functional block 421 (LSSB) command/control.
-
-  EP's
-
-  - resource path, details see callback handler 'Callback Notes'
-  - functional block 421 (LSBB) command/control
-  - the datapoints
-
-  URN's
-
-  - the dpa type MUST be in FULL URN notation:
-  - a GET {ipv6-unicast}/{point-path}?m asks with SHORT URN (see handler)
-  - a GET {ipv6-multicast}/.well-known/core asks with SHORT URN or FULL URN
-  - scanning all application resources for functional block occurrences demands a FULL URN 
+ Details see on 'lsxb_channel_t' definition.
 
  */
 
 // define LSSB channel 0..1 + included EPs switch control/status
-lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {{
-    {false, "/p/lssb/0/soo", "urn:knx:dpa.421.61", ":dpt.switch", (0 << 8) + 0},   
-    {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (0 << 8) + 1}}},  
-  {{
-    {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},  
-    {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (1 << 8) + 1}}}
+lsxb_channel_t lsxb[NUM_CHANNELS] = 
+{
+  {421, 1, NUM_POINTS,{
+   {false, "/p/lssb/0/soo", "urn:knx:dpa.421.61", ":dpt.switch", (0 << 8) + 0},
+   {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (0 << 8) + 1}}},
+  {421, 2, NUM_POINTS,{
+   {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},
+   {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (1 << 8) + 1}}}
 };
 
 // additional parameters
@@ -103,8 +92,8 @@ void register_resources(void)
     oc_resource_bind_content_type(ioo_resource, APPLICATION_CBOR, CONTENT_NONE);
 
     // we have 2 x an FB with the same id
-    oc_resource_set_function_block_instance(soo_resource, (uint8_t)i + 1);
-    oc_resource_set_function_block_instance(ioo_resource, (uint8_t)i + 1);
+    oc_resource_set_functional_block_data(soo_resource, lsxb[i].fb_number, lsxb[i].fb_instance, lsxb[i].fb_number_of_datapoints);
+    oc_resource_set_functional_block_data(ioo_resource, lsxb[i].fb_number, lsxb[i].fb_instance, lsxb[i].fb_number_of_datapoints);
 
     oc_resource_set_discoverable(soo_resource, true);
     oc_resource_set_discoverable(ioo_resource, true);
@@ -139,8 +128,6 @@ void register_resources(void)
     oc_resource_bind_dpt(tp0, test_parameter.dpt);
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
-
-    oc_resource_set_function_block_instance(tp0, 1);
 
     oc_resource_set_discoverable(tp0, true);
 

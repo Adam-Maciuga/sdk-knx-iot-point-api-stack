@@ -362,12 +362,10 @@ extern "C" {
 		OC_KNX_AUTH_AT,						/**< auth/at resource listing auth/at/X */
 		OC_KNX_AUTH_AT_X,					/**< auth/at/X resources */
 		OC_KNX_AUTH,							/**< auth list all sub resources */
-		/* List of resources on a logical device: start */
-		WELLKNOWNCORE             /**< well-known/core resource, is the last resource in the list  */
-		/* List of resources on a logical device: end */
+		WELLKNOWNCORE,            /**< well-known/core resource, is the last resource in the list  */
 	} oc_core_resource_t;
 
-#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE) // note that resources start with "0" 
+#define OC_NUM_CORE_RESOURCES (1 + WELLKNOWNCORE) // number of core resources, note that first resource index is "0" 
 
 	typedef struct oc_resource oc_resource_t;
 
@@ -463,7 +461,7 @@ extern "C" {
 	{
     struct oc_resource* next;             // link to next res. (can't be const, application res. changes data + ptr)
 		oc_string_t uri;                      // resource path (e.g. '/p/lsab/soo')
-		oc_string_array_t types;              // resource type array (e.g. 'urn:knx:dpa.0.58' -> dev/da) 
+		oc_string_array_t types;              // resource type array (for a DPA such as 'urn:knx:dpa.0.58' -> dev/da, for an FB such as 'fb.0' -> dev/) 
 		oc_string_t dpt;                      // resource datapoint type
 		oc_content_format_t content_type[2];  // resource content types that will be supported (max two, first mandatory, second optional)  
 		oc_resource_properties_t properties;  // resource properties (e.g 'discoverable' - bit mask) 
@@ -474,10 +472,19 @@ extern "C" {
 		oc_properties_cb_t get_properties;    // callback for get properties 
 		oc_properties_cb_t set_properties;    // callback for set properties 
 		uint16_t observe_period_seconds;      // observe period in seconds 
-		uint8_t fb_instance;                  // function block instance, default = 0 
-		bool is_const;                        // resource is precompiled (core = true) or not (application = false)
+		uint32_t fb_data;                     // compressed FB data* (see extra details)
+		bool is_const;                        // resource is precompiled (core = true, application = always false, will be dynamically allocated)
 		oc_resource_data_t* runtime_data;     // for an endpoint its modifiable data AT RUNTIME (which one, see resource type)
   };
+
+	/*
+	   * info is encoded PER resource
+	     - the FB number (hi 16 bit) the resource belongs to
+	     - the FB instance (mid 8 bit) the resource belongs to
+	     - the to this FB instance belonging datapoints (low 8 bit), encoded on any resource (there is no parent FB container available in the stack) 
+
+	   init with 0 means instance = 0 = default = only one FB instance present
+	*/
 
 	// defined to safe space since only the next is of interest 
 	typedef struct oc_resource_dummy_s

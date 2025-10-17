@@ -51,7 +51,6 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
 #endif
 #endif
 
-
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
   oc_separate_response_t* response = context;
@@ -70,7 +69,7 @@ static oc_event_callback_retval_t send_delayed_response(void* context)
   return OC_EVENT_DONE;
 }
 
-void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, uint8_t* block_data, size_t block_len, void* data)
+void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, const uint8_t* block_data, size_t block_len, void* data)
 {
   (void)binary_size;
   (void)data;
@@ -242,6 +241,8 @@ extern int_datapoint_t test_parameter;
  The callbacks are called from the stack for an 's-mode' call (/k) and for a parameter and diagnostic
  'property' call (/p).
 
+ *Caller*
+
  - For the 's-mode' call the group object table configuration flags (cflags) and service type (w/r/a)
    are considered by the stack, but not for the 'property' call.
 
@@ -249,8 +250,11 @@ extern int_datapoint_t test_parameter;
    by the stack. The request payload (on w/a ->PUT) points to the actual value object.  
  - For a GET/PUT 'property' call the GET/PUT callback handler are called directly.
 
+ *Resource Path*
+
  - A KNX related resource path for the 's-mode' and 'property' communication SHALL be defined with
-   a leading '/p' (e.g.; '/p/lssb/soo'). Hence, the LSAB/LSSB application examples uses the leading '/p',
+   a leading '/p' (e.g.; '/p/lssb/soo'). The resource path SHALL NOT be empty. Hence, the LSAB/LSSB
+   application examples uses the leading '/p' with some application specific extension,
    also the EITT test application requires a leading '/p' for the EITT certification tests.
 
  - The /p callbacks MUST implement also additional required functionality.
@@ -284,10 +288,10 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   (void)interfaces;
   bool error_state = true;
 
-  // user data host the pointer to a 16 bit encoded channel/datapoint
-  const uint16_t channel_and_datapoint = (uint16_t)user_data;
-  const uint8_t channel = channel_and_datapoint >> 8;
-  const uint8_t point = channel_and_datapoint & 0x00FF;
+  // user data host the pointer to a 16 bit encoded channel/datapoint, skip compiler warning by cast from 64 bit 
+  const size_t channel_and_datapoint = (uintptr_t)user_data;
+  const uint8_t channel = channel_and_datapoint >> 8 & 0xFF;
+  const uint8_t point = channel_and_datapoint & 0xFF;
 
   PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
@@ -429,10 +433,10 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the pointer to a 16 bit encoded channel/datapoint
-  const uint16_t channel_and_datapoint = (uint16_t)user_data;
-  const uint8_t channel = channel_and_datapoint >> 8;
-  const uint8_t point = channel_and_datapoint & 0x00FF;
+  // user data host the pointer to a 16 bit encoded channel/datapoint, skip compiler warning by cast from 64 bit
+  const size_t channel_and_datapoint = (uintptr_t)user_data;
+  const uint8_t channel = channel_and_datapoint >> 8 & 0xFF;
+  const uint8_t point = channel_and_datapoint & 0xFF;
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
@@ -503,10 +507,10 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the pointer to a 16 bit encoded channel/datapoint
-  const uint16_t channel_and_datapoint = (uint16_t)user_data;
-  const uint8_t channel = channel_and_datapoint >> 8;
-  const uint8_t point = channel_and_datapoint & 0x00FF;
+  // user data host the pointer to a 16 bit encoded channel/datapoint, skip compiler warning by cast from 64 bit
+  const size_t channel_and_datapoint = (uintptr_t)user_data;
+  const uint8_t channel = channel_and_datapoint >> 8 & 0xFF;
+  const uint8_t point = channel_and_datapoint & 0xFF;
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 

@@ -178,22 +178,31 @@ oc_device_info_t* oc_core_get_device_info(void)
 }
 
 
-oc_resource_t* oc_core_get_resource_by_index(int index)
+const oc_resource_t* oc_core_get_core_resource_by_index(int index)
 {
-	// Check bounds first
-	if (index < 0 || index >= OC_NUM_CORE_RESOURCES) {
+	// check index first, first resource index starts with 0 
+	if (index < 0 || index >= OC_NUM_CORE_RESOURCES) 
+	{
 		return NULL;
 	}
 
-	extern const oc_resource_t core_resource_dev_sn; // Start of the chain
-	const oc_resource_t* res = &core_resource_dev_sn;
+	// start of the chain
+	extern const oc_resource_t core_resource_dev_sn; 
+	const oc_resource_t* resource = &core_resource_dev_sn;
 
-	// Walk the linked list to the specified index
-	for (int i = 0; i < index && res; i++) {
-		res = res->next;
-	}
+	/*
+	 * walk the linked list to the specified index, less readable, optimized, often used
+	 * - ptr cannot be NULL since all (57) resources are linked in code
+	 * - index 0 = dev_sn,
+	 * - index 1 = dev_hwv,
+	 * - ...
+	 * - index 57 = well-known 
+	 *
+	 */
+	while (index--) 
+    resource = resource->next;
 
-	return (oc_resource_t*)res;
+	return resource;
 }
 
 bool oc_check_request_query_value_on_urn_knx(oc_request_t* request)

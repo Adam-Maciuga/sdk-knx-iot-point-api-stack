@@ -441,7 +441,7 @@ extern "C"
    *
    */
   typedef void (*oc_swu_cb_t)(oc_separate_response_t* response, size_t binary_size, size_t block_offset,
-                              uint8_t* block_data, size_t block_len, void* data);
+                              const uint8_t* block_data, size_t block_len, void* data);
 
   /**
    * Sets the software update callback,
@@ -745,14 +745,18 @@ extern "C"
   /**
    * @brief set a (FB) resource to a specific function block instance.
    *
-   * @note If there is just 'one' FB instance this function does not have
-   *       to be called (the default is FB instance 0, expressed as 417).
-   *       In case of more than one FB instance, an instance is expresses as 2-digit 417_01, 417_02, ... 
+   * @note
+   * - If there is just 'one' FB instance this function does not have
+   *   to be called (the default 0 means there is only one FB instance, such as 417).
+   * - In case of more than one FB instance, an instance is expressed in responses as a 2-digit
+   *   417_01, 417_02, ..., consequently the instance has to be set with 1, 2,...
    *
    * @param resource the resource
-   * @param instance the instance id, as 1 to n.
+   * @param fb_number the fb number
+   * @param fb_instance the fb instance, as 1 to n.
+   * @param fb_number_datapoints the number of datapoint's in this fb
    */
-  void oc_resource_set_function_block_instance(oc_resource_t* resource, uint8_t instance);
+  void oc_resource_set_functional_block_data(oc_resource_t* resource, uint16_t fb_number, uint8_t fb_instance, uint8_t fb_number_datapoints);
 
   /**
    * Add a resource to the stack.
@@ -946,18 +950,6 @@ extern "C"
   void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
 
   /**
-   * @brief send the request, no processing
-   *
-   * @param request the request to send
-   * @param payload the payload for the request
-   * @param size the payload size
-   * @param content_format the content format
-   * @param response_code the response code to send
-   */
-  void oc_send_response_raw(oc_request_t* request, const uint8_t* payload, size_t size, oc_content_format_t content_format,
-                            oc_status_t response_code);
-
-  /**
    * @brief retrieve the response payload, without processing
    *
    * @param response the response
@@ -969,18 +961,6 @@ extern "C"
    */
   bool oc_get_response_payload_raw(oc_client_response_t* response, const uint8_t** payload, size_t* size,
                                    oc_content_format_t* content_format);
-
-  /**
-   * @brief send a diagnostic payload
-   *
-   * @param request the request
-   * @param msg the message in ASCII
-   * @param msg_len the length of the message
-   * @param response_code the CoAP response code
-   */
-  void oc_send_diagnostic_message(oc_request_t* request, const char* msg, size_t msg_len, oc_status_t response_code);
-
-
   /**
    * Ignore the request
    *

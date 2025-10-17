@@ -515,11 +515,16 @@ oc_string_is_hex_array(oc_string_t hex_string)
 
 size_t oc_char_print_hex(const char* str, size_t str_len)
 {
+  #ifdef OC_DEBUG
   for (size_t i = 0; i < str_len; i++)
   {
     PRINTF("%02x", (unsigned char) str[i]);
   }
   return str_len;
+  #else
+  retun 0;
+  #endif
+
 }
 
 size_t oc_string_print_hex(oc_string_t hex_string)
@@ -640,30 +645,45 @@ oc_uri_contains_wildcard(const char* uri)
   return false;
 }
 
-int oc_uri_get_wildcard_value_as_int(const char* uri_resource, size_t uri_len,
-                                     const char* uri_invoked, size_t invoked_len)
+int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_len,
+                                         const char* uri_invoked, size_t invoked_len)
 {
   if (uri_resource[uri_len - 1] == '*')
-  { // EP must be defined with a '*' at the end of e.g.; /f/* 
+  { // EP must be defined with a '*' at the end of e.g.; /fp/g/* 
 
     if (invoked_len + 1 >= uri_len)
     { 
       // - invoked uri has no heading '/', need at least one digit from invoked uri, 
-      // - 'f/4' versus '/f/*', set pointer - 2 = heading '/' and trailing '*' from '/f/*'
+      // - 'fp/g/4' versus '/fp/g/*', set pointer - 2 = heading '/' and trailing '*' from '/fp/g/*'
 
-      // convert from pointer after 'f/'
-      // note that f/004 and f/4 results both in 4
-      return atoi(&uri_invoked[uri_len - 2]);
+      /*
+        convert from pointer after 'f/', note that
+        - fp/g/004 or f/4 results both in 4
+        - fp/g/004_abc, f/4abc, f/abc results in string errors '-1'
+      */
+
+      char* ptr_last_converted_digit = NULL;
+      const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
+
+      errno = 0; 
+      const int converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_converted_digit, 10);
+
+      // accept only entire numbers (ptr_last_converted_digit = last string position)
+      // with no conversion errors (see 'strtol' details)
+      if (errno || ptr_last_converted_digit != &uri_invoked[invoked_len])
+        return -1;
+
+      return converted_value;
     }
   }
 
+  // error no resource with xx/*
   return -1;
 }
 
-int oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
-                                                  size_t uri_len,
-                                                  const char* uri_invoked,
-                                                  size_t invoked_len)
+int oc_uri_get_wildcard_string_value_as_int(const char* uri_resource, size_t uri_len,
+                                            const char* uri_invoked,  size_t invoked_len, 
+                                            bool scan_from_left_side)
 {
   if (uri_resource[uri_len - 1] == '*')
   { // EP must be defined with a '*' at the end of e.g.; /f/* 
@@ -671,17 +691,52 @@ int oc_uri_get_wildcard_value_as_int_after_underscore(const char* uri_resource,
     { // - invoked uri has no heading '/', need at least one digit from invoked uri, 
       // - 'f/4_1' versus '/f/*', set pointer - 2 = heading '/' and trailing '*' from '/f/*'
 
+      char* ptr_last_converted_digit = NULL;
+      const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
+
       // scan for '_'  
-      char* underscore = strchr(&uri_invoked[uri_len - 2], '_');
+      const char* underscore = strchr(ptr_first_to_be_converted_digit, '_');
       if (underscore)
-      { 
-        // convert from pointer after 'f/4_',
-        // note that f/4_01 and f/4_1 results both in 1
-        return atoi(underscore + 1);
+      {
+        int converted_value;
+        errno = 0;
+
+        /*
+        convert from pointer after 'f/4_', note that
+        - f/4_001 or f/4_1 results both in 1
+        - f/4_abc, f/4_1abc results in string errors '-1'
+        */
+
+        if (scan_from_left_side)
+        { 
+          converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_converted_digit, 10);
+
+          // accept only entire numbers (ptr_last_converted_digit = '-' string position)
+          // with no conversion errors (see 'strtol' details)
+          if (errno || ptr_last_converted_digit != underscore)
+            return -1;
+        }
+        else
+        {
+          const char* address_after_underscore = underscore + 1;
+          converted_value = strtol(address_after_underscore, &ptr_last_converted_digit, 10);
+
+          // accept only entire numbers (ptr_last_converted_digit = last string position)
+          // with no conversion errors (see 'strtol' details)
+          if (errno || ptr_last_converted_digit != &uri_invoked[invoked_len])
+            return -1;
+
+        }
+
+        return converted_value;
       }
+      
+      // no underscore, an invalid FB number '_' instance combination
+      return -1;
     }
   }
 
+  // error no resource with xx/*
   return -1;
 }
 
@@ -697,11 +752,11 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resourc
     if (invoked_len + 1 >= resource_len)
     {
       // pointer to wildcard part of invoked URI,
-      // e.g; to 'xyz...abc' from invoked URI aut/at/xyz...abc
+      // e.g; to 'abba' from invoked URI aut/at/abba
       // -2 since '/' is not included in invoked URI and array counts from 0...n
       *value = &uri_invoked[resource_len - 2];
 
-      // len of wildcard part such as 6++ for 'xyz...abc'
+      // len of wildcard part such as 4 for 'abba'
       return (int)(invoked_len - resource_len + 2);
     }
   }

@@ -552,8 +552,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   int ps_block_size = 0;      // page size 
   int po_block_offset = 0;    // page offset, bytes to skip, default =0 if query parameter 'po' is missing
 
-  uint8_t* payload_ptr = NULL;
-  size_t payload_size = 0; 
+  
 
   OC_DBG("oc_knx_swu_a_put_handler - start");
 
@@ -586,13 +585,6 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("block size: %d", ps_block_size);
   OC_DBG("block offset: %d", po_block_offset);
 
-  // if swu blob data are present ... TODO only a copy, used pointer directly OR return a BAD REQUEST
-  if (request->_payload && request->_payload_len > 0)
-  {
-    payload_ptr = request->_payload;
-    payload_size = request->_payload_len;
-  }
-
   // get application FWU handler
   // - is usually device hardware and application specific and needs some processing time
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
@@ -605,8 +597,8 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     application_swu_cb->cb(&s_delayed_response_swu, 
                            pkgs_package_size, 
                            po_block_offset, 
-                           payload_ptr, 
-                           payload_size,
+                           request->_payload, // can also be NULL
+                           request->_payload_len, // can also be '0'
                            application_swu_cb->data);
   }
   else
@@ -837,8 +829,7 @@ static void oc_core_knx_swu_get_handler(oc_request_t* request, oc_interface_mask
 
   for (int i = first_entry; i < last_entry; i++)
   {
-    const oc_resource_t* resource = oc_core_get_resource_by_index(i);
-    if (oc_check_resource_by_request(resource, request, &response_length, &i, i, true))
+    if (oc_check_request_from_index(i, request, &response_length, &i, i, true))
     {
       query_parameter_kvpair_matches++;
     }
@@ -868,7 +859,7 @@ extern const oc_resource_t core_resource_sub;
 PRAGMA_IN oc_resource_data_t core_resource_knx_swu_data;
 const oc_resource_t core_resource_knx_swu = {(oc_resource_t*)&core_resource_sub,
                                              {NULL, sizeof("/swu"), "/swu"},
-                                             {NULL, (size_t)1 * 32, ((char[1][32]){"urn:knx:fb.swu"})},
+                                             {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.swu"}},
                                              {NULL, 0, NULL},
                                              {APPLICATION_LINK_FORMAT, CONTENT_NONE},
                                              OC_DISCOVERABLE,

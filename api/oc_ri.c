@@ -1084,8 +1084,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	/* Parsed CoAP PDU structure. */
 	coap_packet_t* const packet = request;
 
-	/* This function is a server-side entry point solely for requests.
-	*  Hence, "code" contains the CoAP method code.
+	/*
+	   This function is a server-side entry point solely for requests.
+	   Hence, "code" contains the CoAP method code.
 	*/
 	oc_method_t method = packet->code;
 
@@ -1229,12 +1230,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	*/
 	if (!bad_request)
 	{
-		const oc_resource_t* tmp_resource;
+		const oc_resource_t* tmp_core_resource;
 
-		// check core resources
+		// check ALL core resources
 		for (int i = 0; i < OC_NUM_CORE_RESOURCES; i++)
 		{
-			tmp_resource = oc_core_get_resource_by_index(i);
+			tmp_core_resource = oc_core_get_core_resource_by_index(i);
+      size_t tmp_core_resource_len = oc_string_len(tmp_core_resource->uri);
 
 			/*
 			  incoming URL fits to a core resource by len and content, such as:
@@ -1244,15 +1246,17 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         see core resource definitions!
 
       */
-      if (uri_path_len + 1 == oc_string_len(tmp_resource->uri) &&
-					strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path, uri_path_len) == 0)
+          // need at least one identifier after, 'dev/sn' + 1 >= '/dev/sn' -> 7 >= 7
+      if (uri_path_len + 1 == tmp_core_resource_len &&
+          // start compare from 'dev/sn' (omit '/') with 'dev/sn' by compare len of 'dev/sn' = 7
+					strncmp((const char*) oc_string(tmp_core_resource->uri) + 1, uri_path, uri_path_len) == 0)
 			{
-				request_obj.resource = matching_resource = tmp_resource;
+				request_obj.resource = matching_resource = tmp_core_resource;
 				break;
 			}
 
      
-			if (oc_uri_contains_wildcard(oc_string(tmp_resource->uri)))
+			if (oc_uri_contains_wildcard(oc_string(tmp_core_resource->uri)))
 			{
 
 			  /*
@@ -1265,15 +1269,14 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
         */
 
-			  size_t len_resource = oc_string_len(tmp_resource->uri);
-
-				// 7 >= 7 ; res: /fp/r/* + 1 = fp/r/* ; req: fp/r/25;  res (fp/r/ = 5) == req (fp/r/ = 5)
-				if (uri_path_len + 1 >= len_resource &&
-						strncmp((const char*) oc_string(tmp_resource->uri) + 1, uri_path, len_resource - 2) == 0)
+			      // need at least one identifier after, 'fp/r/2' + 1 >= '/fp/r/*' -> 7 >= 7
+				if (uri_path_len + 1 >= tmp_core_resource_len &&
+						// start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r' = 4
+						strncmp((const char*) oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
 				{ // found core resource 
 
 				  // TODO check if a security leak exists 
-					request_obj.resource = matching_resource = tmp_resource;
+					request_obj.resource = matching_resource = tmp_core_resource;
 					break;
 				}
 			}

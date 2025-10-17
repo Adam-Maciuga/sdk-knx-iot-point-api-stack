@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2021 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,29 +35,33 @@ extern "C" {
 #endif
 
 /**
- * @brief add functional blocks to the response
+ * @brief adds list of functional blocks in
+ *        link list format to the response
  *
- * adds the list of functional blocks for /f or ./well-known/core to the
- * response
+ * @note  used for /f and ./well-known/core 
  *
  * @param request the request
  * @param short_urn_form if the urn:knx needs to be added as part of response or not (/well-known vs /f)
  * @param response_length the current response length
  * @param matches number of matches (so far)
- * @param skipped number of entries already skipped
+ * @param skipped number of entries already skipped (in case they fo not fit to the page number)
  * @param first_entry first entry to be included
  * @param last_entry last entry to be included (exclusive)
  * @return true (at least one FB was added)
  * @return false (no FB was added)
  *
  */
-bool oc_was_adding_function_blocks_to_response(oc_request_t *request, bool short_urn_form,
+bool oc_add_functional_blocks_from_application_to_response(oc_request_t *request, bool short_urn_form,
                                         size_t *response_length, int *matches,
                                         int *skipped, int first_entry,
                                         int last_entry);
 
-/**
- *@brief count 'application' functional blocks in a device
+ /**
+ * @brief Count all different 'application' functional blocks with its instances.
+
+ * @note  Uses an internal (static) array to store the scanned FB numbers/instances, the array is reused
+ *        from other methods (can be optimized). 
+ *
  */
 int oc_count_functional_blocks_from_application(void);
 
@@ -78,26 +83,8 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t *request);
  */
 int get_fb_number_from_dp(const char* dpt);
 
-/**
- * @brief stores the occurence of a functional block in an array
- *
- * @param value the fb number
- * @param instance the instance of that fb number 
- *
- */
-void store_in_array(int value, int instance);
-
-/**
- * @brief checks if a functional block is in the array
- *
- * @param value the fb number
- * @param instance the instance of that fb number
- *
- */
-bool is_in_g_array(int value, int instance);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_KNX_FB_INTERNAL_H */
+#endif 

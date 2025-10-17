@@ -147,7 +147,7 @@ dispatch_coap_request(oc_content_format_t content, oc_content_format_t accept)
 
 bool oc_do_multicast_update(void)
 {
-  int payload_size = oc_rep_get_encoded_payload_size();
+  const int payload_size = oc_rep_get_encoded_payload_size();
 
   if (payload_size > 0 && multicast_update) 
   {

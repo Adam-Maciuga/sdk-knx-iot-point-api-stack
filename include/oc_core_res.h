@@ -232,7 +232,7 @@ extern "C" {
 	 * @param index the index of the resource
 	 * @return oc_resource_t* the resource handle
 	 */
-	oc_resource_t* oc_core_get_resource_by_index(int index);
+	const oc_resource_t* oc_core_get_core_resource_by_index(int index);
 
 	/**
 	 * @brief Ensure that the given URI starts with a forward slash '/'.
@@ -258,8 +258,10 @@ extern "C" {
    *
    * @return true
    * - key 'rt' is present and resource interface type DO match the value from the request
-   * - key 'rt' is present and the value from the request is a '*' wildcard (at least one type must be assigned to a resource)
+   * - key 'rt' is present and the value from the request is a '*' wildcard
+   *   (at least one resource type must be assigned that matches the wildcard)
    * - key 'rt' is NOT present
+   *
    * @return false
    * - key 'if' is present and resource interface type DO NOT match the value from the request
    *
