@@ -150,6 +150,8 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text)
   wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
 
+  /*
+
   wxButton* pasteButton = new wxButton(this, wxID_ANY, wxT("Paste Serial Number"));
   pasteButton->Bind(wxEVT_BUTTON,
                     [this, tc](wxCommandEvent&)
@@ -174,6 +176,8 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text)
                       EndModal(wxID_OK);
                     });
   hbox->Add(pasteButton, 0, wxLEFT, 5);
+
+  */
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);

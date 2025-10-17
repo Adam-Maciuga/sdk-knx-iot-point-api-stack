@@ -152,6 +152,8 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
   wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
 
+  /*
+
   oc_device_info_t* device = oc_core_get_device_info();
   char* sn = oc_string(device->serialnumber); 
 
@@ -167,6 +169,8 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
                      }
                    });
   hbox->Add(copyButton, 0, wxLEFT, 5);
+
+  */
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
@@ -231,6 +235,9 @@ private:
   // sleepy information
   int m_sleep_counter = 0;
   int m_sleep_milliseconds = 20000;
+
+  int m_lsm = LSM_S_UNLOADED;
+
 
   int m_mode = -1;
   int m_pv = -1;
@@ -346,11 +353,11 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
 
   // full menu bar
   wxMenuBar* menuBar = new wxMenuBar;
-  menuBar->Append(m_menuFile, "Config");
+  //menuBar->Append(m_menuFile, "Config");
   // menuBar->Append(m_menuDisplay, "&Display");
   // menuBar->Append(m_menuOptions, "&Options");
   // menuBar->Append(menuHelp, "&Help");
-  // wxFrameBase::SetMenuBar(menuBar);
+  wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
   // wxFrameBase::SetStatusText("PV");
 
@@ -359,7 +366,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   //Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
   //Bind(wxEVT_MENU, &MyFrame::OnPublisherTable, this, PUB_TABLE_ID);
   //Bind(wxEVT_MENU, &MyFrame::OnRecipientTable, this, REC_TABLE_ID);
-  //Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
+  Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
 
   // Create a vertical box sizer for the whole section
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
@@ -502,10 +509,28 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
 
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
-  m_timer.Start(1, wxTIMER_CONTINUOUS);
-  
+  m_timer.Start(1, wxTIMER_CONTINUOUS); 
+
   CEM_init_tables();
   device->lsm_s = LSM_S_LOADED;
+  
+  //CEM_init_auth_table();
+  //device->lsm_s = LSM_S_UNLOADED;
+ 
+  /*
+  if (device->iid == 0)
+  {
+    CEM_init_auth_table();
+
+    m_lsm = LSM_S_UNLOADED;
+    device->lsm_s = LSM_S_UNLOADED;
+  }
+  else
+  {
+    m_lsm = LSM_S_LOADED;
+    device->lsm_s = LSM_S_LOADED;
+  }
+  */
 }
 
 /**
@@ -569,6 +594,37 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
  */
 void MyFrame::updateDeviceData()
 {
+  oc_device_info_t* device = oc_core_get_device_info();
+  
+
+  /*
+
+  if (m_lsm != device->lsm_s)
+  {
+    m_lsm = device->lsm_s;
+
+    if (m_lsm == LSM_S_UNLOADED)
+    {
+      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+    }
+    if (m_lsm == LSM_S_LOADING)
+    {
+      oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      CEM_init_tables();
+      device->lsm_s = LSM_S_LOADED;
+    }
+    if (m_lsm == LSM_S_LOADED)
+    {
+      //device->lsm_s = LSM_S_LOADED;
+    }
+  }
+
+  */
+  
+
+
+  
+
   /*
 
   char text[500];
@@ -1941,6 +1997,7 @@ wxString MyFrame::dumpAuthTable()
             out += line;
           }
         }
+        out += "\n";
         /*
         if (entry->scope == OC_ACL_GA)
         {

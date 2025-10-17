@@ -52,6 +52,7 @@ extern "C"
   void PV_set_PV(int);  
 
   // CEM app
+  int CEM_init_auth_table();
   int CEM_init_tables();
   char* CEM_retrieve_href(uint16_t);
   int CEM_retrieve_mode();

@@ -102,10 +102,17 @@ datapoint_t Charger_datapoint[1] = {
   {"/p/charger", "urn:knx:dpa.666.03", ":dpt.value_power", "CHARGER", "0"} // DPT: 14.056
 };
 
-lsxb_channel_t lsxb[NUM_CHANNELS] = {{{{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 16) + 0},
-                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 16) + 1}}},
-                                     {{{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 16) + 0},
-                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 16) + 1}}}};
+// define LSAB channel 0..1 + included EPs switch control/status
+lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
+                                      1,
+                                      NUM_POINTS,
+                                      {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
+                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}},
+                                     {417,
+                                      2,
+                                      NUM_POINTS,
+                                      {{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
+                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}};
 
 // additional parameters
 int_datapoint_t test_parameter = {
@@ -118,7 +125,7 @@ void register_resources(void)
   oc_resource_bind_resource_type(CHARGER_resource, Charger_datapoint[0].dpa);
   oc_resource_bind_dpt(CHARGER_resource, Charger_datapoint[0].dpt);
   oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_function_block_instance(CHARGER_resource, 1);
+  //oc_resource_set_function_block_instance(CHARGER_resource, 1);
   oc_resource_set_discoverable(CHARGER_resource, true);
   oc_resource_set_observable(CHARGER_resource, true);
   void* CHARGER_user_data = Charger_datapoint[0].id;
@@ -137,7 +144,7 @@ void register_resources(void)
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
 
-    oc_resource_set_function_block_instance(tp0, 1);
+    //oc_resource_set_function_block_instance(tp0, 1);
 
     oc_resource_set_discoverable(tp0, true);
 
@@ -285,17 +292,12 @@ int Charger_init_tables_QR(char* sn_s)
     return -1;
   }
 
-  char A = (sn_b[1] & 0xf0) >> 4;
-  char L = sn_b[1] & 0x0f;
+  int ia = 0xffff;
+  uint64_t iid;
+  int fid;
+  uint32_t grpid;
 
-  int ia = 0x2003;
-  uint64_t iid = 0x7dff7f6c9a;
-  int fid = 0xfa;
-  uint32_t grpid = 0xc285fba0;
-
-  ia = (sn_b[1] * 0x100) + 0x03;
-
-  iid = sn_b[1];
+  iid = 0x00;
   iid <<= 8;
   iid += sn_b[2];
   iid <<= 8;
@@ -305,18 +307,22 @@ int Charger_init_tables_QR(char* sn_s)
   iid <<= 8;
   iid += sn_b[5];
 
-  fid = sn_b[1];
+  fid = sn_b[0];
+  fid <<= 8;
+  fid += sn_b[1];
+  fid <<= 8;
 
-  grpid = L;
-  grpid <<= 8;
-  grpid += sn_b[4];
+  grpid = 0x00;
+  grpid += sn_b[2];
   grpid <<= 8;
   grpid += sn_b[3];
   grpid <<= 8;
-  grpid += A;
+  grpid += sn_b[4];
+  grpid <<= 8;
+  grpid += sn_b[5];
 
-  int ga0 = 0x0100 + L;
-  int ga1 = 0x0200 + L;
+  int ga0 = 0x0001;
+  int ga1 = 0x0002;
 
   oc_core_set_and_store_device_ia(ia);
   oc_core_set_and_store_device_iid(iid);
@@ -359,17 +365,16 @@ int Charger_init_tables_QR(char* sn_s)
   g_gpt[entry].ga = ga_array;
 
   // auth table
-  oc_new_string(&g_at_entries[entry].id, "0/2/10", strlen("0/2/10"));
+  oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
   g_at_entries[entry].scope = OC_ACL_GA;
   g_at_entries[entry].ga_len = ga_array_size;
   g_at_entries[entry].ga = ga_array;
-  BYTE byteArray12[2] = {0x02, L};
+  BYTE byteArray12[2] = {0, 2};
   oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {(L * 0x10) + A, 0x22,    sn_b[5], sn_b[4], sn_b[3], sn_b[2], sn_b[1], sn_b[0],
-                          sn_b[0],        sn_b[1], sn_b[2], sn_b[3], sn_b[4], sn_b[5], 0x22,    sn_b[1]};
+  BYTE byteArray1f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {0x00, 0x00, 0x00, 0x00, (L * 0x10) + A, 0x22};
+  BYTE byteArray16[6] = {sn_b[2], sn_b[3], sn_b[4], sn_b[5], 0, 2};
   oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
   oc_load_group_object_table();

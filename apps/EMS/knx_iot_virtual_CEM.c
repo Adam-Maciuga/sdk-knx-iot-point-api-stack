@@ -108,10 +108,19 @@ datapoint_t CEM_datapoint[4] = {
   {"/p/charger", "urn:knx:dpa.666.03", ":dpt.value_power", "CHARGER", "3"} // DPT: 14.056
 };
 
-lsxb_channel_t lsxb[NUM_CHANNELS] = {{{{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 16) + 0},
-                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 16) + 1}}},
-                                     {{{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 16) + 0},
-                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 16) + 1}}}};
+// define LSAB channel 0..1 + included EPs switch control/status
+lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
+                                      1,
+                                      NUM_POINTS,
+                                      {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
+                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}},
+                                     {417,
+                                      2,
+                                      NUM_POINTS,
+                                      {{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
+                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}};
+
+
 
 // additional parameters
 int_datapoint_t test_parameter = {
@@ -127,7 +136,7 @@ void register_resources(void)
   oc_resource_bind_resource_type(MODE_resource, CEM_datapoint[0].dpa);
   oc_resource_bind_dpt(MODE_resource, CEM_datapoint[0].dpt);
   oc_resource_bind_content_type(MODE_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_function_block_instance(MODE_resource, 1);
+  //oc_resource_set_function_block_instance(MODE_resource, 1);
   oc_resource_set_discoverable(MODE_resource, true);
   oc_resource_set_observable(MODE_resource, true);
   void* MODE_user_data = CEM_datapoint[0].id;
@@ -135,7 +144,7 @@ void register_resources(void)
   oc_resource_bind_resource_type(PV_resource, CEM_datapoint[1].dpa);
   oc_resource_bind_dpt(PV_resource, CEM_datapoint[1].dpt);
   oc_resource_bind_content_type(PV_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_function_block_instance(PV_resource, 1);
+  //oc_resource_set_function_block_instance(PV_resource, 1);
   oc_resource_set_discoverable(PV_resource, true);
   oc_resource_set_observable(PV_resource, true);
   void* PV_user_data = CEM_datapoint[1].id;
@@ -143,7 +152,7 @@ void register_resources(void)
   oc_resource_bind_resource_type(GRID_resource, CEM_datapoint[2].dpa);
   oc_resource_bind_dpt(GRID_resource, CEM_datapoint[2].dpt);
   oc_resource_bind_content_type(GRID_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_function_block_instance(GRID_resource, 1);
+  //oc_resource_set_function_block_instance(GRID_resource, 1);
   oc_resource_set_discoverable(GRID_resource, true);
   oc_resource_set_observable(GRID_resource, true);
   void* GRID_user_data = CEM_datapoint[2].id;
@@ -151,7 +160,7 @@ void register_resources(void)
   oc_resource_bind_resource_type(CHARGER_resource, CEM_datapoint[3].dpa);
   oc_resource_bind_dpt(CHARGER_resource, CEM_datapoint[3].dpt);
   oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_function_block_instance(CHARGER_resource, 1);
+  //oc_resource_set_function_block_instance(CHARGER_resource, 1);
   oc_resource_set_discoverable(CHARGER_resource, true);
   oc_resource_set_observable(CHARGER_resource, true);
   void* CHARGER_user_data = CEM_datapoint[3].id;
@@ -174,7 +183,7 @@ void register_resources(void)
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
 
-    oc_resource_set_function_block_instance(tp0, 1);
+    //oc_resource_set_function_block_instance(tp0, 1);
 
     oc_resource_set_discoverable(tp0, true);
 
@@ -224,11 +233,230 @@ int app_initialize_stack(void)
   return oc_main_init(&handler);
 }
 
+
+int CEM_init_auth_table()
+{
+  int entry = 0;
+
+  // auth table
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020c00", strlen("0c00fa10020c00"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+
+  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0c, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+
+  oc_load_at_table();
+
+  return 0;
+}
+
+
 int CEM_init_tables()
 {
   oc_device_info_t* device = oc_core_get_device_info();
-  char* sn_s = oc_string(device->serialnumber);  
+  char* sn_s = oc_string(device->serialnumber);
   unsigned char sn_b[6];
+
+  for (size_t i = 0; i < 6; i++)
+    sn_b[i] = 0x00;
+
+  int len = strlen(sn_s);
+
+  if (len % 2 == 0)
+  {
+    if (len / 2 == 6)
+    {
+      for (size_t i = 0; i < 6; i++)
+      {
+        char buf[3] = {sn_s[2 * i], sn_s[2 * i + 1], '\0'}; // 2 hex chars
+        sn_b[i] = (unsigned char)strtol(buf, NULL, 16);
+      }
+    }
+    else
+    {
+      return -1;
+    }
+  }
+  else
+  {
+    return -1;
+  }
+
+  int ia = 0xffff;
+  uint64_t iid;
+  int fid;
+  uint32_t grpid; 
+
+  iid = 0x00;
+  iid <<= 8;
+  iid += sn_b[2];
+  iid <<= 8;
+  iid += sn_b[3];
+  iid <<= 8;
+  iid += sn_b[4];
+  iid <<= 8;
+  iid += sn_b[5];
+
+  fid = sn_b[0];
+  fid <<= 8;
+  fid += sn_b[1];
+  fid <<= 8;
+
+  grpid = 0x00;
+  grpid += sn_b[2];
+  grpid <<= 8;
+  grpid += sn_b[3];
+  grpid <<= 8;
+  grpid += sn_b[4];
+  grpid <<= 8;
+  grpid += sn_b[5];
+
+  int ga0 = 0x0001;
+  int ga1 = 0x0002;
+
+  oc_core_set_and_store_device_ia(ia);
+  oc_core_set_and_store_device_iid(iid);
+  oc_core_set_and_store_device_fid(fid);
+
+  oc_init_tables();
+
+  int entry;
+  int ga_array_size;
+  uint32_t* ga_array;
+
+  entry = 0;
+
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga0;
+  }
+
+  // object table
+  g_got[entry].id = 1;
+  oc_string_t href_pv;
+  oc_new_string(&href_pv, "/p/pv", strlen("/p/pv"));
+  g_got[entry].href = href_pv;
+  g_got[entry].cflags = OC_CFLAG_WRITE;
+  g_got[entry].ga_len = ga_array_size;
+  g_got[entry].ga = ga_array;
+
+  entry = 1;
+
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga1;
+  }
+
+  g_got[entry].id = 3;
+  oc_string_t href_charger;
+  oc_new_string(&href_charger, "/p/charger", strlen("/p/charger"));
+  g_got[entry].href = href_charger;
+  g_got[entry].cflags = OC_CFLAG_TRANSMISSION;
+  g_got[entry].ga_len = ga_array_size;
+  g_got[entry].ga = ga_array;
+
+  entry = 0;
+
+  ga_array_size = 2;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga0;
+    ga_array[1] = ga1;
+  }
+
+  // rcp table
+  g_grt[entry].id = 0;
+  g_grt[entry].grpid = grpid;
+  g_grt[entry].ga_len = ga_array_size;
+  g_grt[entry].ga = ga_array;
+
+  // pub table
+  g_gpt[entry].id = 0;
+  g_gpt[entry].grpid = grpid;
+  g_gpt[entry].ga_len = ga_array_size;
+  g_gpt[entry].ga = ga_array;
+
+  entry = 0;
+
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga0;
+  }
+
+  // auth table
+  oc_new_string(&g_at_entries[entry].id, "0/0/1", strlen("0/0/1"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_ACL_GA;
+  g_at_entries[entry].ga_len = ga_array_size;
+  g_at_entries[entry].ga = ga_array;
+  BYTE byteArray02[2] = {0, 1};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray02, 2);
+  BYTE byteArray0f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
+  BYTE byteArray06[6] = {sn_b[2], sn_b[3], sn_b[4], sn_b[5], 0, 1};
+  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
+
+  entry = 1;
+
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga1;
+  }
+
+  // auth table
+  oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_ACL_GA;
+  g_at_entries[entry].ga_len = ga_array_size;
+  g_at_entries[entry].ga = ga_array;
+  BYTE byteArray12[2] = {0, 2};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
+  BYTE byteArray1f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+  BYTE byteArray16[6] = {sn_b[2], sn_b[3], sn_b[4], sn_b[5], 0, 2};
+  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
+
+  /*
+
+  entry = 2;
+
+  // auth table
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020c00", strlen("0c00fa10020c00"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0c, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+
+  */
+
+  oc_load_group_object_table();
+  oc_load_object_table();
+  oc_load_at_table();
+
+  subscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
+
+  return 0;
+}
+
+int CEM_init_tables0()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn_s = oc_string(device->serialnumber);  
+  unsigned char sn_b[6]; 
 
   for (size_t i = 0; i < 6; i++) sn_b[i] = 0x00;  
 
@@ -400,6 +628,21 @@ int CEM_init_tables()
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
   BYTE byteArray16[6] = {0x00, 0x00, 0x00, 0x00, (L * 0x10) + A, 0x22};
   oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
+
+  /*
+
+  entry = 2;
+
+  // auth table
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020c00", strlen("0c00fa10020c00"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0c, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+
+  */
 
   oc_load_group_object_table();
   oc_load_object_table();
