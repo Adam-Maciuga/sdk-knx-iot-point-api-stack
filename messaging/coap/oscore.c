@@ -79,13 +79,13 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	}
 }
 
-int
-oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
+// read piv (converts little/big endian) and stores it to 64-bit ssn (ssn is cleared first) 
+int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
 {
 	*ssn = 0;
 
-	uint8_t i, j = sizeof(uint64_t) - piv_len;
-	for (i = 0; i < piv_len; i++, j++)
+	uint8_t j = sizeof(uint64_t) - piv_len;
+	for (uint8_t i = 0; i < piv_len; i++, j++)
 	{
 		memcpy((char*) ssn + j, &piv[i], 1);
 	}
@@ -94,18 +94,16 @@ oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
 	if (*(char*) &_botest == 1)
 	{
 		/* If byte order is Little-endian, convert to Big-endian */
-		*ssn = (*ssn & 0x00ff00ff00ff00ff) << 8 | (*ssn & 0xff00ff00ff00ff00) >> 8;
-		*ssn =
-			(*ssn & 0x0000ffff0000ffff) << 16 | (*ssn & 0xffff0000ffff0000) >> 16;
-		*ssn =
-			(*ssn & 0x00000000ffffffff) << 32 | (*ssn & 0xffffffff00000000) >> 32;
+		*ssn = (*ssn & 0x00ff00ff00ff00ff) << 8  | (*ssn & 0xff00ff00ff00ff00) >> 8;
+		*ssn = (*ssn & 0x0000ffff0000ffff) << 16 | (*ssn & 0xffff0000ffff0000) >> 16;
+		*ssn = (*ssn & 0x00000000ffffffff) << 32 | (*ssn & 0xffffffff00000000) >> 32;
 	}
 
 	return 0;
 }
 
-int
-oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
+// store piv (converts little/big endian) and stores it to 64-bit ssn 
+int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
 {
 	int _botest = 1;
 
@@ -121,21 +119,21 @@ oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
 	if (*(char*) &_botest == 1)
 	{
 		/* If byte order is Little-endian, convert to Big-endian */
-		ssn = (ssn & 0x00ff00ff00ff00ff) << 8 | (ssn & 0xff00ff00ff00ff00) >> 8;
+		ssn = (ssn & 0x00ff00ff00ff00ff) << 8  | (ssn & 0xff00ff00ff00ff00) >> 8;
 		ssn = (ssn & 0x0000ffff0000ffff) << 16 | (ssn & 0xffff0000ffff0000) >> 16;
 		ssn = (ssn & 0x00000000ffffffff) << 32 | (ssn & 0xffffffff00000000) >> 32;
 	}
 
 	*piv_len = 0;
-	char* p = (char*) &ssn + 8 - OSCORE_PIV_LEN;
-	char* end = p + OSCORE_PIV_LEN;
-	while (p != end && *p == 0)
+	char* p = (char*) &ssn + 8 - OSCORE_PIV_LEN; // ptr to first digit of ssn 
+	char* end = p + OSCORE_PIV_LEN; // // ptr to last digit of ssn 
+	while (p != end && *p == 0) // from first digit to last digit skip all leading '0' in ssn
 	{
 		p++;
 	}
 	while (p != end)
 	{
-		piv[(*piv_len)++] = *p;
+		piv[(*piv_len)++] = *p; // copy piv bytes 
 		p++;
 	}
 
@@ -143,11 +141,10 @@ oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
 }
 
 /**
- * @brief get for a request/ response the OUTER CoAp code for a CoAp message
+ * @brief get for a OSCORE request/ response the OUTER CoAp code for the CoAp message
  *
- * @note
- * A request uses always POST a response always 2.04 Changed,
- * except on a present observe option (FETCH, 2.05 OK)
+ * @note a request uses always POST a response always 2.04 Changed,
+ *       except on a present observe option (FETCH, 2.05 OK)
  *
  * @param packet the CoAp packet to be scanned
  *
@@ -162,7 +159,7 @@ oc_method_t oscore_get_outer_code(void* packet)
 		observe = true;
 	}
 
-	if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_DELETE
+	if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH
 			#ifdef OC_TCP
 			|| (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01)
 			#endif 

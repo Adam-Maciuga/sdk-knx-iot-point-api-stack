@@ -29,7 +29,6 @@
 #include "port/oc_random.h"
 #include "oc_buffer.h"
 #include "oc_core_res.h"
-
 #include "oc_events.h"
 #include "oc_network_events.h"
 #ifdef OC_TCP
@@ -1649,8 +1648,7 @@ free_client_cb(oc_client_cb_t * cb)
 	oc_memb_free(&client_cbs_s, cb);
 }
 
-oc_event_callback_retval_t
-oc_ri_remove_client_cb(void* data)
+oc_event_callback_retval_t oc_ri_remove_client_cb(void* data)
 {
 	OC_DBG("removing client %p", data);
 	free_client_cb(data);
@@ -1811,9 +1809,8 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
 	#if defined(OC_OSCORE)
 	if (client_response.observe_option > 1)
 	{
-		uint64_t notification_num = 0;
-		oscore_read_piv(endpoint->request_piv, endpoint->request_piv_len,
-										&notification_num);
+		uint64_t notification_num;
+		oscore_read_piv(endpoint->request_piv, endpoint->request_piv_len,	&notification_num);
 		if (notification_num < cb->notification_num)
 		{
 			return true;

@@ -59,7 +59,7 @@ typedef struct oc_rwin_t
    - Request  | Sender Context    | Recipient Context | Request Key
    - Response | Recipient Context | Sender Context    | Response Key
 
-  The structure has a dual use, as sender context and recipient context. 
+  The structure has a dual use for sender context and recipient context. 
 
  */
 typedef struct oc_oscore_context_t
@@ -68,12 +68,15 @@ typedef struct oc_oscore_context_t
   int auth_at_index;                                // access token index from AT table, that was used to decrypt a received message 
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  // OSCORE master secret
   
-  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          // OSCORE Sender ID
+  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          // 'Sender ID' (in OSCORE)
   uint8_t sender_id_len;                            // length
-  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // OSCORE Recipient ID
+
+  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // 'Recipient ID' (in OSCORE)
   uint8_t recipient_id_len;                         // length
+
   uint64_t ssn;                                     // sender sequence number
-  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // OSCORE ID Context
+
+  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // 'ID Context' (in OSCORE)
   uint8_t id_context_len;                           // length
 
   // derived parameters
@@ -104,11 +107,11 @@ typedef struct oc_oscore_context_t
  * @return false parameters NOT derived (NOT installed)
  */
 int oc_oscore_context_derive_param(const uint8_t *id, uint8_t id_len,
-                                   uint8_t *id_ctx, uint8_t id_ctx_len,
-                                   const char *type, uint8_t *secret,
-                                   uint8_t secret_len, uint8_t *salt,
-                                   uint8_t salt_len, uint8_t *param,
-                                   uint8_t param_len);
+                                   const uint8_t *id_ctx, uint8_t id_ctx_len,
+                                   const char *type, 
+                                   const uint8_t *secret, uint8_t secret_len, 
+                                   const uint8_t *salt, uint8_t salt_len, 
+                                   const uint8_t *param, uint8_t param_len);
 
 void oc_oscore_free_context(oc_oscore_context_t *ctx);
 
@@ -161,12 +164,12 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t* oc_oscore_add_context(
-  const char *sender_id, int sender_id_size,
-  const char* recipient_id, int recipient_id_size,
+  const char* sender_id, size_t sender_id_size,
+  const char* recipient_id, size_t recipient_id_size,
   uint64_t ssn,
-  const char *mastersecret, int mastersecret_size, 
-  const char *salt, int salt_size, 
-  const char* id_context, int id_context_size, 
+  const char* mastersecret, size_t mastersecret_size,
+  const char* salt, size_t salt_size,
+  const char* id_context, uint8_t id_context_size,
   int auth_at_index,
   bool read_ssn_from_storage);
 

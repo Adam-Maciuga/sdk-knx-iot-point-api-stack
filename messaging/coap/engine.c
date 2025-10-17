@@ -131,11 +131,11 @@ bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16]
 #endif
 
 /**
- * @brief send a coap response with empty payload 
+ * @brief send a coap response with an empty payload 
  *
  * @note
- * - in CON -> out ACK  with code 'EMPTY_0_00' , incoming mid, and optionally incoming token
- * - in NON -> out NON  with code '4.01/02' , own next mid , incoming token 
+ * - incoming CON msg -> outgoing ACK msg with code 'EMPTY_0_00' , incoming mid, and optionally incoming token
+ * - incoming NON msg -> outgoing NON msg with code '4.01/02' , own next mid , incoming token 
  * 
  * @param type con/non type
  * @param mid message id (mid)
@@ -156,16 +156,15 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 {
 	coap_packet_t coap_msg; 
 	coap_udp_init_message(&coap_msg, type, (uint8_t)code, mid);
-	oc_message_t* plain_msg = oc_internal_allocate_outgoing_message();
+	oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
 
-	if (plain_msg)
+	if (outgoing_msg)
 	{
-    // copy incoming src EP to tmp EP (IP address/port/data ptr/...) 
-	  memcpy(&plain_msg->endpoint, endpoint, sizeof(*endpoint));
+    // copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...) 
+	  memcpy(&outgoing_msg->endpoint, endpoint, sizeof(*endpoint));
 
-		// convert incoming src EP to unicast (for the response)
-    #define UNICAST (~MULTICAST)
-    plain_msg->endpoint.flags &= UNICAST;
+		// convert outgoing dst EP to unicast (for the response)
+    outgoing_msg->endpoint.flags &= UNICAST;
 
 	  // token will be included if not NULL 
 		if (token && token_len > 0)
@@ -184,9 +183,9 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
     { // we want an echo option to be included
 
 			/*
-          According to RFC8613 the PIV is not included, in KNX IoT it is included:
+          According to RFC8613 the PIV is not included, in KNX IoT it is included (specification, clause 3.6.5):
           - from second observe response onwards
-          - on all echo challenge responses (specification, clause 3.6.5)
+          - on all 'unicast echo responses' 
       */
 
 		  // set echo option (uses a time stamp)
@@ -194,17 +193,17 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
     }
 
 		// serialize data, add all options and include/exclude OSCORE options
-    plain_msg->length = coap_oscore_serialize_message(&coap_msg, plain_msg->data, true, true, echo_included);
+    outgoing_msg->length = coap_oscore_serialize_message(&coap_msg, outgoing_msg->data, true, true, echo_included);
 
-		if (plain_msg->length > 0)
+		if (outgoing_msg->length > 0)
 		{
-			coap_send_message(plain_msg);
+			coap_send_message(outgoing_msg);
 		}
 
 		// if message is not referenced anymore 
-		if (plain_msg->ref_count == 0)
+		if (outgoing_msg->ref_count == 0)
 		{
-			oc_message_unref(plain_msg);
+			oc_message_unref(outgoing_msg);
 		}
 	}
 }
@@ -229,7 +228,7 @@ int coap_receive(oc_message_t* incoming_message)
   if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
    OC_DBG("CoAP Engine: receive (forwarded) data from OSCORE layer with len=%u from ", (unsigned int)incoming_message->length);
   else
-   OC_DBG("CoAP Engine: receive data from network layer with len=%u from ", (unsigned int) incoming_message->length);
+   OC_DBG("CoAP Engine: receive data from NETWORK layer with len=%u from ", (unsigned int) incoming_message->length);
 
   PRINTipaddr(incoming_message->endpoint);
 	OC_LOGbytes(incoming_message->data, incoming_message->length);
@@ -343,10 +342,12 @@ int coap_receive(oc_message_t* incoming_message)
 			//   - a blockwise transport 
 		  transaction = coap_get_transaction_by_mid(incoming_coap_message->mid);
 
-			// assume inbound request of a former outbound request, check by INBOUND token ...
-			//- messages with token
-			// - response from extern, check match with beforehand send out request
-			//   (token matches in piggybacked and separate responses) 
+			/*
+			   assume inbound request of a former outbound request, check by INBOUND token ...
+			   - messages with token
+			   - response from extern, check match with beforehand send out request
+			     (token matches in piggybacked and separate responses)
+      */
 		  if (!transaction)
 				transaction =	coap_get_transaction_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
 
@@ -366,7 +367,7 @@ int coap_receive(oc_message_t* incoming_message)
 		    uint8_t echo_value[COAP_ECHO_LEN];
 				size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
 
-				// inbound echo response (here we are on client side)
+				// incoming echo response (here we are on client side)
 		    if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
 				{
 					OC_DBG("received 4.01 echo response FROM TRANSACTION, sending echo re-request ...");
@@ -409,7 +410,7 @@ int coap_receive(oc_message_t* incoming_message)
 		      new_transaction->message->length = coap_oscore_serialize_message(re_request_packet, new_transaction->message->data, true, true,	true);
 
 					// re-requests must always be unicast, so reset mc flag
-          new_transaction->message->endpoint.flags &= ~MULTICAST;
+          new_transaction->message->endpoint.flags &= UNICAST;
 
           // use 4.01 source as re-request destination
           new_transaction->message->endpoint.addr = incoming_message->endpoint.addr;
@@ -433,8 +434,10 @@ int coap_receive(oc_message_t* incoming_message)
 				}
 				#endif
 
-		    // clear transaction after a received 'coap_no_error' confirmation for CON message type (we are in coap receive + present transaction),
-				// except on an inbound 4.01 + echo
+		    /*
+		       clear transaction after a received 'coap_no_error' confirmation for CON message type,
+		       (we are in coap receive + present transaction), except on an inbound 4.01 + echo
+        */
 				coap_clear_transaction(transaction);
         transaction = NULL;
 			}
@@ -507,7 +510,7 @@ int coap_receive(oc_message_t* incoming_message)
 						re_request_message->length = coap_oscore_serialize_message(re_request_packet, re_request_message->data, true, true, true);
 
             // re-requests must always be unicast, so reset mc flag
-            re_request_message->endpoint.flags &= ~MULTICAST;
+            re_request_message->endpoint.flags &= UNICAST;
 
             // use 4.01 source as re-request destination
             re_request_message->endpoint.addr = incoming_message->endpoint.addr;
@@ -648,7 +651,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 				oc_string_t kid = { 0 };     // init default kid 
 				oc_string_t kid_ctx = { 0 }; // init default kid_context
-				uint64_t ssn;                // local ssn (PIV)
+				uint64_t ssn;                // piv -> ssn
 
 				// fill kid/kid context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
 				oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
@@ -659,8 +662,8 @@ int coap_receive(oc_message_t* incoming_message)
 
 				/*
 				   Server-side logic for:
-				   - sending an 'echo response' with an echo option
-				   - receiving an 'echo re-request' and checking whether the echo option included in is fresh enough
+				   - sending an 'unicast echo response' with an echo option
+				   - receiving an 'unicast echo re-request' and checking whether the echo option included in is fresh enough
 				*/
 
 				if (!is_myself) // message is not an own loopback response 
@@ -669,7 +672,7 @@ int coap_receive(oc_message_t* incoming_message)
 					{
 						// external client is not synchronised, can be:
 						// a: mc/uc regular inbound request message
-						// b: uc echo 're-request' inbound request message (after sending an own 'echo response')
+						// b: uc 'echo re-request' inbound request message (after sending an own 'echo response')
 
 						uint8_t echo_value[COAP_ECHO_LEN];
 						size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
@@ -682,7 +685,7 @@ int coap_receive(oc_message_t* incoming_message)
 								OC_DBG("Request from unsycned client, sending 4.01 Echo Response");
 
 							  // send 'echo response' -> NO PAYLOAD
-                // -> multicast : unicast 4.01 with response sender context (can be many responses from many receivers)
+                // -> multicast : unicast 4.01 with response sender context (there can be many responses from many receivers)
                 // -> unicast   : unicast 4.01 with response sender context 
 								coap_send_response_with_empty_payload(
 									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,

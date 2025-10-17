@@ -128,14 +128,14 @@ void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
 #else
 
   // using group addressing 
-  oc_endpoint_t group_multicast_local_endpoint = { 0 };
-  group_multicast_local_endpoint = oc_create_multicast_group_address_with_port(group_multicast_local_endpoint, grpid, iid, ipv6_adr_scope, COAP_DEFAULT_PORT);
+  oc_endpoint_t group_mcast_endpoint = {0};
+  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, ipv6_adr_scope, COAP_DEFAULT_PORT);
 
 #endif
 
   // set the EP group_address, since this field is used to find the OSCORE context id/ encryption sender key
-  group_multicast_local_endpoint.group_address = group_address;
-  oc_send_s_mode(&group_multicast_local_endpoint, "/k", sia_value, group_address, service_type, value_data, value_size);
+  group_mcast_endpoint.group_address = group_address;
+  oc_send_s_mode(&group_mcast_endpoint, "/k", sia_value, group_address, service_type, value_data, value_size);
 }
 
 static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value,

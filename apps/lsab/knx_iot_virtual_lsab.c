@@ -60,11 +60,10 @@ const uint32_t mid = 0x00fa;                  // manufacturer id, here KNXA
 
 // define LSAB channel 0..1 + included EPs switch control/status
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {417, 1,NUM_POINTS,{
+  {417, 1, NUM_POINTS,{
     {false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
     {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}}, 
-  {417, 2,
-   NUM_POINTS,{
+  {417, 2, NUM_POINTS,{
     {false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
     {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}
   };

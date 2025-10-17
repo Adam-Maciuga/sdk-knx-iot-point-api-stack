@@ -2736,10 +2736,12 @@ static bool is_in_array(uint32_t value, uint32_t* array, int array_size)
 {
   if (array_size <= 0)
   {
+    // no ga's assigned to this (go/pub/rcp) table entry
     return false;
   }
   if (array == NULL)
   {
+    // cant be, if NULL size is -1, see above
     return false;
   }
   for (int i = 0; i < array_size; i++)
@@ -2780,14 +2782,18 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
 
 oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
-  // create the multicast address from group and scope
-  // FF3_:FD__:____:____:(8-f)___:____
-  // FF35:30:<ULA-routing-prefix>::<group id>
-  //    | 5 == scope
-  //    | 3 == scope
-  // Multicast prefix: FF35:0030:          [4 bytes]
-  // ULA routing prefix: FD11:2222:33a3::  [6 bytes + 2 empty bytes]
-  // Group Identifier: 8000 : 0068         [4 bytes ]
+  /*
+  
+   FF3_:FD__:____:____:(8-f)___:____
+   FF35:30:<ULA-routing-prefix>::<group id>
+      | 5 == scope
+      | 3 == scope
+   Multicast prefix: FF35:0030:          [4 bytes]
+   ULA routing prefix: FD11:2222:33a3::  [6 bytes + 2 empty bytes]
+   Group Identifier: 8000 : 0068         [4 bytes ] -> ULA style : MSB ='1'n = 0x80 ; IANA style: MSB ='0' = 0x00
+
+
+  */
 
   // group number to the various bytes
   uint8_t byte_1 = (uint8_t)group_nr;
@@ -2813,10 +2819,9 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
                         port, 0xff, 0x30 + scope, 0, 0x30,        // FF35::30:
                         0xfd, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD11 : 2222 : 3333
                         0, 0,                                     // ::
-                        byte_4, byte_3, byte_2, byte_1);          // group id
+                        byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
-  PRINT("oc_create_multicast_group_address_with_port S=%d iid=%" PRIu64 " G=%u B4=%d B3=%d B2=%d B1=%d :",
-        scope, iid, group_nr, byte_4, byte_3, byte_2, byte_1);
+  PRINT("S=%d iid=%" PRIu64 " G=%u B4=%d B3=%d B2=%d B1=%d :", scope, iid, group_nr, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast);
 
   group_mcast.group_address = group_nr;
@@ -2830,12 +2835,12 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
 void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope and port
-  oc_endpoint_t group_mcast = {0};
+  oc_endpoint_t group_mcast_endpoint = {0};
 
-  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, port);
+  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, port);
 
   // subscribe
-  oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
+  oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
 void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
@@ -2843,37 +2848,36 @@ void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
   // FF35::30: <ULA-routing-prefix>::<group id>
   //
   // create the multicast address from group and scope
-  oc_endpoint_t group_mcast = {0};
+  oc_endpoint_t group_mcast_endpoint = {0};
 
-  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, COAP_DEFAULT_PORT);
+  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, COAP_DEFAULT_PORT);
 
   // subscribe
-  oc_connectivity_subscribe_mcast_ipv6(&group_mcast);
+  oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
 void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
 {
   // create the multicast address from group and scope
-  oc_endpoint_t group_mcast = {0};
+  oc_endpoint_t group_mcast_endpoint = {0};
 
-  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, port);
+  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, port);
 
   // un subscribe
-  oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);
+  oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
 void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
 {
   // FF35::30: <ULA-routing-prefix>::<group id>
-  //
-  // create the multi cast address from group and scope
-  oc_endpoint_t group_mcast;
-  memset(&group_mcast, 0, sizeof(group_mcast));
+  
+  // create the multicast address from group and scope
+  oc_endpoint_t group_mcast_endpoint = {0};
 
-  group_mcast = oc_create_multicast_group_address_with_port(group_mcast, group_nr, iid, scope, COAP_DEFAULT_PORT);
+  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, COAP_DEFAULT_PORT);
 
   // un subscribe
-  oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast);
+  oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
 uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uint32_t group_address)

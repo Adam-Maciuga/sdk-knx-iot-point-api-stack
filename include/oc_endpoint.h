@@ -58,19 +58,21 @@ extern "C" {
    */
   enum transport_flags
   {
-    DISCOVERY = 1 << 0,        /**< used for discovery */
-    SECURED = 1 << 1,          /**< secure communication */
-    IPV4 = 1 << 2,             /**< ipv4 communication */
-    IPV6 = 1 << 3,             /**< ipv6 communication */
-    TCP = 1 << 4,              /**< tcp communication */
-    OSCORE = 1 << 5,           /**< OSCORE communication */
-    MULTICAST = 1 << 6,        /**< multicast enabled */
-    ACCEPTED = 1 << 7,         /**< accepted */
-    OSCORE_DECRYPTED = 1 << 8, /**< OSCORE decrypted message */
-    OSCORE_ENCRYPTED = 1 << 9, /**< OSCORE encrypted message */
+    DISCOVERY = 1 << 0,        // used for discovery, flag not used  
+    SECURED = 1 << 1,          // secure communication, used only in case of TCP  
+    IPV4 = 1 << 2,             // ipv4 communication 
+    IPV6 = 1 << 3,             // ipv6 communication 
+    TCP = 1 << 4,              // tcp communication 
+    OSCORE = 1 << 5,           // OSCORE communication, identifies that OSCORE is used  
+    MULTICAST = 1 << 6,        // multicast enabled 
+    ACCEPTED = 1 << 7,         // accepted 
+    OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message 
   };
 
-  #define SERIAL_NUM_SIZE (12) //binary 6 bytes, in hex 12 bytes
+  #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
+  #define NOT_OSCORE (~OSCORE) // as define to skip compiler warnings on using ~OSCORE directly
+  #define UNICAST (~MULTICAST) // see above
+  #define OSCORE_ENCRYPTED (~OSCORE_DECRYPTED) // see above
 
   /**
    * @brief endpoint information, an endpoint combines uc/mc IP addresses with some security keying material

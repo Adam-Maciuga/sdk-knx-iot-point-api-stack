@@ -431,7 +431,7 @@ void oc_endpoint_set_local_address(oc_endpoint_t* ep, int interface_index)
 		return;
 	}
 	oc_endpoint_t* e = oc_connectivity_get_endpoints();
-	enum transport_flags conn = (ep->flags & IPV6) ? IPV6 : IPV4;
+	enum transport_flags conn = ep->flags & IPV6 ? IPV6 : IPV4;
 	while (e)
 	{
 		if ((e->flags & conn) && e->interface_index == interface_index)

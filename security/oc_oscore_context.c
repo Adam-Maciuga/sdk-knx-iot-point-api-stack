@@ -119,7 +119,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   char* oscore_id = NULL;
   size_t oscore_id_len = 0;
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
 
   // search for client cb by token
   oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(token, token_len);
@@ -137,7 +137,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   else
   {
 
-#endif 
+  #endif 
 
     // search transactions by token
     coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
@@ -150,7 +150,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
       }
       if (!t)
       {
-        
+        // nothing found by token or mid 
         return NULL;
       }
     }
@@ -163,9 +163,9 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
     oscore_id = t->message->endpoint.oscore_id;
     oscore_id_len = t->message->endpoint.oscore_id_len;
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
   }
-#endif
+  #endif
 
   oc_oscore_context_t* ctx = oc_list_head(contexts);
 
@@ -179,7 +179,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   {
     if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0)
     {
-      PRINT("oc_oscore_find_context_by_token_mid FOUND auth/at index: %d", ctx->auth_at_index);
+      PRINT("found context by_token/mid with auth/at index: %d", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -333,12 +333,12 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
   }
 }
 
-oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_size,
-                                           const char* recipient_id, int recipient_id_size,
-                                           uint64_t ssn, 
-                                           const char* mastersecret, int mastersecret_size, 
-                                           const char* salt, int salt_size, 
-                                           const char* id_context, int id_context_size, 
+oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_id_size,
+                                           const char* recipient_id, size_t recipient_id_size,
+                                           uint64_t ssn,
+                                           const char* mastersecret, size_t mastersecret_size,
+                                           const char* salt, size_t salt_size,
+                                           const char* id_context, uint8_t id_context_size,
                                            int auth_at_index,
                                            bool read_ssn_from_storage)
 {
@@ -361,19 +361,19 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
   if (mastersecret_size < OSCORE_KEY_LEN ||
       mastersecret_size > OSCORE_MASTER_SECRET_LEN)
   {
-    OC_ERR("master secret size is must be in range 16 ... 32 : %d", mastersecret_size);
+    OC_ERR("master secret size is must be in range 16 ... 32 : %llu", mastersecret_size);
     goto add_oscore_context_error;
   }
 
   if (sender_id_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("sender id size > %d = %d", OSCORE_SENDER_ID_LEN, sender_id_size);
+    OC_ERR("sender id size > %d = %llu", OSCORE_SENDER_ID_LEN, sender_id_size);
     goto add_oscore_context_error;
   }
 
   if (recipient_id_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("recipient id size > %d = %d", OSCORE_SENDER_ID_LEN, recipient_id_size);
+    OC_ERR("recipient id size > %d = %llu", OSCORE_SENDER_ID_LEN, recipient_id_size);
     goto add_oscore_context_error;
   }
 
@@ -407,6 +407,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
 
   if (recipient_id && recipient_id_size > 0)
   {
+    // set recipient id to value from cnf:osc:id 
     memcpy(ctx->recipient_id, recipient_id, recipient_id_size);
     ctx->recipient_id_len = (uint8_t)recipient_id_size;
   }
@@ -414,27 +415,28 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
   if (id_context && id_context_size > 0)
   {
     memcpy(ctx->id_context, id_context, id_context_size);
-    ctx->id_context_len = (uint8_t)id_context_size;
+    ctx->id_context_len = id_context_size;
   }
   
   if (mastersecret)
   {
-    memcpy((char*) &ctx->master_secret, mastersecret, mastersecret_size);
+    memcpy(&ctx->master_secret, mastersecret, mastersecret_size);
   }
 
   PRINT("AT Index      : (%2d)  = ", auth_at_index);
   PRINT("Sender ID     : (%2d)  = ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
   PRINT("Recipient ID  : (%2d)  = ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
   PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
-  PRINT("Master Secret : (%2d)  = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("Salt          : (%2d)  = ", salt_size);  oc_char_println_hex(salt, salt_size);
+  PRINT("Master Secret : (%llu) = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
+  PRINT("Salt          : (%llu) = ", salt_size);  oc_char_println_hex(salt, salt_size);
   PRINT("SSN           : (%llu) = ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
-    ctx->sender_id, ctx->sender_id_len, ctx->id_context, ctx->id_context_len,
+    ctx->sender_id, ctx->sender_id_len,
+    ctx->id_context, ctx->id_context_len,
     "Key",
-    (uint8_t*) mastersecret, mastersecret_size,
-    (uint8_t*) salt, salt_size,
+    mastersecret, (uint8_t)mastersecret_size, 
+    salt, (uint8_t)salt_size,
     ctx->sender_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Sender Key ...");
@@ -446,8 +448,8 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
     ctx->recipient_id, ctx->recipient_id_len, 
     ctx->id_context, ctx->id_context_len,
     "Key",
-    (uint8_t*) mastersecret, mastersecret_size,
-    (uint8_t*) salt, salt_size,
+    mastersecret, (uint8_t)mastersecret_size, 
+    salt, (uint8_t)salt_size,
     ctx->recipient_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Recipient Key ...");
@@ -457,12 +459,12 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, int sender_id_
   if (oc_oscore_context_derive_param(
     NULL, 0,
     ctx->id_context, ctx->id_context_len,
-    "IV",
-    (uint8_t*) mastersecret, mastersecret_size,
-    (uint8_t*) salt, salt_size,
+    "IV", 
+    mastersecret, (uint8_t)mastersecret_size, 
+    salt, (uint8_t)salt_size,
     ctx->common_iv, OSCORE_COMMON_IV_LEN) < 0)
   {
-    OC_ERR("*** error deriving Common IV ###");
+    OC_ERR("### error deriving Common IV ...");
     goto add_oscore_context_error;
   }
 
@@ -480,12 +482,13 @@ add_oscore_context_error:
   return NULL;
 }
 
-int oc_oscore_context_derive_param(const uint8_t* id, uint8_t id_len,
-                               uint8_t* id_ctx, uint8_t id_ctx_len,
-                               const char* type, uint8_t* secret,
-                               uint8_t secret_len, uint8_t* salt,
-                               uint8_t salt_len, uint8_t* param,
-                               uint8_t param_len)
+int oc_oscore_context_derive_param(
+  const uint8_t* id, uint8_t id_len,
+  const uint8_t* id_ctx, uint8_t id_ctx_len,
+  const char* type, 
+  const uint8_t* secret, uint8_t secret_len, 
+  const uint8_t* salt, uint8_t salt_len, 
+  const uint8_t* param, uint8_t param_len)
 {
   uint8_t info[OSCORE_INFO_MAX_LEN];
   CborEncoder e, a;
@@ -527,8 +530,9 @@ int oc_oscore_context_derive_param(const uint8_t* id, uint8_t id_len,
     return -1;
   }
 
-  return HKDF_SHA256(salt, salt_len, secret, secret_len, info,
-                     cbor_encoder_get_buffer_size(&e, info), param, param_len);
+  return HKDF_SHA256(salt, salt_len, secret, secret_len, 
+                     info, cbor_encoder_get_buffer_size(&e, info),
+                     param, param_len);
 }
 
 #else  

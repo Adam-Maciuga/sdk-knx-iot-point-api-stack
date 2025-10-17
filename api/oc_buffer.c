@@ -179,13 +179,13 @@ void oc_send_message(oc_message_t* message)
 {
 	/*
 		We only want to cache OSCORE-secured requests, as these frames are the
-	    only ones that will be challenged with an Echo option. However, at this
-	    point we only have the encoded CoAP bytes, so we parse just the header and token.   
+	  only ones that will be challenged with an Echo option. However, at this
+	  point we only have the encoded CoAP bytes, so we parse just the header and token.   
 	
-	    Deserialize it from *data ptr
+	  Deserialize it from *data ptr
 		- version = 1 (fix),
 		- type = NON (0=CON,1=NON,ACK=2,RST=3),
-		- code = 3-bit CLASS (0..7)/ 5-bit DETAIL (0..31) = code >> 5 = REQUEST as GET/PUT/POST/DELETE (+ empty message)
+		- code = 3-bit CLASS (0..7)/ 5-bit DETAIL (0..31) = code >> 5 = REQUEST as GET/PUT/POST/DELETE/FETCH (+ empty message)
 		- flags = OSCORE
      
     */
@@ -193,7 +193,7 @@ void oc_send_message(oc_message_t* message)
 	uint8_t type = (COAP_HEADER_TYPE_MASK & message->data[0]) >> COAP_HEADER_TYPE_POSITION;
 	uint8_t code = message->data[1];
 	uint8_t* token = message->data + COAP_HEADER_LEN;
-    uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
 	
 	if (version == 1 && type == 1 && code >> 5 == 0 && message->endpoint.flags & OSCORE)
 	{
@@ -203,9 +203,7 @@ void oc_send_message(oc_message_t* message)
 	}
 
 	// forward message (any type such as plain/ secured, CON request, ... )
-	if (oc_process_post(&message_buffer_handler,
-			oc_events[OUTBOUND_NETWORK_EVENT],
-			message) == OC_PROCESS_ERR_FULL)
+	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT],	message) == OC_PROCESS_ERR_FULL)
 	{
 		OC_ERR("oc_send_message ref_count decrease due to FULL");
 		message->ref_count--;
@@ -259,25 +257,26 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 
 		  */
 			#if OC_OSCORE
-
+      
 			if (message->endpoint.flags & OSCORE)
       {
         if (message->endpoint.flags & MULTICAST)
-        {
+        { // multicast
           OC_DBG_OSCORE("Outgoing network event: secure multicast message (request), forwarding to OSCORE queue");
           oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_GROUP_OSCORE_EVENT], data);
         }
         else
-        {
+        { // unicast
           OC_DBG_OSCORE("Outgoing network event: secure unicast message (request or response), forwarding to OSCORE queue");
           oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_OSCORE_EVENT], data);
         }
       }
 			else
 			#endif 
+     
 			if (message->endpoint.flags & DISCOVERY)
 			{
-				OC_DBG("Outgoing network event: plain multicast discovery request");
+				OC_DBG("Outgoing network event: plain discovery request");
 				oc_endpoint_print(&message->endpoint);
 				oc_send_discovery_request(message);
 				oc_message_unref(message);

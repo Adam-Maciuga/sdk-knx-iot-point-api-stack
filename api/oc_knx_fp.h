@@ -584,18 +584,7 @@ extern "C"
   void oc_free_knx_table_resources(void);
 
   /**
-   * @brief create the group multicast address with port
-   *
-   * create the multicast address from group and scope with a supplied port number
-   *\code{.unparsed}
-   * FF3_:FD__:____:____:(8-f)___:____
-   * FF35:30:<ULA-routing-prefix>::<group id>
-   *    | 5 == scope
-   *    | 3 == scope
-   * Multicast prefix: FF35:0030:  [4 bytes]
-   * ULA routing prefix: FD11:2222:3333::  [6 bytes + 2 empty bytes]
-   * Group Identifier: 8000 : 0068 [4 bytes ]
-   *\endcode
+   * @brief create a IPv6 group multicast address with port
    *
    * @param in the endpoint to adapt
    * @param group_nr the group number
@@ -604,13 +593,11 @@ extern "C"
    * @param port the port to be used
    * @return oc_endpoint_t the modified endpoint
    */
-  oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope,
-                                                            uint16_t port);
+  oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint16_t port);
 
   /**
-   * @brief subscribe to a multicast address, defined by group number and
-   * installation id
-   * using the default port 5683
+   * @brief  subscribe to a multicast address, defined by group number and installation id
+   *         by using the default port 5683
    *
    * @see unsubscribe_group_to_multicast
    *

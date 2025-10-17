@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2021-2023 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,7 +119,9 @@ extern "C" {
 	 *   "ms" : b64'+a+Dg2jjU+eIiOFCa9lObw'
 	 * }
 	 * ```
-	 * Note: maps are not stored.
+	 * @note
+	 * - maps are not stored
+	 *
 	 */
 	typedef struct oc_auth_at
 	{
@@ -132,8 +135,8 @@ extern "C" {
 		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional - not used) default:	decimal value
 		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional - not used) default: decimal value 10
 		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default: empty string 
-		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid used as 'kid_context' (in message) / 'ID Context' - max 6 byte string 
-		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id used as 'kid' (in message) / Client 'Sender ID' - max 7 byte string 
+		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid -> 'kid_context' (in msg) / 'ID Context'  (OSC) / osc:contextid (OSC Profile) - max 16 byte string 
+		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id -> 'kid' (in msg) / 'Sender ID' (OSC) / osc:id (OSC Profile) - max 7 byte string 
 		int nbf;										// token not valid before (optional - not used) 
 		int ga_len;									// length of the group addresses (ga) in the scope, specification demands at least 20 entries must be supported
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values 

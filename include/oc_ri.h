@@ -22,10 +22,14 @@
 #ifndef OC_RI_H
 #define OC_RI_H
 
+
+
+
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
 #include "util/oc_etimer.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -767,7 +771,10 @@ extern "C" {
 																			oc_response_buffer_t* response_buffer,
 																			oc_response_t* response_obj);
 
+	
 	void allocate_events(void);
+
+	oc_event_callback_retval_t oc_ri_remove_client_cb(void* data);
 
 #ifdef __cplusplus
 }

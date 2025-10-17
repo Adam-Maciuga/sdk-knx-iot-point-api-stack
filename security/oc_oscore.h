@@ -17,9 +17,6 @@
 #ifndef OC_OSCORE_H
 #define OC_OSCORE_H
 
-#include "port/oc_connectivity.h"
-//#include "security/oc_cred_internal.h"
-#include "util/oc_list.h"
 #include "util/oc_process.h"
 
 #ifdef __cplusplus
@@ -29,11 +26,10 @@ extern "C" {
 OC_PROCESS_NAME(oc_oscore_handler);
 
 void oc_oscore_set_next_ssn(uint64_t ssn);
-uint64_t oc_oscore_get_next_ssn();
-
+uint64_t oc_oscore_get_next_ssn(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_OSCORE_H */
+#endif 

@@ -1,6 +1,7 @@
 /*
  // Copyright (c) 2016 Intel Corporation
  // Copyright (c) 2021 Cascoda Ltd.
+
  //
  // Licensed under the Apache License, Version 2.0 (the "License");
  // you may not use this file except in compliance with the License.
@@ -34,17 +35,17 @@ typedef enum {
   UDP_TO_TLS_EVENT,
   INIT_TLS_CONN_EVENT,
   RI_TO_TLS_EVENT,
-  INBOUND_RI_EVENT,                 // inbound network event, original plain - or beforehand decrypted - message
-  OUTBOUND_NETWORK_EVENT,           // outbound network event, payload is not encrypted
-  OUTBOUND_NETWORK_EVENT_ENCRYPTED, // outbound network event, payload is encrypted, received from OSCORE layer
+  INBOUND_RI_EVENT,                 // inbound network event, payload IS NOT encrypted (was already plain or was decrypted by OSCORE layer)
+  OUTBOUND_NETWORK_EVENT,           // outbound network event, payload IS NOT (yet) encrypted
+  OUTBOUND_NETWORK_EVENT_ENCRYPTED, // outbound network event, payload IS encrypted, received from OSCORE layer
   TLS_READ_DECRYPTED_DATA,
   TLS_WRITE_APPLICATION_DATA,
   INTERFACE_DOWN, /**< network interface down*/
   INTERFACE_UP,   /**< network interface up */
   TLS_CLOSE_ALL_SESSIONS,
-  INBOUND_OSCORE_EVENT,  // inbound network event, payload IS decrypted with oscore
-  OUTBOUND_OSCORE_EVENT, // outbound network event, payload WILL BE encrypted with oscore
-  OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload IS encrypted with oscore
+  INBOUND_OSCORE_EVENT,  // inbound network event, payload IS decrypted with OSCORE
+  OUTBOUND_OSCORE_EVENT, // outbound network event, payload WILL BE encrypted with OSCORE
+  OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload WILL BE encrypted with OSCORE
   __NUM_OC_EVENT_TYPES__
 } oc_events_t;
 
@@ -54,4 +55,4 @@ extern oc_process_event_t oc_events[];
 }
 #endif
 
-#endif /* OC_EVENTS_H */
+#endif 

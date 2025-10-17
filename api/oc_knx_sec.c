@@ -749,7 +749,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
               // define THIS auth at token below with <ga> scope 's-mode messaging',
               // - is defined only here in the code
-              // - is used only on /k resource (see also oc_knx_sec_check_acl)  
+              // - is used only on /k resource (see also oc_knx_sec_check_acl)
+              // - is used only in combination with a present ga array / array len (see above)
               g_at_entries[array_index].scope = OC_ACL_GA;
               current_at_properties++;
             }
@@ -1028,7 +1029,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_ma
   // scope : 9 (either list of GAS is used or acl scopes)
   if (g_at_entries[index].scope == OC_ACL_GA)
   {
-    // list of GAs is used (the internal <ga> scope is never returned as 'scope')
+    // list of GAs is used (the internal <ga> scope OC_ACL_GA is never returned as 'scope')
     oc_rep_i_set_int_array(root, 9, g_at_entries[index].ga, g_at_entries[index].ga_len);
   }
   else
@@ -1787,7 +1788,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0, 
           0, // SSN for REQUEST sender context (from storage, context is already present) // TODO read ssn from storage and pass to add ctx below 
-          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms), 
+          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
           oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
           oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
           i,
@@ -1874,7 +1875,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
 
    called scope
    ------------
-   the device resource + method 'precompiled' acl scope (see resource definitions, e.g.; auth/o GET = if.p/d/c)
+   the device resource + method 'precompiled' acl scope (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
   
   */
   const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index);
@@ -1892,7 +1893,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
 
       O2 s-mode endpoint (/k) call with caller/called scope hosting at least '<ga>' -> NOT ENOUGH
          = some ga's are allowed for <ga>
-         - ga from request must be also part of ga list in access token (list IS NOT empty)
+         - ga from request must be also part of ga list in access token (list MUST BE NOT empty)
          - no other EP than /k uses '<ga>' as resource scope (see resource definition)
          - <ga> scope is set only in one place (create access token with non-empty list)
 
@@ -1900,7 +1901,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
 
     if (caller_acl_scope == OC_ACL_GA)
     { // O2 - a call with <ga> access token, here this is only possible if /k resource was
-      // addressed (a & b ->  OC_ACL_GA & OC_ACL_G + OC_ACL_GA at /k resource definition)
+      // addressed (caller_acl_scope & called_res_scope ->  OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
 
       // scan received payload for request ga
       const oc_rep_t* rep = value_object;

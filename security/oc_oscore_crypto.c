@@ -66,7 +66,7 @@ HKDF_Extract(const uint8_t *salt, uint8_t salt_len, const uint8_t *ikm,
 
 static int
 HKDF_Expand(const uint8_t *prk, const uint8_t *info, uint8_t info_len,
-            uint8_t *okm, size_t okm_len)
+            const uint8_t *okm, size_t okm_len)
 {
   /* From RFC 5869
    *    HKDF-Expand(PRK, info, L) -> OKM
@@ -116,9 +116,11 @@ HKDF_Expand(const uint8_t *prk, const uint8_t *info, uint8_t info_len,
 }
 
 int
-HKDF_SHA256(const uint8_t *salt, uint8_t salt_len, const uint8_t *ikm,
-            uint8_t ikm_len, uint8_t *info, uint8_t info_len, uint8_t *okm,
-            uint8_t okm_len)
+HKDF_SHA256(
+  const uint8_t *salt, uint8_t salt_len,
+  const uint8_t *ikm, uint8_t ikm_len,
+  const uint8_t* info, uint8_t info_len,
+  const uint8_t* okm, uint8_t okm_len)
 {
   uint8_t PRK[HMAC_SHA256_HASHLEN];
   HKDF_Extract(salt, salt_len, ikm, ikm_len, PRK);

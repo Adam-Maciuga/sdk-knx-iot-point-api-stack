@@ -179,9 +179,9 @@ extern "C" {
 
 		#ifdef OC_OSCORE
 		uint8_t oscore_flags;
-		uint8_t piv[OSCORE_PIV_LEN];
+		uint8_t piv[OSCORE_PIV_LEN]; // 'Partial IV' in OSCORE
 		uint8_t piv_len;
-		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN];
+		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile 
 		uint8_t kid_ctx_len;
 		uint8_t kid[OSCORE_SENDER_ID_LEN]; // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
 		uint8_t kid_len;
