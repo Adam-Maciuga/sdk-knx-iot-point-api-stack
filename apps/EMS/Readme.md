@@ -54,6 +54,12 @@ All three apps have a fixed (hardcoded) configuration for:
   - Recipient Table
   - Authentication Table
 
+A specific algorithm has been implemented.
+The idea is to configured these 3 device based on the serial number of the CEM device, the algorithm composes:
+- the IID of the 3 devices
+- the grpid of all publisher and recipient tables of the 3 devices
+- the authentication tables of the 3 devices
+
 ## Group addresses
 
 From the fucntionality point of view, the three (virtual) device are linked by means of two group addresses:
