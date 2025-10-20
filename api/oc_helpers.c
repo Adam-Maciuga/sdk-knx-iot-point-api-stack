@@ -522,7 +522,7 @@ size_t oc_char_print_hex(const char* str, size_t str_len)
   }
   return str_len;
   #else
-  retun 0;
+  return 0;
   #endif
 
 }
