@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include "oc_core_res.h"
 #include "oc_discovery.h"
+#include <errno.h>
 
 /*
  - first field = fb number
