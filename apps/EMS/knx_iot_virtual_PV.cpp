@@ -292,19 +292,15 @@ bool MyApp::OnInit()
  * @param serial_number
  */
 MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app")
-{
-    
-   
-      wxMemoryInputStream iconStream(pv_ico, pv_ico_len);
+{  
+  wxMemoryInputStream iconStream(pv_ico, pv_ico_len);
   wxImage img(iconStream, wxBITMAP_TYPE_ICO);
   wxBitmap bmp(img);
   wxIcon icon;
   icon.CopyFromBitmap(bmp);
   SetIcon(icon);
 
-
   wxToolBar* tb = CreateToolBar(wxTB_VERTICAL | wxNO_BORDER | wxTB_FLAT);
-
 
   wxMemoryInputStream stream1(key_png, key_png_len);
   wxImage img1(stream1, wxBITMAP_TYPE_PNG);
@@ -315,10 +311,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
 
   tb->AddTool(DEVICE_SETTINGS, "", wxBitmapBundle::FromBitmap(bmp1), "Settings");
   tb->AddTool(DEVICE_USAGE, "", wxBitmapBundle::FromBitmap(bmp2), "Usage");
-
-
   tb->Realize();
-
 
   m_menuFile = new wxMenu;
   m_menuFile->Append(DEVICE_SETTINGS, "Device Details", "", false);
@@ -390,10 +383,8 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
-  //PV_init_tables();
-  PV_init_tables_QR("00fa10020c00");
-
   oc_device_info_t* device = oc_core_get_device_info();
+  PV_init_tables_QR("000000000000"); // sn that will never exist
   device->lsm_s = LSM_S_LOADED;
 }
 
@@ -1270,20 +1261,26 @@ void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
 
 void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
 {
-  // get url
-  char* url = PV_retrieve_href(0);
-  // get the slider value
-  int val = m_PV_slider->GetValue();
+  if (PV_retrieve_link() != 0)
+  {
+      // get url
+      char* url = PV_retrieve_href(0);
+      // get the slider value
+      int val = m_PV_slider->GetValue();
 
-  PV_set_PV(val);
+      PV_set_PV(val);
+      oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
 
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
-
-  // show in status bar
-  char statusBarText[100];
-  // Present DC power of all solar panels connected to this PV control
-  (void)sprintf(statusBarText, "Present DC power = %d kW", val);
-  SetStatusText(statusBarText);
+      // show in status bar
+      char statusBarText[100];
+      // Present DC power of all solar panels connected to this PV control
+      (void)sprintf(statusBarText, "Present DC power = %d kW", val);
+      SetStatusText(statusBarText);
+  }
+  else
+  {
+    SetStatusText("not linked");
+  }
 }
 
 

@@ -1,4 +1,4 @@
-/*
+﻿/*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
  Copyright (c) 2024-2025 KNX Association
@@ -96,10 +96,12 @@ const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
 
-int datapoint_pv;
+int datapoint_pv = 0;
+uint64_t datapoint_link = 0;
 
-datapoint_t PV_datapoint[1] = {
-  {"/p/pv", "urn:knx:dpa.666.01", ":dpt.value_power", "PV", "0"} // DPT: 14.056
+datapoint_t PV_datapoint[2] = {
+  {"/p/pv", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "PV", "0"}, // DPT: 14.056
+  {"/p/CEM", "urn:", "LINK", "CEM", "1"} // object to get the CEM's sn
 };
 
 // define LSAB channel 0..1 + included EPs switch control/status
@@ -122,24 +124,27 @@ int_datapoint_t test_parameter = {
 void register_resources(void)
 {   
   oc_resource_t* PV_resource = oc_new_resource(PV_datapoint[0].resource_path, 1);
+  oc_resource_t* LINK_resource = oc_new_resource(PV_datapoint[1].resource_path, 1);
   
   oc_resource_bind_resource_type(PV_resource, PV_datapoint[0].dpa);
-
   oc_resource_bind_dpt(PV_resource, PV_datapoint[0].dpt);
-
   oc_resource_bind_content_type(PV_resource, APPLICATION_CBOR, CONTENT_NONE);
-
-  //oc_resource_set_function_block_instance(PV_resource, 1);
-
   oc_resource_set_discoverable(PV_resource, true);
-
   oc_resource_set_observable(PV_resource, true);
-
   void* PV_user_data = PV_datapoint[0].id;
 
-  oc_resource_set_request_handler(PV_resource, OC_GET, PV_get_PV, PV_user_data, OC_ACL_I, OC_IF_I);   
+  oc_resource_bind_resource_type(LINK_resource, PV_datapoint[1].dpa);
+  oc_resource_bind_dpt(LINK_resource, PV_datapoint[1].dpt);
+  oc_resource_bind_content_type(LINK_resource, APPLICATION_CBOR, CONTENT_NONE);
+  oc_resource_set_discoverable(LINK_resource, true);
+  oc_resource_set_observable(LINK_resource, true);
+  void* CHARGER_link_data = PV_datapoint[1].id;
+
+  oc_resource_set_request_handler(PV_resource, OC_GET, PV_get_PV, PV_user_data, OC_ACL_I, OC_IF_I);  
+  oc_resource_set_request_handler(LINK_resource, OC_PUT, PV_put_link, CHARGER_link_data, OC_ACL_I, OC_IF_I);
 
   oc_add_resource(PV_resource);  
+  oc_add_resource(LINK_resource); 
 
   PRINT("Register test parameter");
   {
@@ -201,71 +206,22 @@ int app_initialize_stack(void)
   return oc_main_init(&handler);
 }
 
-int PV_init_tables()
+int PV_init_tables_QR(char* sn_cem)
 {
-  oc_core_set_and_store_device_ia(0x2002);
-  oc_core_set_and_store_device_iid(0xc7dff7f6c9a);
-  oc_core_set_and_store_device_fid(0xfa);
-  
-  oc_init_tables();
+  // the LINK resource is fixed to the sn of this very device
+  // the sn_cem parameter sets the CHARGER resource to the sn received via the LINK resource -> triggered via a bus update
 
-  const int new_array_size = 1;
-  uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn_pv = oc_string(device->serialnumber);
 
-  if (new_array != NULL) new_array[0] = 0x0001;
-
-  int entry = 0;
-
-  // object table
-  g_got[entry].id = 0;
-  oc_string_t href_pv;
-  oc_new_string(&href_pv, "/p/pv", strlen("/p/pv"));
-  g_got[entry].href = href_pv;
-  g_got[entry].cflags = OC_CFLAG_TRANSMISSION;
-  g_got[entry].ga_len = new_array_size;
-  g_got[entry].ga = new_array;
-
-  // rcp table
-  g_grt[entry].id = 0;
-  g_grt[entry].grpid = 0xc285fba0;
-  g_grt[entry].ga_len = new_array_size;
-  g_grt[entry].ga = new_array;
-
-  // pub table
-  g_gpt[entry].id = 0;  
-  g_gpt[entry].grpid = 0xc285fba0;
-  g_gpt[entry].ga_len = new_array_size;
-  g_gpt[entry].ga = new_array;
-
-  // auth table
-  oc_new_string(&g_at_entries[entry].id, "0/0/1", strlen("0/0/1"));
-  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = new_array_size;
-  g_at_entries[entry].ga = new_array;
-  BYTE byteArray12[2] = {0x00, 0x01};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {0xE7, 0xCF, 0x5D, 0xDA, 0x0D, 0x26, 0xB5, 0xD4, 0x6C, 0xA9, 0xDB, 0xFB, 0x0A, 0xF0, 0x2E, 0x95};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {0x00, 0x00, 0x00, 0x00, 0x08, 0x00};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
-
-  oc_load_group_object_table();
-  oc_load_object_table();
-  oc_load_at_table();  
-
-  return 0;
-}
-
-
-int PV_init_tables_QR(char* sn_s)
-{
-  unsigned char sn_b[6];
+  unsigned char sn_D[6]; // store the sn of this very device
+  unsigned char sn_L[6]; // store the sn of the device to be linked (CEM)
+  int len;
 
   for (size_t i = 0; i < 6; i++)
-    sn_b[i] = 0x00;
+    sn_D[i] = 0x00;
 
-  int len = strlen(sn_s);
+  len = strlen(sn_pv);
 
   if (len % 2 == 0)
   {
@@ -273,8 +229,34 @@ int PV_init_tables_QR(char* sn_s)
     {
       for (size_t i = 0; i < 6; i++)
       {
-        char buf[3] = {sn_s[2 * i], sn_s[2 * i + 1], '\0'}; // 2 hex chars
-        sn_b[i] = (unsigned char)strtol(buf, NULL, 16);
+        char buf[3] = {sn_pv[2 * i], sn_pv[2 * i + 1], '\0'}; // 2 hex chars
+        sn_D[i] = (unsigned char)strtol(buf, NULL, 16);
+      }
+    }
+    else
+    {
+      return -1;
+    }
+  }
+  else
+  {
+    return -1;
+  }
+
+
+  for (size_t i = 0; i < 6; i++)
+    sn_L[i] = 0x00;
+
+  len = strlen(sn_cem);
+
+  if (len % 2 == 0)
+  {
+    if (len / 2 == 6)
+    {
+      for (size_t i = 0; i < 6; i++)
+      {
+        char buf[3] = {sn_cem[2 * i], sn_cem[2 * i + 1], '\0'}; // 2 hex chars
+        sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
       }
     }
     else
@@ -294,51 +276,53 @@ int PV_init_tables_QR(char* sn_s)
 
   iid = 0x00;
   iid <<= 8;
-  iid += sn_b[2];
+  iid += sn_D[0];
   iid <<= 8;
-  iid += sn_b[3];
+  iid += sn_D[1];
   iid <<= 8;
-  iid += sn_b[4];
+  iid += 0x00;
   iid <<= 8;
-  iid += sn_b[5];
+  iid += 0x00;
 
-  fid = sn_b[0];
+  fid = sn_D[0];
   fid <<= 8;
-  fid += sn_b[1];
+  fid += sn_D[1];
   fid <<= 8;
 
   grpid = 0x00;
-  grpid += sn_b[2];
+  grpid += sn_D[0];
   grpid <<= 8;
-  grpid += sn_b[3];
+  grpid += sn_D[1];
   grpid <<= 8;
-  grpid += sn_b[4];
+  grpid += 0x00;
   grpid <<= 8;
-  grpid += sn_b[5];
+  grpid += 0x00;
 
   int ga0 = 0x0001;
   int ga1 = 0x0002;
+  int gaL = 0x0003;
 
   oc_core_set_and_store_device_ia(ia);
   oc_core_set_and_store_device_iid(iid);
   oc_core_set_and_store_device_fid(fid);
 
+  oc_delete_group_object_table();
   oc_init_tables();
+  oc_delete_at_table();
+  unsubscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
 
   int entry;
   int ga_array_size;
   uint32_t* ga_array;
 
+  // object table: 0
   entry = 0;
-
   ga_array_size = 1;
   ga_array = malloc(ga_array_size * sizeof(uint32_t));
   if (ga_array != NULL)
   {
     ga_array[0] = ga0;
-  }
-
-  // object table
+  }  
   g_got[entry].id = 0;
   oc_string_t href_pv;
   oc_new_string(&href_pv, "/p/pv", strlen("/p/pv"));
@@ -347,19 +331,41 @@ int PV_init_tables_QR(char* sn_s)
   g_got[entry].ga_len = ga_array_size;
   g_got[entry].ga = ga_array;
 
-  // rcp table
+  // object table: 1
+  entry = 1;
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = gaL;
+  }
+  g_got[entry].id = 0;
+  oc_string_t href_CEM;
+  oc_new_string(&href_CEM, "/p/CEM", strlen("/p/CEM"));
+  g_got[entry].href = href_CEM;
+  g_got[entry].cflags = OC_CFLAG_WRITE;
+  g_got[entry].ga_len = ga_array_size;
+  g_got[entry].ga = ga_array;
+
+  // rcp+pub tables
+  entry = 0;
+  ga_array_size = 2;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga0;
+    ga_array[1] = gaL;
+  }
   g_grt[entry].id = 0;
   g_grt[entry].grpid = grpid;
   g_grt[entry].ga_len = ga_array_size;
   g_grt[entry].ga = ga_array;
-
-  // pub table
   g_gpt[entry].id = 0;
   g_gpt[entry].grpid = grpid;
   g_gpt[entry].ga_len = ga_array_size;
   g_gpt[entry].ga = ga_array;
 
-  // auth table
+  // auth table: 0
   oc_new_string(&g_at_entries[entry].id, "0/0/1", strlen("0/0/1"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
   g_at_entries[entry].scope = OC_ACL_GA;
@@ -367,23 +373,65 @@ int PV_init_tables_QR(char* sn_s)
   g_at_entries[entry].ga = ga_array;
   BYTE byteArray02[2] = {0, 1};
   oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray02, 2);
-  BYTE byteArray0f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
-  BYTE byteArray06[6] = {sn_b[2], sn_b[3], sn_b[4], sn_b[5], 0, 1};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
 
+  if (strncmp(sn_cem, "000000000000", 12) == 0)
+  {
+    BYTE byteArray0f[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
+    BYTE byteArray06[6] = {0, 0, 0, 0, 0, 0};
+    oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
+  }
+  else
+  {
+    BYTE byteArray0f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
+    BYTE byteArray06[6] = {sn_L[2], sn_L[3], sn_L[4], sn_L[5], 0, 1};
+    oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
+  }
+
+  // auth table: 1
+  entry = 1;
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = gaL;
+  }
+  oc_new_string(&g_at_entries[entry].id, "0/0/3", strlen("0/0/3"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_ACL_GA;
+  g_at_entries[entry].ga_len = ga_array_size;
+  g_at_entries[entry].ga = ga_array;
+  BYTE byteArray12[2] = {0, 3};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
+  BYTE byteArray1f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+  BYTE byteArray16[6] = {sn_D[0], sn_D[1], sn_D[2], sn_D[3], sn_D[4], sn_D[5]};
+  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
   oc_load_group_object_table();
   oc_load_object_table();
   oc_load_at_table();
-
   subscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
 
   return 0;
 }
 
+void PV_process_link()
+{
+  uint64_t snCEM = PV_retrieve_link();
+
+  // Allocate enough space: 2 hex chars per byte + 1 for null terminator
+  char str[13]; // 6 bytes → 12 hex chars + '\0'
+
+  // Format with leading zeros
+  snprintf(str, sizeof(str), "%012llx", (unsigned long long)snCEM);
+
+  PV_init_tables_QR(str);
+}
 
 char* PV_retrieve_href(uint16_t point) { return PV_datapoint[point].resource_path; }
+uint64_t PV_retrieve_link() { return datapoint_link; }
 
 void PV_set_PV(int v) { datapoint_pv = v * 1000; }
 
@@ -527,6 +575,71 @@ void PV_get_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* user
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
   //PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+}
+void PV_put_link(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+{
+  bool error_state = true;
+
+  // get interfaces for the resource PUT method ...
+  bool is_input_datapoint = interfaces & OC_IF_I;
+
+  // sets the pointer to the (/k or /p) handed over object
+  const oc_rep_t* rep = request->request_payload;
+
+  // user data host the HEX encoded channel/datapoint
+  const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
+  const uint16_t c = channel_and_datapoint >> 16;
+  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
+
+  // PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+
+  // handle the different request sources, here included as an example to distinguish
+  // the caller source (e.g.; called by /p or /k s-mode message EP)
+  if (oc_is_redirected_request_from(request) == 1)
+  {
+    // caller /p --> always allow to write (see 'Callback Notes' above)
+    is_input_datapoint = true;
+    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
+  }
+
+  // loop over object
+  while (rep)
+  {
+    if (rep->iname == 1 && rep->type == OC_REP_INT)
+    {
+      if (!is_input_datapoint)
+      {
+        // see 'Callback Notes' above
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
+        return;
+      }
+
+      // see 'Callback Notes' above
+      datapoint_link = rep->value.integer;
+      error_state = false;
+
+      PRINT("set LSSB to %d", rep->value.integer);
+      break;
+    }
+    rep = rep->next;
+  }
+
+  // correct data retrieved
+  if (!error_state)
+  {
+    // inform the stack on status
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+
+    PV_process_link();
+
+    // PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+
+    return;
+  }
+
+  // bad request status
+  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+  // PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 }
 
 #ifdef WIN32

@@ -1,4 +1,4 @@
-/*
+﻿/*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
  Copyright (c) 2024-2025 KNX Association
@@ -322,6 +322,7 @@ private:
   int m_sleep_milliseconds = 20000;
 
   int m_chargeRate = -1;
+  uint64_t m_CEM = 0;
 
   // non static device properties
   wxTextCtrl* m_ia_text; // text control for internal address
@@ -486,8 +487,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
-  //Charger_init_tables();
-  Charger_init_tables_QR("00fa10020c00");
+  Charger_init_tables_QR("000000000000"); // sn that will never exist
   device->lsm_s = LSM_S_LOADED;
 }
 
@@ -1189,6 +1189,8 @@ void MyFrame::ProcessUpdateFromBus()
   char text[200];
   
   int chargeRate = Charger_retrieve_charger() / 1000;  
+  uint64_t snCEM = Charger_retrieve_link();
+
 
   if (chargeRate != m_chargeRate)
   {
@@ -1202,6 +1204,32 @@ void MyFrame::ProcessUpdateFromBus()
     (void)sprintf(text, "out: %d kW", chargeRate);
     m_charger_text->SetValue(text);
   }
+
+  /*
+
+  if (snCEM != m_CEM)
+  {
+    m_CEM = snCEM;
+
+    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
+    char str[13]; // 6 bytes → 12 hex chars + '\0'
+
+    // Format with leading zeros
+    snprintf(str, sizeof(str), "%012llx", (unsigned long long)snCEM);
+
+    if (m_CEM == 0)
+      strcpy(str, "unlinked");
+
+    SetStatusText(str);
+
+    Charger_init_tables_QR(str);
+  }
+
+  */    
+
+
+
+
 }
 
 /**
@@ -1453,13 +1481,14 @@ wxString MyFrame::dumpPublisherTable()
   bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
+  /*
   int total = oc_core_get_publisher_table_size();
   for (int i = 0; i < total; i++)
   {
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(i);
     if (entry && entry->id >= 0)
     {
-      /*
+
       sprintf(line, "Index %d ", i);
       out += line;
       sprintf(line, "  id: '%d'  ", entry->id);
@@ -1480,7 +1509,7 @@ wxString MyFrame::dumpPublisherTable()
         sprintf(line, "  fid: '%lld' ", entry->fid);
         out += line;
       }
-      */
+
       if (entry->grpid > 0)
       {
         strcpy(line, "  - grpid: ");
@@ -1502,9 +1531,63 @@ wxString MyFrame::dumpPublisherTable()
         strcat(line, " ]");
         out += line;
       }
-      // out += "\n";
     }
   }
+  */
+
+  oc_group_table_t* entry = oc_core_get_publisher_table_entry(0);
+
+  if (entry->grpid > 0)
+  {
+    strcpy(line, "  - grpid: ");
+    this->int2grpidtext(entry->grpid, line, grpid_conversion);
+    out += line;
+  }
+  if (oc_string_len(entry->at) > 0)
+  {
+    sprintf(line, "  at: '%s' ", oc_string(entry->at));
+    out += line;
+  }
+  if (entry->ga_len > 0)
+  {
+    strcpy(line, "  ga: [");
+    for (int j = 0; j < entry->ga_len; j++)
+    {
+      this->int2gatext(entry->ga[j], line, ga_conversion);
+    }
+    strcat(line, " ]");
+    out += line;
+  }
+  out += "\n";
+
+  //  ff32:0030:fd7d:ff7f:6c9a:0000:c285:fba0 -> ff32:0030:fd + iid + 0000 + grpid
+  out += "  - address: ff32:0030:fd";
+
+  oc_device_info_t* device = oc_core_get_device_info();
+  uint64_t iid = device->iid;
+
+  uint8_t byte_1 = static_cast<uint8_t>(iid);
+  uint8_t byte_2 = static_cast<uint8_t>(iid >> 8);
+  uint8_t byte_3 = static_cast<uint8_t>(iid >> 16);
+  uint8_t byte_4 = static_cast<uint8_t>(iid >> 24);
+  uint8_t byte_5 = static_cast<uint8_t>(iid >> 32);
+
+  sprintf(line, "%02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
+
+  out += line;
+  out += ":0000:";
+
+  uint64_t grpid = entry->grpid;
+
+  byte_1 = static_cast<uint8_t>(grpid);
+  byte_2 = static_cast<uint8_t>(grpid >> 8);
+  byte_3 = static_cast<uint8_t>(grpid >> 16);
+  byte_4 = static_cast<uint8_t>(grpid >> 24);
+
+  sprintf(line, "%02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
+
+  out += line;
+
   return out;
 }
 

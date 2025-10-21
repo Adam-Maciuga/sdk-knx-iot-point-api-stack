@@ -132,15 +132,33 @@ public:
 
 private:
   void on_close(wxCommandEvent& event);
+  void on_set_link(wxCommandEvent& event);
+  void on_reset_link(wxCommandEvent& event);
 };
 
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
+void CustomDialog::on_set_link(wxCommandEvent& event)
+{
+  CEM_set_link(0x00fa10020c00);
+  char* url = CEM_retrieve_href(3);
+  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+
+  this->Destroy();
+}
+void CustomDialog::on_reset_link(wxCommandEvent& event)
+{
+  CEM_set_link(0);
+  char* url = CEM_retrieve_href(3);
+  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+
+  this->Destroy();
+}
 
 CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
-    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 350))
+    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 550))
 {
   int size_x = 520;
-  int size_y = 320;
+  int size_y = 520;
 
   wxPanel* panel = new wxPanel(this, -1);
 
@@ -171,6 +189,17 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
   hbox->Add(copyButton, 0, wxLEFT, 5);
 
   */
+
+
+  
+
+  wxButton* linkButton = new wxButton(this, wxID_ANY, wxT("LINK"));
+  linkButton->Bind(wxEVT_BUTTON,  &CustomDialog::on_set_link, this);
+  hbox->Add(linkButton, 0, wxLEFT, 5);
+
+  wxButton* unlinkButton = new wxButton(this, wxID_ANY, wxT("UnLINK"));
+  unlinkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_reset_link, this);
+  hbox->Add(unlinkButton, 0, wxLEFT, 5);
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
@@ -242,7 +271,7 @@ private:
   int m_mode = -1;
   int m_pv = -1;
   int m_charger = -1;
-
+  char* m_link; // either the sn of the PV or the Charger device
 
   // non static device properties
   wxTextCtrl* m_ia_text; // text control for internal address
@@ -511,9 +540,12 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS); 
 
-  CEM_init_tables();
+  // TODO: add an input field to make this dynamic
+  CEM_init_tables("00fa10020b00");
+  //CEM_init_tables("00fa10020d00");
   device->lsm_s = LSM_S_LOADED;
   
+  // this is the config for phase 2
   //CEM_init_auth_table();
   //device->lsm_s = LSM_S_UNLOADED;
  
@@ -595,10 +627,8 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
 void MyFrame::updateDeviceData()
 {
   oc_device_info_t* device = oc_core_get_device_info();
-  
-
-  /*
-
+ 
+  // this is the handling for phase 2
   if (m_lsm != device->lsm_s)
   {
     m_lsm = device->lsm_s;
@@ -609,9 +639,9 @@ void MyFrame::updateDeviceData()
     }
     if (m_lsm == LSM_S_LOADING)
     {
-      oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
-      CEM_init_tables();
-      device->lsm_s = LSM_S_LOADED;
+      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      //CEM_init_tables();
+      //device->lsm_s = LSM_S_LOADED;
     }
     if (m_lsm == LSM_S_LOADED)
     {
@@ -619,44 +649,6 @@ void MyFrame::updateDeviceData()
     }
   }
 
-  */
-  
-
-
-  
-
-  /*
-
-  char text[500];
-  
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
-
-  // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info(0);
-  
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
-  m_ia_text->SetLabelText(text);
-
-  (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_pm_text->SetLabelText(text);
-
-  (void)sprintf(text, "Programming Mode : %d", device->pm);
-  m_ls_text->SetLabelText(text);
-
-  strcpy(text, "IID : ");
-  this->int2grpidtext(device->iid, text, iid_conversion);
-  m_iid_text->SetLabelText(text);
-
-  (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
-  m_hn_text->SetLabelText(text);
-
-  // set in menu the programming mode to what the device has
-  m_menuFile->Check(CHECK_PM, device->pm);
-
-  */
 }
 
 /**
