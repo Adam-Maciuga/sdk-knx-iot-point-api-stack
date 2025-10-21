@@ -41,6 +41,7 @@
 #include <wx/mstream.h>
 #include <wx/image.h>
 #include <wx/bitmap.h>
+#include <wx/valnum.h> // Required for wxIntegerValidator
 
 
 
@@ -131,6 +132,7 @@ public:
   CustomDialog(const wxString& title, const wxString& text);
 
 private:
+  wxTextCtrl* inputField = nullptr;
   void on_close(wxCommandEvent& event);
   void on_set_link(wxCommandEvent& event);
   void on_reset_link(wxCommandEvent& event);
@@ -139,23 +141,135 @@ private:
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 void CustomDialog::on_set_link(wxCommandEvent& event)
 {
-  CEM_set_link(0x00fa10020c00);
-  char* url = CEM_retrieve_href(3);
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+  if (inputField)
+  {
+    wxString sn_link = inputField->GetValue();
+
+    unsigned char sn_L[6];
+    int len;
+
+    for (size_t i = 0; i < 6; i++)
+      sn_L[i] = 0x00;
+
+    len = strlen(sn_link);
+
+    if (len % 2 == 0)
+    {
+      if (len / 2 == 6)
+      {
+        for (size_t i = 0; i < 6; i++)
+        {
+          char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
+          sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
+        }
+      }
+      else
+      {
+        return;
+      }
+    }
+    else
+    {
+      return;
+    }
+
+    uint64_t sn;
+
+    sn = 0x00;
+    sn += sn_L[0];
+    sn <<= 8;
+    sn += sn_L[1];
+    sn <<= 8;
+    sn += sn_L[2];
+    sn <<= 8;
+    sn += sn_L[3];
+    sn <<= 8;
+    sn += sn_L[4];
+    sn <<= 8;
+    sn += sn_L[5];
+
+    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
+    char str[13]; // 6 bytes → 12 hex chars + '\0'
+
+    // Format with leading zeros
+    snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
+
+    CEM_init_tables(str);
+
+    CEM_set_link(0x00fa10020c00);
+    char* url = CEM_retrieve_href(3);
+    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+  }
 
   this->Destroy();
 }
 void CustomDialog::on_reset_link(wxCommandEvent& event)
 {
-  CEM_set_link(0);
-  char* url = CEM_retrieve_href(3);
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+  if (inputField)
+  {
+    wxString sn_link = inputField->GetValue();
+
+    unsigned char sn_L[6];
+    int len;
+
+    for (size_t i = 0; i < 6; i++)
+      sn_L[i] = 0x00;
+
+    len = strlen(sn_link);
+
+    if (len % 2 == 0)
+    {
+      if (len / 2 == 6)
+      {
+        for (size_t i = 0; i < 6; i++)
+        {
+          char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
+          sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
+        }
+      }
+      else
+      {
+        return;
+      }
+    }
+    else
+    {
+      return;
+    }
+
+    uint64_t sn;
+
+    sn = 0x00;
+    sn += sn_L[0];
+    sn <<= 8;
+    sn += sn_L[1];
+    sn <<= 8;
+    sn += sn_L[2];
+    sn <<= 8;
+    sn += sn_L[3];
+    sn <<= 8;
+    sn += sn_L[4];
+    sn <<= 8;
+    sn += sn_L[5];
+
+    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
+    char str[13]; // 6 bytes → 12 hex chars + '\0'
+
+    // Format with leading zeros
+    snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
+
+    CEM_init_tables(str);
+
+    CEM_set_link(0);
+    char* url = CEM_retrieve_href(3);
+    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+  }
 
   this->Destroy();
 }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
-    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 550))
+/*
+CustomDialog::CustomDialog(const wxString& title, const wxString& text) : wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 550))
 {
   int size_x = 520;
   int size_y = 520;
@@ -168,30 +282,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
   wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
   wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
-  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
-
-  /*
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  char* sn = oc_string(device->serialnumber); 
-
-  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Serial Number"));
-  copyButton->Bind(wxEVT_BUTTON,
-                   [this, sn](wxCommandEvent&)
-                   {
-                     if (wxTheClipboard->Open())
-                     {
-                       wxTheClipboard->SetData(new wxTextDataObject(sn));
-                       wxTheClipboard->Close();
-                       //wxMessageBox("Serial number copied to clipboard!", "Copied", wxOK | wxICON_INFORMATION);
-                     }
-                   });
-  hbox->Add(copyButton, 0, wxLEFT, 5);
-
-  */
-
-
-  
+  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this); 
 
   wxButton* linkButton = new wxButton(this, wxID_ANY, wxT("LINK"));
   linkButton->Bind(wxEVT_BUTTON,  &CustomDialog::on_set_link, this);
@@ -210,6 +301,62 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
   ShowModal();
   Destroy();
 }
+*/
+
+
+
+
+
+CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
+    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxSize(550, 600))
+{
+  int size_x = 520;
+  int size_y = 450;
+
+  wxPanel* panel = new wxPanel(this, wxID_ANY);
+
+  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
+  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
+
+  // --- Main Text Area ---
+  wxTextCtrl* tc = new wxTextCtrl(panel, wxID_ANY, text, wxDefaultPosition, wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+  vbox->Add(tc, 1, wxEXPAND | wxALL, 5);
+
+  // --- Numeric Input Field ---
+  vbox->Add(new wxStaticText(panel, wxID_ANY, "Enter Serial Number:"), 0, wxLEFT | wxTOP, 10);
+
+  inputField = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxSize(200, -1), 0);
+  vbox->Add(inputField, 0, wxLEFT | wxBOTTOM, 10);
+
+  // --- Buttons (parent is panel, not dialog) ---
+  wxButton* linkButton = new wxButton(panel, wxID_ANY, wxT("LINK"));
+  linkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_set_link, this);
+  hbox->Add(linkButton, 0, wxLEFT, 5);
+
+  wxButton* unlinkButton = new wxButton(panel, wxID_ANY, wxT("UnLINK"));
+  unlinkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_reset_link, this);
+  hbox->Add(unlinkButton, 0, wxLEFT, 5);
+
+  wxButton* closeButton = new wxButton(panel, wxID_ANY, wxT("Close"));
+  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  hbox->Add(closeButton, 1, wxLEFT, 5);
+
+  vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+
+  // --- Attach sizer to panel ---
+  panel->SetSizer(vbox);
+
+  // --- Use the panel as the only child of the dialog ---
+  wxBoxSizer* dialogSizer = new wxBoxSizer(wxVERTICAL);
+  dialogSizer->Add(panel, 1, wxEXPAND);
+  SetSizerAndFit(dialogSizer);
+
+  Centre();
+  ShowModal();
+  Destroy();
+}
+
+
 
 class MyApp : public wxApp
 {
@@ -541,8 +688,9 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   m_timer.Start(1, wxTIMER_CONTINUOUS); 
 
   // TODO: add an input field to make this dynamic
-  CEM_init_tables("00fa10020b00");
+  //CEM_init_tables("00fa10020b00");
   //CEM_init_tables("00fa10020d00");
+  CEM_init_tables("000000000000");
   device->lsm_s = LSM_S_LOADED;
   
   // this is the config for phase 2
