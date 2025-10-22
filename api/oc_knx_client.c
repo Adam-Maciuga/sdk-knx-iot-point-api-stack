@@ -108,18 +108,18 @@ int oc_is_redirected_request_from(const oc_request_t* request)
 }
 
 // send out s-mode message in multicast by using the sending group address
-void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
-                     uint32_t group_address, uint64_t iid, const char* service_type,
-                     uint8_t* value_data, int value_size)
+void oc_issue_s_mode_mc(uint8_t scope, uint16_t sia, uint32_t grpid,
+                        uint32_t group_address, uint64_t iid, const char* service_type,
+                        uint8_t* value_data, int value_size)
 {
   // using group addressing 
   oc_endpoint_t group_mcast_endpoint = {0};
-  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, ipv6_adr_scope, COAP_DEFAULT_PORT);
+  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, scope, COAP_DEFAULT_PORT);
 
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  oc_send_s_mode(&group_mcast_endpoint, "/k", sia_value, group_address, service_type, value_data, value_size);
+  oc_send_s_mode(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
 }
 
 static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, 
@@ -261,14 +261,14 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
   return 0;
 }
 
-int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resource_path, const char* srv_type)
+int oc_issue_s_mode_with_scope_and_check_mc_or_uc(uint8_t scope, const char* resource_path, const char* srv_type)
 {
   PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
 
-  // max resource value size
-  uint8_t resource_value_buffer[50];
+  // max resource application value size
+  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE];
 
-  if (resource_path == NULL)
+  if (!resource_path)
   {
     OC_ERR("oc_do_s_mode_with_scope_internal: resource url is NULL");
     return -1;
@@ -334,6 +334,7 @@ int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resourc
 
     oc_cflag_mask_t sending_cflags; 
     const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path, &sending_cflags);
+
     if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
     { // here we have a sending GA that is able to transmit...
 

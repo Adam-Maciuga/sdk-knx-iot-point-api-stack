@@ -111,17 +111,17 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  *
  * @note the function checks the t-cflag from the GO for the sending GA
  *
- * @param scope the multi-cast scope
+ * @param scope the multicast scope
  * @param resource_path caller resource path (e.g. implemented on the device that is calling this function)
  * @param srv_type the service type to use, "w" or "r"
  *
  * @return 0 send out, -1 not send out (path not existing, t-cflag not set)
  *
  */
-int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resource_path, const char* srv_type);
+int oc_issue_s_mode_with_scope_and_check_mc_or_uc(uint8_t scope, const char* resource_path, const char* srv_type);
 
- void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid, uint32_t group_address,
-                      uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
+ void oc_issue_s_mode_mc(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
+                         uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 
