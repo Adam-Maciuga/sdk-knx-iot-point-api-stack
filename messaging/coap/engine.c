@@ -687,7 +687,7 @@ int coap_receive(oc_message_t* incoming_message)
 						oc_clock_time_t current_time = oc_clock_time();
 
 						if (echo_len == 0)
-						{ // a: regular request
+						{ // a: inbound regular request
 							if (sync_state == ECHO)
 							{
 								OC_DBG("Request from unsycned client, sending 4.01 Echo Response");
@@ -731,7 +731,7 @@ int coap_receive(oc_message_t* incoming_message)
 							}
 						}
 						else
-						{ // b: echo re-request
+						{ // b: inbound echo re-request
 
 							// check received len is the same as from send out echo response
 							if (echo_len != sizeof(oc_clock_time_t))

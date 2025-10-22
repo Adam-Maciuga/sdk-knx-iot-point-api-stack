@@ -52,14 +52,10 @@ typedef struct oc_rwin_t
 } oc_rwin_t;
 
 /**
-  @brief Oscore context information as data for the encryption/decryption, created from an auth/at entry.
- 
-  @note An oscore context shares the client and server side context
-   - Message  | Client            | Server            | Derived Key 
-   - Request  | Sender Context    | Recipient Context | Request Key
-   - Response | Recipient Context | Sender Context    | Response Key
 
-  The structure has a dual use for sender context and recipient context. 
+  @brief Oscore context information as data for the encryption/decryption,
+         created from an auth/at entry. The structure has a dual use for sender
+         context and recipient context, details see oscore engine - SECURITY DETAILS. 
 
  */
 typedef struct oc_oscore_context_t

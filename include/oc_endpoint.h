@@ -104,8 +104,8 @@ extern "C" {
                                                - used for matching oscore context for an outbound response from a former inbound request
                                                - used for upper layers to check access scopes (on an inbound request) */
 
-    uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE partial iv */
-    uint8_t request_piv_len;              /**< OSCORE partial iv length */
+    uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE Partial IV from request*/
+    uint8_t request_piv_len;              /**< OSCORE Partial IV length from request*/
     uint8_t kid_len;
     uint8_t kid[OSCORE_SENDER_ID_LEN];
     uint8_t kid_ctx_len;

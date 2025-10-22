@@ -251,7 +251,7 @@ oc_get_block_size(void)
   OC_WRN("Dynamic memory not available");
   return -1;
 }
-#endif /* OC_DYNAMIC_ALLOCATION */
+#endif
 
 static void oc_shutdown_device(void)
 {
