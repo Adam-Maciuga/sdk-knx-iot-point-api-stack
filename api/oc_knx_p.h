@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2021 Cascoda Ltd
+// Copyright (c) 2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +18,7 @@
   @brief knx /p resource implementation
   @file
 
-  The properties are implemented as non discoverable resources.
+  The properties are implemented as non-discoverable resources.
   The same API for data points can be used to create properties.
   The only difference is that the discoverable field is set on "not
   discoverable" All these none discoverable resources are listed under /p

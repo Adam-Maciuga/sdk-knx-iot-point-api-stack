@@ -2821,9 +2821,10 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
-  PRINT("S=%d iid=%" PRIu64 " G=%u B4=%d B3=%d B2=%d B1=%d :", scope, iid, group_nr, byte_4, byte_3, byte_2, byte_1);
+  PRINT("scope=%d iid=%" PRIu64 " group number=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_nr, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast);
 
+  // filled with group id for cases of an uc response for a mc request (a) - see send unicast message
   group_mcast.group_address = group_nr;
 
   // copy all from local data to (return) pointer
@@ -2921,7 +2922,7 @@ void oc_register_group_multicasts(void)
         // check if the 'receiving' GA from GO table entry is in the publisher table (device wants to receive it)
         const uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
 
-        PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid, g_got[index].ga[i]);
+        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid, g_got[index].ga[i]);
         oc_print_cflags(cflags);
 
         if (grpid > 0)
@@ -2967,9 +2968,9 @@ void oc_init_datapoints_at_initialization(void)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+            oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           #endif
-            oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+            oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           }
           else
           {

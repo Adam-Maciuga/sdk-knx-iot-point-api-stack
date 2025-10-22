@@ -109,7 +109,7 @@ struct oc_message_s
   oc_endpoint_t endpoint;
   oc_ipv6_addr_t mcast_dest;
   size_t length;
-  uint8_t ref_count;  // ref if a message is used (allocated = 1 , tracked >1)
+  uint8_t ref_count;  // ref if a message is used (allocated = 1 , tracked > 1)
   #ifdef OC_DYNAMIC_ALLOCATION
   #ifdef OC_INOUT_BUFFER_SIZE
   uint8_t data[OC_INOUT_BUFFER_SIZE];

@@ -607,11 +607,11 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
 
 				#ifdef OC_BLOCK_WISE
 				oc_blockwise_state_t* response_state = NULL;
-				  #ifdef OC_TCP
+				#ifdef OC_TCP
 				if (!(cur->endpoint.flags & TCP) &&
 						response_buffer.response_length > cur->block2_size)
 				{
-					#else  
+				#else  
 				if (response_buffer.response_length > cur->block2_size)
 				{
 					#endif 

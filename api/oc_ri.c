@@ -307,19 +307,22 @@ void oc_print_acl_scopes(oc_acl_mask_t scope)
 	#endif
 }
 
-void oc_ri_new_request_from_request(oc_request_t* new_request, oc_request_t* request,
-																		oc_response_buffer_t* response_buffer,
-																		oc_response_t* response_obj)
+
+void oc_ri_new_request_from_inbound_request(oc_request_t* new_request, oc_request_t* inbound_request,
+                                            oc_response_buffer_t* response_buffer,
+                                            oc_response_t* response_obj)
 {
 	// copy all src request content to new request content
-	memcpy(new_request, request, sizeof(oc_request_t));
+	memcpy(new_request, inbound_request, sizeof(oc_request_t));
 
-	// init response buffer,
-	// buffer and buffer size ar not written on purpose (set on root callback handler oc_ri.c)  
+	// init response buffer
 	response_buffer->code = 0;
 	response_buffer->response_length = 0;
 	response_buffer->content_format = 0;
 	response_buffer->max_age = 0;
+	// buffer pointer and buffer size are copied from inbound request
+  response_buffer->buffer = new_request->response->response_buffer->buffer;
+  response_buffer->buffer_size = new_request->response->response_buffer->buffer_size;
 
 	// init response object
 	response_obj->separate_response = NULL;

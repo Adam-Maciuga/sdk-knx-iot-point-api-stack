@@ -66,16 +66,19 @@ extern "C" {
     OSCORE = 1 << 5,           // OSCORE communication, identifies that OSCORE is used  
     MULTICAST = 1 << 6,        // multicast enabled 
     ACCEPTED = 1 << 7,         // accepted 
-    OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message 
+    OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message
+    ECHO_FROM_MC_SRC = 1 << 9  // an echo request will be sent out, caused by inbound s-mode mc message 
+
   };
 
   #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
-  #define NOT_OSCORE (~OSCORE) // as define to skip compiler warnings on using ~OSCORE directly
-  #define UNICAST (~MULTICAST) // see above
-  #define OSCORE_ENCRYPTED (~OSCORE_DECRYPTED) // see above
+  
+  // reset a specific bit from above
+  #define UNSET_BIT(flags, bit)  ((flags) &= ~(bit))
 
   /**
-   * @brief endpoint information, an endpoint combines uc/mc IP addresses with some security keying material
+   * @brief endpoint information,
+   *        an endpoint combines uc/mc IP addresses, transport flags and some security keying material
    *
    */
   typedef struct oc_endpoint_t
@@ -94,10 +97,8 @@ extern "C" {
     int interface_index;                  /**< interface index */
     uint8_t priority;                     /**< priority */
 
-    uint32_t group_address;               /**< used to find later on the OSCORE context '128-bit sender key'
-                                               that must be used for encryption of s-mode message requests 
-                                               (scans the list of group addresses behind the access token that is
-                                               linked to the OSCORE context) */
+    uint32_t group_address;               /**< sending group address, used to find later the OSCORE context '128-bit sender key'
+                                               that must be used for encryption of s-mode multicast request message */
 
     int32_t auth_at_index;                /**< auth at index
                                                - used for matching oscore context for an outbound response from a former inbound request

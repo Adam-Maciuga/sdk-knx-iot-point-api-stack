@@ -57,10 +57,12 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   }
 
   // calculate total properties
-  const oc_resource_t* my_p = oc_ri_get_app_resources();
-  for (; my_p; my_p = my_p->next)
+  const oc_resource_t* my_p0 = oc_ri_get_app_resources();
+  const oc_resource_t* my_p1 = my_p0;
+
+  for (; my_p0; my_p0 = my_p0->next)
   {
-    if (oc_string(my_p->uri) != NULL)
+    if (oc_string(my_p0->uri))
     {
       total++;
     }
@@ -83,10 +85,9 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   }
 
   // calculate first property for the requested page
-  my_p = oc_ri_get_app_resources();
   for (int i = 0; i < first_entry; i++)
   {
-    my_p = my_p->next;
+    my_p1 = my_p1->next;
   }
 
   // entries don't fit in a single page -> more pages are needed to get the full list
@@ -95,7 +96,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
   // add ONLY application datapoint's to response
-  if (oc_was_adding_data_points_to_response(request, my_p, &response_length, query_ps))
+  if (oc_was_adding_data_points_to_response(request, my_p1, &response_length, query_ps))
   {
     // add only a page hint if at least one response entry is in
     if (more_request_needed)
@@ -213,30 +214,31 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
         */
         if (entry_value && entry_url)
         {
-          // copy all data from request to new request (performance consuming)
-          // - includes also the originally called resource, maybe used in PUT handler to access interfaces or acl scopes 
-          oc_ri_new_request_from_request(&new_request, request, &response_buffer, &response_obj);
+          // copy inbound request
+          oc_ri_new_request_from_inbound_request(&new_request, request, &response_buffer, &response_obj);
 
           // sets the payload pointer to the collection 'item' OBJECT that includes the value
           // used by /p and /k that calls the same application callback handlers
           new_request.request_payload = rep->value.object;
 
-          // set src to POST p with payload; for a redirect check in application callback handles
-          // 'p/' and not '/p' because the PUT for p/{property-path} starts with segment 'p/'
-          new_request.uri_path = "p/";
-          new_request.uri_path_len = 2; // exclude for uri path len string null termination 
+          
 
           const oc_resource_t* my_resource =
             oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url));
 
           if (my_resource && my_resource->put_handler.cb)
           {
-            // call application PUT handler
-            // for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p
+            /*
+               call PUT callback handler from inbound POST to uri path with 'p' and len >= 1
 
-            // user data can be NULL if not defined by application request handler
-            // call application handler with own interface/ user data
-            // (it makes no sense to call it with the original /p interface mask, this is a fix vale)
+               - uri path is used by /p and /k endpoints that calls the same application callback handlers
+                 (for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p)
+               - uri path is used for a redirect check in application callback handler
+               - use new request (not the received one with POST), user data are possible
+               - call application handler with own interface/ user data
+                 (it makes no sense to call it with the original /p interface mask, this is a fix value)
+
+            */
             my_resource->put_handler.cb(&new_request, 
                                         my_resource->put_handler.interface_mask,
                                         my_resource->put_handler.user_data);

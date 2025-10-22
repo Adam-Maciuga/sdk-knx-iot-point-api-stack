@@ -69,16 +69,17 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
  * @brief  checks if the request is a redirected request from /k, /p or /p/{point-path},
  *         when that happened, extra information can be in the CBOR object (metadata).
  *
- * @note   an endpoint allows a stack 'redirect' call such as:
- *         - a. from s-mode POST k with payload
- *         - b. from CoAP POST p with payload (value and/or metadata)
- *         - c. from CoAP GET/PUT p/{point-path} with/without payload
+ * @note   an endpoint allows to 'redirect' calls such as:
+ *         - a. from POST '/k' with payload
+ *         - b. from POST '/p' with payload (value and/or metadata)
+ *         - c. from GET/PUT '/p/{point-path}' with/without payload
  *
  * @param request the request to be checked
- * @return -1, request was NULL
- * @return 1, call came from b or c 
- * @return 0, call came from a
- * @return 2, call came from anything else such as an internally called callback handler to get resource values 
+ *
+ * @return -1, request was NULL and/or uri len was '0'
+ * @return 1, call redirected from (b) or (c)
+ * @return 0, call redirected from (a)
+ * @return 2, call redirected from anything else such as an internally called callback handler to get resource values 
  */
 int oc_is_redirected_request_from(const oc_request_t *request);
 

@@ -43,6 +43,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_val
 
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
 
+// maybe useful for unicast 
 static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, oc_endpoint_t* endpoint, void* user_data)
 {
   (void) payload;
@@ -80,26 +81,24 @@ static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, 
 }
 
 
-
-
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
-  if (!request)
+  if (!request || request->uri_path_len == 0)
   {
     return -1;
   }
 
-  // check POST /k with extra payload (s-mode message), handler was setting '/k'
-  if (strncmp("/k", request->uri_path, 2) == 0)
+  // check POST to '/k' with extra payload (s-mode message)
+  // - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
+  if (request->uri_path[0] == 'k')
   {
     return 0;
   }
 
-  // check GET/PUT with/without extra payload p/{point-path}
-  // check POST with extra payload p/, handler was setting 'p/'
-  // - we don't care of total length, at least p/ must be present
-  // - len 2 is used , we compare two chars only by exclude for uri path len string null termination
-  if (strncmp("p/", request->uri_path, 2) == 0)
+  // check GET/PUT with/without extra payload '/p/{point-path}' or POST with extra payload '/p'
+  // - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
+  // - we don't care of total uri length, at least 'p' must be present
+  if (request->uri_path[0] == 'p')
   {
     return 1;
   }
@@ -108,39 +107,26 @@ int oc_is_redirected_request_from(const oc_request_t* request)
   return 2;
 }
 
-// send out s-mode message in multicast
+// send out s-mode message in multicast by using the sending group address
 void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid,
                      uint32_t group_address, uint64_t iid, const char* service_type,
                      uint8_t* value_data, int value_size)
 {
-  PRINT("ipv6 address scope %d", ipv6_adr_scope);
-
-#ifdef S_MODE_ALL_COAP_NODES
-#ifdef OC_OSCORE
-  oc_make_ipv6_endpoint(group_mcast, IPV6 | MULTICAST | OSCORE, COAP_PORT, 0xff, -ipv6_adr_scope, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0x00, 0xfd);
-#else
-  oc_make_ipv6_endpoint(group_mcast, IPV6 | DISCOVERY | MULTICAST, COAP_PORT, 0xff, ipv6_adr_scope, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0x00, 0xfd);
-
-#endif
-
-#else
-
   // using group addressing 
   oc_endpoint_t group_mcast_endpoint = {0};
   group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, ipv6_adr_scope, COAP_DEFAULT_PORT);
 
-#endif
-
-  // set the EP group_address, since this field is used to find the OSCORE context id/ encryption sender key
+  // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
+
   oc_send_s_mode(&group_mcast_endpoint, "/k", sia_value, group_address, service_type, value_data, value_size);
 }
 
-static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value,
-                           uint32_t group_address, const char* service_type, uint8_t* value_data,
-                           int value_size)
+static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, 
+                           uint32_t sia_value,
+                           uint32_t group_address, 
+                           const char* service_type, 
+                           uint8_t* value_data, int value_size)
 {
 
 #ifndef OC_OSCORE
@@ -339,7 +325,7 @@ int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resourc
       - the t-flag is not set
     */
 
-    OC_WRN("sending for the resource path %s not possible", resource_path);
+    OC_WRN("sending for the resource path %s not possible sending ga = %d , flags = %d", resource_path, sending_ga, sending_cflags);
     return -1;
     
   }

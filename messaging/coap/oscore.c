@@ -102,7 +102,7 @@ int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
 	return 0;
 }
 
-// store piv (converts little/big endian) and stores it to 64-bit ssn 
+// store 64-bit ssn (converts little/big endian) to piv 
 int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
 {
 	int _botest = 1;
