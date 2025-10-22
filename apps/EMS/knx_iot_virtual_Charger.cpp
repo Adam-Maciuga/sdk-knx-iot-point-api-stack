@@ -126,7 +126,7 @@ wxCmdLineParser* g_cmd;
 class FlowAnimation : public wxPanel
 {
 public:
-  FlowAnimation(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(100, 25))
+  FlowAnimation(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(100, 15))
   {
     SetBackgroundColour(wxColour(20, 20, 20));
     Bind(wxEVT_PAINT, &FlowAnimation::OnPaint, this);
@@ -227,38 +227,22 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
 
   wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn = oc_string(device->serialnumber);
 
-  /*
-
-
-  wxButton* pasteButton = new wxButton(this, wxID_ANY, wxT("Paste Serial Number"));
-  pasteButton->Bind(wxEVT_BUTTON,
-                    [this, tc](wxCommandEvent&)
-                    {
-                      if (wxTheClipboard->Open())
-                      {
-                        if (wxTheClipboard->IsSupported(wxDF_TEXT))
-                        {
-                          wxTextDataObject data;
-                          wxTheClipboard->GetData(data);
-                          wxString wxStr = data.GetText();                        
-                                                    
-                          char serial[16]; 
-                          strncpy(serial, wxStr.mb_str().data(), sizeof(serial) - 1); // safe copy
-                          serial[sizeof(serial) - 1] = '\0';  
-
-                          Charger_init_tables_QR(serial);
-                        }
-                        wxTheClipboard->Close();
-                      }
-
-                      EndModal(wxID_OK);
-
-                    });
-  hbox->Add(pasteButton, 0, wxLEFT, 5);
-
-  */
-
+  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Serial Number"));
+  copyButton->Bind(wxEVT_BUTTON,
+                   [this, sn](wxCommandEvent&)
+                   {
+                     if (wxTheClipboard->Open())
+                     {
+                       wxTheClipboard->SetData(new wxTextDataObject(sn));
+                       wxTheClipboard->Close();
+                       //wxMessageBox("Serial number copied to clipboard!", "Copied", wxOK | wxICON_INFORMATION);
+                     }
+                   });
+  hbox->Add(copyButton, 0, wxLEFT, 5);  
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
@@ -1796,6 +1780,7 @@ wxString MyFrame::dumpAuthTable()
             out += line;
           }
         }
+        out += "\n";
         /*
         if (entry->scope == OC_ACL_GA)
         {

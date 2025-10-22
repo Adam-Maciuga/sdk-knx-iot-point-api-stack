@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <errno.h>
+
 
 static bool mmem_initialized = false;
 

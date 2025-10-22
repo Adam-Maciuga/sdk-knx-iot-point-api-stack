@@ -485,9 +485,9 @@ int CEM_init_tables(char* sn_link)
   }
   else
   {
-    BYTE byteArray2f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    BYTE byteArray2f[16] = {sn_L[0], sn_L[1], sn_L[2], sn_L[3], sn_L[4], sn_L[5], 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray2f, 16);
-    BYTE byteArray26[6] = {sn_L[0], sn_L[1], sn_L[2], sn_L[3], sn_L[4], sn_L[5]};
+    BYTE byteArray26[6] = {sn_D[0], sn_D[1], 0, 0, 0, 3};
     oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray26, 6);
   }
 
@@ -950,7 +950,14 @@ int main(const int argc, char* argv[])
   oc_clock_time_t next_event;
 
 #ifdef KNX_GUI
+#ifdef _MSC_VER
+  // MSVC - may not need cast
   WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
+#else
+  // GCC - needs cast to suppress warning
+  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+#endif
+
 #endif
 
 #ifdef WIN32

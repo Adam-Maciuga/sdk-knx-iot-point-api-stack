@@ -316,32 +316,39 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
   wxPanel* panel = new wxPanel(this, wxID_ANY);
 
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
+  wxBoxSizer* buttonRow = new wxBoxSizer(wxHORIZONTAL); // NEW row for input + buttons
+  wxBoxSizer* bottomRow = new wxBoxSizer(wxHORIZONTAL); // Existing row for Close or other buttons
 
   // --- Main Text Area ---
-  wxTextCtrl* tc = new wxTextCtrl(panel, wxID_ANY, text, wxDefaultPosition, wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+  wxTextCtrl* tc =
+    new wxTextCtrl(panel, wxID_ANY, text, wxDefaultPosition, wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
   vbox->Add(tc, 1, wxEXPAND | wxALL, 5);
 
-  // --- Numeric Input Field ---
+  // --- Label ---
   vbox->Add(new wxStaticText(panel, wxID_ANY, "Enter Serial Number:"), 0, wxLEFT | wxTOP, 10);
 
-  inputField = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxSize(200, -1), 0);
-  vbox->Add(inputField, 0, wxLEFT | wxBOTTOM, 10);
+  // --- Numeric / Hex Input Field + Buttons on same row ---
+  inputField = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxSize(150, -1), 0);
+  inputField->SetMaxLength(20);
+  buttonRow->Add(inputField, 0, wxLEFT | wxRIGHT, 5);
 
-  // --- Buttons (parent is panel, not dialog) ---
-  wxButton* linkButton = new wxButton(panel, wxID_ANY, wxT("LINK"));
+  wxButton* linkButton = new wxButton(panel, wxID_ANY, wxT("Link"));
   linkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_set_link, this);
-  hbox->Add(linkButton, 0, wxLEFT, 5);
+  buttonRow->Add(linkButton, 0, wxLEFT | wxRIGHT, 5);
 
-  wxButton* unlinkButton = new wxButton(panel, wxID_ANY, wxT("UnLINK"));
+  wxButton* unlinkButton = new wxButton(panel, wxID_ANY, wxT("UnLink"));
   unlinkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_reset_link, this);
-  hbox->Add(unlinkButton, 0, wxLEFT, 5);
+  buttonRow->Add(unlinkButton, 0, wxLEFT, 5);
 
+  // Add the whole row to the layout
+  vbox->Add(buttonRow, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+
+  // --- Bottom Buttons Row (Close) ---
   wxButton* closeButton = new wxButton(panel, wxID_ANY, wxT("Close"));
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
-  hbox->Add(closeButton, 1, wxLEFT, 5);
+  bottomRow->Add(closeButton, 0, wxLEFT, 5);
 
-  vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+  vbox->Add(bottomRow, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
 
   // --- Attach sizer to panel ---
   panel->SetSizer(vbox);
@@ -355,6 +362,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
   ShowModal();
   Destroy();
 }
+
 
 
 

@@ -479,9 +479,9 @@ int Charger_init_tables_QR(char* sn_cem)
   g_at_entries[entry].ga = ga_array;
   BYTE byteArray12[2] = {0, 3};
   oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  BYTE byteArray1f[16] = {sn_D[0], sn_D[1], sn_D[2], sn_D[3], sn_D[4], sn_D[5], 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {sn_D[0], sn_D[1], sn_D[2], sn_D[3], sn_D[4], sn_D[5]};
+  BYTE byteArray16[6] = {sn_D[0], sn_D[1], 0, 0, 0, 3};
   oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
   oc_load_group_object_table();
@@ -698,7 +698,14 @@ int main(const int argc, char* argv[])
   oc_clock_time_t next_event;
 
 #ifdef KNX_GUI
+#ifdef _MSC_VER
+  // MSVC - may not need cast
   WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
+#else
+  // GCC - needs cast to suppress warning
+  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+#endif
+
 #endif
 
 #ifdef WIN32
