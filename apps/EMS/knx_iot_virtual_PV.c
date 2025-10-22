@@ -663,7 +663,7 @@ int main(const int argc, char* argv[])
   //PRINT("host name: %s", oc_string(device->hostname));
 
   // used to refresh (and print) IP addresses
-  oc_connectivity_get_endpoints(0);
+  oc_connectivity_get_endpoints();
 
   PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
 
