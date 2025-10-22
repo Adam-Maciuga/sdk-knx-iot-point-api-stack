@@ -580,13 +580,14 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
   @param iface_mask interface mask from caller
   @param data user data if provided (otherwise NULL)
 
-  @note  workflow for receiving:
+  @note  workflow for receiving an inbound message:
 
-         1. register mc address from publisher table 
-         2. mc registered IP addressed is received 
-
+         1. at configuration
+            - register all different multicast addresses from publisher table (after restart/ update device configuration data)
+         2. at runtime
+            - a multicast POST message is received by IP layer, mc address registered -> forward to /k (provided security check was passed), not registered -> discard
+            - an unicast POST message is received by IP layer -> forward to /k (provided security check was passed) 
   
-
 */
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {

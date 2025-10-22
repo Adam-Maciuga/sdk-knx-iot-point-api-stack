@@ -124,7 +124,7 @@ extern "C" {
 		coap_transport_type_t transport_type;
 		uint8_t version; // current version is '1'
 		coap_message_type_t type;
-		uint8_t code;
+		uint8_t code; // CoAP code such as CHANGED_2_04 = 68
 		uint16_t mid;	// used in coap to relate a CON message with an ACK message (used also for messages deduplication)
 
 		uint8_t token_len;
