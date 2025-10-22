@@ -82,7 +82,7 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
       // value is already set by init ... but store it again and save to storage
 
       swu_device.protocol = CoAP;
-      oc_storage_write(KNX_STORAGE_SWU_PROTOCOL, (uint8_t*)&swu_device.protocol, sizeof(swu_device.protocol));
+      oc_storage_write(KNX_STORAGE_SWU_PROTOCOL, &swu_device.protocol, sizeof(swu_device.protocol));
 
       oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
       return;
@@ -255,7 +255,7 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
     {
       // allow only PUSH method for this stack
       swu_device.update_method = PUSH;
-      oc_storage_write(KNX_STORAGE_SWU_METHOD, (uint8_t*)&swu_device.update_method, sizeof(swu_device.update_method));
+      oc_storage_write(KNX_STORAGE_SWU_METHOD, &swu_device.update_method, sizeof(swu_device.update_method));
       oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }

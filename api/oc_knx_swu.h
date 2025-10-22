@@ -36,7 +36,7 @@ extern "C" {
 
   typedef enum oc_swu_protocol
   {
-    CoAP = 0,     // unicast CoAP + OSCORE (RFC 7252) and block-wise transfer 
+    CoAP = 0,     // unicast CoAP + OSCORE (RFC 7252) and block-wise transfer (default in specification)
     CoAPS = 1,    // as defined in RFC 7252 with optional support for block-wise transfer
     CoAP_TCP = 2, // CoAP + OSCORE over TCP as defined in RFC 8323 
     CoAP_TLS = 3, // CoAP + TLS as defined in RFC 8323
@@ -81,7 +81,7 @@ extern "C" {
   {
     int max_defer;            // maximum number of seconds an AUTOMATIC software update can be deferred, 0 = NO AUTOMATIC update possible
     int current_defer;        // current number of seconds a software update will be deferred (0...max defer)
-    int update_method;        // swu update method (0=pull, 1=push=default or 2=both)
+    uint8_t update_method;    // swu update method (0=pull, 1=push=default or 2=both)
     oc_string_t pkg_name;
     oc_string_t last_update;
     int pkg_bytes;
@@ -90,7 +90,7 @@ extern "C" {
     oc_string_t query_url;
     oc_swu_result_t result;   // download result
     bool downloaded_once;     // marker for a never updated device
-    int protocol;             // only 0=unicast CoAP supported
+    uint8_t protocol;         // only 0=unicast CoAP supported
     oc_string_t hwref;        // hardware reference number (manufacturer specific)
   } oc_device_swu_t;
 
