@@ -126,9 +126,9 @@ wxCmdLineParser* g_cmd;
 class FlowAnimation : public wxPanel
 {
 public:
-  FlowAnimation(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(100, 15))
+  FlowAnimation(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(100, 25))
   {
-    SetBackgroundColour(wxColour(20, 20, 20));
+    SetBackgroundColour(wxColour(0, 0, 0));
     Bind(wxEVT_PAINT, &FlowAnimation::OnPaint, this);
 
     m_timer.Bind(wxEVT_TIMER, &FlowAnimation::OnTimer, this);
@@ -204,7 +204,7 @@ private:
 class CustomDialog : public wxDialog
 {
 public:
-  CustomDialog(const wxString& title, const wxString& text);
+  CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
   void on_close(wxCommandEvent& event);
@@ -212,11 +212,10 @@ private:
 
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
-    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
+CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
+    wxDialog(NULL, -1, title, wxDefaultPosition)
 {
-  int size_x = 520;
-  int size_y = 300;
+  this->SetSize(wxSize(size_x + 30, size_y));
 
   wxPanel* panel = new wxPanel(this, -1);
 
@@ -439,6 +438,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
     
   wxBoxSizer* hbox2 = new wxBoxSizer(wxHORIZONTAL);
   m_flow = new FlowAnimation(this);
+  m_flow->SetColor(wxColour(0xff, 0, 0));
   hbox2->Add(m_flow, 1, wxEXPAND); // stretches horizontally
   
   vbox->Add(hbox1, 0, wxEXPAND | wxALL, 10);
@@ -668,7 +668,7 @@ void MyFrame::OnUsage(wxCommandEvent& event)
       << "- Receives and applies the charging request from the CEM app." << "\n";
 
   strcpy(windowtext, "Device IDs & usage");
-  CustomDialog(windowtext, all);
+  CustomDialog(windowtext, all, 520, 180);
 }
 
 /**
@@ -705,7 +705,7 @@ void MyFrame::OnSettings(wxCommandEvent& event)
   wxString title;
   title.Printf("Device settings & cryptography");
 
-  CustomDialog(title, all);
+  CustomDialog(title, all, 420, 300);
   // SetStatusText("List All Tables");
 }
 
@@ -762,7 +762,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
   }
   strcpy(windowtext, "Group Object Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List Group Object Table");
 }
 
@@ -842,7 +842,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
   }
   strcpy(windowtext, "Publisher Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List Publisher Table");
 }
 
@@ -921,7 +921,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
   }
   strcpy(windowtext, "Recipient Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List Recipient Table");
 }
 /**
@@ -975,7 +975,7 @@ void MyFrame::OnParameterList(wxCommandEvent& event)
   strcat(windowtext, oc_string(device->serialnumber));
   // wxMessageBox(text, windowtext,
   //   wxOK | wxICON_NONE);
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   SetStatusText("List Parameters and their current set values");
 }
 
@@ -1097,7 +1097,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 
   strcpy(windowtext, "Authentication Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List security entries");
 }
 
@@ -1109,7 +1109,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
   constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text);
+  CustomDialog("About", text, 520, 300);
 }
 
 /**

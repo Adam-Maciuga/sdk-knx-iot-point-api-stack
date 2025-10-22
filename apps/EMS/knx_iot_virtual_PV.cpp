@@ -126,7 +126,7 @@ wxCmdLineParser* g_cmd;
 class CustomDialog : public wxDialog
 {
 public:
-  CustomDialog(const wxString& title, const wxString& text);
+  CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
   void on_close(wxCommandEvent& event);
@@ -134,11 +134,10 @@ private:
 
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text)
-    : wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
-{
-  int size_x = 520;
-  int size_y = 300;
+CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
+    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+{  
+  this->SetSize(wxSize(size_x + 30, size_y));
   
   wxPanel* panel = new wxPanel(this, -1);
 
@@ -568,7 +567,7 @@ void MyFrame::OnUsage(wxCommandEvent& event)
       << "- Enables adjustment of the solar production value (0–10 kW) for testing." << "\n";
 
   strcpy(windowtext, "Device IDs & usage");
-  CustomDialog(windowtext, all);
+  CustomDialog(windowtext, all, 520, 180);
 }
 
 /**
@@ -605,7 +604,7 @@ void MyFrame::OnSettings(wxCommandEvent& event)
   wxString title;
   title.Printf("Device settings & cryptography");
 
-  CustomDialog(title, all);
+  CustomDialog(title, all, 420, 300);
   // SetStatusText("List All Tables");
 }
 
@@ -663,7 +662,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
     
   }
   strcpy(windowtext, "Group Object Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -741,7 +740,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
     }
   }
   strcpy(windowtext, "Publisher Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -818,7 +817,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
     }
   }
   strcpy(windowtext, "Recipient Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 /**
  * @brief shows a window containing the parameters and current values of the application
@@ -871,7 +870,7 @@ void MyFrame::OnParameterList(wxCommandEvent& event)
   strcat(windowtext, oc_string(device->serialnumber));
   // wxMessageBox(text, windowtext,
   //   wxOK | wxICON_NONE);
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   SetStatusText("List Parameters and their current set values");
 }
 
@@ -992,7 +991,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
   }
 
   strcpy(windowtext, "Authentication Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -1003,7 +1002,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
   constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text);
+  CustomDialog("About", text, 520, 300);
 }
 
 /**
