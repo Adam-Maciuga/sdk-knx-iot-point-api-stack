@@ -52,16 +52,13 @@
 #include "oc_helpers.h"
 #include "port/oc_clock.h"
 #include "port/oc_storage.h"
-#include <signal.h> // test purpose only; commandline reset
-#include <stdio.h> // defines FILENAME_MAX
+#include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "apps/knx_iot_virtual.h" // application constants + methods
-
+#include "apps/knx_iot_virtual.h"
 #include "knx_iot_virtual_EMS.h"
-
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-
 #include "api/oc_knx_fp.c"
 #include "api/oc_knx_sec.c"
 
@@ -105,10 +102,19 @@ datapoint_t CEM_datapoint[4] = {
   {"/p/mode", "urn:knx:dpa.xxx.xx", ":dpt.enum", "MODE", "0"}, // DPT: 20.103
   {"/p/pv", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "PV", "1"}, // DPT: 14.056 
   {"/p/charger", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "CHARGER", "2"}, // DPT: 14.056 
-  {"/p/link", "urn:", "LINK", "sn", "3"}
+  {"/p/link", "urn:", "LINK", "sn", "3"} // no standard DPT
 };
 
-// define LSAB channel 0..1 + included EPs switch control/status
+// due to stuff added in knx_iot_virtual.c
+lsxb_channel_t lsxb[1] = {NULL}; 
+/*
+lsxb_channel_t lsxb[1] = {0}; 
+lsxb_channel_t lsxb[1] = {{0,0,0}};
+lsxb_channel_t lsxb[1] = {{417,
+                           1,
+                           NUM_POINTS,
+                           {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
+                            {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}}}; 
 lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
                                       1,
                                       NUM_POINTS,
@@ -119,8 +125,7 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
                                       NUM_POINTS,
                                       {{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
                                        {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}};
-
-
+*/
 
 // additional parameters
 int_datapoint_t test_parameter = {
@@ -192,7 +197,6 @@ void register_resources(void)
     oc_add_resource(tp0);
   }
 }
-
 int app_initialize_stack(void)
 {
   // set SN before stack initialization
@@ -229,8 +233,6 @@ int app_initialize_stack(void)
   // start the stack, calls directly also the .init handler from above
   return oc_main_init(&handler);
 }
-
-
 int CEM_init_auth_table()
 {
   int entry = 0;
@@ -249,8 +251,6 @@ int CEM_init_auth_table()
 
   return 0;
 }
-
-
 int CEM_init_tables(char* sn_link)
 {
   oc_device_info_t* device = oc_core_get_device_info();
@@ -513,7 +513,6 @@ int CEM_init_tables(char* sn_link)
 
   return 0;
 }
-
 void CEM_process_pv()
 {
   int m = CEM_retrieve_mode();
@@ -539,11 +538,9 @@ char* CEM_retrieve_href(uint16_t point) { return CEM_datapoint[point].resource_p
 int CEM_retrieve_mode() { return datapoint_mode; }
 int CEM_retrieve_pv() { return datapoint_pv; }
 int CEM_retrieve_charger() { return datapoint_charger; }
-
 void CEM_set_mode(int v) { datapoint_mode = v; }
 void CEM_set_charger(int v) { datapoint_charger = v * 1000; }
 void CEM_set_link(uint64_t v) { datapoint_link = v; }
-
 void CEM_put_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   bool error_state = true;
