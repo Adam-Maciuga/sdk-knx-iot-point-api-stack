@@ -8,18 +8,22 @@ These are the three EMS apps:
 - CEM
 - Charger
 
+AH: write here what is the  use case doing (or refer to that below) 
+
 ![Concept](concept.png)
 
 ## 1. PV app
 
 PV stands for photovoltaic and the app represents the functionality of an Invertor PV control device.
 
-> The current implementation contains one datapoint, representing 'present DC power'.
+> The current implementation contains one datapoint, representing 'present DC power'. AH: that mimics the sun beam injection ... or similar  
   This datapoint is represented by a slider, which allows the user to set the present DC power from 0 to 10 kW in steps of 1 kW and to send out the selected value to the medium.
 
 ## 2. CEM app
 
 CEM stands for Central Energy Manager.
+
+AH: write down what a CEM is and what NOT, after our discussion today (extra cfg functionality in addtion to a END device functionality, either with own HW or part of an end device) 
 
 > The current implementation contains two datapoints and foresees two operation modes.
   
@@ -41,13 +45,13 @@ This app represents the functionality of an Electric car charger device.
 # Details 
 
 In general:
-- all four above mentioned datapoints are of the same type, being DPT: 14.056
-- all three apps are based on the public KNX IoT stack and are at this stage only tested on Windows
+- all four above mentioned datapoints are of the same type, being DPT: 14.056 AH: where to find 
+- all three apps are based on the public KNX IoT stack and are at this stage only tested on Windows : AH: adapt since you use an own CEM, desribe that we have an end device stack AND that a vendor must decide to develop device + cfg by using our stack or .....
 
 # References
-- PV: description of the functional block(s): 7/8/1 Photovoltaics
-- Charger: description of the functional block(s): Application_EVSE
-- Datapoints: DPT 14.056: 3/7/2 Datapoint Types
+- PV: description of the functional block(s): 7/8/1 Photovoltaics AH: where to find 
+- Charger: description of the functional block(s): Application_EVSE AH: where to find  , number is missing 
+- Datapoints: DPT 14.056: 3/7/2 Datapoint Types  AH: where to find 
 
 ## Commissioning
 
@@ -106,9 +110,11 @@ This is the complete ETS commission procedure, which entirely of partly shall be
 - GET the LoadStateMachine to check
 - GET the Fingerprint to check
 
+AH: was not parrt of step 1-3, why here in 
+
 ### Commissioning with certification: ETS
-- The extra configuration datapoints from the PV and Charger device can no longer be onboard, because it is not standardized
-- The extra link datapoint of the CEM device can no longer be onboard, because it is not standardized
+- The extra configuration datapoints from the PV and Charger device can no longer be onboard, because it is not standardized: AH: than it will be , but here everbody stops reading , so remove
+- The extra link datapoint of the CEM device can no longer be onboard, because it is not standardized AH: see above 
 - ETS (online) catalog entries need to be created for all three devices/apps by means of the KNX Manufacturer Tool 
 
 
