@@ -18,18 +18,24 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-// include file, used for all GUI applications (EITT/LSAB/LSSB)
+/*
+  Note that the file 'knx_iot_virtual.c' is NOT a part of the stack or not intended to be a 
+  'application' library. It hosts only for below described ETS/EITT application commonly used 
+  functionality in one place.
+ 
+*/
 
 
 #ifndef KNX_IOT_VIRTUAL_H
 #define KNX_IOT_VIRTUAL_H
 
-// network
-
 /*
- The network router may not allow to send multicast with scope 5 (site local),
- hence the DEMO applications use scope 2 instead. If needed,
- sendout with scope 2 and 5 separately may be an option (2 messages). 
+ network
+
+ A network router may not allow to send multicast with scope 5 (site local),
+ hence the DEMO applications use scope 2 instead. If needed, sendout with scope 2 and 5
+ separately may be an option (2 messages).
+
  */
 #define SENDER_SCOPE (2)
 
@@ -96,7 +102,7 @@ typedef struct
     (note that an FB such as 417 may also reuse predefined datapoints from other FB's with DPA type 312.xx, 2nn.xx or similar, 
      FB 421 is NOT only using 'self defined' 417.xx types)
 
-  - the FB instance, 0...n, 0 = only one instance, > 0 more than one instance, see also 'oc_resource_set_function_block_instance'
+  - the FB instance, 0...n, 0 = only one instance, > 0 more than one instance, see also 'oc_resource_set_function_block_data'
 
   - the number of 'visible' datapoint in an FB, note that if this number WOULD change e.g.; when adding/deleting resources or make some invisible   
     - caused by ETS (e.g, partial download with changed parameter setting)
@@ -115,6 +121,13 @@ typedef struct
   bool_datapoint_t point[NUM_POINTS];
 } lsxb_channel_t, functional_block_t;
 
+#ifdef _WIN32
+#include <direct.h>
+#define GetCurrentDir _getcwd                  // path of current working directory, WIN
+#elif defined(__linux__) || defined(__APPLE__) // linux, mac specific code
+#include <unistd.h>
+#define GetCurrentDir getcwd                   // path of current working directory, LINUX, MAC
+#endif
 
 #ifdef __cplusplus
 extern "C"
