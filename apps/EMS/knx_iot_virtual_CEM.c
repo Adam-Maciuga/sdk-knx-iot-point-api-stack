@@ -17,34 +17,132 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
+// about this app and its datapoints
 /**
- * @file
+ * CEM stands for Central Energy Manager.
  *
- * KNX virtual sensor
+ * The current implementation contains two datapoints and foresees two operation modes.
  *
- * ## Application Design
+ * The first datapoint serves the role of capturing the present DC power from the medium, which is typically send out to the
+ * medium by Invertor PV control devices.
  *
- * - app_init, initializes the stack values.
+ * The two operation modes are:
+ *  - sun mode: the principle is to only charge the electric car at 4 kW if at least 4kW DC power is procuded by sun light
+ * (through PV panels)
+ *  - mix mode: charge the electric car at 4 kW regardless of the present produced DC power by sun light
+ * The operation mode is represented by a dedicated button, wich allows the user to toggle its value, the current value is
+ * indicated inside the button, either 'sun' or 'mix'.
  *
- * - register_resources, function that registers all endpoints, e.g. sets the GET/.../DELETE
- *   handlers for each end point
+ * The second datapoint sends, depending on the operation mode out to the medium the requested (calculated) charge rate,
+ * eihter at 0 kW or at 4 kW
  *
- * - main, starts the stack, with the registered resources, can be compiled out with NO_MAIN
- *
- * - callback handlers for the implemented methods, see callback handler 'Callback Notes'
- *   
- * ## stack specific defines
- * - __linux__, build for Linux
- * - WIN32,  build for Windows
- * - OC_OSCORE, oscore is enabled as compile flag
- *
- * ## File specific defines
- * - NO_MAIN
- *   compile out the function main()
- * - KNX_GUI
- *   build the GUI with console option, so that all
- *   logging can be seen in the command window
+ * References
+ * - PV: description of the functional block(s): 7/8/1 Photovoltaics
+ * - Charger: description of the functional block(s): Application_EVSE
+ * - Datapoints: DPT 14.056: 3/7/2 Datapoint Types
  */
+// implemented demo configuration concept
+/**
+ * The following concept has been implemented:
+ * - The CEM is considered being the central 'unit'
+ * - The configuration for all three devices is derived from the serial number of the CEM device
+ * - The configuration algorithm can be found in the source code of all three devices, it sets the:
+ *   - IA: individual address
+ *   - IID: installation identifier
+ *   - Group Object Table
+ *   - Publisher Table
+ *   - Recipient Table
+ *   - Authentication Table
+ * - The PV and the Charger device come with an extra configuration datapoint (not standardized)
+ *   - PV: its auth/at table comes with a specific pre-configured entry based on the serial number of the PV device
+ *   - Charger: its auth/at table comes with a specific pre-configured entry based on the serial number of the Charger device
+ * - The CEM device
+ *   - comes with an extra link datapoint (not standardized)
+ *   - this link object allows the CEM to make a connection to any target device, based on the serial number of the device to
+ * be connected
+ * - In practise:
+ *   - click either the 'settings' or the 'usage' icon of the target device (either the PV or the Charger device)
+ *   - click the 'copy serial number' button
+ *   - click either the 'settings' or the 'usage' icon of the CEM device
+ *   - paste the previously copied (target) serial number into the input field of the CEM device
+ *   - then click in the CEM device the 'Link' button, this will:
+ *     - update the auth/at table of the CEM device so that data between the link object of the CEM device and the
+ * configuration object of the target device can be exchanged
+ *     - transmit the serial number of the CEM device to the target device (in this case the PV device)
+ *     - the target device uses this transmitted serial number to set up its data object(s) according the above mentioned
+ * algorithm
+ *   - the 'UnLink' button clears the auth/at entry in the CEM device
+ */
+// implemented demo configuration algorithm
+/**
+ * this eihter based on the own serial number: device->serialnumber
+ * -> in this case sn_link is set to "000000000000"
+ *
+ * or both the own serial number and serial number the to be linked target device
+ * -> in this case sn_link is NOT set to "000000000000"
+ *
+ * Details:
+ *
+ * IA (and serial number)
+ *
+ * The IA of the three devices are set as follows, ETS notation:
+ * -  PV: 15.15.15 (serial number = 00fa:1002:0b00)
+ * -  CEM: 15.15.15 (serial number = 00fa:1002:0c00)
+ * -  Charger: 15.15.15 (serial number = 00fa:1002:0d00)
+ *
+ * IID
+ *
+ * The IID of the three devices is set to: 00fa:0000
+ *
+ * Group Object Table
+ *
+ * The Group Object Tables of the three devices are set as follows:
+ *
+ * PV:
+ * -  url: '/p/pv'      cflags : '64' ...t.  ga : [ 0/0/1 ]
+ * -  url: '/p/CEM'     cflags : '16' .w...  ga : [ 0/0/3 ]
+ *
+ * CEM:
+ * -  url: '/p/pv'      cflags : '16' .w...  ga : [ 0/0/1 ]
+ * -  url: '/p/charger' cflags : '64' ...t.  ga : [ 0/0/2 ]
+ * -  url: '/p/link'    cflags : '64' ...t.  ga : [ 0/0/3 ]
+ *
+ * Charger:
+ * -  url: '/p/charger' cflags : '16' .w...  ga : [ 0/0/2 ]
+ * -  url: '/p/CEM'     cflags : '16' .w...  ga : [ 0/0/3 ]
+ *
+ * Publisher and Recipient Table
+ *
+ * Both the Publisher and Recipeint Tables of the three devices are set as follows:
+ *
+ * PV:
+ * -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/3]
+ *
+ * CEM:
+ * -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/2 0/0/3]
+ *
+ * Charger:
+ * -  grpid:  00fa:0000  ga : [ 0/0/2 0/0/3]
+ *
+ * Authentication Table
+ *
+ * The Authentication Tables of the three devices are set as follows:
+ *
+ * PV:
+ * -  ga 0/0/1 osc_id [2]: 0001  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
+ * -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00fa10020b00060708090a0b0c0d0e0f  osc_contextid (o)[6]: 00fa00000003
+ *
+ * CEM:
+ * -  ga 0/0/1 osc_id [2]: 0001  osc_ms [16]: 000102030405060708090a0b0c0d0e0f  osc_contextid (o)[6]: 10020c000001
+ * -  ga 0/0/2 osc_id [2]: 0002  osc_ms [16]: 000102030405060708090a0b0c0d0e0f  osc_contextid (o)[6]: 10020c000002
+ * -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
+ *
+ * Charger:
+ * -  ga 0/0/2 osc_id [2]: 0002  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
+ * -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00fa10020d00060708090a0b0c0d0e0f  osc_contextid (o)[6]: 00fa00000003
+ *
+ */
+
 #include "oc_rep.h"
 #include "api/oc_knx_dev.h"
 #include "oc_api.h"
@@ -107,25 +205,6 @@ datapoint_t CEM_datapoint[4] = {
 
 // due to stuff added in knx_iot_virtual.c
 lsxb_channel_t lsxb[1] = {NULL}; 
-/*
-lsxb_channel_t lsxb[1] = {0}; 
-lsxb_channel_t lsxb[1] = {{0,0,0}};
-lsxb_channel_t lsxb[1] = {{417,
-                           1,
-                           NUM_POINTS,
-                           {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
-                            {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}}}; 
-lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
-                                      1,
-                                      NUM_POINTS,
-                                      {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
-                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}},
-                                     {417,
-                                      2,
-                                      NUM_POINTS,
-                                      {{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
-                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}};
-*/
 
 // additional parameters
 int_datapoint_t test_parameter = {
