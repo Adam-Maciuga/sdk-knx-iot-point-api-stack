@@ -38,48 +38,10 @@ typedef struct broker_s_mode_userdata_t
 
 oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
-// external definition
-static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
+// external definitions
 
+static void oc_issue_s_mode_non_multicast_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
-
-// maybe useful for unicast 
-static oc_discovery_flags_t discovery_ia_cb(const char* payload, const int len, oc_endpoint_t* endpoint, void* user_data)
-{
-  (void) payload;
-  (void) len;
-  uint8_t buffer[100];
-
-  // debugging
-  OC_DBG("discovery_ia_cb");
-  oc_endpoint_print(endpoint);
-
-  const oc_device_info_t* const  device = oc_core_get_device_info();
-  const uint32_t sender_ia = device->ia;
-
-  broker_s_mode_userdata_t* cb_data = user_data;
-
-  if (cb_data->resource_url == NULL)
-  {
-    return OC_STOP_DISCOVERY;
-  }
-  if (cb_data->path == NULL)
-  {
-    return OC_STOP_DISCOVERY;
-  }
-
-  int value_size = oc_s_mode_get_resource_value(cb_data->resource_url, buffer, sizeof(buffer));
-
-  oc_send_s_mode(endpoint, cb_data->path, sender_ia, cb_data->ga, cb_data->service_type, buffer, value_size);
-
-  if (cb_data)
-  {
-    free(user_data);
-  }
-
-  return OC_STOP_DISCOVERY;
-}
-
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -107,8 +69,8 @@ int oc_is_redirected_request_from(const oc_request_t* request)
   return 2;
 }
 
-// send out s-mode message in multicast by using the sending group address
-void oc_issue_s_mode_mc(uint8_t scope, uint16_t sia, uint32_t grpid,
+
+void oc_send_s_mode_non_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid,
                         uint32_t group_address, uint64_t iid, const char* service_type,
                         uint8_t* value_data, int value_size)
 {
@@ -119,27 +81,27 @@ void oc_issue_s_mode_mc(uint8_t scope, uint16_t sia, uint32_t grpid,
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  oc_send_s_mode(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
+  oc_issue_s_mode_non_multicast_message(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
 }
 
-static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path, 
+static void oc_issue_s_mode_non_multicast_message(oc_endpoint_t* endpoint, char* path, 
                            uint32_t sia_value,
                            uint32_t group_address, 
                            const char* service_type, 
                            uint8_t* value_data, int value_size)
 {
 
-#ifndef OC_OSCORE
+  #ifndef OC_OSCORE
   if (oc_init_post(path, endpoint, NULL, NULL, LOW_QOS, NULL))
   {
-#else  
+  #else  
 
   // set since method is called also with empty EP data (oc_issue_s_mode)
   endpoint->flags |= OSCORE;
 
-  if (oc_init_multicast_update(endpoint, path, NULL))
+  if (oc_init_multicast_update(endpoint, path))
   {
-#endif 
+  #endif 
 
     // { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
 
@@ -178,6 +140,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path,
     OC_INF("send s-mode (%d)with CBOR payload : ", oc_rep_get_encoded_payload_size());
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
+    // called only in case the static buffer was allocated 
     oc_do_multicast_update();
   }
 }
@@ -186,7 +149,7 @@ static void oc_send_s_mode(oc_endpoint_t* endpoint, char* path,
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buffer, const int buffer_size)
 {
   // max value size of a resource value
-  uint8_t resource_value[50];
+  uint8_t resource_value[OC_MAX_APP_DATA_SIZE_STATIC];
 
   if (resource_path == NULL)
   {
@@ -261,12 +224,12 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
   return 0;
 }
 
-int oc_issue_s_mode_with_scope_and_check_mc_or_uc(uint8_t scope, const char* resource_path, const char* srv_type)
+int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type)
 {
   PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
 
-  // max resource application value size
-  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE];
+  // max resource application value size, note that here a #define must be used
+  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
 
   if (!resource_path)
   {
@@ -306,7 +269,7 @@ int oc_issue_s_mode_with_scope_and_check_mc_or_uc(uint8_t scope, const char* res
       { // grpid is set in case of multicast in RCP table (configured by MaC)
         
         // multicast read, NO value data needed
-        oc_issue_s_mode_mc(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
+        oc_send_s_mode_non_multicast_message(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
         return 0;
       }
       else
@@ -344,14 +307,15 @@ int oc_issue_s_mode_with_scope_and_check_mc_or_uc(uint8_t scope, const char* res
       // grpid
       uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
       if (grpid > 0)
-      { // grpid is set in case of multicast in RCP table (configured by MaC)
+      { // mc: request -> grpid is used from RCP table (configured by MaC)
 
         // multicast write, value data needed
-        oc_issue_s_mode_mc(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
+        oc_send_s_mode_non_multicast_message(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
 
       }
       else
-      {
+      { // uc: request-> ia is used used from RCP table (configured by MaC) 
+
         // TODO resolve IP unicast to send via unicast...
         // discover unicast IPv6 for IA via mDNS
         // send message with unicast IPv6

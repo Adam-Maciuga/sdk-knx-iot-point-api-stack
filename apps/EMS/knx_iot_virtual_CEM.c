@@ -672,7 +672,7 @@ void CEM_process_pv()
 
   char* url = CEM_retrieve_href(3);
   CEM_set_charger(charger);
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");  
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");  
 }
 char* CEM_retrieve_href(uint16_t point) { return CEM_datapoint[point].resource_path; }
 int CEM_retrieve_mode() { return datapoint_mode; }

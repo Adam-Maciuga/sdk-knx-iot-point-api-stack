@@ -118,9 +118,9 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  * @return 0 send out, -1 not send out (path not existing, t-cflag not set)
  *
  */
-int oc_issue_s_mode_with_scope_and_check_mc_or_uc(uint8_t scope, const char* resource_path, const char* srv_type);
+int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type);
 
- void oc_issue_s_mode_mc(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
+void oc_send_s_mode_non_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
                          uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client

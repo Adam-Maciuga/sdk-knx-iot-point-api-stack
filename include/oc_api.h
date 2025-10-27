@@ -1159,40 +1159,25 @@ extern "C"
    * @param param The query parameter, e.g. "rt"
    * @param p_out The pointer to store the value, e.g. "blah"
    * @param p_len The length of the URI
-   * @return int 1 success full
+   *
+   * @return int 1 successful
    */
   int oc_lf_get_entry_param(const char* payload, int payload_len, int entry, const char* param, const char** p_out,
                             int* p_len);
 
-
-  
-
-
-
-  
-
-
-  
-
-  
-
-  
-
-  
-
   /**
-   * @brief initialize the multicast update
+   * @brief initialize a NON multicast message (to be sent out)  by allocating a static buffer
    *
    * @param mcast the multicast address to be used
    * @param uri the uri to be used
-   * @param query the query of uri
    * @return true
    * @return false
    */
-  bool oc_init_multicast_update(oc_endpoint_t* mcast, const char* uri, const char* query);
+  bool oc_init_multicast_update(oc_endpoint_t* mcast, const char* uri);
 
   /**
-   * @brief initiate the multi-cast update
+   * @brief fills a PRESENT (beforehand allocated) static buffer to send out
+   *        a NON multicast message
    *
    * @return true
    * @return false

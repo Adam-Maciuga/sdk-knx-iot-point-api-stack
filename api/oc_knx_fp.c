@@ -2965,9 +2965,9 @@ void oc_init_datapoints_at_initialization(void)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_multicast_message(2, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           #endif
-            oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_multicast_message(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           }
           else
           {
