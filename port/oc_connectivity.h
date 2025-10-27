@@ -81,7 +81,7 @@ enum {
 #endif /* !OC_SECURITY */
 #endif /* !OC_TCP */
 };
-#else /* !OC_DYNAMIC_ALLOCATION */
+#else 
 #ifdef __cplusplus
 }
 #endif
@@ -92,15 +92,16 @@ extern "C" {
 #ifdef OC_TCP
 #ifdef OC_OSCORE
 #define OC_PDU_SIZE (oc_get_max_app_data_size() + 2 * COAP_MAX_HEADER_SIZE)
-#else /* OC_OSCORE */
+#else 
 #define OC_PDU_SIZE (oc_get_max_app_data_size() + COAP_MAX_HEADER_SIZE)
-#endif /* !OC_OSCORE */
-#else  /* OC_TCP */
+#endif 
+#else  
 #define OC_PDU_SIZE (oc_get_mtu_size())
-#endif /* !OC_TCP */
+#endif 
 #define OC_BLOCK_SIZE (oc_get_block_size())
 #define OC_MAX_APP_DATA_SIZE (oc_get_max_app_data_size())
-#endif /* OC_DYNAMIC_ALLOCATION */
+#define OC_MAX_APP_DATA_SIZE_STATIC (7168)
+#endif 
 
 struct oc_message_s
 {

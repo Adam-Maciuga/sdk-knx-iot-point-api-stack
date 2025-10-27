@@ -37,10 +37,11 @@ typedef uint64_t oc_clock_time_t;
 
 #if !defined(OC_DYNAMIC_ALLOCATION)
 #define OC_DYNAMIC_ALLOCATION
-#endif /* OC_DYNAMIC_ALLOCATION */
+#endif 
+
 #if !defined(OC_BLOCK_WISE)
 #define OC_BLOCK_WISE
-#endif /* OC_BLOCK_WISE */
+#endif 
 
 /* Maximum number of callbacks for Network interface event monitoring */
 #define OC_MAX_NETWORK_INTERFACE_CBS (2)

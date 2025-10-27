@@ -1747,11 +1747,10 @@ oc_ri_find_client_cb_by_mid(uint16_t mid)
 	return cb;
 }
 
-oc_client_cb_t*
-oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len)
+oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len)
 {
 	oc_client_cb_t* cb = oc_list_head(client_cbs);
-	while (cb != NULL)
+	while (cb)
 	{
 		if (cb->token_len == token_len && memcmp(cb->token, token, token_len) == 0)
 			break;

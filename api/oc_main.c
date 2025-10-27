@@ -157,9 +157,9 @@ static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
 #ifdef OC_APP_DATA_BUFFER_SIZE
 static size_t _OC_MAX_APP_DATA_SIZE = 7168;
 #else                                
-static size_t _OC_MAX_APP_DATA_SIZE = 7168;
+static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define
 #endif                               
-static size_t _OC_BLOCK_SIZE = 1024; // FIX
+static size_t _OC_BLOCK_SIZE = 1024;        // a static runtime variable (only get), no #define
 
 int
 oc_set_mtu_size(size_t mtu_size)
@@ -196,7 +196,7 @@ oc_set_max_app_data_size(size_t size)
 {
 #ifdef OC_APP_DATA_BUFFER_SIZE
   return;
-#endif /* OC_APP_DATA_BUFFER_SIZE */
+#endif 
   _OC_MAX_APP_DATA_SIZE = size;
 #ifndef OC_BLOCK_WISE
   _OC_BLOCK_SIZE = size;
@@ -386,7 +386,7 @@ oc_clock_time_t oc_main_poll(void)
 void oc_main_shutdown(void)
 {
   // no shutdown if not already initialized
-  if (initialized == false)
+  if (!initialized)
     return;
 
   initialized = false;
@@ -413,8 +413,7 @@ void oc_main_shutdown(void)
   #endif 
 }
 
-bool
-oc_main_initialized(void)
+bool oc_main_initialized(void)
 {
   return initialized;
 }
@@ -427,8 +426,7 @@ void _oc_signal_event_loop(void)
   }
 }
 
-void
-oc_set_drop_commands(bool drop)
+void oc_set_drop_commands(bool drop)
 {
 #ifdef OC_DYNAMIC_ALLOCATION
   *drop_commands = drop;
@@ -437,8 +435,7 @@ oc_set_drop_commands(bool drop)
 #endif
 }
 
-bool
-oc_drop_command(void)
+bool oc_drop_command(void)
 {
 #ifdef OC_DYNAMIC_ALLOCATION
   return *drop_commands;

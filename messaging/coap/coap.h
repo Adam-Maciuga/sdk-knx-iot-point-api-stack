@@ -178,7 +178,7 @@ extern "C" {
 		#endif 
 
 		#ifdef OC_OSCORE
-		uint8_t oscore_flags;
+		uint8_t oscore_flags; // flags 000|h|k|nnn, as described  in RFC 8613
 		uint8_t piv[OSCORE_PIV_LEN]; // 'Partial IV' in OSCORE
 		uint8_t piv_len;
 		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile 
