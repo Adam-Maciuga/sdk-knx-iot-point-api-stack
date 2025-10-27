@@ -374,6 +374,7 @@ if(WIN32)
 
 
         if(USE_CONSOLE)
+          add_compile_definitions(USE_CONSOLE)
           if(MSVC)
                       set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
           else()
