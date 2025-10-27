@@ -100,7 +100,7 @@ bool oc_do_multicast_update(void)
 }
 
 
-bool oc_init_multicast_update(oc_endpoint_t *mcast, char *uri)
+bool oc_init_multicast_update(oc_endpoint_t* mcast, const char *uri)
 {
   multicast_update = oc_internal_allocate_outgoing_message();
 
