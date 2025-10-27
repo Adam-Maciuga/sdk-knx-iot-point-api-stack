@@ -39,117 +39,16 @@ static oc_blockwise_state_t *request_buffer = NULL;
 #ifdef OC_OSCORE
 // a static pointer, to allocate/ release an outgoing mc message (used like a 2-state state machine)
 oc_message_t *multicast_update = NULL; 
-#endif 
-oc_event_callback_retval_t oc_ri_remove_client_cb(void *data);
-
-static bool
-dispatch_coap_request(oc_content_format_t content, oc_content_format_t accept)
-{
-  int payload_size = oc_rep_get_encoded_payload_size();
-
-  if ((client_cb->method == OC_PUT || client_cb->method == OC_POST) &&
-      payload_size > 0) {
-
-#ifdef OC_BLOCK_WISE_REQUEST
-    request_buffer->payload_size = (uint32_t)payload_size;
-    uint32_t block_size;
-#ifdef OC_TCP
-    if (!(transaction->message->endpoint.flags & TCP) &&
-        payload_size > OC_BLOCK_SIZE) {
-#else  /* OC_TCP */
-    if ((long)payload_size > OC_BLOCK_SIZE) {
-#endif /* !OC_TCP */
-      const void *payload = oc_blockwise_dispatch_block(
-        request_buffer, 0, (uint32_t)OC_BLOCK_SIZE, &block_size);
-      if (payload) {
-        coap_set_payload(request, payload, block_size);
-        coap_set_header_block1(request, 0, 1, (uint16_t)block_size);
-        coap_set_header_size1(request, (uint32_t)payload_size);
-        request->type = COAP_TYPE_CON;
-        client_cb->qos = HIGH_QOS;
-      }
-    } else {
-      coap_set_payload(request, request_buffer->buffer, payload_size);
-      request_buffer->ref_count = 0;
-    }
-#else  
-    if (payload_size > 0) {
-      coap_set_payload(request,
-                       transaction->message->data + COAP_MAX_HEADER_SIZE,
-                       payload_size);
-    }
-#endif 
-  }
-
-  if (payload_size > 0) {
-    coap_set_header_content_format(request, content);
-  }
-  coap_set_header_accept(request, accept);
-
-  bool success = false;
-  transaction->message->length =
-    coap_serialize_message(request, transaction->message->data);
-  if (transaction->message->length > 0) {
-
-    if ((client_cb->handler.response == NULL) &&
-        (client_cb->handler.discovery_all == NULL) &&
-        (client_cb->handler.discovery == NULL)) {
-      // set the delayed callback on 0, so we clean up immediately
-      // since there is no response callback, so we are not expecting a result
-      // so set the ref count on 0, so that the transaction is deleted, without
-      // callback
-      OC_DBG(" refcount for handle.reponse=None : %d",
-             transaction->message->ref_count);
-      // transaction->message->ref_count = 0;
-    }
-
-    coap_send_transaction(transaction);
-
-    if ((client_cb->handler.response == NULL) &&
-        (client_cb->handler.discovery_all == NULL) &&
-        (client_cb->handler.discovery == NULL)) {
-      // set the delayed callback on 0, so we clean up immediately the client_cb
-      // data since there is no response callback, so we are not expecting a
-      // result
-      // OC_DBG("Not set delayed callback for transaction: %p", transaction);
-      oc_ri_remove_client_cb(client_cb);
-    } else if (client_cb->observe_seq == -1) {
-      if (client_cb->qos == LOW_QOS)
-        oc_set_delayed_callback(client_cb, &oc_ri_remove_client_cb,
-                                OC_NON_LIFETIME);
-      else
-        oc_set_delayed_callback(client_cb, &oc_ri_remove_client_cb,
-                                OC_EXCHANGE_LIFETIME);
-    }
-
-    success = true;
-  } else {
-    // transaction->message->length == 0
-    // did not send the request, just remove the transaction
-    coap_clear_transaction(transaction);
-    oc_ri_remove_client_cb(client_cb);
-  }
-
-#ifdef OC_BLOCK_WISE_REQUEST
-  if (request_buffer && request_buffer->ref_count == 0) {
-    oc_blockwise_free_request_buffer(request_buffer);
-  }
-  request_buffer = NULL;
-#endif 
-
-  transaction = NULL;
-  client_cb = NULL;
-
-  return success;
-}
+#endif
 
 #ifdef OC_OSCORE
+
 
 bool oc_do_multicast_update(void)
 {
   const int payload_size = oc_rep_get_encoded_payload_size();
 
-  if (payload_size > 0 && multicast_update) 
+  if (payload_size) 
   {
     // multicast_update is initialized
     coap_set_payload(request, multicast_update->data + COAP_MAX_HEADER_SIZE, payload_size);
@@ -157,13 +56,16 @@ bool oc_do_multicast_update(void)
   else 
   {
     // here it may jump with a NULL ptr to the error handling but this is checked there
-    goto do_multicast_update_error;
+    oc_message_unref(multicast_update);
+    multicast_update = NULL;
+    return false;
   }
 
   // is still the inner header ...
   coap_set_header_content_format(request, APPLICATION_CBOR);
 
   multicast_update->length =  coap_serialize_message(request, multicast_update->data);
+
   if (multicast_update->length > 0) 
   {
     OC_INF("sent multicast message - OK");
@@ -172,10 +74,12 @@ bool oc_do_multicast_update(void)
   else 
   {
     OC_WRN("sent multicast message - ERROR");
-    goto do_multicast_update_error;
+    oc_message_unref(multicast_update);
+    multicast_update = NULL;
+    return false;
   }
 
-#ifdef OC_IPV4
+  #ifdef OC_IPV4
   oc_message_t *multicast_update4 = oc_internal_allocate_outgoing_message();
   if (multicast_update4) {
     oc_make_ipv4_endpoint(mcast4, IPV4 | MULTICAST | SECURED, 5683, 0xe0, 0x00,
@@ -189,18 +93,14 @@ bool oc_do_multicast_update(void)
 
     oc_send_message(multicast_update4);
   }
-#endif 
+  #endif 
 
   multicast_update = NULL;
   return true;
-
-do_multicast_update_error:
-  oc_message_unref(multicast_update);
-  multicast_update = NULL;
-  return false;
 }
 
-bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char *query)
+
+bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri)
 {
   multicast_update = oc_internal_allocate_outgoing_message();
 
@@ -223,11 +123,6 @@ bool oc_init_multicast_update(oc_endpoint_t *mcast, const char *uri, const char 
   const uint32_t b = oc_random_value(); memcpy(request->token + 4, &b, sizeof(b));
 
   coap_set_header_uri_path(request, uri, strlen(uri));
-
-  if (query) 
-  {
-    coap_set_header_uri_query(request, query);
-  }
 
   return true;
 }
