@@ -350,7 +350,6 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-
   oc_rep_t* rep = request->request_payload;
 
   while (rep)

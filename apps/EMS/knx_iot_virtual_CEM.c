@@ -672,7 +672,7 @@ void CEM_process_pv()
 
   char* url = CEM_retrieve_href(3);
   CEM_set_charger(charger);
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");  
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");  
 }
 char* CEM_retrieve_href(uint16_t point) { return CEM_datapoint[point].resource_path; }
 int CEM_retrieve_mode() { return datapoint_mode; }
@@ -1023,7 +1023,7 @@ int main(const int argc, char* argv[])
   //PRINT("host name: %s", oc_string(device->hostname));
 
   // used to refresh (and print) IP addresses
-  oc_connectivity_get_endpoints(0);
+  oc_connectivity_get_endpoints();
 
   PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
 

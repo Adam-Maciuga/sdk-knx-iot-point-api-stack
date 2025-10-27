@@ -150,7 +150,8 @@ extern "C" {
 	} oc_content_format_t;
 
 	/**
-	 * @brief separate response type
+	 * @brief a structure that hosts the origin request and a response state,
+	 *        that tracks the process/schedule of origin request -> delayed response
 	 *
 	 */
 	typedef struct oc_separate_response_s oc_separate_response_t;
@@ -167,8 +168,8 @@ extern "C" {
 	 */
 	typedef struct oc_response_t
 	{
-		oc_separate_response_t* separate_response; /**< separate response */
-		oc_response_buffer_t* response_buffer;     /**< response buffer */
+		oc_separate_response_t* separate_response; // tracking structure for a separate response 
+		oc_response_buffer_t* response_buffer;     // the actual used response buffer
 	} oc_response_t;
 
 
@@ -597,7 +598,7 @@ extern "C" {
 	const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len);
 
 	/**
-	 * @brief retrieve list of application resources (excluding device core resources)
+	 * @brief retrieve list root node of application resources (excluding device core resources)
 	 *
 	 * @return oc_resource_t* the resource list
 	 */
@@ -754,22 +755,28 @@ extern "C" {
 
 	/**
 	 * @brief creates a new request from the (old) request by copy 1:1,
-	 *        is used internally for handler calls of /k and /p
+	 *        is used internally for handler calls of /k and /p,
+	 *				and adds response object (including response buffer) to the new request  
 	 *
-	 * @note  take care on editing data when using the new request
-	 *        such as in application, most copied data are pointers,
-	 *        hence a reference to the original src request
-	 *
+	 * @note
+	 *  - take care on editing data in the new request (such as in application),
+	 *    most copied data are pointers, hence a reference to the original source
+	 *  - copies the response buffer pointer/size to new request, means that new/original request
+   *    points to the same response memory
+   *  - copied endpoint data into new request maybe used in callback handler to access interfaces
+   *    or acl scopes
+   *  - performance consuming 
+   *
 	 * @param new_request the original request
-	 * @param request the new request
+	 * @param inbound_request the new request
 	 * @param response_buffer the dummy response buffer for the new request
 	 * @param response_obj the dummy response object
 	 *
 	 */
-	void oc_ri_new_request_from_request(oc_request_t* new_request,
-																			oc_request_t* request,
-																			oc_response_buffer_t* response_buffer,
-																			oc_response_t* response_obj);
+	void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
+                                              oc_request_t* inbound_request,
+                                              oc_response_buffer_t* response_buffer,
+                                              oc_response_t* response_obj);
 
 	
 	void allocate_events(void);

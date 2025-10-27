@@ -26,12 +26,12 @@
 #include <stdio.h>
 #ifdef OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
-#endif /* OC_DYNAMIC_ALLOCATION */
+#endif 
 
 #ifdef OC_OSCORE
 #include "security/oc_tls.h"
 #include "security/oc_oscore.h"
-#endif /* OC_OSCORE */
+#endif 
 #include "messaging/coap/oscore.h"
 
 #include "oc_buffer.h"
@@ -42,29 +42,31 @@ OC_PROCESS(message_buffer_handler, "OC Message Buffer Handler");
 #ifdef OC_INOUT_BUFFER_POOL
 OC_MEMB_STATIC(oc_incoming_buffers, oc_message_t, OC_INOUT_BUFFER_POOL);
 OC_MEMB_STATIC(oc_outgoing_buffers, oc_message_t, OC_INOUT_BUFFER_POOL);
-#else  /* OC_INOUT_BUFFER_POOL */
+#else  
 OC_MEMB(oc_incoming_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-#endif /* !OC_INOUT_BUFFER_POOL */
+#endif 
 
-static oc_message_t*
-allocate_message(struct oc_memb* pool)
+static oc_message_t* allocate_message(struct oc_memb* pool)
 {
 	oc_network_event_handler_mutex_lock();
-	oc_message_t* message = (oc_message_t*) oc_memb_alloc(pool);
+	oc_message_t* message = oc_memb_alloc(pool);
 	oc_network_event_handler_mutex_unlock();
 	if (message)
 	{
 		#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
-		message->data = malloc(OC_PDU_SIZE);
+
+	  message->data = malloc(OC_PDU_SIZE);
 		if (!message->data)
 		{
 			OC_ERR("Out of memory, cannot allocate message");
 			oc_memb_free(pool, message);
 			return NULL;
 		}
-		#endif /* OC_DYNAMIC_ALLOCATION && !OC_INOUT_BUFFER_SIZE */
-		message->pool = pool;
+
+		#endif 
+
+	  message->pool = pool;
 		message->length = 0;
 		message->next = 0;
 		message->ref_count = 1;
@@ -74,28 +76,32 @@ allocate_message(struct oc_memb* pool)
 
 		#ifdef OC_OSCORE
 		message->encrypted = 0;
-		#endif /* OC_OSCORE */
+		#endif
+
 		#if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
-		OC_DBG("buffer: Allocated TX/RX buffer; num free: %d",
-					 oc_memb_numfree(pool));
-		#endif /* !OC_DYNAMIC_ALLOCATION || OC_INOUT_BUFFER_SIZE */
+		OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));
+		#endif 
 	}
 	else
 	{
-		// no unused buffers, so go through buffers with soft references and
-		// free one (with the lowest ref count 1). Said buffer can no longer be
-		// used for e.g. retransmitting requests when challenged with an Echo option.
-		// However, freeing up one of these means that it can no longer be used for
-		// its original purpose.
+		/*
+	     No unused buffers, so go through buffers with soft references and
+		   free one (with the lowest ref count 1). Said buffer can no longer be
+		   used for e.g. retransmitting requests when challenged with an Echo option.
+		   However, freeing up one of these means that it can no longer be used for
+		   its original purpose.
+    */
 		for (int i = 0; i < pool->num; ++i)
 		{
 			int offset = pool->size * i;
 			message = (oc_message_t*) ((uint8_t*) pool->mem + offset);
 
-			if (message->ref_count == 1 && message->soft_ref_cb != NULL)
+			if (message->ref_count == 1 && message->soft_ref_cb)
 			{
-				message->soft_ref_cb(message);
-				// was the last reference (=1), so now we can allocate a new message successfully
+				// release message
+			  message->soft_ref_cb(message);
+
+			  // was the last reference (=1), so now we can allocate a new message successfully
 				return allocate_message(pool);
 			}
 		}

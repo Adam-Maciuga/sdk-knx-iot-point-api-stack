@@ -124,7 +124,7 @@ extern "C" {
 		coap_transport_type_t transport_type;
 		uint8_t version; // current version is '1'
 		coap_message_type_t type;
-		uint8_t code;
+		uint8_t code; // CoAP code such as CHANGED_2_04 = 68
 		uint16_t mid;	// used in coap to relate a CON message with an ACK message (used also for messages deduplication)
 
 		uint8_t token_len;
@@ -178,7 +178,7 @@ extern "C" {
 		#endif 
 
 		#ifdef OC_OSCORE
-		uint8_t oscore_flags;
+		uint8_t oscore_flags; // flags 000|h|k|nnn, as described  in RFC 8613
 		uint8_t piv[OSCORE_PIV_LEN]; // 'Partial IV' in OSCORE
 		uint8_t piv_len;
 		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile 

@@ -27,15 +27,7 @@
 #include "oc_api.h"
 #include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
-#include "apps/knx_iot_virtual.h" // application constants + methods
-
-#ifdef _WIN32
-#include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, WIN
-#else // linux,mac specific code
-#include <unistd.h>
-#define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
-#endif
+#include "apps/knx_iot_virtual.h" // application constants + methods (also 'GetCurrentDir')
 
 /*
  * LSSB definitions
@@ -150,11 +142,17 @@ int app_initialize_stack(void)
     For a specific embedded OS usually this functionality needs to be adapted. 
   */
 
-  char storage[400];
+  char storage[64];
+
+  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
   (void)snprintf(storage, sizeof(storage), "./knx_iot_virtual_lsab_%s", sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
+  
+  #endif
+
   oc_storage_config(storage);
 
   // initialize the 'application' runtime variables

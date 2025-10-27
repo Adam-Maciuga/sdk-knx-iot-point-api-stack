@@ -69,16 +69,17 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
  * @brief  checks if the request is a redirected request from /k, /p or /p/{point-path},
  *         when that happened, extra information can be in the CBOR object (metadata).
  *
- * @note   an endpoint allows a stack 'redirect' call such as:
- *         - a. from s-mode POST k with payload
- *         - b. from CoAP POST p with payload (value and/or metadata)
- *         - c. from CoAP GET/PUT p/{point-path} with/without payload
+ * @note   an endpoint allows to 'redirect' calls such as:
+ *         - a. from POST '/k' with payload
+ *         - b. from POST '/p' with payload (value and/or metadata)
+ *         - c. from GET/PUT '/p/{point-path}' with/without payload
  *
  * @param request the request to be checked
- * @return -1, request was NULL
- * @return 1, call came from b or c 
- * @return 0, call came from a
- * @return 2, call came from anything else such as an internally called callback handler to get resource values 
+ *
+ * @return -1, request was NULL and/or uri len was '0'
+ * @return 1, call redirected from (b) or (c)
+ * @return 0, call redirected from (a)
+ * @return 2, call redirected from anything else such as an internally called callback handler to get resource values 
  */
 int oc_is_redirected_request_from(const oc_request_t *request);
 
@@ -110,17 +111,17 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  *
  * @note the function checks the t-cflag from the GO for the sending GA
  *
- * @param scope the multi-cast scope
+ * @param scope the multicast scope
  * @param resource_path caller resource path (e.g. implemented on the device that is calling this function)
  * @param srv_type the service type to use, "w" or "r"
  *
  * @return 0 send out, -1 not send out (path not existing, t-cflag not set)
  *
  */
-int oc_issue_s_mode_with_scope_and_check_mc_or_uc(int scope, const char* resource_path, const char* srv_type);
+int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type);
 
- void oc_issue_s_mode_mc(int ipv6_adr_scope, uint16_t sia_value, uint32_t grpid, uint32_t group_address,
-                      uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
+void oc_send_s_mode_non_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
+                         uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

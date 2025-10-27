@@ -53,7 +53,7 @@ typedef struct oc_blockwise_state_s
 #ifdef OC_DYNAMIC_ALLOCATION
 #ifdef OC_APP_DATA_BUFFER_POOL
   void *block;
-#endif /* OC_APP_DATA_BUFFER_POOL */
+#endif 
   uint8_t *buffer;
 #else                                      /* OC_DYNAMIC_ALLOCATION */
   uint8_t buffer[OC_MAX_APP_DATA_SIZE]; /**< the buffer */

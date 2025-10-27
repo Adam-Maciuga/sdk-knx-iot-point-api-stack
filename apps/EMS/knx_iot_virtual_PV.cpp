@@ -1257,7 +1257,7 @@ void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
       
   PV_set_PV(val);          
 
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
   // show in status bar
   char statusBarText[100];
@@ -1277,7 +1277,7 @@ void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
 
   PV_set_PV(val);
 
-  oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
   // show in status bar
   char statusBarText[100];

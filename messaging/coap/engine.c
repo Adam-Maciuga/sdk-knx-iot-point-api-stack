@@ -67,11 +67,11 @@
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif /* OC_BLOCK_WISE */
+#endif 
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
-#endif /* OC_CLIENT */
+#endif 
 
 #ifdef OC_TCP
 #include "coap_signal.h"
@@ -84,11 +84,11 @@ extern bool oc_ri_invoke_coap_entity_handler(
 	void* request, void* response, oc_blockwise_state_t** request_state,
 	oc_blockwise_state_t** response_state, uint16_t block2_size,
 	oc_endpoint_t* endpoint);
-#else  /* OC_BLOCK_WISE */
+#else  
 extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 																						 uint8_t* buffer,
 																						 oc_endpoint_t* endpoint);
-#endif /* !OC_BLOCK_WISE */
+#endif 
 
 #ifdef OC_REQUEST_HISTORY
 // The size of the array used to de-duplicate CoAP messages.
@@ -144,7 +144,7 @@ bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16]
  * @param code return code (4.00, 4.01, ...)
  * @param endpoint addressed inbound endpoint
  * @param echo coap option echo (if needed)
- * @param echo_len echo len
+ * @param echo_len echo len (if needed)
  * 
  */
 static void coap_send_response_with_empty_payload(coap_message_type_t type, 
@@ -164,7 +164,7 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 	  memcpy(&outgoing_msg->endpoint, endpoint, sizeof(*endpoint));
 
 		// convert outgoing dst EP to unicast (for the response)
-    outgoing_msg->endpoint.flags &= UNICAST;
+    UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST);
 
 	  // token will be included if not NULL 
 		if (token && token_len > 0)
@@ -190,6 +190,14 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 
 		  // set echo option (uses a time stamp)
       coap_set_header_echo(&coap_msg, echo, echo_len);
+
+			// check original inbound message source
+			if (endpoint->flags & MULTICAST)
+			{
+        // echo was caused by inbound s-mode mc message
+			  outgoing_msg->endpoint.flags |= ECHO_FROM_MC_SRC;
+			}
+
     }
 
 		// serialize data, add all options and include/exclude OSCORE options
@@ -410,7 +418,7 @@ int coap_receive(oc_message_t* incoming_message)
 		      new_transaction->message->length = coap_oscore_serialize_message(re_request_packet, new_transaction->message->data, true, true,	true);
 
 					// re-requests must always be unicast, so reset mc flag
-          new_transaction->message->endpoint.flags &= UNICAST;
+          UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST);
 
           // use 4.01 source as re-request destination
           new_transaction->message->endpoint.addr = incoming_message->endpoint.addr;
@@ -510,7 +518,7 @@ int coap_receive(oc_message_t* incoming_message)
 						re_request_message->length = coap_oscore_serialize_message(re_request_packet, re_request_message->data, true, true, true);
 
             // re-requests must always be unicast, so reset mc flag
-            re_request_message->endpoint.flags &= UNICAST;
+            UNSET_BIT(re_request_message->endpoint.flags, MULTICAST);
 
             // use 4.01 source as re-request destination
             re_request_message->endpoint.addr = incoming_message->endpoint.addr;
@@ -679,7 +687,7 @@ int coap_receive(oc_message_t* incoming_message)
 						oc_clock_time_t current_time = oc_clock_time();
 
 						if (echo_len == 0)
-						{ // a: regular request
+						{ // a: inbound regular request
 							if (sync_state == ECHO)
 							{
 								OC_DBG("Request from unsycned client, sending 4.01 Echo Response");
@@ -723,7 +731,7 @@ int coap_receive(oc_message_t* incoming_message)
 							}
 						}
 						else
-						{ // b: echo re-request
+						{ // b: inbound echo re-request
 
 							// check received len is the same as from send out echo response
 							if (echo_len != sizeof(oc_clock_time_t))
@@ -1028,10 +1036,10 @@ int coap_receive(oc_message_t* incoming_message)
 							(!(incoming_message->endpoint.flags & TCP) &&
 							incoming_block_len <= block1_size))
 					{
-						#else  /* OC_TCP */
+						#else  
 					if (incoming_block_len <= block1_size)
 					{
-						#endif /* !OC_TCP */
+						#endif 
 						if (incoming_block_len > 0)
 						{
 							OC_DBG("creating request buffer");

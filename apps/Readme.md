@@ -17,6 +17,10 @@ interaction buttons, to be used with ETS and EITT. The code is defined in *.cpp 
   An complete example for that can be found in the c-file template 'knx_iot_application_template'
   in folder 'template'.
 
+> Note that the file 'knx_iot_virtual.c' is NOT a part of the stack or not intended to be a 
+  'application' library. It hosts only for below described ETS/EITT application commonly used 
+  functionality in one place.
+
 ## EITT Applications
 
 EITT stack test application.

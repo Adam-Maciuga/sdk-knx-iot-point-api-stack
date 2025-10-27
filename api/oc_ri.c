@@ -307,19 +307,22 @@ void oc_print_acl_scopes(oc_acl_mask_t scope)
 	#endif
 }
 
-void oc_ri_new_request_from_request(oc_request_t* new_request, oc_request_t* request,
-																		oc_response_buffer_t* response_buffer,
-																		oc_response_t* response_obj)
+
+void oc_ri_new_request_from_inbound_request(oc_request_t* new_request, oc_request_t* inbound_request,
+                                            oc_response_buffer_t* response_buffer,
+                                            oc_response_t* response_obj)
 {
 	// copy all src request content to new request content
-	memcpy(new_request, request, sizeof(oc_request_t));
+	memcpy(new_request, inbound_request, sizeof(oc_request_t));
 
-	// init response buffer,
-	// buffer and buffer size ar not written on purpose (set on root callback handler oc_ri.c)  
+	// init response buffer
 	response_buffer->code = 0;
 	response_buffer->response_length = 0;
 	response_buffer->content_format = 0;
 	response_buffer->max_age = 0;
+	// buffer pointer and buffer size are copied from inbound request
+  response_buffer->buffer = new_request->response->response_buffer->buffer;
+  response_buffer->buffer_size = new_request->response->response_buffer->buffer_size;
 
 	// init response object
 	response_obj->separate_response = NULL;
@@ -891,8 +894,7 @@ void
 oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_callback,
 																		 oc_clock_time_t ticks)
 {
-	oc_event_callback_t* event_cb =
-		(oc_event_callback_t*) oc_memb_alloc(&event_callbacks_s);
+	oc_event_callback_t* event_cb =  oc_memb_alloc(&event_callbacks_s);
 
 	if (event_cb)
 	{
@@ -1107,13 +1109,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	*  in order to reducing peak memory in OC_BLOCK_WISE & OC_DYNAMIC_ALLOCATION
 	*/
 
-	// empty response buffer
+	// empty response buffer, the response buffer is assigned LATER
 	response_buffer.code = 0;
 	response_buffer.response_length = 0;
 	response_buffer.content_format = 0;
 	response_buffer.max_age = 0;
 
-	// empty response object,later filled   
+	// empty response object, later filled   
 	response_obj.separate_response = NULL;
 	response_obj.response_buffer = &response_buffer;
 
@@ -1128,19 +1130,19 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	request_obj._payload_len = 0;
 	request_obj.request_method = method;
 
-	/* Obtain request uri from the CoAP packet. */
+	// obtain request uri from the CoAP packet
 	const char* uri_path = NULL;
 	size_t uri_path_len = coap_get_header_uri_path(request, &uri_path);
 
-	/* Obtain query string from CoAP packet, set default 0 */
+	// obtain query string from CoAP packet, set default 0
 	const char* uri_query = 0;
 	size_t uri_query_len = coap_get_header_uri_query(request, &uri_query);
 
-	/* Read the Content-Format CoAP option in the request, set default CBOR */
+	// read the Content-Format CoAP option in the request, set default CBOR
 	oc_content_format_t content_format = APPLICATION_CBOR;
 	coap_get_header_content_format(request, &content_format);
 
-	/* Read the accept CoAP option in the request, set default none */
+	// read the accept CoAP option in the request, set default none
 	unsigned int accept_int = CONTENT_NONE;
 	coap_get_header_accept(request, &accept_int);
 	oc_content_format_t accept = accept_int;
@@ -1151,7 +1153,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	if (uri_query_len)
 	{
 		request_obj.query = uri_query;
-		request_obj.query_len = (int) uri_query_len;
+		request_obj.query_len = uri_query_len;
 
 		// check if query string includes an interface 'if=if.xx' parameter
 		char* pointer_to_if_value;
@@ -1179,6 +1181,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	payload_len = coap_get_payload(request, &payload);
 	#endif
 
+	// prepare request (except the matching resource pointer)
 	request_obj._payload = payload;
 	request_obj._payload_len = payload_len;
 	request_obj.content_format = content_format;
@@ -1225,13 +1228,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 	/*
 	   If there were no errors thus far, attempt to locate the specific
-	   declared core resources that will handle the request using the request uri.
+	   declared core/application resources that will handle the request using the request uri.
 	*/
 	if (!bad_request)
 	{
 		const oc_resource_t* tmp_core_resource;
 
-		// check ALL core resources
+		// check all core resources
 		for (int i = 0; i < OC_NUM_CORE_RESOURCES; i++)
 		{
 			tmp_core_resource = oc_core_get_core_resource_by_index(i);
@@ -1250,7 +1253,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
           // start compare from 'dev/sn' (omit '/') with 'dev/sn' by compare len of 'dev/sn' = 7
 					strncmp((const char*) oc_string(tmp_core_resource->uri) + 1, uri_path, uri_path_len) == 0)
 			{
-				request_obj.resource = matching_resource = tmp_core_resource;
+        // update request (with matching resource)
+        request_obj.resource = matching_resource = tmp_core_resource;
 				break;
 			}
 
@@ -1274,26 +1278,28 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 						strncmp((const char*) oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
 				{ // found core resource 
 
-				  // TODO check if a security leak exists 
+				  // TODO check if a security leak exists
+
+          // update request (with matching resource)
 					request_obj.resource = matching_resource = tmp_core_resource;
 					break;
 				}
 			}
 		}
-	}
 
-	#ifdef OC_SERVER
+		#ifdef OC_SERVER
 
-	if (!matching_resource && !bad_request)
-	{ // if not a request to device core resources, check list of application resources
-		request_obj.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len);
+    if (!matching_resource)
+    { // no hit to core resource, check all application resources
+      request_obj.resource = matching_resource = oc_ri_get_app_resource_by_resource_path(uri_path, uri_path_len);
+    }
+    #endif 
 	}
-	#endif 
 
 	// alloc response_state, it also affects response_buffer
 	#ifdef OC_BLOCK_WISE
 
-	if (matching_resource && !bad_request)
+	if (!bad_request && matching_resource)
 	{ // either core/application resource was found
 
 	  if (!*response_state)
@@ -1315,17 +1321,20 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				}
 				// should be the same type in response as in the request
 				(*response_state)->return_content_type = accept;
-				response_buffer.buffer = (*response_state)->buffer;
+
+				// here the response buffer is assigned 
+			  response_buffer.buffer = (*response_state)->buffer;
 				response_buffer.buffer_size = OC_MAX_APP_DATA_SIZE;
 			}
 		}
 	}
-	#else  
+
+  #else  
 	response_buffer.buffer = buffer;
 	response_buffer.buffer_size = OC_BLOCK_SIZE;
 	#endif 
 
-	if (matching_resource && !bad_request)
+	if (!bad_request && matching_resource)
 	{ // core/application resource found, process request
 
 	  /*
@@ -1338,7 +1347,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 		// check access, use as payload the CBOR data
     if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, request_obj.request_payload))
-		{
+		{ // access scope NOT ok
 			authorized = false;
 		}
 		else
@@ -1354,9 +1363,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		}
 		else
 		#endif 
-		{
-			// invoke core or application callback handler, otherwise
-			// return a 4.05 (method not allowed) response
+		{ // access scope ok
+
+		  // invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
 			if (method == OC_GET && matching_resource->get_handler.cb)
 			{
 				matching_resource->get_handler.cb(&request_obj, 
@@ -1433,9 +1442,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	else if (!authorized)
 	{
 		OC_WRN("subject not authorized");
-		/* If the requestor (subject) does not have access granted via an
-		* access control entry in the ACL, then it is not authorized to
-		* access the resource. A 4.01 response is sent.
+
+	  /*
+	    If the requestor (subject) does not have access granted via an
+		  access control entry in the ACL, then it is not authorized to
+		  access the resource.
 		*/
 		response_buffer.response_length = 0;
 		OC_ERR("subject not authorized");
@@ -1448,28 +1459,27 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 	#ifdef OC_SERVER
 	// If a GET request was successfully processed, then check its observe option.
-	
-	uint32_t observe = 2; // init with error
+
+	// init with error
+	uint32_t observe = 2; 
 	if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&
 			coap_get_header_observe(request, &observe))
 	{
 		// process all < 4.00, check if the resource is OBSERVABLE
 		if (matching_resource->properties & OC_OBSERVABLE)
 		{
-			/* If the observe option is set to 0, make an attempt to add the
-			* requesting client as an observer.
-			*/
+			// if the observe option is set to 0, make an attempt to add the requesting client as an observer
 			if (observe == 0) // register
 			{
-				bool set_observe_option = true;
+			  bool set_observe_option = true;
 				#ifdef OC_BLOCK_WISE
 				if (coap_observe_handler(request, response, matching_resource, block2_size,
 						endpoint, if_mask_from_query) >= 0)
 				{
-					#else  
+				#else  
 				if (coap_observe_handler(request, response, cur_resource, endpoint) >= 0)
 				{
-					#endif 
+				#endif 
 					/* If the resource is marked as periodic observable it means
 					* it must be polled internally for updates (which would lead to
 					* notifications being sent). If so, add the resource to a list of
@@ -1736,11 +1746,10 @@ oc_ri_find_client_cb_by_mid(uint16_t mid)
 	return cb;
 }
 
-oc_client_cb_t*
-oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len)
+oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len)
 {
 	oc_client_cb_t* cb = oc_list_head(client_cbs);
-	while (cb != NULL)
+	while (cb)
 	{
 		if (cb->token_len == token_len && memcmp(cb->token, token, token_len) == 0)
 			break;

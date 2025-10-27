@@ -51,19 +51,24 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
 #endif
 #endif
 
+// the delayed swu callback handler 
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
   oc_separate_response_t* response = context;
 
   if (response->active)
   {
+    // alloc buffer for response
     oc_set_separate_response_buffer(response);
+
+    // no payload data for a swu response, only 2.04 changed status
     oc_send_separate_response(response, OC_STATUS_CHANGED);
-    OC_DBG("Delayed response sent");
+
+    OC_DBG("delayed response (still) active -> sent it out");
   }
   else
   {
-    OC_DBG("Delayed response NOT active");
+    OC_DBG("delayed response NOT active (anymore) -> ignored");
   }
 
   return OC_EVENT_DONE;
@@ -75,7 +80,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   (void)data;
 
   char filename[] = "./downloaded.bin";
-  OC_DBG("swu_cb %s block=%d size=%d ", filename, (int)block_offset, (int)block_len);
+  OC_DBG("swu_cb %s block offset=%d block size=%d ", filename, (int)block_offset, (int)block_len);
 
   // 'ab' = add to the end of file (a) in binary mode (b)
   FILE* write_ptr = fopen("downloaded_bin", "ab");
@@ -83,7 +88,8 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   const size_t r = fclose(write_ptr);
   OC_DBG("written data: %llu, operation ok (=0): %llu", n, r);
 
-  oc_set_delayed_callback(response, &send_delayed_response, 0);
+  // 
+  oc_set_delayed_callback(response, &send_delayed_response, 1);
 }
 
 void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
@@ -243,12 +249,14 @@ extern int_datapoint_t test_parameter;
 
  *Caller*
 
- - For the 's-mode' call the group object table configuration flags (cflags) and service type (w/r/a)
+ For a POST 's-mode' call
+ - the group object table configuration flags (cflags) and service type (w/r/a)
    are considered by the stack, but not for the 'property' call.
 
- - For a POST 's-mode' call the corresponding (r/w/a) application GET/PUT callback handlers are called
+ - the corresponding (r/w/a) application GET/PUT callback handlers are called
    by the stack. The request payload (on w/a ->PUT) points to the actual value object.  
- - For a GET/PUT 'property' call the GET/PUT callback handler are called directly.
+
+ For a GET/PUT 'property' call the GET/PUT callback handler are called directly.
 
  *Resource Path*
 
@@ -300,8 +308,8 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     return;
   }
 
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by p/ or /k s-mode message EP)
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
@@ -440,11 +448,11 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by /p or /k s-mode message EP)
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller /p --> always allow to write (see 'Callback Notes' above)
+    // caller '/p' -> always allow to write (see 'Callback Notes' above)
     is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
@@ -482,7 +490,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
     // trigger the LSAB status on a specific resource path (ioo)
     PRINT("send status to %s with flag: 'w'", lsxb[channel].point[IOO].resource_path);
-    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, lsxb[channel].point[IOO].resource_path, "w");
+    oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, lsxb[channel].point[IOO].resource_path, "w");
 
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
@@ -514,11 +522,11 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by /p or /k s-mode message EP) 
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller /p --> always allow to write (see 'Callback Notes' above)
+    // caller '/p' -> always allow to write (see 'Callback Notes' above)
     is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }

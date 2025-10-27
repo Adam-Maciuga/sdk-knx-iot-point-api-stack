@@ -1,5 +1,6 @@
 /*
  // Copyright (c) 2021-2023 Cascoda Ltd
+ // Copyright (c) 2024-2025 KNX Association
  //
  // Licensed under the Apache License, Version 2.0 (the "License");
  // you may not use this file except in compliance with the License.
@@ -116,8 +117,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-// resource definition, details/comments see on
-// 'core_resource_well_known_core'
+// resource definition, details/comments see on 'core_resource_well_known_core'
 extern const oc_resource_t core_resource_knx_auth_o;
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
@@ -127,7 +127,6 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   {NULL, sizeof("urn:knx:dpt:timePeriodMsec"), "urn:knx:dpt:timePeriodMsec"},
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
-  // for non defined PUT/POST/DELETE handler use if.none, to return 4.05 instead of 4.01 (unauthorized)
   {oc_core_knx_auth_o_osndelay_get_handler, NULL, OC_ACL_D, OC_IF_D},
   {oc_core_knx_auth_o_osndelay_put_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
@@ -1891,7 +1890,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
       O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s' -> OK
          = all ga's are allowed for if.g.s
 
-      O2 s-mode endpoint (/k) call with caller/called scope hosting at least '<ga>' -> NOT ENOUGH
+      O2 s-mode endpoint (/k) call with caller/called scope hosting at least a '<ga>' -> NOT ENOUGH
          = some ga's are allowed for <ga>
          - ga from request must be also part of ga list in access token (list MUST BE NOT empty)
          - no other EP than /k uses '<ga>' as resource scope (see resource definition)
@@ -1900,8 +1899,8 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     */
 
     if (caller_acl_scope == OC_ACL_GA)
-    { // O2 - a call with <ga> access token, here this is only possible if /k resource was
-      // addressed (caller_acl_scope & called_res_scope ->  OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
+    { // O2 - a call with <ga> access token, here this is only possible if /k resource was addressed
+      // (caller_acl_scope & called_res_scope ->  OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
 
       // scan received payload for request ga
       const oc_rep_t* rep = value_object;
@@ -1911,8 +1910,8 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
       {
         if (rep->type == OC_REP_OBJECT)
         {
-          // s map with st/ga/value (if present on write/update)
-          oc_rep_t* s_map = rep->value.object;
+          // s map with st/ga/value (if present on w=write/a=update)
+          const oc_rep_t* s_map = rep->value.object;
 
           while (s_map)
           {
@@ -1928,8 +1927,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
         rep = rep->next;
       }
 
-      // no ga found in request payload = request payload error, no access
-      // ga found in request payload, check ...
+      // no ga found in request payload = request payload error (no access), ga found in request payload, check ...
       return group_address_in_payload == -1
         ? false 
         : check_access_token_for_group_address(endpoint->auth_at_index, group_address_in_payload);
@@ -1939,6 +1937,8 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     return true;
   }
 
+  #ifdef OC_DEBUG
+
   OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :",
                 oc_string(resource->uri), 
                 caller_acl_scope,
@@ -1946,6 +1946,8 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
 
   oc_print_acl_scopes(caller_acl_scope);
   oc_print_acl_scopes(called_res_scope);
+
+  #endif
 
   return false;
 }

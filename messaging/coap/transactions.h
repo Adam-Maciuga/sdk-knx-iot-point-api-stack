@@ -68,27 +68,31 @@ extern "C" {
           0.5) +                                                               \
          1)
 
-/*
-   Container for transactions with message buffer and retransmission info,
-   a transaction is an individual CON/NON request/response cycle. 
+/**
+   @brief Container for transactions with message buffer and retransmission info
+
+   @note
+   - a transaction is an individual CON/NON request/response cycle
+   - an example is a CON/NON read/response cycle
  */
 typedef struct coap_transaction
 {
-  struct coap_transaction *next; /* for LIST */
+  struct coap_transaction *next; 
 
   uint16_t mid;
   uint8_t token_len;
   uint8_t token[COAP_TOKEN_LEN];
   struct oc_etimer retrans_timer;
-  uint8_t retrans_counter;
+  uint8_t retrans_counter;        // 0 = initial message, no retransmission started 
   oc_message_t *message;
 
 } coap_transaction_t;
 
 void coap_register_as_transaction_handler(void);
 
-coap_transaction_t *coap_new_transaction(uint16_t mid, uint8_t *token,
-                                         uint8_t token_len,
+  // starting an own transaction
+coap_transaction_t *coap_new_transaction(uint16_t mid, 
+                                         uint8_t *token, uint8_t token_len,
                                          oc_endpoint_t *endpoint);
 
 void coap_send_transaction(coap_transaction_t *t);

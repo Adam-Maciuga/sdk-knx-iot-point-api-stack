@@ -145,7 +145,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
     {
       if (!tcp)
       {
-        // on NOT TCP search by mid 
+        // on no TCP search by mid (TCP : mid NOT relevant)
         t = coap_get_transaction_by_mid(mid);
       }
       if (!t)
@@ -234,7 +234,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t
   return ctx;
 }
 
-// find access token for a given group address
+// scans all contexts auth at token if the ga is in the ga list of the AT token
 oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address)
 {
   // get first context of list

@@ -19,10 +19,10 @@
 /**
  * @file
  *
- * KNX application template
+ * KNX application template 
  * ========================
  *
- * This (NON GUI) application demonstrates the general stack usage, in contrast to the EITT/ETS GUI demo applications.
+ * This (NON GUI) application demonstrates the general stack usage, in contrast to the EITT/ETS GUI (C++) demo applications.
  * Hence, this template includes the int main(void) function. The - by this template - supported OS is windows and linux,
  * for a specific embedded platform OS the code may need to be adapted.
  *
@@ -32,16 +32,19 @@
  * - callback handlers for the implemented methods, see callback handler 'Callback Notes'
  * - oc_main_shutdown, exit application and stack
  *
+ * Note that
+ * - the template is NOT defined as a CMake build target in CMakeLists.txt, if needed it must be added.
+ * - the template may not be able to compile/ build out of the box, 
+ *
  */
 
 #include "oc_api.h"
 #include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
-#include "apps/knx_iot_virtual.h" // application constants + methods
+#include "apps/knx_iot_virtual.h" // application constants + methods (also 'GetCurrentDir') 
 #include <signal.h>
 #include <stdlib.h>
 #include "port/oc_clock.h"
-
 
 #ifdef __linux__
 #include <pthread.h>
@@ -54,11 +57,6 @@ static struct timespec ts;
 #include <windows.h>
 static CONDITION_VARIABLE event_is_pending;
 static CRITICAL_SECTION critical_section;
-#include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, windows
-#else 
-#include <unistd.h>
-#define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
 
 // application template definitions
@@ -68,25 +66,6 @@ const char hostname[] = "knx-00fa10020600"; // default host name (reset uses thi
 const char hw_type[] = "000102030405"; // 12 string chars, MSB = 00
 const char dev_model[] = "6800"; // reuse mask version from iot device
 const uint32_t mid = 0x00fa; // first 4 digits of sn_lower_case
-
-/*
-
- Below defined datapoints and test parameters are demo data.
- Details see on 'lsxb_channel_t' definition.
-
- */
-
-// define demo channel 0..1 + included EPs ->  to allow a possible build (for this you need to add a CMake target)
-lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {417,0,{
-    {false, "/p/lssb/0/demo0", "urn:knx:dpa.x.y", ":dpt.na", (0 << 8) + 0},
-    {false, "/p/lssb/0/demo1", "urn:knx:dpa.x.y", ":dpt.na", (0 << 8) + 1}}},
-  {417,1,{
-    {false, "/p/lssb/1/demo0", "urn:knx:dpa.x.y", ":dpt.na", (1 << 8) + 0},
-    {false, "/p/lssb/1/demo1", "urn:knx:dpa.x.y", ":dpt.na", (1 << 8) + 1}}}};
-
-// additional parameters
-int_datapoint_t test_parameter = {0, "/p/demotest", "urn:knx:dpa.x.y", ":dpt.na", "Demo Test Parameter"};
 
 // global variables
 

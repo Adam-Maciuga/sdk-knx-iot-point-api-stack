@@ -114,18 +114,22 @@ extern "C"
    * Key translation
    * | Json Key | Integer Value | type     |
    * | -------- | ------------- |----------|
-   * | value    | 1             | object   |
+   * | value    | 1             | object*  |
    * | sia      | 4             | uint32_t |
-   * | s        | 5             | object   |
+   * | s        | 5             | object** |
    * | st       | 6             | string   |
    * | ga       | 7             | uint32_t |
+   *
+   * *  may be not present (GET = OK, PUT = NOT OK), handed then over as default NULL to the AL callback handlers
+   *
+   * ** not modelled below
    */
   typedef struct oc_group_object_notification
   {
-    oc_string_t value; // value (treated as string)
-    uint32_t sia; // source individual address
-    oc_string_t st; // service type code (write=w, read=r, response=a)
-    uint32_t ga; // group address
+    oc_rep_t* value_object; // pointer to CBOR value object, see notes above
+    uint32_t sia;           // source individual address
+    oc_string_t st;         // service type code (write=w, read=r, response=a)
+    uint32_t ga;            // group address
   } oc_group_object_notification_t;
 
   /**

@@ -2174,7 +2174,7 @@ void oc_load_group_object_table_entry(int entry)
     oc_rep_t* head = rep;
     if (err == 0)
     {
-      while (rep != NULL)
+      while (rep)
       {
         switch (rep->type)
         {
@@ -2473,7 +2473,7 @@ static void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* 
           }
           if (rep->iname == 12)
           {
-            table[entry].ia = (uint32_t)rep->value.integer;
+            table[entry].ia = (int32_t)rep->value.integer;
           }
           if (rep->iname == 13)
           {
@@ -2734,16 +2734,13 @@ void oc_free_knx_table_resources(void)
 
 static bool is_in_array(uint32_t value, uint32_t* array, int array_size)
 {
-  if (array_size <= 0)
-  {
-    // no ga's assigned to this (go/pub/rcp) table entry
-    return false;
-  }
   if (array == NULL)
   {
-    // cant be, if NULL size is -1, see above
+    // // no ga's assigned to this (go/pub/rcp) table entry
     return false;
   }
+
+  // loop with an array size = 0, -1 will not start -> return false
   for (int i = 0; i < array_size; i++)
   {
     if (array[i] == value)
@@ -2780,7 +2777,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
   return return_value;
 }
 
-oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
+oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_id, uint64_t iid, uint8_t scope, uint16_t port)
 {
   /*
   
@@ -2796,10 +2793,10 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   */
 
   // group number to the various bytes
-  uint8_t byte_1 = (uint8_t)group_nr;
-  uint8_t byte_2 = (uint8_t)(group_nr >> 8);
-  uint8_t byte_3 = (uint8_t)(group_nr >> 16);
-  uint8_t byte_4 = (uint8_t)(group_nr >> 24);
+  uint8_t byte_1 = (uint8_t)group_id;
+  uint8_t byte_2 = (uint8_t)(group_id >> 8);
+  uint8_t byte_3 = (uint8_t)(group_id >> 16);
+  uint8_t byte_4 = (uint8_t)(group_id >> 24);
 
   // iid as  ula prefix to various bytes
   uint8_t ula_1 = (uint8_t)iid;
@@ -2821,10 +2818,11 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
-  PRINT("S=%d iid=%" PRIu64 " G=%u B4=%d B3=%d B2=%d B1=%d :", scope, iid, group_nr, byte_4, byte_3, byte_2, byte_1);
+  PRINT("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast);
 
-  group_mcast.group_address = group_nr;
+  // filled with group id for cases of an uc response for a mc request (a) - see send unicast message
+  group_mcast.group_address = group_id;
 
   // copy all from local data to (return) pointer
   memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
@@ -2903,13 +2901,13 @@ void oc_register_group_multicasts(void)
 {
   #ifdef OC_PUBLISHER_TABLE
 
-  // register only if publisher is active, installation id will be used as ULA prefix
+  // register only if publisher is active, iid will be used as ULA prefix
   const oc_device_info_t* const  device = oc_core_get_device_info();
 
   PRINT("multicast port %i", COAP_DEFAULT_PORT);
 
   // register via grpid
-  for (int index = 0; index < GPT_MAX_ENTRIES; index++)
+  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
     const oc_cflag_mask_t cflags = g_got[index].cflags;
 
@@ -2918,14 +2916,14 @@ void oc_register_group_multicasts(void)
     {
       for (int i = 0; i < g_got[index].ga_len; i++)
       {
-        // check if the 'receiving' GA from GO table entry is in the publisher table (device wants to receive it)
-        const uint32_t grpid = oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, g_got[index].ga[i]);
+        // check if the 'receiving' GA from the GO table entry is in the publisher table (device wants to receive it)
+        const uint32_t grpid = oc_find_grpid_in_publisher_table(g_got[index].ga[i]);
 
-        PRINT("oc_register_group_multicasts index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid, g_got[index].ga[i]);
+        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u group_address: %u cflags=", index, i, grpid, g_got[index].ga[i]);
         oc_print_cflags(cflags);
 
         if (grpid > 0)
-        { // found
+        { // found, note if for different ga's from above the same group id will be found it is registered again here
           subscribe_group_to_multicast_with_port(grpid, device->iid, 2, COAP_DEFAULT_PORT);
           subscribe_group_to_multicast_with_port(grpid, device->iid, 5, COAP_DEFAULT_PORT);
         }
@@ -2967,9 +2965,9 @@ void oc_init_datapoints_at_initialization(void)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_issue_s_mode_mc(2, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+            oc_send_s_mode_non_multicast_message(2, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           #endif
-            oc_issue_s_mode_mc(5, sia_value, grpid, sending_group_address, iid, "r", 0, 0);
+            oc_send_s_mode_non_multicast_message(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           }
           else
           {

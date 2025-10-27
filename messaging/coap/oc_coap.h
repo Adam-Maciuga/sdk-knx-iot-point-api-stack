@@ -27,8 +27,10 @@ extern "C" {
 
 struct oc_separate_response_s
 {
+  // LOCAL list to all requests where a separate response belongs to 
   OC_LIST_STRUCT(requests);
-  int active;
+  // true: a separate response is still pending/processed and hence this not send out (yet), = 'active'
+  int active; 
   oc_blockwise_state_t *response_state;
 };
 

@@ -123,7 +123,7 @@ extern "C"
     int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
     oc_string_t href;         // resource path
     oc_cflag_mask_t cflags;   // cflags as in KNX
-    uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (n) / send (1)  
+    uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (0...n) / send (1)  
     int ga_len;               // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
 
@@ -178,15 +178,15 @@ extern "C"
    */
   typedef struct oc_group_table
   {
-    int32_t id; // id, specification demands a range of 0 ... 65535 (see note above)
-    int32_t ia; // individual address, KNX specification demands of 16 bit (see note above)
-    int64_t iid; // installation id
-    int64_t fid; // fabric id
-    uint32_t grpid; // multicast group id, specification demands 32 bit
-    oc_string_t at; // access token id. Reference to the security credentials for unicast subscription encryption.
-    uint32_t* ga; // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
-    int ga_len; // group address array len, specification demands at least 20 entries must be supported
-    bool non; // non-confirmable unicast request, default = false (used only on RCP table)
+    int32_t id;       // id, specification demands a range of 0 ... 65535 (see note above)
+    int32_t ia;       // individual address for uc requests, KNX spec. demands of 16 bit (see note above)
+    int64_t iid;      // installation id
+    int64_t fid;      // fabric id
+    uint32_t grpid;   // group id for mc requests, KNX spec. demands 32 bit (in ULA/IANA format style)
+    oc_string_t at;   // access token id, reference to the security credentials for unicast subscription encryption
+    uint32_t* ga;     // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
+    uint16_t ga_len;  // group address array len, specification demands at least 20 entries must be supported
+    bool non;         // non-confirmable unicast request, default = false (used only on RCP table)
   } oc_group_table_t;
 
   /**
@@ -587,13 +587,13 @@ extern "C"
    * @brief create a IPv6 group multicast address with port
    *
    * @param in the endpoint to adapt
-   * @param group_nr the group number
+   * @param group_id the group number
    * @param iid the installation id
    * @param scope the address scope
    * @param port the port to be used
    * @return oc_endpoint_t the modified endpoint
    */
-  oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_nr, uint64_t iid, int scope, uint16_t port);
+  oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_id, uint64_t iid, uint8_t scope, uint16_t port);
 
   /**
    * @brief  subscribe to a multicast address, defined by group number and installation id
