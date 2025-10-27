@@ -51,19 +51,24 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
 #endif
 #endif
 
+// the delayed swu callback handler 
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
   oc_separate_response_t* response = context;
 
   if (response->active)
   {
+    // alloc buffer for response
     oc_set_separate_response_buffer(response);
+
+    // no payload data for a swu response, only 2.04 changed status
     oc_send_separate_response(response, OC_STATUS_CHANGED);
-    OC_DBG("delayed response sent");
+
+    OC_DBG("delayed response (still) active -> sent it out");
   }
   else
   {
-    OC_DBG("delayed response NOT active");
+    OC_DBG("delayed response NOT active (anymore) -> ignored");
   }
 
   return OC_EVENT_DONE;
@@ -83,6 +88,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   const size_t r = fclose(write_ptr);
   OC_DBG("written data: %llu, operation ok (=0): %llu", n, r);
 
+  // 
   oc_set_delayed_callback(response, &send_delayed_response, 1);
 }
 

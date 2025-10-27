@@ -150,7 +150,8 @@ extern "C" {
 	} oc_content_format_t;
 
 	/**
-	 * @brief separate response type
+	 * @brief a structure that hosts the origin request and a response state,
+	 *        that tracks the process/schedule of origin request -> delayed response
 	 *
 	 */
 	typedef struct oc_separate_response_s oc_separate_response_t;
@@ -167,8 +168,8 @@ extern "C" {
 	 */
 	typedef struct oc_response_t
 	{
-		oc_separate_response_t* separate_response; /**< separate response */
-		oc_response_buffer_t* response_buffer;     /**< response buffer */
+		oc_separate_response_t* separate_response; // tracking structure for a separate response 
+		oc_response_buffer_t* response_buffer;     // the actual used response buffer
 	} oc_response_t;
 
 

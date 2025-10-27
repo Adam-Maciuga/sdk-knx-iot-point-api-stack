@@ -1349,7 +1349,8 @@ static bool is_handshake_blocked(void)
 
 #endif
 
-static oc_separate_response_t spake_separate_rsp;
+// a linked list for THE delayed response message for a (single) spake request (only one pending response is allowed)
+static oc_separate_response_t delayed_separate_response_for_a_spake_request;
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p);
 
 /*
@@ -1542,7 +1543,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 
   PRINT("pase_step: %d", pase_step);
 
-  oc_indicate_separate_response(request, &spake_separate_rsp);
+  oc_prepare_separate_response(request, &delayed_separate_response_for_a_spake_request);
   oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);
 }
 
@@ -1553,13 +1554,13 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   PRINT("oc_core_knx_spake_separate_post_handler - start");
 
   // previous device response is fired and no longer active ...
-  if (!spake_separate_rsp.active)
+  if (!delayed_separate_response_for_a_spake_request.active)
   {
     return OC_EVENT_DONE;
   }
 
   // assign
-  oc_set_separate_response_buffer(&spake_separate_rsp);
+  oc_set_separate_response_buffer(&delayed_separate_response_for_a_spake_request);
 
   // step 1
   if (pase_step == SPAKE_RND)
@@ -1599,7 +1600,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     oc_rep_end_root_object();
 
-    oc_send_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
+    oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
 
@@ -1673,7 +1674,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     oc_rep_end_root_object();
 
-    oc_send_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
+    oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
 
@@ -1718,7 +1719,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_oscore_set_auth_shared(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, sizeof(shared_key));
 
     // empty payload
-    oc_send_empty_separate_response(&spake_separate_rsp, OC_STATUS_CHANGED);
+    oc_send_empty_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
 
     // handshake completed successfully - clear state
     memset(spake_data.K_main, 0, sizeof(spake_data.K_main));
@@ -1776,7 +1777,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   increment_counter();
   #endif
 
-  oc_send_separate_response(&spake_separate_rsp, OC_STATUS_BAD_REQUEST);
+  oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
 }
 

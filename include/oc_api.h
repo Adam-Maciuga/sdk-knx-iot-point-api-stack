@@ -980,61 +980,60 @@ extern "C"
   void oc_ignore_request(oc_request_t* request);
 
   /**
-   * Prepare a response to respond to an incoming request asynchronously.
+   * @brief Prepares a response to respond to an incoming request asynchronously.
    *
    * @note If for some reason the response to a request would take a
    *       long time or is not immediately available, then this function may be used
    *       defer responding to the request.
    *
-   * Example
+   * @Example
+   *
+   *
    * ```
    * static oc_separate_response_t sep_response;
    *
-   * static oc_event_callback_retval_t
-   * handle_separate_response(void *data)
+   * static oc_event_callback_retval_t handle_separate_response(void *context)
    * {
-   * if (sep_response.active) {
-   *   oc_set_separate_response_buffer(&sep_response);
-   *   printf("Handle separate response for GET handler:\n");
-   *   oc_rep_begin_root_object();
-   *   oc_rep_set_boolean(root, value, true);
-   *   oc_rep_text_set_int(root, dimmingSetting, 75);
-   *   oc_rep_end_root_object();
-   *   oc_send_separate_response(&sep_response, OC_STATUS_OK);
-   * }
-   * return OC_EVENT_DONE;
-   * }
+   * if (sep_response.active)
+     {
+        oc_set_separate_response_buffer(&sep_response);
+        printf("Handle separate response for GET handler:\n");
+        oc_rep_begin_root_object();
+        oc_rep_set_boolean(root, value, true);
+        oc_rep_text_set_int(root, dimmingSetting, 75);
+        oc_rep_end_root_object();
+        oc_send_separate_response(&sep_response, OC_STATUS_OK);
+     }
+     return OC_EVENT_DONE;
+     }
    *
-   * static void
-   * get_handler(oc_request_t *request, oc_interface_mask_t iface_mask,
-   *             void *user_data)
+   * static void* get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* user_data)
    * {
-   *   printf("GET handler:\n");
-   *   oc_indicate_separate_response(request, &sep_response);
-   *   oc_set_delayed_callback(NULL, &handle_separate_response, 10);
+   *   1. oc_prepare_separate_response(request, &sep_response);
+   *   2. oc_set_delayed_callback(NULL, &handle_separate_response, 10);
    * }
    * ```
    * @param[in] request the request that will be responded to as a separate
    *                    response
-   * @param[in] response instance of an internal struct that is used to track the
+   * @param[in] handle instance of an internal struct that is used to track the
    *                     state of the separate response.
    *
    * @see oc_set_separate_response_buffer
    * @see oc_send_separate_response
    */
-  void oc_indicate_separate_response(oc_request_t* request, oc_separate_response_t* response);
+  void oc_prepare_separate_response(oc_request_t* request, oc_separate_response_t* handle);
 
   /**
-   * Set a response buffer for holding the response payload.
+   * @brief Set a response buffer for holding the response payload.
    *
    * When a deferred response is ready, pass in the same `oc_separate_response_t`
-   * that was handed to oc_indicate_separate_response() for delaying the
+   * that was handed to oc_prepare_separate_response() for delaying the
    * initial response.
    *
    * @param[in] handle instance of the oc_separate_response_t that was passed to
-   *                   the oc_indicate_separate_response() function
+   *                   the oc_prepare_separate_response() function
    *
-   * @see oc_indicate_separate_response
+   * @see oc_prepare_separate_response
    * @see oc_send_separate_response
    */
   void oc_set_separate_response_buffer(oc_separate_response_t* handle);
@@ -1230,11 +1229,10 @@ extern "C"
   */
 
   /**
-   * Schedule a callback to be invoked after a set number of seconds.
+   * @brief Schedule a callback to be invoked after a set number of seconds.
    *
-   * @param[in] cb_data user defined context pointer that is passed to the
-   *                    oc_trigger_t callback
-   * @param[in] callback the callback invoked after the set number of seconds
+   * @param[in] cb_data user defined context pointer that is passed to the oc_trigger_t callback
+   * @param[in] callback the callback (method) invoked after the set number of seconds
    * @param[in] seconds the number of seconds to wait till the callback is invoked
    */
   void oc_set_delayed_callback(void* cb_data, oc_trigger_t callback, uint16_t seconds);
@@ -1242,13 +1240,12 @@ extern "C"
   /**
    * Schedule a callback to be invoked after a set number of milliseconds.
    *
-   * @param[in] cb_data user defined context pointer that is passed to the
-   *                    oc_trigger_t callback
+   * @param[in] cb_data user defined context pointer that is passed to the oc_trigger_t callback
    * @param[in] callback the callback invoked after the set number of seconds
-   * @param[in] miliseconds the number of milliseconds to wait till the callback is
+   * @param[in] milliseconds the number of milliseconds to wait till the callback is
    * invoked
    */
-  void oc_set_delayed_callback_ms(void* cb_data, oc_trigger_t callback, uint16_t miliseconds);
+  void oc_set_delayed_callback_ms(void* cb_data, oc_trigger_t callback, uint16_t milliseconds);
 
   /**
    * used to cancel a delayed callback

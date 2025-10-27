@@ -894,8 +894,7 @@ void
 oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_callback,
 																		 oc_clock_time_t ticks)
 {
-	oc_event_callback_t* event_cb =
-		(oc_event_callback_t*) oc_memb_alloc(&event_callbacks_s);
+	oc_event_callback_t* event_cb =  oc_memb_alloc(&event_callbacks_s);
 
 	if (event_cb)
 	{

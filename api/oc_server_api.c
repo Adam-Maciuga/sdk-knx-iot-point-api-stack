@@ -127,9 +127,9 @@ void oc_set_delayed_callback(void* cb_data, oc_trigger_t callback, uint16_t seco
 	oc_ri_add_timed_event_callback_seconds(cb_data, callback, seconds);
 }
 
-void oc_set_delayed_callback_ms(void* cb_data, oc_trigger_t callback, uint16_t miliseconds)
+void oc_set_delayed_callback_ms(void* cb_data, oc_trigger_t callback, uint16_t milliseconds)
 {
-	oc_ri_add_timed_event_callback_ticks(cb_data, callback, miliseconds);
+	oc_ri_add_timed_event_callback_ticks(cb_data, callback, milliseconds);
 }
 
 void oc_remove_delayed_callback(void* cb_data, oc_trigger_t callback)
@@ -560,9 +560,9 @@ void oc_delayed_delete_resource(oc_resource_t* resource)
 	oc_set_delayed_callback(resource, oc_delayed_delete_resource_cb, 0);
 }
 
-void oc_indicate_separate_response(oc_request_t* request, oc_separate_response_t* response)
+void oc_prepare_separate_response(oc_request_t* request, oc_separate_response_t* handle)
 {
-	request->response->separate_response = response;
+	request->response->separate_response = handle;
 	oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 

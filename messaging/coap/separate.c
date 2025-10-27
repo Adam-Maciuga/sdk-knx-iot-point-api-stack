@@ -61,7 +61,6 @@ OC_MEMB(separate_requests, coap_separate_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 /*---------------------------------------------------------------------------*/
 /*- Separate Response API ---------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
-/*----------------------------------------------------------------------------*/
 /**
  * \brief Initiate a separate response with an empty ACK
  * \param request The request to accept
@@ -74,24 +73,24 @@ OC_MEMB(separate_requests, coap_separate_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
  * then retry later.
  */
 #ifdef OC_BLOCK_WISE
-int
-coap_separate_accept(void *request, oc_separate_response_t *separate_response,
+int coap_separate_accept(void *request, oc_separate_response_t* handle,
                      oc_endpoint_t *endpoint, int observe, uint16_t block2_size)
-#else  /* OC_BLOCK_WISE */
+#else  
 int
 coap_separate_accept(void *request, oc_separate_response_t *separate_response,
                      oc_endpoint_t *endpoint, int observe)
-#endif /* !OC_BLOCK_WISE */
+#endif 
 {
   coap_status_code = CLEAR_TRANSACTION;
 
-  if (separate_response->active == 0) {
-    OC_LIST_STRUCT_INIT(separate_response, requests);
+  if (handle->active == 0) 
+  {
+    OC_LIST_STRUCT_INIT(handle, requests);
   }
 
-  coap_packet_t *const coap_req = (coap_packet_t *)request;
+  coap_packet_t *const coap_req = request;
   coap_separate_t *separate_store = NULL;
-  for (separate_store = oc_list_head(separate_response->requests);
+  for (separate_store = oc_list_head(handle->requests);
        separate_store != NULL; separate_store = separate_store->next) {
     if (separate_store->token_len == coap_req->token_len &&
         memcmp(separate_store->token, coap_req->token,
@@ -109,7 +108,7 @@ coap_separate_accept(void *request, oc_separate_response_t *separate_response,
       return 0;
     }
 
-    oc_list_add(separate_response->requests, separate_store);
+    oc_list_add(handle->requests, separate_store);
 
     /* store correct response type */
     separate_store->type = COAP_TYPE_CON;
@@ -117,14 +116,13 @@ coap_separate_accept(void *request, oc_separate_response_t *separate_response,
     memcpy(separate_store->token, coap_req->token, coap_req->token_len);
     separate_store->token_len = coap_req->token_len;
 
-    oc_new_string(&separate_store->uri, coap_req->uri_path,
-                  coap_req->uri_path_len);
+    oc_new_string(&separate_store->uri, coap_req->uri_path, coap_req->uri_path_len);
 
     separate_store->method = coap_req->code;
 
 #ifdef OC_BLOCK_WISE
     separate_store->block2_size = block2_size;
-#endif /* OC_BLOCK_WISE */
+#endif 
   }
 
   memcpy(&separate_store->endpoint, endpoint, sizeof(oc_endpoint_t));
@@ -155,11 +153,11 @@ coap_separate_accept(void *request, oc_separate_response_t *separate_response,
         oc_message_unref(message);
       }
       if (!success) {
-        coap_separate_clear(separate_response, separate_store);
+        coap_separate_clear(handle, separate_store);
         return 0;
       }
     } else {
-      coap_separate_clear(separate_response, separate_store);
+      coap_separate_clear(handle, separate_store);
       return 0;
     }
   }
@@ -175,7 +173,7 @@ coap_separate_resume(void *response, coap_separate_t *separate_store,
   if (separate_store->endpoint.flags & TCP) {
     coap_tcp_init_message(response, code);
   } else
-#endif /* OC_TCP */
+#endif 
   {
     coap_udp_init_message(response, separate_store->type, code, mid);
   }
@@ -187,15 +185,14 @@ coap_separate_resume(void *response, coap_separate_t *separate_store,
   }
 }
 /*---------------------------------------------------------------------------*/
-void
-coap_separate_clear(oc_separate_response_t *separate_response,
-                    coap_separate_t *separate_store)
+void coap_separate_clear(oc_separate_response_t* handle,
+                    coap_separate_t* separate_store)
 {
 #ifdef OC_BLOCK_WISE
   oc_free_string(&separate_store->uri);
-#endif /* OC_BLOCK_WISE */
-  oc_list_remove(separate_response->requests, separate_store);
+#endif 
+  oc_list_remove(handle->requests, separate_store);
   oc_memb_free(&separate_requests, separate_store);
 }
 
-#endif /* OC_SERVER */
+#endif 

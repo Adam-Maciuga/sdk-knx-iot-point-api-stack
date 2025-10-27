@@ -535,8 +535,8 @@ const oc_resource_t core_resource_knx_swu_pkgv = {(oc_resource_t*)&core_resource
                                                   &core_resource_knx_swu_pkgv_data};
 PRAGMA_OUT
 
-// a fix delayed response message for the swu methods...
-static oc_separate_response_t s_delayed_response_swu;
+// a linked list for THE delayed response message for a (single) swu request (only one pending response is allowed)
+static oc_separate_response_t delayed_separate_response_for_a_swu_request;
 
 static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -591,10 +591,11 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
 
   if (application_swu_cb && application_swu_cb->cb)
   {
-    oc_indicate_separate_response(request, &s_delayed_response_swu);
+    // prepare it 
+    oc_prepare_separate_response(request, &delayed_separate_response_for_a_swu_request);
 
     // call application handler including user data (can be NULL)
-    application_swu_cb->cb(&s_delayed_response_swu, 
+    application_swu_cb->cb(&delayed_separate_response_for_a_swu_request, 
                            pkgs_package_size, 
                            po_block_offset, 
                            request->_payload, // can also be NULL

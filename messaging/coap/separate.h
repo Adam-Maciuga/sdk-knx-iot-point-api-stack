@@ -72,7 +72,7 @@ typedef struct coap_separate
 
 #ifdef OC_BLOCK_WISE
 int coap_separate_accept(void *request,
-                         oc_separate_response_t *separate_response,
+                         oc_separate_response_t *handle,
                          oc_endpoint_t *endpoint, int observe,
                          uint16_t block2_size);
 #else  /* OC_BLOCK_WISE */
@@ -83,7 +83,7 @@ int coap_separate_accept(void *request,
 
 void coap_separate_resume(void *response, coap_separate_t *separate_store,
                           uint8_t code, uint16_t mid);
-void coap_separate_clear(oc_separate_response_t *separate_response,
+void coap_separate_clear(oc_separate_response_t *handle,
                          coap_separate_t *separate_store);
 
 #ifdef __cplusplus
