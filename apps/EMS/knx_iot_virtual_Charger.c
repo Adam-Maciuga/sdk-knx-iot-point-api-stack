@@ -97,24 +97,13 @@ volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
 
 int datapoint_charger = 0;
-uint64_t datapoint_link = 0;
 
-datapoint_t Charger_datapoint[2] = {
-  {"/p/charger", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "CHARGER", "0"}, // DPT: 14.056
-  {"/p/CEM", "urn:", "LINK", "CEM", "1"} // object to get the CEM's sn
+datapoint_t Charger_datapoint[1] = {
+  {"/p/charger", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "CHARGER", "0"} // DPT: 14.056
 };
 
-// define LSAB channel 0..1 + included EPs switch control/status
-lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
-                                      1,
-                                      NUM_POINTS,
-                                      {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
-                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}},
-                                     {417,
-                                      2,
-                                      NUM_POINTS,
-                                      {{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
-                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}};
+// due to stuff added in knx_iot_virtual.c
+lsxb_channel_t lsxb[1] = {NULL};
 
 // additional parameters
 int_datapoint_t test_parameter = {
@@ -123,7 +112,6 @@ int_datapoint_t test_parameter = {
 void register_resources(void)
 {
   oc_resource_t* CHARGER_resource = oc_new_resource(Charger_datapoint[0].resource_path, 1);
-  oc_resource_t* LINK_resource = oc_new_resource(Charger_datapoint[1].resource_path, 1);
 
   oc_resource_bind_resource_type(CHARGER_resource, Charger_datapoint[0].dpa);
   oc_resource_bind_dpt(CHARGER_resource, Charger_datapoint[0].dpt);
@@ -132,18 +120,9 @@ void register_resources(void)
   oc_resource_set_observable(CHARGER_resource, true);
   void* CHARGER_user_data = Charger_datapoint[0].id;  
 
-  oc_resource_bind_resource_type(LINK_resource, Charger_datapoint[1].dpa);
-  oc_resource_bind_dpt(LINK_resource, Charger_datapoint[1].dpt);
-  oc_resource_bind_content_type(LINK_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_discoverable(LINK_resource, true);
-  oc_resource_set_observable(LINK_resource, true);
-  void* CHARGER_link_data = Charger_datapoint[1].id;
-
   oc_resource_set_request_handler(CHARGER_resource, OC_PUT, Charger_put_charger, CHARGER_user_data, OC_ACL_I, OC_IF_I); 
-  oc_resource_set_request_handler(LINK_resource, OC_PUT, Charger_put_link, CHARGER_link_data, OC_ACL_I, OC_IF_I);
 
   oc_add_resource(CHARGER_resource);
-  oc_add_resource(LINK_resource); 
 
   PRINT("Register test parameter");
   {
@@ -205,74 +184,28 @@ int app_initialize_stack(void)
   return oc_main_init(&handler);
 }
 
-int Charger_init_tables()
+
+
+int Charger_init_auth_table()
 {
-  int ia = 0x2004;
-  uint64_t iid = 0x7dff7f6c9a;
-  int fid = 0xfa;
-  uint32_t grpid = 0xc285fba0;
-
-  oc_core_set_and_store_device_ia(ia);
-  oc_core_set_and_store_device_iid(iid);
-  oc_core_set_and_store_device_fid(fid);
-  
-  oc_init_tables();
-
-  int entry;
-  int ga_array_size;
-  uint32_t* ga_array;
-  
-  entry = 0;
-  
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = 0x0002;
-  }
-
-  // object table
-  g_got[entry].id = 0;
-  oc_string_t href_charger;
-  oc_new_string(&href_charger, "/p/charger", strlen("/p/charger"));
-  g_got[entry].href = href_charger;
-  g_got[entry].cflags = OC_CFLAG_WRITE;
-  g_got[entry].ga_len = ga_array_size;
-  g_got[entry].ga = ga_array;  
-
-  // rcp table
-  g_grt[entry].id = 0;
-  g_grt[entry].grpid = grpid;
-  g_grt[entry].ga_len = ga_array_size;
-  g_grt[entry].ga = ga_array;
-
-  // pub table
-  g_gpt[entry].id = 0;
-  g_gpt[entry].grpid = grpid;
-  g_gpt[entry].ga_len = ga_array_size;
-  g_gpt[entry].ga = ga_array;
+  int entry = 0;
 
   // auth table
-  oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020d00", strlen("0c00fa10020d00"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = ga_array_size;
-  g_at_entries[entry].ga = ga_array;
-  BYTE byteArray12[2] = {0x00, 0x02};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {0xE7, 0xCF, 0x5D, 0xDA, 0x0D, 0x26, 0xB5, 0xD4, 0x6C, 0xA9, 0xDB, 0xFB, 0x0A, 0xF0, 0x2E, 0x96};
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+
+  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0d, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {0x00, 0x00, 0x00, 0x00, 0x09, 0x00};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
-  oc_load_group_object_table();
-  oc_load_object_table();
-  oc_load_at_table(); 
-
-  subscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
+  oc_load_at_table();
 
   return 0;
 }
+
+
 
 int Charger_init_tables_QR(char* sn_cem)
 {
@@ -368,7 +301,6 @@ int Charger_init_tables_QR(char* sn_cem)
 
   int ga0 = 0x0001;
   int ga1 = 0x0002;
-  int gaL = 0x0003;
 
   oc_core_set_and_store_device_ia(ia);
   oc_core_set_and_store_device_iid(iid);
@@ -399,30 +331,13 @@ int Charger_init_tables_QR(char* sn_cem)
   g_got[entry].ga_len = ga_array_size;
   g_got[entry].ga = ga_array;
 
-  // object table: 1
-  entry = 1;
+  // rcp+pub tables
+  entry = 0;
   ga_array_size = 1;
   ga_array = malloc(ga_array_size * sizeof(uint32_t));
   if (ga_array != NULL)
   {
-    ga_array[0] = gaL;
-  }
-  g_got[entry].id = 0;
-  oc_string_t href_CEM;
-  oc_new_string(&href_CEM, "/p/CEM", strlen("/p/CEM"));
-  g_got[entry].href = href_CEM;
-  g_got[entry].cflags = OC_CFLAG_WRITE;
-  g_got[entry].ga_len = ga_array_size;
-  g_got[entry].ga = ga_array;
-
-  // rcp+pub tables
-  entry = 0;
-  ga_array_size = 2;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
     ga_array[0] = ga1;
-    ga_array[1] = gaL;
   }
   g_grt[entry].id = 0;
   g_grt[entry].grpid = grpid;
@@ -466,23 +381,14 @@ int Charger_init_tables_QR(char* sn_cem)
 
   // auth table: 1
   entry = 1;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = gaL;
-  }
-  oc_new_string(&g_at_entries[entry].id, "0/0/3", strlen("0/0/3"));
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020d00", strlen("0c00fa10020d00"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = ga_array_size;
-  g_at_entries[entry].ga = ga_array;
-  BYTE byteArray12[2] = {0, 3};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {sn_D[0], sn_D[1], sn_D[2], sn_D[3], sn_D[4], sn_D[5], 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+
+  BYTE byteArray17[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0d, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray17, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {sn_D[0], sn_D[1], 0, 0, 0, 3};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
   oc_load_group_object_table();
   oc_load_object_table();
@@ -492,22 +398,7 @@ int Charger_init_tables_QR(char* sn_cem)
   return 0;
 }
 
-
-void Charger_process_link()
-{
-  uint64_t snCEM = Charger_retrieve_link();
-
-  // Allocate enough space: 2 hex chars per byte + 1 for null terminator
-  char str[13]; // 6 bytes → 12 hex chars + '\0'
-
-  // Format with leading zeros
-  snprintf(str, sizeof(str), "%012llx", (unsigned long long)snCEM);  
-
-  Charger_init_tables_QR(str);
-}
-
 int Charger_retrieve_charger() { return datapoint_charger; }
-uint64_t Charger_retrieve_link() { return datapoint_link; }
 
 void Charger_put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -572,72 +463,6 @@ void Charger_put_charger(oc_request_t* request, oc_interface_mask_t interfaces, 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
   //PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 }
-void Charger_put_link(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  bool error_state = true;
-
-  // get interfaces for the resource PUT method ...
-  bool is_input_datapoint = interfaces & OC_IF_I;
-
-  // sets the pointer to the (/k or /p) handed over object
-  const oc_rep_t* rep = request->request_payload;
-
-  // user data host the HEX encoded channel/datapoint
-  const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  // PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
-
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by /p or /k s-mode message EP)
-  if (oc_is_redirected_request_from(request) == 1)
-  {
-    // caller /p --> always allow to write (see 'Callback Notes' above)
-    is_input_datapoint = true;
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
-
-  // loop over object
-  while (rep)
-  {
-    if (rep->iname == 1 && rep->type == OC_REP_INT)
-    {
-      if (!is_input_datapoint)
-      {
-        // see 'Callback Notes' above
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
-        return;
-      }
-
-      // see 'Callback Notes' above
-      datapoint_link = rep->value.integer;
-      error_state = false;
-
-      PRINT("set LSSB to %d", rep->value.integer);
-      break;
-    }
-    rep = rep->next;
-  }
-
-  // correct data retrieved
-  if (!error_state)
-  {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    Charger_process_link();
-
-    // PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
-
-    return;
-  }
-
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  // PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
-}
-
 
 
 #ifdef WIN32

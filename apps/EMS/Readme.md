@@ -16,14 +16,16 @@ AH: write here what is the  use case doing (or refer to that below)
 
 PV stands for photovoltaic and the app represents the functionality of an Invertor PV control device.
 
-> The current implementation contains one datapoint, representing 'present DC power'. AH: that mimics the sun beam injection ... or similar  
+> The current implementation contains one datapoint, representing 'present DC power', mimicking sun beam radiation or alike  
   This datapoint is represented by a slider, which allows the user to set the present DC power from 0 to 10 kW in steps of 1 kW and to send out the selected value to the medium.
 
 ## 2. CEM app
 
 CEM stands for Central Energy Manager.
 
-AH: write down what a CEM is and what NOT, after our discussion today (extra cfg functionality in addtion to a END device functionality, either with own HW or part of an end device) 
+The app in this folder is intended to be used in and end-device, this HOWEVER does not represent its actual use in practice or in the field; CEM is to be considered as a specific functionality or even as a set of functionalities in the EMS context. Moreover including client (ETS alike) features, like scanning devices over the medium and linking them together into at least one building function.
+
+There is an alternative Windows based CEM demo app foreseen, it covers both CEM features and client features, but is not within the scope of this project/repo.
 
 > The current implementation contains two datapoints and foresees two operation modes.
   
@@ -45,13 +47,14 @@ This app represents the functionality of an Electric car charger device.
 # Details 
 
 In general:
-- all four above mentioned datapoints are of the same type, being DPT: 14.056 AH: where to find 
-- all three apps are based on the public KNX IoT stack and are at this stage only tested on Windows : AH: adapt since you use an own CEM, desribe that we have an end device stack AND that a vendor must decide to develop device + cfg by using our stack or .....
+- all four above mentioned datapoints are of the same type, being DPT: 14.056 AH: (see # References) 
+- all three apps are based on the public KNX IoT stack and are at this stage only tested on Windows
+- regarding the CEM demo app, see (???)
 
 # References
-- PV: description of the functional block(s): 7/8/1 Photovoltaics AH: where to find 
-- Charger: description of the functional block(s): Application_EVSE AH: where to find  , number is missing 
-- Datapoints: DPT 14.056: 3/7/2 Datapoint Types  AH: where to find 
+- PV: description of the functional block(s), ref. latest released KNX Specifications: 7/8/1 Photovoltaics 
+- Charger: description of the functional block(s): Application_EVSE AH: where to find? number is missing 
+- Datapoints: DPT 14.056, ref. latest released KNX Specifications: 3/7/2 Datapoint Types 
 
 ## Commissioning
 
@@ -59,36 +62,8 @@ For the commissioning of these demo devices/apps two different scenarios need to
 - without certification
 - with certification
 
-### Commissioning without certification: implemented demo concept
-The following concept has been implemented:
-- The CEM is considered being the central 'unit'
-- The configuration for all three devices is derived from the serial number of the CEM device
-- The configuration algorithm can be found in the source code of all three devices, it sets the:
-  - IA: individual address
-  - IID: installation identifier
-  - Group Object Table
-  - Publisher Table
-  - Recipient Table
-  - Authentication Table
-- The PV and the Charger device come with an extra configuration datapoint (not standardized)
-  - PV: its auth/at table comes with a specific pre-configured entry based on the serial number of the PV device
-  - Charger: its auth/at table comes with a specific pre-configured entry based on the serial number of the Charger device
-- The CEM device
-  - comes with an extra link datapoint (not standardized)
-  - this link object allows the CEM to make a connection to any target device, based on the serial number of the device to be connected
-- In practise:
-  - click either the 'settings' or the 'usage' icon of the target device (either the PV or the Charger device)
-  - click the 'copy serial number' button
-  - click either the 'settings' or the 'usage' icon of the CEM device
-  - paste the previously copied (target) serial number into the input field of the CEM device
-  - then click in the CEM device the 'Link' button, this will:
-    - update the auth/at table of the CEM device so that data between the link object of the CEM device and the configuration object of the target device can be exchanged
-    - transmit the serial number of the CEM device to the target device (in this case the PV device)
-    - the target device uses this transmitted serial number to set up its data object(s) according the above mentioned algorithm
-  - the 'UnLink' button clears the auth/at entry in the CEM device
-
 ### Commissioning without certification: mini-client
-This is the complete ETS commission procedure, which entirely of partly shall be implemented in the mini-client:
+This is the complete ETS commission procedure, which entirely of partly shall be implemented in as of client features:
 - add/scan the certificate of the target device 
 - scan the medium for the device's serial number or possible active programming mode
 - SPAKE2+ onboarding to check the device's certificate (pre-shared key), an ex-factory reset of the target device might be required
@@ -110,20 +85,16 @@ This is the complete ETS commission procedure, which entirely of partly shall be
 - GET the LoadStateMachine to check
 - GET the Fingerprint to check
 
-AH: was not parrt of step 1-3, why here in 
+AH: was not part of step 1-3, why here? 
 
 ### Commissioning with certification: ETS
-- The extra configuration datapoints from the PV and Charger device can no longer be onboard, because it is not standardized: AH: than it will be , but here everbody stops reading , so remove
-- The extra link datapoint of the CEM device can no longer be onboard, because it is not standardized AH: see above 
 - ETS (online) catalog entries need to be created for all three devices/apps by means of the KNX Manufacturer Tool 
-
 
 ## Group addresses
 
 From the (data) functionality point of view, the three (virtual) device are linked by means of two group addresses:
 - GA1 (0/0/1): links the 'Present DC power' datapoint (object) from the 'Inverter PV control' device **WITH** the 'Present DC power' datapoint (object) from the 'CEM' device
 - GA2 (0/0/2): links the 'Charge rate power' datapoint (object) from the 'CEM' device **WITH** the 'Charge rate power' datapoint (object) from the 'Electric car charger' device
-A third GA (0/0/3) serves the purpose of linking the 'link' object of the CEM device **WITH** the 'configuration' object of any target device 
 
 ### IA (and serial number)
 
@@ -142,29 +113,26 @@ The Group Object Tables of the three devices are set as follows:
   
 - **PV**:
    -  url: '/p/pv'      cflags : '64' ...t.  ga : [ 0/0/1 ]
-   -  url: '/p/CEM'     cflags : '16' .w...  ga : [ 0/0/3 ]
    
 - **CEM**: 
    -  url: '/p/pv'      cflags : '16' .w...  ga : [ 0/0/1 ]
    -  url: '/p/charger' cflags : '64' ...t.  ga : [ 0/0/2 ]
-   -  url: '/p/link'    cflags : '64' ...t.  ga : [ 0/0/3 ]
   
 - **Charger**:
    -  url: '/p/charger' cflags : '16' .w...  ga : [ 0/0/2 ]
-   -  url: '/p/CEM'     cflags : '16' .w...  ga : [ 0/0/3 ]
   
 ### Publisher and Recipient Table
 
 Both the Publisher and Recipeint Tables of the three devices are set as follows:
   
 - **PV**:
-   -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/3]
+   -  grpid:  00fa:0000  ga : [ 0/0/1 ]
 
 - **CEM**: 
-   -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/2 0/0/3]
+   -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/2 ]
   
 - **Charger**:
-   -  grpid:  00fa:0000  ga : [ 0/0/2 0/0/3]
+   -  grpid:  00fa:0000  ga : [ 0/0/2 ]
   
 ### Authentication Table
 
@@ -172,16 +140,13 @@ The Authentication Tables of the three devices are set as follows:
   
 - **PV**:
    -  ga 0/0/1 osc_id [2]: 0001  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
-   -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00fa10020b00060708090a0b0c0d0e0f  osc_contextid (o)[6]: 00fa00000003
   
 - **CEM**: 
    -  ga 0/0/1 osc_id [2]: 0001  osc_ms [16]: 000102030405060708090a0b0c0d0e0f  osc_contextid (o)[6]: 10020c000001
    -  ga 0/0/2 osc_id [2]: 0002  osc_ms [16]: 000102030405060708090a0b0c0d0e0f  osc_contextid (o)[6]: 10020c000002
-   -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
   
 - **Charger**:
    -  ga 0/0/2 osc_id [2]: 0002  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
-   -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00fa10020d00060708090a0b0c0d0e0f  osc_contextid (o)[6]: 00fa00000003
 
 # Testing with Wireshark
 

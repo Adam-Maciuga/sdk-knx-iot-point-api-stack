@@ -44,14 +44,11 @@ extern "C"
   const int MIX_MODE = 1;
 
   // PV app
-  int PV_init_tables();
+  int PV_init_auth_table();
   int PV_init_tables_QR(char*);
   char* PV_retrieve_href(uint16_t);
-  uint64_t PV_retrieve_link();
-  void PV_process_link();  
   void PV_set_PV(int);  
   void PV_get_PV(oc_request_t*, oc_interface_mask_t, void*);
-  void PV_put_link(oc_request_t*, oc_interface_mask_t, void*);
 
   // CEM app
   int CEM_init_auth_table();
@@ -69,13 +66,10 @@ extern "C"
   void CEM_get_link(oc_request_t*, oc_interface_mask_t, void*);  
 
   // Charger app
-  int Charger_init_tables();
+  int Charger_init_auth_table();
   int Charger_init_tables_QR(char*);
-  uint64_t Charger_retrieve_link();
-  void Charger_process_link();
   int Charger_retrieve_charger();
   void Charger_put_charger(oc_request_t*, oc_interface_mask_t, void*);
-  void Charger_put_link(oc_request_t*, oc_interface_mask_t, void*);
 
 #ifdef __cplusplus
 }

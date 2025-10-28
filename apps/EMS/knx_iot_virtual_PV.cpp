@@ -152,7 +152,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
   oc_device_info_t* device = oc_core_get_device_info();
   char* sn = oc_string(device->serialnumber);
 
-  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Serial Number"));
+  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
   copyButton->Bind(wxEVT_BUTTON,
                    [this, sn](wxCommandEvent&)
                    {
@@ -227,6 +227,8 @@ private:
   // sleepy information
   int m_sleep_counter = 0;
   int m_sleep_milliseconds = 20000;
+
+  int m_lsm = LSM_S_UNLOADED;
 
   // non static device properties
   wxTextCtrl* m_ia_text; // text control for internal address
@@ -370,8 +372,13 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
   oc_device_info_t* device = oc_core_get_device_info();
-  PV_init_tables_QR("000000000000"); // sn that will never exist
-  device->lsm_s = LSM_S_LOADED;
+  PV_init_auth_table();
+  device->lsm_s = LSM_S_UNLOADED;
+
+
+  //PV_init_tables_QR("00fa10020c00");
+  //device->lsm_s = LSM_S_LOADED;
+
 }
 
 /**
@@ -435,38 +442,27 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
  */
 void MyFrame::updateDeviceData()
 {
-  /*
+  oc_device_info_t* device = oc_core_get_device_info();
 
-  char text[500];
-  
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  if (m_lsm != device->lsm_s)
+  {
+    m_lsm = device->lsm_s;
 
-  // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info(0);
-  
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
-  m_ia_text->SetLabelText(text);
-
-  (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_pm_text->SetLabelText(text);
-
-  (void)sprintf(text, "Programming Mode : %d", device->pm);
-  m_ls_text->SetLabelText(text);
-
-  strcpy(text, "IID : ");
-  this->int2grpidtext(device->iid, text, iid_conversion);
-  m_iid_text->SetLabelText(text);
-
-  (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
-  m_hn_text->SetLabelText(text);
-
-  // set in menu the programming mode to what the device has
-  m_menuFile->Check(CHECK_PM, device->pm);
-
-  */
+    if (m_lsm == LSM_S_UNLOADED)
+    {
+      // oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+    }
+    if (m_lsm == LSM_S_LOADING)
+    {
+      oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      PV_init_tables_QR("00fa10020c00");
+      device->lsm_s = LSM_S_LOADED;
+    }
+    if (m_lsm == LSM_S_LOADED)
+    {
+      // device->lsm_s = LSM_S_LOADED;
+    }
+  }
 }
 
 /**
@@ -586,26 +582,26 @@ void MyFrame::OnUsage(wxCommandEvent& event)
  */
 void MyFrame::OnSettings(wxCommandEvent& event)
 {
+  wxString title;
+  wxString all;
+
+  title.Printf("Device settings & cryptography");
+
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
+  if (!device || device->lsm_s != LSM_S_LOADED)
   {
+    all << "PV: unloaded" << "\n";
+    CustomDialog(title, all, 250, 100);
     return;
   }
 
-  wxString all;
   all << dumpGroupObjectTable() << "\n"
       << dumpPublisherTable()
       << "\n"
-      /* << dumpRecipientTable() */
       << "\n"
-      /* << dumpParameterList() << "\n\n" */
       << dumpAuthTable();
 
-  wxString title;
-  title.Printf("Device settings & cryptography");
-
-  CustomDialog(title, all, 420, 300);
-  // SetStatusText("List All Tables");
+  CustomDialog(title, all, 420, 250);
 }
 
 
@@ -1247,8 +1243,16 @@ void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
 
 void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
 {
-  if (PV_retrieve_link() != 0)
+  /*
+    if (PV_retrieve_link() != 0)
   {
+  }
+  else
+  {
+    SetStatusText("not linked");
+  }
+    */
+
       // get url
       char* url = PV_retrieve_href(0);
       // get the slider value
@@ -1262,11 +1266,7 @@ void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
       // Present DC power of all solar panels connected to this PV control
       (void)sprintf(statusBarText, "Present DC power = %d kW", val);
       SetStatusText(statusBarText);
-  }
-  else
-  {
-    SetStatusText("not linked");
-  }
+
 }
 
 
@@ -1537,92 +1537,57 @@ wxString MyFrame::dumpAuthTable()
     oc_auth_at_t* entry = oc_get_auth_at_entry(i);
     if (entry && oc_string_len(entry->id))
     {
-      /*
-      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
-      out += line;
-      sprintf(line, "  profile : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
-      out += line;
-
-      if (entry->profile == OC_PROFILE_COAP_DTLS)
-      {
-        if (oc_string_len(entry->sub) > 0)
-        {
-          sprintf(line, "  sub : %s", oc_string(entry->sub));
-          out += line;
-        }
-        if (oc_string_len(entry->kid) > 0)
-        {
-          sprintf(line, "  kid : %s", oc_string(entry->kid));
-          out += line;
-        }
-      }
-      */
       if (entry->profile == OC_PROFILE_COAP_OSCORE)
       {
-        strcpy(line, "  - ga ");
-        // out += line;
-        this->int2gatext(entry->ga[0], line, ga_conversion);
-        strcat(line, ":\n");
-        out += line;
+          if (oc_byte_string_len(entry->osc_contextid) == 6)
+          {
+            // ga
+            strcpy(line, "       - ga: [");
+            this->int2gatext(entry->ga[0], line, ga_conversion); 
+            strcat(line, " ]");
+            out += line;
+            out += "\n";
 
-        // osc_id
-        if (oc_byte_string_len(entry->osc_id) > 0)
-        {
-          sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
-          out += line;
-          char* ms = oc_string(entry->osc_id);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
+            // osc_id
+            if (oc_byte_string_len(entry->osc_id) > 0)
+            {
+              sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
+              out += line;
+              char* ms = oc_string(entry->osc_id);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
+            // osc_ms
+            if (oc_byte_string_len(entry->osc_ms) > 0)
+            {
+              sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
+              out += line;
+              char* ms = oc_string(entry->osc_ms);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
+            // osc_contextid
+            if (oc_byte_string_len(entry->osc_contextid) > 0)
+            {
+              sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
+              out += line;
+              char* ms = oc_string(entry->osc_contextid);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
         }
-        out += "\n";
-        // osc_ms
-        if (oc_byte_string_len(entry->osc_ms) > 0)
-        {
-          sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
-          out += line;
-          char* ms = oc_string(entry->osc_ms);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
-        }
-        out += "\n";
-        // osc_contextid
-        if (oc_byte_string_len(entry->osc_contextid) > 0)
-        {
-          sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
-          out += line;
-          char* ms = oc_string(entry->osc_contextid);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
-        }
-        out += "\n";
-        /*
-        if (entry->scope == OC_ACL_GA)
-        {
-          strcpy(line, " ga: ");
-          out += line;
-          for (int j = 0; j < entry->ga_len; j++)
-          {
-            this->int2gatext(entry->ga[j], line, ga_conversion);
-          }
-          strcat(line, " ");
-          out += line;
-        }
-        else
-        {
-          sprintf(line, "  scope : ");
-          this->int2scopetext(entry->scope, line);
-          out += line;
-        }
-        */
       }
       out += "\n";
     }
