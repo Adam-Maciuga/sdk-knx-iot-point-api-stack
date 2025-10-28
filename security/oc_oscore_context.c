@@ -77,6 +77,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len
   return ctx;
 }
 
+// checking against receiver in contexts
 oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
   
@@ -117,8 +118,8 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
                                     uint8_t** request_piv,
                                     uint8_t* request_piv_len, bool tcp)
 {
-  char* oscore_id = NULL;
-  size_t oscore_id_len = 0;
+  char* oscore_id;
+  size_t oscore_id_len;
 
   #ifdef OC_CLIENT
 
@@ -190,6 +191,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   return ctx;
 }
 
+// scans Client Recipient Context 
 oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t oscore_id_len)
 {
   int cmp_len = 16;

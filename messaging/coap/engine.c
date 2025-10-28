@@ -191,12 +191,15 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 		  // set echo option (uses a time stamp)
       coap_set_header_echo(&coap_msg, echo, echo_len);
 
-			// check original inbound message source
+			// clear both marker
+      UNSET_BIT(outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC + ECHO_CAUSED_BY_UC_SRC);
+
+			// check endpoint (not converted message)
 			if (endpoint->flags & MULTICAST)
-			{
-        // echo was caused by inbound s-mode mc message
-			  outgoing_msg->endpoint.flags |= ECHO_FROM_MC_SRC;
-			}
+			  outgoing_msg->endpoint.flags |= ECHO_CAUSED_BY_MC_SRC; // echo was caused by inbound s-mode mc message
+      else
+        outgoing_msg->endpoint.flags |= ECHO_CAUSED_BY_UC_SRC; // echo was caused by inbound s-mode uc message
+
 
     }
 
@@ -456,7 +459,7 @@ int coap_receive(oc_message_t* incoming_message)
            - retransmits messages for which we have a token
              - inserts an echo challenge
 				     - send as unicast acknowledged request
-           - replay tracking was registering only NON requests (NON = multicast S-Mode messages)
+           - replay tracking was registering only NON requests (NON = multicast s-mode messages)
              -> NON messages will be found HERE
 
         */
@@ -549,7 +552,7 @@ int coap_receive(oc_message_t* incoming_message)
 		}
 
 		if (incoming_coap_message->code >= COAP_GET && incoming_coap_message->code <= COAP_DELETE)
-		{ // handle requests (SERVER SIDE)
+		{ // handle inbound requests (SERVER SIDE)
 
 			#ifdef OC_DEBUG
 
@@ -678,19 +681,21 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					if (sync_state != SYNCED)
 					{
-						// external client is not synchronised, can be:
-						// a: mc/uc regular inbound request message
-						// b: uc 'echo re-request' inbound request message (after sending an own 'echo response')
+						/*
+						   external client is not synchronised, can be:
+						   a: mc/uc regular inbound request message
+						   b: uc 'echo re-request' inbound request message (after sending an own 'echo response')
+            */
 
 						uint8_t echo_value[COAP_ECHO_LEN];
 						size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
 						oc_clock_time_t current_time = oc_clock_time();
 
 						if (echo_len == 0)
-						{ // a: inbound regular request
+						{ // (a)
 							if (sync_state == ECHO)
 							{
-								OC_DBG("Request from unsycned client, sending 4.01 Echo Response");
+								OC_DBG("Regular (uc/mc) request from unsycned client, sending 4.01 Echo Response");
 
 							  // send 'echo response' -> NO PAYLOAD
                 // -> multicast : unicast 4.01 with response sender context (there can be many responses from many receivers)
@@ -712,7 +717,9 @@ int coap_receive(oc_message_t* incoming_message)
 
 							if (sync_state == REPLAY)
 							{
-                // send response -> NO PAYLOAD 
+                OC_DBG("Replayed (uc/mc) request from unsycned client, sending 4.01 Echo Response");
+
+							  // send response -> NO PAYLOAD 
                 // -> multicast : MUST be suppressed (message already received)
                 // -> unicast   : unicast 4.01 with response sender context 
 								coap_send_response_with_empty_payload(
@@ -726,12 +733,11 @@ int coap_receive(oc_message_t* incoming_message)
 								// can handle NULL pointer ...
 								coap_clear_transaction(transaction);
 
-								OC_ERR("Request from unsycned client, sending 4.01 Unauthorized");
 								return UNAUTHORIZED_4_01;
 							}
 						}
 						else
-						{ // b: inbound echo re-request
+						{ // (b)
 
 							// check received len is the same as from send out echo response
 							if (echo_len != sizeof(oc_clock_time_t))
@@ -756,10 +762,12 @@ int coap_receive(oc_message_t* incoming_message)
 								return BAD_OPTION_4_02;
 							}
 
-							// this is potentially endian sensitive, but we've already
-							// checked that the echo value is 8 bytes, and correct echo values
-							// originate on the same machine where they are generated, so this
-							// should be okay
+							/*
+							   this is potentially endian sensitive, but we've already
+							   checked that the echo value is 8 bytes, and correct echo values
+							   originate on the same machine where they are generated, so this
+							   should be okay
+              */
 
 							// check of time difference, RFC 9175 clause 2.3
 							oc_clock_time_t received_timestamp = *(oc_clock_time_t*) echo_value;
@@ -797,18 +805,14 @@ int coap_receive(oc_message_t* incoming_message)
 							oc_replay_add_client(ssn, kid, kid_ctx);
 						}
 					}
-					else
-					{
-						// client is synchronised, SSNs updated 
-
-					}
+					
+          // client is synchronised, SSNs updated 
 				}
 			}
 			#endif
 
-
 			// TODO block wise transfer has also token ... why it is not set here 
-		  /* create transaction for (block-wise?) response */
+		  // create transaction for (block-wise?) response
 			transaction = coap_new_transaction(outgoing_coap_response->mid, NULL, 0, &incoming_message->endpoint);
 
 			if (transaction)
@@ -1172,14 +1176,14 @@ int coap_receive(oc_message_t* incoming_message)
 						response_buffer->ref_count = 0;
 				}
 				#endif 
-				if (outgoing_coap_response->code != 0)
+				if (outgoing_coap_response->code != EMPTY_0_00)
 				{
 					goto send_message;
 				}
 			}
 		}
 		else
-		{ // handle responses (SERVER SIDE)
+		{ // handle inbound responses (SERVER SIDE)
 
 		  #ifdef OC_CLIENT
 			#ifdef OC_BLOCK_WISE
@@ -1595,5 +1599,3 @@ OC_PROCESS_THREAD(coap_engine, ev, data)
 
 	OC_PROCESS_END();
 }
-
-/*---------------------------------------------------------------------------*/
