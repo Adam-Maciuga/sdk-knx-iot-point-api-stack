@@ -2821,9 +2821,6 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   PRINT("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast);
 
-  // filled with group id for cases of an uc response for a mc request (a) - see send unicast message
-  group_mcast.group_address = group_id;
-
   // copy all from local data to (return) pointer
   memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
 
