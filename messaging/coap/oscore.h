@@ -31,7 +31,7 @@ extern "C"
 
   int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn);
 
-  int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len);
+  int oscore_store_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
 
 uint8_t oscore_get_outer_code(void* packet);
 

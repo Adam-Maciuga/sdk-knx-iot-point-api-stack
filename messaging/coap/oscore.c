@@ -103,8 +103,8 @@ int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
 	return 0;
 }
 
-// store 64-bit ssn (converts little/big endian) to piv 
-int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
+// store 64-bit ssn (converts little/big endian) to piv and set also piv len
+int oscore_store_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
 {
 	int _botest = 1;
 
@@ -134,7 +134,7 @@ int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
 	}
 	while (p != end)
 	{
-		piv[(*piv_len)++] = *p; // copy piv bytes 
+		piv[(*piv_len)++] = *p; // copy piv bytes and adjust piv len 
 		p++;
 	}
 
