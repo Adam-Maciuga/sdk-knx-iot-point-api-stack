@@ -90,7 +90,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   while (ctx)
   {
     // debugging  
-    PRINT("---> scanning oscore context list (rcv) id:");
+    PRINT("---> scanning oscore context list 'Recipient ID' ': ");
     oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
 
     // received frame kid (Sender ID) and kid_context (ID Context) must both match in size and value to an oscore context 

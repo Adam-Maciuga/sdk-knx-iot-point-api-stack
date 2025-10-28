@@ -870,6 +870,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     
    */
 
+  // get message, otherwise stop
   oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
   if (!outgoing_msg)
   {
@@ -886,8 +887,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   bool msg_is_currently_tracked = msg->ref_count > 1 ? true: false;
   // msg->data pointer is void from now on ...
   oc_message_unref(msg);
-
-  OC_DBG_OSCORE("### parse CoAP message ###");
 
   // create local CoAP packet 
   coap_packet_t coap_pkt[1];
@@ -924,6 +923,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     // get sender context for the access token from 'kid', picks the first hit
     oscore_ctx = oc_oscore_find_context_by_kid((uint8_t*)oc_string(auth_at_entry->osc_id), oc_byte_string_len(auth_at_entry->osc_id));
+
+    /*
+    oscore_ctx =
+      oc_oscore_find_context_by_kid_and_kid_context(
+        (uint8_t*)oc_string(auth_at_entry->osc_id), oc_byte_string_len(auth_at_entry->osc_id),
+        (uint8_t*)oc_string(auth_at_entry->osc_contextid), oc_byte_string_len(auth_at_entry->osc_contextid));
+        */
+    
 
     OC_DBG_OSCORE("### (a) Found context by access token ###");
   }
