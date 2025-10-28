@@ -178,16 +178,16 @@ extern "C" {
 		#endif 
 
 		#ifdef OC_OSCORE
-		uint8_t oscore_flags; // flags 000|h|k|nnn, as described  in RFC 8613
-		uint8_t piv[OSCORE_PIV_LEN]; // 'Partial IV' in OSCORE
+		uint8_t oscore_flags;										// flags 000|h|k|nnn, as described  in RFC 8613
+		uint8_t piv[OSCORE_PIV_LEN];						// 'Partial IV' in OSCORE
 		uint8_t piv_len;
 		uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile 
 		uint8_t kid_ctx_len;
-		uint8_t kid[OSCORE_SENDER_ID_LEN]; // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
+		uint8_t kid[OSCORE_SENDER_ID_LEN];			// 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
 		uint8_t kid_len;
 		#endif 
 
-		uint8_t echo[COAP_ECHO_LEN]; // echo challenge random data (in stack time is used)
+		uint8_t echo[COAP_ECHO_LEN];						// echo challenge random data (in stack time is used)
 		size_t echo_len;
 
 		uint32_t payload_len;

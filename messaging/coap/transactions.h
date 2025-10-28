@@ -81,8 +81,8 @@ typedef struct coap_transaction
 
   uint16_t mid;
   uint8_t token_len;
-  uint8_t token[COAP_TOKEN_LEN];
-  struct oc_etimer retrans_timer;
+  uint8_t token[COAP_TOKEN_LEN];  
+  struct oc_etimer retrans_timer; 
   uint8_t retrans_counter;        // 0 = initial message, no retransmission started 
   oc_message_t *message;
 

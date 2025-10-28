@@ -51,23 +51,24 @@ void oc_oscore_free_lru_recipient_context(void)
 oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len)
 {
 
+  // to skip tests for len = 0 which will be always a hit on an empty context ...
   if (kid_len == 0)
     return NULL;
 
   // list start
   oc_oscore_context_t* ctx = oc_list_head(contexts);
 
-  PRINT("find context by kid : kid:(%d) : ", kid_len);
-  oc_char_println_hex((char*) (kid), kid_len);
+  PRINT("-> inbound kid:(%d) : ", kid_len);
+  oc_char_println_hex((char*) kid, kid_len);
 
   while (ctx)
   {
-    PRINT("-> recipient_id : ");
-    oc_char_println_hex((char*) (ctx->recipient_id), ctx->recipient_id_len);
+    PRINT("-> scanned kid : ");
+    oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
 
     if (kid_len == ctx->recipient_id_len && memcmp(kid, ctx->recipient_id, kid_len) == 0)
     {
-      PRINT("find context by kid at auth/at index : %d", ctx->auth_at_index);
+      PRINT("-> found context by kid at auth/at index : %d", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -243,19 +244,19 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
   while (ctx)
   {
     // find AT for context that MAY host the GA
-    const oc_auth_at_t* my_entry = oc_get_auth_at_entry(ctx->auth_at_index);
-    if (my_entry)
+    const oc_auth_at_t* my_at_entry = oc_get_auth_at_entry(ctx->auth_at_index);
+    if (my_at_entry)
     {
       // debugging 
       oc_print_auth_at_entry(ctx->auth_at_index);
 
-      for (int i = 0; i < my_entry->ga_len; i++)
+      for (int i = 0; i < my_at_entry->ga_len; i++)
       { // scan all GA's
-        const uint32_t group_value = my_entry->ga[i];
+        const uint32_t group_value = my_at_entry->ga[i];
         
         if (group_address == group_value)
         {
-          PRINT("found access token for GA %u", group_address);
+          PRINT("found access token for given GA %u", group_address);
 
           // refresh time of last use
           ctx->last_used = oc_clock_time();

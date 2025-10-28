@@ -267,19 +267,18 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
       if (grpid > 0)
       { // grpid is set in case of multicast in RCP table (configured by MaC)
-        
+
+        PRINT("grpid > 0, send mc via sending ga");
+
         // multicast read, NO value data needed
         oc_send_s_mode_non_multicast_message(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
-        return 0;
       }
       else
       {
-        // TODO resolve IP unicast to send via unicast...
-        // discover unicast IPv6 for IA via mDNS
-        // send message with unicast IPv6
-        PRINT("grpid =0");
-        return 0;
+        // TODO discover/resolve unicast IPv6 for IA via mDNS and send message with unicast IPv6
+        PRINT("grpid = 0, send uc via device ia");
       }
+      return 0;
     }
 
     /*

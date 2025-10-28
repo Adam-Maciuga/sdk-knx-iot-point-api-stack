@@ -1156,7 +1156,7 @@ coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,	uint
 {
 	coap_packet_t* const coap_pkt = packet;
 
-	/* Important thing */
+	// wipe content, important thing
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
 
 	coap_pkt->transport_type = COAP_TRANSPORT_UDP;
@@ -1164,7 +1164,7 @@ coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,	uint
 	coap_pkt->code = code;
 	coap_pkt->mid = mid;
 }
-/*---------------------------------------------------------------------------*/
+
 #ifdef OC_TCP
 void
 coap_tcp_init_message(void* packet, uint8_t code)
@@ -1382,14 +1382,14 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 {
 	coap_packet_t* const coap_pkt = packet;
 
-  /* initialize packet */
+  // wipe CoAP packet
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
 
-  /* pointer to packet bytes */
+  // set pointer to CoAP packet bytes
 	coap_pkt->buffer = data;
 	coap_pkt->transport_type = COAP_TRANSPORT_UDP;
 
-  /* parse header fields */
+  // parse header fields
 	coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
 	coap_pkt->type = (COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION;
 	coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;

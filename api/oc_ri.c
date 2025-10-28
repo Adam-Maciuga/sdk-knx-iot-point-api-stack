@@ -92,7 +92,7 @@ static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 	PROXYING_NOT_SUPPORTED_5_05       // mapped from OC_STATUS_PROXYING_NOT_SUPPORTED
 };
 
-oc_process_event_t oc_events[__NUM_OC_EVENT_TYPES__];
+oc_process_event_t oc_events[NUM_OC_EVENT_TYPES];
 
 static const char* scope_string_name[NUM_ACL_SCOPES] =
   { // starts with OC_ACL_NONE,
@@ -583,7 +583,7 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key)
 
 void allocate_events(void)
 {
-	for (int i = 0; i < __NUM_OC_EVENT_TYPES__; i++)
+	for (int i = 0; i < NUM_OC_EVENT_TYPES; i++)
 	{
 		oc_events[i] = oc_process_alloc_event();
 	}
@@ -1901,15 +1901,14 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
 	}
 	else
 	{
-		if (pkt->type == COAP_TYPE_ACK && pkt->code == 0)
+		if (pkt->type == COAP_TYPE_ACK && pkt->code == EMPTY_0_00)
 		{
 			separate = true;
 			cb->separate = 1;
 		}
 		else if (!cb->discovery)
 		{
-			oc_response_handler_t handler =
-				(oc_response_handler_t) cb->handler.response;
+			oc_response_handler_t handler =	cb->handler.response;
 			if (handler != NULL)
 			{
 				handler(&client_response);

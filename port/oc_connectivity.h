@@ -115,7 +115,7 @@ struct oc_message_s
   #ifdef OC_INOUT_BUFFER_SIZE
   uint8_t data[OC_INOUT_BUFFER_SIZE];
   #else  
-  uint8_t *data; // points to the message as such  
+  uint8_t *data; // points to the message as such (binary data with no structure, hence not necessarily a CoAP packet)  
   #endif 
   #else  
   uint8_t data[OC_PDU_SIZE];

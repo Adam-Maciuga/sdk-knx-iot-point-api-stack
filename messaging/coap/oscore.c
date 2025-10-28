@@ -44,14 +44,15 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	}
 
 	// one static CoAP packet
-	coap_packet_t msg[1];
+	coap_packet_t outgoing_coap_plain_msg[1];
 
-	// init and set all in msg to zero 
-  coap_udp_init_message(msg, type, code, mid);
+	// init and set all in coap msg to zero 
+  coap_udp_init_message(outgoing_coap_plain_msg, type, code, mid);
 
 	// UDP/ TCP
-	msg->transport_type = oscore_pkt->transport_type;
+	outgoing_coap_plain_msg->transport_type = oscore_pkt->transport_type;
 
+	// note, this message is not the same as a coap packet from above
 	oc_message_t* message = oc_internal_allocate_outgoing_message();
 	if (message)
 	{
@@ -61,20 +62,20 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 		// copy token
 		if (oscore_pkt->token_len > 0)
 		{
-			coap_set_token(msg, oscore_pkt->token, oscore_pkt->token_len);
+			coap_set_token(outgoing_coap_plain_msg, oscore_pkt->token, oscore_pkt->token_len);
 		}
 
 		// no max age = no caching 
-		coap_set_header_max_age(msg, 0);
+		coap_set_header_max_age(outgoing_coap_plain_msg, 0);
 
-		// 
-		size_t len = coap_serialize_message(msg, message->data);
+		// copies coap msg to message
+		const size_t len = coap_serialize_message(outgoing_coap_plain_msg, message->data);
 		if (len > 0)
 		{
 			message->length = len;
 			coap_send_message(message);
 
-			OC_DBG("*** send OSCORE error (code %u) ***", code);
+			OC_DBG("send OSCORE error message in CoAP plain format with code (%u)", code);
 		}
 	}
 }
@@ -149,15 +150,11 @@ int oscore_store_piv(uint64_t ssn, uint8_t* piv, uint8_t* piv_len)
  * @param packet the CoAp packet to be scanned
  *
  */
-oc_method_t oscore_get_outer_code(void* packet)
+uint8_t oscore_get_outer_code(void* packet)
 {
 	coap_packet_t const* coap_pkt = (coap_packet_t*) packet;
 
-	bool observe = false;
-	if (IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE))
-	{
-		observe = true;
-	}
+	const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE) ? true : false;
 
 	if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH
 			#ifdef OC_TCP
@@ -169,7 +166,7 @@ oc_method_t oscore_get_outer_code(void* packet)
 	}
 	
 	// responses
-  return observe ? oc_status_code(OC_STATUS_OK) : oc_status_code(OC_STATUS_CHANGED);
+  return observe ? (uint8_t)oc_status_code(OC_STATUS_OK) : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
 }
 
 int
@@ -214,23 +211,26 @@ int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 {
 	coap_packet_t* const coap_pkt = packet;
 
-	coap_pkt->oscore_flags = piv_len;
+	// sets 'nnn' from 000|h|k|nnn flags (also kid length of 0!)
+  coap_pkt->oscore_flags = piv_len & 0x07;
 
-	// Partial IV
+	// PIV
 	if (piv_len > 0)
 	{
 		memcpy(coap_pkt->piv, piv, piv_len);
 		coap_pkt->piv_len = piv_len;
 	}
 
-	// kid (even for a kid length of 0 it might need to be the case that the flag is set)
+	// TODO even for a kid length of 0 it might need to be the case that the flag is set, so do always
 	// set on a request (always)
 	// set on a response (4.01) witch echo challenge included and kid included 
 	if (coap_pkt->code <= OC_FETCH || (coap_pkt->code > OC_FETCH && coap_pkt->echo_len > 0 && kid_len > 0))
 	{
-		coap_pkt->oscore_flags |= 1 << OSCORE_FLAGS_BIT_KID_POSITION;
+    // sets 'k' from 000|h|k|nnn flags 
+	  coap_pkt->oscore_flags |= 1 << OSCORE_FLAGS_BIT_KID_POSITION;
 	}
 
+	// kid 
   if (kid_len > 0)
 	{
 		memcpy(coap_pkt->kid, kid, kid_len);
@@ -242,6 +242,8 @@ int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 	{
 		memcpy(coap_pkt->kid_ctx, kid_ctx, kid_ctx_len);
 		coap_pkt->kid_ctx_len = kid_ctx_len;
+
+    // sets 'h' from 000|h|k|nnn flags 
 		coap_pkt->oscore_flags |= 1 << OSCORE_FLAGS_BIT_KID_CTX_POSITION;
 	}
 
@@ -276,12 +278,12 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		return 0;
 	}
 
-  // flags (see above) , one byte 
+  // OSCORE flags (see above) , one byte 
 	coap_pkt->oscore_flags = *current_option;
 	current_option++;
 	option_length--;
 
-  OC_DBG_OSCORE("\tflags: %02x", coap_pkt->oscore_flags);
+  OC_DBG_OSCORE("\t flags (000|h|k|nnn): %02x", coap_pkt->oscore_flags);
 
 	// Partial IV length (n bytes)
 	coap_pkt->piv_len = coap_pkt->oscore_flags & OSCORE_FLAGS_PIVLEN_BITMASK;
@@ -293,7 +295,7 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		current_option += coap_pkt->piv_len;
 		option_length -= coap_pkt->piv_len;
 
-		OC_DBG_OSCORE("\tPartial IV:");
+		OC_DBG_OSCORE("\t Partial IV:");
 		OC_LOGbytes_OSCORE(coap_pkt->piv, coap_pkt->piv_len);
 	}
 
@@ -310,7 +312,7 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		current_option += coap_pkt->kid_ctx_len;
 		option_length -= coap_pkt->kid_ctx_len;
 
-		OC_DBG_OSCORE("\tkid context:");
+		OC_DBG_OSCORE("\t kid context:");
 		OC_LOGbytes_OSCORE(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 	}
 
@@ -321,7 +323,7 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		coap_pkt->kid_len = (uint8_t) option_length;
 		memcpy(coap_pkt->kid, current_option, option_length);
 
-		OC_DBG_OSCORE("\tkid:");
+		OC_DBG_OSCORE("\t kid:");
 		OC_LOGbytes_OSCORE(coap_pkt->kid, coap_pkt->kid_len);
 	}
 
@@ -358,7 +360,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 		buffer += header_length;
 
 		OC_DBG_OSCORE("OSCORE option");
-		OC_DBG_OSCORE("\tflags: %02x", coap_pkt->oscore_flags);
+		OC_DBG_OSCORE("\t oscore flags (000|h|k|nnn) : %02x", coap_pkt->oscore_flags);
 		if (coap_pkt->oscore_flags != 0)
 		{
 			/* Serialize OSCORE option flags */
@@ -371,7 +373,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 				memcpy(buffer, coap_pkt->piv, coap_pkt->piv_len);
 				buffer += coap_pkt->piv_len;
 
-				OC_DBG_OSCORE("\tPartial IV:");
+				OC_DBG_OSCORE("\tPartial IV : ");
 				OC_LOGbytes_OSCORE(coap_pkt->piv, coap_pkt->piv_len);
 			}
 
@@ -385,7 +387,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 				memcpy(buffer, coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 				buffer += coap_pkt->kid_ctx_len;
 
-				OC_DBG_OSCORE("\tkid context:");
+				OC_DBG_OSCORE("\tkid_context : ");
 				OC_LOGbytes_OSCORE(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 			}
 

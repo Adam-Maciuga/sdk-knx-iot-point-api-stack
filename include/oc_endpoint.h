@@ -64,11 +64,11 @@ extern "C" {
     IPV6 = 1 << 3,             // ipv6 communication 
     TCP = 1 << 4,              // tcp communication 
     OSCORE = 1 << 5,           // OSCORE communication, identifies that OSCORE is used  
-    MULTICAST = 1 << 6,        // multicast enabled 
+    MULTICAST = 1 << 6,        // multicast message 
     ACCEPTED = 1 << 7,         // accepted 
     OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message
-    ECHO_FROM_MC_SRC = 1 << 9  // an echo request will be sent out, caused by inbound s-mode mc message 
-
+    ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)
+    ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
   };
 
   #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
@@ -98,7 +98,8 @@ extern "C" {
     uint8_t priority;                     /**< priority */
 
     uint32_t group_address;               /**< sending group address, used to find later the OSCORE context '128-bit sender key'
-                                               that must be used for encryption of s-mode multicast request message */
+                                               that must be used for encryption of s-mode multicast/unicast request message
+                                               (issued by an application) */
 
     int32_t auth_at_index;                /**< auth at index
                                                - used for matching oscore context for an outbound response from a former inbound request
