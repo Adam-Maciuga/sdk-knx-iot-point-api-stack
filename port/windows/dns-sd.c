@@ -24,6 +24,7 @@
 // globally needed
 intptr_t process_handle = 0;
 static char sp_text_record[16] = ""; // may be filled at runtime with sleep seconds
+static HANDLE job_handle = NULL;    
 
 uint16_t knx_get_used_port(void) { return get_ip_context_for_device()->port; }
 
@@ -77,6 +78,22 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
     
   // Create process with appropriate window visibility
   if (CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, creation_flags, NULL, NULL, &si, &pi)) {
+
+    // Initialize job object once and set auto-kill flag
+    if (!job_handle) {
+      job_handle = CreateJobObject(NULL, NULL);
+      if (job_handle) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {0};
+        jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(job_handle, JobObjectExtendedLimitInformation,
+                                &jeli, sizeof(jeli));
+      }
+    }
+
+    // Assign new process to the job (if available)
+    if (job_handle)
+      AssignProcessToJobObject(job_handle, pi.hProcess);
+
     process_handle = (intptr_t)pi.hProcess;
     CloseHandle(pi.hThread); // Don't need thread handle
   } else {
