@@ -36,8 +36,8 @@ extern "C" {
        -> INBOUND_OSCORE_EVENT
        -> INBOUND_RI_EVENT
 
-    -> OUTBOUND_OSCORE_EVENT -> OUTBOUND_NETWORK_EVENT_ENCRYPTED -> Network
-    -> OUTBOUND_GROUP_OSCORE_EVENT -> OUTBOUND_NETWORK_EVENT_ENCRYPTED -> Network
+    -> OUTBOUND_UC_OSCORE_EVENT -> OUTBOUND_NETWORK_EVENT_ENCRYPTED -> Network
+    -> OUTBOUND_MC_OSCORE_EVENT -> OUTBOUND_NETWORK_EVENT_ENCRYPTED -> Network
 
   */
 
@@ -54,9 +54,9 @@ typedef enum {
   INTERFACE_DOWN, /**< network interface down*/
   INTERFACE_UP,   /**< network interface up */
   TLS_CLOSE_ALL_SESSIONS,
-  INBOUND_OSCORE_EVENT,  // inbound network event, payload IS encrypted with OSCORE
-  OUTBOUND_OSCORE_EVENT, // outbound unicast network event, payload WILL BE encrypted with OSCORE
-  OUTBOUND_GROUP_OSCORE_EVENT, // outbound multicast network event, payload WILL BE encrypted with OSCORE
+  INBOUND_OSCORE_EVENT,     // inbound network event, payload IS encrypted with OSCORE
+  OUTBOUND_UC_OSCORE_EVENT, // outbound unicast network event, payload WILL BE encrypted with OSCORE
+  OUTBOUND_MC_OSCORE_EVENT, // outbound multicast network event, payload WILL BE encrypted with OSCORE
   NUM_OC_EVENT_TYPES
 } oc_events_t;
 

@@ -269,12 +269,12 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         if (message->endpoint.flags & MULTICAST)
         { // multicast
           OC_DBG_OSCORE("Outbound network event: secure multicast message (request), forwarding to OSCORE layer");
-          oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_GROUP_OSCORE_EVENT], data);
+          oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], data);
         }
         else
         { // unicast
           OC_DBG_OSCORE("Outbound network event: secure unicast message (request or response), forwarding to OSCORE layer");
-          oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_OSCORE_EVENT], data);
+          oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], data);
         }
       }
 			else
