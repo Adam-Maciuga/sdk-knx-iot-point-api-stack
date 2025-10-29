@@ -88,7 +88,7 @@ static CRITICAL_SECTION critical_section;
 const char application_name[] = "Charger";
 const char sn_lower_case[] = "00fa10020d00";  // deliberated incorrect serial numbers
 const char hostname[] = "knx-00fa10020d00";   // default host name (reset uses this default)
-const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
+const char hw_type[] = "EV Charger  ";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
@@ -204,8 +204,6 @@ int Charger_init_auth_table()
 
   return 0;
 }
-
-
 
 int Charger_init_tables_QR(char* sn_cem)
 {

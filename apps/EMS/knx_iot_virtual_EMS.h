@@ -69,7 +69,7 @@ extern "C"
   int Charger_init_auth_table();
   int Charger_init_tables_QR(char*);
   int Charger_retrieve_charger();
-  void Charger_put_charger(oc_request_t*, oc_interface_mask_t, void*);
+  void Charger_put_charger(oc_request_t*, oc_interface_mask_t, void*);  
 
 #ifdef __cplusplus
 }

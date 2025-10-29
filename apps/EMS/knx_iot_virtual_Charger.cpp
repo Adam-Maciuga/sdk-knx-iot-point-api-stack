@@ -472,11 +472,9 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
   Charger_init_auth_table();
   device->lsm_s = LSM_S_UNLOADED;
-
-  // Charger_init_tables_QR("00fa10020c00");
-  // device->lsm_s = LSM_S_LOADED;
 }
 
 /**
@@ -530,14 +528,28 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
 
-/**
- * @brief update the text buttons
- * - IA
- * - Loadstate
- * - programming mode
- * - IID
- * - Hostname
- */
+
+void MyFrame::updateDeviceData()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+
+  if (m_lsm != device->lsm_s)
+  {
+    m_lsm = device->lsm_s;
+
+    if (m_lsm == LSM_S_LOADING)
+    {
+      oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      Charger_init_tables_QR("00fa10020c00");
+      device->lsm_s = LSM_S_LOADED;
+    }
+  }
+}
+
+
+
+/*
 void MyFrame::updateDeviceData()
 {
   oc_device_info_t* device = oc_core_get_device_info();
@@ -548,20 +560,20 @@ void MyFrame::updateDeviceData()
 
     if (m_lsm == LSM_S_UNLOADED)
     {
-      // oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
     }
     if (m_lsm == LSM_S_LOADING)
     {
-      oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
       Charger_init_tables_QR("00fa10020c00");
-      device->lsm_s = LSM_S_LOADED;
     }
     if (m_lsm == LSM_S_LOADED)
     {
-      // device->lsm_s = LSM_S_LOADED;
+      //device->lsm_s = LSM_S_LOADED;
     }
   }
 }
+*/
+
 
 /**
  * @brief clear the tables of the device
@@ -687,19 +699,30 @@ void MyFrame::OnSettings(wxCommandEvent& event)
   title.Printf("Device settings & cryptography");
 
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device || device->lsm_s != LSM_S_LOADED)
+
+  if (device->lsm_s == LSM_S_UNLOADED)
   {
     all << "Charger: unloaded" << "\n";
     CustomDialog(title, all, 250, 100);
     return;
   }
 
-  all << dumpGroupObjectTable() << "\n"
-      << dumpPublisherTable() << "\n"
-      << "\n"
-      << dumpAuthTable();
+  if (device->lsm_s == LSM_S_LOADING)
+  {
+    all << "Charger: loading" << "\n";
+    CustomDialog(title, all, 250, 100);
+    return;
+  }
 
-  CustomDialog(title, all, 420, 250);
+  if (device->lsm_s == LSM_S_LOADED)
+  {
+    all << dumpGroupObjectTable() << "\n"
+        << dumpPublisherTable() << "\n"
+        << "\n"
+        << dumpAuthTable();
+
+    CustomDialog(title, all, 420, 250);
+  }
 }
 
 

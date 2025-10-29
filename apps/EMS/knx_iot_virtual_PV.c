@@ -88,7 +88,7 @@ static CRITICAL_SECTION critical_section;
 const char application_name[] = "Inverter PV control";
 const char sn_lower_case[] = "00fa10020b00";  // deliberated incorrect serial numbers
 const char hostname[] = "knx-00fa10020b00";   // default host name (reset uses this default)
-const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
+const char hw_type[] = "PV Inverter ";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
