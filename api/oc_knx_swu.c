@@ -24,6 +24,8 @@
 #include "oc_knx_helpers.h"
 #include "oc_main.h"
 #include "port/oc_storage.h"
+#include <errno.h>
+#include <limits.h>
 
 // only static since values are changed at runtime
 static oc_device_swu_t swu_device = {
@@ -568,16 +570,52 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   {
     if (strncmp(key, "po", key_len) == 0)
     {
-      po_block_offset = atoi(value);
+      char* endptr;
+      errno = 0;
+      long temp = strtol(value, &endptr, 10);
+      
+      // validate conversion: check for errors, no conversion, trailing chars, or out of range
+      if (errno != 0 || endptr == value || *endptr != '\0' || 
+          temp < 0 || temp > INT_MAX)
+      {
+        OC_ERR("Invalid 'po' parameter: %s", value);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
+      po_block_offset = (int)temp;
     }
-    if (strncmp(key, "ps", key_len) == 0)
+    else if (strncmp(key, "ps", key_len) == 0)
     {
-      ps_block_size = atoi(value);
+      char* endptr;
+      errno = 0;
+      long temp = strtol(value, &endptr, 10);
+      
+      // validate conversion: check for errors, no conversion, trailing chars, or out of range
+      if (errno != 0 || endptr == value || *endptr != '\0' || 
+          temp <= 0 || temp > INT_MAX)
+      {
+        OC_ERR("Invalid 'ps' parameter: %s", value);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
+      ps_block_size = (int)temp;
     }
-    if (strncmp(key, "pkgs", key_len) == 0)
+    else if (strncmp(key, "pkgs", key_len) == 0)
     {
       // first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present)
-      pkgs_package_size = atoi(value);
+      char* endptr;
+      errno = 0;
+      long temp = strtol(value, &endptr, 10);
+      
+      // validate conversion: check for errors, no conversion, trailing chars, or out of range
+      if (errno != 0 || endptr == value || *endptr != '\0' || 
+          temp <= 0 || temp > INT_MAX)
+      {
+        OC_ERR("Invalid 'pkgs' parameter: %s", value);
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+        return;
+      }
+      pkgs_package_size = (int)temp;
     }
   }
 
