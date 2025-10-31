@@ -125,6 +125,8 @@ void register_resources(void)
 
     oc_resource_set_observable(tp0, true);
 
+    oc_resource_set_write_access_affects_fingerprint(tp0, true);
+
     oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
     oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 
 

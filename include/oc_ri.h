@@ -54,12 +54,12 @@ extern "C" {
 	 */
   typedef enum
   {
-    OC_UNDISCOVERABLE = 0,    /**< parameter */
-    OC_DISCOVERABLE = 1 << 0, /**< datapoint */
-    OC_OBSERVABLE = 1 << 1,   /**< observable */
-    OC_SECURE = 1 << 4,       /**< secure */
-    OC_PERIODIC = 1 << 6,     /**< periodical update */
-    OC_SECURE_MCAST = 1 << 8  /**< secure multi cast (OSCORE) */
+    OC_NO_PROPERTIES = 0,					// nothing defined, means also nothing from other props (all false)
+    OC_DISCOVERABLE = 1 << 0,			// resource can be discovered (true) or not
+    OC_OBSERVABLE = 1 << 1,				// resource can be observed (true) or not
+    OC_SECURE = 1 << 4,						// resource is OSCORE secured (set, but not evaluated)
+    OC_PERIODIC = 1 << 6,					// periodical update
+    OC_WRITE_AFFECTS_FP = 1 << 7, // write (PUT/POST) access affects fingerprint, must be set by vendor
   } oc_resource_properties_t;
 
 	/**

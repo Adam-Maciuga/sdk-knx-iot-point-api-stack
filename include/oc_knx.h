@@ -171,7 +171,7 @@ extern "C"
    * @param new_state the new LSM
    * @return 0 == success
    */
-  int oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
+void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
 
   /**
    * @brief convert the load state machine (lsm) event to string
@@ -250,7 +250,9 @@ extern "C"
   /**
    * @brief increase the fingerprint value and writes the value to storage (file system)
    *
-   * @note updated on create/delete of fp/p, fp/r, fp/g and /p
+   * @note updated on LSM to loaded and on write to /p (if property is set)
+   *
+   * @see oc_resource_set_write_access_affects_fingerprint 
    *
    */
   void oc_knx_increase_fingerprint(void);

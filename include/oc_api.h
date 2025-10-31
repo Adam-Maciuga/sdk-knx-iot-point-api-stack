@@ -174,7 +174,6 @@ extern "C"
      * @see oc_resource_bind_resource_interface
      * @see oc_resource_bind_resource_type
      * @see oc_resource_bind_dpt
-     * @see oc_resource_make_public
      * @see oc_resource_set_discoverable
      * @see oc_resource_set_observable
      * @see oc_resource_set_periodic_observable
@@ -516,7 +515,7 @@ extern "C"
     @{
   */
   /**
-   * Allocate and populate a new oc_resource_t.
+   * Allocate and populate a new application resource.
    *
    * Resources are the primary interface between code and real world devices.
    *
@@ -540,6 +539,7 @@ extern "C"
    *   oc_resource_bind_dpt(switch, "urn:knx:dpt.switch");
    *   oc_resource_set_observable(switch, true);
    *   oc_resource_set_discoverable(switch, true);
+   *   oc_resource_set_write_access_affects_fingerprint(switch, true);
    *   oc_resource_set_request_handler(switch, OC_GET, get_switch, NULL, OC_ACL_O, OC_IF_O);
    *   oc_resource_set_request_handler(switch, OC_PUT, put_switch, NULL, OC_ACL_I, OC_IF_I);
    *   oc_add_resource(switch);
@@ -556,6 +556,7 @@ extern "C"
    * @see oc_process_baseline_interface
    * @see oc_resource_set_discoverable
    * @see oc_resource_set_periodic_observable
+   * @see oc_resource_set_write_access_affects_fingerprint
    * @see oc_resource_set_request_handler
    */
   oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types);
@@ -604,20 +605,6 @@ extern "C"
   void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt);
 
   /**
-   * Expose unsecured coap:// endpoints (in addition to secured coaps://
-   * endpoints) for this resource in /well-known/core
-   *
-   * @note While the resource may advertise unsecured endpoints, the resource
-   *       shall remain inaccessible until the hosting device is configured with
-   *       an anon-clear Access Control Entry (ACE).
-   *
-   * @param[in] resource the resource to make public
-   *
-   * @see oc_new_resource
-   */
-  void oc_resource_make_public(oc_resource_t* resource);
-
-  /**
    * Specify if a resource can be found using .well-known/core discover
    * mechanisms.
    *
@@ -644,6 +631,24 @@ extern "C"
    * @see oc_resource_set_periodic_observable
    */
   void oc_resource_set_observable(oc_resource_t* resource, bool state);
+
+
+  /**
+   * Specify that a write request to the resource changes the application fingerprint.
+   *
+   * @note Must be set by vendor in relation if  a change of value affects
+   *       the fingerprint. It is NOT checked by stack if the actual written value
+   *       really changes the original value, the aspect of a POST/PUT is the only
+   *       criteria. What is covered by the fingerprint, see KNX IoT specification. 
+   *
+   * @param[in] resource the resource to specify the observability
+   * @param[in] state true to make resource observable, false to make resource
+   *                  unobservable
+   *
+   * @see oc_new_resource to see example code using this function
+   * @see oc_resource_set_periodic_observable
+   */
+  void oc_resource_set_write_access_affects_fingerprint(oc_resource_t* resource, bool state);
 
   /**
    * The resource will periodically notify observing clients of is property
