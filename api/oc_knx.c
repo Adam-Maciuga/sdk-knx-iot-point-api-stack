@@ -324,19 +324,14 @@ PRAGMA_OUT
 
 oc_lsm_state_t oc_knx_get_lsm(void)
 {
-  const oc_device_info_t* const  device = oc_core_get_device_info();
-  return device->lsm_s;
+  return oc_core_get_device_info()->lsm_s;
 }
 
-int oc_knx_set_and_store_lsm(oc_lsm_state_t new_state)
+void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state)
 {
-  oc_device_info_t* const device = oc_core_get_device_info();
-
   // set state for device (RAM) and file storage (tests on LSM uses device property) 
-  device->lsm_s = new_state;
+  oc_core_get_device_info()->lsm_s = new_state;
   oc_storage_write(KNX_STORAGE_LSM, (uint8_t*)&new_state, sizeof(new_state));
-
-  return 0;
 }
 
 const char* oc_core_get_lsm_state_as_string(oc_lsm_state_t lsm)
@@ -393,47 +388,12 @@ const char* oc_core_get_lsm_event_as_string(oc_lsm_event_t lsm)
 static const oc_lsm_state_t event_to_state[5][3] = 
 {
   /*                     UNLOADED        LOADED          LOADING        */
-  /* NOP           */ {LSM_S_ERROR,    LSM_S_LOADED,   LSM_S_LOADING, }, // don't allow with NOP to delete tables
+  /* NOP           */ {LSM_S_ERROR,    LSM_S_LOADED,   LSM_S_LOADING, }, // don't allow with NOP to unload device/ delete tables
   /* START LOADING */ {LSM_S_LOADING,  LSM_S_LOADING,  LSM_S_LOADING, },
   /* LOAD COMPLETE */ {LSM_S_ERROR,    LSM_S_LOADED,   LSM_S_LOADED,  },
   /* N/A           */ {LSM_S_ERROR,    LSM_S_ERROR,    LSM_S_ERROR,   }, // don't allow with N/A to delete tables
   /* UNLOAD        */ {LSM_S_UNLOADED, LSM_S_UNLOADED, LSM_S_UNLOADED }, // allow in unloaded an unload event
 };
-
-/**
- * @brief LSM handler, saves the new state to storage and returns true if it was a valid transition
- *
- * @param lsm_event the LSM event
- *
-*/
-static bool oc_lsm_event_to_state(oc_lsm_event_t lsm_event)
-{
-
-  // no event outside table/ specification, keep old state
-  if (lsm_event < LSM_E_NOP || lsm_event > LSM_E_UNLOAD)
-    return false;
-
-  // get new state
-  const oc_lsm_state_t old_lsm_state = oc_core_get_device_info()->lsm_s;
-  const oc_lsm_state_t new_lsm_state = event_to_state[lsm_event][old_lsm_state];
-
-  // don't allow a transition to an error state, keep old state
-  if (new_lsm_state == LSM_S_ERROR)
-    return false;
-
-  // store new state (even it is the old one)
-  oc_knx_set_and_store_lsm(new_lsm_state);
-
-  if (new_lsm_state == LSM_S_UNLOADED)
-  { // extra task on entering or remaining in UNLOADED
-
-    // do a reset like erase code 2 but not for the access token table, ia, iid, fid -> EITT test
-    oc_delete_group_tables();
-    oc_delete_group_object_table();
-  }
-
-  return true;
-}
 
 static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -447,7 +407,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
     return;
   }
 
-  oc_lsm_state_t lsm = oc_knx_get_lsm();
+  const oc_lsm_state_t lsm = oc_knx_get_lsm();
 
   oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 3, lsm);
@@ -492,35 +452,65 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 
   PRINT("load event %d [%s]", event, oc_core_get_lsm_event_as_string(event));
 
-  // LSM state changed correctly ?
-  if (oc_lsm_event_to_state(event))
-  {
-    const oc_loadstate_t* my_cb = oc_get_lsm_change_cb();
+  /*
+     - no event outside table/ specification, keep old state
+     - don't allow a transition to an error state, keep old state
+  */
+  if (event >= LSM_E_NOP && event <= LSM_E_UNLOAD)
+  { 
+    // get new state (old state is always in range)
+    const oc_lsm_state_t old_lsm_state = oc_knx_get_lsm();
+    const oc_lsm_state_t new_lsm_state = event_to_state[event][old_lsm_state];
 
-    if (my_cb && my_cb->cb)
-    { // application callback handler for LSM present ...
-      my_cb->cb(oc_knx_get_lsm(), my_cb->data);
+    if (new_lsm_state != LSM_S_ERROR)
+    { // LSM state changed correctly
+
+      // store new state (even it is the old one)
+      oc_knx_set_and_store_lsm(new_lsm_state);
+
+      if (new_lsm_state == LSM_S_UNLOADED && old_lsm_state != LSM_S_UNLOADED)
+      { // extra task on entering UNLOADED
+
+        // do a reset like erase code 2 but not for the access token table, ia, iid, fid -> EITT test
+        oc_delete_group_tables();
+        oc_delete_group_object_table();
+      }
+      else
+      if (oc_is_device_in_runtime() && old_lsm_state != LSM_S_LOADED)
+      { // extra task on entering LOADED with iid = ok
+
+        // task 1
+        oc_register_group_multicasts();
+        oc_init_datapoints_at_initialization();
+
+        PRINT("Re-register mDNS after a LSM went to loaded");
+        knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+
+        // task 2
+        oc_knx_increase_fingerprint();
+        PRINT("Increase fingerprint after a LSM went to loaded");
+
+      }
+
+      // inform user
+      const oc_loadstate_t* my_cb = oc_get_lsm_change_cb();
+
+      if (my_cb && my_cb->cb)
+      { // application callback handler for LSM is present ...
+        my_cb->cb(new_lsm_state, my_cb->data);
+      }
+
+      // create response
+      oc_rep_new(request->response->response_buffer->buffer, (int)request->response->response_buffer->buffer_size);
+      oc_rep_begin_root_object();
+      oc_rep_i_set_int(root, 3, new_lsm_state);
+      oc_rep_end_root_object();
+
+      // note that also on event 'NOP' a 'changed' is returned
+      oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+      return;
     }
-
-    // if LSM is loaded , e.g; application is running ...
-    if (oc_is_device_in_runtime())
-    {
-      oc_register_group_multicasts();
-      oc_init_datapoints_at_initialization();
-
-      PRINT("Re-register mDNS after a LSM is loaded)");
-      knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
-    }
-
-    // create response
-    oc_rep_new(request->response->response_buffer->buffer, (int)request->response->response_buffer->buffer_size);
-    oc_rep_begin_root_object();
-    oc_rep_i_set_int(root, 3, oc_knx_get_lsm());
-    oc_rep_end_root_object();
-
-    // note that also on event 'NOP' a 'changed' is returned
-    oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-    return;
+    
   }
   // invalid event
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);

@@ -418,7 +418,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	{
 		for (const oc_resource_t* my_resource = oc_ri_get_app_resources(); my_resource; my_resource = my_resource->next)
 		{
-			// skip not "public" resources 
+			// skip non "public" resources 
 			if (my_resource->properties & OC_DISCOVERABLE && oc_string(my_resource->uri))
 			{
         // able to discover + resource path must be defined with a NON-NULL resource path 

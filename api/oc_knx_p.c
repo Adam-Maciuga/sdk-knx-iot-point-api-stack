@@ -130,7 +130,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   }
 
   // check first if the url is implemented on the device (performance)
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
   while (rep)
   {
     if (rep->type == OC_REP_OBJECT)
@@ -221,8 +221,6 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           // used by /p and /k that calls the same application callback handlers
           new_request.request_payload = rep->value.object;
 
-          
-
           const oc_resource_t* my_resource =
             oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url));
 
@@ -246,8 +244,9 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
 
-            // create /p --> update
-            oc_knx_increase_fingerprint();
+            // access changes fingerprint on /p ? -> update 
+            if (my_resource->properties & OC_WRITE_AFFECTS_FP)
+              oc_knx_increase_fingerprint();
           }
         }
         entry_object = entry_object->next;
@@ -268,7 +267,7 @@ const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
                                            {APPLICATION_LINK_FORMAT, CONTENT_NONE},
-                                           OC_UNDISCOVERABLE,
+                                           OC_DISCOVERABLE,
                                            {oc_core_p_get_handler, NULL, OC_ACL_P | OC_ACL_D | OC_ACL_C, OC_IF_LI},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {oc_core_p_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B},

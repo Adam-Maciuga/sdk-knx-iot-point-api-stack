@@ -772,7 +772,7 @@ bool oc_ri_add_resource(oc_resource_t* resource)
 			!resource->post_handler.cb && !resource->delete_handler.cb)
 		valid = false;
 
-	if ((resource->properties & OC_PERIODIC) &&
+	if (resource->properties & OC_PERIODIC &&
 			resource->observe_period_seconds == 0)
 		valid = false;
 
@@ -800,7 +800,7 @@ oc_ri_add_resource_block(const oc_resource_t* resource)
 				!resource->post_handler.cb && !resource->delete_handler.cb)
 			valid = false;
 
-		if ((resource->properties & OC_PERIODIC) &&
+		if (resource->properties & OC_PERIODIC &&
 				resource->observe_period_seconds == 0)
 			valid = false;
 
@@ -1480,11 +1480,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 				if (coap_observe_handler(request, response, cur_resource, endpoint) >= 0)
 				{
 				#endif 
-					/* If the resource is marked as periodic observable it means
-					* it must be polled internally for updates (which would lead to
-					* notifications being sent). If so, add the resource to a list of
-					* periodic GET callbacks to utilize the framework's internal
-					* polling mechanism.
+					/*
+					  If the resource is marked as periodic observable it means
+					  it must be polled internally for updates (which would lead to
+					  notifications being sent). If so, add the resource to a list of
+					  periodic GET callbacks to utilize the framework's internal
+					  polling mechanism.
 					*/
 					if (matching_resource->properties & OC_PERIODIC)
 					{
