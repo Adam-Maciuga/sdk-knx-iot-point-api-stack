@@ -565,14 +565,14 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
 
   oc_init_query_iterator();
 
-  // scan all query parameter
+  // scan all query parameter, object by object (note po/ps/pkgs may appear at the same time)
   while (oc_iterate_query(request, &key, &key_len, &value, &value_len) > 0)
   {
     if (strncmp(key, "po", key_len) == 0)
     {
       char* endptr;
       errno = 0;
-      long temp = strtol(value, &endptr, 10);
+      const long temp = strtol(value, &endptr, 10);
       
       // validate conversion: check for errors, no conversion, trailing chars, or out of range
       if (errno != 0 || endptr == value || *endptr != '\0' || 
@@ -588,7 +588,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     {
       char* endptr;
       errno = 0;
-      long temp = strtol(value, &endptr, 10);
+      const long temp = strtol(value, &endptr, 10);
       
       // validate conversion: check for errors, no conversion, trailing chars, or out of range
       if (errno != 0 || endptr == value || *endptr != '\0' || 
@@ -605,7 +605,7 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       // first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present)
       char* endptr;
       errno = 0;
-      long temp = strtol(value, &endptr, 10);
+      const long temp = strtol(value, &endptr, 10);
       
       // validate conversion: check for errors, no conversion, trailing chars, or out of range
       if (errno != 0 || endptr == value || *endptr != '\0' || 

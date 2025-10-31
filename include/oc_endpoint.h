@@ -73,7 +73,7 @@ extern "C" {
 
   #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
   
-  // reset a specific bit from above
+  // reset a specific bit from above, used to suppress compiler warnings
   #define UNSET_BIT(flags, bit)  ((flags) &= ~(bit))
 
   /**
