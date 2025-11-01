@@ -201,14 +201,6 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 			// types (allocates only the array , types will be assigned later by oc_resource_bind_resource_type)
 			oc_new_string_array(&resource->types, num_resource_types);
 
-			// properties
-			resource->properties = OC_DISCOVERABLE;
-
-		  #ifdef OC_OSCORE
-			// each new (app) resource is secured
-			resource->properties = OC_SECURE;
-			#endif 
-
 			// callback handler/ acl scope and interfaces = default
       resource->get_handler.cb = NULL;
 			resource->get_handler.acl_scope_mask = OC_ACL_NONE;
@@ -302,78 +294,60 @@ void oc_resource_bind_content_type(oc_resource_t* resource,
 
 }
 
-void oc_resource_set_discoverable(oc_resource_t* resource, bool state)
-{
-	if (resource == NULL)
-	{
-		OC_ERR("resource is NULL");
-		return;
-	}
-	if (resource->is_const)
-	{
-		OC_ERR("resource data is const");
-		return;
-	}
-
-	if (state)
-    resource->properties |= OC_DISCOVERABLE;
-  else
-    UNSET_BIT(resource->properties, OC_DISCOVERABLE);
-}
-
-void oc_resource_set_observable(oc_resource_t* resource, bool state)
-{
-	if (resource == NULL)
-	{
-		OC_ERR("resource is NULL");
-		return;
-	}
-	if (resource->is_const)
-	{
-		OC_ERR("resource data is const");
-		return;
-	}
-
-	if (state)
-    resource->properties |= OC_OBSERVABLE;
-  else
-    UNSET_BIT(resource->properties, OC_OBSERVABLE + OC_PERIODIC);
-}
-
 void oc_resource_set_periodic_observable(oc_resource_t* resource, uint16_t seconds)
 {
 	if (resource == NULL)
 	{
-		OC_ERR("oc_resource_set_periodic_observable: resource is NULL");
+		OC_ERR("resource is NULL");
 		return;
 	}
 	if (resource->is_const)
 	{
-		OC_ERR("oc_resource_set_periodic_observable: resource data is const");
+		OC_ERR("resource data is const");
 		return;
 	}
 
+	// set also properties, to make sure that time and properties are always set together
 	resource->properties |= OC_OBSERVABLE + OC_PERIODIC;
 	resource->observe_period_seconds = seconds;
 }
 
-void oc_resource_set_write_access_affects_fingerprint(oc_resource_t* resource, bool state)
+void oc_resource_set_properties(oc_resource_t* resource, oc_resource_properties_t properties)
 {
   if (resource == NULL)
   {
-    OC_ERR("oc_resource_set_write_access_affects_fingerprint: resource is NULL");
+    OC_ERR("resource is NULL");
     return;
   }
   if (resource->is_const)
   {
-    OC_ERR("oc_resource_set_write_access_affects_fingerprint: resource data is const");
+    OC_ERR("resource data is const");
     return;
   }
 
-	if (state)
-    resource->properties |= OC_WRITE_AFFECTS_FP;
-  else
-    UNSET_BIT(resource->properties, OC_WRITE_AFFECTS_FP);
+	// set all handed over properties, but do not touch the others
+  resource->properties |= properties;
+}
+
+void oc_resource_reset_properties(oc_resource_t* resource, oc_resource_properties_t properties)
+{
+  if (resource == NULL)
+  {
+    OC_ERR("resource is NULL");
+    return;
+  }
+  if (resource->is_const)
+  {
+    OC_ERR("resource data is const");
+    return;
+  }
+
+	// reset all handed over properties, but do not touch the others 
+  UNSET_BIT(resource->properties, properties);
+
+	// in case of reset observable flag, also remove the periodic flag
+  if (properties & OC_OBSERVABLE)
+	 UNSET_BIT(resource->properties, OC_PERIODIC);
 }
 
 void oc_resource_set_functional_block_data(oc_resource_t* resource, uint16_t fb_number, uint8_t fb_instance, uint8_t fb_number_datapoints)

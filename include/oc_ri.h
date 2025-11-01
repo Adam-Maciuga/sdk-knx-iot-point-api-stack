@@ -49,17 +49,31 @@ extern "C" {
 	} oc_method_t;
 
 	/**
-	 * @brief resource properties (bit mask)
-	 *
+	  @brief resource properties (bit mask)
+	 
+	  OC_WRITE_AFFECTS_FP
+
+	  - Specify that a write request to the resource changes the application fingerprint.
+    - Must be set by vendor in relation if  a change of value affects the fingerprint.
+      It is NOT checked by stack if the actual written value really changes the original value,
+      the aspect of a POST/PUT is the only criteria.
+    - What is covered by the fingerprint, see KNX IoT specification.
+
+    OC_OBSERVABLE
+
+    - Specify that a resource should notify clients when a property has been modified.
+		- A cyclic notification time can be set with 'oc_resource_set_periodic_observable'.
+
+    
+	 
 	 */
   typedef enum
   {
-    OC_NO_PROPERTIES = 0,					// nothing defined, means also nothing from other props (all false)
-    OC_DISCOVERABLE = 1 << 0,			// resource can be discovered (true) or not
-    OC_OBSERVABLE = 1 << 1,				// resource can be observed (true) or not
-    OC_SECURE = 1 << 4,						// resource is OSCORE secured (set, but not evaluated)
-    OC_PERIODIC = 1 << 6,					// periodical update
-    OC_WRITE_AFFECTS_FP = 1 << 7, // write (PUT/POST) access affects fingerprint, must be set by vendor
+    OC_NO_PROPERTIES = 0,		      // no properties are set at all, means that all other properties are false
+    OC_DISCOVERABLE = 1 << 1,			// resource can be discovered (true) or not (false)
+    OC_OBSERVABLE = 1 << 2,				// resource can be observed (true) or not (false)
+    OC_PERIODIC = 1 << 3,					// the reosuece will cyclically sends a periodical notification update, details on enum defintion 
+    OC_WRITE_AFFECTS_FP = 1 << 4, // write (PUT/POST) access affects fingerprint, must be set by vendor, details on enum definition
   } oc_resource_properties_t;
 
 	/**

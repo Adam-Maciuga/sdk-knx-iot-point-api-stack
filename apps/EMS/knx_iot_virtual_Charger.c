@@ -126,8 +126,8 @@ void register_resources(void)
   oc_resource_bind_dpt(CHARGER_resource, Charger_datapoint[0].dpt);
   oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
   //oc_resource_set_function_block_instance(CHARGER_resource, 1);
-  oc_resource_set_discoverable(CHARGER_resource, true);
-  oc_resource_set_observable(CHARGER_resource, true);
+  
+  oc_resource_set_properties(CHARGER_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* CHARGER_user_data = Charger_datapoint[0].id;
 
   oc_resource_set_request_handler(CHARGER_resource, OC_PUT, Charger_put_charger, CHARGER_user_data, OC_ACL_I, OC_IF_I);    
@@ -146,9 +146,7 @@ void register_resources(void)
 
     //oc_resource_set_function_block_instance(tp0, 1);
 
-    oc_resource_set_discoverable(tp0, true);
-
-    oc_resource_set_observable(tp0, true);
+    oc_resource_set_properties(tp0, OC_OBSERVABLE + OC_DISCOVERABLE);
 
     oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
     oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 

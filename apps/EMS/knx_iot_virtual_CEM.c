@@ -137,32 +137,28 @@ void register_resources(void)
   oc_resource_bind_dpt(MODE_resource, CEM_datapoint[0].dpt);
   oc_resource_bind_content_type(MODE_resource, APPLICATION_CBOR, CONTENT_NONE);
   //oc_resource_set_function_block_instance(MODE_resource, 1);
-  oc_resource_set_discoverable(MODE_resource, true);
-  oc_resource_set_observable(MODE_resource, true);
+  oc_resource_set_properties(MODE_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* MODE_user_data = CEM_datapoint[0].id;
 
   oc_resource_bind_resource_type(PV_resource, CEM_datapoint[1].dpa);
   oc_resource_bind_dpt(PV_resource, CEM_datapoint[1].dpt);
   oc_resource_bind_content_type(PV_resource, APPLICATION_CBOR, CONTENT_NONE);
   //oc_resource_set_function_block_instance(PV_resource, 1);
-  oc_resource_set_discoverable(PV_resource, true);
-  oc_resource_set_observable(PV_resource, true);
+  oc_resource_set_properties(PV_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* PV_user_data = CEM_datapoint[1].id;
 
   oc_resource_bind_resource_type(GRID_resource, CEM_datapoint[2].dpa);
   oc_resource_bind_dpt(GRID_resource, CEM_datapoint[2].dpt);
   oc_resource_bind_content_type(GRID_resource, APPLICATION_CBOR, CONTENT_NONE);
   //oc_resource_set_function_block_instance(GRID_resource, 1);
-  oc_resource_set_discoverable(GRID_resource, true);
-  oc_resource_set_observable(GRID_resource, true);
+  oc_resource_set_properties(GRID_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* GRID_user_data = CEM_datapoint[2].id;
 
   oc_resource_bind_resource_type(CHARGER_resource, CEM_datapoint[3].dpa);
   oc_resource_bind_dpt(CHARGER_resource, CEM_datapoint[3].dpt);
   oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
   //oc_resource_set_function_block_instance(CHARGER_resource, 1);
-  oc_resource_set_discoverable(CHARGER_resource, true);
-  oc_resource_set_observable(CHARGER_resource, true);
+  oc_resource_set_properties(CHARGER_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* CHARGER_user_data = CEM_datapoint[3].id;
 
   oc_resource_set_request_handler(PV_resource, OC_PUT, CEM_put_PV, PV_user_data, OC_ACL_I, OC_IF_I);    
@@ -185,9 +181,7 @@ void register_resources(void)
 
     //oc_resource_set_function_block_instance(tp0, 1);
 
-    oc_resource_set_discoverable(tp0, true);
-
-    oc_resource_set_observable(tp0, true);
+    oc_resource_set_properties(tp0, OC_OBSERVABLE + OC_DISCOVERABLE);
 
     oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
     oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 

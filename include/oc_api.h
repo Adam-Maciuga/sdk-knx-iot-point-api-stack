@@ -487,64 +487,19 @@ extern "C"
  */
 #define oc_set_custom_platform_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
 
-  /* Server side */
   /**
-    @defgroup doc_module_tag_server_side Server side
-    Group of server support functions.
-
-    # standardized data points
-
-    The standardized functions are implemented.
-    The following groups are implemented:
-    - / dev / x
-    - / .well-known / core
-    - / fp / x
-    - / fb / x
-
-    all functions generate the core-link or CBOR formatted responses.
-
-    # application specific data points
-
-    Applications have to define the functions (GET and PUT) for the application
-    level data points. Applications have to define for each instance these
-    functions. The functions are registered with the device and will be called
-    when the other devices are interacting with it.
-
-    see for more details the examples.
-
-    @{
-  */
-  /**
-   * Allocate and populate a new application resource.
+   * @brief Allocate and populate a new application resource.
    *
-   * Resources are the primary interface between code and real world devices.
-   *
-   * Each resource has a Uniform Resource Identifier (URI) that identifies it.
-   * All resources **must** specify one or more Resource Types to be considered a
-   * valid resource. The number of Resource Types is specified by the
-   * `num_resource_types` the actual Resource Types are added later using the
-   * oc_resource_bind_resource_type() function.
-   *
-   * Many properties associated with a resource are set or modified after the
-   * new resource has been created.
-   *
-   * The resource is not added to the device till oc_add_resource() is called.
-   *
-   * Example:
-   * ```
-   * static void register_resources(void)
-   * {
-   *   oc_resource_t *switch = oc_new_resource("light switch", "/switch", 1);
-   *   oc_resource_bind_resource_type(switch, "urn:knx:dpa.417.61");
-   *   oc_resource_bind_dpt(switch, "urn:knx:dpt.switch");
-   *   oc_resource_set_observable(switch, true);
-   *   oc_resource_set_discoverable(switch, true);
-   *   oc_resource_set_write_access_affects_fingerprint(switch, true);
-   *   oc_resource_set_request_handler(switch, OC_GET, get_switch, NULL, OC_ACL_O, OC_IF_O);
-   *   oc_resource_set_request_handler(switch, OC_PUT, put_switch, NULL, OC_ACL_I, OC_IF_I);
-   *   oc_add_resource(switch);
-   * }
-   * ```
+   * @note Resources are the primary interface between code and real world devices.
+   * - Each resource has a Uniform Resource Identifier (URI) that identifies it.
+   * - All resources **must** specify one or more Resource Types to be considered a
+   *   valid resource.
+   * - The number of Resource Types is specified by the`num_resource_types`. The actual
+   *   Resource Types are added later.
+   * - Properties associated with a resource must be set/reset after the
+   *   new resource has been created.
+   * - The resource is NOT added to the device till oc_add_resource() is called.
+   *   Examples see on lsab/lssb 'register resources' method. 
    *
    * @param[in] resource_path the Uniform Resource Identifier for the resource
    * @param[in] num_resource_types the number of Resource Types that will be
@@ -553,10 +508,6 @@ extern "C"
    * @see oc_resource_bind_resource_interface
    * @see oc_resource_bind_resource_type
    * @see oc_resource_bind_dpt
-   * @see oc_process_baseline_interface
-   * @see oc_resource_set_discoverable
-   * @see oc_resource_set_periodic_observable
-   * @see oc_resource_set_write_access_affects_fingerprint
    * @see oc_resource_set_request_handler
    */
   oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types);
@@ -587,7 +538,8 @@ extern "C"
    * @param resource the resource
    * @param content_type_man the mandatory content type
    * @param content_type_man the optional second content type
-   * @note only one type can be set at a time
+
+  * @note only one type can be set at a time as part of the response
    */
   void oc_resource_bind_content_type(oc_resource_t* resource, oc_content_format_t content_type_man,
                                      oc_content_format_t content_type_opt);
@@ -605,64 +557,52 @@ extern "C"
   void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt);
 
   /**
-   * Specify if a resource can be found using .well-known/core discover
-   * mechanisms.
+   * @brief Sets specific resource properties. 
    *
-   * @param[in] resource to specify as discoverable or non-discoverable
-   * @param[in] state if true the resource will be discoverable if false the
-   *                  resource will be non-discoverable
+   * @param[in] resource the resource 
+   * @param[in] properties the properties, to be set for the resource 
    *
-   * @see oc_new_resource for example code using this function
-   */
-  void oc_resource_set_discoverable(oc_resource_t* resource, bool state);
-
-  /**
-   * Specify that a resource should notify clients when a property has been
-   * modified.
-   *
-   * @note this function can be used to make a periodic observable resource
-   *       unobservable.
-   *
-   * @param[in] resource the resource to specify the observability
-   * @param[in] state true to make resource observable, false to make resource
-   *                  unobservable
+   * @note
+   * - The properties are defined as a bit field, see 'oc_resource_properties_t'.
+   * - More than one property can be set at a time.
+   * - All for a resource requested (to be set) properties must be defined with '1'.
+   * - All other properties (e.g.; defined as '0') are not changed on the resource.
+   * - Example, a 'properties' parameter OC_DISCOVERABLE + OC_OBSERVABLE sets both properties for the resource
+   *   but don't affect the value of the OC_WRITE_AFFECTS_FP property.    
    *
    * @see oc_new_resource to see example code using this function
-   * @see oc_resource_set_periodic_observable
    */
-  void oc_resource_set_observable(oc_resource_t* resource, bool state);
-
+  void oc_resource_set_properties(oc_resource_t* resource, oc_resource_properties_t properties);
 
   /**
-   * Specify that a write request to the resource changes the application fingerprint.
+   * @brief Resets specific resource properties.
    *
-   * @note Must be set by vendor in relation if  a change of value affects
-   *       the fingerprint. It is NOT checked by stack if the actual written value
-   *       really changes the original value, the aspect of a POST/PUT is the only
-   *       criteria. What is covered by the fingerprint, see KNX IoT specification. 
+   * @param[in] resource the resource
+   * @param[in] properties the properties, to be reset for the resource
    *
-   * @param[in] resource the resource to specify the observability
-   * @param[in] state true to make resource observable, false to make resource
-   *                  unobservable
+   * @note
+   * - The properties are defined as a bit field, see 'oc_resource_properties_t'.
+   * - More than one property can be reset at a time.
+   * - All for a resource requested (to be reset) properties must be defined with '1'.
+   * - All other properties (e.g.; defined as '0') are not changed on the resource.
+   * - Example, a 'properties' parameter OC_DISCOVERABLE + OC_OBSERVABLE resets both properties for the resource
+   *   but don't affect the value of the OC_WRITE_AFFECTS_FP property.
    *
    * @see oc_new_resource to see example code using this function
-   * @see oc_resource_set_periodic_observable
    */
-  void oc_resource_set_write_access_affects_fingerprint(oc_resource_t* resource, bool state);
+  void oc_resource_reset_properties(oc_resource_t* resource, oc_resource_properties_t properties);
 
   /**
-   * The resource will periodically notify observing clients of is property
-   * values.
+   * @brief The resource will periodically notify observing clients of is property values.
    *
-   * The oc_resource_set_observable() function can be used to turn off a periodic
-   * observable resource.
-   *
-   * Setting a `seconds` frequency of zero `0` is invalid and will result in an
-   * invalid resource.
+   * @note
+   * - The function can be used to turn off a periodic observable resource. Setting a `seconds` frequency
+   *   of zero `0` is invalid.
+   * - The OC_OBSERVABLE and OC_PERIODIC property are set in addition.
    *
    * @param[in] resource the resource to specify the periodic observability
    * @param[in] seconds the frequency in seconds that the resource will send out
-   *                    an notification of is property values.
+   *                    a notification of is property values.
    */
   void oc_resource_set_periodic_observable(oc_resource_t* resource, uint16_t seconds);
 
@@ -700,7 +640,6 @@ extern "C"
    */
   void oc_resource_set_request_handler(oc_resource_t* resource, oc_method_t method, oc_request_callback_t callback,
                                        void* user_data, oc_acl_mask_t scopes, oc_interface_mask_t interfaces);
-
   /**
    * Get for a resource the interfaces for all methods
    *

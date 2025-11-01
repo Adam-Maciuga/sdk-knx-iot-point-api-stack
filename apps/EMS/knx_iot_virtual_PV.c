@@ -131,9 +131,7 @@ void register_resources(void)
 
   //oc_resource_set_function_block_instance(PV_resource, 1);
 
-  oc_resource_set_discoverable(PV_resource, true);
-
-  oc_resource_set_observable(PV_resource, true);
+  oc_resource_set_properties(PV_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
 
   void* PV_user_data = PV_datapoint[0].id;
 
@@ -153,9 +151,7 @@ void register_resources(void)
 
     //oc_resource_set_function_block_instance(tp0, 1);
 
-    oc_resource_set_discoverable(tp0, true);
-
-    oc_resource_set_observable(tp0, true);
+    oc_resource_set_properties(tp0, OC_OBSERVABLE + OC_DISCOVERABLE);
 
     oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
     oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 

@@ -104,15 +104,10 @@ void register_resources(void)
     oc_resource_set_functional_block_data(ioo_resource_lsab, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance,
       lsxb[LSSB].fb_number_of_datapoints);
 
-    oc_resource_set_discoverable(soo_resource_lsab, true);
-    oc_resource_set_discoverable(ioo_resource_lsab, true);
-    oc_resource_set_discoverable(soo_resource_lssb, true);
-    oc_resource_set_discoverable(ioo_resource_lssb, true);
-
-    oc_resource_set_observable(soo_resource_lsab, true);
-    oc_resource_set_observable(ioo_resource_lsab, true);
-    oc_resource_set_observable(soo_resource_lssb, true);
-    oc_resource_set_observable(ioo_resource_lssb, true);
+    oc_resource_set_properties(soo_resource_lsab, OC_DISCOVERABLE + OC_OBSERVABLE);
+    oc_resource_set_properties(ioo_resource_lsab, OC_DISCOVERABLE + OC_OBSERVABLE);
+    oc_resource_set_properties(soo_resource_lssb, OC_DISCOVERABLE + OC_OBSERVABLE);
+    oc_resource_set_properties(ioo_resource_lssb, OC_DISCOVERABLE + OC_OBSERVABLE);
 
     // define user data for PUT/GET, needed to distinguish the call source
     void* soo_user_data_lsab = (void*)(uintptr_t)lsxb[LSAB].point[SOO].id;
@@ -156,9 +151,7 @@ void register_resources(void)
 
     oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
 
-    oc_resource_set_discoverable(tp0, true);
-
-    oc_resource_set_observable(tp0, true);
+    oc_resource_set_properties(tp0, OC_DISCOVERABLE + OC_OBSERVABLE + OC_WRITE_AFFECTS_FP);
 
     // parameter defines GET and PUT 
     oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
