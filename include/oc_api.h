@@ -753,11 +753,12 @@ extern "C"
    * ```
    *
    * @param[in] request the oc_request_t that contains the query parameters
-   * @param[out] key pointer to the location of the key of the key=value pair
-   * @param[out] key_len the length of the key string
-   * @param[out] value pointer the location of the value string assigned to the
-   *             key=value pair
-   * @param[out] value_len the length of the value string
+   * @param[out] key pointer to the location of the 'key' of the 'key=value' pair
+   * @param[out] key_len the length of the 'key'
+   * @param[out] value pointer the location of the 'value' of the 'key=value' pair
+   * @param[out] value_len the length of the value
+   *
+   * @note 'key' and 'value' are not '\0' terminated strings
    *
    * @return
    *   - The position in the query string of the next key=value string pair

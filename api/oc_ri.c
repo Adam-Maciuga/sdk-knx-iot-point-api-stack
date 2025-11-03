@@ -405,45 +405,54 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
 																	size_t n)
 {
 	int next_pos = -1;
-	size_t i = 0;
-	char* start = (char*) query, * current, * current2,
-		* end = (char*) query + query_len;
-	current = start;
 
-	while (i < (n - 1) && current != NULL)
+	// number of scanned independent query fragments with '&' 
+  size_t i = 0;
+
+  const char* start = query;
+  const char* end = query + query_len;
+	const char* current = start;
+
+	while (i < n - 1 && current)
 	{
 		current = memchr(start, '&', end - start);
 		if (current == NULL)
 		{
-			return -1;
+			// no n-th query fragment present as part of uri
+		  return -1;
 		}
-		i++;
-		start = current + 1;
+		i++; // next fragment
+		start = current + 1; // first char after '&'
 	}
 
+	// find '=' after the '&'
 	current = memchr(start, '=', end - start);
-	current2 = memchr(start, '&', end - start);
-	if (current2 != NULL)
+	const char* next_query_fragment = memchr(start, '&', end - start);
+
+  if (next_query_fragment)
 	{
-		if (current2 < current)
+		if (next_query_fragment < current)
 		{
-			/* the key does not have = */
+			// the key does not have '='
 			current = NULL;
 		}
 	}
-	if (current != NULL)
+	if (current)
 	{
-		*key_len = (current - start);
+		*key_len = current - start;
 		*key = start;
 		*value = current + 1;
-		current = memchr(*value, '&', end - *value);
-		if (current == NULL)
+
+	  current = memchr(*value, '&', end - *value);
+
+	  if (current == NULL)
 		{
-			*value_len = (end - *value);
+			// last query fragment does not have a next '&'
+	    *value_len = end - *value;
 		}
 		else
 		{
-			*value_len = (current - *value);
+			*value_len = current - *value;
 		}
 		next_pos = (int) (*value + *value_len - query + 1);
 	}
@@ -457,9 +466,9 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
 		}
 		else
 		{
-			/* there is no value */
+			// there is no value
 			*key = start;
-			*key_len = (current - start);
+			*key_len = current - start;
 		}
 	}
 

@@ -572,13 +572,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     {
       char* endptr;
       errno = 0;
-      const long temp = strtol(value, &endptr, 10);
+      const long int temp = strtol(value, &endptr, 10);
       
-      // validate conversion: check for errors, no conversion, trailing chars, or out of range
-      if (errno != 0 || endptr == value || *endptr != '\0' || 
-          temp < 0 || temp > INT_MAX)
+      // validate: conversion error, invalid chars (only decimal digits allowed), out of range
+      if (errno || endptr != value + value_len || temp <= 0 || temp > INT_MAX)
       {
-        OC_ERR("Invalid 'po' parameter: %s", value);
+        OC_ERR("invalid 'po' parameter: %s", value);
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
@@ -588,13 +587,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
     {
       char* endptr;
       errno = 0;
-      const long temp = strtol(value, &endptr, 10);
+      const long int temp = strtol(value, &endptr, 10);
       
-      // validate conversion: check for errors, no conversion, trailing chars, or out of range
-      if (errno != 0 || endptr == value || *endptr != '\0' || 
-          temp <= 0 || temp > INT_MAX)
+      // validate: conversion error, invalid chars (only decimal digits allowed), out of range
+      if (errno || endptr != value + value_len || temp <= 0 || temp > INT_MAX)
       {
-        OC_ERR("Invalid 'ps' parameter: %s", value);
+        OC_ERR("invalid 'ps' parameter: %s", value);
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
@@ -605,13 +603,12 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
       // first PUT SHALL contain the package size (in bytes), from second request it SHALL be ignored (if present)
       char* endptr;
       errno = 0;
-      const long temp = strtol(value, &endptr, 10);
+      const long int temp = strtol(value, &endptr, 10);
       
-      // validate conversion: check for errors, no conversion, trailing chars, or out of range
-      if (errno != 0 || endptr == value || *endptr != '\0' || 
-          temp <= 0 || temp > INT_MAX)
+      // validate: conversion error, invalid chars (only decimal digits allowed), out of range
+      if (errno || endptr != value + value_len || temp <= 0 || temp > INT_MAX)
       {
-        OC_ERR("Invalid 'pkgs' parameter: %s", value);
+        OC_ERR("invalid 'pkgs' parameter: %s", value);
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
