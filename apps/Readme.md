@@ -71,4 +71,8 @@ Contains a (pre-registered) ETS6 **product** and a (predefined) ETS6 **project**
 - **knx_iot_virtual_lsxb.knxprod** (product)
 - **knx_iot_virtual_lsxb.knxproj** (project)
 
-More details on how to use/edit the product and/or project in ETS6, for this see in [ETS6 pages](../../wikis/Home/ETS6). 	
+More details on how to use/edit the product and/or project in ETS6, for this see in [ETS6 pages](../../wikis/Home/ETS6). 
+
+### Folder '/EMS'
+EMS stands for Energy Management System.  
+This folder contains the sample [EMS applications](apps/EMS/Readme.md) describing how to use the stack in this specific context.	

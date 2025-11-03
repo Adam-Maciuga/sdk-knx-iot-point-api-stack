@@ -44,16 +44,15 @@ extern "C"
   const int MIX_MODE = 1;
 
   // PV app
-  int PV_init_tables();
+  int PV_init_auth_table();
   int PV_init_tables_QR(char*);
-
   char* PV_retrieve_href(uint16_t);
-  void PV_get_PV(oc_request_t*, oc_interface_mask_t, void*);
   void PV_set_PV(int);  
+  void PV_get_PV(oc_request_t*, oc_interface_mask_t, void*);
 
   // CEM app
   int CEM_init_auth_table();
-  int CEM_init_tables();
+  int CEM_init_tables(char*);
   char* CEM_retrieve_href(uint16_t);
   int CEM_retrieve_mode();
   int CEM_retrieve_pv();
@@ -61,15 +60,16 @@ extern "C"
   void CEM_process_pv();
   void CEM_set_mode(int);
   void CEM_set_charger(int);
+  void CEM_set_link(uint64_t);
   void CEM_put_PV(oc_request_t*, oc_interface_mask_t, void*);
   void CEM_get_charger(oc_request_t*, oc_interface_mask_t, void*);  
+  void CEM_get_link(oc_request_t*, oc_interface_mask_t, void*);  
 
   // Charger app
-  int Charger_init_tables();
+  int Charger_init_auth_table();
   int Charger_init_tables_QR(char*);
-
   int Charger_retrieve_charger();
-  void Charger_put_charger(oc_request_t*, oc_interface_mask_t, void*);
+  void Charger_put_charger(oc_request_t*, oc_interface_mask_t, void*);  
 
 #ifdef __cplusplus
 }

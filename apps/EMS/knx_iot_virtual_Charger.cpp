@@ -1,4 +1,4 @@
-/*
+﻿/*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
  Copyright (c) 2024-2025 KNX Association
@@ -128,7 +128,7 @@ class FlowAnimation : public wxPanel
 public:
   FlowAnimation(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(100, 25))
   {
-    SetBackgroundColour(wxColour(20, 20, 20));
+    SetBackgroundColour(wxColour(0, 0, 0));
     Bind(wxEVT_PAINT, &FlowAnimation::OnPaint, this);
 
     m_timer.Bind(wxEVT_TIMER, &FlowAnimation::OnTimer, this);
@@ -204,7 +204,7 @@ private:
 class CustomDialog : public wxDialog
 {
 public:
-  CustomDialog(const wxString& title, const wxString& text);
+  CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
   void on_close(wxCommandEvent& event);
@@ -212,11 +212,10 @@ private:
 
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
-    wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
+CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
+    wxDialog(NULL, -1, title, wxDefaultPosition)
 {
-  int size_x = 520;
-  int size_y = 300;
+  this->SetSize(wxSize(size_x + 30, size_y));
 
   wxPanel* panel = new wxPanel(this, -1);
 
@@ -227,38 +226,22 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
 
   wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn = oc_string(device->serialnumber);
 
-  /*
-
-
-  wxButton* pasteButton = new wxButton(this, wxID_ANY, wxT("Paste Serial Number"));
-  pasteButton->Bind(wxEVT_BUTTON,
-                    [this, tc](wxCommandEvent&)
-                    {
-                      if (wxTheClipboard->Open())
-                      {
-                        if (wxTheClipboard->IsSupported(wxDF_TEXT))
-                        {
-                          wxTextDataObject data;
-                          wxTheClipboard->GetData(data);
-                          wxString wxStr = data.GetText();                        
-                                                    
-                          char serial[16]; 
-                          strncpy(serial, wxStr.mb_str().data(), sizeof(serial) - 1); // safe copy
-                          serial[sizeof(serial) - 1] = '\0';  
-
-                          Charger_init_tables_QR(serial);
-                        }
-                        wxTheClipboard->Close();
-                      }
-
-                      EndModal(wxID_OK);
-
-                    });
-  hbox->Add(pasteButton, 0, wxLEFT, 5);
-
-  */
-
+  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
+  copyButton->Bind(wxEVT_BUTTON,
+                   [this, sn](wxCommandEvent&)
+                   {
+                     if (wxTheClipboard->Open())
+                     {
+                       wxTheClipboard->SetData(new wxTextDataObject(sn));
+                       wxTheClipboard->Close();
+                       //wxMessageBox("Serial number copied to clipboard!", "Copied", wxOK | wxICON_INFORMATION);
+                     }
+                   });
+  hbox->Add(copyButton, 0, wxLEFT, 5);  
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
@@ -320,6 +303,8 @@ private:
   // sleepy information
   int m_sleep_counter = 0;
   int m_sleep_milliseconds = 20000;
+
+  int m_lsm = LSM_S_UNLOADED;
 
   int m_chargeRate = -1;
 
@@ -454,6 +439,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
     
   wxBoxSizer* hbox2 = new wxBoxSizer(wxHORIZONTAL);
   m_flow = new FlowAnimation(this);
+  m_flow->SetColor(wxColour(0xff, 0, 0));
   hbox2->Add(m_flow, 1, wxEXPAND); // stretches horizontally
   
   vbox->Add(hbox1, 0, wxEXPAND | wxALL, 10);
@@ -486,9 +472,9 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
-  //Charger_init_tables();
-  Charger_init_tables_QR("00fa10020c00");
-  device->lsm_s = LSM_S_LOADED;
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+  Charger_init_auth_table();
+  device->lsm_s = LSM_S_UNLOADED;
 }
 
 /**
@@ -542,48 +528,52 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
 
-/**
- * @brief update the text buttons
- * - IA
- * - Loadstate
- * - programming mode
- * - IID
- * - Hostname
- */
+
 void MyFrame::updateDeviceData()
 {
-  /*
-  char text[500];
-  
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  oc_device_info_t* device = oc_core_get_device_info();
 
-  // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info(0);
-  
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
-  m_ia_text->SetLabelText(text);
+  if (m_lsm != device->lsm_s)
+  {
+    m_lsm = device->lsm_s;
 
-  (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_pm_text->SetLabelText(text);
-
-  (void)sprintf(text, "Programming Mode : %d", device->pm);
-  m_ls_text->SetLabelText(text);
-
-  strcpy(text, "IID : ");
-  this->int2grpidtext(device->iid, text, iid_conversion);
-  m_iid_text->SetLabelText(text);
-
-  (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
-  m_hn_text->SetLabelText(text);
-
-  // set in menu the programming mode to what the device has
-  m_menuFile->Check(CHECK_PM, device->pm);
-
-  */
+    if (m_lsm == LSM_S_LOADING)
+    {
+      oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      Charger_init_tables_QR("00fa10020c00");
+      device->lsm_s = LSM_S_LOADED;
+    }
+  }
 }
+
+
+
+/*
+void MyFrame::updateDeviceData()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+
+  if (m_lsm != device->lsm_s)
+  {
+    m_lsm = device->lsm_s;
+
+    if (m_lsm == LSM_S_UNLOADED)
+    {
+      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+    }
+    if (m_lsm == LSM_S_LOADING)
+    {
+      Charger_init_tables_QR("00fa10020c00");
+    }
+    if (m_lsm == LSM_S_LOADED)
+    {
+      //device->lsm_s = LSM_S_LOADED;
+    }
+  }
+}
+*/
+
 
 /**
  * @brief clear the tables of the device
@@ -684,7 +674,7 @@ void MyFrame::OnUsage(wxCommandEvent& event)
       << "- Receives and applies the charging request from the CEM app." << "\n";
 
   strcpy(windowtext, "Device IDs & usage");
-  CustomDialog(windowtext, all);
+  CustomDialog(windowtext, all, 520, 180);
 }
 
 /**
@@ -703,26 +693,36 @@ void MyFrame::OnUsage(wxCommandEvent& event)
  */
 void MyFrame::OnSettings(wxCommandEvent& event)
 {
+  wxString title;
+  wxString all;
+
+  title.Printf("Device settings & cryptography");
+
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
+
+  if (device->lsm_s == LSM_S_UNLOADED)
   {
+    all << "Charger: unloaded" << "\n";
+    CustomDialog(title, all, 250, 100);
     return;
   }
 
-  wxString all;
-  all << dumpGroupObjectTable() << "\n"
-      << dumpPublisherTable()
-      << "\n"
-      /* << dumpRecipientTable() */
-      << "\n"
-      /* << dumpParameterList() << "\n\n" */
-      << dumpAuthTable();
+  if (device->lsm_s == LSM_S_LOADING)
+  {
+    all << "Charger: loading" << "\n";
+    CustomDialog(title, all, 250, 100);
+    return;
+  }
 
-  wxString title;
-  title.Printf("Device settings & cryptography");
+  if (device->lsm_s == LSM_S_LOADED)
+  {
+    all << dumpGroupObjectTable() << "\n"
+        << dumpPublisherTable() << "\n"
+        << "\n"
+        << dumpAuthTable();
 
-  CustomDialog(title, all);
-  // SetStatusText("List All Tables");
+    CustomDialog(title, all, 420, 250);
+  }
 }
 
 
@@ -778,7 +778,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
   }
   strcpy(windowtext, "Group Object Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List Group Object Table");
 }
 
@@ -858,7 +858,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
   }
   strcpy(windowtext, "Publisher Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List Publisher Table");
 }
 
@@ -937,7 +937,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
   }
   strcpy(windowtext, "Recipient Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List Recipient Table");
 }
 /**
@@ -991,7 +991,7 @@ void MyFrame::OnParameterList(wxCommandEvent& event)
   strcat(windowtext, oc_string(device->serialnumber));
   // wxMessageBox(text, windowtext,
   //   wxOK | wxICON_NONE);
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   SetStatusText("List Parameters and their current set values");
 }
 
@@ -1113,7 +1113,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 
   strcpy(windowtext, "Authentication Table");
   //strcat(windowtext, oc_string(device->serialnumber));
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   //SetStatusText("List security entries");
 }
 
@@ -1125,7 +1125,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
   constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text);
+  CustomDialog("About", text, 520, 300);
 }
 
 /**
@@ -1190,6 +1190,7 @@ void MyFrame::ProcessUpdateFromBus()
   
   int chargeRate = Charger_retrieve_charger() / 1000;  
 
+
   if (chargeRate != m_chargeRate)
   {
     m_chargeRate = chargeRate;
@@ -1202,6 +1203,32 @@ void MyFrame::ProcessUpdateFromBus()
     (void)sprintf(text, "out: %d kW", chargeRate);
     m_charger_text->SetValue(text);
   }
+
+  /*
+
+  if (snCEM != m_CEM)
+  {
+    m_CEM = snCEM;
+
+    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
+    char str[13]; // 6 bytes → 12 hex chars + '\0'
+
+    // Format with leading zeros
+    snprintf(str, sizeof(str), "%012llx", (unsigned long long)snCEM);
+
+    if (m_CEM == 0)
+      strcpy(str, "unlinked");
+
+    SetStatusText(str);
+
+    Charger_init_tables_QR(str);
+  }
+
+  */    
+
+
+
+
 }
 
 /**
@@ -1453,13 +1480,14 @@ wxString MyFrame::dumpPublisherTable()
   bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
+  /*
   int total = oc_core_get_publisher_table_size();
   for (int i = 0; i < total; i++)
   {
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(i);
     if (entry && entry->id >= 0)
     {
-      /*
+
       sprintf(line, "Index %d ", i);
       out += line;
       sprintf(line, "  id: '%d'  ", entry->id);
@@ -1480,7 +1508,7 @@ wxString MyFrame::dumpPublisherTable()
         sprintf(line, "  fid: '%lld' ", entry->fid);
         out += line;
       }
-      */
+
       if (entry->grpid > 0)
       {
         strcpy(line, "  - grpid: ");
@@ -1502,9 +1530,63 @@ wxString MyFrame::dumpPublisherTable()
         strcat(line, " ]");
         out += line;
       }
-      // out += "\n";
     }
   }
+  */
+
+  oc_group_table_t* entry = oc_core_get_publisher_table_entry(0);
+
+  if (entry->grpid > 0)
+  {
+    strcpy(line, "  - grpid: ");
+    this->int2grpidtext(entry->grpid, line, grpid_conversion);
+    out += line;
+  }
+  if (oc_string_len(entry->at) > 0)
+  {
+    sprintf(line, "  at: '%s' ", oc_string(entry->at));
+    out += line;
+  }
+  if (entry->ga_len > 0)
+  {
+    strcpy(line, "  ga: [");
+    for (int j = 0; j < entry->ga_len; j++)
+    {
+      this->int2gatext(entry->ga[j], line, ga_conversion);
+    }
+    strcat(line, " ]");
+    out += line;
+  }
+  out += "\n";
+
+  //  ff32:0030:fd7d:ff7f:6c9a:0000:c285:fba0 -> ff32:0030:fd + iid + 0000 + grpid
+  out += "  - address: ff32:0030:fd";
+
+  oc_device_info_t* device = oc_core_get_device_info();
+  uint64_t iid = device->iid;
+
+  uint8_t byte_1 = static_cast<uint8_t>(iid);
+  uint8_t byte_2 = static_cast<uint8_t>(iid >> 8);
+  uint8_t byte_3 = static_cast<uint8_t>(iid >> 16);
+  uint8_t byte_4 = static_cast<uint8_t>(iid >> 24);
+  uint8_t byte_5 = static_cast<uint8_t>(iid >> 32);
+
+  sprintf(line, "%02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
+
+  out += line;
+  out += ":0000:";
+
+  uint64_t grpid = entry->grpid;
+
+  byte_1 = static_cast<uint8_t>(grpid);
+  byte_2 = static_cast<uint8_t>(grpid >> 8);
+  byte_3 = static_cast<uint8_t>(grpid >> 16);
+  byte_4 = static_cast<uint8_t>(grpid >> 24);
+
+  sprintf(line, "%02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
+
+  out += line;
+
   return out;
 }
 
@@ -1647,91 +1729,57 @@ wxString MyFrame::dumpAuthTable()
     oc_auth_at_t* entry = oc_get_auth_at_entry(i);
     if (entry && oc_string_len(entry->id))
     {
-      /*
-      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
-      out += line;
-      sprintf(line, "  profile : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
-      out += line;
-
-      if (entry->profile == OC_PROFILE_COAP_DTLS)
-      {
-        if (oc_string_len(entry->sub) > 0)
-        {
-          sprintf(line, "  sub : %s", oc_string(entry->sub));
-          out += line;
-        }
-        if (oc_string_len(entry->kid) > 0)
-        {
-          sprintf(line, "  kid : %s", oc_string(entry->kid));
-          out += line;
-        }
-      }
-      */
       if (entry->profile == OC_PROFILE_COAP_OSCORE)
       {
-        strcpy(line, "  - ga ");
-        // out += line;
-        this->int2gatext(entry->ga[0], line, ga_conversion);
-        strcat(line, ":\n");
-        out += line;
+        if (oc_byte_string_len(entry->osc_contextid) == 6)
+        {
+          // ga
+          strcpy(line, "       - ga: [");
+          this->int2gatext(entry->ga[0], line, ga_conversion);
+          strcat(line, " ]");
+          out += line;
+          out += "\n";
 
-        // osc_id
-        if (oc_byte_string_len(entry->osc_id) > 0)
-        {
-          sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
-          out += line;
-          char* ms = oc_string(entry->osc_id);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
+          // osc_id
+          if (oc_byte_string_len(entry->osc_id) > 0)
           {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
+            sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
             out += line;
+            char* ms = oc_string(entry->osc_id);
+            for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
+            {
+              sprintf(line, "%02x", (unsigned char)ms[j]);
+              out += line;
+            }
           }
-        }
-        out += "\n";
-        // osc_ms
-        if (oc_byte_string_len(entry->osc_ms) > 0)
-        {
-          sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
-          out += line;
-          char* ms = oc_string(entry->osc_ms);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
+          out += "\n";
+          // osc_ms
+          if (oc_byte_string_len(entry->osc_ms) > 0)
           {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
+            sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
             out += line;
+            char* ms = oc_string(entry->osc_ms);
+            for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
+            {
+              sprintf(line, "%02x", (unsigned char)ms[j]);
+              out += line;
+            }
           }
-        }
-        out += "\n";
-        // osc_contextid
-        if (oc_byte_string_len(entry->osc_contextid) > 0)
-        {
-          sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
-          out += line;
-          char* ms = oc_string(entry->osc_contextid);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
+          out += "\n";
+          // osc_contextid
+          if (oc_byte_string_len(entry->osc_contextid) > 0)
           {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
+            sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
             out += line;
+            char* ms = oc_string(entry->osc_contextid);
+            for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
+            {
+              sprintf(line, "%02x", (unsigned char)ms[j]);
+              out += line;
+            }
           }
+          out += "\n";
         }
-        /*
-        if (entry->scope == OC_ACL_GA)
-        {
-          strcpy(line, " ga: ");
-          out += line;
-          for (int j = 0; j < entry->ga_len; j++)
-          {
-            this->int2gatext(entry->ga[j], line, ga_conversion);
-          }
-          strcat(line, " ");
-          out += line;
-        }
-        else
-        {
-          sprintf(line, "  scope : ");
-          this->int2scopetext(entry->scope, line);
-          out += line;
-        }
-        */
       }
       out += "\n";
     }

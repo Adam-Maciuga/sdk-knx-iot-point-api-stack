@@ -1,4 +1,4 @@
-/*
+﻿/*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
  Copyright (c) 2024-2025 KNX Association
@@ -88,7 +88,7 @@ static CRITICAL_SECTION critical_section;
 const char application_name[] = "Charger";
 const char sn_lower_case[] = "00fa10020d00";  // deliberated incorrect serial numbers
 const char hostname[] = "knx-00fa10020d00";   // default host name (reset uses this default)
-const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
+const char hw_type[] = "EV Charger  ";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
@@ -99,20 +99,11 @@ bool g_reset = false; // reset variable, set by commandline arguments
 int datapoint_charger = 0;
 
 datapoint_t Charger_datapoint[1] = {
-  {"/p/charger", "urn:knx:dpa.666.03", ":dpt.value_power", "CHARGER", "0"} // DPT: 14.056
+  {"/p/charger", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "CHARGER", "0"} // DPT: 14.056
 };
 
-// define LSAB channel 0..1 + included EPs switch control/status
-lsxb_channel_t lsxb[NUM_CHANNELS] = {{417,
-                                      1,
-                                      NUM_POINTS,
-                                      {{false, "/p/lsab/0/soo", "urn:knx:dpa.417.52", ":dpt.switch", (0 << 8) + 0},
-                                       {false, "/p/lsab/0/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (0 << 8) + 1}}},
-                                     {417,
-                                      2,
-                                      NUM_POINTS,
-                                      {{false, "/p/lsab/1/soo", "urn:knx:dpa.417.52", ":dpt.switch", (1 << 8) + 0},
-                                       {false, "/p/lsab/1/ioo", "urn:knx:dpa.417.51", ":dpt.switch", (1 << 8) + 1}}}};
+// due to stuff added in knx_iot_virtual.c
+lsxb_channel_t lsxb[1] = {NULL};
 
 // additional parameters
 int_datapoint_t test_parameter = {
@@ -130,9 +121,9 @@ void register_resources(void)
   oc_resource_set_properties(CHARGER_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* CHARGER_user_data = Charger_datapoint[0].id;
 
-  oc_resource_set_request_handler(CHARGER_resource, OC_PUT, Charger_put_charger, CHARGER_user_data, OC_ACL_I, OC_IF_I);    
+  oc_resource_set_request_handler(CHARGER_resource, OC_PUT, Charger_put_charger, CHARGER_user_data, OC_ACL_I, OC_IF_I); 
 
-  oc_add_resource(CHARGER_resource); 
+  oc_add_resource(CHARGER_resource);
 
   PRINT("Register test parameter");
   {
@@ -192,83 +183,43 @@ int app_initialize_stack(void)
   return oc_main_init(&handler);
 }
 
-int Charger_init_tables()
+
+
+int Charger_init_auth_table()
 {
-  int ia = 0x2004;
-  uint64_t iid = 0x7dff7f6c9a;
-  int fid = 0xfa;
-  uint32_t grpid = 0xc285fba0;
-
-  oc_core_set_and_store_device_ia(ia);
-  oc_core_set_and_store_device_iid(iid);
-  oc_core_set_and_store_device_fid(fid);
-  
-  oc_init_tables();
-
-  int entry;
-  int ga_array_size;
-  uint32_t* ga_array;
-  
-  entry = 0;
-  
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = 0x0002;
-  }
-
-  // object table
-  g_got[entry].id = 0;
-  oc_string_t href_charger;
-  oc_new_string(&href_charger, "/p/charger", strlen("/p/charger"));
-  g_got[entry].href = href_charger;
-  g_got[entry].cflags = OC_CFLAG_WRITE;
-  g_got[entry].ga_len = ga_array_size;
-  g_got[entry].ga = ga_array;  
-
-  // rcp table
-  g_grt[entry].id = 0;
-  g_grt[entry].grpid = grpid;
-  g_grt[entry].ga_len = ga_array_size;
-  g_grt[entry].ga = ga_array;
-
-  // pub table
-  g_gpt[entry].id = 0;
-  g_gpt[entry].grpid = grpid;
-  g_gpt[entry].ga_len = ga_array_size;
-  g_gpt[entry].ga = ga_array;
+  int entry = 0;
 
   // auth table
-  oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020d00", strlen("0c00fa10020d00"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = ga_array_size;
-  g_at_entries[entry].ga = ga_array;
-  BYTE byteArray12[2] = {0x00, 0x02};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {0xE7, 0xCF, 0x5D, 0xDA, 0x0D, 0x26, 0xB5, 0xD4, 0x6C, 0xA9, 0xDB, 0xFB, 0x0A, 0xF0, 0x2E, 0x96};
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+
+  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0d, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {0x00, 0x00, 0x00, 0x00, 0x09, 0x00};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
-  oc_load_group_object_table();
-  oc_load_object_table();
-  oc_load_at_table(); 
-
-  subscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
+  oc_load_at_table();
 
   return 0;
 }
 
-int Charger_init_tables_QR(char* sn_s)
+int Charger_init_tables_QR(char* sn_cem)
 {
-  unsigned char sn_b[6];
+  // the LINK resource is fixed to the sn of this very device
+  // the sn_cem parameter sets the CHARGER resource to the sn received via the LINK resource -> triggered via a bus update
+
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn_charger = oc_string(device->serialnumber);
+
+  unsigned char sn_D[6]; // store the sn of this very device
+  unsigned char sn_L[6]; // store the sn of the device to be linked (CEM)
+  int len;
 
   for (size_t i = 0; i < 6; i++)
-    sn_b[i] = 0x00;
+      sn_D[i] = 0x00;
 
-  int len = strlen(sn_s);
+  len = strlen(sn_charger);
 
   if (len % 2 == 0)
   {
@@ -276,8 +227,34 @@ int Charger_init_tables_QR(char* sn_s)
     {
       for (size_t i = 0; i < 6; i++)
       {
-        char buf[3] = {sn_s[2 * i], sn_s[2 * i + 1], '\0'}; // 2 hex chars
-        sn_b[i] = (unsigned char)strtol(buf, NULL, 16);
+        char buf[3] = {sn_charger[2 * i], sn_charger[2 * i + 1], '\0'}; // 2 hex chars
+        sn_D[i] = (unsigned char)strtol(buf, NULL, 16);
+      }
+    }
+    else
+    {
+      return -1;
+    }
+  }
+  else
+  {
+    return -1;
+  }
+
+
+  for (size_t i = 0; i < 6; i++)
+    sn_L[i] = 0x00;
+
+  len = strlen(sn_cem);
+
+  if (len % 2 == 0)
+  {
+    if (len / 2 == 6)
+    {
+      for (size_t i = 0; i < 6; i++)
+      {
+        char buf[3] = {sn_cem[2 * i], sn_cem[2 * i + 1], '\0'}; // 2 hex chars
+        sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
       }
     }
     else
@@ -297,27 +274,27 @@ int Charger_init_tables_QR(char* sn_s)
 
   iid = 0x00;
   iid <<= 8;
-  iid += sn_b[2];
+  iid += sn_D[0];
   iid <<= 8;
-  iid += sn_b[3];
+  iid += sn_D[1];
   iid <<= 8;
-  iid += sn_b[4];
+  iid += 0x00;
   iid <<= 8;
-  iid += sn_b[5];
+  iid += 0x00;
 
-  fid = sn_b[0];
+  fid = sn_D[0];
   fid <<= 8;
-  fid += sn_b[1];
+  fid += sn_D[1];
   fid <<= 8;
 
   grpid = 0x00;
-  grpid += sn_b[2];
+  grpid += sn_D[0];
   grpid <<= 8;
-  grpid += sn_b[3];
+  grpid += sn_D[1];
   grpid <<= 8;
-  grpid += sn_b[4];
+  grpid += 0x00;
   grpid <<= 8;
-  grpid += sn_b[5];
+  grpid += 0x00;
 
   int ga0 = 0x0001;
   int ga1 = 0x0002;
@@ -326,22 +303,23 @@ int Charger_init_tables_QR(char* sn_s)
   oc_core_set_and_store_device_iid(iid);
   oc_core_set_and_store_device_fid(fid);
 
+  oc_delete_group_object_table();
   oc_init_tables();
+  oc_delete_at_table();
+  unsubscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
 
   int entry;
   int ga_array_size;
   uint32_t* ga_array;
 
+  // object table: 0
   entry = 0;
-
   ga_array_size = 1;
   ga_array = malloc(ga_array_size * sizeof(uint32_t));
   if (ga_array != NULL)
   {
     ga_array[0] = ga1;
   }
-
-  // object table
   g_got[entry].id = 0;
   oc_string_t href_charger;
   oc_new_string(&href_charger, "/p/charger", strlen("/p/charger"));
@@ -350,41 +328,72 @@ int Charger_init_tables_QR(char* sn_s)
   g_got[entry].ga_len = ga_array_size;
   g_got[entry].ga = ga_array;
 
-  // rcp table
+  // rcp+pub tables
+  entry = 0;
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga1;
+  }
   g_grt[entry].id = 0;
   g_grt[entry].grpid = grpid;
   g_grt[entry].ga_len = ga_array_size;
   g_grt[entry].ga = ga_array;
-
-  // pub table
   g_gpt[entry].id = 0;
   g_gpt[entry].grpid = grpid;
   g_gpt[entry].ga_len = ga_array_size;
   g_gpt[entry].ga = ga_array;
 
-  // auth table
+  // auth table: 0
+  entry = 0;
+  ga_array_size = 1;
+  ga_array = malloc(ga_array_size * sizeof(uint32_t));
+  if (ga_array != NULL)
+  {
+    ga_array[0] = ga1;
+  }
   oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
   g_at_entries[entry].scope = OC_ACL_GA;
   g_at_entries[entry].ga_len = ga_array_size;
   g_at_entries[entry].ga = ga_array;
-  BYTE byteArray12[2] = {0, 2};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  BYTE byteArray02[2] = {0, 2};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray02, 2);
+  
+  if (strncmp(sn_cem, "000000000000", 12) == 0)
+  {
+    BYTE byteArray0f[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0};
+    oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
+    BYTE byteArray06[6] = {0, 0, 0, 0, 0, 0};
+    oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
+  }
+  else
+  {
+    BYTE byteArray0f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
+    BYTE byteArray06[6] = {sn_L[2], sn_L[3], sn_L[4], sn_L[5], 0, 2};
+    oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
+  }
+
+  // auth table: 1
+  entry = 1;
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020d00", strlen("0c00fa10020d00"));
+  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
+  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+
+  BYTE byteArray17[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0d, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray17, 7);
+  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {sn_b[2], sn_b[3], sn_b[4], sn_b[5], 0, 2};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
 
   oc_load_group_object_table();
   oc_load_object_table();
   oc_load_at_table();
-
   subscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
 
   return 0;
 }
-
-
 
 int Charger_retrieve_charger() { return datapoint_charger; }
 
@@ -452,6 +461,7 @@ void Charger_put_charger(oc_request_t* request, oc_interface_mask_t interfaces, 
   //PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 }
 
+
 #ifdef WIN32
 /**
  * @brief signal the event loop (windows version)
@@ -510,7 +520,14 @@ int main(const int argc, char* argv[])
   oc_clock_time_t next_event;
 
 #ifdef KNX_GUI
+#ifdef _MSC_VER
+  // MSVC - may not need cast
   WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
+#else
+  // GCC - needs cast to suppress warning
+  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
+#endif
+
 #endif
 
 #ifdef WIN32

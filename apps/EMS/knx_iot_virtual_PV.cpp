@@ -126,7 +126,7 @@ wxCmdLineParser* g_cmd;
 class CustomDialog : public wxDialog
 {
 public:
-  CustomDialog(const wxString& title, const wxString& text);
+  CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
   void on_close(wxCommandEvent& event);
@@ -134,11 +134,10 @@ private:
 
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text)
-    : wxDialog(NULL, -1, title, wxDefaultPosition, wxSize(550, 300))
-{
-  int size_x = 520;
-  int size_y = 300;
+CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
+    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+{  
+  this->SetSize(wxSize(size_x + 30, size_y));
   
   wxPanel* panel = new wxPanel(this, -1);
 
@@ -150,34 +149,21 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text)
   wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
 
-  /*
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn = oc_string(device->serialnumber);
 
-  wxButton* pasteButton = new wxButton(this, wxID_ANY, wxT("Paste Serial Number"));
-  pasteButton->Bind(wxEVT_BUTTON,
-                    [this, tc](wxCommandEvent&)
-                    {
-                      if (wxTheClipboard->Open())
-                      {
-                        if (wxTheClipboard->IsSupported(wxDF_TEXT))
-                        {
-                          wxTextDataObject data;
-                          wxTheClipboard->GetData(data);
-                          wxString wxStr = data.GetText();
-
-                          char serial[16];
-                          strncpy(serial, wxStr.mb_str().data(), sizeof(serial) - 1); // safe copy
-                          serial[sizeof(serial) - 1] = '\0';
-
-                          PV_init_tables_QR(serial);
-                        }
-                        wxTheClipboard->Close();
-                      }
-
-                      EndModal(wxID_OK);
-                    });
-  hbox->Add(pasteButton, 0, wxLEFT, 5);
-
-  */
+  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
+  copyButton->Bind(wxEVT_BUTTON,
+                   [this, sn](wxCommandEvent&)
+                   {
+                     if (wxTheClipboard->Open())
+                     {
+                       wxTheClipboard->SetData(new wxTextDataObject(sn));
+                       wxTheClipboard->Close();
+                       // wxMessageBox("Serial number copied to clipboard!", "Copied", wxOK | wxICON_INFORMATION);
+                     }
+                   });
+  hbox->Add(copyButton, 0, wxLEFT, 5);  
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
@@ -242,6 +228,8 @@ private:
   int m_sleep_counter = 0;
   int m_sleep_milliseconds = 20000;
 
+  int m_lsm = LSM_S_UNLOADED;
+
   // non static device properties
   wxTextCtrl* m_ia_text; // text control for internal address
   wxTextCtrl* m_iid_text; // text control for installation id
@@ -292,19 +280,15 @@ bool MyApp::OnInit()
  * @param serial_number
  */
 MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app")
-{
-    
-   
-      wxMemoryInputStream iconStream(pv_ico, pv_ico_len);
+{  
+  wxMemoryInputStream iconStream(pv_ico, pv_ico_len);
   wxImage img(iconStream, wxBITMAP_TYPE_ICO);
   wxBitmap bmp(img);
   wxIcon icon;
   icon.CopyFromBitmap(bmp);
   SetIcon(icon);
 
-
   wxToolBar* tb = CreateToolBar(wxTB_VERTICAL | wxNO_BORDER | wxTB_FLAT);
-
 
   wxMemoryInputStream stream1(key_png, key_png_len);
   wxImage img1(stream1, wxBITMAP_TYPE_PNG);
@@ -315,10 +299,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
 
   tb->AddTool(DEVICE_SETTINGS, "", wxBitmapBundle::FromBitmap(bmp1), "Settings");
   tb->AddTool(DEVICE_USAGE, "", wxBitmapBundle::FromBitmap(bmp2), "Usage");
-
-
   tb->Realize();
-
 
   m_menuFile = new wxMenu;
   m_menuFile->Append(DEVICE_SETTINGS, "Device Details", "", false);
@@ -390,11 +371,10 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
-  //PV_init_tables();
-  PV_init_tables_QR("00fa10020c00");
-
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
   oc_device_info_t* device = oc_core_get_device_info();
-  device->lsm_s = LSM_S_LOADED;
+  PV_init_auth_table();
+  device->lsm_s = LSM_S_UNLOADED;
 }
 
 /**
@@ -448,48 +428,22 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
 
-/**
- * @brief update the text buttons
- * - IA
- * - Loadstate
- * - programming mode
- * - IID
- * - Hostname
- */
 void MyFrame::updateDeviceData()
 {
-  /*
+  oc_device_info_t* device = oc_core_get_device_info();
 
-  char text[500];
-  
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  if (m_lsm != device->lsm_s)
+  {
+    m_lsm = device->lsm_s;
 
-  // get the device data structure
-  oc_device_info_t* device = oc_core_get_device_info(0);
-  
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
-  m_ia_text->SetLabelText(text);
-
-  (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
-  m_pm_text->SetLabelText(text);
-
-  (void)sprintf(text, "Programming Mode : %d", device->pm);
-  m_ls_text->SetLabelText(text);
-
-  strcpy(text, "IID : ");
-  this->int2grpidtext(device->iid, text, iid_conversion);
-  m_iid_text->SetLabelText(text);
-
-  (void)sprintf(text, "Hostname : %s", oc_string(device->hostname));
-  m_hn_text->SetLabelText(text);
-
-  // set in menu the programming mode to what the device has
-  m_menuFile->Check(CHECK_PM, device->pm);
-
-  */
+    if (m_lsm == LSM_S_LOADING)
+    {
+      oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+      // oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      PV_init_tables_QR("00fa10020c00");
+      device->lsm_s = LSM_S_LOADED;
+    }
+  }
 }
 
 /**
@@ -590,7 +544,7 @@ void MyFrame::OnUsage(wxCommandEvent& event)
       << "- Enables adjustment of the solar production value (0–10 kW) for testing." << "\n";
 
   strcpy(windowtext, "Device IDs & usage");
-  CustomDialog(windowtext, all);
+  CustomDialog(windowtext, all, 520, 180);
 }
 
 /**
@@ -609,26 +563,26 @@ void MyFrame::OnUsage(wxCommandEvent& event)
  */
 void MyFrame::OnSettings(wxCommandEvent& event)
 {
+  wxString title;
+  wxString all;
+
+  title.Printf("Device settings & cryptography");
+
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
+  if (!device || device->lsm_s != LSM_S_LOADED)
   {
+    all << "PV: unloaded" << "\n";
+    CustomDialog(title, all, 250, 100);
     return;
   }
 
-  wxString all;
   all << dumpGroupObjectTable() << "\n"
       << dumpPublisherTable()
       << "\n"
-      /* << dumpRecipientTable() */
       << "\n"
-      /* << dumpParameterList() << "\n\n" */
       << dumpAuthTable();
 
-  wxString title;
-  title.Printf("Device settings & cryptography");
-
-  CustomDialog(title, all);
-  // SetStatusText("List All Tables");
+  CustomDialog(title, all, 420, 250);
 }
 
 
@@ -685,7 +639,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
     
   }
   strcpy(windowtext, "Group Object Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -763,7 +717,7 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
     }
   }
   strcpy(windowtext, "Publisher Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -840,7 +794,7 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
     }
   }
   strcpy(windowtext, "Recipient Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 /**
  * @brief shows a window containing the parameters and current values of the application
@@ -893,7 +847,7 @@ void MyFrame::OnParameterList(wxCommandEvent& event)
   strcat(windowtext, oc_string(device->serialnumber));
   // wxMessageBox(text, windowtext,
   //   wxOK | wxICON_NONE);
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
   SetStatusText("List Parameters and their current set values");
 }
 
@@ -1014,7 +968,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
   }
 
   strcpy(windowtext, "Authentication Table");
-  CustomDialog(windowtext, text);
+  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -1025,7 +979,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
   constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text);
+  CustomDialog("About", text, 520, 300);
 }
 
 /**
@@ -1270,20 +1224,31 @@ void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
 
 void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
 {
-  // get url
-  char* url = PV_retrieve_href(0);
-  // get the slider value
-  int val = m_PV_slider->GetValue();
+  /*
+    if (PV_retrieve_link() != 0)
+  {
+  }
+  else
+  {
+    SetStatusText("not linked");
+  }
+    */
+
+      // get url
+      char* url = PV_retrieve_href(0);
+      // get the slider value
+      int val = m_PV_slider->GetValue();
 
   PV_set_PV(val);
 
   oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
-  // show in status bar
-  char statusBarText[100];
-  // Present DC power of all solar panels connected to this PV control
-  (void)sprintf(statusBarText, "Present DC power = %d kW", val);
-  SetStatusText(statusBarText);
+      // show in status bar
+      char statusBarText[100];
+      // Present DC power of all solar panels connected to this PV control
+      (void)sprintf(statusBarText, "Present DC power = %d kW", val);
+      SetStatusText(statusBarText);
+
 }
 
 
@@ -1554,91 +1519,57 @@ wxString MyFrame::dumpAuthTable()
     oc_auth_at_t* entry = oc_get_auth_at_entry(i);
     if (entry && oc_string_len(entry->id))
     {
-      /*
-      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
-      out += line;
-      sprintf(line, "  profile : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
-      out += line;
-
-      if (entry->profile == OC_PROFILE_COAP_DTLS)
-      {
-        if (oc_string_len(entry->sub) > 0)
-        {
-          sprintf(line, "  sub : %s", oc_string(entry->sub));
-          out += line;
-        }
-        if (oc_string_len(entry->kid) > 0)
-        {
-          sprintf(line, "  kid : %s", oc_string(entry->kid));
-          out += line;
-        }
-      }
-      */
       if (entry->profile == OC_PROFILE_COAP_OSCORE)
       {
-        strcpy(line, "  - ga ");
-        // out += line;
-        this->int2gatext(entry->ga[0], line, ga_conversion);
-        strcat(line, ":\n");
-        out += line;
+          if (oc_byte_string_len(entry->osc_contextid) == 6)
+          {
+            // ga
+            strcpy(line, "       - ga: [");
+            this->int2gatext(entry->ga[0], line, ga_conversion); 
+            strcat(line, " ]");
+            out += line;
+            out += "\n";
 
-        // osc_id
-        if (oc_byte_string_len(entry->osc_id) > 0)
-        {
-          sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
-          out += line;
-          char* ms = oc_string(entry->osc_id);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
+            // osc_id
+            if (oc_byte_string_len(entry->osc_id) > 0)
+            {
+              sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
+              out += line;
+              char* ms = oc_string(entry->osc_id);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
+            // osc_ms
+            if (oc_byte_string_len(entry->osc_ms) > 0)
+            {
+              sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
+              out += line;
+              char* ms = oc_string(entry->osc_ms);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
+            // osc_contextid
+            if (oc_byte_string_len(entry->osc_contextid) > 0)
+            {
+              sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
+              out += line;
+              char* ms = oc_string(entry->osc_contextid);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
         }
-        out += "\n";
-        // osc_ms
-        if (oc_byte_string_len(entry->osc_ms) > 0)
-        {
-          sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
-          out += line;
-          char* ms = oc_string(entry->osc_ms);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
-        }
-        out += "\n";
-        // osc_contextid
-        if (oc_byte_string_len(entry->osc_contextid) > 0)
-        {
-          sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
-          out += line;
-          char* ms = oc_string(entry->osc_contextid);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
-        }
-        /*
-        if (entry->scope == OC_ACL_GA)
-        {
-          strcpy(line, " ga: ");
-          out += line;
-          for (int j = 0; j < entry->ga_len; j++)
-          {
-            this->int2gatext(entry->ga[j], line, ga_conversion);
-          }
-          strcat(line, " ");
-          out += line;
-        }
-        else
-        {
-          sprintf(line, "  scope : ");
-          this->int2scopetext(entry->scope, line);
-          out += line;
-        }
-        */
       }
       out += "\n";
     }
