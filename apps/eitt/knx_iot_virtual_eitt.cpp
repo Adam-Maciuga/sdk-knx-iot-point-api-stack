@@ -799,15 +799,15 @@ void MyFrame::double2text(double value, char* text)
 
 void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
 {
-  // get url from SOO
-  char* url = app_retrieve_href_from_channel(0, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(0, SOO);
+  // get url from SOO (channel 1 out of 2) as defined in EITT template
+  char* url = app_retrieve_href_from_channel(1, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(1, SOO);
 
   // toggle value
   p = !p;
 
   // set value
-  app_set_bool_variable_from_channel(0, SOO, p);
+  app_set_bool_variable_from_channel(1, SOO, p);
 
   // send out, multicast
   oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
