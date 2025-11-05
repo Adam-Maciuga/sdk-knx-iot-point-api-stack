@@ -28,7 +28,7 @@
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#include "apps/knx_iot_virtual.h"
+#include "apps/knx/knx_iot_virtual_knx.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 

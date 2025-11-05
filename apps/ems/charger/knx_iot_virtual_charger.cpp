@@ -57,10 +57,10 @@
 #include "port/dns-sd.h"
 #include "oc_oscore_context.h"
 
-#include "knx_iot_virtual_EMS.h"
-#include "icons/key_png.h"
-#include "icons/charger_png.h"
-#include "icons/charger_ico.h"
+#include "../knx_iot_virtual_EMS.h"
+#include "../icons/key_png.h"
+#include "../icons/charger_png.h"
+#include "../icons/charger_ico.h"
 #include <wx/clipbrd.h>
 
 // IDs for the controls and the menu commands
@@ -1188,7 +1188,7 @@ void MyFrame::ProcessUpdateFromBus()
 
   char text[200];
   
-  int chargeRate = Charger_retrieve_charger() / 1000;  
+  int chargeRate = app_retrieve_int_variable_from_charger() / 1000;  
 
 
   if (chargeRate != m_chargeRate)

@@ -55,9 +55,7 @@
 #include <signal.h> // test purpose only; commandline reset
 #include <stdio.h> // defines FILENAME_MAX
 #include <stdlib.h>
-#include "apps/knx_iot_virtual.h" // application constants + methods
-
-#include "knx_iot_virtual_EMS.h"
+#include "../knx_iot_virtual_ems.h"
 
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
@@ -85,10 +83,10 @@ static CRITICAL_SECTION critical_section;
 #define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
 #endif
 
-const char application_name[] = "Charger";
-const char sn_lower_case[] = "00fa10020d00";  // deliberated incorrect serial numbers
-const char hostname[] = "knx-00fa10020d00";   // default host name (reset uses this default)
-const char hw_type[] = "EV Charger  ";        // 12 string chars, MSB = 00
+const char application_name[] = "Inverter PV control";
+const char sn_lower_case[] = "00fa10020b00";  // deliberated incorrect serial numbers
+const char hostname[] = "knx-00fa10020b00";   // default host name (reset uses this default)
+const char hw_type[] = "PV Inverter ";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
@@ -96,10 +94,11 @@ const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 volatile int quit = 0; // stop variable, used by handle_signal
 bool g_reset = false; // reset variable, set by commandline arguments
 
-int datapoint_charger = 0;
+int datapoint_pv = 0;
+uint64_t datapoint_link = 0;
 
-datapoint_t Charger_datapoint[1] = {
-  {"/p/charger", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "CHARGER", "0"} // DPT: 14.056
+datapoint_t PV_datapoint[1] = {
+  {"/p/pv", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "PV", "0"} // DPT: 14.056
 };
 
 // due to stuff added in knx_iot_virtual.c
@@ -109,21 +108,24 @@ lsxb_channel_t lsxb[1] = {NULL};
 int_datapoint_t test_parameter = {
   0, "/p/globalTestParameter", "urn:knx:dpa.65500.201", ":dpt.value2Ucount", "Global Test Parameter"};
 
+
 void register_resources(void)
-{
-  oc_resource_t* CHARGER_resource = oc_new_resource(Charger_datapoint[0].resource_path, 1);
-
-  oc_resource_bind_resource_type(CHARGER_resource, Charger_datapoint[0].dpa);
-  oc_resource_bind_dpt(CHARGER_resource, Charger_datapoint[0].dpt);
-  oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
-  //oc_resource_set_function_block_instance(CHARGER_resource, 1);
+{   
+  oc_resource_t* PV_resource = oc_new_resource(PV_datapoint[0].resource_path, 1);
   
-  oc_resource_set_properties(CHARGER_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
-  void* CHARGER_user_data = Charger_datapoint[0].id;
+  oc_resource_bind_resource_type(PV_resource, PV_datapoint[0].dpa);
+  oc_resource_bind_dpt(PV_resource, PV_datapoint[0].dpt);
+  oc_resource_bind_content_type(PV_resource, APPLICATION_CBOR, CONTENT_NONE);
 
-  oc_resource_set_request_handler(CHARGER_resource, OC_PUT, Charger_put_charger, CHARGER_user_data, OC_ACL_I, OC_IF_I); 
+  //oc_resource_set_function_block_instance(PV_resource, 1);
 
-  oc_add_resource(CHARGER_resource);
+  oc_resource_set_properties(PV_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
+
+  void* PV_user_data = PV_datapoint[0].id;
+
+  oc_resource_set_request_handler(PV_resource, OC_GET, PV_get_PV, PV_user_data, OC_ACL_I, OC_IF_I);  
+
+  oc_add_resource(PV_resource);  
 
   PRINT("Register test parameter");
   {
@@ -161,7 +163,7 @@ int app_initialize_stack(void)
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
   //(void)sprintf(storage, "./knx_iot_virtual_PV_%s", app_get_serial_number());
-  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_Charger_%s", dir, sn_lower_case);
+  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_PV_%s", dir, sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
   oc_storage_config(storage);
 
@@ -184,42 +186,44 @@ int app_initialize_stack(void)
 }
 
 
-
-int Charger_init_auth_table()
+int PV_init_auth_table()
 {
   int entry = 0;
 
+  oc_delete_at_table();
+
   // auth table
-  oc_new_string(&g_at_entries[entry].id, "0c00fa10020d00", strlen("0c00fa10020d00"));
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020b00", strlen("0c00fa10020b00"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
   g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
 
-  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0d, 0x00};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
-  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+  BYTE byteArray07[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0b, 0x00};
+  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray07, 7);
+  BYTE byteArray0f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
 
   oc_load_at_table();
 
   return 0;
 }
 
-int Charger_init_tables_QR(char* sn_cem)
+
+int PV_init_tables_QR(char* sn_cem)
 {
   // the LINK resource is fixed to the sn of this very device
   // the sn_cem parameter sets the CHARGER resource to the sn received via the LINK resource -> triggered via a bus update
 
   oc_device_info_t* device = oc_core_get_device_info();
-  char* sn_charger = oc_string(device->serialnumber);
+  char* sn_pv = oc_string(device->serialnumber);
 
   unsigned char sn_D[6]; // store the sn of this very device
   unsigned char sn_L[6]; // store the sn of the device to be linked (CEM)
   int len;
 
   for (size_t i = 0; i < 6; i++)
-      sn_D[i] = 0x00;
+    sn_D[i] = 0x00;
 
-  len = strlen(sn_charger);
+  len = strlen(sn_pv);
 
   if (len % 2 == 0)
   {
@@ -227,7 +231,7 @@ int Charger_init_tables_QR(char* sn_cem)
     {
       for (size_t i = 0; i < 6; i++)
       {
-        char buf[3] = {sn_charger[2 * i], sn_charger[2 * i + 1], '\0'}; // 2 hex chars
+        char buf[3] = {sn_pv[2 * i], sn_pv[2 * i + 1], '\0'}; // 2 hex chars
         sn_D[i] = (unsigned char)strtol(buf, NULL, 16);
       }
     }
@@ -318,13 +322,13 @@ int Charger_init_tables_QR(char* sn_cem)
   ga_array = malloc(ga_array_size * sizeof(uint32_t));
   if (ga_array != NULL)
   {
-    ga_array[0] = ga1;
-  }
+    ga_array[0] = ga0;
+  }  
   g_got[entry].id = 0;
-  oc_string_t href_charger;
-  oc_new_string(&href_charger, "/p/charger", strlen("/p/charger"));
-  g_got[entry].href = href_charger;
-  g_got[entry].cflags = OC_CFLAG_WRITE;
+  oc_string_t href_pv;
+  oc_new_string(&href_pv, "/p/pv", strlen("/p/pv"));
+  g_got[entry].href = href_pv;
+  g_got[entry].cflags = OC_CFLAG_TRANSMISSION;
   g_got[entry].ga_len = ga_array_size;
   g_got[entry].ga = ga_array;
 
@@ -334,7 +338,7 @@ int Charger_init_tables_QR(char* sn_cem)
   ga_array = malloc(ga_array_size * sizeof(uint32_t));
   if (ga_array != NULL)
   {
-    ga_array[0] = ga1;
+    ga_array[0] = ga0;
   }
   g_grt[entry].id = 0;
   g_grt[entry].grpid = grpid;
@@ -347,23 +351,17 @@ int Charger_init_tables_QR(char* sn_cem)
 
   // auth table: 0
   entry = 0;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = ga1;
-  }
-  oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
+  oc_new_string(&g_at_entries[entry].id, "0/0/1", strlen("0/0/1"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
   g_at_entries[entry].scope = OC_ACL_GA;
   g_at_entries[entry].ga_len = ga_array_size;
   g_at_entries[entry].ga = ga_array;
-  BYTE byteArray02[2] = {0, 2};
+  BYTE byteArray02[2] = {0, 1};
   oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray02, 2);
-  
+
   if (strncmp(sn_cem, "000000000000", 12) == 0)
   {
-    BYTE byteArray0f[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0};
+    BYTE byteArray0f[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
     BYTE byteArray06[6] = {0, 0, 0, 0, 0, 0};
     oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
@@ -372,17 +370,17 @@ int Charger_init_tables_QR(char* sn_cem)
   {
     BYTE byteArray0f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
-    BYTE byteArray06[6] = {sn_L[2], sn_L[3], sn_L[4], sn_L[5], 0, 2};
+    BYTE byteArray06[6] = {sn_L[2], sn_L[3], sn_L[4], sn_L[5], 0, 1};
     oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
   }
 
   // auth table: 1
   entry = 1;
-  oc_new_string(&g_at_entries[entry].id, "0c00fa10020d00", strlen("0c00fa10020d00"));
+  oc_new_string(&g_at_entries[entry].id, "0c00fa10020b00", strlen("0c00fa10020b00"));
   g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
   g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
 
-  BYTE byteArray17[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0d, 0x00};
+  BYTE byteArray17[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0b, 0x00};
   oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray17, 7);
   BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
   oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
@@ -395,72 +393,153 @@ int Charger_init_tables_QR(char* sn_cem)
   return 0;
 }
 
-int Charger_retrieve_charger() { return datapoint_charger; }
 
-void Charger_put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+
+char* PV_retrieve_href(uint16_t point) { return PV_datapoint[point].resource_path; }
+
+void PV_set_PV(int v) { datapoint_pv = v * 1000; }
+
+void PV_get_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
+  (void)interfaces;
   bool error_state = true;
 
-  // get interfaces for the resource PUT method ...
-  bool is_input_datapoint = interfaces & OC_IF_I;
-
-  // sets the pointer to the (/k or /p) handed over object
-  const oc_rep_t* rep = request->request_payload;
-
   // user data host the HEX encoded channel/datapoint
-  const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
+  const uint32_t channel_and_datapoint = strtol(user_data, NULL, 16);
   const uint16_t c = channel_and_datapoint >> 16;
   const uint16_t p = channel_and_datapoint & 0x0000FFFF;
 
-  //PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  //PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
 
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by /p or /k s-mode message EP)
-  if (oc_is_redirected_request_from(request) == 1)
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    // caller /p --> always allow to write (see 'Callback Notes' above)
-    is_input_datapoint = true;
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
-
-  // loop over object
-  while (rep)
-  {
-    if (rep->iname == 1 && rep->type == OC_REP_INT)
-    {
-      if (!is_input_datapoint)
-      {
-        // see 'Callback Notes' above
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
-        return;
-      }
-
-      // see 'Callback Notes' above
-      datapoint_charger = rep->value.integer;
-      error_state = false;
-
-      PRINT("set LSSB to %d", rep->value.integer);
-      break;
-    }
-    rep = rep->next;
-  }
-
-  // correct data retrieved
-  if (!error_state)
-  {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    //PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
-
     return;
   }
 
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  //PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
-}
+  // handle the different request sources, here included as an example to distinguish
+  // the caller source (e.g.; called by p/ or /k s-mode message EP)
+  if (oc_is_redirected_request_from(request) == 1)
+  {
+    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
+  }
 
+  oc_device_info_t* device = oc_core_get_device_info();
+
+  // open CBOR
+  oc_rep_begin_root_object();
+
+  if (device != NULL)
+  {
+    if (oc_query_value_exists(request, "m") != -1)
+    {
+      // ... query parameter 'm' is present, check the various values
+      char* m;
+      char* m_key;
+      size_t m_key_len;
+      size_t m_len = oc_get_query_value(request, "m", &m);
+
+      PRINT("Query Parameter: %.*s", (int)m_len, m);
+
+      oc_init_query_iterator();
+
+      // check query parameter
+      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+      {
+        // unique identifier
+        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          // knx://sn: + max len SN + uri path + \0 = ~ 65
+          char serial_number[65];
+
+          (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
+                         oc_string(request->resource->uri));
+
+          oc_rep_i_set_text_string(root, 0, serial_number);
+
+          error_state = false;
+        }
+        // value
+        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          // see 'Callback Notes' above
+          oc_rep_set_uint(root, value, datapoint_pv);
+          error_state = false;
+        }
+        // resource types
+        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          // use the first type, skip urn:knx (=7), if more types are used
+          // - add a next in the data structure
+          // - add an extra line
+          const char* first_type = oc_string_array_get_item(request->resource->types, 0);
+
+          oc_rep_text_set_text_string(root, rt, first_type + 7);
+          error_state = false;
+        }
+        // interfaces (array of text strings)
+        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          add_all_interface_short_urns_for_a_resource(request->resource);
+          error_state = false;
+        }
+        // dpt
+        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
+          error_state = false;
+        }
+        // ga
+        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+          if (index > -1)
+          {
+            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+            if (got_table_entry)
+            {
+              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
+            }
+          }
+          error_state = false;
+        }
+        // description
+        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        {
+          //oc_rep_text_set_text_string(root, desc, oc_string(request->resource->name));
+
+          error_state = false;
+        }
+      }
+    }
+    else
+    { // ... no query parameter 'm' present at all, set value for the GET
+
+      // see 'Callback Notes' above
+      oc_rep_i_set_uint(root, 1, datapoint_pv);
+
+      error_state = false;
+    }
+  }
+
+  // close CBOR
+  oc_rep_end_root_object();
+
+  // check CBOR encoding errors
+  if (g_err != CborNoError)
+  {
+    error_state = true;
+  }
+
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
+
+  // wrong device, cbor error or unknown 'm' query parameter key values
+  if (error_state)
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  else
+    oc_prepare_cbor_response(request, OC_STATUS_OK);
+
+  //PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+}
 
 #ifdef WIN32
 /**

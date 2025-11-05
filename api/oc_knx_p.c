@@ -1,5 +1,6 @@
 /*
  // Copyright (c) 2022-2023 Cascoda Ltd
+ // Copyright (c) 2024-2025 KNX Association
  //
  // Licensed under the Apache License, Version 2.0 (the "License");
  // you may not use this file except in compliance with the License.
@@ -56,14 +57,14 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
     return;
   }
 
-  // calculate total properties
+  // calculate total resources
   const oc_resource_t* my_p0 = oc_ri_get_app_resources();
   const oc_resource_t* my_p1 = my_p0;
 
   for (; my_p0; my_p0 = my_p0->next)
   {
     if (oc_string(my_p0->uri))
-    {
+    { // check path is enough
       total++;
     }
   }
@@ -84,7 +85,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
     return;
   }
 
-  // calculate first property for the requested page
+  // calculate first resource for the requested page
   for (int i = 0; i < first_entry; i++)
   {
     my_p1 = my_p1->next;
@@ -108,13 +109,34 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   }
   else
   {
-    // (> 0 application) resources are mandatory, hence this can't be correct here
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+    // no application resources ..., hence this can't be correct here
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
 
   PRINT("oc_core_p_get_handler - end");
 }
 
+/**
+  @brief parameter and diagnostic messaging endpoint for unicast
+
+  @param request the request message
+  @param iface_mask interface mask from caller
+  @param data user data if provided (otherwise NULL)
+
+  @note
+  workflow for receiving an inbound message:
+
+         1. after (re)configuration
+            a: nothing
+         2. at runtime
+            a: an unicast POST message is received by IP layer,
+              -> forward to /p (provided security check was passed)
+            b: method '/p' checks call PUT callback handler
+
+  mandatory resources
+  - Access token table
+
+*/
 static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -129,13 +151,16 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-  // check first if the url is implemented on the device (performance)
+  // check first if one of the url is implemented on the device (performance)
   const oc_rep_t* rep = request->request_payload;
   while (rep)
   {
     if (rep->type == OC_REP_OBJECT)
     {
-      // scan for objects, a post may contain in the collection many items, each with many attributes
+      /*
+         scan for objects, a post may contain in the collection many resource items,
+         each with many properties
+       */
       const oc_rep_t* entry_object = rep->value.object;
 
       // check if 'href' is present
@@ -163,8 +188,8 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   {
     PRINT("oc_core_p_post_handler - end");
 
-    // no bad request since /p was ok, but not a single collection 'href'
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
+    // no bad request since /p was ok, but not a single collection 'href' was found
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
     return;
   }
 
@@ -183,12 +208,14 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   {
     if (rep->type == OC_REP_OBJECT)
     {
-      // scan for objects, a post may contain in the collection many items, each with many attributes (value, metadata)
+      /*
+         scan for objects, a post may contain in the collection many resource items,
+         each with many properties
+       */
       oc_rep_t* entry_object = rep->value.object;
 
       const oc_string_t* entry_url = NULL;
       oc_rep_t* entry_value = NULL;
-
 
       while (entry_object)
       {
@@ -198,7 +225,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           entry_url = &entry_object->value.string;
         }
 
-        // value
+        // value = MANDATORY
         if (entry_object->iname == 1)
         {
           entry_value = entry_object;
@@ -207,10 +234,11 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
         /*
           Do the post only if (at least) a href and value is in the request, reason: 
 
-          - WRITING of metadata (per POST here, or PUT) is optional in the specification; this is NOT supported from the stack, hence to
-            write a value in this stack version at least href + value must be present. 
-          - Note, READING of metadata (per GET) is mandatory in the specification for specific types (if, rt, ...),
-            this is supported from the stack (application callback handler).
+          - WRITING of metadata (per POST here, or PUT) is optional in the specification;
+            this is NOT supported from the stack, hence to write a value in this stack version
+            at least href + value must be present. 
+          - Note, READING of metadata (per GET) is mandatory in the specification for specific types
+            (if, rt, ...), this is supported from the stack (application callback handler).
         */
         if (entry_value && entry_url)
         {
@@ -221,31 +249,24 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
           // used by /p and /k that calls the same application callback handlers
           new_request.request_payload = rep->value.object;
 
-          const oc_resource_t* my_resource =
+          const oc_resource_t* application_resource_with_href_match =
             oc_ri_get_app_resource_by_resource_path(oc_string(*entry_url), oc_string_len(*entry_url));
 
-          if (my_resource && my_resource->put_handler.cb)
+          if (application_resource_with_href_match && application_resource_with_href_match->put_handler.cb)
           {
             /*
-               call PUT callback handler from inbound POST to uri path with 'p' and len >= 1
-
-               - uri path is used by /p and /k endpoints that calls the same application callback handlers
-                 (for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p)
-               - uri path is used for a redirect check in application callback handler
-               - use new request (not the received one with POST), user data are possible
-               - call application handler with own interface/ user data
-                 (it makes no sense to call it with the original /p interface mask, this is a fix value)
-
+              call callback PUT handler from inbound POST to uri path with 'p' and len = 1,
+              details for this see POST /k handler (oc_knc.c)
             */
-            my_resource->put_handler.cb(&new_request, 
-                                        my_resource->put_handler.interface_mask,
-                                        my_resource->put_handler.user_data);
+            application_resource_with_href_match->put_handler.cb(&new_request, 
+                                        application_resource_with_href_match->put_handler.interface_mask,
+                                        application_resource_with_href_match->put_handler.user_data);
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
 
             // access changes fingerprint on /p ? -> update 
-            if (my_resource->properties & OC_WRITE_AFFECTS_FP)
+            if (application_resource_with_href_match->properties & OC_WRITE_AFFECTS_FP)
               oc_knx_increase_fingerprint();
           }
         }

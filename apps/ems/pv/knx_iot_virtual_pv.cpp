@@ -1,4 +1,4 @@
-﻿/*
+/*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Copyright (c) 2022-2023 Cascoda Ltd
  Copyright (c) 2024-2025 KNX Association
@@ -18,32 +18,35 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
+
+// For compilers that support precompilation, includes "wx/wx.h".
 #include <wx/cmdline.h>
 #include <wx/scrolbar.h>
 #include <wx/wxprec.h>
-#include "wx/config.h"
-#include "wx/dnd.h"
-#include "wx/filedlg.h"
-#include "wx/filename.h"
-#include "wx/listctrl.h"
-#include "wx/mediactrl.h"
-#include "wx/notebook.h"
-#include "wx/sizer.h"
-#include "wx/slider.h"
-#include "wx/textdlg.h"
-#include "wx/timer.h"
+
+#include "wx/config.h" // for native wxConfig
+#include "wx/dnd.h" // drag and drop for the playlist
+#include "wx/filedlg.h" // for opening files from OpenFile
+#include "wx/filename.h" // For wxFileName::GetName()
+#include "wx/listctrl.h" // for wxListCtrl
+#include "wx/mediactrl.h" // for wxMediaCtrl
+#include "wx/notebook.h" // for wxNotebook and putting movies in pages
+#include "wx/sizer.h" // for positioning controls/wxBoxSizer
+#include "wx/slider.h" // for a slider for seeking within media
+#include "wx/textdlg.h" // for getting user text from OpenURL/Debug
+#include "wx/timer.h" // timer for updating status bar
 #include "wx/vector.h"
 #include <wx/stdpaths.h>
 #include <wx/artprov.h>
 #include <wx/mstream.h>
 #include <wx/image.h>
 #include <wx/bitmap.h>
-#include <wx/valnum.h>
 
 #ifndef WX_PRECOMP
 #include <wx/wx.h>
 #endif
 
+// main is used from here
 #define NO_MAIN
 
 #include "api/oc_knx_dev.h"
@@ -54,12 +57,13 @@
 #include "port/dns-sd.h"
 #include "oc_oscore_context.h"
 
-#include "knx_iot_virtual_EMS.h"
+#include "../knx_iot_virtual_EMS.h"
 #include "icons/key_png.h"
-#include "icons/cem_png.h"
-#include "icons/cem_ico.h"
+#include "icons/pv_png.h"
+#include "icons/pv_ico.h"
 #include <wx/clipbrd.h>
 
+// IDs for the controls and the menu commands
 enum
 {
   // Menu event IDs
@@ -89,6 +93,7 @@ enum
   wxID_LISTCTRL,
   wxID_GAUGE
 };
+
 enum : uint16_t
 {
   RESET = 0x0000,
@@ -112,8 +117,10 @@ enum : uint16_t
   DEVICE_SETTINGS = 0x0012
 };
 
+
 static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
   {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
+
 wxCmdLineParser* g_cmd;
 
 class CustomDialog : public wxDialog
@@ -122,194 +129,57 @@ public:
   CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
-  wxTextCtrl* inputField = nullptr;
   void on_close(wxCommandEvent& event);
-  void on_set_link(wxCommandEvent& event);
-  void on_reset_link(wxCommandEvent& event);
 };
+
 void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
-void CustomDialog::on_set_link(wxCommandEvent& event)
-{
-  if (inputField)
-  {
-    wxString sn_link = inputField->GetValue();
 
-    unsigned char sn_L[6];
-    int len;
-
-    for (size_t i = 0; i < 6; i++)
-      sn_L[i] = 0x00;
-
-    len = strlen(sn_link);
-
-    if (len % 2 == 0)
-    {
-      if (len / 2 == 6)
-      {
-        for (size_t i = 0; i < 6; i++)
-        {
-          char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
-          sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
-        }
-      }
-      else
-      {
-        return;
-      }
-    }
-    else
-    {
-      return;
-    }
-
-    uint64_t sn;
-
-    sn = 0x00;
-    sn += sn_L[0];
-    sn <<= 8;
-    sn += sn_L[1];
-    sn <<= 8;
-    sn += sn_L[2];
-    sn <<= 8;
-    sn += sn_L[3];
-    sn <<= 8;
-    sn += sn_L[4];
-    sn <<= 8;
-    sn += sn_L[5];
-
-    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
-    char str[13]; // 6 bytes → 12 hex chars + '\0'
-
-    // Format with leading zeros
-    snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
-
-    CEM_init_tables(str);
-
-    CEM_set_link(0x00fa10020c00);
-    char* url = CEM_retrieve_href(3);
-    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
-  }
-
-  this->Destroy();
-}
-void CustomDialog::on_reset_link(wxCommandEvent& event)
-{
-  if (inputField)
-  {
-    wxString sn_link = inputField->GetValue();
-
-    unsigned char sn_L[6];
-    int len;
-
-    for (size_t i = 0; i < 6; i++)
-      sn_L[i] = 0x00;
-
-    len = strlen(sn_link);
-
-    if (len % 2 == 0)
-    {
-      if (len / 2 == 6)
-      {
-        for (size_t i = 0; i < 6; i++)
-        {
-          char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
-          sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
-        }
-      }
-      else
-      {
-        return;
-      }
-    }
-    else
-    {
-      return;
-    }
-
-    uint64_t sn;
-
-    sn = 0x00;
-    sn += sn_L[0];
-    sn <<= 8;
-    sn += sn_L[1];
-    sn <<= 8;
-    sn += sn_L[2];
-    sn <<= 8;
-    sn += sn_L[3];
-    sn <<= 8;
-    sn += sn_L[4];
-    sn <<= 8;
-    sn += sn_L[5];
-
-    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
-    char str[13]; // 6 bytes → 12 hex chars + '\0'
-
-    // Format with leading zeros
-    snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
-
-    CEM_init_tables(str);
-
-    CEM_set_link(0);
-    char* url = CEM_retrieve_href(3);
-    oc_issue_s_mode_with_scope_and_check_mc_or_uc(SENDER_SCOPE, url, "w");
-  }
-
-  this->Destroy();
-}
 CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
-    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition)
-{
+    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+{  
   this->SetSize(wxSize(size_x + 30, size_y));
-
-  wxPanel* panel = new wxPanel(this, wxID_ANY);
+  
+  wxPanel* panel = new wxPanel(this, -1);
 
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* buttonRow = new wxBoxSizer(wxHORIZONTAL); // NEW row for input + buttons
-  wxBoxSizer* bottomRow = new wxBoxSizer(wxHORIZONTAL); // Existing row for Close or other buttons
+  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
 
-  // --- Main Text Area ---
-  wxTextCtrl* tc =
-    new wxTextCtrl(panel, wxID_ANY, text, wxDefaultPosition, wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
-  vbox->Add(tc, 1, wxEXPAND | wxALL, 5);
+  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
-  // --- Label ---
-  vbox->Add(new wxStaticText(panel, wxID_ANY, "Enter Serial Number:"), 0, wxLEFT | wxTOP, 10);
-
-  // --- Numeric / Hex Input Field + Buttons on same row ---
-  inputField = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxSize(150, -1), 0);
-  inputField->SetMaxLength(20);
-  buttonRow->Add(inputField, 0, wxLEFT | wxRIGHT, 5);
-
-  wxButton* linkButton = new wxButton(panel, wxID_ANY, wxT("Link"));
-  linkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_set_link, this);
-  buttonRow->Add(linkButton, 0, wxLEFT | wxRIGHT, 5);
-
-  wxButton* unlinkButton = new wxButton(panel, wxID_ANY, wxT("UnLink"));
-  unlinkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_reset_link, this);
-  buttonRow->Add(unlinkButton, 0, wxLEFT, 5);
-
-  // Add the whole row to the layout
-  vbox->Add(buttonRow, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
-
-  // --- Bottom Buttons Row (Close) ---
-  wxButton* closeButton = new wxButton(panel, wxID_ANY, wxT("Close"));
+  wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
-  bottomRow->Add(closeButton, 0, wxLEFT, 5);
 
-  vbox->Add(bottomRow, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn = oc_string(device->serialnumber);
 
-  // --- Attach sizer to panel ---
-  panel->SetSizer(vbox);
+  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
+  copyButton->Bind(wxEVT_BUTTON,
+                   [this, sn](wxCommandEvent&)
+                   {
+                     if (wxTheClipboard->Open())
+                     {
+                       wxTheClipboard->SetData(new wxTextDataObject(sn));
+                       wxTheClipboard->Close();
+                       // wxMessageBox("Serial number copied to clipboard!", "Copied", wxOK | wxICON_INFORMATION);
+                     }
+                   });
+  hbox->Add(copyButton, 0, wxLEFT, 5);  
 
-  // --- Use the panel as the only child of the dialog ---
-  wxBoxSizer* dialogSizer = new wxBoxSizer(wxVERTICAL);
-  dialogSizer->Add(panel, 1, wxEXPAND);
-  SetSizerAndFit(dialogSizer);
+  hbox->Add(closeButton, 1, wxLEFT, 5);
+  vbox->Add(panel, 1);
+  vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
 
+  SetSizerAndFit(vbox);
   Centre();
   ShowModal();
   Destroy();
 }
+
+class MyApp : public wxApp
+{
+public:
+  virtual bool OnInit();
+};
 
 class MyFrame : public wxFrame
 {
@@ -319,6 +189,11 @@ public:
 private:
   void OnSettings(wxCommandEvent& event);
   void OnUsage(wxCommandEvent& event);
+  wxString dumpGroupObjectTable();
+  wxString dumpPublisherTable();
+  wxString dumpRecipientTable();
+  wxString dumpParameterList();
+  wxString dumpAuthTable();
 
   void OnGroupObjectTable(wxCommandEvent& event);
   void OnPublisherTable(wxCommandEvent& event);
@@ -333,15 +208,9 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
 
-  wxString dumpGroupObjectTable();
-  wxString dumpPublisherTable();
-  wxString dumpRecipientTable();
-  wxString dumpParameterList();
-  wxString dumpAuthTable();
+  void OnThumbReleased_PV_slider(wxCommandEvent& event);
+  void OnSlider_PV_slider(wxCommandEvent& event);
 
-  void OnClick_mode_button(wxCommandEvent& event);
-
-  void ProcessUpdateFromBus();
   void updateDeviceData();
   void add_bool_to_text(bool on_off, char* text);
   void int2text(int value, char* text);
@@ -361,12 +230,6 @@ private:
 
   int m_lsm = LSM_S_UNLOADED;
 
-
-  int m_mode = -1;
-  int m_pv = -1;
-  int m_charger = -1;
-  char* m_link; // either the sn of the PV or the Charger device
-
   // non static device properties
   wxTextCtrl* m_ia_text; // text control for internal address
   wxTextCtrl* m_iid_text; // text control for installation id
@@ -374,29 +237,68 @@ private:
   wxTextCtrl* m_ls_text; // text control for load state
   wxTextCtrl* m_hn_text; // text control for host name
 
-  wxButton* m_mode_button;
-
-  wxTextCtrl* m_pv_text; // text control for pv
-  wxTextCtrl* m_charger_text; // text control for charger
+  wxSlider* m_PV_slider;
 };
-MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM app")
-{   
-  wxMemoryInputStream iconStream(cem_ico, cem_ico_len);
+
+wxIMPLEMENT_APP(MyApp);
+
+/**
+ * @brief initialization of the application
+ *
+ * @return true
+ * @return false
+ */
+bool MyApp::OnInit()
+{
+       
+  int argc = wxAppConsole::argc;
+  wxChar** argv = wxAppConsole::argv;
+
+
+  g_cmd = new wxCmdLineParser(argc, argv);
+  g_cmd->SetDesc(g_cmdLineDesc);
+  g_cmd->Parse(true);
+
+  wxString serial_number;
+  if (g_cmd->Found("s", &serial_number))
+  {
+  }  
+  
+    wxInitAllImageHandlers();   
+
+  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
+  frame->SetSize(350, 150);
+
+  frame->Show(true);
+
+  return true;
+}
+
+/**
+ * @brief Construct a new My Frame:: My Frame object
+ *
+ * @param serial_number
+ */
+MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app")
+{  
+  wxMemoryInputStream iconStream(pv_ico, pv_ico_len);
   wxImage img(iconStream, wxBITMAP_TYPE_ICO);
   wxBitmap bmp(img);
   wxIcon icon;
   icon.CopyFromBitmap(bmp);
-  SetIcon(icon); 
+  SetIcon(icon);
+
   wxToolBar* tb = CreateToolBar(wxTB_VERTICAL | wxNO_BORDER | wxTB_FLAT);
+
   wxMemoryInputStream stream1(key_png, key_png_len);
   wxImage img1(stream1, wxBITMAP_TYPE_PNG);
   wxBitmap bmp1(img1);
-  wxMemoryInputStream stream2(cem_png, cem_png_len);
+  wxMemoryInputStream stream2(pv_png, pv_png_len);
   wxImage img2(stream2, wxBITMAP_TYPE_PNG);
   wxBitmap bmp2(img2);
 
   tb->AddTool(DEVICE_SETTINGS, "", wxBitmapBundle::FromBitmap(bmp1), "Settings");
-  tb->AddTool(DEVICE_USAGE, "", wxBitmapBundle::FromBitmap(bmp2), "Usage"); 
+  tb->AddTool(DEVICE_USAGE, "", wxBitmapBundle::FromBitmap(bmp2), "Usage");
   tb->Realize();
 
   m_menuFile = new wxMenu;
@@ -426,67 +328,34 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
 
   // full menu bar
   wxMenuBar* menuBar = new wxMenuBar;
-  //menuBar->Append(m_menuFile, "Config");
-  // menuBar->Append(m_menuDisplay, "&Display");
-  // menuBar->Append(m_menuOptions, "&Options");
-  // menuBar->Append(menuHelp, "&Help");
-  wxFrameBase::SetMenuBar(menuBar);
+  menuBar->Append(m_menuFile, "Config");
+  //menuBar->Append(m_menuDisplay, "&Display");
+  //menuBar->Append(m_menuOptions, "&Options");
+  //menuBar->Append(menuHelp, "&Help");
+  //wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
-  // wxFrameBase::SetStatusText("PV");
+  //wxFrameBase::SetStatusText("PV");
 
   Bind(wxEVT_MENU, &MyFrame::OnUsage, this, DEVICE_USAGE);
   Bind(wxEVT_MENU, &MyFrame::OnSettings, this, DEVICE_SETTINGS);
-  //Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
-  //Bind(wxEVT_MENU, &MyFrame::OnPublisherTable, this, PUB_TABLE_ID);
-  //Bind(wxEVT_MENU, &MyFrame::OnRecipientTable, this, REC_TABLE_ID);
-  Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
+  // Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
+  // Bind(wxEVT_MENU, &MyFrame::OnPublisherTable, this, PUB_TABLE_ID);
+  // Bind(wxEVT_MENU, &MyFrame::OnRecipientTable, this, REC_TABLE_ID);
+  // Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
 
-  // Create a vertical box sizer for the whole section
-  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
 
-  wxColor wxBackColor = this->GetBackgroundColour();  
-
-  // --- First row: mode button ---
-  wxBoxSizer* hbox1 = new wxBoxSizer(wxHORIZONTAL);
-  m_mode_button = new wxButton(this, LS_TEXT, "sun mode", wxDefaultPosition, wxSize(100, 25));
-  //m_mode_button->SetFont(wxFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD));
-  //m_mode_button->SetWindowStyleFlag(wxBORDER_SUNKEN); // remove extra border  
-  m_mode_button->Bind(wxEVT_BUTTON, &MyFrame::OnClick_mode_button, this);
+  wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+  wxStaticText* label = new wxStaticText(this, wxID_ANY, "Present DC Power (0..10 kW)");
+  mainSizer->Add(label, 0, wxALL, 5);
+  m_PV_slider = new wxSlider(this, wxID_SLIDER, 0, 0, 10, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
+  mainSizer->Add(m_PV_slider, 0, wxEXPAND | wxALL, 5);
+  SetSizerAndFit(mainSizer);
   
-  //m_mode_button->SetBackgroundColour(wxBackColor);
-
-  hbox1->Add(m_mode_button, 0, wxEXPAND); // 0 = fixed width
-  vbox->Add(hbox1, 0, wxEXPAND | wxALL, 10);
-
-  // --- Second row: PV text ---
-  wxBoxSizer* hbox2 = new wxBoxSizer(wxHORIZONTAL);
-  m_pv_text = new wxTextCtrl(this, LS_TEXT, "in: 0 kW", wxDefaultPosition, wxSize(100, 25), wxBORDER_NONE);
-
-          // Adjust margins to vertically center text
-  // top margin ~ (control height - font height) / 2
-  int fontHeight = m_pv_text->GetFont().GetPointSize();
-  int ctrlHeight = m_pv_text->GetSize().GetHeight();
-  int topMargin = (ctrlHeight - fontHeight) / 2 - 1; // tweak -1 if needed
-  m_pv_text->SetMargins(2, topMargin);
-
-  // Optional: set background and border
-  m_pv_text->SetBackgroundColour(wxColour(127, 127, 127));
-  //m_pv_text->SetWindowStyle(wxBORDER_SIMPLE); // or wxBORDER_NONE
-
-  //m_pv_text->SetEditable(true);
-  hbox2->Add(m_pv_text, 1, wxEXPAND); // stretches horizontally
-  vbox->Add(hbox2, 0, wxEXPAND | wxALL, 10);
-
-  // --- Third row: Charger text ---
-  wxBoxSizer* hbox3 = new wxBoxSizer(wxHORIZONTAL);
-  m_charger_text = new wxTextCtrl(this, LS_TEXT, "out: 0 kW", wxDefaultPosition, wxSize(100, 25), wxBORDER_NONE);
-  m_charger_text->SetBackgroundColour(wxColour(127, 127, 127));
-  //m_charger_text->SetEditable(true);
-  hbox3->Add(m_charger_text, 1, wxEXPAND); // stretches horizontally
-  vbox->Add(hbox3, 0, wxEXPAND | wxALL, 10);
-
-  // --- Apply sizer to the frame ---
-  this->SetSizerAndFit(vbox);
+  m_PV_slider->Bind(wxEVT_SCROLL_THUMBRELEASE, &MyFrame::OnThumbReleased_PV_slider, this);
+  m_PV_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::OnSlider_PV_slider, this);
+  m_PV_slider->Enable(true);
+  m_PV_slider->SetValue(0);
+  
 
   // serial number
   if (strlen(serial_number) > 1)
@@ -498,29 +367,28 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   // call in c-code 
   app_initialize_stack();
 
-  constexpr int width_size = 180; // size of the knx info widgets
-  char text[500]; 
-
-  // serial number 
-  strcpy(text, "Serial Number : ");
-  oc_device_info_t* device = oc_core_get_device_info();
-  strcat(text, oc_string(device->serialnumber));
-
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
-  m_timer.Start(1, wxTIMER_CONTINUOUS); 
+  m_timer.Start(1, wxTIMER_CONTINUOUS);
 
-  // TODO: add an input field to make this dynamic
-  //CEM_init_tables("00fa10020b00");
-  //CEM_init_tables("00fa10020d00");
-  CEM_init_tables("000000000000");
-  device->lsm_s = LSM_S_LOADED;
-  
-  // this is the config for phase 2
-  //CEM_init_auth_table();
-  //device->lsm_s = LSM_S_UNLOADED;
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+  oc_device_info_t* device = oc_core_get_device_info();
+  PV_init_auth_table();
+  device->lsm_s = LSM_S_UNLOADED;
 }
+
+/**
+ * @brief exit the application
+ *
+ * @param event command triggered by the framework
+ */
 void MyFrame::OnExit(wxCommandEvent& event) { Close(true); }
+
+/**
+ * @brief checks/unchecks the programming mode
+ *
+ * @param event command triggered by the menu button
+ */
 void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 {
   SetStatusText("Changing programming mode");
@@ -534,6 +402,13 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
+
+
+/**
+ * @brief checks/unchecks the sleepy mode
+ *
+ * @param event command triggered by the menu button
+ */
 void MyFrame::OnSleepyMode(wxCommandEvent& event)
 {
   SetStatusText("Changing sleepy mode");
@@ -552,32 +427,30 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
+
 void MyFrame::updateDeviceData()
 {
   oc_device_info_t* device = oc_core_get_device_info();
- 
-  // this is the handling for phase 2
+
   if (m_lsm != device->lsm_s)
   {
     m_lsm = device->lsm_s;
 
-    if (m_lsm == LSM_S_UNLOADED)
-    {
-      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
-    }
     if (m_lsm == LSM_S_LOADING)
     {
-      //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
-      //CEM_init_tables();
-      //device->lsm_s = LSM_S_LOADED;
-    }
-    if (m_lsm == LSM_S_LOADED)
-    {
-      //device->lsm_s = LSM_S_LOADED;
+      oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+      // oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+      PV_init_tables_QR("00fa10020c00");
+      device->lsm_s = LSM_S_LOADED;
     }
   }
-
 }
+
+/**
+ * @brief clear the tables of the device
+ *
+ * @param event command triggered by button in the menu
+ */
 void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
@@ -586,6 +459,12 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
   // update the UI
   this->updateDeviceData();
 }
+
+/**
+ * @brief reset the device
+ *
+ * @param event command triggered by button in the menu
+ */
 void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
@@ -594,6 +473,10 @@ void MyFrame::OnReset(wxCommandEvent& event)
   // update the UI
   this->updateDeviceData();
 }
+
+
+
+
 void MyFrame::OnUsage(wxCommandEvent& event)
 {
   int device_index = 0;
@@ -654,85 +537,66 @@ void MyFrame::OnUsage(wxCommandEvent& event)
   strcat(text, line);
 
 
-    wxString all;
-    all << text << "\n\n"
-        << "Usage:" << "\n"
-        << "- Acts as the brain of the EMS system." << "\n"
-        << "- Two operation modes:" << "\n"
-        << "    1) Sun Mode: Car charges only if solar production is at least 4 kW." << "\n"
-        << "    2) Mix Mode: Car charges at 4 kW regardless of solar availability." << "\n"
-        << "- Calculates and sends the appropriate charging rate." << "\n";
+  wxString all;
+  all << text << "\n\n"
+      << "Usage:" << "\n"
+      << "- Simulates a solar inverter providing power data." << "\n"
+      << "- Enables adjustment of the solar production value (0�10 kW) for testing." << "\n";
 
   strcpy(windowtext, "Device IDs & usage");
-    CustomDialog(windowtext, all, 480, 220);
+  CustomDialog(windowtext, all, 520, 180);
 }
+
+/**
+ * @brief shows all tables combined in a window
+ *
+ * Opens a CustomDialog and concatenates the outputs of:
+ * - Group Object Table
+ * - Publisher Table
+ * - Recipient Table
+ * - Parameter List
+ * - Auth/AT Table
+ *
+ * Each section is separated with headers.
+ *
+ * @param event command triggered by the menu button
+ */
 void MyFrame::OnSettings(wxCommandEvent& event)
 {
+  wxString title;
+  wxString all;
+
+  title.Printf("Device settings & cryptography");
+
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
+  if (!device || device->lsm_s != LSM_S_LOADED)
   {
+    all << "PV: unloaded" << "\n";
+    CustomDialog(title, all, 250, 100);
     return;
   }
 
-  wxString all;
   all << dumpGroupObjectTable() << "\n"
-      << dumpPublisherTable() << "\n"
-      /* << dumpRecipientTable() */
+      << dumpPublisherTable()
       << "\n"
-      /* << dumpParameterList() << "\n\n" */
+      << "\n"
       << dumpAuthTable();
 
-  wxString title;
-  title.Printf("Device settings & cryptography");
-
-  CustomDialog(title, all, 420, 400);
-  // SetStatusText("List All Tables");
+  CustomDialog(title, all, 420, 250);
 }
-void MyFrame::OnClick_mode_button(wxCommandEvent& event)
-{
-  char text[200];
-  int m = CEM_retrieve_mode();
 
-  if (m == SUN_MODE)
-  {
-    m = 1;
 
-    m_mode_button->SetLabel("mix mode");
-  }
-  else
-  {
-    m = 0;
 
-    m_mode_button->SetLabel("sun mode");
-  }
 
-  CEM_set_mode(m);
 
-  CEM_process_pv();
 
-  this->ProcessUpdateFromBus();
 
-  /*
-  int pv = CEM_retrieve_pv() / 1000;
-  int charger = CEM_retrieve_charger() / 1000;
 
-  sprintf(text, "in: %d kW", pv);
-  m_pv_text->SetValue(text);
-
-  if (m == 1 && pv < 4)
-  {
-    int grid = 4 - pv;
-
-    sprintf(text, "out: %d kW (%d kW from grid)", charger, grid);
-  }
-  else
-  {
-    sprintf(text, "out: %d kW", charger);
-  }
-
-  m_charger_text->SetValue(text);
-  */
-}
+/**
+ * @brief shows the group object table in a window
+ *
+ * @param event command triggered by a menu button
+ */
 void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
 {
   int device_index = 0;
@@ -774,11 +638,15 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
     }
     
   }
-  strcpy(windowtext, "Group Object Table for sn: ");
-  strcat(windowtext, oc_string(device->serialnumber));
+  strcpy(windowtext, "Group Object Table");
   CustomDialog(windowtext, text, 520, 300);
-  //SetStatusText("List Group Object Table");
 }
+
+/**
+ * @brief shows the Publisher table in a window
+ *
+ * @param event command triggered by a menu button
+ */
 void MyFrame::OnPublisherTable(wxCommandEvent& event)
 {
   int device_index = 0;
@@ -849,10 +717,14 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
     }
   }
   strcpy(windowtext, "Publisher Table");
-  //strcat(windowtext, oc_string(device->serialnumber));
   CustomDialog(windowtext, text, 520, 300);
-  //SetStatusText("List Publisher Table");
 }
+
+/**
+ * @brief shows the Recipient table in a window
+ *
+ * @param event command triggered by a menu button
+ */
 void MyFrame::OnRecipientTable(wxCommandEvent& event)
 {
   int device_index = 0;
@@ -922,10 +794,13 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
     }
   }
   strcpy(windowtext, "Recipient Table");
-  //strcat(windowtext, oc_string(device->serialnumber));
   CustomDialog(windowtext, text, 520, 300);
-  //SetStatusText("List Recipient Table");
 }
+/**
+ * @brief shows a window containing the parameters and current values of the application
+ *
+ * @param event command triggered by a menu button
+ */
 void MyFrame::OnParameterList(wxCommandEvent& event)
 {
   int device_index = 0;
@@ -975,6 +850,12 @@ void MyFrame::OnParameterList(wxCommandEvent& event)
   CustomDialog(windowtext, text, 520, 300);
   SetStatusText("List Parameters and their current set values");
 }
+
+/**
+ * @brief shows the (loaded) auth/at table
+ *
+ * @param event command triggered by a menu button
+ */
 void MyFrame::OnAuthTable(wxCommandEvent& event)
 {
   int device_index = 0;
@@ -1087,15 +968,31 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
   }
 
   strcpy(windowtext, "Authentication Table");
-  //strcat(windowtext, oc_string(device->serialnumber));
   CustomDialog(windowtext, text, 520, 300);
-  //SetStatusText("List security entries");
 }
+
+/**
+ * @brief shows static info about the application
+ *
+ * @param event command triggered by a menu button
+ */
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
   constexpr char text[] = "(c) KNX Association, 2025-09";
   CustomDialog("About", text, 520, 300);
 }
+
+/**
+ * @brief update the UI on the timer ticks
+ * updates:
+ * - check boxes
+ * - info buttons
+ * - text buttons
+ * does a oc_main_poll to give a tick to the stack
+ * takes into account if the device is sleepy
+ * e.g. then it only does an poll each 20 seconds
+ * @param event triggered by a timer
+ */
 void MyFrame::OnTimer(wxTimerEvent& event)
 {
   bool do_poll = true;
@@ -1124,142 +1021,18 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   if (do_poll)
   {
     (void)oc_main_poll();
-  }
+  } 
 
   // update possible events
-  this->ProcessUpdateFromBus();
   this->updateDeviceData();
 }
-void MyFrame::ProcessUpdateFromBus()
-{
-  // the actual processing of bus events is in this case done via put_PV() + process_pv() in knx_iot_virtual.c
 
-  char text[200];
-  
-  int m = CEM_retrieve_mode();
-  int pv = CEM_retrieve_pv() / 1000;
-  int charger = CEM_retrieve_charger() / 1000;
-
-  wxColor col_pv = m_pv_text->GetBackgroundColour();
-  wxColor col_charger = m_charger_text->GetBackgroundColour();
-
-
-    if (pv == 0 || pv == 1)
-    {
-      if (col_pv != wxColour(127, 127, 127))
-        m_pv_text->SetBackgroundColour(wxColour(127, 127, 127));
-    }
-    if (pv == 2 || pv == 3)
-    {
-      if (col_pv != wxColour(255, 255, 255))
-        m_pv_text->SetBackgroundColour(wxColour(255, 255, 255));      
-    }
-    if (pv == 4 || pv == 5 || pv == 6)
-    {
-      if (col_pv != wxColour(255, 255, 224))
-        m_pv_text->SetBackgroundColour(wxColour(255, 255, 224));
-    }
-    if (pv >= 7)
-    {
-      if (col_pv != wxColour(255, 255, 0))
-        m_pv_text->SetBackgroundColour(wxColour(255, 255, 0));
-    }
-
-    if (m == MIX_MODE)
-    {
-      if (pv == 0 || pv == 1)
-      {
-        if (col_charger != wxColour(255, 0, 0))
-        m_charger_text->SetBackgroundColour(wxColour(255, 0, 0));
-      }
-      if (pv == 2 || pv == 3)
-      {
-        if (col_charger != wxColour(255, 127, 0))
-        m_charger_text->SetBackgroundColour(wxColour(255, 127, 0));
-      }
-      if (pv >= 4)
-      {
-        if (col_charger != wxColour(0, 255, 0))
-        m_charger_text->SetBackgroundColour(wxColour(0, 255, 0));
-      }
-    }
-    else
-    {
-      if (pv >= 4)
-      {
-        if (col_charger != wxColour(0, 255, 0))
-        m_charger_text->SetBackgroundColour(wxColour(0, 255, 0));
-      }
-      else
-      {
-        if (col_charger != wxColour(127, 127, 127))
-        m_charger_text->SetBackgroundColour(wxColour(127, 127, 127));
-      }
-    }
-
-/*
-  if (m_pv != pv)
-  {
-    m_pv = pv;
-
-    if (pv == 0 || pv == 1)
-    {
-      m_pv_text->SetBackgroundColour(wxColour(127, 127, 127));
-    }
-    if (pv == 2 || pv == 3)
-    {
-      m_pv_text->SetBackgroundColour(wxColour(255, 255, 0));
-    }
-    if (pv >= 4)
-    {
-      m_pv_text->SetBackgroundColour(wxColour(255, 255, 255));
-    }
-
-    if (m == MIX_MODE)
-    {
-      if (pv == 0 || pv == 1)
-      {
-        m_charger_text->SetBackgroundColour(wxColour(255, 0, 0));
-      }
-      if (pv == 2 || pv == 3)
-      {
-        m_charger_text->SetBackgroundColour(wxColour(255, 127, 0));
-      }
-      if (pv >= 4)
-      {
-        m_charger_text->SetBackgroundColour(wxColour(0, 255, 0));
-      }
-    }
-    else
-    {
-        if (pv >= 4)
-        {
-            m_charger_text->SetBackgroundColour(wxColour(0, 255, 0));
-        }
-        else
-        {
-          m_charger_text->SetBackgroundColour(wxColour(127, 127, 127));
-        }
-    }     
-  }
-  */
-
-  sprintf(text, "in: %d kW", pv);
-  m_pv_text->SetValue(text);  
-
-  if (m == 1 && pv < 4)
-  {
-    int grid = 4 - pv;
-
-    sprintf(text, "out: %d kW (%d kW from grid)", charger, grid);
-  }
-  else
-  {
-    sprintf(text, "out: %d kW", charger);
-  }
-
-  m_charger_text->SetValue(text);
-}
+/**
+ * @brief convert the boolean to text and appends it to the given text 
+ *
+ * @param on_off the boolean
+ * @param text the text to add the boolean as text
+ */
 void MyFrame::add_bool_to_text(bool on_off, char* text)
 {
   if (on_off)
@@ -1271,6 +1044,13 @@ void MyFrame::add_bool_to_text(bool on_off, char* text)
     strcat(text, " Off");
   }
 }
+
+/**
+ * @brief convert the integer to text for display
+ *
+ * @param value the integer
+ * @param text the text to add info to
+ */
 void MyFrame::int2text(int value, char* text)
 {
   char value_text[50];
@@ -1278,6 +1058,14 @@ void MyFrame::int2text(int value, char* text)
   sprintf(value_text, " %d", value);
   strcat(text, value_text);
 }
+
+/**
+ * @brief convert the group address to text for display
+ *
+ * @param value the integer
+ * @param text the text to add info to
+ * @param as_ets the text as terminology as used in ets
+ */
 void MyFrame::int2gatext(uint32_t value, char* text, bool as_ets)
 {
   char value_text[50];
@@ -1307,6 +1095,13 @@ void MyFrame::int2gatext(uint32_t value, char* text, bool as_ets)
     strcat(text, value_text);
   }
 }
+
+/**
+ * @brief convert the scope to text for display
+ *
+ * @param value the scope
+ * @param text the text to add info too
+ */
 void MyFrame::int2scopetext(uint32_t value, char* text)
 {
   char value_text[150];
@@ -1343,6 +1138,14 @@ void MyFrame::int2scopetext(uint32_t value, char* text)
   if (value & (1 << 14))
     strcat(text, " if.m");
 }
+
+/**
+ * @brief convert the group id to text for display
+ *
+ * @param value the group id
+ * @param text the text to add info too
+ * @param as_ets the text as terminology as used in ets
+ */
 void MyFrame::int2grpidtext(uint64_t value, char* text, bool as_ets)
 {
   char value_text[50];
@@ -1383,12 +1186,84 @@ void MyFrame::int2grpidtext(uint64_t value, char* text, bool as_ets)
     strcat(text, value_text);
   }
 }
+
+/**
+ * @brief convert the double (e.g. float)  to text for display
+ *
+ * @param value the vlue
+ * @param text the text to add info too
+ */
 void MyFrame::double2text(double value, char* text)
 {
   char new_text[200];
   sprintf(new_text, " %f", value);
   strcat(text, new_text);
 }
+
+void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
+{
+  /*
+
+  // get url
+  char* url = PV_retrieve_href(0);
+  // get the slider value
+  int val = m_PV_slider->GetValue();
+      
+  PV_set_PV(val);          
+
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
+
+  // show in status bar
+  char statusBarText[100];
+  //Present DC power of all solar panels connected to this PV control
+  (void)sprintf(statusBarText, "Present DC power @ '%s' = %d kW", url, val);
+  SetStatusText(statusBarText);
+
+  */
+}
+
+void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
+{
+  /*
+    if (PV_retrieve_link() != 0)
+  {
+  }
+  else
+  {
+    SetStatusText("not linked");
+  }
+    */
+
+      // get url
+      char* url = PV_retrieve_href(0);
+      // get the slider value
+      int val = m_PV_slider->GetValue();
+
+  PV_set_PV(val);
+
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
+
+      // show in status bar
+      char statusBarText[100];
+      // Present DC power of all solar panels connected to this PV control
+      (void)sprintf(statusBarText, "Present DC power = %d kW", val);
+      SetStatusText(statusBarText);
+
+}
+
+
+/**
+ * @brief dump the Group Object Table into a string
+ *
+ * Iterates through all group object entries and prints:
+ * - Index
+ * - id
+ * - url
+ * - cflags (numeric and textual)
+ * - group addresses (GA list)
+ *
+ * @return wxString containing formatted Group Object Table
+ */
 wxString MyFrame::dumpGroupObjectTable()
 {
   wxString out("- Datapoints:\n");
@@ -1429,6 +1304,19 @@ wxString MyFrame::dumpGroupObjectTable()
   }
   return out;
 }
+
+/**
+ * @brief dump the Publisher Table into a string
+ *
+ * Iterates through all publisher table entries and prints:
+ * - Index
+ * - id, ia, iid, fid
+ * - grpid (converted if enabled)
+ * - at string
+ * - group addresses (GA list)
+ *
+ * @return wxString containing formatted Publisher Table
+ */
 wxString MyFrame::dumpPublisherTable()
 {
   wxString out("- Multicast:\n");
@@ -1437,14 +1325,13 @@ wxString MyFrame::dumpPublisherTable()
   bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
-  /*
   int total = oc_core_get_publisher_table_size();
   for (int i = 0; i < total; i++)
   {
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(i);
     if (entry && entry->id >= 0)
     {
-
+      /*
       sprintf(line, "Index %d ", i);
       out += line;
       sprintf(line, "  id: '%d'  ", entry->id);
@@ -1465,7 +1352,7 @@ wxString MyFrame::dumpPublisherTable()
         sprintf(line, "  fid: '%lld' ", entry->fid);
         out += line;
       }
-
+      */
       if (entry->grpid > 0)
       {
         strcpy(line, "  - grpid: ");
@@ -1487,65 +1374,24 @@ wxString MyFrame::dumpPublisherTable()
         strcat(line, " ]");
         out += line;
       }
+      // out += "\n";
     }
   }
-  */
-
-  oc_group_table_t* entry = oc_core_get_publisher_table_entry(0);
-
-  if (entry->grpid > 0)
-  {
-    strcpy(line, "  - grpid: ");
-    this->int2grpidtext(entry->grpid, line, grpid_conversion);
-    out += line;
-  }
-  if (oc_string_len(entry->at) > 0)
-  {
-    sprintf(line, "  at: '%s' ", oc_string(entry->at));
-    out += line;
-  }
-  if (entry->ga_len > 0)
-  {
-    strcpy(line, "  ga: [");
-    for (int j = 0; j < entry->ga_len; j++)
-    {
-      this->int2gatext(entry->ga[j], line, ga_conversion);
-    }
-    strcat(line, " ]");
-    out += line;
-  }
-  out += "\n";
-
-  //  ff32:0030:fd7d:ff7f:6c9a:0000:c285:fba0 -> ff32:0030:fd + iid + 0000 + grpid
-  out += "  - address: ff32:0030:fd";
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  uint64_t iid = device->iid;
-
-  uint8_t byte_1 = static_cast<uint8_t>(iid);
-  uint8_t byte_2 = static_cast<uint8_t>(iid >> 8);
-  uint8_t byte_3 = static_cast<uint8_t>(iid >> 16);
-  uint8_t byte_4 = static_cast<uint8_t>(iid >> 24);
-  uint8_t byte_5 = static_cast<uint8_t>(iid >> 32);
-
-  sprintf(line, "%02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
-
-  out += line;
-  out += ":0000:";
-
-  uint64_t grpid = entry->grpid;
-
-  byte_1 = static_cast<uint8_t>(grpid);
-  byte_2 = static_cast<uint8_t>(grpid >> 8);
-  byte_3 = static_cast<uint8_t>(grpid >> 16);
-  byte_4 = static_cast<uint8_t>(grpid >> 24);
-
-  sprintf(line, "%02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
-
-  out += line;
-
   return out;
 }
+
+/**
+ * @brief dump the Recipient Table into a string
+ *
+ * Iterates through all recipient table entries and prints:
+ * - Index
+ * - id, ia, iid, fid
+ * - grpid (converted if enabled)
+ * - at string
+ * - group addresses (GA list)
+ *
+ * @return wxString containing formatted Recipient Table
+ */
 wxString MyFrame::dumpRecipientTable()
 {
   wxString out("- Recipient Table:\n");
@@ -1606,6 +1452,19 @@ wxString MyFrame::dumpRecipientTable()
   }
   return out;
 }
+
+/**
+ * @brief dump the Parameter List into a string
+ *
+ * Iterates through all application parameters and prints:
+ * - Index
+ * - URL
+ * - name
+ *
+ * If no parameters exist, prints "no parameters in this device".
+ *
+ * @return wxString containing formatted Parameter List
+ */
 wxString MyFrame::dumpParameterList()
 {
   wxString out("=== Parameter List ===\n");
@@ -1634,6 +1493,20 @@ wxString MyFrame::dumpParameterList()
   }
   return out;
 }
+
+/**
+ * @brief dump the Auth/AT Table into a string
+ *
+ * Iterates through all authentication/authorization entries and prints:
+ * - Index
+ * - id
+ * - profile
+ * - For DTLS: sub, kid
+ * - For OSCORE: osc_id, osc_ms, osc_contextid (hex dumps)
+ * - scope or osc_ga (with GA list)
+ *
+ * @return wxString containing formatted Auth/AT Table
+ */
 wxString MyFrame::dumpAuthTable()
 {
   wxString out("- OSCORE (Wireshark):\n");
@@ -1646,127 +1519,60 @@ wxString MyFrame::dumpAuthTable()
     oc_auth_at_t* entry = oc_get_auth_at_entry(i);
     if (entry && oc_string_len(entry->id))
     {
-      /*
-      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
-      out += line;
-      sprintf(line, "  profile : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
-      out += line;
-
-      if (entry->profile == OC_PROFILE_COAP_DTLS)
-      {
-        if (oc_string_len(entry->sub) > 0)
-        {
-          sprintf(line, "  sub : %s", oc_string(entry->sub));
-          out += line;
-        }
-        if (oc_string_len(entry->kid) > 0)
-        {
-          sprintf(line, "  kid : %s", oc_string(entry->kid));
-          out += line;
-        }
-      }
-      */
       if (entry->profile == OC_PROFILE_COAP_OSCORE)
       {
-        strcpy(line, "  - ga ");
-        // out += line;
-        this->int2gatext(entry->ga[0], line, ga_conversion);
-        strcat(line, ":\n");
-        out += line;
+          if (oc_byte_string_len(entry->osc_contextid) == 6)
+          {
+            // ga
+            strcpy(line, "       - ga: [");
+            this->int2gatext(entry->ga[0], line, ga_conversion); 
+            strcat(line, " ]");
+            out += line;
+            out += "\n";
 
-        // osc_id
-        if (oc_byte_string_len(entry->osc_id) > 0)
-        {
-          sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
-          out += line;
-          char* ms = oc_string(entry->osc_id);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
+            // osc_id
+            if (oc_byte_string_len(entry->osc_id) > 0)
+            {
+              sprintf(line, "       - osc_id [%d]: ", (int)oc_byte_string_len(entry->osc_id));
+              out += line;
+              char* ms = oc_string(entry->osc_id);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_id); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
+            // osc_ms
+            if (oc_byte_string_len(entry->osc_ms) > 0)
+            {
+              sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
+              out += line;
+              char* ms = oc_string(entry->osc_ms);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
+            // osc_contextid
+            if (oc_byte_string_len(entry->osc_contextid) > 0)
+            {
+              sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
+              out += line;
+              char* ms = oc_string(entry->osc_contextid);
+              for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
+              {
+                sprintf(line, "%02x", (unsigned char)ms[j]);
+                out += line;
+              }
+            }
+            out += "\n";
         }
-        out += "\n";
-        // osc_ms
-        if (oc_byte_string_len(entry->osc_ms) > 0)
-        {
-          sprintf(line, "       - osc_ms [%d]: ", (int)oc_byte_string_len(entry->osc_ms));
-          out += line;
-          char* ms = oc_string(entry->osc_ms);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_ms); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
-        }
-        out += "\n";
-        // osc_contextid
-        if (oc_byte_string_len(entry->osc_contextid) > 0)
-        {
-          sprintf(line, "       - osc_contextid [%d]: ", (int)oc_byte_string_len(entry->osc_contextid));
-          out += line;
-          char* ms = oc_string(entry->osc_contextid);
-          for (int j = 0; j < (int)oc_byte_string_len(entry->osc_contextid); j++)
-          {
-            sprintf(line, "%02x", (unsigned char)ms[j]);
-            out += line;
-          }
-        }
-        out += "\n";
-        /*
-        if (entry->scope == OC_ACL_GA)
-        {
-          strcpy(line, " ga: ");
-          out += line;
-          for (int j = 0; j < entry->ga_len; j++)
-          {
-            this->int2gatext(entry->ga[j], line, ga_conversion);
-          }
-          strcat(line, " ");
-          out += line;
-        }
-        else
-        {
-          sprintf(line, "  scope : ");
-          this->int2scopetext(entry->scope, line);
-          out += line;
-        }
-        */
       }
       out += "\n";
     }
   }
   return out;
 }
-
-class MyApp : public wxApp
-{
-public:
-  virtual bool OnInit();
-};
-bool MyApp::OnInit()
-{
-  int argc = wxAppConsole::argc;
-  wxChar** argv = wxAppConsole::argv;
-
-  g_cmd = new wxCmdLineParser(argc, argv);
-  g_cmd->SetDesc(g_cmdLineDesc);
-  g_cmd->Parse(true);
-
-  wxString serial_number;
-  if (g_cmd->Found("s", &serial_number))
-  {
-  }
-
-  wxInitAllImageHandlers();
-
-  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
-
-  // frame->Fit();
-  frame->SetSize(350, 200);
-  frame->Show(true);
-
-
-  return true;
-}
-wxIMPLEMENT_APP(MyApp);

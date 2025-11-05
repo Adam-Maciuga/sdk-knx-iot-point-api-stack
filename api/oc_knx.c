@@ -570,13 +570,25 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
   @param iface_mask interface mask from caller
   @param data user data if provided (otherwise NULL)
 
-  @note  workflow for receiving an inbound message:
+  @note
+  workflow for receiving an inbound message
 
-         1. at configuration
-            - register all different multicast addresses from publisher table (after restart/ update device configuration data)
-         2. at runtime
-            - a multicast POST message is received by IP layer, mc address registered -> forward to /k (provided security check was passed), not registered -> discard
-            - an unicast POST message is received by IP layer -> forward to /k (provided security check was passed) 
+   1. after (re)configuration
+      a: register all different multicast addresses from publisher table
+         (after restart/ update device configuration data, LSM enters loaded state)
+   2. at runtime
+      a: a multicast POST message is received by IP layer,
+         mc address is registered (otherwise message is discarded by IP layer)
+        -> forward to /k (provided security check was passed)
+      b: an unicast POST message is received by IP layer
+         -> forward to /k (provided security check was passed)
+      c: method '/k' checks GO table entries if GA from request is included
+         and r/w/a flags from request + resource, if ok call PUT/GET callback handler
+
+  mandatory resources
+  - GO table
+  - RCP table (uc=ia, mc=grpid) -> read response 
+  - Access token table 
   
 */
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -766,9 +778,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       ----------------
 
         Updates all GOs in table with the GA included
-        - w-cflag must be enabled,
+        - w/u-cflag must be enabled,
         - affects also GOs where the GA is in position zero, sending GA
-          (bidirectional w/r- cflags settings on a resource are no common use in KNX s-mode)
+          (bidirectional w/r- cflags settings on the SAME resource is no common use in KNX s-mode)
 
         { sia: 5678, s: {st: write, ga: 1, value: 100 }}
 
@@ -784,7 +796,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       (2) Read
       --------
 
-        Sends for all GOs in table where the GA is included a (mc/uc) read response
+        Sends for all GOs in table where the GA is included a SEPARATE (mc/uc) read response
         - r-cflag must be enabled, t-cflag will be ignored (considered only on self triggered requests)
         - use the sending GA (position 0) on lowest 'id' per 'href'
         - 3/7/2 AL does not mandate to send only one response, if needed MaC user needs to remove the r-flag
@@ -835,8 +847,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         -> not used
 
         Option 4:
-        -  {ga: 41, value: false, st:a}, {ga: 11, value: true, st:a}
-        -  search for GOs where GA is linked and send on sending GA = GO8 + GO1
+        -  {ga: 11, value: true, st:a}, {ga: 41, value: false, st:a}
+        -  search for GOs where GA is linked and send on sending GA = GO1 + GO8
         -> used
 
         Option 5:
@@ -893,8 +905,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
-              and an application resource PUT handler with a write flag enabled, call application PUT handler
-              - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
+              and an application resource PUT handler with a write flag enabled
             */
 
             // copy inbound request
@@ -904,10 +915,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             new_request.request_payload = received_notification.value_object;
 
             /*
-               call PUT callback handler from inbound POST to uri path with 'p' and len >= 1
+               call PUT callback handler from inbound POST to uri path with 'k' and len = 1
 
-               - uri path is used by /p and /k endpoints that calls the same application callback handlers
-                 (for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p)
+               - for /p a POST and /p/{property-path} a PUT is defined (oc_invoke_coap_entity_handler),
+                 for /k only a POST method is defined
+               - /k and /p and /p/{property-path} (must) call the same application callback handler
+
                - uri path is used for a redirect check in application callback handler
                - use new request (not the received one with POST), user data are possible
                - call application handler with own interface/ user data
@@ -927,8 +940,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
-              and an application resource PUT handler with a write flag enabled, call application PUT handler
-              - for /k only a POST is defined, application handler needs to end up in one (PUT) handler for /k and /p
+              and an application resource PUT handler with an update flag enabled
             */
 
             // copy inbound request
@@ -939,15 +951,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             new_request.request_payload = received_notification.value_object;
 
             /*
-               call PUT callback handler from inbound POST to uri path with 'p' and len >= 1
-
-               - uri path is used by /p and /k endpoints that calls the same application callback handlers
-                 (for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p)
-               - uri path is used for a redirect check in application callback handler
-               - use new request (not the received one with POST), user data are possible
-               - call application handler with own interface/ user data
-                 (it makes no sense to call it with the original /k interface mask, this is a fix value)
-
+              call callback PUT handler from inbound POST to uri path with 'k' and len = 1,
+              details for this see above for 'w'
             */
             application_resource_with_href_match->put_handler.cb(
               &new_request, application_resource_with_href_match->put_handler.interface_mask,
@@ -961,27 +966,16 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             PRINT("/k : read with GOT index %d handled due to read flags enabled %d", go_table_index_where_ga_is_used, cflags);
 
             /*
-            here we have
-            - a GO with the GA included
-            - a GO with a resource path (href) and an application resource with the SAME resource path (href)
-            - an application resource GET handler with a read flag enabled
-
-            for /k only a POST is defined, application handler needs to end up in one (GET) handler for /k and /p
+              here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
+              and an application resource GET handler with a read flag enabled
             */
 
             // copy inbound request
             oc_ri_new_request_from_inbound_request(&new_request, request, &response_buffer, &response_obj);
 
             /*
-               call PUT callback handler from inbound POST to uri path with 'p' and len >= 1
-
-               - uri path is used by /p and /k endpoints that calls the same application callback handlers
-                 (for /k only a POST is defined, application callback needs to end up in one (PUT) handler for /k and /p)
-               - uri path is used for a redirect check in application callback handler
-               - use new request (not the received one with POST), user data are possible
-               - call application handler with own interface/ user data
-                 (it makes no sense to call it with the original /k interface mask, this is a fix value)
-
+              call callback GET handler from inbound POST to uri path with 'k' and len = 1,
+              details for this see above for 'w'
             */
             application_resource_with_href_match->get_handler.cb(
               &new_request, application_resource_with_href_match->get_handler.interface_mask,
@@ -1013,9 +1007,19 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                 else
                 {
                   // TODO resolve IP unicast to send via unicast...
-                  // discover unicast IPv6 for IA via mDNS
-                  // send message with unicast IPv6
-                  PRINT("grpid =0");
+
+                  /*
+                   - get IA from RCP table + AT token reference (a)
+                   - get at token 'id' (cbor key 0) from (a)
+                   - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
+
+            
+                   - from stream of responses create new unicast EP
+                   - use non flag as defined in GRP table
+                   - send message (to be checked what can be used)
+                  */  
+
+                  PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
                 }
               }
 

@@ -8,52 +8,50 @@ e.g., provide information in how to build an KNX IoT Point API device based on t
 # Example Applications
 
 The folder contains windows/linux GUI application demos, with several table views and 
-interaction buttons, to be used with ETS and EITT. The code is defined in *.cpp files.
+interaction buttons. The code is defined in *.c and *.cpp files.
 
-> The (corresponding) *.c files are 'included' to access the KNX data definitions and 
-  application handler. For the demo pupose these data would be also possible to be directly defined 
-  as part of the *.cpp files. They remain separated __on purpose__, to have a nearly full application 
-  code skeleton (as c-file) for an embedded device. Only the **int main (void)** is missing. 
-  An complete example for that can be found in the c-file template 'knx_iot_application_template'
-  in folder 'template'.
+> Some demos uses *.c and *.cpp files. The *.c files hosts KNX data definitions and 
+  application handlers, even it would be also possible to define all of this directly as 
+  part of the *.cpp files. For the demo pupose the files remain separated __on purpose__,
+  to have a nearly full application code skeleton (as c-file) for an embedded device 
+  (only the **int main (void)** is missing). An complete example of skeleton can be found 
+  in the c-file template 'knx_iot_application_template' in folder 'template'.
 
-> Note that the file 'knx_iot_virtual.c' is NOT a part of the stack or not intended to be a 
-  'application' library. It hosts only for below described ETS/EITT application commonly used 
-  functionality in one place.
+> Note that the file 'knx_iot_virtual.c/h' is NOT a part of the stack or not intended to be an 
+  'application' library. It hosts only for the application demos commonly used functionality in 
+  one place.
 
-## EITT Applications
+## Folder '/ems'
+Energy Management System (EMS) [samples](apps/EMS/Readme.md) used to play with the stack and 
+KNX based EMS applications (Inverter, Charger, Central Eneryg Manager).	
+
+## Folder '/knx'
+Common KNX samples of a **Light Switch Actuator Basic** (LSAB), **Light Switch Sensor Basic** (LSSB)
+and a test application to pass the stack certification with the EITT test tool from KNX. 
+
+### '/knx/eitt'
 
 EITT stack test application.
 
-### Folder '/eitt'
-
-It contains the application to pass the certification with the KNX EITT tool.
-
 - **knx_iot_virtual_eitt.cpp** 
 
-The EITT request some predefined settings (serial number, datapoints, clean device,...), 
+The EITT test tool requests some predefined settings (serial number, datapoints, clean device,...), 
 as defined in the EITT test template. Therefore this (EITT test) application does not support 
 command line parameters. Hence this on application startup also a reset (erase code 2) is performed.
 
 For the predefined settings from above see the corresponding *.c file. 
   
-## ETS Applications 
+### '/knx/lsab' and 'knx/lssb'
 
-ETS demo applications, used to test the stack with KNX ETS6 tool.
-
-### Folder '/lsab' and '/lssb'
-
-It contains the Light Switch Actuator Basic (LSAB) and Light Switch Sensor Basic (LSSB). 
+KNX Light Switch Actuator Basicand Light Switch Sensor Basic demo applications, used to test the 
+stack with the KNX ETS6 tool. 
 
 - **knx_iot_virtual_lsab.c** and **knx_iot_virtual_lssb.c**
 - **knx_iot_virtual_lsab.cpp** and **knx_iot_virtual_lssb.cpp**
 
-> The above defined ETS applications supports only their intended datapoints, e.g., for the sensor application only sensor datapoints.
+> The above defined applications supports only their intended datapoints, e.g., for the sensor application only sensor datapoints.
 If (for example) you enable for a sensor in ETS also the actuator functionality and assign to the actuator objects also GA's, 
 the ETS download of sensor application to the virtual sensor device will fail (this demo behavior may be improved in the future). 
-
-> Note that the current stack does not work properly on sending a separate LSAB status per button from the LSAB GUI application.
-This is under investigation.
 
 If there are multiple instances of the **same** virtual device run in the **same** network problems will occur (e. g.; 
 two developers are testing at the same time their ETS projects with up and running lsab/lssb virtual devices on their computers).
@@ -64,15 +62,11 @@ If you run into this problem, you can change the serial number in one test insta
 1. in the lsab/lssb c-file (for the virtual devices)
 2. in the ETS project by updating the certificate (see [ETS6 pages](../../wikis/Home/ETS6))
 
-### Folder '/knxtools'
+### 'knx/ets'
 
 Contains a (pre-registered) ETS6 **product** and a (predefined) ETS6 **project**.  
 
 - **knx_iot_virtual_lsxb.knxprod** (product)
 - **knx_iot_virtual_lsxb.knxproj** (project)
 
-More details on how to use/edit the product and/or project in ETS6, for this see in [ETS6 pages](../../wikis/Home/ETS6). 
-
-### Folder '/EMS'
-EMS stands for Energy Management System.  
-This folder contains the sample [EMS applications](apps/EMS/Readme.md) describing how to use the stack in this specific context.	
+More details on how to use/edit the product and/or project in ETS6, for this see in [ETS6 pages](../../wikis/Home/ETS6).

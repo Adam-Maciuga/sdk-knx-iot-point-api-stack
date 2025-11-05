@@ -1377,19 +1377,22 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		  // invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
 			if (method == OC_GET && matching_resource->get_handler.cb)
 			{
-				matching_resource->get_handler.cb(&request_obj, 
+        // entry point, such as for GET /k
+			  matching_resource->get_handler.cb(&request_obj, 
 																					matching_resource->get_handler.interface_mask,
 																					matching_resource->get_handler.user_data);
 			}
 			else if (method == OC_POST && matching_resource->post_handler.cb)
 			{
-				matching_resource->post_handler.cb(&request_obj, 
+				// entry point, such as for POST /p with a collection or POST /k with an item 
+			  matching_resource->post_handler.cb(&request_obj, 
 																					 matching_resource->post_handler.interface_mask,
 																					 matching_resource->post_handler.user_data);
 			}
 			else if (method == OC_PUT && matching_resource->put_handler.cb)
 			{
-				matching_resource->put_handler.cb(&request_obj, 
+        // entry point, such as for PUT /p/{property-path} with an item 
+			  matching_resource->put_handler.cb(&request_obj, 
 																					matching_resource->put_handler.interface_mask,
 																					matching_resource->put_handler.user_data);
 			}

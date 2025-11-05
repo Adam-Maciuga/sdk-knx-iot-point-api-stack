@@ -528,7 +528,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           {
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
-            const int new_array_size = oc_int_array_size(object->value.array);
+            const uint16_t new_array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
             uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
@@ -1100,7 +1100,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           {
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
-            const int array_size = oc_int_array_size(object->value.array);
+            const uint16_t array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             // ga size shall be 32 bit
@@ -1631,7 +1631,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           {
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
-            const int new_array_size = oc_int_array_size(object->value.array);
+            const uint16_t new_array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             // ga size shall be 32 bit
@@ -1686,10 +1686,11 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // resource 'non' (CBOR/JSON = 'non'/'non') - used on unicast, multicast are always NON messages (=true)
+          // resource 'non' (CBOR/JSON = 'non'/'non') - see 'non' details
           if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
           {
-            tmp_grt_entry.non = object->value.boolean;
+              // take as it is, regardless if resource is mc or uc, see stack handling details on flag description
+              tmp_grt_entry.non = object->value.boolean;
           }
 
           break;
@@ -2193,7 +2194,7 @@ void oc_load_group_object_table_entry(int entry)
           {
             // a load command does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(rep->value.array);
-            const int new_array_size = oc_int_array_size(rep->value.array);
+            const uint16_t new_array_size = oc_int_array_size(rep->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
@@ -2486,7 +2487,7 @@ static void oc_load_group_table_entry(int entry, char* store, oc_group_table_t* 
           {
             // a load command does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(rep->value.array);
-            const int new_array_size = (int)oc_int_array_size(rep->value.array);
+            const uint16_t new_array_size = (int)oc_int_array_size(rep->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
@@ -2951,9 +2952,18 @@ void oc_init_datapoints_at_initialization(void)
           else
           {
             // TODO resolve IP unicast to send via unicast...
-            // discover unicast IPv6 for IA via mDNS
-            // send message with unicast IPv6
-            PRINT("grpid =0");
+
+            /*
+             - get IA from RCP table + AT token reference (a)
+             - get at token 'id' (cbor key 0) from (a)
+             - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
+
+
+             - from stream of responses create new unicast EP
+             - use non flag as defined in GRP table
+             - send message
+            */ 
+            PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
           }
         }
       }

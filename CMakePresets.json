@@ -4,7 +4,7 @@
     {
       "name": "windows-debug-msvc",
       "displayName": "Windows Debug(MSVC)",
-      "description": "Target Windows with the Visual Studio development environment.",
+      "description": "Target Windows with the Visual Studio (Code) development environment.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
@@ -80,28 +80,9 @@
       }
     },
     {
-      "name": "linux-debug-gcc",
-      "displayName": "Linux Debug(gcc)",
-      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "OC_DEBUG_ENABLED": true,
-        "OC_PRINT_ENABLED": true,
-        "OC_DEBUG_OSCORE_ENABLED": true
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      }
-    },
-    {
-      "name": "EMS-PoC-Debug",
-      "displayName": "EMS-PoC Debug",
-      "description": "Target: Windows, IDE: VS",
+      "name": "windows-debug-msvc-no-replay",
+      "displayName": "Windows Debug(MSVC) - no replay protection",
+      "description": "Target Windows with the Visual Studio (Code) development environment.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
@@ -121,9 +102,9 @@
       }
     },
     {
-      "name": "EMS-PoC-Release",
-      "displayName": "EMS-PoC Release",
-      "description": "Target: Windows, IDE: VS",
+      "name": "windows-release-msvc-no-replay",
+      "displayName": "Windows Release(MSVC) - no replay protection",
+      "description": "Target Windows with the Visual Studio (Code) development environment.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",

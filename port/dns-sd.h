@@ -24,7 +24,7 @@ extern "C" {
 #include <stdint.h>
 
 /**
-   @brief Publish the KNX mDNS service in order to enable DNS-SD discovery.
+   @brief Publish a KNX mDNS service in order to enable DNS-SD discovery on server side.
   
    @param serial_no KNX serial number
    @param iid KNX Installation ID, set to 0 if the device has not been commissioned yet
@@ -46,9 +46,40 @@ extern "C" {
     2. Get specific knx service     -> IN <service>.<domain> -> OUT <instance>.<service>.<domain>
 
    
-
  */
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
+
+  /**
+ @brief Invoke a KNX mDNS service in order to get an IPv6 unicast address that
+        belongs to an individual address on client side (see specification clause 2.4.2).
+
+  Step 1: dns-sd -B _ia0-<ia>.sub_._knx._udp
+
+    Timestamp     A/R Flags if Domain  Service Type  Instance Name
+    10:41:09.844  Add     2 18 local.  _knx._udp.    00fa10020800
+
+  Step 2: dns-sd -L "00fa10020800" _knx._udp
+
+    10:44:03.360  00fa10020800._knx._udp.local. can be reached at LT-AH-002.local.:58445 (interface 18)
+
+  Step 3:  dns-sd -G v6 LT-AH-002.local
+
+    Timestamp     A/R Flags if Hostname           Address                                      TTL
+    10:45:01.890  Add     3 18 LT-AH-002.local.   2003:00E1:2711:B800:5EF6:XXXX:XXXX:XXXX%<0>  120
+    :
+    10:45:01.897  Add     3 18 LT-AH-002.local.   FDFE:4EFB:062A:0000:79DD:XXXX:XXXX:XXXX%<0>  120
+
+ @param ia KNX Individual Address  from teh counterpart device
+
+ @return int 0 on success, -1 on error
+
+ @note for each platform a specific call of this resolving method must be used
+       (windows = bonjour / thread = open thread /unix = avahi ...)
+ 
+                  
+
+*/
+int knx_resolve_ipv6_unicast_address(uint16_t ia);
 
 /**
  * @brief Set the advertised sleep period within the mDNS service.

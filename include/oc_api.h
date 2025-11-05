@@ -631,7 +631,7 @@ extern "C"
    *                     method is called on the resource
    * @param[in] user_data Context pointer that is passed to the
    *                      oc_request_callback_t. The pointer must remain valid as
-   *                      long as the resource exists.
+   *                      long as the resource exists. NULL if no user data needed.
    *
    * @param[in] scopes the scope of this resource for the given method (will be added, by respect other acl's)
    * @param[in] interfaces the interface of this for the given method (will be added, by respect other if's)

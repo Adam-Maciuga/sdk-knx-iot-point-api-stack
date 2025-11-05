@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
 
 # dedicated apps folder for the EMS PoC
-add_subdirectory(apps/EMS)
+# add_subdirectory(apps/EMS)
 
 # load module to fetch external content
 include(FetchContent)
@@ -346,32 +346,65 @@ if(WIN32)
         # physical exe targets
         ## EITT GUI (for certification)
         add_executable(eitt_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.cpp
-            ${PROJECT_SOURCE_DIR}/apps/eitt/knx_iot_virtual_eitt.c
+            ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.cpp
+            ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.c
+            ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
             ${MANIFEST_RC} 
         )
 
         ## LSSB GUI 
         add_executable(lssb_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.cpp
-            ${PROJECT_SOURCE_DIR}/apps/lssb/knx_iot_virtual_lssb.c
+            ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.cpp
+            ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.c
+            ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
             ${MANIFEST_RC} 
         )
 
         ## LSAB GUI 
         add_executable(lsab_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.cpp
-            ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
+            ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.cpp
+            ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.c
+            ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
             ${MANIFEST_RC} 
         )
+
+        ## Inverter (PV) GUI
+        add_executable(pv_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/ems/pv/knx_iot_virtual_pv.cpp
+            ${PROJECT_SOURCE_DIR}/apps/ems/pv/knx_iot_virtual_pv.c
+            ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${MANIFEST_RC} 
+        )
+
+        ## CEM GUI
+        add_executable(cem_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/ems/cem/knx_iot_virtual_cem.cpp
+            ${PROJECT_SOURCE_DIR}/apps/ems/cem/knx_iot_virtual_cem.c
+            ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${MANIFEST_RC} 
+        )
+
+        ## Charger GUI
+        add_executable(charger_virtual_gui WIN32
+            ${PROJECT_SOURCE_DIR}/apps/ems/charger/knx_iot_virtual_charger.cpp
+            ${PROJECT_SOURCE_DIR}/apps/ems/charger/knx_iot_virtual_charger.c
+            ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${MANIFEST_RC} 
+        ) 
 
         target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_link_libraries(lssb_virtual_gui wx::net wx::core wx::base kisClientServer)
         target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
 
+        target_link_libraries(pv_virtual_gui      wx::net wx::core wx::base kisClientServer)
+        target_link_libraries(cem_virtual_gui     wx::net wx::core wx::base kisClientServer)
+        target_link_libraries(charger_virtual_gui wx::net wx::core wx::base kisClientServer)
 
         if(USE_CONSOLE)
           add_compile_definitions(USE_CONSOLE)
@@ -385,6 +418,11 @@ if(WIN32)
           set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
           set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
           set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+
+          set_target_properties(pv_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+          set_target_properties(cem_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+          set_target_properties(charger_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+
         endif()
 
 endif()
@@ -414,6 +452,34 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/lsab/knx_iot_virtual_lsab.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
     )
+
+    ## Inverter (PV) GUI (Linux)
+    add_executable(pv_virtual_gui
+        ${PROJECT_SOURCE_DIR}/apps/EMS/knx_iot_virtual_PV.cpp
+        ${PROJECT_SOURCE_DIR}/apps/EMS/knx_iot_virtual_PV.c
+        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+        ${MANIFEST_RC} 
+    )
+
+    ## CEM GUI (Linux)
+    add_executable(cem_virtual_gui
+        ${PROJECT_SOURCE_DIR}/apps/EMS/knx_iot_virtual_CEM.cpp
+        ${PROJECT_SOURCE_DIR}/apps/EMS/knx_iot_virtual_CEM.c
+        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+        ${MANIFEST_RC} 
+    )
+
+    ## Charger GUI (Linux)
+    add_executable(charger_virtual_gui
+        ${PROJECT_SOURCE_DIR}/apps/EMS/knx_iot_virtual_Charger.cpp
+        ${PROJECT_SOURCE_DIR}/apps/EMS/knx_iot_virtual_Charger.c
+        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+        ${MANIFEST_RC} 
+    )      
+
+    target_link_libraries(pv_virtual_gui      ${wxWidgets_LIBRARIES} kisClientServer)
+    target_link_libraries(cem_virtual_gui     ${wxWidgets_LIBRARIES} kisClientServer)
+    target_link_libraries(charger_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
 
     target_link_libraries(eitt_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
     target_link_libraries(lssb_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)

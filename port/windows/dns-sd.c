@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2022 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +37,7 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
   (void) ia;
   (void) pm;
 
-#ifdef OC_DNS_SD
+  #ifdef OC_DNS_SD
 
   char subtypes[64];
   char port_str[7]; // max 65535 + /0 chars 
@@ -64,10 +65,88 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
   
   si.cb = sizeof(si);              // Required: tell Windows the structure size
   
-  // Build command line: dns-sd -R <Name> <Type> <Domain> <Port> [<TXT>...]
+  // build command line: dns-sd -R <Name> <Type> <Domain> <Port> [<TXT>...]
   char cmdline[512];
-  (void)snprintf(cmdline, sizeof(cmdline), "dns-sd -R \"%s\" \"%s\" \"local\" \"%s\" \"%s\"", 
+  (void)snprintf(cmdline, sizeof(cmdline), 
+                 "dns-sd -R \"%s\" \"%s\" \"local\" \"%s\" \"%s\"", 
                  serial_no, subtypes, port_str, sp_text_record);
+  
+  // set creation flags based on console preference
+  #ifndef USE_CONSOLE
+    DWORD creation_flags = CREATE_NO_WINDOW;    // Hide console window
+  #else
+    DWORD creation_flags = 0;                   // Show console window
+  #endif
+    
+  // create process with appropriate window visibility
+  if (CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, creation_flags, NULL, NULL, &si, &pi))
+  {
+    // initialize job object once and set auto-kill flag
+    if (!job_handle) 
+    {
+      job_handle = CreateJobObject(NULL, NULL);
+      if (job_handle) 
+      {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = {0};
+        jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(job_handle, JobObjectExtendedLimitInformation,
+                                &jeli, sizeof(jeli));
+      }
+    }
+
+    // assign new process to the job (if available)
+    if (job_handle)
+      AssignProcessToJobObject(job_handle, pi.hProcess);
+
+    process_handle = (intptr_t)pi.hProcess;
+    CloseHandle(pi.hThread); // don't need thread handle
+  }
+  else 
+  {
+    process_handle = 0;
+  }
+  #endif 
+
+  return 0;
+}
+
+
+int knx_resolve_ipv6_unicast_address(uint16_t ia, char* list_of_ipv6_addresses)
+{
+  // for the case if DNS_SD is disabled
+  (void) ia;
+
+  #ifdef OC_DNS_SD
+
+  char subtypes[64];
+  char port_str[7]; // max 65535 + /0 chars 
+
+  // if already present, kill first
+  if (process_handle != 0)
+  {
+    TerminateProcess((HANDLE) process_handle, 0);
+  }
+
+  // stringify port
+  const uint16_t port = knx_get_used_port();
+  (void)snprintf(port_str, sizeof(port_str), "%d", port);
+
+  
+
+  // Step 1: stringify ia subtypes
+  (void) snprintf(subtypes, 63, "_knx._udp,_ia0-%x", ia);
+
+  // creates/executes a new process (may need to install a dns client)
+  // Use CreateProcess with conditional window visibility
+  STARTUPINFOA si = {0};           // Initialize all fields to 0
+  PROCESS_INFORMATION pi = {0};    // Initialize all fields to 0
+  
+  si.cb = sizeof(si);              // Required: tell Windows the structure size
+  
+  // build command line: dns-sd -R <Name> <Type> <Domain> <Port> [<TXT>...]
+  char cmdline[512];
+  //(void)snprintf(cmdline, sizeof(cmdline), "dns-sd -R \"%s\" \"%s\" \"local\" \"%s\" \"%s\"", 
+  //               serial_no, subtypes, port_str, sp_text_record);
   
   // Set creation flags based on console preference
   #ifndef USE_CONSOLE

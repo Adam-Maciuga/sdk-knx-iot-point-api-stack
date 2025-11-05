@@ -1,6 +1,5 @@
 /*
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2022-2023 Cascoda Ltd
  Copyright (c) 2024-2025 KNX Association
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,59 +17,52 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-
-
+/*
+  Note that the file 'knx_iot_virtual_ems.c' is NOT a part of the stack or not intended to be an
+  'application' library. It hosts only for the below described EMS application commonly used
+  functionality in one place.
+*/
 
 #ifndef KNX_IOT_VIRTUAL_EMS_H
 #define KNX_IOT_VIRTUAL_EMS_H
 
+#include "apps/knx_iot_virtual.h"
+
+/*
+ network
+
+ A network router may not allow to send multicast with scope 5 (site local),
+ hence the DEMO applications use scope 2 instead. If needed, sendout with scope 2 and 5
+ separately may be an option (2 messages).
+
+ */
+#define SENDER_SCOPE (2)
 
 typedef struct
 {
-  char* resource_path;
-  char* dpa;
-  char* dpt;
-  char* name;
-  char* id; // used to identify for a generic PUT/GET handler the channel number/ datapoint number
-} datapoint_t;
+  uint16_t fb_number;
+  uint8_t fb_instance;
+  uint8_t fb_number_of_datapoints;
 
+  int_datapoint_t point;
+} int_functional_block_t;
 
 #ifdef __cplusplus
 extern "C"
 {
-#endif   
+#endif
 
-  const int SUN_MODE = 0;
-  const int MIX_MODE = 1;
+  /*
+     Collection of all proto definitions of the - by stack demos - used PUT/GET methods.
+     For more details see the methods as such.
 
-  // PV app
-  int PV_init_auth_table();
-  int PV_init_tables_QR(char*);
-  char* PV_retrieve_href(uint16_t);
-  void PV_set_PV(int);  
-  void PV_get_PV(oc_request_t*, oc_interface_mask_t, void*);
+   */
 
-  // CEM app
-  int CEM_init_auth_table();
-  int CEM_init_tables(char*);
-  char* CEM_retrieve_href(uint16_t);
-  int CEM_retrieve_mode();
-  int CEM_retrieve_pv();
-  int CEM_retrieve_charger();
-  void CEM_process_pv();
-  void CEM_set_mode(int);
-  void CEM_set_charger(int);
-  void CEM_set_link(uint64_t);
-  void CEM_put_PV(oc_request_t*, oc_interface_mask_t, void*);
-  void CEM_get_charger(oc_request_t*, oc_interface_mask_t, void*);  
-  void CEM_get_link(oc_request_t*, oc_interface_mask_t, void*);  
+  // EMS
+  void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
-  // Charger app
-  int Charger_init_auth_table();
-  int Charger_init_tables_QR(char*);
-  int Charger_retrieve_charger();
-  void Charger_put_charger(oc_request_t*, oc_interface_mask_t, void*);  
-
+  
 #ifdef __cplusplus
 }
 #endif

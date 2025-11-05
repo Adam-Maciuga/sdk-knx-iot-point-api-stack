@@ -27,7 +27,7 @@
 #include "oc_api.h"
 #include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
-#include "apps/knx_iot_virtual.h" // application constants + methods (also 'GetCurrentDir')
+#include "apps/knx/knx_iot_virtual_knx.h"
 
 /*
  * LSAB definitions

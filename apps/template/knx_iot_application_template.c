@@ -22,7 +22,7 @@
  * KNX application template 
  * ========================
  *
- * This (NON GUI) application demonstrates the general stack usage, in contrast to the EITT/ETS GUI (C++) demo applications.
+ * This (NON GUI) application demonstrates the general stack usage, in contrast to the EITT/ETS/EMS GUI (C++) demo applications.
  * Hence, this template includes the int main(void) function. The - by this template - supported OS is windows and linux,
  * for a specific embedded platform OS the code may need to be adapted.
  *
@@ -34,7 +34,7 @@
  *
  * Note that
  * - the template is NOT defined as a CMake build target in CMakeLists.txt, if needed it must be added.
- * - the template may not be able to compile/ build out of the box, 
+ * - the template may not be able to compile/ build out of the box without adapt some methods. 
  *
  */
 

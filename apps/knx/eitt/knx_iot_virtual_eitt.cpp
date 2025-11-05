@@ -24,11 +24,11 @@
 #include <wx/wxprec.h>
 #include <wx/wx.h>
 #include <wx/display.h>
-#include "oc_knx.h"
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#include "apps/knx_iot_virtual.h"
+#include "oc_knx.h"
+#include "apps/knx/knx_iot_virtual_knx.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 
@@ -52,16 +52,13 @@ enum : uint16_t
   CHECK_SLEEPY = CHECK_GRPID_DISPLAY + 1, // sleepy check
   CHECK_PM = CHECK_SLEEPY + 1, // programming mode check in menu bar
 
-  LSAB_0_SOO = CHECK_PM + 1, 
-  LSAB_0_IOO = CHECK_PM + 2,
-  LSAB_1_SOO = CHECK_PM + 3,
-  LSAB_1_IOO = CHECK_PM + 4,
+  EITT_SOO = CHECK_PM + 1,
 
-  LIST_ALL = LSAB_1_IOO + 1,
+  LIST_ALL = EITT_SOO + 1,
   RESTART_DEVICE = LIST_ALL + 1
 };
 
-extern lsxb_channel_t lsxb[NUM_CHANNELS];
+extern lsxb_channel_t lsab[NUM_CHANNELS];
 
 class CustomDialog : public wxDialog
 {
@@ -152,8 +149,9 @@ private:
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
+  void OnPressed_LSAB_SOO(wxCommandEvent& event);
 
-  void updateCheckBoxesFromLiveSOOData();
+  void updateCheckBoxesFromLiveIOOData();
   void updateDeviceData();
   void add_bool_to_text(bool on_off, char* text);
   void int2text(int value, char* text);
@@ -167,6 +165,7 @@ private:
   wxString dumpRecipientTable();
   wxString dumpParameterList();
   wxString dumpAuthTable();
+
 
   wxMenu* m_menuFile;
   wxMenu* m_menuDisplay;
@@ -184,8 +183,8 @@ private:
   wxTextCtrl* m_ls_text; // text control for load state
   wxTextCtrl* m_hn_text; // text control for host name
 
-  // channel 0
-  wxCheckBox *m_LSAB_0_SOO, *m_LSAB_1_SOO;
+  // eitt
+  wxButton *m_EITT_SOO;
 };
 
 wxIMPLEMENT_APP_CONSOLE(MyApp);
@@ -201,6 +200,9 @@ bool MyApp::OnInit()
   // call in c-code
   app_initialize_stack();
 
+  // reset the device (for EITT tests)
+  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+
   MyFrame* frame = new MyFrame();
 
   frame->Fit();
@@ -211,9 +213,8 @@ bool MyApp::OnInit()
 /**
  * @brief Construct a new My Frame:: My Frame object
  *
- * @param serial_number
  */
-MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
+MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
 {
   m_menuFile = new wxMenu;
   m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
@@ -226,7 +227,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
 
   // display menu
   m_menuDisplay = new wxMenu;
-  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays as GA 3-Level or as integer",true);
+  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays as GA 3-Level or as integer", true);
   m_menuDisplay->Check(CHECK_GA_DISPLAY, true);
   m_menuDisplay->Append(CHECK_GRPID_DISPLAY, "GRPID as partial ipv6 address (ETS)", "Displays the grpid as integer", true);
   m_menuDisplay->Check(CHECK_GRPID_DISPLAY, true);
@@ -250,11 +251,11 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
   menuBar->Append(menuHelp, "&Help");
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
-  wxFrameBase::SetStatusText("Welcome to KNX virtual switch actuator!");
+  wxFrameBase::SetStatusText("Welcome to EITT certification!");
 
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
-  Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
   Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
+  Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
@@ -268,54 +269,33 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
   int row;
   int column;
 
-  // channel 0 - actuator
+  // eitt - sensor
   {
     row = 0;
     column = 0;
 
-    
-   new wxStaticText(this, wxID_ANY, "Ch 0 | Actuator", 
-                    wxPoint(10 + column * x_width, 10 + x_height * row),
-                    wxSize(x_width, x_height), wxALIGN_LEFT);
-
-
-    // status
-    m_LSAB_0_SOO = new wxCheckBox(this, LSAB_0_SOO, _T("Undefined"), 
-                                  wxPoint(120 + column * x_width, 10 + x_height * row),
-                                  wxSize(x_width, x_height), wxCHK_3STATE);
-    m_LSAB_0_SOO->Set3StateValue(wxCHK_UNDETERMINED);
-    m_LSAB_0_SOO->Enable(false);
-
-  }
-
-  // channel 1 - actuator
-  {
-
-    row = 1;
-    column = 0;
-
-    new wxStaticText(this, wxID_ANY, "Ch 1 | Actuator",
+    new wxStaticText(this, wxID_ANY, "EITT | Sensor",
                      wxPoint(10 + column * x_width, 10 + x_height * row),
                      wxSize(x_width, x_height), wxALIGN_LEFT);
 
-    // status
-    m_LSAB_1_SOO = new wxCheckBox(this, LSAB_1_SOO, _T("Undefined"), wxPoint(120 + column * x_width, 10 + x_height * row),
-                                  wxSize(x_width, x_height), wxCHK_3STATE);
-    m_LSAB_1_SOO->Set3StateValue(wxCHK_UNDETERMINED);
-    m_LSAB_1_SOO->Enable(false);
+    // control
+    m_EITT_SOO = new wxButton(this, EITT_SOO, _T("SOO, press me ..."),
+                                wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
+
+    m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_SOO, this);
+    m_EITT_SOO->Enable(true);
   }
 
   constexpr int width_size = 180; // size of the knx info widgets
-  char text[500]; 
+  char text[500];
 
-  // serial number 
+  // serial number
   strcpy(text, "Serial Number : ");
   const oc_device_info_t* const  device = oc_core_get_device_info();
   strcat(text, oc_string(device->serialnumber));
 
-  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, 
-                                          wxPoint(10, 10 + ((max_instances + 1) * x_height)),
-                                          wxSize(width_size * 2, x_height), 0);
+  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 1) * x_height)),
+                                            wxSize(width_size * 2, x_height), 0);
   static_text0->SetEditable(false);
 
   /* QR code
@@ -335,51 +315,43 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
   strcat(text, app_get_password());
   app_str_to_upper(text);
 
-  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, 
-                                            wxPoint(10, 10 + ((max_instances + 2) * x_height)),
+  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 2) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);
   static_text1->SetEditable(false);
 
   // individual address, displayed data set/refreshed later
-  m_ia_text = new wxTextCtrl(this, IA_TEXT, "",
-                             wxPoint(10, 10 + ((max_instances + 3) * x_height)), 
-                             wxSize(width_size, x_height), 0);
+  m_ia_text =
+    new wxTextCtrl(this, IA_TEXT, "", wxPoint(10, 10 + ((max_instances + 3) * x_height)), wxSize(width_size, x_height), 0);
   m_ia_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
-  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", 
-                              wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
+  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
                               wxSize(width_size, x_height), 0);
   m_iid_text->SetEditable(false);
 
   // programming mode, displayed data set/refreshed later
-  m_pm_text = new wxTextCtrl(this, PM_TEXT, "",
-                             wxPoint(10, 10 + ((max_instances + 4) * x_height)), 
-                             wxSize(width_size, x_height), 0);
+  m_pm_text =
+    new wxTextCtrl(this, PM_TEXT, "", wxPoint(10, 10 + ((max_instances + 4) * x_height)), wxSize(width_size, x_height), 0);
   m_pm_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
-  m_ls_text = new wxTextCtrl(this, LS_TEXT, "", 
-                             wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)),
-                             wxSize(width_size, 25), 0);
+  m_ls_text =
+    new wxTextCtrl(this, LS_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)), wxSize(width_size, 25), 0);
   m_ls_text->SetEditable(false);
 
   // hostname, displayed data set/refreshed later
-  m_hn_text = new wxTextCtrl(this, LS_TEXT, "",
-                                   wxPoint(10, 10 + ((max_instances + 5) * 25)), 
-                                   wxSize(width_size, 25), 0);
+  m_hn_text = new wxTextCtrl(this, LS_TEXT, "", wxPoint(10, 10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), 0);
   m_hn_text->SetEditable(false);
 
   // SPAKE 2+ pwd
   strcpy(text, app_get_password());
-  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, 
-                                  wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
-                                  wxSize(width_size, 25), wxTE_RICH);
+  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
+                                            wxSize(width_size, 25), wxTE_RICH);
   static_text2->SetEditable(false);
 
   // update the UI
   this->updateDeviceData();
-  this->updateCheckBoxesFromLiveSOOData();
+  this->updateCheckBoxesFromLiveIOOData();
 
   // Calculate bounding box of all children to make Window correct size
   int maxRight = 0;
@@ -402,7 +374,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
   // Set minimum size dynamically
   this->SetMinSize(wxSize(maxRight + paddingX, maxBottom + paddingY));
   this->SetSize(this->GetMinSize());
-
+  
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
@@ -474,7 +446,7 @@ void MyFrame::updateDeviceData()
 {
 
   char text[500];
-  
+
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   // get the device data structure
@@ -532,6 +504,25 @@ void MyFrame::OnReset(wxCommandEvent& event)
 }
 
 /**
+ * @brief initiate a restart of the stack 
+ *
+ * @param event command triggered by the gui menu
+ */
+void MyFrame::OnRestartDevice(wxCommandEvent& event)
+{
+  SetStatusText("Restarting...");
+
+  // Use the new public API to trigger the exact same restart as the KNX stack
+  oc_knx_device_restart();
+
+  // Update the UI immediately (restart happens asynchronously)
+  this->updateDeviceData();
+  this->updateCheckBoxesFromLiveIOOData();
+
+  SetStatusText("Restart Initiated");
+}
+
+/**
  * @brief shows all tables combined in a window
  *
  * Opens a CustomDialog and concatenates the outputs of:
@@ -557,7 +548,7 @@ void MyFrame::OnListAll(wxCommandEvent& event)
       << dumpAuthTable();
 
   wxString title;
-  title.Printf("LSAB - All Tables - %s", oc_string(device->serialnumber));
+  title.Printf("EITT - All Tables - %s", oc_string(device->serialnumber));
 
   CustomDialog(title, all);
   SetStatusText("List All Tables");
@@ -582,7 +573,7 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  * - text buttons
  * does an oc_main_poll to give a tick to the stack
  * takes into account if the device is sleepy
- * e.g. then it only does a poll each 20 seconds
+ * e.g. then it only does an poll each 20 seconds
  * @param event triggered by a timer
  */
 void MyFrame::OnTimer(wxTimerEvent& event)
@@ -616,7 +607,7 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   }
 
   // update possible events
-  this->updateCheckBoxesFromLiveSOOData();
+  this->updateCheckBoxesFromLiveIOOData();
   this->updateDeviceData();
 }
 
@@ -627,34 +618,14 @@ void MyFrame::OnTimer(wxTimerEvent& event)
  *
  * @param event triggered by a timer
  */
-void MyFrame::updateCheckBoxesFromLiveSOOData()
+void MyFrame::updateCheckBoxesFromLiveIOOData()
 {
 
-  char text[200];
-  bool p;
-
-  // update check box
-  p = app_retrieve_bool_variable_from_channel(0, SOO);
-  m_LSAB_0_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
-
-  // update check box text
-  strcpy(text, "SOO = ");
-  this->add_bool_to_text(p, text);
-  m_LSAB_0_SOO->SetLabel(text);
-
-  // update check box
-  p = app_retrieve_bool_variable_from_channel(1, SOO);
-  m_LSAB_1_SOO->Set3StateValue(p ? wxCHK_CHECKED : wxCHK_UNCHECKED);
-
-  // update check box text
-  strcpy(text, "SOO = ");
-  this->add_bool_to_text(p, text);
-  m_LSAB_1_SOO->SetLabel(text);
-  
+  // no check boxes so far
 }
 
 /**
- * @brief convert the boolean to text and appends it to the given text 
+ * @brief convert the boolean to text and appends it to the given text
  *
  * @param on_off the boolean
  * @param text the text to add the boolean as text
@@ -824,6 +795,34 @@ void MyFrame::double2text(double value, char* text)
   char new_text[200];
   sprintf(new_text, " %f", value);
   strcat(text, new_text);
+}
+
+void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
+{
+  // get url from SOO (channel 1 out of 2) as defined in EITT template
+  char* url = app_retrieve_href_from_channel(1, SOO);
+  bool p = app_retrieve_bool_variable_from_channel(1, SOO);
+
+  // toggle value
+  p = !p;
+
+  // set value
+  app_set_bool_variable_from_channel(1, SOO, p);
+
+  // send out, multicast
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
+
+  // update button text
+  char text[200];
+  strcpy(text, "SOO = ");
+
+  this->add_bool_to_text(p, text);
+  m_EITT_SOO->SetLabel(text);
+
+  // show in status bar
+  char statusBarText[100];
+  (void)sprintf(statusBarText, "Switch On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
+  SetStatusText(statusBarText);
 }
 
 /**
@@ -1090,22 +1089,4 @@ wxString MyFrame::dumpAuthTable()
     }
   }
   return out;
-}
-
-/**
- * @brief initiate a restart of the stack 
- *
- * @param event command triggered by the gui menu
- */
-void MyFrame::OnRestartDevice(wxCommandEvent& event)
-{
-  SetStatusText("Restarting...");
-
-  // Use the new public API to trigger the exact same restart as the KNX stack
-  oc_knx_device_restart();
-
-  // Update the UI immediately (restart happens asynchronously)
-  this->updateDeviceData();
-
-  SetStatusText("Restart Initiated");
 }

@@ -124,7 +124,7 @@ extern "C"
     oc_string_t href;         // resource path
     oc_cflag_mask_t cflags;   // cflags as in KNX
     uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (0...n) / send (1)  
-    int ga_len;               // group address array len, specification demands at least 20 entries must be supported
+    uint16_t ga_len;          // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
 
   /**
@@ -186,8 +186,17 @@ extern "C"
     oc_string_t at;   // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;     // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;  // group address array len, specification demands at least 20 entries must be supported
-    bool non;         // non-confirmable unicast request, default = false (used only on RCP table)
+    bool non;         // non-confirmable request, see details below
   } oc_group_table_t;
+
+  /*
+    - optional property 
+    - uc (grpid not set) = confirmable by default, flag = false (except a MaC overwrites it)
+    - mc (grpid set) = non-confirmable, not applicable as confirmable on mc, hence
+      always 'ASSUMED' as true (the flag is NOT evaluated by the stack in case of sending mc messages) 
+    - used only on RCP table
+
+   */
 
   /**
    * @brief find id (cbor key 0) in the request

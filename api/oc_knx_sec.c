@@ -1888,7 +1888,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
       O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec' -> OK
 
       O1 s-mode endpoint (/k) call with caller/called scope hosting at least 'if.g.s' -> OK
-         = all ga's are allowed for if.g.s
+         = all ga's are allowed for 'if.g.s'
 
       O2 s-mode endpoint (/k) call with caller/called scope hosting at least a '<ga>' -> NOT ENOUGH
          = some ga's are allowed for <ga>

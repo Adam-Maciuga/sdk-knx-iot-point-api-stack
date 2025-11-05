@@ -19,18 +19,14 @@
 */
 
 /*
-  Note that the file 'knx_iot_virtual.c' is NOT a part of the stack or not intended to be a 
-  'application' library. It hosts only for below described ETS/EITT application commonly used 
-  functionality in one place.
- 
+  Note that the file 'knx_iot_virtual.c/h' is NOT a part of the stack or not intended to be an 
+  'application' library. It hosts only for the application demos commonly used functionality in one place.
 */
-
 
 #ifndef KNX_IOT_VIRTUAL_H
 #define KNX_IOT_VIRTUAL_H
 
 /*
- network
 
  A network router may not allow to send multicast with scope 5 (site local),
  hence the DEMO applications use scope 2 instead. If needed, sendout with scope 2 and 5
@@ -39,15 +35,8 @@
  */
 #define SENDER_SCOPE (2)
 
-// common data
-#define NUM_CHANNELS (2)
-#define NUM_POINTS   (2)
-#define SOO  (0)
-#define IOO  (1)
 
-
-// use it in upper case (min 6, max 32)
-// IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
+// use it in upper case (min 6, max 32), IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
 
 /*
@@ -55,7 +44,6 @@
  Datapoint definitions, used to register/create a datapoint resource in the application, 
  either the href/description/... data consumes the space this static structure definition, or
  they are hard coded when you register them, so no space difference but better structured
-
 
   - value types must respect the bit size definition of a MaC (ETS) product, e.g.; 32-bit int or bool
 
@@ -68,7 +56,6 @@
 
   - the resource (DPT) type
   
-
   - the id used for an n-fold channel oriented application to define a generic PUT/GET handler for all channels,
     the addressed channel and datapoint can be identified from the generic handler, e.g. by setting the value
     to ch# << 8 + point# (see code application examples)
@@ -86,47 +73,19 @@ typedef struct
 
 typedef struct
 {
-  volatile unsigned int value; 
+  volatile int value; 
   char* resource_path;
   char* dpa;
   char* dpt;
   char* name;
 } int_datapoint_t;
 
-/*
-  Defines the basic (channel oriented) structure of a LSAB/LSSB/EITT functional block definition.
-
-  An FB consists of a number of datapoints with its values, endpoints (EP) and URNs.
-
-  - the FB number, despite any DPA scheme that is used from the in FB included datapoints
-    (note that an FB such as 417 may also reuse predefined datapoints from other FB's with DPA type 312.xx, 2nn.xx or similar, 
-     FB 421 is NOT only using 'self defined' 417.xx types)
-
-  - the FB instance, 0...n, 0 = only one instance, > 0 more than one instance, see also 'oc_resource_set_function_block_data'
-
-  - the number of 'visible' datapoint in an FB, note that if this number WOULD change e.g.; when adding/deleting resources or make some invisible   
-    - caused by ETS (e.g, partial download with changed parameter setting)
-    - caused by own application at runtime (e.g, HMI parameter adjustment by user)
-    the correct number must be applied by the application to the FB. 
-
-  - the datapoints, see above
-
-*/
-typedef struct
-{
-  uint16_t fb_number;
-  uint8_t fb_instance;
-  uint8_t fb_number_of_datapoints;
-
-  bool_datapoint_t point[NUM_POINTS];
-} lsxb_channel_t, functional_block_t;
-
 #ifdef _WIN32
 #include <direct.h>
 #define GetCurrentDir _getcwd                  // path of current working directory, WIN
 #elif defined(__linux__) || defined(__APPLE__) // linux, mac specific code
 #include <unistd.h>
-#define GetCurrentDir getcwd                   // path of current working directory, LINUX, MAC
+#define GetCurrentDir getcwd                   // path of current working directory, linux, mac
 #endif
 
 #ifdef __cplusplus
@@ -163,6 +122,12 @@ extern "C"
    * @param point the point of the channel for the bool to get
    */
   bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point);
+
+  /**
+   * @brief Get an int
+   *
+   */
+  int app_retrieve_int_variable_from_charger(void);
 
   /**
    * @brief Get a URL
@@ -232,7 +197,6 @@ extern "C"
    */
   void app_str_to_upper(char* str);
 
-
   /**
    * @brief software update callback
    *
@@ -254,21 +218,14 @@ extern "C"
   void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource);
 
   /**
-   * @brief s-mode response callback
-   * will be called when a response is received on an s-mode read request
+   * @brief s-mode response callback,
+   *        will be called when a response is received on an s-mode read request
    *
    * @param url the url
    * @param rep the full response
    * @param rep_value the parsed value of the response
    */
   void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value);
-
-  void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
-  void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
-  void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
-
-  void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
-  void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
   // need to define prototype, used by an init method
   void signal_event_loop(void);

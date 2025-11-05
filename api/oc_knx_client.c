@@ -275,8 +275,21 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       else
       {
-        // TODO discover/resolve unicast IPv6 for IA via mDNS and send message with unicast IPv6
-        PRINT("grpid = 0, send uc via device ia");
+
+        // TODO resolve IP unicast to send via unicast...
+
+        /*
+         - get IA from RCP table + AT token reference (a)
+         - get at token 'id' (cbor key 0) from (a)
+         - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
+
+           
+         - from stream of responses create new unicast EP
+         - use non flag as defined in GRP table
+         - send message
+        */   
+
+        PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
       }
       return 0;
     }
@@ -316,9 +329,19 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       { // uc: request-> ia is used used from RCP table (configured by MaC) 
 
         // TODO resolve IP unicast to send via unicast...
-        // discover unicast IPv6 for IA via mDNS
-        // send message with unicast IPv6
-        PRINT("grpid =0");
+        
+        /*
+         - get IA from RCP table + AT token reference (a)
+         - get at token 'id' (cbor key 0) from (a)
+         - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
+
+
+         - from stream of responses create new unicast EP
+         - use non flag as defined in GRP table
+         - send message
+        */ 
+
+        PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
       }
 
       

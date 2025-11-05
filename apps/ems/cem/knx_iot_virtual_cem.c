@@ -153,8 +153,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "apps/knx_iot_virtual.h"
-#include "knx_iot_virtual_EMS.h"
+#include "../knx_iot_virtual_ems.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
 #include "api/oc_knx_fp.c"
@@ -231,13 +230,6 @@ void register_resources(void)
   oc_resource_set_properties(PV_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* PV_user_data = CEM_datapoint[1].id;
 
-  oc_resource_bind_resource_type(GRID_resource, CEM_datapoint[2].dpa);
-  oc_resource_bind_dpt(GRID_resource, CEM_datapoint[2].dpt);
-  oc_resource_bind_content_type(GRID_resource, APPLICATION_CBOR, CONTENT_NONE);
-  //oc_resource_set_function_block_instance(GRID_resource, 1);
-  oc_resource_set_properties(GRID_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
-  void* GRID_user_data = CEM_datapoint[2].id;
-
   oc_resource_bind_resource_type(CHARGER_resource, CEM_datapoint[3].dpa);
   oc_resource_bind_dpt(CHARGER_resource, CEM_datapoint[3].dpt);
   oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
@@ -248,8 +240,7 @@ void register_resources(void)
   oc_resource_bind_resource_type(LINK_resource, CEM_datapoint[3].dpa);
   oc_resource_bind_dpt(LINK_resource, CEM_datapoint[3].dpt);
   oc_resource_bind_content_type(LINK_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_discoverable(LINK_resource, true);
-  oc_resource_set_observable(LINK_resource, true);
+  oc_resource_set_properties(LINK_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
   void* LINK_user_data = CEM_datapoint[3].id;
 
   oc_resource_set_request_handler(PV_resource, OC_PUT, CEM_put_PV, PV_user_data, OC_ACL_I, OC_IF_I);    
