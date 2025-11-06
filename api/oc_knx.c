@@ -917,19 +917,20 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             /*
                call PUT callback handler from inbound POST to uri path with 'k' and len = 1
 
-               - for /p a POST and /p/{property-path} a PUT is defined (oc_invoke_coap_entity_handler),
-                 for /k only a POST method is defined
-               - /k and /p and /p/{property-path} (must) call the same application callback handler
+               a: for uc /p only a POST is defined 
+               b: for uc/mc /k only a POST is defined
+               c: for uc /p{property-path} a PUT is defined (oc_invoke_coap_entity_handler)
 
+               - a.b,c (must) call the same application callback handler
                - uri path is used for a redirect check in application callback handler
                - use new request (not the received one with POST), user data are possible
                - call application handler with own interface/ user data
-                 (it makes no sense to call it with the original /k interface mask, this is a fix value)
+                 (it makes no sense to call it with the original caller /k interface mask, this would be always a fix value)
 
             */
-            application_resource_with_href_match->put_handler.cb(
-              &new_request, application_resource_with_href_match->put_handler.interface_mask,
-              application_resource_with_href_match->put_handler.user_data);
+            application_resource_with_href_match->put_handler.cb(&new_request, 
+                                                                 application_resource_with_href_match->put_handler.interface_mask,
+                                                                 application_resource_with_href_match->put_handler.user_data);
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
@@ -1043,14 +1044,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   if (request->origin && request->origin->flags & MULTICAST)
-  { // multicast request: don't send anything ELSE back
-    // if configured in PUB table a read was answered with multicast beforehand
+  { // multicast request: don't send anything ELSE back as mc or uc
+    // if configured in PUB table a read was answered with multicast response beforehand
 
     PRINT("multicast - not sending response");
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
   }
   else
-  { // unicast request: send status back
+  { // unicast request: send status back as unicast
     // if configured in PUB table a read was answered with multicast (GRIP ID > 0) and/or unicast beforehand
 
     PRINT("unicast - sending response");

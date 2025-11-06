@@ -70,9 +70,9 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
  *         when that happened, extra information can be in the CBOR object (metadata).
  *
  * @note   an endpoint allows to 'redirect' calls such as:
- *         - a. from POST '/k' with payload
- *         - b. from POST '/p' with payload (value and/or metadata)
- *         - c. from GET/PUT '/p/{point-path}' with/without payload
+ *         - a. from POST '/k' with s-mode message payload
+ *         - b. from POST '/p' with payload (value, href) and optionally metadata query parameter
+ *         - c. from GET/PUT '/p/{point-path}' with/without payload and optionally metadata query parameter
  *
  * @param request the request to be checked
  *

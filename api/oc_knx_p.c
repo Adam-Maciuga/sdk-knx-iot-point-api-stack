@@ -126,12 +126,12 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   @note
   workflow for receiving an inbound message:
 
-         1. after (re)configuration
-            a: nothing
-         2. at runtime
-            a: an unicast POST message is received by IP layer,
-              -> forward to /p (provided security check was passed)
-            b: method '/p' checks call PUT callback handler
+   1. after (re)configuration
+      a: nothing
+   2. at runtime
+      a: an unicast POST message is received by IP layer,
+         -> forward to /p (provided security check was passed)
+      b: method '/p' checks payload , if ok call PUT callback handler
 
   mandatory resources
   - Access token table
@@ -209,7 +209,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
     if (rep->type == OC_REP_OBJECT)
     {
       /*
-         scan for objects, a post may contain in the collection many resource items,
+         scan all objects, a post may contain in the collection many resource items,
          each with many properties
        */
       oc_rep_t* entry_object = rep->value.object;
@@ -219,34 +219,35 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
       while (entry_object)
       {
-        // href = MANDATORY
+        // href (11) = MANDATORY
         if (entry_object->iname == 11 && entry_object->type == OC_REP_STRING)
         {
           entry_url = &entry_object->value.string;
         }
 
-        // value = MANDATORY
+        // value (1) = MANDATORY
         if (entry_object->iname == 1)
         {
           entry_value = entry_object;
         }
 
         /*
-          Do the post only if (at least) a href and value is in the request, reason: 
+          Do the post only if href and value is in the request, both are mandatory, such as
+          for a simple write of a datapoint value.
 
-          - WRITING of metadata (per POST here, or PUT) is optional in the specification;
-            this is NOT supported from the stack, hence to write a value in this stack version
-            at least href + value must be present. 
-          - Note, READING of metadata (per GET) is mandatory in the specification for specific types
-            (if, rt, ...), this is supported from the stack (application callback handler).
+          - WRITING metadata (POST/PUT) is optional in the specification.
+          - READING metadata (GET) is mandatory in the specification.
+
+          Generally, both 'metadata' functionalities (w/r) must be implemented as part
+          of the application PUT/GET callback handler, see e.g.; the handler for demos of LSAB/LSSB.
+
         */
         if (entry_value && entry_url)
         {
           // copy inbound request
           oc_ri_new_request_from_inbound_request(&new_request, request, &response_buffer, &response_obj);
 
-          // sets the payload pointer to the collection 'item' OBJECT that includes the value
-          // used by /p and /k that calls the same application callback handlers
+          // sets the payload pointer to the 'value' OBJECT --> MUST BE IN (otherwise NULL is assigned)
           new_request.request_payload = rep->value.object;
 
           const oc_resource_t* application_resource_with_href_match =
@@ -254,13 +255,24 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
           if (application_resource_with_href_match && application_resource_with_href_match->put_handler.cb)
           {
+            
             /*
-              call callback PUT handler from inbound POST to uri path with 'p' and len = 1,
-              details for this see POST /k handler (oc_knc.c)
+               call PUT callback handler from inbound POST to uri path with 'p' and len = 1
+
+               a: for uc /p only a POST is defined 
+               b: for uc/mc /k only a POST is defined
+               c: for uc /p{property-path} a PUT is defined (oc_invoke_coap_entity_handler)
+               
+               - a.b,c (must) call the same application callback handler
+               - uri path is used for a redirect check in application callback handler
+               - use new request (not the received one with POST), user data are possible
+               - call application handler with own interface/ user data
+                 (it makes no sense to call it with the original caller /p interface mask, this would be always a fix value)
+
             */
             application_resource_with_href_match->put_handler.cb(&new_request, 
-                                        application_resource_with_href_match->put_handler.interface_mask,
-                                        application_resource_with_href_match->put_handler.user_data);
+                                                                 application_resource_with_href_match->put_handler.interface_mask,
+                                                                 application_resource_with_href_match->put_handler.user_data);
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);

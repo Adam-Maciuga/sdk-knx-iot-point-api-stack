@@ -50,14 +50,14 @@ int oc_is_redirected_request_from(const oc_request_t* request)
     return -1;
   }
 
-  // check POST to '/k' with extra payload (s-mode message)
+  // check POST to '/k' -> s-mode message
   // - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
   if (request->uri_path[0] == 'k')
   {
     return 0;
   }
 
-  // check GET/PUT with/without extra payload '/p/{point-path}' or POST with extra payload '/p'
+  // check GET/PUT to '/p/{point-path}' or POST to '/p' -> both are property messages
   // - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
   // - we don't care of total uri length, at least 'p' must be present
   if (request->uri_path[0] == 'p')

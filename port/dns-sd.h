@@ -69,17 +69,16 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
     :
     10:45:01.897  Add     3 18 LT-AH-002.local.   FDFE:4EFB:062A:0000:79DD:XXXX:XXXX:XXXX%<0>  120
 
- @param ia KNX Individual Address  from teh counterpart device
+ @param ia KNX Individual Address from the counterpart device
+ @param list_of_ipv6_addresses resolved IPv6 addresses
 
  @return int 0 on success, -1 on error
 
  @note for each platform a specific call of this resolving method must be used
        (windows = bonjour / thread = open thread /unix = avahi ...)
  
-                  
-
 */
-int knx_resolve_ipv6_unicast_address(uint16_t ia);
+int knx_resolve_ipv6_unicast_address(uint16_t ia, char* list_of_ipv6_addresses);
 
 /**
  * @brief Set the advertised sleep period within the mDNS service.
