@@ -18,6 +18,9 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
+//needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
+#undef WX_PRECOMP
+
 
 // For compilers that support precompilation, includes "wx/wx.h".
 #include <wx/cmdline.h>
@@ -54,8 +57,6 @@
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 #include "oc_oscore_context.h"
-#include "apps/ems/icons/key_png.h"
-#include "apps/ems/icons/pv_png.h"
 #include "apps/ems/icons/pv_ico.h"
 
 #include <wx/clipbrd.h>
@@ -111,7 +112,7 @@ enum : uint16_t
   CHECK_SLEEPY = 0x000f,
   CHECK_PM = 0x0010,
   DEVICE_USAGE = 0x0011,
-  DEVICE_SETTINGS = 0x0012
+  LIST_ALL = 0x0012
 };
 
 
@@ -179,8 +180,11 @@ public:
   MyFrame();
 
 private:
-  void OnSettings(wxCommandEvent& event);
   void OnUsage(wxCommandEvent& event);
+
+  void OnListAll(wxCommandEvent& event);
+  wxString dumpDeviceIDs();
+  wxString dumpDeviceSettings();
   wxString dumpGroupObjectTable();
   wxString dumpPublisherTable();
   wxString dumpRecipientTable();
@@ -272,25 +276,14 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   icon.CopyFromBitmap(bmp);
   SetIcon(icon);
 
-  wxToolBar* tb = CreateToolBar(wxTB_VERTICAL | wxNO_BORDER | wxTB_FLAT);
-
-  wxMemoryInputStream stream1(key_png, key_png_len);
-  wxImage img1(stream1, wxBITMAP_TYPE_PNG);
-  wxBitmap bmp1(img1);
-  wxMemoryInputStream stream2(pv_png, pv_png_len);
-  wxImage img2(stream2, wxBITMAP_TYPE_PNG);
-  wxBitmap bmp2(img2);
-
-  tb->AddTool(DEVICE_SETTINGS, "", wxBitmapBundle::FromBitmap(bmp1), "Settings");
-  tb->AddTool(DEVICE_USAGE, "", wxBitmapBundle::FromBitmap(bmp2), "Usage");
-  tb->Realize();
-
   m_menuFile = new wxMenu;
-  m_menuFile->Append(DEVICE_SETTINGS, "Device Details", "", false);
-  m_menuFile->Append(GOT_TABLE_ID, "Group Object Table", "", false);
-  m_menuFile->Append(PUB_TABLE_ID, "Publisher Table", "", false);
-  m_menuFile->Append(REC_TABLE_ID, "Recipient Table", "", false);
-  m_menuFile->Append(AT_TABLE_ID, "Authentication Table", "", false);
+  m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
+  m_menuFile->AppendSeparator();
+  m_menuFile->Append(CHECK_PM, "Programming Mode", "Sets the application in programming mode", true);
+  m_menuFile->Append(RESET_TABLE, "Reset (7) (Tables)", "Reset 7 (Reset to default without IA)", false);
+  m_menuFile->Append(RESET, "Reset (2) (ex-factory)", "Reset 2 (Reset to default state)", false);
+  m_menuFile->AppendSeparator();
+  m_menuFile->Append(wxID_EXIT);
 
   // display menu
   m_menuDisplay = new wxMenu;
@@ -308,24 +301,26 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
 
   // help menu
   wxMenu* menuHelp = new wxMenu;
+  menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
   menuHelp->Append(wxID_ABOUT);
 
   // full menu bar
   wxMenuBar* menuBar = new wxMenuBar;
-  menuBar->Append(m_menuFile, "Config");
-  //menuBar->Append(m_menuDisplay, "&Display");
-  //menuBar->Append(m_menuOptions, "&Options");
-  //menuBar->Append(menuHelp, "&Help");
-  //wxFrameBase::SetMenuBar(menuBar);
+  menuBar->Append(m_menuFile, "&File");
+  menuBar->Append(m_menuDisplay, "&Display");
+  menuBar->Append(m_menuOptions, "&Options");
+  menuBar->Append(menuHelp, "&Help");
+  wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
-  //wxFrameBase::SetStatusText("PV");
 
   Bind(wxEVT_MENU, &MyFrame::OnUsage, this, DEVICE_USAGE);
-  Bind(wxEVT_MENU, &MyFrame::OnSettings, this, DEVICE_SETTINGS);
-  // Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
-  // Bind(wxEVT_MENU, &MyFrame::OnPublisherTable, this, PUB_TABLE_ID);
-  // Bind(wxEVT_MENU, &MyFrame::OnRecipientTable, this, REC_TABLE_ID);
-  // Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
+  Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
+  Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
+  Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
+  Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
+  Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
+  Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
+  Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
 
   wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
@@ -455,114 +450,37 @@ void MyFrame::OnReset(wxCommandEvent& event)
 
 void MyFrame::OnUsage(wxCommandEvent& event)
 {
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  wxString usage;
+  usage << "Usage:" << "\n"
+        << "- Simulates a solar inverter providing power data." << "\n"
+        << "- Enables adjustment of the solar production value (0-10 kW) for testing." << "\n";
 
-  strcpy(text, "");
-
-  sprintf(line, "Device IDs:\n");
-  strcat(text, line);
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-
-  sprintf(line, " - Serial number: '%s' ", oc_string(device->serialnumber));
-  strcat(text, line);
-  strcat(text, "\n"); // break to next entry
-
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  sprintf(line, " - Individual address: %d.%d.%d '%02x'", ia_a, ia_l, ia_d, device->ia);
-  strcat(text, line);
-  strcat(text, "\n"); // break to next entry
-
-  uint64_t value = device->iid;
-
-  /*
- create the multicast address from group and scope
- FF3_:FD__:____:____:(8-f)___:____
- FF35:30:<ULA-routing-prefix>::<group id>
-    | 5 == scope
-    | 3 == scope
- Multicast prefix: FF35:0030:  [4 bytes]
- ULA routing prefix: FD11:2222:3333::  [6 bytes + 2 empty bytes]
- Group Identifier: 8000 : 0068 [4 bytes ]
-*/
-  // group number to the various bytes
-  uint8_t byte_1 = static_cast<uint8_t>(value);
-  uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
-  uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
-  uint8_t byte_4 = static_cast<uint8_t>(value >> 24);
-  uint8_t byte_5 = static_cast<uint8_t>(value >> 32);
-
-  if (byte_5 == 0)
-  {
-    sprintf(line, " - Installation ID: '%02x%02x:%02x%02x'", byte_4, byte_3, byte_2, byte_1);
-  }
-  else
-  {
-    sprintf(line, " - Installation ID: '%02x:%02x%02x:%02x%02x'", byte_5, byte_4, byte_3, byte_2, byte_1);
-  }
-  strcat(text, line);
-
-
-  wxString all;
-  all << text << "\n\n"
-      << "Usage:" << "\n"
-      << "- Simulates a solar inverter providing power data." << "\n"
-      << "- Enables adjustment of the solar production value (0�10 kW) for testing." << "\n";
-
-  strcpy(windowtext, "Device IDs & usage");
-  CustomDialog(windowtext, all, 520, 180);
+  CustomDialog("Inverter Usage", usage, 480, 130);
 }
 
-/**
- * @brief shows all tables combined in a window
- *
- * Opens a CustomDialog and concatenates the outputs of:
- * - Group Object Table
- * - Publisher Table
- * - Recipient Table
- * - Parameter List
- * - Auth/AT Table
- *
- * Each section is separated with headers.
- *
- * @param event command triggered by the menu button
- */
-void MyFrame::OnSettings(wxCommandEvent& event)
+void MyFrame::OnListAll(wxCommandEvent& event)
 {
-  wxString title;
-  wxString all;
-
-  title.Printf("Device settings & cryptography");
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (!device || device->lsm_s != LSM_S_LOADED)
+  const oc_device_info_t* const device = oc_core_get_device_info();
+  if (!device)
   {
-    all << "PV: unloaded" << "\n";
-    CustomDialog(title, all, 250, 100);
     return;
   }
 
-  all << dumpGroupObjectTable() << "\n"
-      << dumpPublisherTable()
-      << "\n"
-      << "\n"
+  wxString all;
+  all << dumpDeviceIDs()        << "\n\n"
+      << dumpDeviceSettings()   << "\n\n"
+      << dumpGroupObjectTable() << "\n\n"
+      << dumpPublisherTable()   << "\n\n"
+      << dumpRecipientTable()   << "\n\n"
+      << dumpParameterList()    << "\n\n"
       << dumpAuthTable();
 
-  CustomDialog(title, all, 420, 250);
+  wxString title;
+  title.Printf("Inverter - Device & Tables - %s", oc_string(device->serialnumber));
+
+  CustomDialog(title, all, 520, 400);
+  SetStatusText("List Device & All Tables");
 }
-
-
-
 
 
 
@@ -1227,6 +1145,85 @@ void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
 
 }
 
+
+/**
+ * @brief returns a formatted string containing device IDs
+ *
+ * @return wxString containing formatted device IDs (serial number, IA, IID)
+ */
+wxString MyFrame::dumpDeviceIDs()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+  if (!device)
+  {
+    return wxString("");
+  }
+
+  wxString out("- Device IDs:\n");
+  char line[256];
+
+  // Serial number
+  sprintf(line, "  - Serial number: '%s'\n", oc_string(device->serialnumber));
+  out += line;
+
+  // Individual address
+  const uint16_t ia_a = device->ia >> 12; // area
+  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
+  const uint16_t ia_d = device->ia & 0x00FF; // device
+  sprintf(line, "  - Individual address: %d.%d.%d (%04x)\n", ia_a, ia_l, ia_d, device->ia);
+  out += line;
+
+  // Installation ID
+  uint64_t value = device->iid;
+  uint8_t byte_1 = static_cast<uint8_t>(value);
+  uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
+  uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
+  uint8_t byte_4 = static_cast<uint8_t>(value >> 24);
+  uint8_t byte_5 = static_cast<uint8_t>(value >> 32);
+
+  if (byte_5 == 0)
+  {
+    sprintf(line, "  - Installation ID: %02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
+  }
+  else
+  {
+    sprintf(line, "  - Installation ID: %02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
+  }
+  out += line;
+
+  return out;
+}
+
+/**
+ * @brief returns device settings and load state information
+ *
+ * @return wxString containing device settings info
+ */
+wxString MyFrame::dumpDeviceSettings()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+  if (!device)
+  {
+    return wxString("");
+  }
+
+  wxString out("- Device Settings:\n");
+
+  if (device->lsm_s == LSM_S_UNLOADED)
+  {
+    out += "  Inverter: unloaded\n";
+  }
+  else if (device->lsm_s == LSM_S_LOADING)
+  {
+    out += "  Inverter: loading\n";
+  }
+  else if (device->lsm_s == LSM_S_LOADED)
+  {
+    out += "  Inverter: loaded\n";
+  }
+
+  return out;
+}
 
 /**
  * @brief dump the Group Object Table into a string
