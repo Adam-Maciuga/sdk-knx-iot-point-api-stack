@@ -1,25 +1,40 @@
 # Introduction
 
-This folder contains the EMS apps.
+This folder contains the Energy Management System (EMS) demo apps. 
+The demo uses three (3) devices,with the use case of 'e-car charging' with a fixed power of 4 kW DC.
+The Central Energy Manager (CEM) allows to set a parameter by the user that defines two modes, 
+Sun and Mix mode. 
 
-EMS stands for Energy Management System.
-These are the three EMS apps:
-- PV
-- CEM
-- Charger
+- In **Sun** mode the e-car is charged exlusivly with 'green' solar energy, if the availabe solar 
+  power drops below the threshold of 4 kW (e.g.; cloudy weather) the charging of th e-car is paused.
+- In **Mix** mode the charing will never be stopped unless the e-car is fully charged. 
+  Hence the charged energy is a mix of solar energy and grid energy, in worst case all energy is 
+  retrieved from the grid (e.g; during night).   
 
-AH: write here what is the  use case doing (or refer to that below) 
+The below picture illustrates the use case.
 
 ![Concept](concept.png)
 
-## 1. PV app
+The following demo applications are involved in the use case. 
+- Inverter (provides solar energy)
+- Central Energy Manager (manages energy) 
+- Charger (consumes energy)
 
-PV stands for photovoltaic and the app represents the functionality of an Invertor PV control device.
+> Note that the grid energy as such is not modelled in this demo. For simplification it is assumed that such  
+  energy is (always) available. 
+
+All applications uses in KNX defined datapoints, for this KNX has specified the corresponding
+__Functional Block__ defintions. You can find them in the folder 'data'
+
+## 1. Inverter
+
+The inverter represents the photovoltaics functionality of a device. 
+The Funtional Block defintion can be found at  
 
 > The current implementation contains one datapoint, representing 'present DC power', mimicking sun beam radiation or alike  
   This datapoint is represented by a slider, which allows the user to set the present DC power from 0 to 10 kW in steps of 1 kW and to send out the selected value to the medium.
 
-## 2. CEM app
+## 2. Central Energy Manager
 
 CEM stands for Central Energy Manager.
 
@@ -38,7 +53,7 @@ There is an alternative Windows based CEM demo app foreseen, it covers both CEM 
   
   The second datapoint sends, depending on the operation mode out to the medium the requested (calculated) charge rate, eihter at 0 kW or at 4 kW.
 
-## 3. Charger app
+## 3. Charger
 
 This app represents the functionality of an Electric car charger device.
 
