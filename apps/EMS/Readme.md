@@ -1,63 +1,70 @@
 # Introduction
 
 This folder contains the Energy Management System (EMS) demo apps. 
-The demo uses three (3) devices,with the use case of 'e-car charging' with a fixed power of 4 kW DC.
-The Central Energy Manager (CEM) allows to set a parameter by the user that defines two modes, 
-Sun and Mix mode. 
+
+The use case is to charge an e-car with a power of 4 kW DC, moreover a user can decide 
+for two operation modes.
 
 - In **Sun** mode the e-car is charged exlusivly with 'green' solar energy, if the availabe solar 
   power drops below the threshold of 4 kW (e.g.; cloudy weather) the charging of th e-car is paused.
 - In **Mix** mode the charing will never be stopped unless the e-car is fully charged. 
-  Hence the charged energy is a mix of solar energy and grid energy, in worst case all energy is 
-  retrieved from the grid (e.g; during night).   
+  Hence the charged energy is a mix of solar energy and grid energy. In worst case all energy is 
+  retrieved from the grid (e.g; during night), in best case all energy is 'green' solar energy.   
 
-The below picture illustrates the use case.
+The charging mode can be set by th euser on the Customer Energy Manager (CEM).The below picture 
+illustrates the use case.
 
 ![Concept](concept.png)
 
-The following demo applications are involved in the use case. 
-- Inverter (provides solar energy)
-- Central Energy Manager (manages energy) 
-- Charger (consumes energy)
+The following functionalities are involved in this demo use case. 
 
-> Note that the grid energy as such is not modelled in this demo. For simplification it is assumed that such  
-  energy is (always) available. 
+1. Inverter (provides solar energy)
+2. Charger (consumes energy)
+3. Customer Energy Manager (manages energy) 
 
-All applications uses in KNX defined datapoints, for this KNX has specified the corresponding
-__Functional Block__ defintions. You can find them in the folder 'data'
+> Note that the grid energy as such is not modelled in this demo. For simplification it is assumed 
+  that grid energy is (always) available. 
+
+In a typical installtion the above defined three functionalities can be shared amongst several (end) devices.
+For example, the CEM can be a standalone device or the functionality is part of the 'Charger' (end) device. 
+In a usual installation with a staionary battery or heat pump the CEM is often part in one of those devices.
+
+All applications uses KNX standardized datapoints, the corresponding __Functional Block__ defintions you can
+find in folder 'apps/ems/data'
+
+a. 07_80 Introduction v01.01.01 WGI
+b. 07_80_01 Photovoltaics v01.01.01.pdf
+c. 07_80_03 eMoblity v01.01.01.pdf
 
 ## 1. Inverter
 
-The inverter represents the photovoltaics functionality of a device. 
-The Funtional Block defintion can be found at  
+The inverter demo represents an own end device with the the photovoltaics functionality. 
 
-> The current implementation contains one datapoint, representing 'present DC power', mimicking sun beam radiation or alike  
-  This datapoint is represented by a slider, which allows the user to set the present DC power from 0 to 10 kW in steps of 1 kW and to send out the selected value to the medium.
+> The demo implements the 'PowerDC' datapoint from the Functional Block (b), reflecting the
+  sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
+  the present DC power from 0 to 10 kW in steps of 1 kW.
 
-## 2. Central Energy Manager
+## 2. Charger
 
-CEM stands for Central Energy Manager.
+The charger demo represents an own end device with the the charging functionality. 
 
-The app in this folder is intended to be used in and end-device, this HOWEVER does not represent its actual use in practice or in the field; CEM is to be considered as a specific functionality or even as a set of functionalities in the EMS context. Moreover including client (ETS alike) features, like scanning devices over the medium and linking them together into at least one building function.
+> The demo implements the 'ActivePowerLimit' datapoint from the Functional Block (c), reflecting the
+  charging consumption from the e-car. It is represented by a moving bar, which allows to 'simulate'
+  the charging process. 
 
-There is an alternative Windows based CEM demo app foreseen, it covers both CEM features and client features, but is not within the scope of this project/repo.
+## 3. Customer Energy Manager
 
-> The current implementation contains two datapoints and foresees two operation modes.
-  
-  The first datapoint serves the role of capturing the present DC power from the medium, which is typically send out to the medium by Invertor PV control devices.
-  
-  The two operation modes are:
-  - sun mode: the principle is to only charge the electric car at 4 kW if at least 4kW DC power is procuded by sun light (through PV panels)
-  - mix mode: charge the electric car at 4 kW regardless of the present produced DC power by sun light
-  The operation mode is represented by a dedicated button, wich allows the user to toggle its value, the current value is indicated inside the button, either 'sun' or 'mix'.
-  
-  The second datapoint sends, depending on the operation mode out to the medium the requested (calculated) charge rate, eihter at 0 kW or at 4 kW.
+The customer energy manager demo represents an own end device with the the cem functionality. 
 
-## 3. Charger
+> The demo implements the (input) counterpart for the (output) 'PowerDC' datapoint from the Functional Block (b),
+  the (output) counterpart for the (input) 'ActivePowerLimit' datapoint from the Functional Block (c), 
+  and the (sun/mix) operation mode setting.
 
-This app represents the functionality of an Electric car charger device.
+This customer energy manager demo is intended to be used in an end device, to be considered as a specific 
+functionality at runtime in the context of energy management.
 
-> The current implementation contains one datapoint and serves the role of capturing the requested charge rate from the medium, which is typically send out to the medium by CEM devices.
+For including also client configuration features (alike ETS), there will be an alternative CEM demo. 
+It covers both, the cem runtime functionality (this CEM demo) and client configuration features.
 
 # Details 
 
