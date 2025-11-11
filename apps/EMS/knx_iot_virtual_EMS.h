@@ -28,24 +28,20 @@
 
 #include "apps/knx_iot_virtual.h"
 
-/*
- network
-
- A network router may not allow to send multicast with scope 5 (site local),
- hence the DEMO applications use scope 2 instead. If needed, sendout with scope 2 and 5
- separately may be an option (2 messages).
-
- */
-#define SENDER_SCOPE (2)
-
-typedef struct
+typedef enum cem_mode_t
 {
-  uint16_t fb_number;
-  uint8_t fb_instance;
-  uint8_t fb_number_of_datapoints;
+  sun_mode = 0,
+  mix_mode = 1
+} cem_mode_t;
 
-  int_datapoint_t point;
-} int_functional_block_t;
+
+#define CEM_INVERTER (0)
+#define CEM_CHARGER (1)
+
+
+/*
+ for functional block details see Functional Block Notes in 'knx_iot_virtual.h'
+*/
 
 #ifdef __cplusplus
 extern "C"
@@ -54,15 +50,38 @@ extern "C"
 
   /*
      Collection of all proto definitions of the - by stack demos - used PUT/GET methods.
-     For more details see the methods as such.
+     For handler details see Callback Notes in 'knx_iot_virtual.h'
+  */
 
-   */
-
-  // EMS
+  // charger
   void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
-  
+  // inverter
+  void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+
+  // cem 
+  void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+
+  // ems local functions, 
+  void cem_process_inverter_input(void);
+
+  cem_mode_t retrieve_cem_mode(void);
+  void set_cem_mode(cem_mode_t mode);
+
+  int get_cem_inverter_value(void);
+  int get_cem_charger_value(void);
+  void set_inverter_value(int value);
+  int get_charger_value(void);
+
+  char* app_retrieve_href_from_charger(void);
+  char* app_retrieve_href_from_inverter(void);
+  char* app_retrieve_href_from_cem_inverter(void);
+  char* app_retrieve_href_from_cem_charger(void);
+
+
 #ifdef __cplusplus
 }
 #endif

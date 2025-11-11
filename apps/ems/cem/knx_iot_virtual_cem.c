@@ -143,162 +143,103 @@
  *
  */
 
-#include "oc_rep.h"
-#include "api/oc_knx_dev.h"
 #include "oc_api.h"
+#include "port/oc_storage.h"
+#include <stdio.h> // defines FILENAME_MAX
+#include "apps/ems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
-#include "port/oc_clock.h"
-#include "port/oc_storage.h"
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "../knx_iot_virtual_ems.h"
 #include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
-#include "api/oc_knx_fp.c"
-#include "api/oc_knx_sec.c"
+#include "oc_knx_client.h"
 
-#ifdef __linux__
-#include <pthread.h>
-#ifndef NO_MAIN
-static pthread_mutex_t mutex;
-static pthread_cond_t event_is_pending;
-static struct timespec ts;
-#endif
-#endif
-
-#ifdef WIN32
-#include <windows.h>
-static CONDITION_VARIABLE event_is_pending;
-static CRITICAL_SECTION critical_section;
-#include <direct.h>
-#define GetCurrentDir _getcwd // path of current working directory, windows
-#else // linux,mac specific code
-#include <unistd.h>
-#define GetCurrentDir getcwd // path of current working directory, LINUX, MAC
-#endif
-
-const char application_name[] = "CEM";
+const char application_name[] = "Central Energy Manager";
 const char sn_lower_case[] = "00fa10020c00";  // deliberated incorrect serial numbers
 const char hostname[] = "knx-00fa10020c00";   // default host name (reset uses this default)
 const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
-// global variables
-volatile int quit = 0; // stop variable, used by handle_signal
-bool g_reset = false; // reset variable, set by commandline arguments
+cem_mode_t cem_mode = sun_mode;
 
-int datapoint_mode = 0;
-int datapoint_pv = 0;
-int datapoint_charger = 0;
-uint64_t datapoint_link = 0;
-
-datapoint_t CEM_datapoint[4] = {
-  {"/p/mode", "urn:knx:dpa.xxx.xx", ":dpt.enum", "MODE", "0"}, // DPT: 20.103
-  {"/p/pv", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "PV", "1"}, // DPT: 14.056 
-  {"/p/charger", "urn:knx:dpa.xxx.xx", ":dpt.value_power", "CHARGER", "2"}, // DPT: 14.056 
-  {"/p/link", "urn:", "LINK", "sn", "3"} // no standard DPT
+int_array_functional_block_t cem = {
+  427,
+  1,
+  1,
+  {
+    {0, /* IEEE 754 single float, KNX DPT: 14.056 */
+      "/p/inverter",
+      "urn:knx:dpa.427.60",
+      ":dpt.value_power",
+    "CEM Input from Inverter"},
+    {0, /* IEEE 754 single float, KNX DPT: 14.056 */
+     "/p/charger",
+     "urn:knx:dpa.427.52",
+     ":dpt.value_power",
+     "CEM Output to Charger"}
+  }
 };
-
-// due to stuff added in knx_iot_virtual.c
-lsxb_channel_t lsxb[1] = {NULL}; 
-
-// additional parameters
-int_datapoint_t test_parameter = {
-  0, "/p/globalTestParameter", "urn:knx:dpa.65500.201", ":dpt.value2Ucount", "Global Test Parameter"};
 
 void register_resources(void)
 {
-  oc_resource_t* MODE_resource = oc_new_resource(CEM_datapoint[0].resource_path, 1);
-  oc_resource_t* PV_resource = oc_new_resource(CEM_datapoint[1].resource_path, 1);
-  oc_resource_t* CHARGER_resource = oc_new_resource(CEM_datapoint[2].resource_path, 1);
-  oc_resource_t* LINK_resource = oc_new_resource(CEM_datapoint[3].resource_path, 1);
+  oc_resource_t* power_dc_resource_inverter_in = oc_new_resource(cem.point[CEM_INVERTER].resource_path, 1);
+  oc_resource_t* power_dc_resource_charger_out = oc_new_resource(cem.point[CEM_CHARGER].resource_path, 1);
   
-  oc_resource_bind_resource_type(MODE_resource, CEM_datapoint[0].dpa);
-  oc_resource_bind_dpt(MODE_resource, CEM_datapoint[0].dpt);
-  oc_resource_bind_content_type(MODE_resource, APPLICATION_CBOR, CONTENT_NONE);
-  //oc_resource_set_function_block_instance(MODE_resource, 1);
-  oc_resource_set_properties(MODE_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
-  void* MODE_user_data = CEM_datapoint[0].id;
 
-  oc_resource_bind_resource_type(PV_resource, CEM_datapoint[1].dpa);
-  oc_resource_bind_dpt(PV_resource, CEM_datapoint[1].dpt);
-  oc_resource_bind_content_type(PV_resource, APPLICATION_CBOR, CONTENT_NONE);
-  //oc_resource_set_function_block_instance(PV_resource, 1);
-  oc_resource_set_properties(PV_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
-  void* PV_user_data = CEM_datapoint[1].id;
+  oc_resource_bind_resource_type(power_dc_resource_inverter_in, cem.point[CEM_INVERTER].dpa);
+  oc_resource_bind_resource_type(power_dc_resource_charger_out, cem.point[CEM_CHARGER].dpa);
 
-  oc_resource_bind_resource_type(CHARGER_resource, CEM_datapoint[3].dpa);
-  oc_resource_bind_dpt(CHARGER_resource, CEM_datapoint[3].dpt);
-  oc_resource_bind_content_type(CHARGER_resource, APPLICATION_CBOR, CONTENT_NONE);
-  //oc_resource_set_function_block_instance(CHARGER_resource, 1);
-  oc_resource_set_properties(CHARGER_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
-  void* CHARGER_user_data = CEM_datapoint[3].id;
+  oc_resource_bind_dpt(power_dc_resource_inverter_in, cem.point[CEM_INVERTER].dpt);
+  oc_resource_bind_dpt(power_dc_resource_charger_out, cem.point[CEM_CHARGER].dpt);
 
-  oc_resource_bind_resource_type(LINK_resource, CEM_datapoint[3].dpa);
-  oc_resource_bind_dpt(LINK_resource, CEM_datapoint[3].dpt);
-  oc_resource_bind_content_type(LINK_resource, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_set_properties(LINK_resource, OC_OBSERVABLE + OC_DISCOVERABLE);
-  void* LINK_user_data = CEM_datapoint[3].id;
+  oc_resource_bind_content_type(power_dc_resource_inverter_in, APPLICATION_CBOR, CONTENT_NONE);
+  oc_resource_bind_content_type(power_dc_resource_charger_out, APPLICATION_CBOR, CONTENT_NONE);
 
-  oc_resource_set_request_handler(PV_resource, OC_PUT, CEM_put_PV, PV_user_data, OC_ACL_I, OC_IF_I);    
-  oc_resource_set_request_handler(CHARGER_resource, OC_GET, CEM_get_charger, CHARGER_user_data, OC_ACL_I, OC_IF_I);     
-  oc_resource_set_request_handler(LINK_resource, OC_GET, CEM_get_link, LINK_user_data, OC_ACL_I, OC_IF_I);     
+  oc_resource_set_functional_block_data(power_dc_resource_inverter_in, cem.fb_number, cem.fb_instance, cem.fb_number_of_datapoints);
+  oc_resource_set_functional_block_data(power_dc_resource_charger_out, cem.fb_number, cem.fb_instance, cem.fb_number_of_datapoints);
 
-  oc_add_resource(MODE_resource);  
-  oc_add_resource(PV_resource);
-  oc_add_resource(CHARGER_resource);
-  oc_add_resource(LINK_resource);  
+  oc_resource_set_properties(power_dc_resource_inverter_in, OC_OBSERVABLE + OC_DISCOVERABLE);
+  oc_resource_set_properties(power_dc_resource_charger_out, OC_OBSERVABLE + OC_DISCOVERABLE);
 
-  PRINT("Register test parameter");
-  {
-    oc_resource_t* tp0 = oc_new_resource(test_parameter.resource_path, 1);
+  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_GET, get_cem_inverter, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
+  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_PUT, put_cem_inverter, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
 
-    oc_resource_bind_resource_type(tp0, test_parameter.dpa);
+  oc_resource_set_request_handler(power_dc_resource_charger_out, OC_GET, get_cem_charger, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
 
-    oc_resource_bind_dpt(tp0, test_parameter.dpt);
-
-    oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
-
-    //oc_resource_set_function_block_instance(tp0, 1);
-
-    oc_resource_set_properties(tp0, OC_OBSERVABLE + OC_DISCOVERABLE);
-
-    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 
-
-    oc_add_resource(tp0);
-  }
+  oc_add_resource(power_dc_resource_inverter_in);
+  oc_add_resource(power_dc_resource_charger_out);
 }
+
 int app_initialize_stack(void)
 {
-  // set SN before stack initialization
-  //app_set_serial_number(sn_lower_case);
-
   /*
     The final storage folder depends on the build system/ current directory on Linux/ Windows,
     the folder name is defined by the file name + serial number.
     Code below should work both on Linux/Windows.
+
+    For a specific embedded OS usually this functionality needs to be adapted.
   */
 
-  char storage[400];
+  char storage[64];
+
+  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  //(void)sprintf(storage, "./knx_iot_virtual_PV_%s", app_get_serial_number());
-  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_CEM_%s", dir, sn_lower_case);
+  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_cem_%s", dir, sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
+
+  #endif
+
   oc_storage_config(storage);
 
   // initialize the 'application' runtime variables
-  initialize_variables(); 
+  initialize_variables();
 
-  // set the stack handler callbacks
-  static oc_handler_t handler = {.init = app_init, // called always
-                                 .signal_event_loop = signal_event_loop, // called always
-                                 .register_resources = register_resources, // called for a server (one time)
-                                 .requests_entry = NULL}; // called for a client
+  // set the stack handler callbacks, details for each handler see oc_handler_t
+  static oc_handler_t handler = {.init = app_init,
+                                 .signal_event_loop = signal_event_loop,
+                                 .register_resources = register_resources,
+                                 .requests_entry = NULL};
 
   // set the application handler callbacks
   oc_set_hostname_cb(hostname_cb, NULL);
@@ -308,315 +249,47 @@ int app_initialize_stack(void)
   // start the stack, calls directly also the .init handler from above
   return oc_main_init(&handler);
 }
-int CEM_init_auth_table()
+
+// cem local functions 
+
+void cem_process_inverter_input(void)
 {
-  int entry = 0;
+  const int mode = retrieve_cem_mode();
+  const int current_inverter_power = get_cem_inverter_value() / 1000; // kW
+  int current_charger_power = 4; // default 4 kW
 
-  // auth table
-  oc_new_string(&g_at_entries[entry].id, "0c00fa10020c00", strlen("0c00fa10020c00"));
-  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
+  if (mode == sun_mode)
+  {
+    if (current_inverter_power < 4)
+    {
+      // SUN mode, pause charging
+      current_charger_power = 0;
+    }
+  }
+  if (mode == mix_mode)
+  {
+    // MIX mode, continue charging
+  }
 
-  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0c, 0x00};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
-  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
+  // set charger output value
+  const char* url = app_retrieve_href_from_cem_charger();
+  cem.point[CEM_CHARGER].value = current_charger_power;
 
-  oc_load_at_table();
-
-  return 0;
+  // send message
+  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 }
-int CEM_init_tables(char* sn_link)
-{
-  oc_device_info_t* device = oc_core_get_device_info();
-  char* sn_cem = oc_string(device->serialnumber);
-  unsigned char sn_L[6];
-  unsigned char sn_D[6]; // serial number of this very device
-  int len;
 
-  for (size_t i = 0; i < 6; i++)
-    sn_L[i] = 0x00;
+cem_mode_t retrieve_cem_mode(void) { return cem_mode; }
+void set_cem_mode(cem_mode_t mode) { cem_mode = mode; }
 
-  len = strlen(sn_link);
+int get_cem_inverter_value(void) { return cem.point[CEM_INVERTER].value; }
+int get_cem_charger_value(void) { return cem.point[CEM_CHARGER].value; }
 
-  if (len % 2 == 0)
-  {
-    if (len / 2 == 6)
-    {
-      for (size_t i = 0; i < 6; i++)
-      {
-        char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
-        sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
-      }
-    }
-    else
-    {
-      return -1;
-    }
-  }
-  else
-  {
-    return -1;
-  }
+char* app_retrieve_href_from_cem_inverter(void) { return cem.point[CEM_INVERTER].resource_path; }
+char* app_retrieve_href_from_cem_charger(void) { return cem.point[CEM_CHARGER].resource_path; }
 
-  for (size_t i = 0; i < 6; i++)
-    sn_D[i] = 0x00;
-
-  len = strlen(sn_cem);
-
-  if (len % 2 == 0)
-  {
-    if (len / 2 == 6)
-    {
-      for (size_t i = 0; i < 6; i++)
-      {
-        char buf[3] = {sn_cem[2 * i], sn_cem[2 * i + 1], '\0'}; // 2 hex chars
-        sn_D[i] = (unsigned char)strtol(buf, NULL, 16);
-      }
-    }
-    else
-    {
-      return -1;
-    }
-  }
-  else
-  {
-    return -1;
-  }
-
-  int ia = 0xffff;
-  uint64_t iid;
-  int fid;
-  uint32_t grpid; 
-
-  iid = 0x00;
-  iid += sn_D[0];
-  iid <<= 8;
-  iid += sn_D[1];
-  iid <<= 8;
-  iid += 0x00;
-  iid <<= 8;
-  iid += 0x00;
-
-  fid = sn_D[0];
-  fid <<= 8;
-  fid += sn_D[1];
-  fid <<= 8;
-
-  grpid = 0x00;
-  grpid += sn_D[0];
-  grpid <<= 8;
-  grpid += sn_D[1];
-  grpid <<= 8;
-  grpid += 0x00;
-  grpid <<= 8;
-  grpid += 0x00;
-
-  int ga0 = 0x0001;
-  int ga1 = 0x0002;
-  int gaL = 0x0003;
-
-  oc_core_set_and_store_device_ia(ia);
-  oc_core_set_and_store_device_iid(iid);
-  oc_core_set_and_store_device_fid(fid);
-
-  oc_delete_group_object_table();
-  oc_init_tables();
-  oc_delete_at_table();
-  unsubscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
-
-  int entry;
-  int ga_array_size;
-  uint32_t* ga_array;
-
-  // object table: 0    
-  entry = 0;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = ga0;
-  }  
-  g_got[entry].id = 1;
-  oc_string_t href_pv;
-  oc_new_string(&href_pv, "/p/pv", strlen("/p/pv"));
-  g_got[entry].href = href_pv;
-  g_got[entry].cflags = OC_CFLAG_WRITE;
-  g_got[entry].ga_len = ga_array_size;
-  g_got[entry].ga = ga_array;
-
-  // object table: 1
-  entry = 1;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = ga1;
-  }
-  g_got[entry].id = 2;
-  oc_string_t href_charger;
-  oc_new_string(&href_charger, "/p/charger", strlen("/p/charger"));
-  g_got[entry].href = href_charger;
-  g_got[entry].cflags = OC_CFLAG_TRANSMISSION;
-  g_got[entry].ga_len = ga_array_size;
-  g_got[entry].ga = ga_array;
-
-  // object table: 2
-  entry = 2;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = gaL;
-  }
-  g_got[entry].id = 3;
-  oc_string_t href_link;
-  oc_new_string(&href_link, "/p/link", strlen("/p/link"));
-  g_got[entry].href = href_link;
-  g_got[entry].cflags = OC_CFLAG_TRANSMISSION;
-  g_got[entry].ga_len = ga_array_size;
-  g_got[entry].ga = ga_array;
-
-  // rcp+pub tables
-  entry = 0;
-  ga_array_size = 3;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = ga0;
-    ga_array[1] = ga1;
-    ga_array[2] = gaL;
-  }
-  g_grt[entry].id = 0;
-  g_grt[entry].grpid = grpid;
-  g_grt[entry].ga_len = ga_array_size;
-  g_grt[entry].ga = ga_array;
-  g_gpt[entry].id = 0;
-  g_gpt[entry].grpid = grpid;
-  g_gpt[entry].ga_len = ga_array_size;
-  g_gpt[entry].ga = ga_array;
-
-  // auth table: 0
-  entry = 0;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = ga0;
-  }
-  oc_new_string(&g_at_entries[entry].id, "0/0/1", strlen("0/0/1"));
-  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = ga_array_size;
-  g_at_entries[entry].ga = ga_array;
-  BYTE byteArray02[2] = {0, 1};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray02, 2);
-  BYTE byteArray0f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray0f, 16);
-  BYTE byteArray06[6] = {sn_D[2], sn_D[3], sn_D[4], sn_D[5], 0, 1};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray06, 6);
-
-  // auth table: 1
-  entry = 1;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = ga1;
-  }
-  oc_new_string(&g_at_entries[entry].id, "0/0/2", strlen("0/0/2"));
-  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = ga_array_size;
-  g_at_entries[entry].ga = ga_array;
-  BYTE byteArray12[2] = {0, 2};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray12, 2);
-  BYTE byteArray1f[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-  BYTE byteArray16[6] = {sn_D[2], sn_D[3], sn_D[4], sn_D[5], 0, 2};
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray16, 6);
-
-  // auth table: 2
-  entry = 2;
-  ga_array_size = 1;
-  ga_array = malloc(ga_array_size * sizeof(uint32_t));
-  if (ga_array != NULL)
-  {
-    ga_array[0] = gaL;
-  }
-  oc_new_string(&g_at_entries[entry].id, "0/0/3", strlen("0/0/3"));
-  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_ACL_GA;
-  g_at_entries[entry].ga_len = ga_array_size;
-  g_at_entries[entry].ga = ga_array;
-  BYTE byteArray22[2] = {0, 3};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray22, 2);
-  if (strncmp(sn_link, "000000000000", 12) == 0)
-  {
-    BYTE byteArray2f[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray2f, 16);
-    BYTE byteArray26[6] = {0, 0, 0, 0, 0, 0};
-    oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray26, 6);
-  }
-  else
-  {
-    BYTE byteArray2f[16] = {sn_L[0], sn_L[1], sn_L[2], sn_L[3], sn_L[4], sn_L[5], 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-    oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray2f, 16);
-    BYTE byteArray26[6] = {sn_D[0], sn_D[1], 0, 0, 0, 3};
-    oc_new_byte_string(&g_at_entries[entry].osc_contextid, (char*)byteArray26, 6);
-  }
-
-  /*
-
-  entry = 2;
-
-  // auth table
-  oc_new_string(&g_at_entries[entry].id, "0c00fa10020c00", strlen("0c00fa10020c00"));
-  g_at_entries[entry].profile = OC_PROFILE_COAP_OSCORE;
-  g_at_entries[entry].scope = OC_IF_C | OC_IF_P | OC_IF_D | OC_IF_SEC | OC_IF_SWU;
-  BYTE byteArray27[7] = {0x0c, 0x00, 0xfa, 0x10, 0x02, 0x0c, 0x00};
-  oc_new_byte_string(&g_at_entries[entry].osc_id, (char*)byteArray27, 7);
-  BYTE byteArray1f[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, (char*)byteArray1f, 16);
-
-  */
-
-  oc_load_group_object_table();
-  oc_load_object_table();
-  oc_load_at_table();
-  subscribe_group_to_multicast_with_port(grpid, iid, 2, COAP_DEFAULT_PORT);
-
-  return 0;
-}
-void CEM_process_pv()
-{
-  int m = CEM_retrieve_mode();
-  int pv = CEM_retrieve_pv() / 1000; // kW
-  int charger = 4; // kW   
-  
-  if (m == SUN_MODE)
-  {
-    if (pv < 4)
-    {
-      charger = 0;
-    }
-  }
-  if (m == MIX_MODE)
-  {
-  } 
-
-  char* url = CEM_retrieve_href(2);
-  CEM_set_charger(charger);
-  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");  
-}
-char* CEM_retrieve_href(uint16_t point) { return CEM_datapoint[point].resource_path; }
-int CEM_retrieve_mode() { return datapoint_mode; }
-int CEM_retrieve_pv() { return datapoint_pv; }
-int CEM_retrieve_charger() { return datapoint_charger; }
-void CEM_set_mode(int v) { datapoint_mode = v; }
-void CEM_set_charger(int v) { datapoint_charger = v * 1000; }
-void CEM_set_link(uint64_t v) { datapoint_link = v; }
-void CEM_put_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+// cem inverter has GET + PUT (has input)
+void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   bool error_state = true;
 
@@ -626,12 +299,7 @@ void CEM_put_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* use
   // sets the pointer to the (/k or /p) handed over object
   const oc_rep_t* rep = request->request_payload;
 
-  // user data host the HEX encoded channel/datapoint
-  const int32_t channel_and_datapoint = strtol(user_data, NULL, 16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  //PRINT("-- Begin PUT %s Control at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
   // handle the different request sources, here included as an example to distinguish
   // the caller source (e.g.; called by /p or /k s-mode message EP)
@@ -649,16 +317,16 @@ void CEM_put_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* use
     {
       if (!is_input_datapoint)
       {
-        // see 'Callback Notes' above
+        // see 'Callback Notes'
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
 
-      // see 'Callback Notes' above
-      datapoint_pv = rep->value.integer;
+      // see 'Callback Notes'
+      cem.point[CEM_INVERTER].value = (int)rep->value.integer;
       error_state = false;
 
-      PRINT("set LSSB to %d", rep->value.integer);
+      PRINT("set inverter input to %lld", rep->value.integer);
       break;
     }
     rep = rep->next;
@@ -670,137 +338,132 @@ void CEM_put_PV(oc_request_t* request, oc_interface_mask_t interfaces, void* use
     // inform the stack on status
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
 
-    //PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 
-    CEM_process_pv();
+    // process input, may change the charger output
+    cem_process_inverter_input();
 
     return;
   }
 
   // bad request status
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  //PRINT("-- End PUT %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+
+  PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }
-void CEM_get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
   bool error_state = true;
 
-  // user data host the HEX encoded channel/datapoint
-  const uint32_t channel_and_datapoint = strtol(user_data, NULL, 16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  //PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     return;
   }
 
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by p/ or /k s-mode message EP)
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();
 
-  if (device != NULL)
+  if (oc_query_value_exists(request, "m") != -1)
   {
-    if (oc_query_value_exists(request, "m") != -1)
+    // ... query parameter 'm' is present, check the various values
+    char* m_value;
+    char* m_key;
+    size_t m_value_len = oc_get_query_value(request, "m", &m_value);
+    size_t m_key_len;
+
+    const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;
+
+    PRINT("Query Parameter: %.*s", (int)m_value_len, m_value);
+
+    oc_init_query_iterator();
+
+    // check (0..n) query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m_value, &m_value_len) != -1)
     {
-      // ... query parameter 'm' is present, check the various values
-      char* m;
-      char* m_key;
-      size_t m_key_len;
-      size_t m_len = oc_get_query_value(request, "m", &m);
-
-      PRINT("Query Parameter: %.*s", (int)m_len, m);
-
-      oc_init_query_iterator();
-
-      // check query parameter
-      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+      // id
+      if (strncmp(m_value, "id", m_value_len) == 0 || wildcard)
       {
-        // unique identifier
-        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // knx://sn: + max len SN + uri path + \0 = ~ 65
-          char serial_number[65];
+        // knx://sn: + max len SN + uri path + \0 = ~ 65
+        char serial_number[65];
 
-          (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
-                         oc_string(request->resource->uri));
+        (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
+                       oc_string(request->resource->uri));
 
-          oc_rep_i_set_text_string(root, 0, serial_number);
+        oc_rep_i_set_text_string(root, 0, serial_number);
 
-          error_state = false;
-        }
-        // value
-        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // see 'Callback Notes' above
-          oc_rep_set_uint(root, value, datapoint_charger);
-          error_state = false;
-        }
-        // resource types
-        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // use the first type, skip urn:knx (=7), if more types are used
-          // - add a next in the data structure
-          // - add an extra line
-          const char* first_type = oc_string_array_get_item(request->resource->types, 0);
+        error_state = false;
+      }
+      // value
+      if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
+      {
+        // see 'Callback Notes'
+        oc_rep_i_set_int(root, 1, cem.point[CEM_INVERTER].value);
+        error_state = false;
+      }
+      // rt
+      if (strncmp(m_value, "rt", m_value_len) == 0 || wildcard)
+      {
+        // use the first type, skip urn:knx (=7), if more types are used
+        // - add a next in the data structure
+        // - add an extra line
+        const char* first_type = oc_string_array_get_item(request->resource->types, 0);
 
-          oc_rep_text_set_text_string(root, rt, first_type + 7);
-          error_state = false;
-        }
-        // interfaces (array of text strings)
-        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        oc_rep_text_set_text_string(root, rt, first_type + 7);
+        error_state = false;
+      }
+      // if (array of text strings)
+      if (strncmp(m_value, "if", m_value_len) == 0 || wildcard)
+      {
+        add_all_interface_short_urns_for_a_resource(request->resource);
+        error_state = false;
+      }
+      // dpt
+      if (strncmp(m_value, "dpt", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
+        error_state = false;
+      }
+      // ga
+      if (strncmp(m_value, "ga", m_value_len) == 0 || wildcard)
+      {
+        const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+        if (index > -1)
         {
-          add_all_interface_short_urns_for_a_resource(request->resource);
-          error_state = false;
-        }
-        // dpt
-        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
-          error_state = false;
-        }
-        // ga
-        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
-          if (index > -1)
+          oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+          if (got_table_entry)
           {
-            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
-            if (got_table_entry)
-            {
-              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
-            }
+            oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
           }
-          error_state = false;
         }
-        // description
-        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          //oc_rep_text_set_text_string(root, desc, oc_string(request->resource->name));
+        error_state = false;
+      }
+      // href (MAY omit in the response, here not for a '*')
+      if (strncmp(m_value, "href", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
 
-          error_state = false;
-        }
+        error_state = false;
       }
     }
-    else
-    { // ... no query parameter 'm' present at all, set value for the GET
+  }
+  else
+  { // ... no query parameter 'm' present at all, set value for the GET
 
-      // see 'Callback Notes' above
-      oc_rep_i_set_uint(root, 1, datapoint_charger);
-
-      error_state = false;
-    }
+    // see 'Callback Notes'
+    oc_rep_i_set_int(root, 1, cem.point[CEM_INVERTER].value);
+    error_state = false;
   }
 
   // close CBOR
@@ -820,128 +483,123 @@ void CEM_get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  //PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }
-void CEM_get_link(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+
+// cem charger has GET (has only output)
+void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
   bool error_state = true;
 
-  // user data host the HEX encoded channel/datapoint
-  const uint32_t channel_and_datapoint = strtol(user_data, NULL, 16);
-  const uint16_t c = channel_and_datapoint >> 16;
-  const uint16_t p = channel_and_datapoint & 0x0000FFFF;
-
-  // PRINT("-- Begin GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     return;
   }
 
-  // handle the different request sources, here included as an example to distinguish
-  // the caller source (e.g.; called by p/ or /k s-mode message EP)
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
 
-  oc_device_info_t* device = oc_core_get_device_info();
+  const oc_device_info_t* const device = oc_core_get_device_info();
 
   // open CBOR
   oc_rep_begin_root_object();
 
-  if (device != NULL)
+  if (oc_query_value_exists(request, "m") != -1)
   {
-    if (oc_query_value_exists(request, "m") != -1)
+    // ... query parameter 'm' is present, check the various values
+    char* m_value;
+    char* m_key;
+    size_t m_value_len = oc_get_query_value(request, "m", &m_value);
+    size_t m_key_len;
+
+    const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;
+
+    PRINT("Query Parameter: %.*s", (int)m_value_len, m_value);
+
+    oc_init_query_iterator();
+
+    // check (0..n) query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m_value, &m_value_len) != -1)
     {
-      // ... query parameter 'm' is present, check the various values
-      char* m;
-      char* m_key;
-      size_t m_key_len;
-      size_t m_len = oc_get_query_value(request, "m", &m);
-
-      PRINT("Query Parameter: %.*s", (int)m_len, m);
-
-      oc_init_query_iterator();
-
-      // check query parameter
-      while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+      // id
+      if (strncmp(m_value, "id", m_value_len) == 0 || wildcard)
       {
-        // unique identifier
-        if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // knx://sn: + max len SN + uri path + \0 = ~ 65
-          char serial_number[65];
+        // knx://sn: + max len SN + uri path + \0 = ~ 65
+        char serial_number[65];
 
-          (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
-                         oc_string(request->resource->uri));
+        (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
+                       oc_string(request->resource->uri));
 
-          oc_rep_i_set_text_string(root, 0, serial_number);
+        oc_rep_i_set_text_string(root, 0, serial_number);
 
-          error_state = false;
-        }
-        // value
-        if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // see 'Callback Notes' above
-          oc_rep_set_uint(root, value, datapoint_link);
-          error_state = false;
-        }
-        // resource types
-        if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // use the first type, skip urn:knx (=7), if more types are used
-          // - add a next in the data structure
-          // - add an extra line
-          const char* first_type = oc_string_array_get_item(request->resource->types, 0);
+        error_state = false;
+      }
+      // value
+      if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
+      {
+        // see 'Callback Notes'
+        oc_rep_i_set_int(root, 1, cem.point[CEM_CHARGER].value);
+        error_state = false;
+      }
+      // rt
+      if (strncmp(m_value, "rt", m_value_len) == 0 || wildcard)
+      {
+        // use the first type, skip urn:knx (=7), if more types are used
+        // - add a next in the data structure
+        // - add an extra line
+        const char* first_type = oc_string_array_get_item(request->resource->types, 0);
 
-          oc_rep_text_set_text_string(root, rt, first_type + 7);
-          error_state = false;
-        }
-        // interfaces (array of text strings)
-        if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+        oc_rep_text_set_text_string(root, rt, first_type + 7);
+        error_state = false;
+      }
+      // if (array of text strings)
+      if (strncmp(m_value, "if", m_value_len) == 0 || wildcard)
+      {
+        add_all_interface_short_urns_for_a_resource(request->resource);
+        error_state = false;
+      }
+      // dpt
+      if (strncmp(m_value, "dpt", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
+        error_state = false;
+      }
+      // ga
+      if (strncmp(m_value, "ga", m_value_len) == 0 || wildcard)
+      {
+        const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+        if (index > -1)
         {
-          add_all_interface_short_urns_for_a_resource(request->resource);
-          error_state = false;
-        }
-        // dpt
-        if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
-          error_state = false;
-        }
-        // ga
-        if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
-          if (index > -1)
+          oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+          if (got_table_entry)
           {
-            oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
-            if (got_table_entry)
-            {
-              oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
-            }
+            oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
           }
-          error_state = false;
         }
-        // description
-        if (strncmp(m, "desc", m_len) == 0 || strncmp(m, "*", m_len) == 0)
-        {
-          // oc_rep_text_set_text_string(root, desc, oc_string(request->resource->name));
+        error_state = false;
+      }
+      // href (MAY omit in the response, here not for a '*')
+      if (strncmp(m_value, "href", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
 
-          error_state = false;
-        }
+        error_state = false;
       }
     }
-    else
-    { // ... no query parameter 'm' present at all, set value for the GET
+  }
+  else
+  { // ... no query parameter 'm' present at all, set value for the GET
 
-      // see 'Callback Notes' above
-      oc_rep_i_set_uint(root, 1, datapoint_link);
-
-      error_state = false;
-    }
+    // see 'Callback Notes'
+    oc_rep_i_set_int(root, 1, cem.point[CEM_CHARGER].value);
+    error_state = false;
   }
 
   // close CBOR
@@ -961,200 +619,5 @@ void CEM_get_link(oc_request_t* request, oc_interface_mask_t interfaces, void* u
   else
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  // PRINT("-- End GET %s at %s ", oc_string(request->resource->name), oc_string(request->resource->uri));
+  PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }
-
-#ifdef WIN32
-/**
- * @brief signal the event loop (windows version)
- * wakes up the main function to handle the next callback
- */
-void signal_event_loop(void)
-{
-
-#ifndef NO_MAIN
-  WakeConditionVariable(&event_is_pending);
-#endif
-}
-#endif
-
-#ifdef __linux__
-/**
- * @brief signal the event loop (Linux)
- * wakes up the main function to handle the next callback
- */
-void signal_event_loop(void)
-{
-#ifndef NO_MAIN
-  pthread_mutex_lock(&mutex);
-  pthread_cond_signal(&event_is_pending);
-  pthread_mutex_unlock(&mutex);
-#endif /* NO_MAIN */
-}
-#endif
-
-/*
- used to run as standalone command line (with main) or embed it
- in a parent code (such as the corresponding GUI applications) 
-*/
-#ifndef NO_MAIN
-
-/**
- * @brief handle Ctrl-C
- * @param signal the captured signal
- */
-static void handle_signal(const int signal)
-{
-  (void)signal;
-  signal_event_loop();
-  quit = 1;
-}
-
-/**
- * @brief main application.
- * initializes the global variables
- * registers and starts the handler
- * handles (in a loop) the next event.
- * shuts down the stack
- */
-int main(const int argc, char* argv[])
-{
-  oc_clock_time_t next_event;
-
-#ifdef KNX_GUI
-#ifdef _MSC_VER
-  // MSVC - may not need cast
-  WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
-#else
-  // GCC - needs cast to suppress warning
-  WinMain(GetModuleHandle(NULL), NULL, (LPSTR)GetCommandLine(), SW_SHOWNORMAL);
-#endif
-
-#endif
-
-#ifdef WIN32
-  InitializeCriticalSection(&critical_section); // init , but not used in main actively
-  InitializeConditionVariable(&event_is_pending); // init
-  (void)signal(SIGINT, handle_signal); // install Ctrl-C handler
-#endif
-#ifdef __linux__
-  /* Linux specific */
-  struct sigaction sa;
-  sigfillset(&sa.sa_mask);
-  sa.sa_flags = 0;
-  sa.sa_handler = handle_signal;
-  /* install Ctrl-C */
-  sigaction(SIGINT, &sa, NULL);
-#endif
-
-  for (int i = 0; i < argc; i++)
-  {
-    PRINT("argv[%d] = %s", i, argv[i]);
-  }
-
-  // arv[0]= file; reset/help uses one argument
-  if (argc > 1)
-  {
-    if (strcmp(argv[1], "-reset") == 0)
-    {
-      g_reset = true; // ... helper, device is not initiated at this point
-    }
-    if (strcmp(argv[1], "-help") == 0)
-    {
-      PRINTF("usage: no arguments starts the server;                \
-                -help shows this message;                           \
-                -reset does an full device reset (erase code 2)     \
-                -s <serial number> sets the device serial number");
-      exit(0);
-    }
-  }
-  // arv[0]= file; sn uses two arguments
-  // set SN before stack initialization
-  if (argc > 2)
-  {
-    if (strcmp(argv[1], "-s") == 0)
-    {
-      PRINT("use command line serial number %s", argv[2]);
-      //app_set_serial_number(argv[2]);
-    }
-  }
-
-  PRINT("KNX-IOT server name : \"%s\"", application_name);
-
-  // ... before this call devices and resources are not existing, return code
-  // issued by .init handler
-  const int code = app_initialize_stack();
-  if (code < 0)
-  {
-    PRINT("stack initialization failed with %d, exiting.", code);
-    exit(-1);
-  }
-
-  // ... now device is initiated
-  if (g_reset)
-  {
-    PRINT("execute command line reset for device '0' with erase code 2 ...");
-    oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
-  }
-
-  const oc_device_info_t* device = oc_core_get_device_info();
-
-  // may produce a warning if OC_OSCORE is not specified ...
-  PRINT("OSCORE - %s", OC_OSCORE ? "Enabled" : "Disabled");
-  PRINT("serial number: %s", oc_string(device->serialnumber));
-  //PRINT("host name: %s", oc_string(device->hostname));
-
-  // used to refresh (and print) IP addresses
-  oc_connectivity_get_endpoints();
-
-  PRINT("Server '%s' is now running, waiting on incoming connections...", application_name);
-
-#ifdef WIN32
-  while (quit != 1) // check on Ctrl-C
-  {
-    // loops over all events
-    next_event = oc_main_poll();
-
-    if (next_event == 0)
-    { // no event (timer) is pending, all done
-      SleepConditionVariableCS(&event_is_pending, &critical_section, INFINITE);
-    }
-    else
-    {
-      // time in ticks (tick = ms)
-      const oc_clock_time_t now = oc_clock_time();
-      if (now < next_event)
-      { // next event lays in the future, sleep until next
-        // pending event timer is reached (in ticks/ms)
-        SleepConditionVariableCS(&event_is_pending, &critical_section, (next_event - now) * (1000 / OC_CLOCK_SECOND));
-      }
-      // next event is now ...
-    }
-  }
-#endif
-
-#ifdef __linux__
-  /* Linux specific loop */
-  while (quit != 1)
-  {
-    next_event = oc_main_poll();
-    pthread_mutex_lock(&mutex);
-    if (next_event == 0)
-    {
-      pthread_cond_wait(&event_is_pending, &mutex);
-    }
-    else
-    {
-      ts.tv_sec = (next_event / OC_CLOCK_SECOND);
-      ts.tv_nsec = (next_event % OC_CLOCK_SECOND) * 1.e09 / OC_CLOCK_SECOND;
-      pthread_cond_timedwait(&event_is_pending, &mutex, &ts);
-    }
-    pthread_mutex_unlock(&mutex);
-  }
-#endif
-
-  // shut down the stack
-  oc_main_shutdown();
-  return 0;
-}
-#endif

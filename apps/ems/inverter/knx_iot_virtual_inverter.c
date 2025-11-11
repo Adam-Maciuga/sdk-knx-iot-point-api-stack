@@ -45,7 +45,6 @@
  *   build the GUI with console option, so that all
  *   logging can be seen in the command window
  */
-
 #include "oc_api.h"
 #include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
@@ -55,40 +54,38 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
-const char application_name[] = "Charger";
-const char sn_lower_case[] = "00fa10020d00";  // deliberated incorrect serial numbers
-const char hostname[] = "knx-00fa10020d00";   // default host name (reset uses this default)
-const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
+const char application_name[] = "Inverter";
+const char sn_lower_case[] = "00fa10020b00";  // deliberated incorrect serial numbers
+const char hostname[] = "knx-00fa10020b00";   // default host name (reset uses this default)
+const char hw_type[] = "PV Inverter ";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
-const uint32_t mid = 0x00fa;                  // manufacturer id, here KNXA
+const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
-int_functional_block_t charger = 
-{426, 0,1,
+int_functional_block_t inverter = {
+  425, 1, 1,
   {
     0, /* IEEE 754 single float, KNX DPT: 14.056 */
-    "/p/charger",
-    "urn:knx:dpa.426.52",
-    ":dpt.value_power", 
-    "Charger Input"
-  }
+    "/p/inverter",
+    "urn:knx:dpa.425.60",
+    ":dpt.value_power",
+    "Inverter Output"}
 };
 
 void register_resources(void)
-{
-  oc_resource_t* active_power_limit_resource_charger_in = oc_new_resource(charger.point.resource_path, 1);
+{   
+  oc_resource_t* power_dc_resource_inverter_out = oc_new_resource(inverter.point.resource_path, 1);
+  
+  oc_resource_bind_resource_type(power_dc_resource_inverter_out, inverter.point.dpa);
+  oc_resource_bind_dpt(power_dc_resource_inverter_out, inverter.point.dpt);
+  oc_resource_bind_content_type(power_dc_resource_inverter_out, APPLICATION_CBOR, CONTENT_NONE);
 
-  oc_resource_bind_resource_type(active_power_limit_resource_charger_in, charger.point.dpa);
-  oc_resource_bind_dpt(active_power_limit_resource_charger_in, charger.point.dpt);
-  oc_resource_bind_content_type(active_power_limit_resource_charger_in, APPLICATION_CBOR, CONTENT_NONE);
+  oc_resource_set_functional_block_data(power_dc_resource_inverter_out, inverter.fb_number, inverter.fb_instance, inverter.fb_number_of_datapoints);
 
-  oc_resource_set_functional_block_data(active_power_limit_resource_charger_in, charger.fb_number, charger.fb_instance, charger.fb_number_of_datapoints);
+  oc_resource_set_properties(power_dc_resource_inverter_out, OC_OBSERVABLE + OC_DISCOVERABLE);
 
-  oc_resource_set_properties(active_power_limit_resource_charger_in, OC_OBSERVABLE + OC_DISCOVERABLE);
-
-  oc_resource_set_request_handler(active_power_limit_resource_charger_in, OC_GET, get_charger, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
-  oc_resource_set_request_handler(active_power_limit_resource_charger_in, OC_PUT, put_charger, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P); 
-
-  oc_add_resource(active_power_limit_resource_charger_in);
+  oc_resource_set_request_handler(power_dc_resource_inverter_out, OC_GET, get_inverter, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I);
+  
+  oc_add_resource(power_dc_resource_inverter_out);  
 }
 
 int app_initialize_stack(void)
@@ -107,7 +104,7 @@ int app_initialize_stack(void)
 
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
-  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_charger_%s", dir, sn_lower_case);
+  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_inverter_%s", dir, sn_lower_case);
   OC_INF("Current path is: '%s'", dir);
 
   #endif
@@ -132,14 +129,13 @@ int app_initialize_stack(void)
   return oc_main_init(&handler);
 }
 
-// charger local functions 
+// inverter local functions
+void set_inverter_value(int value) { inverter.point.value = value * 1000; }
 
-int get_charger_value(void) { return charger.point.value; }
+char* app_retrieve_href_from_inverter(void) { return inverter.point.resource_path; }
 
-char* app_retrieve_href_from_charger(void) { return charger.point.resource_path; }
-
-// charger has GET + PUT (has input)
-void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+// inverter has GET (has only output)
+void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
   bool error_state = true;
@@ -197,7 +193,7 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
       if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
         // see 'Callback Notes'
-        oc_rep_i_set_int(root, 1, charger.point.value);
+        oc_rep_i_set_int(root, 1, inverter.point.value);
         error_state = false;
       }
       // rt
@@ -250,7 +246,7 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
   { // ... no query parameter 'm' present at all, set value for the GET
 
     // see 'Callback Notes'
-    oc_rep_i_set_int(root, 1, charger.point.value);
+    oc_rep_i_set_int(root, 1, inverter.point.value);
     error_state = false;
   }
 
@@ -272,61 +268,4 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
     oc_prepare_cbor_response(request, OC_STATUS_OK);
 
   PRINT("-- End GET at %s ", oc_string(request->resource->uri));
-}
-void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
-{
-  bool error_state = true;
-
-  // get interfaces for the resource PUT method ...
-  bool is_input_datapoint = interfaces & OC_IF_I;
-
-  // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
-  const oc_rep_t* rep = request->request_payload;
-
-  PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
-
-  // handle different caller sources, here included as an example to distinguish
-  // the caller source (e.g.; called by '/p' or '/k')
-  if (oc_is_redirected_request_from(request) == 1)
-  {
-    // caller /p --> always allow to write (see 'Callback Notes' above)
-    is_input_datapoint = true;
-    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
-  }
-
-  // loop over object
-  while (rep)
-  {
-    if (rep->iname == 1 && rep->type == OC_REP_INT)
-    {
-      if (!is_input_datapoint)
-      {
-        // see 'Callback Notes'
-        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
-        return;
-      }
-
-      // see 'Callback Notes' above
-      charger.point.value = (int)rep->value.integer;
-      error_state = false;
-
-      PRINT("set LSSB to %d", charger.point.value);
-      break;
-    }
-    rep = rep->next;
-  }
-
-  // correct data retrieved
-  if (!error_state)
-  {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
-    return;
-  }
-
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-  PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }

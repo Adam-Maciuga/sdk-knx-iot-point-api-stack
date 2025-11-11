@@ -167,12 +167,3 @@ int app_initialize_stack(void)
   // start the stack, calls directly also the .init handler from above
   return oc_main_init(&handler);
 }
-
-/**
- * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
- * so we don't need to wake up a blocking loop.
- */
-void signal_event_loop(void)
-{
-  //DO NOTHING, wxTimer drives oc_main_poll()
-}

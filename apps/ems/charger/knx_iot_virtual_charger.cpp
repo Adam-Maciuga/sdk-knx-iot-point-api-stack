@@ -18,12 +18,13 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
+// needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
+#undef WX_PRECOMP
 
-// For compilers that support precompilation, includes "wx/wx.h".
+#include <wx/wxprec.h>
+#include <wx/wx.h>
 #include <wx/cmdline.h>
 #include <wx/scrolbar.h>
-#include <wx/wxprec.h>
-
 #include "wx/config.h" // for native wxConfig
 #include "wx/dnd.h" // drag and drop for the playlist
 #include "wx/filedlg.h" // for opening files from OpenFile
@@ -42,25 +43,19 @@
 #include <wx/image.h>
 #include <wx/bitmap.h>
 
-#ifndef WX_PRECOMP
-#include <wx/wx.h>
-#endif
-
-// main is used from here
-#define NO_MAIN
-
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#include "apps/knx_iot_virtual.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "oc_oscore_context.h"
+#include "apps/ems/knx_iot_virtual_ems.h"
+#include "apps/ems/icons/key_png.h"
 
-#include "../knx_iot_virtual_EMS.h"
-#include "../icons/key_png.h"
-#include "../icons/charger_png.h"
-#include "../icons/charger_ico.h"
+#include "apps/ems/icons/charger_png.h"
+
+#include "apps/ems/icons/charger_ico.h"
+
+
 #include <wx/clipbrd.h>
 
 // IDs for the controls and the menu commands
@@ -117,11 +112,6 @@ enum : uint16_t
   DEVICE_SETTINGS = 0x0012
 };
 
-
-static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
-  {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
-
-wxCmdLineParser* g_cmd;
 
 class FlowAnimation : public wxPanel
 {
@@ -262,7 +252,7 @@ public:
 class MyFrame : public wxFrame
 {
 public:
-  MyFrame(const char* serial_number);
+  MyFrame();
 
 private:
   void OnSettings(wxCommandEvent& event);
@@ -309,12 +299,6 @@ private:
   int m_chargeRate = -1;
 
   // non static device properties
-  wxTextCtrl* m_ia_text; // text control for internal address
-  wxTextCtrl* m_iid_text; // text control for installation id
-  wxTextCtrl* m_pm_text; // text control for programming mode
-  wxTextCtrl* m_ls_text; // text control for load state
-  wxTextCtrl* m_hn_text; // text control for host name
-
   wxTextCtrl* m_charger_text; // text control for charger
 
   FlowAnimation* m_flow = nullptr;
@@ -330,23 +314,13 @@ wxIMPLEMENT_APP(MyApp);
  */
 bool MyApp::OnInit()
 {
-  int argc = wxAppConsole::argc;
-  wxChar** argv = wxAppConsole::argv;
+  // call in c-code
+  app_initialize_stack();
 
-  g_cmd = new wxCmdLineParser(argc, argv);
-  g_cmd->SetDesc(g_cmdLineDesc);
-  g_cmd->Parse(true);
+  wxInitAllImageHandlers(); 
 
-  wxString serial_number;
-  if (g_cmd->Found("s", &serial_number))
-  {
-  }
+  MyFrame* frame = new MyFrame();
 
-      wxInitAllImageHandlers(); 
-
-  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
-
-  //frame->Fit();
   frame->SetSize(350, 150);
   frame->Show(true);
   return true;
@@ -355,9 +329,8 @@ bool MyApp::OnInit()
 /**
  * @brief Construct a new My Frame:: My Frame object
  *
- * @param serial_number
  */
-MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charger app")
+MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
 {
   wxMemoryInputStream iconStream(charger_ico, charger_ico_len);
   wxImage img(iconStream, wxBITMAP_TYPE_ICO);
@@ -448,17 +421,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
   this->SetSizerAndFit(vbox);
 
 
-
-
-  // serial number
-  if (strlen(serial_number) > 1)
-  {
-    // sn was set by command line 
-    //app_set_serial_number(serial_number);
-  }
-
-  // call in c-code 
-  app_initialize_stack();
+  
 
   constexpr int width_size = 180; // size of the knx info widgets
   char text[500]; 
@@ -473,7 +436,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "Charge
   m_timer.Start(1, wxTIMER_CONTINUOUS);
 
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
-  Charger_init_auth_table();
+  // Charger_init_auth_table();
   device->lsm_s = LSM_S_UNLOADED;
 }
 
@@ -541,7 +504,7 @@ void MyFrame::updateDeviceData()
     {
       oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
       //oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
-      Charger_init_tables_QR("00fa10020c00");
+      // Charger_init_tables_QR("00fa10020c00");
       device->lsm_s = LSM_S_LOADED;
     }
   }
@@ -1134,9 +1097,9 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  * - check boxes
  * - info buttons
  * - text buttons
- * does a oc_main_poll to give a tick to the stack
+ * does an oc_main_poll to give a tick to the stack
  * takes into account if the device is sleepy
- * e.g. then it only does an poll each 20 seconds
+ * e.g. then it only does a poll each 20 seconds
  * @param event triggered by a timer
  */
 void MyFrame::OnTimer(wxTimerEvent& event)
@@ -1188,7 +1151,7 @@ void MyFrame::ProcessUpdateFromBus()
 
   char text[200];
   
-  int chargeRate = app_retrieve_int_variable_from_charger() / 1000;  
+  int chargeRate = get_charger_value() / 1000;  
 
 
   if (chargeRate != m_chargeRate)

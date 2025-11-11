@@ -17,56 +17,29 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
+/*
+  Note that the file 'knx_iot_virtual_knx.c' is NOT a part of the stack or not intended to be an
+  'application' library. It hosts only for the below described LSAB/LSSB/EITT application commonly used
+  functionality in one place.
+*/
+
 #ifndef KNX_IOT_VIRTUAL_KNX_H
 #define KNX_IOT_VIRTUAL_KNX_H
 
 #include "apps/knx_iot_virtual.h"
 
-// common data
-#define NUM_CHANNELS (2)
-#define NUM_POINTS   (2)
-#define SOO  (0)
-#define IOO  (1)
+// common data for LSAB/LSSB 
+#define SOO (0)
+#define IOO (1)
+#define NUM_POINTS (2)
 
+// common data for EITT, for the mixture of EITT (test template) channel definitions
+#define LSSB (1)
+#define LSAB (0)
 
 /*
-  Defines the basic (channel oriented) structure of a LSAB/LSSB/EITT functional block definition.
-
-  An FB consists of a number of datapoints with its values, endpoints (EP) and URNs.
-
-  - the FB number, despite any DPA scheme that is used from the in FB included datapoints
-    (note that an FB such as 417 may also reuse predefined datapoints from other FB's with DPA type 312.xx, 2nn.xx
-     or similar, FB 421 is NOT only using 'self defined' 417.xx types)
-
-  - the FB instance, 0...n, 0 = only one instance, > 0 more than one instance, see also 'oc_resource_set_function_block_data'
-
-  - the number of 'visible' datapoint in an FB, note that if this number WOULD change e.g.; when adding/deleting resources
-    or make some invisible   
-    - caused by ETS (e.g, partial download with changed parameter setting)
-    - caused by own application at runtime (e.g, HMI parameter adjustment by user)
-    the correct number must be applied by the application to the FB. 
-
-  - the datapoints, see above
-
+ for functional block details see Functional Block Notes in 'knx_iot_virtual.h'
 */
-typedef struct
-{
-  uint16_t fb_number;
-  uint8_t fb_instance;
-  uint8_t fb_number_of_datapoints;
-
-  bool_datapoint_t point[NUM_POINTS];
-} lsxb_channel_t, bool_functional_block_t;
-
-
-typedef struct
-{
-  uint16_t fb_number;
-  uint8_t fb_instance;
-  uint8_t fb_number_of_datapoints;
-
-  int_datapoint_t point;
-} int_functional_block_t;
 
 #ifdef __cplusplus
 extern "C"
@@ -75,17 +48,44 @@ extern "C"
 
   /*
      Collection of all proto definitions of the - by stack demos - used PUT/GET methods.
-     For more details see the methods as such.
-
-   */
+     For handler details see Callback Notes in 'knx_iot_virtual.h'
+  */
 
   // LSAB/LSSB
+
   void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
   void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+
+   /**
+   * @brief Get a URL
+   *
+   * @param channel the channel for the URL to get
+   * @param point the point of the channel for the URL to get
+   * @return boolean variable
+   */
+  char* app_retrieve_href_from_channel(uint8_t channel, uint8_t point);
+
+   /**
+   * @brief Set a bool
+   *
+   * @param channel the channel for the bool to set
+   * @param point the point of the channel for the bool to set
+   * @param value value to set
+   */
+  void app_set_bool_variable_from_channel(uint8_t channel, uint8_t point, bool value);
+
+  /**
+   * @brief Get a bool
+   *
+   * @param channel the channel for the bool to get
+   * @param point the point of the channel for the bool to get
+   */
+  bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point);
+
 
 #ifdef __cplusplus
 }

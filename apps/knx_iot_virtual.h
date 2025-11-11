@@ -25,10 +25,15 @@
 
 #ifndef KNX_IOT_VIRTUAL_H
 #define KNX_IOT_VIRTUAL_H
+#include "ctype.h"
+#include "oc_api.h"
+#include "oc_core_res.h"
+#include "oc_helpers.h"
+#include "oc_knx_client.h"
 
 /*
 
- A network router may not allow to send multicast with scope 5 (site local),
+ A network router may not allow to send multicast messages with scope 5 (site local),
  hence the DEMO applications use scope 2 instead. If needed, sendout with scope 2 and 5
  separately may be an option (2 messages).
 
@@ -39,11 +44,87 @@
 // use it in upper case (min 6, max 32), IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
 
+// Callback Notes
 /*
+ GET/PUT application callback handlers are defined to access the data point resources.
 
- Datapoint definitions, used to register/create a datapoint resource in the application, 
- either the href/description/... data consumes the space this static structure definition, or
- they are hard coded when you register them, so no space difference but better structured
+ Note that the handlers are a collection of - by the stack demo - used PUT/GET methods.
+ Moreover, a generic (GET) handler is used, to allow a channel based approach with one handler.
+
+ For an own development the methods have to be adapted or extended, such as to define get/put
+ methods for float,long int or combined datapoints, or to handle metadata parameters on PUT.
+
+ For the resource path, resource types and other see 'register resources'.
+ A callback 'call' handler demands the below defined 3 parameters when called by the stack,
+ provide them even if they are not used.
+
+ @param request    the request representation
+ @param interfaces the interface mask, as specified for the application resource and method (GET, ...)
+ @param user_data  the user data, can be freely used such as to address several resources with one handler
+                   (see Datapoint Notes below)
+
+ Details
+ -------
+
+ *Caller*
+
+ The callbacks are handled from the stack as a:
+ - group communication 's-mode' call (a mc/uc POST to /k)
+ - parameter and diagnostic 'property' call (an uc POST to /p or an uc PUT/GET to /p/{property-path})
+
+ Note that a POST to /k,/p is forward by the stack always to the callback PUT handler.
+
+ For a 'property' call
+ - the corresponding application GET/PUT application callback handlers are called
+   by the stack (group object table things are NOT considered).
+ - the request payload points to the actual value object (for PUT)
+
+ For an 's-mode' call
+ - the group object table configuration flags (cflags) and service type (w/r/a)
+   are considered by the stack.
+ - the corresponding application GET(r)/PUT(w/a) application callback handlers are called
+   by the stack.
+ - the request payload points to the actual value object (for PUT(w/a))
+
+ *Resource Path*
+
+ - A KNX related resource path for the 's-mode' and 'property' calls SHALL be defined with
+   a leading '/p' (e.g.; '/p/lssb/soo'). The resource path SHALL NOT be empty. Hence, the stack
+   application examples uses the leading '/p' with some application specific extension,
+   also the EITT test application requires a leading '/p' for the EITT certification tests.
+
+ - All /p callbacks MUST implement also additional required functionality.
+
+     - GET is mandatory for 's-mode' and 'property' calls
+     - PUT is optional** for 's-mode' calls and 'property' calls
+
+     **Depending on your application and hardware you may (not) allow to write (PUT) values to an
+       output datapoint (GO), this can damage your hardware. Reading an input datapoint is less
+       critical, but requires a kind of caching the value. An EXAMPLE how to handle/distinguish
+       the 's-mode' and 'property' calls and options how to react is given below in the callback handler code.
+      Another option to circumvent the problem is to not declare the PUT handler for those resources (GOs) where
+      a PUT is not possible.
+
+     - Read metadata by using a GET + query (?m=m/o parameters) is mandatory
+       - (m) mandatory parameters (id, value, rt, if, dpt, ga, href)
+       - (o) optional parameters (desc, unit, min, max, mrt, cov, hbt, sns)
+
+     - Write metadata by using a PUT + query (?m=m/o parameters) is optional, this adheres to the
+       POST /p + query (?m=m/o parameters) -> if PUT can do that POST must also allow that (and vice versa)
+       - (m) mandatory parameters (id, value, rt, if, dpt, ga, href)
+       - (o) optional parameters (desc, unit, min, max, mrt, cov, hbt, sns)
+
+ - A NON KNX related resource path can be defined for any vendor specific (configuration) purpose. In this case
+   the device configuration is also vendor specific, e.g; by a vendor client. It MAY also be supported in the future by
+   a KNX MaC's, such as via an extension of the product SDK.
+
+*/
+
+// Datapoint Notes
+/*
+ Datapoint definitions are used to register/create a datapoint resource in the application. 
+ Either the href/description/... data consumes the space in a static structure definition as below,
+ or they are hard coded when you register them, so no space difference but better structured.
 
   - value types must respect the bit size definition of a MaC (ETS) product, e.g.; 32-bit int or bool
 
@@ -56,20 +137,20 @@
 
   - the resource (DPT) type
   
-  - the id used for an n-fold channel oriented application to define a generic PUT/GET handler for all channels,
-    the addressed channel and datapoint can be identified from the generic handler, e.g. by setting the value
-    to ch# << 8 + point# (see code application examples)
+  - the 'id' is optional, if included as part of a point it can be used for an n-fold channel oriented application
+    to define a generic PUT/GET handler for all channels. The addressed channel and datapoint can be identified
+    from the generic handler, e.g. by setting the value to ch# << 8 + point# (see application handler examples).
 
 */
+
 typedef struct
 {
-  volatile bool value; // the actual datapoint type, see notes above
-  char* resource_path; // the resource path such as /p/...
-  char* dpa;    // annotated datapoint, see in KNX ioT specification 3/10/5 
-  char* dpt;    // datapoint type, see in KNX ioT specification 3/10/5
-  uint16_t id;  // see note above
+  volatile bool value;  // the actual datapoint type, see notes above
+  char* resource_path;  // the resource path such as /p/...
+  char* dpa;            // annotated datapoint, see in KNX ioT specification 3/10/5 
+  char* dpt;            // datapoint type, see in KNX ioT specification 3/10/5
+  uint16_t id;          // see note above
 } bool_datapoint_t;
-
 
 typedef struct
 {
@@ -79,6 +160,60 @@ typedef struct
   char* dpt;
   char* name;
 } int_datapoint_t;
+
+// Functional Block Notes
+/*
+  An FB consists of a number of datapoints with its values, endpoints (EP) and URNs.
+
+  - the FB number, despite any DPA scheme that is used from the in FB included datapoints
+    (note that an FB such as 417 may also reuse predefined datapoints from other FB's with DPA type 312.xx, 2nn.xx
+     or similar, FB 421 is NOT only using 'self defined' 417.xx types)
+
+  - the FB instance, 0...n, 0 = only one instance, > 0 more than one instance, see also 'oc_resource_set_function_block_data'
+
+  - the number of 'visible' datapoint in an FB, note that if this number MAY change e.g.; when adding/deleting resources
+    or make some invisible
+    - caused by ETS (e.g, partial download with changed parameter setting)
+    - caused by own application at runtime (e.g, HMI parameter adjustment by user)
+    the correct number must be re-applied by the application to the FB.
+
+  - the datapoints, see above
+
+ A FB can be also defined on channel oriented structure, such as used for the LSAB/LSSB demos.
+
+*/
+
+#define NUM_CHANNELS (2)    // common data for LSAB/LSSB/EITT
+#define NUM_CEM_POINTS (2)  // common data for CEM
+
+typedef struct
+{
+  uint16_t fb_number;
+  uint8_t fb_instance;
+  uint8_t fb_number_of_datapoints;
+
+  int_datapoint_t point;
+} int_functional_block_t;
+
+typedef struct
+{
+  uint16_t fb_number;
+  uint8_t fb_instance;
+  uint8_t fb_number_of_datapoints;
+
+  int_datapoint_t point[NUM_CEM_POINTS];
+} int_array_functional_block_t;
+
+
+typedef struct
+{
+  uint16_t fb_number;
+  uint8_t fb_instance;
+  uint8_t fb_number_of_datapoints;
+
+  bool_datapoint_t point[NUM_CHANNELS];
+} bool_functional_block_t, lsxb_channel_t;
+
 
 #ifdef _WIN32
 #include <direct.h>
@@ -105,38 +240,6 @@ extern "C"
    * @return int 0 == success
    */
   int app_initialize_stack(void);
-  
-  /**
-   * @brief Set a bool
-   *
-   * @param channel the channel for the bool to set
-   * @param point the point of the channel for the bool to set
-   * @param value value to set
-   */
-  void app_set_bool_variable_from_channel(uint8_t channel, uint8_t point, bool value);
-
-  /**
-   * @brief Get a bool
-   *
-   * @param channel the channel for the bool to get
-   * @param point the point of the channel for the bool to get
-   */
-  bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point);
-
-  /**
-   * @brief Get an int
-   *
-   */
-  int app_retrieve_int_variable_from_charger(void);
-
-  /**
-   * @brief Get a URL
-   *
-   * @param channel the channel for the URL to get
-   * @param point the point of the channel for the URL to get
-   * @return boolean variable
-   */
-  char* app_retrieve_href_from_channel(uint8_t channel, uint8_t point);
 
   /**
    * @brief retrieves the url of a parameter

@@ -28,73 +28,6 @@
 extern lsxb_channel_t lsxb[];
 extern int_datapoint_t test_parameter;
 
-/*
- Callback Notes 
-
- Below the CoAP GET/PUT callback handlers are defined for the data point resources.
-
- Note that this is a collection of all by the by stack DEMOS used PUT/GET methods.
- For an own development the methods have to be adapted or extended, such as to define get/put
- methods for float / long int ord combined datapoints.
-
- For the resource path, resource types and other see 'register resources'.
-
- @param request    the request representation
- @param interfaces the interface mask, as specified for the application resource and method (GET, ...)
- @param user_data  the user data
-
- A callback 'call' handler demands the above defined 3 parameters when called by the stack,
- provide them even if they are not used.
-
- Details
- -------
-
- The callbacks are called from the stack for an 's-mode' call (/k) and for a parameter and diagnostic
- 'property' call (/p).
-
- *Caller*
-
- For a POST 's-mode' call
- - the group object table configuration flags (cflags) and service type (w/r/a)
-   are considered by the stack, but not for the 'property' call.
-
- - the corresponding (r/w/a) application GET/PUT callback handlers are called
-   by the stack. The request payload (on w/a ->PUT) points to the actual value object.  
-
- For a GET/PUT 'property' call the GET/PUT callback handler are called directly.
-
- *Resource Path*
-
- - A KNX related resource path for the 's-mode' and 'property' communication SHALL be defined with
-   a leading '/p' (e.g.; '/p/lssb/soo'). The resource path SHALL NOT be empty. Hence, the LSAB/LSSB
-   application examples uses the leading '/p' with some application specific extension,
-   also the EITT test application requires a leading '/p' for the EITT certification tests.
-
- - The /p callbacks MUST implement also additional required functionality.
-
-   * Depending on your application and hardware you may not allow to write (PUT) values to an output
-     datapoint (GO), this can damage your hardware. Reading an input datapoint is less critical,
-     but requires a kind of caching the value. Hence, the specification demands:
-
-     - GET is mandatory for 's-mode' and 'property' communication /w and w/o metadata m= m/o parameters 
-       - mandatory parameters (id, value, rt, if, dpt, ga, href)
-       - optional parameters (desc, unit, min, max, mrt, cov, hbt, sns)
-     - PUT is optional for 's-mode'
-     - PUT is mandatory for 'property'
-
-     An EXAMPLE how to handle/distinguish the 's-mode' and 'property' calls and options how to react
-     is given below in the callback handler code. Another option to circumvent the problem is to not
-     declare the PUT handler for those GOs where a PUT is not possible.
-
-     Note that in the examples a generic (GET) handler is used, to allow a channel based approach with one
-     get handler.
-
- - A NON KNX related resource path can be defined for any vendor specific (configuration) purpose. In this case
-   the device configuration is also vendor specific, e.g; by a vendor client. It MAY also be supported in the future by
-   a KNX MaC's, such as via an extension of the product SDK. 
-
-*/
-
 // generic GET for LSSB/LSAB/EITT applications for SOO and IOO
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -128,20 +61,23 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   if (oc_query_value_exists(request, "m") != -1)
   {
     // ... query parameter 'm' is present, check the various values
-    char* m;
+    char* m_value;
     char* m_key;
+    size_t m_value_len = oc_get_query_value(request, "m", &m_value);
     size_t m_key_len;
-    size_t m_len = oc_get_query_value(request, "m", &m);
 
-    PRINT("Query Parameter: %.*s", (int)m_len, m);
+    const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;
+    
+
+    PRINT("Query Parameter: %.*s", (int)m_value_len, m_value);
 
     oc_init_query_iterator();
 
-    // check query parameter
-    while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+    // check (0..n) query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m_value, &m_value_len) != -1)
     {
-      // id (mandatory)
-      if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // id
+      if (strncmp(m_value, "id", m_value_len) == 0 || wildcard)
       {
         // knx://sn: + max len SN + uri path + \0 = ~ 65
         char serial_number[65];
@@ -154,15 +90,15 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
         error_state = false;
       }
-      // value (mandatory)
-      if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // value
+      if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
-        // see 'Callback Notes' above
+        // see 'Callback Notes'
         oc_rep_text_set_boolean(root, value, lsxb[channel].point[point].value);
         error_state = false;
       }
-      // resource types (mandatory)
-      if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // rt
+      if (strncmp(m_value, "rt", m_value_len) == 0 || wildcard)
       {
         // use the first type, skip urn:knx (=7), if more types are used
         // - add a next in the data structure
@@ -172,20 +108,20 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         oc_rep_text_set_text_string(root, rt, first_type + 7);
         error_state = false;
       }
-      // interfaces (array of text strings) (mandatory)
-      if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // if (array of text strings)
+      if (strncmp(m_value, "if", m_value_len) == 0 || wildcard)
       {
         add_all_interface_short_urns_for_a_resource(request->resource);
         error_state = false;
       }
-      // dpt (mandatory)
-      if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // dpt
+      if (strncmp(m_value, "dpt", m_value_len) == 0 || wildcard)
       {
         oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
         error_state = false;
       }
-      // ga (mandatory)
-      if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // ga
+      if (strncmp(m_value, "ga", m_value_len) == 0 || wildcard)
       {
         const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
         if (index > -1)
@@ -198,8 +134,8 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
         }
         error_state = false;
       }
-      // href (mandatory)
-      if (strncmp(m, "href", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // href (MAY omit in the response, here not for a '*')
+      if (strncmp(m_value, "href", m_value_len) == 0 || wildcard)
       {
         oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
 
@@ -210,7 +146,7 @@ void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   else
   { // ... no query parameter 'm' present at all, set value for the GET
 
-    // see 'Callback Notes' above
+    // see 'Callback Notes'
     oc_rep_i_set_boolean(root, 1, lsxb[channel].point[point].value);
     error_state = false;
   }
@@ -257,7 +193,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller '/p' -> always allow to write (see 'Callback Notes' above)
+    // caller '/p' -> always allow to write (see 'Callback Notes')
     is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
@@ -271,12 +207,12 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     {
       if (!is_input_datapoint)
       {
-        // see 'Callback Notes' above
+        // see 'Callback Notes'
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
 
-      // see 'Callback Notes' above
+      // see 'Callback Notes'
       lsxb[channel].point[point].value = rep->value.boolean;
       error_state = false;
 
@@ -289,7 +225,7 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // correct data retrieved
   if (!error_state)
   {
-    // set LSAB status (note, for a real hw device the staus usually needs to be determined from the actual hw relay)
+    // set LSAB status (note, for a real hw device the status usually needs to be determined from the actual hw relay)
     PRINT("received no error, update LSAB status to %d", lsxb[channel].point[SOO].value);
     lsxb[channel].point[IOO].value = lsxb[channel].point[SOO].value;
 
@@ -331,7 +267,7 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
   // the caller source (e.g.; called by '/p' or '/k')
   if (oc_is_redirected_request_from(request) == 1)
   {
-    // caller '/p' -> always allow to write (see 'Callback Notes' above)
+    // caller '/p' -> always allow to write (see 'Callback Notes')
     is_input_datapoint = true;
     PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
   }
@@ -345,12 +281,12 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
     {
       if (!is_input_datapoint)
       {
-        // see 'Callback Notes' above
+        // see 'Callback Notes'
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
         return;
       }
 
-      // see 'Callback Notes' above
+      // see 'Callback Notes'
       lsxb[channel].point[point].value = rep->value.boolean;
       error_state = false;
 
@@ -383,8 +319,8 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
 
   bool error_state = true;
 
-  // - input or output, see 'Callback Notes' above
-  // - a parameter has interface type GET if.d
+  // - input or output, see 'Callback Notes'
+  // - a parameter has interface type if.d for a GET
 
   PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
 
@@ -401,26 +337,28 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   if (oc_query_value_exists(request, "m") != -1)
   { // ... query parameter 'm' is present, check the various values
 
-    char* m;
+    // ... query parameter 'm' is present, check the various values
+    char* m_value;
     char* m_key;
+    size_t m_value_len = oc_get_query_value(request, "m", &m_value);
     size_t m_key_len;
-    size_t m_len = oc_get_query_value(request, "m", &m);
 
-    PRINT("Query Parameter: %.*s", (int)m_len, m);
+    const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;
+
+    PRINT("Query Parameter: %.*s", (int)m_value_len, m_value);
 
     oc_init_query_iterator();
 
-    // check query parameter
-    while (oc_iterate_query(request, &m_key, &m_key_len, &m, &m_len) != -1)
+    // check (0..n) query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m_value, &m_value_len) != -1)
     {
-      // unique identifier
-      if (strncmp(m, "id", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // id
+      if (strncmp(m_value, "id", m_value_len) == 0 || wildcard)
       {
         // knx://sn: + max len SN + uri path + \0 = ~ 65
         char serial_number[65];
 
-        (void)snprintf(serial_number, 65, "knx://sn:%s%s", 
-                       oc_string(device->serialnumber),
+        (void)snprintf(serial_number, 65, "knx://sn:%s%s", oc_string(device->serialnumber),
                        oc_string(request->resource->uri));
 
         oc_rep_i_set_text_string(root, 0, serial_number);
@@ -428,38 +366,39 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
         error_state = false;
       }
       // value
-      if (strncmp(m, "value", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
-        oc_rep_text_set_int(root, value, test_parameter.value);
+        // see 'Callback Notes'
+        oc_rep_i_set_int(root, 1, test_parameter.value);
         error_state = false;
       }
-      // resource types
-      if (strncmp(m, "rt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // rt
+      if (strncmp(m_value, "rt", m_value_len) == 0 || wildcard)
       {
         // use the first type, skip urn:knx (=7), if more types are used
-        // - add a next in the data structure 
+        // - add a next in the data structure
         // - add an extra line
         const char* first_type = oc_string_array_get_item(request->resource->types, 0);
 
         oc_rep_text_set_text_string(root, rt, first_type + 7);
         error_state = false;
       }
-      // interfaces (array of text strings)
-      if (strncmp(m, "if", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      // if (array of text strings)
+      if (strncmp(m_value, "if", m_value_len) == 0 || wildcard)
       {
         add_all_interface_short_urns_for_a_resource(request->resource);
         error_state = false;
       }
       // dpt
-      if (strncmp(m, "dpt", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      if (strncmp(m_value, "dpt", m_value_len) == 0 || wildcard)
       {
         oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
         error_state = false;
       }
       // ga
-      if (strncmp(m, "ga", m_len) == 0 || strncmp(m, "*", m_len) == 0)
+      if (strncmp(m_value, "ga", m_value_len) == 0 || wildcard)
       {
-        int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+        const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
         if (index > -1)
         {
           oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
@@ -470,15 +409,22 @@ void get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
         }
         error_state = false;
       }
+      // href (MAY omit in the response, here not for a '*')
+      if (strncmp(m_value, "href", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
+
+        error_state = false;
+      }
     }
   }
   else
   { // ... no query parameter 'm' present at all, set value
 
-    // see 'Callback Notes' above
+    // see 'Callback Notes'
     oc_rep_i_set_int(root, 1, test_parameter.value);
 
-    PRINT("get test parameter to : %u", test_parameter.value);
+    PRINT("get test parameter to : %i", test_parameter.value);
     error_state = false;
   }
 
@@ -508,8 +454,8 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
   (void)interfaces;
   (void)user_data;
 
-  // - input or output, see 'Callback Notes' above
-  // - a parameter has interface type PUT if.p
+  // - input or output, see 'Callback Notes'
+  // - a parameter has interface type if.p for a PUT
 
   PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
 
@@ -524,11 +470,11 @@ void put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, v
     // a faulty construct such as {..., 1: 2, 1: 5} is not handled
     if (rep->iname == 1 && rep->type == OC_REP_INT)
     {
-      // see 'Callback Notes' above
-      test_parameter.value = (unsigned int)rep->value.integer;
+      // see 'Callback Notes'
+      test_parameter.value = (int)rep->value.integer;
       error_state = false;
 
-      PRINT("set test parameter to : %u", test_parameter.value);
+      PRINT("set test parameter to : %i", test_parameter.value);
       break;
     }
     rep = rep->next;
@@ -557,9 +503,7 @@ char* app_retrieve_href_from_channel(uint8_t channel, uint8_t point)
 char* app_get_parameter_url(int index) { return NULL; }
 char* app_get_parameter_name(int index) { return NULL; }
 
-// INT code - must be filled if needed
-
-// BOOLEAN code for LSAB/LSSB demos
+// DATAPOINT common code 
 
 void app_set_bool_variable_from_channel(uint8_t channel, uint8_t point, bool value)
 {

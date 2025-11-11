@@ -44,8 +44,6 @@
 #include <wx/wx.h>
 #endif
 
-#define NO_MAIN
-
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
@@ -54,10 +52,12 @@
 #include "port/dns-sd.h"
 #include "oc_oscore_context.h"
 
-#include "knx_iot_virtual_EMS.h"
-#include "icons/key_png.h"
-#include "icons/cem_png.h"
-#include "icons/cem_ico.h"
+#include "apps/ems/knx_iot_virtual_ems.h"
+#include "apps/ems/icons/key_png.h"
+#include "apps/ems/icons/cem_png.h"
+
+#include "apps/ems/icons/cem_ico.h"
+
 #include <wx/clipbrd.h>
 
 enum
@@ -183,10 +183,10 @@ void CustomDialog::on_set_link(wxCommandEvent& event)
     // Format with leading zeros
     snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
 
-    CEM_init_tables(str);
+    // CEM_init_tables(str);
 
-    CEM_set_link(0x00fa10020c00);
-    char* url = CEM_retrieve_href(3);
+    
+    char* url = app_retrieve_href_from_cem_inverter();
     oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
   }
 
@@ -247,10 +247,10 @@ void CustomDialog::on_reset_link(wxCommandEvent& event)
     // Format with leading zeros
     snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
 
-    CEM_init_tables(str);
+    //CEM_init_tables(str);
 
-    CEM_set_link(0);
-    char* url = CEM_retrieve_href(3);
+    
+     char* url = app_retrieve_href_from_cem_inverter();
     oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
   }
 
@@ -513,7 +513,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   // TODO: add an input field to make this dynamic
   //CEM_init_tables("00fa10020b00");
   //CEM_init_tables("00fa10020d00");
-  CEM_init_tables("000000000000");
+  // CEM_init_tables("000000000000");
   device->lsm_s = LSM_S_LOADED;
   
   // this is the config for phase 2
@@ -691,30 +691,30 @@ void MyFrame::OnSettings(wxCommandEvent& event)
 void MyFrame::OnClick_mode_button(wxCommandEvent& event)
 {
   char text[200];
-  int m = CEM_retrieve_mode();
+  cem_mode_t m = retrieve_cem_mode();
 
-  if (m == SUN_MODE)
+  if (m == sun_mode)
   {
-    m = 1;
+    m = mix_mode;
 
     m_mode_button->SetLabel("mix mode");
   }
   else
   {
-    m = 0;
+    m = sun_mode;
 
     m_mode_button->SetLabel("sun mode");
   }
 
-  CEM_set_mode(m);
+  set_cem_mode(m);
 
-  CEM_process_pv();
+  cem_process_inverter_input();
 
   this->ProcessUpdateFromBus();
 
   /*
-  int pv = CEM_retrieve_pv() / 1000;
-  int charger = CEM_retrieve_charger() / 1000;
+  int pv = get_cem_inverter_value() / 1000;
+  int charger = get_cem_charger_value() / 1000;
 
   sprintf(text, "in: %d kW", pv);
   m_pv_text->SetValue(text);
@@ -1136,9 +1136,9 @@ void MyFrame::ProcessUpdateFromBus()
 
   char text[200];
   
-  int m = CEM_retrieve_mode();
-  int pv = CEM_retrieve_pv() / 1000;
-  int charger = CEM_retrieve_charger() / 1000;
+  cem_mode_t m = retrieve_cem_mode();
+  int pv = get_cem_inverter_value() / 1000;
+  int charger = get_cem_charger_value() / 1000;
 
   wxColor col_pv = m_pv_text->GetBackgroundColour();
   wxColor col_charger = m_charger_text->GetBackgroundColour();
@@ -1165,7 +1165,7 @@ void MyFrame::ProcessUpdateFromBus()
         m_pv_text->SetBackgroundColour(wxColour(255, 255, 0));
     }
 
-    if (m == MIX_MODE)
+    if (m == mix_mode)
     {
       if (pv == 0 || pv == 1)
       {

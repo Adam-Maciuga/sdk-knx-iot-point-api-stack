@@ -573,7 +573,7 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  * - text buttons
  * does an oc_main_poll to give a tick to the stack
  * takes into account if the device is sleepy
- * e.g. then it only does an poll each 20 seconds
+ * e.g. then it only does a poll each 20 seconds
  * @param event triggered by a timer
  */
 void MyFrame::OnTimer(wxTimerEvent& event)

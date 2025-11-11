@@ -46,21 +46,18 @@
 #include <wx/wx.h>
 #endif
 
-// main is used from here
-#define NO_MAIN
 
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#include "apps/knx_iot_virtual.h"
+#include "apps/ems/knx_iot_virtual_ems.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 #include "oc_oscore_context.h"
+#include "apps/ems/icons/key_png.h"
+#include "apps/ems/icons/pv_png.h"
+#include "apps/ems/icons/pv_ico.h"
 
-#include "../knx_iot_virtual_EMS.h"
-#include "icons/key_png.h"
-#include "icons/pv_png.h"
-#include "icons/pv_ico.h"
 #include <wx/clipbrd.h>
 
 // IDs for the controls and the menu commands
@@ -117,11 +114,6 @@ enum : uint16_t
   DEVICE_SETTINGS = 0x0012
 };
 
-
-static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
-  {wxCMD_LINE_OPTION, "s", "serialnumber", "serial number", wxCMD_LINE_VAL_STRING}, {wxCMD_LINE_NONE}};
-
-wxCmdLineParser* g_cmd;
 
 class CustomDialog : public wxDialog
 {
@@ -184,7 +176,7 @@ public:
 class MyFrame : public wxFrame
 {
 public:
-  MyFrame(const char* serial_number);
+  MyFrame();
 
 private:
   void OnSettings(wxCommandEvent& event);
@@ -251,22 +243,11 @@ wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
 {
        
-  int argc = wxAppConsole::argc;
-  wxChar** argv = wxAppConsole::argv;
-
-
-  g_cmd = new wxCmdLineParser(argc, argv);
-  g_cmd->SetDesc(g_cmdLineDesc);
-  g_cmd->Parse(true);
-
-  wxString serial_number;
-  if (g_cmd->Found("s", &serial_number))
-  {
-  }  
+ 
   
     wxInitAllImageHandlers();   
 
-  MyFrame* frame = new MyFrame(const_cast<char*>((serial_number.c_str()).AsChar()));
+  MyFrame* frame = new MyFrame();
   frame->SetSize(350, 150);
 
   frame->Show(true);
@@ -277,9 +258,8 @@ bool MyApp::OnInit()
 /**
  * @brief Construct a new My Frame:: My Frame object
  *
- * @param serial_number
  */
-MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app")
+MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
 {  
   wxMemoryInputStream iconStream(pv_ico, pv_ico_len);
   wxImage img(iconStream, wxBITMAP_TYPE_ICO);
@@ -355,14 +335,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
   m_PV_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::OnSlider_PV_slider, this);
   m_PV_slider->Enable(true);
   m_PV_slider->SetValue(0);
-  
 
-  // serial number
-  if (strlen(serial_number) > 1)
-  {
-    // sn was set by command line 
-    //app_set_serial_number(serial_number);
-  }
 
   // call in c-code 
   app_initialize_stack();
@@ -373,7 +346,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "PV app
 
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
   oc_device_info_t* device = oc_core_get_device_info();
-  PV_init_auth_table();
+  // PV_init_auth_table();
   device->lsm_s = LSM_S_UNLOADED;
 }
 
@@ -440,7 +413,6 @@ void MyFrame::updateDeviceData()
     {
       oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
       // oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
-      PV_init_tables_QR("00fa10020c00");
       device->lsm_s = LSM_S_LOADED;
     }
   }
@@ -1209,7 +1181,7 @@ void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
   // get the slider value
   int val = m_PV_slider->GetValue();
       
-  PV_set_PV(val);          
+  set_inverter_value(val);          
 
   oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
@@ -1235,11 +1207,11 @@ void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
     */
 
       // get url
-      char* url = PV_retrieve_href(0);
+      char* url = app_retrieve_href_from_inverter();
       // get the slider value
       int val = m_PV_slider->GetValue();
 
-  PV_set_PV(val);
+  set_inverter_value(val);
 
   oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
