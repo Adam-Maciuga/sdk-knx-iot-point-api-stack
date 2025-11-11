@@ -186,8 +186,11 @@ private:
   // eitt
   wxButton *m_EITT_SOO;
 };
-
-wxIMPLEMENT_APP_CONSOLE(MyApp);
+#ifdef USE_CONSOLE
+  wxIMPLEMENT_APP_CONSOLE(MyApp);
+#else
+  wxIMPLEMENT_APP(MyApp);
+#endif
 
 /**
  * @brief initialization of the application

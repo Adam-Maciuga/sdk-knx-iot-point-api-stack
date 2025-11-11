@@ -232,7 +232,11 @@ private:
   wxSlider* m_PV_slider;
 };
 
-wxIMPLEMENT_APP(MyApp);
+#ifdef USE_CONSOLE
+  wxIMPLEMENT_APP_CONSOLE(MyApp);
+#else
+  wxIMPLEMENT_APP(MyApp);
+#endif
 
 /**
  * @brief initialization of the application
@@ -513,7 +517,7 @@ void MyFrame::OnUsage(wxCommandEvent& event)
   all << text << "\n\n"
       << "Usage:" << "\n"
       << "- Simulates a solar inverter providing power data." << "\n"
-      << "- Enables adjustment of the solar production value (0–10 kW) for testing." << "\n";
+      << "- Enables adjustment of the solar production value (0ï¿½10 kW) for testing." << "\n";
 
   strcpy(windowtext, "Device IDs & usage");
   CustomDialog(windowtext, all, 520, 180);
