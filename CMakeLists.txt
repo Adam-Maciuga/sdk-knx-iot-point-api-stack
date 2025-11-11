@@ -410,21 +410,25 @@ if(WIN32)
         if(USE_CONSOLE)
           add_compile_definitions(USE_CONSOLE)
           if(MSVC)
-                      set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
+            set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
           else()
-                      set(GUI_FLAG "-mconsole")
+            set(GUI_FLAG "-mconsole")
           endif()
-                
-          # GUI versions
-          set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-          set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-          set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-
-          set_target_properties(charger_virtual_gui  PROPERTIES LINK_FLAGS ${GUI_FLAG})
-          set_target_properties(cem_virtual_gui      PROPERTIES LINK_FLAGS ${GUI_FLAG})
-          set_target_properties(inverter_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-
+        else()
+          # No console - use Windows GUI subsystem for all apps
+          if(MSVC)
+            set(GUI_FLAG "/SUBSYSTEM:WINDOWS")
+          else()
+            set(GUI_FLAG "-mwindows")
+          endif()
         endif()
+        set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
+
+        set_target_properties(charger_virtual_gui  PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        set_target_properties(cem_virtual_gui      PROPERTIES LINK_FLAGS ${GUI_FLAG})
+        set_target_properties(inverter_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
 
 endif()
 

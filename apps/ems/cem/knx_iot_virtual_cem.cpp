@@ -1769,4 +1769,8 @@ bool MyApp::OnInit()
 
   return true;
 }
-wxIMPLEMENT_APP(MyApp);
+#ifdef USE_CONSOLE
+  wxIMPLEMENT_APP_CONSOLE(MyApp);
+#else
+  wxIMPLEMENT_APP(MyApp);
+#endif
