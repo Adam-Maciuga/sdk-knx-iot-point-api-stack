@@ -18,6 +18,9 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
+//needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
+#undef WX_PRECOMP
+
 #include <wx/cmdline.h>
 #include <wx/scrolbar.h>
 #include <wx/wxprec.h>
@@ -53,9 +56,6 @@
 #include "oc_oscore_context.h"
 
 #include "apps/ems/knx_iot_virtual_ems.h"
-#include "apps/ems/icons/key_png.h"
-#include "apps/ems/icons/cem_png.h"
-
 #include "apps/ems/icons/cem_ico.h"
 
 #include <wx/clipbrd.h>
@@ -109,7 +109,7 @@ enum : uint16_t
   CHECK_SLEEPY = 0x000f,
   CHECK_PM = 0x0010,
   DEVICE_USAGE = 0x0011,
-  DEVICE_SETTINGS = 0x0012
+  LIST_ALL = 0x0012
 };
 
 static const wxCmdLineEntryDesc g_cmdLineDesc[] = {
@@ -256,56 +256,30 @@ void CustomDialog::on_reset_link(wxCommandEvent& event)
 
   this->Destroy();
 }
-CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
-    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition)
-{
-  this->SetSize(wxSize(size_x + 30, size_y));
 
-  wxPanel* panel = new wxPanel(this, wxID_ANY);
+CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
+    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+{  
+  this->SetSize(wxSize(size_x + 30, size_y));
+  
+  wxPanel* panel = new wxPanel(this, -1);
 
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* buttonRow = new wxBoxSizer(wxHORIZONTAL); // NEW row for input + buttons
-  wxBoxSizer* bottomRow = new wxBoxSizer(wxHORIZONTAL); // Existing row for Close or other buttons
+  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
 
-  // --- Main Text Area ---
-  wxTextCtrl* tc =
-    new wxTextCtrl(panel, wxID_ANY, text, wxDefaultPosition, wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
-  vbox->Add(tc, 1, wxEXPAND | wxALL, 5);
+  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
-  // --- Label ---
-  vbox->Add(new wxStaticText(panel, wxID_ANY, "Enter Serial Number:"), 0, wxLEFT | wxTOP, 10);
-
-  // --- Numeric / Hex Input Field + Buttons on same row ---
-  inputField = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxSize(150, -1), 0);
-  inputField->SetMaxLength(20);
-  buttonRow->Add(inputField, 0, wxLEFT | wxRIGHT, 5);
-
-  wxButton* linkButton = new wxButton(panel, wxID_ANY, wxT("Link"));
-  linkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_set_link, this);
-  buttonRow->Add(linkButton, 0, wxLEFT | wxRIGHT, 5);
-
-  wxButton* unlinkButton = new wxButton(panel, wxID_ANY, wxT("UnLink"));
-  unlinkButton->Bind(wxEVT_BUTTON, &CustomDialog::on_reset_link, this);
-  buttonRow->Add(unlinkButton, 0, wxLEFT, 5);
-
-  // Add the whole row to the layout
-  vbox->Add(buttonRow, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
-
-  // --- Bottom Buttons Row (Close) ---
-  wxButton* closeButton = new wxButton(panel, wxID_ANY, wxT("Close"));
+  wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
-  bottomRow->Add(closeButton, 0, wxLEFT, 5);
 
-  vbox->Add(bottomRow, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+  oc_device_info_t* device = oc_core_get_device_info();
+  char* sn = oc_string(device->serialnumber);
 
-  // --- Attach sizer to panel ---
-  panel->SetSizer(vbox);
+  hbox->Add(closeButton, 1, wxLEFT, 5);
+  vbox->Add(panel, 1);
+  vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
 
-  // --- Use the panel as the only child of the dialog ---
-  wxBoxSizer* dialogSizer = new wxBoxSizer(wxVERTICAL);
-  dialogSizer->Add(panel, 1, wxEXPAND);
-  SetSizerAndFit(dialogSizer);
-
+  SetSizerAndFit(vbox);
   Centre();
   ShowModal();
   Destroy();
@@ -317,9 +291,9 @@ public:
   MyFrame(const char* serial_number);
 
 private:
-  void OnSettings(wxCommandEvent& event);
   void OnUsage(wxCommandEvent& event);
 
+  void OnListAll(wxCommandEvent& event);
   void OnGroupObjectTable(wxCommandEvent& event);
   void OnPublisherTable(wxCommandEvent& event);
   void OnRecipientTable(wxCommandEvent& event);
@@ -333,6 +307,8 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
 
+  wxString dumpDeviceIDs();
+  wxString dumpDeviceSettings();
   wxString dumpGroupObjectTable();
   wxString dumpPublisherTable();
   wxString dumpRecipientTable();
@@ -386,25 +362,16 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   wxBitmap bmp(img);
   wxIcon icon;
   icon.CopyFromBitmap(bmp);
-  SetIcon(icon); 
-  wxToolBar* tb = CreateToolBar(wxTB_VERTICAL | wxNO_BORDER | wxTB_FLAT);
-  wxMemoryInputStream stream1(key_png, key_png_len);
-  wxImage img1(stream1, wxBITMAP_TYPE_PNG);
-  wxBitmap bmp1(img1);
-  wxMemoryInputStream stream2(cem_png, cem_png_len);
-  wxImage img2(stream2, wxBITMAP_TYPE_PNG);
-  wxBitmap bmp2(img2);
-
-  tb->AddTool(DEVICE_SETTINGS, "", wxBitmapBundle::FromBitmap(bmp1), "Settings");
-  tb->AddTool(DEVICE_USAGE, "", wxBitmapBundle::FromBitmap(bmp2), "Usage"); 
-  tb->Realize();
+  SetIcon(icon);
 
   m_menuFile = new wxMenu;
-  m_menuFile->Append(DEVICE_SETTINGS, "Device Details", "", false);
-  m_menuFile->Append(GOT_TABLE_ID, "Group Object Table", "", false);
-  m_menuFile->Append(PUB_TABLE_ID, "Publisher Table", "", false);
-  m_menuFile->Append(REC_TABLE_ID, "Recipient Table", "", false);
-  m_menuFile->Append(AT_TABLE_ID, "Authentication Table", "", false);
+  m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
+  m_menuFile->AppendSeparator();
+  m_menuFile->Append(CHECK_PM, "Programming Mode", "Sets the application in programming mode", true);
+  m_menuFile->Append(RESET_TABLE, "Reset (7) (Tables)", "Reset 7 (Reset to default without IA)", false);
+  m_menuFile->Append(RESET, "Reset (2) (ex-factory)", "Reset 2 (Reset to default state)", false);
+  m_menuFile->AppendSeparator();
+  m_menuFile->Append(wxID_EXIT);
 
   // display menu
   m_menuDisplay = new wxMenu;
@@ -422,24 +389,26 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
 
   // help menu
   wxMenu* menuHelp = new wxMenu;
+  menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
   menuHelp->Append(wxID_ABOUT);
 
   // full menu bar
   wxMenuBar* menuBar = new wxMenuBar;
-  //menuBar->Append(m_menuFile, "Config");
-  // menuBar->Append(m_menuDisplay, "&Display");
-  // menuBar->Append(m_menuOptions, "&Options");
-  // menuBar->Append(menuHelp, "&Help");
+  menuBar->Append(m_menuFile, "&File");
+  menuBar->Append(m_menuDisplay, "&Display");
+  menuBar->Append(m_menuOptions, "&Options");
+  menuBar->Append(menuHelp, "&Help");
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
-  // wxFrameBase::SetStatusText("PV");
 
   Bind(wxEVT_MENU, &MyFrame::OnUsage, this, DEVICE_USAGE);
-  Bind(wxEVT_MENU, &MyFrame::OnSettings, this, DEVICE_SETTINGS);
-  //Bind(wxEVT_MENU, &MyFrame::OnGroupObjectTable, this, GOT_TABLE_ID);
-  //Bind(wxEVT_MENU, &MyFrame::OnPublisherTable, this, PUB_TABLE_ID);
-  //Bind(wxEVT_MENU, &MyFrame::OnRecipientTable, this, REC_TABLE_ID);
-  Bind(wxEVT_MENU, &MyFrame::OnAuthTable, this, AT_TABLE_ID);
+  Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
+  Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
+  Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
+  Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
+  Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
+  Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
+  Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
   // Create a vertical box sizer for the whole section
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
@@ -596,98 +565,17 @@ void MyFrame::OnReset(wxCommandEvent& event)
 }
 void MyFrame::OnUsage(wxCommandEvent& event)
 {
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-
-  strcpy(text, "");
-
-  sprintf(line, "Device IDs:\n");
-  strcat(text, line);
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-
-  sprintf(line, " - Serial number: '%s' ", oc_string(device->serialnumber));
-  strcat(text, line);
-  strcat(text, "\n"); // break to next entry
-
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  sprintf(line, " - Individual address: %d.%d.%d '%02x'", ia_a, ia_l, ia_d, device->ia);
-  strcat(text, line);
-  strcat(text, "\n"); // break to next entry
-
-  uint64_t value = device->iid;
-
-  /*
- create the multicast address from group and scope
- FF3_:FD__:____:____:(8-f)___:____
- FF35:30:<ULA-routing-prefix>::<group id>
-    | 5 == scope
-    | 3 == scope
- Multicast prefix: FF35:0030:  [4 bytes]
- ULA routing prefix: FD11:2222:3333::  [6 bytes + 2 empty bytes]
- Group Identifier: 8000 : 0068 [4 bytes ]
-*/
-  // group number to the various bytes
-  uint8_t byte_1 = static_cast<uint8_t>(value);
-  uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
-  uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
-  uint8_t byte_4 = static_cast<uint8_t>(value >> 24);
-  uint8_t byte_5 = static_cast<uint8_t>(value >> 32);
-
-  if (byte_5 == 0)
-  {
-    sprintf(line, " - Installation ID: '%02x%02x:%02x%02x'", byte_4, byte_3, byte_2, byte_1);
-  }
-  else
-  {
-    sprintf(line, " - Installation ID: '%02x:%02x%02x:%02x%02x'", byte_5, byte_4, byte_3, byte_2, byte_1);
-  }
-  strcat(text, line);
-
-
-    wxString all;
-    all << text << "\n\n"
-        << "Usage:" << "\n"
+  wxString usage;
+  usage << "Usage:" << "\n"
         << "- Acts as the brain of the EMS system." << "\n"
         << "- Two operation modes:" << "\n"
         << "    1) Sun Mode: Car charges only if solar production is at least 4 kW." << "\n"
         << "    2) Mix Mode: Car charges at 4 kW regardless of solar availability." << "\n"
         << "- Calculates and sends the appropriate charging rate." << "\n";
 
-  strcpy(windowtext, "Device IDs & usage");
-    CustomDialog(windowtext, all, 480, 220);
+  CustomDialog("CEM Usage", usage, 480, 180);
 }
-void MyFrame::OnSettings(wxCommandEvent& event)
-{
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
-  {
-    return;
-  }
 
-  wxString all;
-  all << dumpGroupObjectTable() << "\n"
-      << dumpPublisherTable() << "\n"
-      /* << dumpRecipientTable() */
-      << "\n"
-      /* << dumpParameterList() << "\n\n" */
-      << dumpAuthTable();
-
-  wxString title;
-  title.Printf("Device settings & cryptography");
-
-  CustomDialog(title, all, 420, 400);
-  // SetStatusText("List All Tables");
-}
 void MyFrame::OnClick_mode_button(wxCommandEvent& event)
 {
   char text[200];
@@ -732,6 +620,29 @@ void MyFrame::OnClick_mode_button(wxCommandEvent& event)
 
   m_charger_text->SetValue(text);
   */
+}
+void MyFrame::OnListAll(wxCommandEvent& event)
+{
+  const oc_device_info_t* const device = oc_core_get_device_info();
+  if (!device)
+  {
+    return;
+  }
+
+  wxString all;
+  all << dumpDeviceIDs()        << "\n\n"
+      << dumpDeviceSettings()   << "\n\n"
+      << dumpGroupObjectTable() << "\n\n"
+      << dumpPublisherTable()   << "\n\n"
+      << dumpRecipientTable()   << "\n\n"
+      << dumpParameterList()    << "\n\n"
+      << dumpAuthTable();
+
+  wxString title;
+  title.Printf("CEM - Device & Tables - %s", oc_string(device->serialnumber));
+
+  CustomDialog(title, all, 520, 400);
+  SetStatusText("List Device & All Tables");
 }
 void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
 {
@@ -1389,6 +1300,75 @@ void MyFrame::double2text(double value, char* text)
   sprintf(new_text, " %f", value);
   strcat(text, new_text);
 }
+wxString MyFrame::dumpDeviceIDs()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+  if (!device)
+  {
+    return wxString("");
+  }
+
+  wxString out("- Device IDs:\n");
+  char line[256];
+
+  // Serial number
+  sprintf(line, "  - Serial number: '%s'\n", oc_string(device->serialnumber));
+  out += line;
+
+  // Individual address
+  const uint16_t ia_a = device->ia >> 12; // area
+  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
+  const uint16_t ia_d = device->ia & 0x00FF; // device
+  sprintf(line, "  - Individual address: %d.%d.%d (%04x)\n", ia_a, ia_l, ia_d, device->ia);
+  out += line;
+
+  // Installation ID
+  uint64_t value = device->iid;
+  uint8_t byte_1 = static_cast<uint8_t>(value);
+  uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
+  uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
+  uint8_t byte_4 = static_cast<uint8_t>(value >> 24);
+  uint8_t byte_5 = static_cast<uint8_t>(value >> 32);
+
+  if (byte_5 == 0)
+  {
+    sprintf(line, "  - Installation ID: %02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
+  }
+  else
+  {
+    sprintf(line, "  - Installation ID: %02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
+  }
+  out += line;
+
+  return out;
+}
+
+wxString MyFrame::dumpDeviceSettings()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+  if (!device)
+  {
+    return wxString("");
+  }
+
+  wxString out("- Device Settings:\n");
+
+  if (device->lsm_s == LSM_S_UNLOADED)
+  {
+    out += "  CEM: unloaded\n";
+  }
+  else if (device->lsm_s == LSM_S_LOADING)
+  {
+    out += "  CEM: loading\n";
+  }
+  else if (device->lsm_s == LSM_S_LOADED)
+  {
+    out += "  CEM: loaded\n";
+  }
+
+  return out;
+}
+
 wxString MyFrame::dumpGroupObjectTable()
 {
   wxString out("- Datapoints:\n");
