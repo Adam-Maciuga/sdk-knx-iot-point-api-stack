@@ -103,10 +103,6 @@ enum : uint16_t
   REC_TABLE_ID = 0x0009,
   PARAMETER_LIST_ID = 0x000a,
   AT_TABLE_ID = 0x000b,
-  CHECK_GA_DISPLAY = 0x000c,
-  CHECK_IID_DISPLAY = 0x000d,
-  CHECK_GRPID_DISPLAY = 0x000e,
-  CHECK_SLEEPY = 0x000f,
   CHECK_PM = 0x0010,
   DEVICE_USAGE = 0x0011,
   LIST_ALL = 0x0012
@@ -373,20 +369,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
 
-  // display menu
-  m_menuDisplay = new wxMenu;
-  m_menuDisplay->Append(CHECK_GA_DISPLAY, "GA 3-level (ETS)", "Displays as GA 3-Level or as integer",true);
-  m_menuDisplay->Check(CHECK_GA_DISPLAY, true);
-  m_menuDisplay->Append(CHECK_GRPID_DISPLAY, "GRPID as partial ipv6 address (ETS)", "Displays the grpid as integer", true);
-  m_menuDisplay->Check(CHECK_GRPID_DISPLAY, true);
-  m_menuDisplay->Append(CHECK_IID_DISPLAY, "IID as partial ipv6 address (ETS)", "Displays the iid as integer", true);
-  m_menuDisplay->Check(CHECK_IID_DISPLAY, true);
-
-  // option menu
-  m_menuOptions = new wxMenu;
-  m_menuOptions->Append(CHECK_SLEEPY, "Act as Sleepy Device", "Sleeps for 20 seconds", true);
-  m_menuOptions->Check(CHECK_SLEEPY, false);
-
   // help menu
   wxMenu* menuHelp = new wxMenu;
   menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
@@ -395,8 +377,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   // full menu bar
   wxMenuBar* menuBar = new wxMenuBar;
   menuBar->Append(m_menuFile, "&File");
-  menuBar->Append(m_menuDisplay, "&Display");
-  menuBar->Append(m_menuOptions, "&Options");
   menuBar->Append(menuHelp, "&Help");
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
@@ -406,7 +386,6 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnClearTables, this, RESET_TABLE);
-  Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
@@ -507,7 +486,7 @@ void MyFrame::OnSleepyMode(wxCommandEvent& event)
 {
   SetStatusText("Changing sleepy mode");
 
-  bool my_sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
+  bool my_sleepy = false;
   oc_device_info_t* device = oc_core_get_device_info();
 
   if (my_sleepy)
@@ -650,7 +629,7 @@ void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
   char text[1024 * 5];
   char line[200];
   char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  bool ga_conversion = true;
 
   strcpy(text, "");
   oc_device_info_t* device = oc_core_get_device_info();
@@ -696,9 +675,9 @@ void MyFrame::OnPublisherTable(wxCommandEvent& event)
   char text[1024 * 5];
   char line[200];
   char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  bool ga_conversion = true;
+  bool grpid_conversion = true;
+  bool iid_conversion = true;
 
   strcpy(text, "");
   oc_device_info_t* device = oc_core_get_device_info();
@@ -770,9 +749,9 @@ void MyFrame::OnRecipientTable(wxCommandEvent& event)
   char text[1024 * 5];
   char line[200];
   char windowtext[200];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  bool ga_conversion = true;
+  bool grpid_conversion = true;
+  bool iid_conversion = true;
 
   strcpy(text, "");
   oc_device_info_t* device = oc_core_get_device_info();
@@ -891,7 +870,7 @@ void MyFrame::OnAuthTable(wxCommandEvent& event)
   int device_index = 0;
   char text[1024 * 10];
   char line[500];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  bool ga_conversion = true;
   char windowtext[200];
   int max_entries = oc_core_get_at_table_size();
   int index = 1;
@@ -1011,7 +990,7 @@ void MyFrame::OnTimer(wxTimerEvent& event)
 {
   bool do_poll = true;
 
-  const bool sleepy = m_menuOptions->IsChecked(CHECK_SLEEPY);
+  const bool sleepy = false;
 
   // do whatever you want to do every millisecond here
   if (sleepy)
@@ -1373,7 +1352,7 @@ wxString MyFrame::dumpGroupObjectTable()
 {
   wxString out("- Datapoints:\n");
   char line[512];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  bool ga_conversion = true;
 
   int total = oc_core_get_group_object_table_total_size();
   for (int i = 0; i < total; i++)
@@ -1413,9 +1392,9 @@ wxString MyFrame::dumpPublisherTable()
 {
   wxString out("- Multicast:\n");
   char line[256];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  bool ga_conversion = true;
+  bool grpid_conversion = true;
+  bool iid_conversion = true;
 
   /*
   int total = oc_core_get_publisher_table_size();
@@ -1530,9 +1509,9 @@ wxString MyFrame::dumpRecipientTable()
 {
   wxString out("- Recipient Table:\n");
   char line[256];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
-  bool grpid_conversion = m_menuDisplay->IsChecked(CHECK_GRPID_DISPLAY);
-  bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
+  bool ga_conversion = true;
+  bool grpid_conversion = true;
+  bool iid_conversion = true;
 
   int total = oc_core_get_recipient_table_size();
   for (int i = 0; i < total; i++)
@@ -1618,7 +1597,7 @@ wxString MyFrame::dumpAuthTable()
 {
   wxString out("- OSCORE (Wireshark):\n");
   char line[512];
-  bool ga_conversion = m_menuDisplay->IsChecked(CHECK_GA_DISPLAY);
+  bool ga_conversion = true;
 
   int max_entries = oc_core_get_at_table_size();
   for (int i = 0; i < max_entries; i++)

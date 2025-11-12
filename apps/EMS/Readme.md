@@ -29,14 +29,16 @@ In a typical installtion the above defined three functionalities can be shared a
 For example, the CEM can be a standalone device or the functionality is part of the 'Charger' (end) device. 
 In a usual installation with a staionary battery or heat pump the CEM is often part in one of those devices.
 
-All applications uses KNX standardized datapoints, the corresponding __Functional Block__ defintions you can
-find in folder 'apps/ems/data'
+# References
+All applications uses KNX standardized datapoints, the corresponding __Functional Block__ and 
+__Datapoint Type__ defintions you can find in folder 'apps/ems/data'
 
-a. 07_80 Introduction v01.01.01 WGI
-b. 07_80_01 Photovoltaics v01.01.01.pdf
-c. 07_80_03 eMoblity v01.01.01.pdf
+a. 07_80 Introduction 
+b. 07_80_01 Photovoltaics 
+c. 07_80_03 eMoblity 
+d. 03_07_02 Datapoint Types 
 
-## 1. Inverter
+# 1. Inverter
 
 The inverter demo represents an own end device with the the photovoltaics functionality. 
 
@@ -44,7 +46,7 @@ The inverter demo represents an own end device with the the photovoltaics functi
   sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
   the present DC power from 0 to 10 kW in steps of 1 kW.
 
-## 2. Charger
+# 2. Charger
 
 The charger demo represents an own end device with the the charging functionality. 
 
@@ -52,7 +54,7 @@ The charger demo represents an own end device with the the charging functionalit
   charging consumption from the e-car. It is represented by a moving bar, which allows to 'simulate'
   the charging process. 
 
-## 3. Customer Energy Manager
+# 3. Customer Energy Manager
 
 The customer energy manager demo represents an own end device with the the cem functionality. 
 
@@ -60,72 +62,70 @@ The customer energy manager demo represents an own end device with the the cem f
   the (output) counterpart for the (input) 'ActivePowerLimit' datapoint from the Functional Block (c), 
   and the (sun/mix) operation mode setting.
 
-This customer energy manager demo is intended to be used in an end device, to be considered as a specific 
-functionality at runtime in the context of energy management.
-
-For including also client configuration features (alike ETS), there will be an alternative CEM demo. 
-It covers both, the cem runtime functionality (this CEM demo) and client configuration features.
-
 # Details 
 
-In general:
-- all four above mentioned datapoints are of the same type, being DPT: 14.056 AH: (see # References) 
-- all three apps are based on the public KNX IoT stack and are at this stage only tested on Windows
-- regarding the CEM demo app, see (???)
+## Datapooints
 
-# References
-- PV: description of the functional block(s), ref. latest released KNX Specifications: 7/8/1 Photovoltaics 
-- Charger: description of the functional block(s): Application_EVSE AH: where to find? number is missing 
-- Datapoints: DPT 14.056, ref. latest released KNX Specifications: 3/7/2 Datapoint Types 
+All above for the runtime relevant mentioned i/o datapoints are of the same type, being DPT 14.056, 
+for this see 03/07/02. 
 
 ## Commissioning
 
-For the commissioning of these demo devices/apps two different scenarios need to be distinguished:
-- without certification
-- with certification
+This demo show a specific EMS functionality at runtime on end devices. In KNX IoT several commissioning 
+methods exist to establish a runtime communication between devices. For this a client (tool) needs to 
+support them.  
 
-### Commissioning without certification: mini-client
-This is the complete ETS commission procedure, which entirely of partly shall be implemented in as of client features:
-- add/scan the certificate of the target device 
-- scan the medium for the device's serial number or possible active programming mode
-- SPAKE2+ onboarding to check the device's certificate (pre-shared key), an ex-factory reset of the target device might be required
-- POST the WellKnownKnxIndividualAddress
-- PUT the ProgrammingMode to False
-- GET the IA (subnet address + device address) to check
-- GET the ManufacturerID to check
-- GET the HardwareType to check
-- POST a WellKownKnx FactoryResetWithoutIA to reset the target device
-- POST the LoadStateMachine to Unload
-- GET the LoadStateMachine to check
-- POST the LoadStateMachine to StartLoading
-- POST all GroupObjectTable entries
-- POST all RecipientTable entries
-- POST all PublisherTable entries
-- POST all AuthenticationTable entries
-- PUT all Parameter values (if any)
-- POST the LoadStateMachine to LoadComplete
-- GET the LoadStateMachine to check
-- GET the Fingerprint to check
+- __S-Mode__ (devices communicate over a fix endpoint, with group addresses)
+- __Publish/Subscribe__ (devices communicate over one or more endpoints, with subsribtion and notification mechanism 
+     ([CoAP RFC7641](https://www.rfc-editor.org/rfc/rfc7641.html)) 
 
-AH: was not part of step 1-3, why here? 
+Both commissioning procedures are desscribed as part of the KNX IoT specification 03/10/05. 
+Client 'ETS' has implemented the S-Mode.
+ 
+### S-Mode
 
-### Commissioning with certification: ETS
-- ETS (online) catalog entries need to be created for all three devices/apps by means of the KNX Manufacturer Tool 
+The following commissioning steps are defined. For a (simple) installation of only a few devcies some steps may not 
+be needed (marked). 
 
-## Group addresses
+1. Device Discovery 
+   a. add/scan in client the target device certificate (such as a QR Code) 
+   b. resolve device IPv6 address and port by serial number (CoAP multicast/mDNS discovery)
+   c. retrieve device functional block information (CoAP unicast discovery) 
+2. Device Preparation 
+   a. initial onboarding via device certificate (well-known/knx/spake, SPAKE2+) 
+   b. check and set individual address (well-known/knx/ia)
+   c. check and reset device programming mode (dev/pm) -> optional
+   d. check manufuacturer id (dev/mid)
+   e. check hardware type (dev/hwt)
+   f. reset target device (well-known/knx) -> optional
+3. Device Download
+   a. check and set the load state machine (a/lsm)
+   b. write Group Object table entries
+   c. write Recipient table entries
+   d. write Publisher table entries
+   e. write Access Token entries
+   f. write parameter values -> optional 
+   g. check and close the load state machine (a/lsm)
+4. Device Finishing
+   a. read fingerprint and store in client (well-known/knx/f) -> optional
+   b. restart device (well-known/knx) -> optional 
 
-From the (data) functionality point of view, the three (virtual) device are linked by means of two group addresses:
-- GA1 (0/0/1): links the 'Present DC power' datapoint (object) from the 'Inverter PV control' device **WITH** the 'Present DC power' datapoint (object) from the 'CEM' device
-- GA2 (0/0/2): links the 'Charge rate power' datapoint (object) from the 'CEM' device **WITH** the 'Charge rate power' datapoint (object) from the 'Electric car charger' device
+In case of commissioning with ETS a catalog entry is need for a device, to be created by means
+of the KNX Manufacturer Tool. 
 
-### IA (and serial number)
+#### Group Addresses
 
-The IA of the three devices are set as follows, ETS notation:
--  PV: 15.15.15 (serial number = 00fa:1002:0b00)
--  CEM: 15.15.15 (serial number = 00fa:1002:0c00)
--  Charger: 15.15.15 (serial number = 00fa:1002:0d00)
+In a simple installation usually only one device is present for a specific functionality, for example in this demo 
+a single inverter functionality (and device). The inverter 'PowerDC' output datapoint maps 1:1 to the counterpart CEM 
+input datapoint. Hence this, a user assigment of group addresses is not needed, a commissioning client can assign them 
+by own means. For more complex installations/scenarios a user interaction is needed, this is not considered by this demo.  
 
-### IID
+#### Individual Addresses (IA)/ Serial Numbers (SN) / Installation ID (IID)
+
+The used SN's (aribtrary) and IA's are set as follows (see also the corresponing *.c file).
+-  Inverter: IA= 15.15.15, SN = 00fa:1002:0b00
+-  CEM: IA= 15.15.15, SN = 00fa:1002:0c00
+-  Charger: IA= 15.15.15, SN = 00fa:1002:0d00
 
 The IID of the three devices is set to: 00fa:0000
 
