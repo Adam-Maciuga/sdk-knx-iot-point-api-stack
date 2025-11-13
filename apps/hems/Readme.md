@@ -71,21 +71,25 @@ for this see 03/07/02.
 
 ## Commissioning
 
-This demo show a specific EMS functionality at runtime on end devices. In KNX IoT several commissioning 
-methods exist to establish a runtime communication between devices. For this a client (tool) needs to 
-support them.  
+In KNX IoT several device commissioning methods exists. 
 
 - __S-Mode__ (devices communicate over a fix endpoint, with group addresses)
 - __Publish/Subscribe__ (devices communicate over one or more endpoints, with CoAP subscription and notification
                          mechanism [CoAP RFC7641](https://www.rfc-editor.org/rfc/rfc7641.html)) 
 
 Both commissioning procedures are described as part of the KNX IoT specification 03/10/05. 
-Client 'ETS' has implemented the S-Mode.
+Client 'ETS' implements the S-Mode.  
+
+This demo covers a simple installation with three (3) end devices and an unambiguous EMS functionality per device 
+at runtime. Hence this, individual configuration steps by a user are not needed, such as when having several 
+'channels' of the same functionality.
+
+- No channel assignment is needed (which channel operates with what other channel, see also below Group Addresses)  
+- No parameter adjustment for a specific channel is needed (all devices works with their default settings)
  
 ### S-Mode
 
-The following commissioning steps are defined. For a (simple) installation of only a few devices some steps may not 
-be needed (marked). 
+The following commissioning steps are defined for a device. 
 
 1. Device Discovery 
 - (a) add/scan in client the target device certificate (such as a QR Code) 
@@ -110,7 +114,7 @@ be needed (marked).
 - (a) read fingerprint and store in client (well-known/knx/f) -> optional
 - (b) restart device (well-known/knx) -> optional 
 
-In case of commissioning with ETS a catalog entry is need for a device, to be created by means
+In case of commissioning with Client 'ETS' a catalog entry is need for a device, to be created by means
 of the KNX Manufacturer Tool. 
 
 #### Group Addresses
@@ -129,8 +133,7 @@ The IA's and the IID depends on the commissioning client (step 2.b).
 ### Objects and Tables
 
 The Group Object are commissioned with step 3.b from above, Recipient and Publisher Tables
-with step 3.c/d from above. To be known, important runtime i/o datapoint information are
-described as follows: 
+with step 3.c/d from above. Important runtime i/o datapoint information are described as follows: 
   
 **Inverter**
 -  url: '/p/inverter' (output, transmits solar power value), 
