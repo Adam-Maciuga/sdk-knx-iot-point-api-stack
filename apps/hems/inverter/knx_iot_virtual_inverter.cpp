@@ -46,10 +46,10 @@
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#include "apps/ems/knx_iot_virtual_ems.h"
+#include "apps/hems/knx_iot_virtual_ems.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "apps/ems/icons/pv_ico.h"
+#include "apps/hems/icons/pv_ico.h"
 
 #include <wx/clipbrd.h>
 

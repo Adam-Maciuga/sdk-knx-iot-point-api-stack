@@ -31,7 +31,7 @@ In a usual installation with a stationary battery or heat pump the CEM is often 
 
 # References
 All applications uses KNX standardized datapoints, the corresponding __Functional Block__ and 
-__Datapoint Type__ definitions you can find in folder 'apps/ems/data'
+__Datapoint Type__ definitions you can find in folder 'apps/hems/data'
 
 a. 07_80 Introduction 
 b. 07_80_01 Photovoltaics 

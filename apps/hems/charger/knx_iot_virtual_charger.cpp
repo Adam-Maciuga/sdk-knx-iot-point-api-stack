@@ -48,8 +48,8 @@
 #include "api/oc_knx_sec.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "apps/ems/knx_iot_virtual_ems.h"
-#include "apps/ems/icons/charger_ico.h"
+#include "apps/hems/knx_iot_virtual_ems.h"
+#include "apps/hems/icons/charger_ico.h"
 
 #include <wx/clipbrd.h>
 

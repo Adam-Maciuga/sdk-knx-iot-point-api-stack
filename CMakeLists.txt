@@ -373,27 +373,27 @@ if(WIN32)
 
         ## Inverter GUI
         add_executable(inverter_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/ems/inverter/knx_iot_virtual_inverter.cpp
-            ${PROJECT_SOURCE_DIR}/apps/ems/inverter/knx_iot_virtual_inverter.c
-            ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+            ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.cpp
+            ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.c
+            ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
             ${MANIFEST_RC} 
         )
 
         ## CEM GUI
         add_executable(cem_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/ems/cem/knx_iot_virtual_cem.cpp
-            ${PROJECT_SOURCE_DIR}/apps/ems/cem/knx_iot_virtual_cem.c
-            ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+            ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.cpp
+            ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.c
+            ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
             ${MANIFEST_RC} 
         )
 
         ## Charger GUI
         add_executable(charger_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/ems/charger/knx_iot_virtual_charger.cpp
-            ${PROJECT_SOURCE_DIR}/apps/ems/charger/knx_iot_virtual_charger.c
-            ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+            ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.cpp
+            ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.c
+            ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
             ${MANIFEST_RC} 
         ) 
@@ -467,27 +467,27 @@ if(UNIX)
 
     ## Inverter GUI
     add_executable(inverter_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/ems/inverter/knx_iot_virtual_inverter.cpp
-        ${PROJECT_SOURCE_DIR}/apps/ems/inverter/knx_iot_virtual_inverter.c
-        ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+        ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.cpp
+        ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.c
+        ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
         ${MANIFEST_RC}
     )
 
     ## CEM GUI
     add_executable(cem_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/ems/cem/knx_iot_virtual_cem.cpp
-        ${PROJECT_SOURCE_DIR}/apps/ems/cem/knx_iot_virtual_cem.c
-        ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+        ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.cpp
+        ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.c
+        ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
         ${MANIFEST_RC}
     )
 
     ## Charger GUI
     add_executable(charger_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/ems/charger/knx_iot_virtual_charger.cpp
-        ${PROJECT_SOURCE_DIR}/apps/ems/charger/knx_iot_virtual_charger.c
-        ${PROJECT_SOURCE_DIR}/apps/ems/knx_iot_virtual_ems.c
+        ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.cpp
+        ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.c
+        ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
         ${MANIFEST_RC}
     )

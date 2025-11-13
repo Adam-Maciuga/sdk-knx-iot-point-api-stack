@@ -52,8 +52,8 @@
 #include "port/dns-sd.h"
 #include "oc_oscore_context.h"
 
-#include "apps/ems/knx_iot_virtual_ems.h"
-#include "apps/ems/icons/cem_ico.h"
+#include "apps/hems/knx_iot_virtual_ems.h"
+#include "apps/hems/icons/cem_ico.h"
 
 #include <wx/clipbrd.h>
 
