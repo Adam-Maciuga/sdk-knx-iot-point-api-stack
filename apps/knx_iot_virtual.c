@@ -27,6 +27,14 @@
 #include "oc_core_res.h"
 #include "oc_helpers.h"
 #include "oc_knx_client.h"
+#include "port/oc_storage.h"
+
+extern const char application_name[];
+extern const char sn_lower_case[];
+extern const char hostname[];
+extern const uint32_t mid;
+extern const char hw_type[];
+extern const char dev_model[];
 
 void app_str_to_upper(char* str)
 {
@@ -157,13 +165,6 @@ void initialize_variables(void)
 
 int app_init(void)
 {
-  extern const char application_name[];
-  extern const char sn_lower_case[];
-  extern const char hostname[];
-  extern const uint32_t mid;
-  extern const char hw_type[];
-  extern const char dev_model[];
-
   /*
     define 4kb Stdout write buffer
     - needed for faster console output on gcc debug builds
@@ -234,4 +235,57 @@ int app_init(void)
 void signal_event_loop(void)
 {
   // DO NOTHING, wxTimer drives oc_main_poll()
+}
+
+int app_initialize_stack(const char* storage_folder_name)
+{
+  /*
+    The final storage folder depends on the build system/ current directory on Linux/ Windows,
+    the folder name is defined by the file name + serial number. The data are stored in the current directory
+
+    Code below should work both on Linux/Windows.
+
+    For a specific embedded OS usually this functionality needs to be adapted.
+  */
+
+  char storage[64];
+  
+
+  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+
+  // current directory, folder name appended with serial number
+  char folder[64] = "./";
+  strcat(folder, storage_folder_name);
+  strcat(folder, "_%s");
+
+  (void)snprintf(storage, sizeof(storage), folder, sn_lower_case);
+
+  #ifdef OC_DEBUG
+
+  char dir[FILENAME_MAX] = "";
+  GetCurrentDir(dir, FILENAME_MAX);
+  OC_INF("Current path is: '%s'", dir);
+
+  #endif
+
+  #endif
+
+  oc_storage_config(storage);
+
+  // initialize the 'application' runtime variables
+  initialize_variables();
+
+  // set the stack handler callbacks, details for each handler see oc_handler_t
+  static oc_handler_t handler = {.init = app_init,
+                                 .signal_event_loop = signal_event_loop,
+                                 .register_resources = register_resources,
+                                 .requests_entry = NULL};
+
+  // set the application handler callbacks
+  oc_set_hostname_cb(hostname_cb, NULL);
+  oc_set_factory_presets_cb(factory_presets_cb, NULL);
+  oc_set_swu_cb(swu_cb, NULL);
+
+  // start the stack, calls directly also the .init handler from above
+  return oc_main_init(&handler);
 }

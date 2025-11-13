@@ -12,7 +12,7 @@ interaction buttons. The code is defined in *.c and *.cpp files.
 
 > Some demos uses *.c and *.cpp files. The *.c files hosts KNX data definitions and 
   application handlers, even it would be also possible to define all of this directly as 
-  part of the *.cpp files. For the demo pupose the files remain separated __on purpose__,
+  part of the *.cpp files. For the demo purpose the files remain separated __on purpose__,
   to have a nearly full application code skeleton (as c-file) for an embedded device 
   (only the **int main (void)** is missing). An complete example of skeleton can be found 
   in the c-file template 'knx_iot_application_template' in folder 'template'.
@@ -23,7 +23,7 @@ interaction buttons. The code is defined in *.c and *.cpp files.
 
 ## Folder '/ems'
 Energy Management System (EMS) [samples](apps/EMS/Readme.md) used to play with the stack and 
-KNX based EMS applications (Inverter, Charger, Central Eneryg Manager).	
+KNX based EMS applications (Inverter, Charger, Central Energy Manager).	
 
 ## Folder '/knx'
 Common KNX samples of a **Light Switch Actuator Basic** (LSAB), **Light Switch Sensor Basic** (LSSB)
@@ -43,7 +43,7 @@ For the predefined settings from above see the corresponding *.c file.
   
 ### '/knx/lsab' and 'knx/lssb'
 
-KNX Light Switch Actuator Basicand Light Switch Sensor Basic demo applications, used to test the 
+KNX Light Switch Actuator Basic and Light Switch Sensor Basic demo applications, used to test the 
 stack with the KNX ETS6 tool. 
 
 - **knx_iot_virtual_lsab.c** and **knx_iot_virtual_lssb.c**
@@ -57,7 +57,7 @@ If there are multiple instances of the **same** virtual device run in the **same
 two developers are testing at the same time their ETS projects with up and running lsab/lssb virtual devices on their computers).
 This is due to the fact that at least two virtual devices uses then the same serial number. An ETS instance may then program not 
 the intended device from the 'own' installation (it finds all in the network). 
-If you run into this problem, you can change the serial number in one test instance (ETS project/ vrirtual devices). 
+If you run into this problem, you can change the serial number in one test instance (ETS project/ virtual devices). 
 
 1. in the lsab/lssb c-file (for the virtual devices)
 2. in the ETS project by updating the certificate (see [ETS6 pages](../../wikis/Home/ETS6))
@@ -70,3 +70,13 @@ Contains a (pre-registered) ETS6 **product** and a (predefined) ETS6 **project**
 - **knx_iot_virtual_lsxb.knxproj** (project)
 
 More details on how to use/edit the product and/or project in ETS6, for this see in [ETS6 pages](../../wikis/Home/ETS6).
+
+# Wireshark
+
+To test runtime communication with Wireshark (Windows) launch a demo application, trigger a telegram (e.g.; press 'SOO' button on LSSB demo),
+some **OSCORE** frames shall appear on the ethernet/wifi NIC (usually with a IPv6 multicast address).
+
+By adding the OSCORE 'Security Contexts' in Wireshark (see picture below), the actual payload becomes visible/decrypted. The values you 
+can retrieve from the demo application File Dialog, 'List All Tables'. 
+
+![Example](WiresharkOscore.png)

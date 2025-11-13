@@ -73,7 +73,7 @@ extern "C"
 
   int get_cem_inverter_value(void);
   int get_cem_charger_value(void);
-  void set_inverter_value(int value);
+  void set_inverter_value(float value);
   int get_charger_value(void);
 
   char* app_retrieve_href_from_charger(void);

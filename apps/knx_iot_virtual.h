@@ -161,6 +161,15 @@ typedef struct
   char* name;
 } int_datapoint_t;
 
+typedef struct
+{
+  volatile float value;
+  char* resource_path;
+  char* dpa;
+  char* dpt;
+  char* name;
+} float_datapoint_t;
+
 // Functional Block Notes
 /*
   An FB consists of a number of datapoints with its values, endpoints (EP) and URNs.
@@ -201,9 +210,17 @@ typedef struct
   uint8_t fb_instance;
   uint8_t fb_number_of_datapoints;
 
+  float_datapoint_t point;
+} float_functional_block_t;
+
+typedef struct
+{
+  uint16_t fb_number;
+  uint8_t fb_instance;
+  uint8_t fb_number_of_datapoints;
+
   int_datapoint_t point[NUM_CEM_POINTS];
 } int_array_functional_block_t;
-
 
 typedef struct
 {
@@ -212,7 +229,7 @@ typedef struct
   uint8_t fb_number_of_datapoints;
 
   bool_datapoint_t point[NUM_CHANNELS];
-} bool_functional_block_t, lsxb_channel_t;
+} bool_array_functional_block_t, lsxb_channel_t;
 
 
 #ifdef _WIN32
@@ -237,9 +254,15 @@ extern "C"
   /**
    * @brief initialize the stack
    *
+   * @param storage_folder_name the folder name
+   *
+   * @note the folder name will be appended by the device serial number,
+   *       the folder as such is used to save the device configuration data,
+   *       the data are stored in the current directory
+   *                            
    * @return int 0 == success
    */
-  int app_initialize_stack(void);
+  int app_initialize_stack(const char* storage_folder_name);
 
   /**
    * @brief retrieves the url of a parameter

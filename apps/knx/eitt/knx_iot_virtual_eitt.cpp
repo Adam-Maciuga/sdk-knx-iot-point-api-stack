@@ -53,7 +53,6 @@ enum : uint16_t
   CHECK_PM = CHECK_SLEEPY + 1, // programming mode check in menu bar
 
   EITT_SOO = CHECK_PM + 1,
-
   LIST_ALL = EITT_SOO + 1,
   RESTART_DEVICE = LIST_ALL + 1
 };
@@ -201,7 +200,7 @@ private:
 bool MyApp::OnInit()
 {
   // call in c-code
-  app_initialize_stack();
+  app_initialize_stack("knx_iot_virtual_eitt");
 
   // reset the device (for EITT tests)
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);

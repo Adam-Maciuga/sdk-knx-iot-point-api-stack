@@ -24,6 +24,7 @@
 #include <wx/cmdline.h>
 #include <wx/scrolbar.h>
 #include <wx/wxprec.h>
+#include <wx/wx.h>
 #include "wx/config.h"
 #include "wx/dnd.h"
 #include "wx/filedlg.h"
@@ -42,10 +43,6 @@
 #include <wx/image.h>
 #include <wx/bitmap.h>
 #include <wx/valnum.h>
-
-#ifndef WX_PRECOMP
-#include <wx/wx.h>
-#endif
 
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
@@ -323,8 +320,6 @@ private:
   void double2text(double value, char* text);
 
   wxMenu* m_menuFile;
-  wxMenu* m_menuDisplay;
-  wxMenu* m_menuOptions;
   wxTimer m_timer;
 
   // sleepy information
@@ -444,7 +439,7 @@ MyFrame::MyFrame(const char* serial_number) : wxFrame(nullptr, wxID_ANY, "CEM ap
   }
 
   // call in c-code 
-  app_initialize_stack();
+  app_initialize_stack("knx_iot_virtual_cem");
 
   constexpr int width_size = 180; // size of the knx info widgets
   char text[500]; 

@@ -39,7 +39,6 @@
  */
 
 #include "oc_api.h"
-#include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
 #include "apps/knx_iot_virtual.h" // application constants + methods (also 'GetCurrentDir') 
 #include <signal.h>
@@ -77,41 +76,6 @@ void register_resources(void)
 
   // register here your own resources, similar as in the examples of LSAB/LSSB 
 
-}
-
-int app_initialize_stack(void)
-{
-  /*
-    The final storage folder depends on the build system/ current directory on Linux/ Windows,
-    the folder name is defined by the file name + serial number.
-    Code below should work both on Linux/Windows.
-
-    For a specific embedded OS usually this functionality needs to be adapted.
-  */
-
-  char storage[400];
-  char dir[FILENAME_MAX] = "";
-  GetCurrentDir(dir, FILENAME_MAX);
-  (void)sprintf(storage, "./knx_iot_virtual_template_%s", sn_lower_case);
-  OC_INF("Current path is: '%s'", dir);
-  oc_storage_config(storage);
-
-  // initialize the 'application' runtime variables
-  initialize_variables();
-
-  // set the stack handler callbacks, details for each handler see oc_handler_t
-  static oc_handler_t handler = {.init = app_init, 
-                                 .signal_event_loop = signal_event_loop, 
-                                 .register_resources = register_resources, 
-                                 .requests_entry = NULL}; 
-
-  // set the application handler callbacks
-  oc_set_hostname_cb(hostname_cb, NULL);
-  oc_set_factory_presets_cb(factory_presets_cb, NULL);
-  oc_set_swu_cb(swu_cb, NULL);
-
-  // start the stack, calls directly also the .init handler from above
-  return oc_main_init(&handler);
 }
 
 #ifdef _WIN32
@@ -180,7 +144,7 @@ int main(void)
 #endif
 
   // before this call devices and resources are not existing, return code issued by .init handler
-  const int code = app_initialize_stack();
+  const int code = app_initialize_stack("my_device_storage_folder");
   if (code < 0)
   {
     PRINT("stack initialization failed with %d, exiting.", code);

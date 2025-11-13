@@ -46,7 +46,6 @@
  *   logging can be seen in the command window
  */
 #include "oc_api.h"
-#include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
 #include "apps/ems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
@@ -57,11 +56,11 @@
 const char application_name[] = "Inverter";
 const char sn_lower_case[] = "00fa10020b00";  // deliberated incorrect serial numbers
 const char hostname[] = "knx-00fa10020b00";   // default host name (reset uses this default)
-const char hw_type[] = "PV Inverter ";        // 12 string chars, MSB = 00
+const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
-int_functional_block_t inverter = {
+float_functional_block_t inverter = {
   425, 1, 1,
   {
     0, /* IEEE 754 single float, KNX DPT: 14.056 */
@@ -88,49 +87,8 @@ void register_resources(void)
   oc_add_resource(power_dc_resource_inverter_out);  
 }
 
-int app_initialize_stack(void)
-{
-  /*
-    The final storage folder depends on the build system/ current directory on Linux/ Windows,
-    the folder name is defined by the file name + serial number.
-    Code below should work both on Linux/Windows.
-
-    For a specific embedded OS usually this functionality needs to be adapted.
-  */
-
-  char storage[64];
-
-  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
-
-  char dir[FILENAME_MAX] = "";
-  GetCurrentDir(dir, FILENAME_MAX);
-  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_inverter_%s", dir, sn_lower_case);
-  OC_INF("Current path is: '%s'", dir);
-
-  #endif
-
-  oc_storage_config(storage);
-
-  // initialize the 'application' runtime variables
-  initialize_variables(); 
-
-  // set the stack handler callbacks, details for each handler see oc_handler_t
-  static oc_handler_t handler = {.init = app_init,
-                                 .signal_event_loop = signal_event_loop,
-                                 .register_resources = register_resources,
-                                 .requests_entry = NULL};
-
-  // set the application handler callbacks
-  oc_set_hostname_cb(hostname_cb, NULL);
-  oc_set_factory_presets_cb(factory_presets_cb, NULL);
-  oc_set_swu_cb(swu_cb, NULL);
-
-  // start the stack, calls directly also the .init handler from above
-  return oc_main_init(&handler);
-}
-
 // inverter local functions
-void set_inverter_value(int value) { inverter.point.value = value * 1000; }
+void set_inverter_value(float value) { inverter.point.value = value; }
 
 char* app_retrieve_href_from_inverter(void) { return inverter.point.resource_path; }
 
@@ -193,7 +151,7 @@ void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* u
       if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
         // see 'Callback Notes'
-        oc_rep_i_set_int(root, 1, inverter.point.value);
+        oc_rep_i_set_float(root, 1, inverter.point.value);
         error_state = false;
       }
       // rt
@@ -246,7 +204,7 @@ void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* u
   { // ... no query parameter 'm' present at all, set value for the GET
 
     // see 'Callback Notes'
-    oc_rep_i_set_int(root, 1, inverter.point.value);
+    oc_rep_i_set_float(root, 1, inverter.point.value);
     error_state = false;
   }
 

@@ -47,7 +47,6 @@
  */
 
 #include "oc_api.h"
-#include "port/oc_storage.h"
 #include <stdio.h> // defines FILENAME_MAX
 #include "apps/ems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
@@ -89,47 +88,6 @@ void register_resources(void)
   oc_resource_set_request_handler(active_power_limit_resource_charger_in, OC_PUT, put_charger, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P); 
 
   oc_add_resource(active_power_limit_resource_charger_in);
-}
-
-int app_initialize_stack(void)
-{
-  /*
-    The final storage folder depends on the build system/ current directory on Linux/ Windows,
-    the folder name is defined by the file name + serial number.
-    Code below should work both on Linux/Windows.
-
-    For a specific embedded OS usually this functionality needs to be adapted.
-  */
-
-  char storage[64];
-
-  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
-
-  char dir[FILENAME_MAX] = "";
-  GetCurrentDir(dir, FILENAME_MAX);
-  (void)snprintf(storage, sizeof(storage), "%s/knx_iot_virtual_charger_%s", dir, sn_lower_case);
-  OC_INF("Current path is: '%s'", dir);
-
-  #endif
-
-  oc_storage_config(storage);
-
-  // initialize the 'application' runtime variables
-  initialize_variables(); 
-
-  // set the stack handler callbacks, details for each handler see oc_handler_t
-  static oc_handler_t handler = {.init = app_init,
-                                 .signal_event_loop = signal_event_loop,
-                                 .register_resources = register_resources,
-                                 .requests_entry = NULL};
-
-  // set the application handler callbacks
-  oc_set_hostname_cb(hostname_cb, NULL);
-  oc_set_factory_presets_cb(factory_presets_cb, NULL);
-  oc_set_swu_cb(swu_cb, NULL);
-
-  // start the stack, calls directly also the .init handler from above
-  return oc_main_init(&handler);
 }
 
 // charger local functions 

@@ -203,7 +203,7 @@ private:
 bool MyApp::OnInit()
 {
   // call in c-code
-  app_initialize_stack();
+  app_initialize_stack("knx_iot_virtual_lsab");
 
   MyFrame* frame = new MyFrame();
 

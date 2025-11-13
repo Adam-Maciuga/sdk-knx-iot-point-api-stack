@@ -51,7 +51,6 @@
 #include "apps/ems/knx_iot_virtual_ems.h"
 #include "apps/ems/icons/charger_ico.h"
 
-
 #include <wx/clipbrd.h>
 
 // IDs for the controls and the menu commands
@@ -281,8 +280,6 @@ private:
   void double2text(double value, char* text);
 
   wxMenu* m_menuFile;
-  wxMenu* m_menuDisplay;
-  wxMenu* m_menuOptions;
   wxTimer m_timer;
 
   // sleepy information
@@ -314,7 +311,7 @@ private:
 bool MyApp::OnInit()
 {
   // call in c-code
-  app_initialize_stack();
+  app_initialize_stack("knx_iot_virtual_charger");
 
   wxInitAllImageHandlers(); 
 
@@ -387,9 +384,6 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
   vbox->Add(hbox2, 0, wxEXPAND | wxALL, 10);
 
   this->SetSizerAndFit(vbox);
-
-
-  
 
   constexpr int width_size = 180; // size of the knx info widgets
   char text[500]; 

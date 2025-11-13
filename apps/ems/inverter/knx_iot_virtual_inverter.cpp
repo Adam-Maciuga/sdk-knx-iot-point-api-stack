@@ -21,11 +21,9 @@
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
 
-
-// For compilers that support precompilation, includes "wx/wx.h".
-#include <wx/cmdline.h>
 #include <wx/scrolbar.h>
 #include <wx/wxprec.h>
+#include <wx/wx.h>
 
 #include "wx/config.h" // for native wxConfig
 #include "wx/dnd.h" // drag and drop for the playlist
@@ -45,18 +43,12 @@
 #include <wx/image.h>
 #include <wx/bitmap.h>
 
-#ifndef WX_PRECOMP
-#include <wx/wx.h>
-#endif
-
-
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
 #include "apps/ems/knx_iot_virtual_ems.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "oc_oscore_context.h"
 #include "apps/ems/icons/pv_ico.h"
 
 #include <wx/clipbrd.h>
@@ -179,6 +171,7 @@ private:
   void OnUsage(wxCommandEvent& event);
 
   void OnListAll(wxCommandEvent& event);
+
   wxString dumpDeviceIDs();
   wxString dumpDeviceSettings();
   wxString dumpGroupObjectTable();
@@ -187,13 +180,7 @@ private:
   wxString dumpParameterList();
   wxString dumpAuthTable();
 
-  void OnGroupObjectTable(wxCommandEvent& event);
-  void OnPublisherTable(wxCommandEvent& event);
-  void OnRecipientTable(wxCommandEvent& event);
-  void OnParameterList(wxCommandEvent& event);
-  void OnAuthTable(wxCommandEvent& event);
   void OnProgrammingMode(wxCommandEvent& event);
-  void OnSleepyMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
@@ -212,23 +199,7 @@ private:
   void double2text(double value, char* text);
 
   wxMenu* m_menuFile;
-  wxMenu* m_menuDisplay;
-  wxMenu* m_menuOptions;
   wxTimer m_timer;
-
-  // sleepy information
-  int m_sleep_counter = 0;
-  int m_sleep_milliseconds = 20000;
-
-  int m_lsm = LSM_S_UNLOADED;
-
-  // non static device properties
-  wxTextCtrl* m_ia_text; // text control for internal address
-  wxTextCtrl* m_iid_text; // text control for installation id
-  wxTextCtrl* m_pm_text; // text control for programming mode
-  wxTextCtrl* m_ls_text; // text control for load state
-  wxTextCtrl* m_hn_text; // text control for host name
-
   wxSlider* m_PV_slider;
 };
 
@@ -246,16 +217,15 @@ private:
  */
 bool MyApp::OnInit()
 {
-       
- 
-  
-    wxInitAllImageHandlers();   
+  // call in c-code
+  app_initialize_stack("knx_iot_virtual_inverter");
+
+  wxInitAllImageHandlers();   
 
   MyFrame* frame = new MyFrame();
+
   frame->SetSize(350, 150);
-
   frame->Show(true);
-
   return true;
 }
 
@@ -272,6 +242,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   icon.CopyFromBitmap(bmp);
   SetIcon(icon);
 
+  // file menu
   m_menuFile = new wxMenu;
   m_menuFile->Append(LIST_ALL, "List All Tables", "List all tables in one window", false);
   m_menuFile->AppendSeparator();
@@ -301,31 +272,22 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
-
+  // slider
   wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
   wxStaticText* label = new wxStaticText(this, wxID_ANY, "Present DC Power (0..10 kW)");
   mainSizer->Add(label, 0, wxALL, 5);
   m_PV_slider = new wxSlider(this, wxID_SLIDER, 0, 0, 10, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
   mainSizer->Add(m_PV_slider, 0, wxEXPAND | wxALL, 5);
   SetSizerAndFit(mainSizer);
-  
-  m_PV_slider->Bind(wxEVT_SCROLL_THUMBRELEASE, &MyFrame::OnThumbReleased_PV_slider, this);
+
+  // slider events
   m_PV_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::OnSlider_PV_slider, this);
   m_PV_slider->Enable(true);
   m_PV_slider->SetValue(0);
 
-
-  // call in c-code 
-  app_initialize_stack();
-
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
-
-  oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
-  oc_device_info_t* device = oc_core_get_device_info();
-  // PV_init_auth_table();
-  device->lsm_s = LSM_S_UNLOADED;
 }
 
 /**
@@ -350,27 +312,17 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 
   // update the UI
   this->updateDeviceData();
+
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
-
-
 
 void MyFrame::updateDeviceData()
 {
   oc_device_info_t* device = oc_core_get_device_info();
 
-  if (m_lsm != device->lsm_s)
-  {
-    m_lsm = device->lsm_s;
-
-    if (m_lsm == LSM_S_LOADING)
-    {
-      oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
-      // oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
-      device->lsm_s = LSM_S_LOADED;
-    }
-  }
+  // set in menu the programming mode to what the device has
+  m_menuFile->Check(CHECK_PM, device->pm);
 }
 
 /**
@@ -381,8 +333,10 @@ void MyFrame::updateDeviceData()
 void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+
   // update the UI
   this->updateDeviceData();
 }
@@ -395,14 +349,13 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+
   // update the UI
   this->updateDeviceData();
 }
-
-
-
 
 void MyFrame::OnUsage(wxCommandEvent& event)
 {
@@ -417,10 +370,6 @@ void MyFrame::OnUsage(wxCommandEvent& event)
 void MyFrame::OnListAll(wxCommandEvent& event)
 {
   const oc_device_info_t* const device = oc_core_get_device_info();
-  if (!device)
-  {
-    return;
-  }
 
   wxString all;
   all << dumpDeviceIDs()        << "\n\n"
@@ -436,389 +385,6 @@ void MyFrame::OnListAll(wxCommandEvent& event)
 
   CustomDialog(title, all, 520, 400);
   SetStatusText("List Device & All Tables");
-}
-
-
-
-
-
-/**
- * @brief shows the group object table in a window
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnGroupObjectTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = true;
-
-  strcpy(text, "");
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-  int total = oc_core_get_group_object_table_total_size();
-  for (int index = 0; index < total; index++)
-  {
-    oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(index);
-
-    if (entry && entry->ga_len > 0)
-    {
-      sprintf(line, "Index %d ", index);
-      strcat(text, line);
-      sprintf(line, "  id: '%d'  ", entry->id);
-      strcat(text, line);
-      sprintf(line, "  url: '%s' ", oc_string(entry->href));
-      strcat(text, line);
-      sprintf(line, "  cflags : '%d' ", static_cast<int>(entry->cflags));
-      oc_cflags_as_string(line, entry->cflags);
-      strcat(text, line);
-      strcpy(line, "  ga : [");
-      for (int i = 0; i < entry->ga_len; i++)
-      {
-        this->int2gatext(entry->ga[i], line, ga_conversion);
-      }
-      strcat(line, " ]");
-      strcat(text, line);
-      strcat(text, "\n"); // break to next entry 
-    }
-    
-  }
-  strcpy(windowtext, "Group Object Table");
-  CustomDialog(windowtext, text, 520, 300);
-}
-
-/**
- * @brief shows the Publisher table in a window
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnPublisherTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = true;
-  bool grpid_conversion = true;
-  bool iid_conversion = true;
-
-  strcpy(text, "");
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-
-  int total = oc_core_get_publisher_table_size();
-  for (int index = 0; index < total; index++)
-  {
-    oc_group_table_t* entry = oc_core_get_publisher_table_entry(index);
-
-    if (entry && entry->id >= 0)
-    {
-      sprintf(line, "Index %d ", index);
-      strcat(text, line);
-      sprintf(line, "  id: '%d'  ", entry->id);
-      strcat(text, line);
-      if (entry->ia >= 0)
-      {
-        sprintf(line, "  ia: '%d' ", entry->ia);
-        strcat(text, line);
-      }
-      if (entry->iid >= 0)
-      {
-        strcpy(line, "  iid: ");
-        this->int2grpidtext(entry->iid, line, iid_conversion);
-        strcat(text, line);
-      }
-      if (entry->fid >= 0)
-      {
-        sprintf(line, "  fid: '%lld' ", entry->fid);
-        strcat(text, line);
-      }
-      if (entry->grpid > 0)
-      {
-        // sprintf(line, "  grpid: '%u' ", entry->grpid);
-        strcpy(line, "  grpid: ");
-        this->int2grpidtext(entry->grpid, line, grpid_conversion);
-        strcat(text, line);
-      }
-      if (oc_string_len(entry->at) > 0)
-      {
-        sprintf(line, "  at: '%s' ", oc_string(entry->at));
-        strcat(text, line);
-      }
-      if (entry->ga_len > 0)
-      {
-        strcpy(line, "  ga : [");
-        for (int i = 0; i < entry->ga_len; i++)
-        {
-          this->int2gatext(entry->ga[i], line, ga_conversion);
-        }
-        strcat(line, " ]");
-        strcat(text, line);
-      }
-      strcat(text, "\n"); // break to next entry 
-    }
-  }
-  strcpy(windowtext, "Publisher Table");
-  CustomDialog(windowtext, text, 520, 300);
-}
-
-/**
- * @brief shows the Recipient table in a window
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnRecipientTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 5];
-  char line[200];
-  char windowtext[200];
-  bool ga_conversion = true;
-  bool grpid_conversion = true;
-  bool iid_conversion = true;
-
-  strcpy(text, "");
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-
-  int total = oc_core_get_recipient_table_size();
-  for (int index = 0; index < total; index++)
-  {
-    oc_group_table_t* entry = oc_core_get_recipient_table_entry(index);
-
-    if (entry && entry->id >= 0)
-    {
-      sprintf(line, "Index %d ", index);
-      strcat(text, line);
-      sprintf(line, "  id: '%d'  ", entry->id);
-      strcat(text, line);
-      if (entry->ia >= 0)
-      {
-        sprintf(line, "  ia: '%d' ", entry->ia);
-        strcat(text, line);
-      }
-      if (entry->iid >= 0)
-      {
-        strcpy(line, "  iid: ");
-        this->int2grpidtext(entry->iid, line, iid_conversion);
-        strcat(text, line);
-      }
-      if (entry->fid >= 0)
-      {
-        sprintf(line, "  fid: '%lld' ", entry->fid);
-        strcat(text, line);
-      }
-      if (entry->grpid > 0)
-      {
-        strcpy(line, "  grpid: ");
-        this->int2grpidtext(entry->grpid, line, grpid_conversion);
-        strcat(text, line);
-      }
-      if (oc_string_len(entry->at) > 0)
-      {
-        sprintf(line, "  at: '%s' ", oc_string(entry->at));
-        strcat(text, line);
-      }
-      if (entry->ga_len > 0)
-      {
-        strcpy(line, "  ga : [");
-        for (int i = 0; i < entry->ga_len; i++)
-        {
-          this->int2gatext(entry->ga[i], line, ga_conversion);
-        }
-        strcat(line, " ]");
-        strcat(text, line);
-      }
-      strcat(text, "\n"); // break to next entry 
-    }
-  }
-  strcpy(windowtext, "Recipient Table");
-  CustomDialog(windowtext, text, 520, 300);
-}
-/**
- * @brief shows a window containing the parameters and current values of the application
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnParameterList(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 + (200 * 0)];
-  char line[200];
-  char windowtext[200];
-
-  strcpy(text, "");
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-
-  int index = 1;
-  char* url = app_get_parameter_url(index);
-  if (url == NULL)
-  {
-    strcat(text, "no parameters in this device");
-  }
-  while (url)
-  {
-    sprintf(line, "\nIndex %02d ", index);
-    strcat(text, line);
-    sprintf(line, "  url : '%s'  ", url);
-    strcat(text, line);
-    char* name = app_get_parameter_name(index);
-    if (name)
-    {
-      sprintf(line, "  name: '%s'  ", app_get_parameter_name(index));
-      strcat(text, line);
-    }
-
-
-    // if (app_is_string_url(url)) {
-    //   sprintf(line, "  value : '%s'  ", app_retrieve_string_variable(url));
-    //   strcat(text, line);
-    // }
-    index++;
-    url = app_get_parameter_url(index);
-  }
-  strcpy(windowtext, "Parameter List ");
-  strcat(windowtext, oc_string(device->serialnumber));
-  // wxMessageBox(text, windowtext,
-  //   wxOK | wxICON_NONE);
-  CustomDialog(windowtext, text, 520, 300);
-  SetStatusText("List Parameters and their current set values");
-}
-
-/**
- * @brief shows the (loaded) auth/at table
- *
- * @param event command triggered by a menu button
- */
-void MyFrame::OnAuthTable(wxCommandEvent& event)
-{
-  int device_index = 0;
-  char text[1024 * 10];
-  char line[500];
-  bool ga_conversion = true;
-  char windowtext[200];
-  int max_entries = oc_core_get_at_table_size();
-  int index = 1;
-
-  oc_device_info_t* device = oc_core_get_device_info();
-  if (device == NULL)
-  {
-    return;
-  }
-
-  strcpy(text, "");
-  for (index = 0; index < max_entries; index++)
-  {
-
-    oc_auth_at_t* my_entry = oc_get_auth_at_entry(index);
-    if (my_entry)
-    {
-      if (oc_string_len(my_entry->id))
-      {
-        sprintf(line, "index : '%d' id = '%s' ", index, oc_string(my_entry->id));
-        strcat(text, line);
-        sprintf(line, "  profile : %d (%s)", my_entry->profile, oc_at_profile_to_string(my_entry->profile));
-        strcat(text, line);
-        if (my_entry->profile == OC_PROFILE_COAP_DTLS)
-        {
-          if (oc_string_len(my_entry->sub) > 0)
-          {
-            sprintf(line, "    sub           : %s", oc_string(my_entry->sub));
-            strcat(text, line);
-          }
-          if (oc_string_len(my_entry->kid) > 0)
-          {
-            sprintf(line, "  kid : %s", oc_string(my_entry->kid));
-            strcat(text, line);
-          }
-        }
-        if (my_entry->profile == OC_PROFILE_COAP_OSCORE)
-        {
-          if (oc_byte_string_len(my_entry->osc_id) > 0)
-          {
-            sprintf(line, "  osc_id [%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_id)));
-            strcat(text, line);
-            char* ms = oc_string(my_entry->osc_id);
-            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_id));
-            for (int i = 0; i < length; i++)
-            {
-              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          
-          if (oc_byte_string_len(my_entry->osc_ms) > 0)
-          {
-            sprintf(line, "  osc_ms [%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_ms)));
-            strcat(text, line);
-            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_ms));
-            char* ms = oc_string(my_entry->osc_ms);
-            for (int i = 0; i < length; i++)
-            {
-              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          if (oc_byte_string_len(my_entry->osc_contextid) > 0)
-          {
-            sprintf(line, "  osc_contextid (o)[%d]: ", static_cast<int>(oc_byte_string_len(my_entry->osc_contextid)));
-            strcat(text, line);
-            char* ms = oc_string(my_entry->osc_contextid);
-            int length = static_cast<int>(oc_byte_string_len(my_entry->osc_contextid));
-            for (int i = 0; i < length; i++)
-            {
-              sprintf(line, "%02x", static_cast<unsigned char>(ms[i]));
-              strcat(text, line);
-            }
-            sprintf(line, "");
-            strcat(text, line);
-          }
-          
-          if (my_entry->scope == OC_ACL_GA)
-          {
-            sprintf(line, "  osc_ga : [");
-            strcat(text, line);
-            for (int i = 0; i < my_entry->ga_len; i++)
-            {
-              this->int2gatext(my_entry->ga[i], text, ga_conversion);
-            }
-            sprintf(line, " ]\n");
-            strcat(text, line);
-          }
-          else
-          {
-            sprintf(line, "  scope : ");
-            this->int2scopetext(my_entry->scope, line);
-            strcat(text, line);
-            strcat(text, "\n");
-          }
-        }
-      }
-    }
-  }
-
-  strcpy(windowtext, "Authentication Table");
-  CustomDialog(windowtext, text, 520, 300);
 }
 
 /**
@@ -845,33 +411,8 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  */
 void MyFrame::OnTimer(wxTimerEvent& event)
 {
-  bool do_poll = true;
-
-  const bool sleepy = false;
-
-  // do whatever you want to do every millisecond here
-  if (sleepy)
-  {
-    do_poll = false;
-    m_sleep_counter++;
-
-    if (m_sleep_counter > m_sleep_milliseconds)
-    {
-      // only do a poll each x (20) seconds
-      do_poll = true;
-      m_sleep_counter = 0;
-    }
-    if (oc_knx_device_in_programming_mode())
-    {
-      // make sure that the device is reactive in programming mode, so keep on polling
-      do_poll = true;
-    }
-  }
-
-  if (do_poll)
-  {
-    (void)oc_main_poll();
-  } 
+  // stack polling 
+  (void)oc_main_poll();
 
   // update possible events
   this->updateDeviceData();
@@ -1050,28 +591,6 @@ void MyFrame::double2text(double value, char* text)
   strcat(text, new_text);
 }
 
-void MyFrame::OnThumbReleased_PV_slider(wxCommandEvent& event)
-{
-  /*
-
-  // get url
-  char* url = PV_retrieve_href(0);
-  // get the slider value
-  int val = m_PV_slider->GetValue();
-      
-  set_inverter_value(val);          
-
-  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
-
-  // show in status bar
-  char statusBarText[100];
-  //Present DC power of all solar panels connected to this PV control
-  (void)sprintf(statusBarText, "Present DC power @ '%s' = %d kW", url, val);
-  SetStatusText(statusBarText);
-
-  */
-}
-
 void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
 {
   /*
@@ -1084,23 +603,24 @@ void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
   }
     */
 
-      // get url
-      char* url = app_retrieve_href_from_inverter();
-      // get the slider value
-      int val = m_PV_slider->GetValue();
+  // get url
+  char* url = app_retrieve_href_from_inverter();
 
-  set_inverter_value(val);
+  // get the slider value
+  const int val = m_PV_slider->GetValue();
+
+  set_inverter_value(static_cast<float>(val * 1000));
 
   oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
-      // show in status bar
-      char statusBarText[100];
-      // Present DC power of all solar panels connected to this PV control
-      (void)sprintf(statusBarText, "Present DC power = %d kW", val);
-      SetStatusText(statusBarText);
+  // show in status bar
+  char statusBarText[100];
+
+  // Present DC power of all solar panels connected to this PV control
+  (void)sprintf(statusBarText, "Present DC power = %d kW", val);
+  SetStatusText(statusBarText);
 
 }
-
 
 /**
  * @brief returns a formatted string containing device IDs
@@ -1158,11 +678,7 @@ wxString MyFrame::dumpDeviceIDs()
 wxString MyFrame::dumpDeviceSettings()
 {
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
-  {
-    return wxString("");
-  }
-
+  
   wxString out("- Device Settings:\n");
 
   if (device->lsm_s == LSM_S_UNLOADED)
