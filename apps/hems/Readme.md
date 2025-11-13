@@ -33,10 +33,10 @@ In a usual installation with a stationary battery or heat pump the CEM is often 
 All applications uses KNX standardized datapoints, the corresponding __Functional Block__ and 
 __Datapoint Type__ definitions you can find in folder 'apps/hems/data'
 
-a) 07_80 Introduction 
-b) 07_80_01 Photovoltaics 
-c) 07_80_03 eMoblity 
-d) 03_07_02 Datapoint Types 
+- 07_80 Introduction 
+- 07_80_01 Photovoltaics 
+- 07_80_03 eMoblity 
+- 03_07_02 Datapoint Types 
 
 # 1. Inverter
 
@@ -88,27 +88,27 @@ The following commissioning steps are defined. For a (simple) installation of on
 be needed (marked). 
 
 1. Device Discovery 
-   a) add/scan in client the target device certificate (such as a QR Code) 
-   b) resolve device IPv6 address and port by serial number (CoAP multicast/mDNS discovery)
-   c) retrieve device functional block information (CoAP unicast discovery) 
+- (a) add/scan in client the target device certificate (such as a QR Code) 
+- (b) resolve device IPv6 address and port by serial number (CoAP multicast/mDNS discovery)
+- (c) retrieve device functional block information (CoAP unicast discovery) 
 2. Device Preparation 
-   a) initial onboarding via device certificate (well-known/knx/spake, SPAKE2+) 
-   b) check and set individual address (well-known/knx/ia)
-   c) check and reset device programming mode (dev/pm) -> optional
-   d) check manufacturer id (dev/mid)
-   e) check hardware type (dev/hwt)
-   f) reset target device (well-known/knx) -> optional
+- (a) initial onboarding via device certificate (well-known/knx/spake, SPAKE2+) 
+- (b) check and set individual address (well-known/knx/ia)
+- (c) check and reset device programming mode (dev/pm) -> optional
+- (d) check manufacturer id (dev/mid)
+- (e) check hardware type (dev/hwt)
+- (f) reset target device (well-known/knx) -> optional
 3. Device Download
-   a) check and set the load state machine (a/lsm)
-   b) write Group Object table entries
-   c) write Recipient table entries
-   d) write Publisher table entries
-   e) write Access Token entries
-   f) write parameter values -> optional 
-   g) check and close the load state machine (a/lsm)
+- (a) check and set the load state machine (a/lsm)
+- (b) write Group Object table entries
+- (c) write Recipient table entries
+- (d) write Publisher table entries
+- (e) write Access Token entries
+- (f) write parameter values -> optional 
+- (g) check and close the load state machine (a/lsm)
 4. Device Finishing
-   a) read fingerprint and store in client (well-known/knx/f) -> optional
-   b) restart device (well-known/knx) -> optional 
+- (a) read fingerprint and store in client (well-known/knx/f) -> optional
+- (b) restart device (well-known/knx) -> optional 
 
 In case of commissioning with ETS a catalog entry is need for a device, to be created by means
 of the KNX Manufacturer Tool. 
