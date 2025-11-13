@@ -21,9 +21,9 @@ interaction buttons. The code is defined in *.c and *.cpp files.
   'application' library. It hosts only for the application demos commonly used functionality in 
   one place.
 
-## Folder '/ems'
-Energy Management System (EMS) [samples](apps/EMS/Readme.md) used to play with the stack and 
-KNX based EMS applications (Inverter, Charger, Central Energy Manager).	
+## Folder '/hems'
+The Energy Management System (EMS) [samples](apps/hems/Readme.md) are used to play with the stack and 
+KNX based EMS applications (Inverter, Charger, Customer Energy Manager).	
 
 ## Folder '/knx'
 Common KNX samples of a **Light Switch Actuator Basic** (LSAB), **Light Switch Sensor Basic** (LSSB)
