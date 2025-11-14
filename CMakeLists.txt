@@ -526,6 +526,7 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
+target_include_directories(inverter_virtual_gui PUBLIC ${PROJECT_SOURCE_DIR})
 
 if(OC_USE_KNX_MBEDTLS)
     target_include_directories(mbedcrypto PUBLIC
