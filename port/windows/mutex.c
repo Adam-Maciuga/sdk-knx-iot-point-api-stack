@@ -19,7 +19,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include "mutex.h"
 #include "oc_assert.h"
-#include <Windows.h>
+#include <windows.h>
 #include <synchapi.h>
 
 HANDLE

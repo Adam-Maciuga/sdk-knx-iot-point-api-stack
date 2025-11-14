@@ -21,8 +21,8 @@
 #define _WIN32_WINNT 0x8000
 // clang-format off
 #include <windows.h>
-#include <WinSock2.h>
-#include <Mswsock.h>
+#include <winsock2.h>
+#include <mswsock.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 // clang-format on

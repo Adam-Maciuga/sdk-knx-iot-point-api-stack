@@ -1,33 +1,46 @@
 stages:
-  - build_linux_debug_gcc
-  - lint_linux_debug
+  - build
 
 variables:
-  BUILD_DIR: out/build/linux-debug-gcc
+  GIT_SUBMODULE_STRATEGY: recursive
 
 before_script:
   - git submodule update --init --recursive
-
-build_linux_debug_gcc:
-  stage: build_linux_debug_gcc
+# ----------------------------------------------------------
+# Linux Native Build
+# ----------------------------------------------------------
+linux-build:
+  stage: build
   image: luftd/knx-ci:latest
   script:
-    - cmake --preset linux-debug-gcc
-    - cmake --build $BUILD_DIR
+    - cmake --preset=linux-debug-gcc
+    - cmake --build out/build/linux-debug-gcc
   artifacts:
     paths:
-      - $BUILD_DIR/
+      - out/build/linux-debug-gcc
     expire_in: 1 week
 
-lint:
-  stage: lint_linux_debug
-  image: luftd/knx-ci:latest
-  script:
-    - cmake --preset linux-debug-gcc
-    - cmake --build $BUILD_DIR
-    - ninja -C $BUILD_DIR tidy || true
-  artifacts:
-    when: always
+# ----------------------------------------------------------
+# Windows (Cross-compile with MinGW-w64)
+# ----------------------------------------------------------
+windows-cross-build:
+  stage: build
+  image: luftd/mingw-cross:latest
+  cache:
+    key: "wxwidgets-windows-cross-11-2025"
+    policy: pull-push
     paths:
-      - $BUILD_DIR/
+      - out/build/windows-cross-release/_deps/wxwidgets-src
+      - out/build/windows-cross-release/_deps/wxwidgets-build
+  script:
+    - cmake --preset=windows-cross-release
+    - cmake --build out/build/windows-cross-release
+  artifacts:
+    paths:
+      - out/build/windows-cross-release/eitt_virtual_gui.exe
+      - out/build/windows-cross-release/lssb_virtual_gui.exe
+      - out/build/windows-cross-release/lsab_virtual_gui.exe
+      - out/build/windows-cross-release/inverter_virtual_gui.exe
+      - out/build/windows-cross-release/cem_virtual_gui.exe
+      - out/build/windows-cross-release/charger_virtual_gui.exe
     expire_in: 1 week
