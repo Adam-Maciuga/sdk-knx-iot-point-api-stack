@@ -138,6 +138,33 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "windows-cross-debug",
+      "displayName": "Windows Debug (Cross-compile MinGW)",
+      "description": "Cross-compile Windows binaries using MinGW from Linux.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-mingw.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OC_DEBUG_ENABLED": true,
+        "OC_PRINT_ENABLED": true,
+        "OC_DEBUG_OSCORE_ENABLED": true
+      }
+    },
+    {
+      "name": "windows-cross-release",
+      "displayName": "Windows Release (Cross-compile MinGW)",
+      "description": "Cross-compile Windows binaries using MinGW from Linux.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-mingw.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ]
 }

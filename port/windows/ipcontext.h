@@ -22,9 +22,9 @@
 #define WIN32_LEAN_AND_MEAN
 // clang-format off
 #include <windows.h>
-#include <WinSock2.h>
+#include <winsock2.h>
 #include "oc_endpoint.h"
-#include <Mswsock.h>
+#include <mswsock.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 // clang-format on

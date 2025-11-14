@@ -17,7 +17,7 @@
 #include "ipadapter.h"
 #include <process.h>
 #include <string.h>
-#include <Windows.h>
+#include <windows.h>
 #include <inttypes.h>
 #include <../oc_log.h>
 #include <../dns-sd.h>

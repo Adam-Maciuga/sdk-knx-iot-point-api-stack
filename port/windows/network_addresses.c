@@ -19,8 +19,8 @@
 #define WIN32_LEAN_AND_MEAN
 // clang-format off
 #include <windows.h>
-#include <WinSock2.h>
-#include <Mswsock.h>
+#include <winsock2.h>
+#include <mswsock.h>
 #include <inttypes.h>
 #include <iphlpapi.h>
 #include <malloc.h>
