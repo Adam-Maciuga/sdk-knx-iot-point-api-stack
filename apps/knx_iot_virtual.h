@@ -379,7 +379,123 @@ extern "C"
  */
   void register_resources(void);
 
+  /**
+   * @brief convert the boolean to text and appends it to the given text
+   *
+   * @param on_off the boolean
+   * @param text the text to add the boolean as text
+   */
+  void util_add_bool_to_text(bool on_off, char* text);
+
+  /**
+   * @brief convert the integer to text for display
+   *
+   * @param value the integer
+   * @param text the text to add info to
+   */
+  void util_int2text(int value, char* text);
+
+  /**
+   * @brief convert the group address to text for display
+   *
+   * @param value the integer
+   * @param text the text to add info to
+   * @param as_ets the text as terminology as used in ets
+   */
+  void util_int2gatext(uint32_t value, char* text, bool as_ets);
+
+  /**
+   * @brief convert the scope to text for display
+   *
+   * @param value the scope
+   * @param text the text to add info too
+   */
+  void util_int2scopetext(uint32_t value, char* text);
+
+  /**
+   * @brief convert the group id to text for display
+   *
+   * @param value the group id
+   * @param text the text to add info too
+   * @param as_ets the text as terminology as used in ets
+   */
+  void util_int2grpidtext(uint64_t value, char* text, bool as_ets);
+
+  /**
+   * @brief convert the double (e.g. float)  to text for display
+   *
+   * @param value the value
+   * @param text the text to add info too
+   */
+  void util_double2text(double value, char* text);
+
 #ifdef __cplusplus
 }
+
+#include <wx/string.h>
+// C++ only functions (using wxString)
+extern "C" {
+  // Utility functions for dumping tables (implemented in knx_iot_virtual.cpp)
+
+  /**
+   * @brief Dump device identification information
+   *
+   * @return wxString containing formatted device IDs
+   */
+  wxString util_dumpDeviceIDs();
+
+  /**
+   * @brief Dump the Group Object Table into a string
+   *
+   * @param ga_conversion convert GA to ETS 3-level format
+   * @return wxString containing formatted Group Object Table
+   */
+  wxString util_dumpGroupObjectTable(bool ga_conversion);
+
+  /**
+   * @brief Dump the Publisher Table into a string
+   *
+   * @param ga_conversion convert GA to ETS 3-level format
+   * @param grpid_conversion convert grpid to hex format
+   * @param iid_conversion convert iid to hex format
+   * @return wxString containing formatted Publisher Table
+   */
+  wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool iid_conversion);
+
+  /**
+   * @brief Dump the Recipient Table into a string
+   *
+   * @param ga_conversion convert GA to ETS 3-level format
+   * @param grpid_conversion convert grpid to hex format
+   * @param iid_conversion convert iid to hex format
+   * @return wxString containing formatted Recipient Table
+   */
+  wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool iid_conversion);
+
+  /**
+   * @brief Dump the Parameter List into a string
+   *
+   * @return wxString containing formatted Parameter List
+   */
+  wxString util_dumpParameterList();
+
+  /**
+   * @brief Dump the Auth/AT Table into a string
+   *
+   * @param ga_conversion convert GA to ETS 3-level format
+   * @return wxString containing formatted Auth/AT Table
+   */
+  wxString util_dumpAuthTable(bool ga_conversion);
+
+  /**
+   * @brief returns load state information
+   *
+   * @return wxString containing lsm state info
+   */
+  wxString util_dumpLsmState();
+}
+#else
+// C-only mode - no wxString functions available
 #endif
+
 #endif

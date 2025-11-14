@@ -350,6 +350,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.c
             ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
             ${MANIFEST_RC} 
         )
 
@@ -359,6 +360,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.c
             ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
             ${MANIFEST_RC} 
         )
 
@@ -368,6 +370,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.c
             ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
             ${MANIFEST_RC} 
         )
 
@@ -377,6 +380,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.c
             ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
             ${MANIFEST_RC} 
         )
 
@@ -386,6 +390,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.c
             ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
             ${MANIFEST_RC} 
         )
 
@@ -395,6 +400,7 @@ if(WIN32)
             ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.c
             ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
             ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
             ${MANIFEST_RC} 
         ) 
 
@@ -444,6 +450,7 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.c
         ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
         ${MANIFEST_RC}
     )
 
@@ -453,6 +460,7 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.c
         ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
     )
 
@@ -462,6 +470,7 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.c
         ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
         ${MANIFEST_RC}
     )
 
@@ -471,6 +480,7 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.c
         ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
         ${MANIFEST_RC}
     )
 
@@ -480,6 +490,7 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.c
         ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
         ${MANIFEST_RC}
     )
 
@@ -489,6 +500,7 @@ if(UNIX)
         ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.c
         ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
         ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
+            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
         ${MANIFEST_RC}
     )
 
