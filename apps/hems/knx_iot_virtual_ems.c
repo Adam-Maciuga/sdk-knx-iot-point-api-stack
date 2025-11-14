@@ -16,7 +16,7 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-#include "knx_iot_virtual_ems.h"
+#include "apps/hems/knx_iot_virtual_ems.h"
 
 // PARAMETER code - needs to be defined in case of specific parameter handling
 
