@@ -42,7 +42,7 @@ __Datapoint Type__ definitions you can find in folder 'apps/hems/data'
 
 The inverter demo represents an own end device with the photovoltaics functionality. 
 
-> The demo implements the 'PowerDC' datapoint from the Functional Block (b), reflecting the
+> The demo implements an 'PowerDC' output datapoint from the Functional Block 'Photovoltaics', reflecting the
   sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
   the present DC power from 0 to 10 kW in steps of 1 kW.
 
@@ -50,17 +50,17 @@ The inverter demo represents an own end device with the photovoltaics functional
 
 The charger demo represents an own end device with the charging functionality. 
 
-> The demo implements the 'ActivePowerLimit' datapoint from the Functional Block (c), reflecting the
-  charging consumption from the e-car. It is represented by a moving bar, which allows to 'simulate'
-  the charging process. 
+> The demo implements an 'ActivePowerLimit' input datapoint from the Functional Block 'eMoblity', reflecting the
+  charging DC power consumption in kW from the e-car. 
 
 # 3. Customer Energy Manager
 
 The customer energy manager demo represents an own end device with the the cem functionality. 
 
-> The demo implements the (input) counterpart for the (output) 'PowerDC' datapoint from the Functional Block (b),
-  the (output) counterpart for the (input) 'ActivePowerLimit' datapoint from the Functional Block (c), 
-  and the (sun/mix) operation mode setting.
+The demo application implements:
+- a counterpart input datapoint for the output 'PowerDC' datapoint of Functional Block 'Photovoltaics'
+- a counterpart output datapoint for the input 'ActivePowerLimit' datapoint of Functional Block 'eMoblity' 
+- a sun/mix mode operation setting
 
 # Details 
 
@@ -136,16 +136,16 @@ The Group Object are commissioned with step 3.b from above, Recipient and Publis
 with step 3.c/d from above. Important runtime i/o datapoint information are described as follows: 
   
 **Inverter**
--  url: '/p/inverter' (output, transmits solar power value), 
+-  url: '/p/inverter', output (transmits solar power value), 
    datapoint type IEEE 754 single float (KNX datapoint type 14.056)  
    
 **Customer Energy Manager**
--  url: '/p/inverter' (input, receives solar power value),
+-  url: '/p/inverter', input (receives solar power value),
    datapoint type IEEE 754 single float (KNX datapoint type 14.056)
 
--  url: '/p/charger' (output, transmits charger value),
+-  url: '/p/charger', output (transmits charger value),
    datapoint type IEEE 754 single float (KNX datapoint type 14.056) 
   
 **Charger**
--  url: '/p/charger' (input, receives charger value),
+-  url: '/p/charger', input (receives charger value),
    datapoint type IEEE 754 single float (KNX datapoint type 14.056)
