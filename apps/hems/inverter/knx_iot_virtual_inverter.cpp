@@ -54,53 +54,32 @@
 #include <wx/clipbrd.h>
 
 // IDs for the controls and the menu commands
-enum
-{
-  // Menu event IDs
-  wxID_LOOP = 1,
-  wxID_OPENFILESAMEPAGE,
-  wxID_OPENFILENEWPAGE,
-  wxID_OPENURLSAMEPAGE,
-  wxID_OPENURLNEWPAGE,
-  wxID_CLOSECURRENTPAGE,
-  wxID_PLAY,
-  wxID_PAUSE,
-  wxID_NEXT,
-  wxID_PREV,
-  wxID_SELECTBACKEND,
-  wxID_SHOWINTERFACE,
-  wxID_SLIDER,
-  wxID_PBSLIDER,
-  wxID_VOLSLIDER,
-  wxID_NOTEBOOK,
-  wxID_MEDIACTRL,
-  wxID_BUTTONNEXT,
-  wxID_BUTTONPREV,
-  wxID_BUTTONSTOP,
-  wxID_BUTTONPLAY,
-  wxID_BUTTONVD,
-  wxID_BUTTONVU,
-  wxID_LISTCTRL,
-  wxID_GAUGE
-};
-
 enum : uint16_t
 {
-  RESET = 0x0000,
-  RESET_TABLE = 0x0001,
-  IA_TEXT = 0x0002,
-  IID_TEXT = 0x0003,
-  PM_TEXT = 0x0004,
-  LS_TEXT = 0x0005,
-  HOSTNAME_TEXT = 0x0006,
-  GOT_TABLE_ID = 0x0007,
-  PUB_TABLE_ID = 0x0008,
-  REC_TABLE_ID = 0x0009,
-  PARAMETER_LIST_ID = 0x000a,
-  AT_TABLE_ID = 0x000b,
-  CHECK_PM = 0x0010,
-  DEVICE_USAGE = 0x0011,
-  LIST_ALL = 0x0012
+  RESET = wxID_HIGHEST, // ID for reset button in the menu
+  RESET_TABLE,          // ID for clear table button in the menu
+  IA_TEXT,              // ID for internal address text
+  IID_TEXT,             // ID for installation id text
+  PM_TEXT,              // ID for programming mode text
+  LS_TEXT,              // ID for load status text
+  CHECK_GA_DISPLAY,     // ga display check
+  CHECK_IID_DISPLAY,    // iid display check
+  CHECK_GRPID_DISPLAY,  // grpid display check
+  CHECK_SLEEPY1,        // sleepy check
+  CHECK_PM,             // programming mode check in menu bar
+  LIST_ALL,             // list all tables (GO/PUB/RCP/AT) 
+  RESTART_DEVICE,       // restart device
+  DEVICE_USAGE,
+
+  EITT_SOO,             // EITT test button 
+  wxID_SLIDER,          // EMS Inverter slider
+  LSSB_0_SOO,           // LSSB switch, channel 0
+  LSSB_0_IOO,           // LSSB info, channel 0
+  LSSB_1_SOO,           // LSSB switch, channel 1
+  LSSB_1_IOO,           // LSSB info, channel 1
+  LSAB_0_SOO,           // LSAB switch, channel 0
+  LSAB_1_SOO,           // LSAB switch, channel 1
+
 };
 
 
