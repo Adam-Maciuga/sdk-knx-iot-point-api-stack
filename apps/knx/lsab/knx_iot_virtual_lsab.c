@@ -25,7 +25,6 @@
  */
 
 #include "oc_api.h"
-#include <stdio.h> // defines FILENAME_MAX
 #include "apps/knx/knx_iot_virtual_knx.h"
 
 /*

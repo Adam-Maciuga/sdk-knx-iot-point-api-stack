@@ -25,37 +25,12 @@
 #include <wx/wx.h>
 #include <wx/display.h>
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
 #include "oc_knx.h"
 #include "apps/knx/knx_iot_virtual_knx.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 
-enum : uint16_t
-{
-  RESET = wxID_HIGHEST + 1, // ID for reset button in the menu
-  RESET_TABLE = RESET + 1, // ID for clear table button in the menu
-  IA_TEXT = RESET_TABLE + 1, // ID for internal address text
-  IID_TEXT = IA_TEXT + 1, // ID for installation id text
-  PM_TEXT = IID_TEXT + 1, // ID for programming mode text
-  LS_TEXT = PM_TEXT + 1, // ID for load status text
-  HOSTNAME_TEXT = LS_TEXT + 1, // ID for hostname text
-  GOT_TABLE_ID = HOSTNAME_TEXT + 1, // ID for the Group object window
-  PUB_TABLE_ID = GOT_TABLE_ID + 1, // ID for the publisher table window
-  REC_TABLE_ID = PUB_TABLE_ID + 1, // ID for the recipient table window
-  PARAMETER_LIST_ID = REC_TABLE_ID + 1, // ID for the parameter window
-  AT_TABLE_ID = PARAMETER_LIST_ID + 1, // ID for the auth/at window
-  CHECK_GA_DISPLAY = AT_TABLE_ID + 1, // ga display check
-  CHECK_IID_DISPLAY = CHECK_GA_DISPLAY + 1, // iid display check
-  CHECK_GRPID_DISPLAY = CHECK_IID_DISPLAY + 1, // grpid display check
-  CHECK_SLEEPY = CHECK_GRPID_DISPLAY + 1, // sleepy check
-  CHECK_PM = CHECK_SLEEPY + 1, // programming mode check in menu bar
 
-  EITT_SOO = CHECK_PM + 1,
-  LIST_ALL = EITT_SOO + 1,
-  RESTART_DEVICE = LIST_ALL + 1
-};
 
 extern lsxb_channel_t lsab[NUM_CHANNELS];
 

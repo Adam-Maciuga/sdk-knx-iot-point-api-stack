@@ -53,35 +53,6 @@
 
 #include <wx/clipbrd.h>
 
-// IDs for the controls and the menu commands
-enum : uint16_t
-{
-  RESET = wxID_HIGHEST, // ID for reset button in the menu
-  RESET_TABLE,          // ID for clear table button in the menu
-  IA_TEXT,              // ID for internal address text
-  IID_TEXT,             // ID for installation id text
-  PM_TEXT,              // ID for programming mode text
-  LS_TEXT,              // ID for load status text
-  CHECK_GA_DISPLAY,     // ga display check
-  CHECK_IID_DISPLAY,    // iid display check
-  CHECK_GRPID_DISPLAY,  // grpid display check
-  CHECK_SLEEPY1,        // sleepy check
-  CHECK_PM,             // programming mode check in menu bar
-  LIST_ALL,             // list all tables (GO/PUB/RCP/AT) 
-  RESTART_DEVICE,       // restart device
-  DEVICE_USAGE,
-
-  EITT_SOO,             // EITT test button 
-  wxID_SLIDER,          // EMS Inverter slider
-  LSSB_0_SOO,           // LSSB switch, channel 0
-  LSSB_0_IOO,           // LSSB info, channel 0
-  LSSB_1_SOO,           // LSSB switch, channel 1
-  LSSB_1_IOO,           // LSSB info, channel 1
-  LSAB_0_SOO,           // LSAB switch, channel 0
-  LSAB_1_SOO,           // LSAB switch, channel 1
-
-};
-
 
 class CustomDialog : public wxDialog
 {

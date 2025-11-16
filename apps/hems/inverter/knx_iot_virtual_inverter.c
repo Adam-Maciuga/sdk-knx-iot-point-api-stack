@@ -46,7 +46,6 @@
  *   logging can be seen in the command window
  */
 #include "oc_api.h"
-#include <stdio.h> // defines FILENAME_MAX
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"

@@ -40,7 +40,7 @@ __Datapoint Type__ definitions you can find in folder 'apps/hems/data'
 
 # 1. Inverter
 
-The inverter demo represents an own end device with the photovoltaics functionality. 
+The inverter demo represents an own end device with the *photovoltaics* functionality. 
 
 > The demo implements an 'PowerDC' output datapoint from the Functional Block 'Photovoltaics', reflecting the
   sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
@@ -48,17 +48,17 @@ The inverter demo represents an own end device with the photovoltaics functional
 
 # 2. Charger
 
-The charger demo represents an own end device with the charging functionality. 
+The charger demo represents an own end device with the *charging** functionality. 
 
 > The demo implements an 'ActivePowerLimit' input datapoint from the Functional Block 'eMoblity', reflecting the
   charging DC power consumption in kW from the e-car. 
 
 # 3. Customer Energy Manager
 
-The customer energy manager demo represents an own end device with the the cem functionality. 
+The customer energy manager demo represents an own end device with the the *cem** functionality. 
 
-The demo application implements:
-- a counterpart input datapoint for the output 'PowerDC' datapoint of Functional Block 'Photovoltaics'
+> The demo application implements
+  a counterpart input datapoint for the output 'PowerDC' datapoint of Functional Block 'Photovoltaics'
 - a counterpart output datapoint for the input 'ActivePowerLimit' datapoint of Functional Block 'eMoblity' 
 - a sun/mix mode operation setting
 

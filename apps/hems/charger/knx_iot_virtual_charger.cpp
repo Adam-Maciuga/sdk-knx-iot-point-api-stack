@@ -53,55 +53,7 @@
 
 #include <wx/clipbrd.h>
 
-// IDs for the controls and the menu commands
-enum
-{
-  // Menu event IDs
-  wxID_LOOP = 1,
-  wxID_OPENFILESAMEPAGE,
-  wxID_OPENFILENEWPAGE,
-  wxID_OPENURLSAMEPAGE,
-  wxID_OPENURLNEWPAGE,
-  wxID_CLOSECURRENTPAGE,
-  wxID_PLAY,
-  wxID_PAUSE,
-  wxID_NEXT,
-  wxID_PREV,
-  wxID_SELECTBACKEND,
-  wxID_SHOWINTERFACE,
-  wxID_SLIDER,
-  wxID_PBSLIDER,
-  wxID_VOLSLIDER,
-  wxID_NOTEBOOK,
-  wxID_MEDIACTRL,
-  wxID_BUTTONNEXT,
-  wxID_BUTTONPREV,
-  wxID_BUTTONSTOP,
-  wxID_BUTTONPLAY,
-  wxID_BUTTONVD,
-  wxID_BUTTONVU,
-  wxID_LISTCTRL,
-  wxID_GAUGE
-};
 
-enum : uint16_t
-{
-  RESET = 0x0000,
-  RESET_TABLE = 0x0001,
-  IA_TEXT = 0x0002,
-  IID_TEXT = 0x0003,
-  PM_TEXT = 0x0004,
-  LS_TEXT = 0x0005,
-  HOSTNAME_TEXT = 0x0006,
-  GOT_TABLE_ID = 0x0007,
-  PUB_TABLE_ID = 0x0008,
-  REC_TABLE_ID = 0x0009,
-  PARAMETER_LIST_ID = 0x000a,
-  AT_TABLE_ID = 0x000b,
-  CHECK_PM = 0x0010,
-  DEVICE_USAGE = 0x0011,
-  LIST_ALL = 0x0012
-};
 
 
 class FlowAnimation : public wxPanel
