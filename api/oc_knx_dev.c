@@ -1212,12 +1212,10 @@ void oc_knx_load_device(void)
 
   // load security related variables
   uint16_t osc;
-  uint16_t w_size = oc_storage_read(OSC_STORAGE_REP_SIZE, (uint8_t*)&osc, sizeof(osc)) > 0 ? osc : DEFAULT_REP_WDO_SIZE;
   uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc, sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
 
-  set_oscore_replay_window_size(w_size);
   set_oscore_osn_delay_ms(d_size);
-  PRINT("oscore (storage) replay window size (%u), osn delay (%u) ms ", w_size, d_size);
+  PRINT("oscore (storage) osn delay (%u) ms ", d_size);
 
   /*
     - note that the used uc port will be advertised with each mDNS such as on every startup, so no need to store and read here
@@ -1266,10 +1264,7 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname), oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
-    uint16_t w_size = DEFAULT_REP_WDO_SIZE;
     uint16_t d_size = DEFAULT_OSN_DELAY;
-
-    oc_storage_write(OSC_STORAGE_REP_SIZE, (uint8_t*)&w_size, sizeof(w_size));
     oc_storage_write(OSC_STORAGE_OSN_DELAY, (uint8_t*)&d_size, sizeof(d_size));
 
     return;

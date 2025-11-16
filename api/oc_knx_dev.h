@@ -35,7 +35,6 @@ extern "C" {
 #define KNX_STORAGE_AP_MINOR  "knx_ap_minor"
 #define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
 
-#define OSC_STORAGE_REP_SIZE "oscore_replay_wd_size"
 #define OSC_STORAGE_OSN_DELAY "oscore_osn_delay"
 
 /**

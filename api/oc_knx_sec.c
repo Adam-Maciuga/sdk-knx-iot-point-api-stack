@@ -32,15 +32,16 @@
 #define AT_STORE "at_store"
 #define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
 
+// static const, maybe changed in a later stack version
+static const uint16_t g_oscore_replay_window_size = 32;   // default according to RFC OSCORE
+
 // static RAM variables init all with '0' (also in at table included strings next/ptr/size)
-static uint16_t g_oscore_replay_window_size;  // < 65 , see PUT method 
-static uint16_t g_oscore_osn_delay_ms;        // format = dpt.timePeriodMsec
+static uint16_t g_oscore_osn_delay_ms;                    // format = dpt.timePeriodMsec
 static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES]; 
 
 // ----------------------------------------------------------------------------
 
 uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size; }
-void set_oscore_replay_window_size(uint16_t size) { g_oscore_replay_window_size = size; }
 
 uint32_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms; }
 void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
@@ -157,44 +158,6 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-static void oc_core_knx_auth_o_replwdo_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
-{
-  (void)data;
-  (void)iface_mask;
-
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
-  {
-    return;
-  }
-
-  oc_rep_t* rep = request->request_payload;
-  while (rep)
-  {
-    if (rep->type == OC_REP_INT)
-    {
-      // don't allow window size > 64 (used window is of type uint64_t = 64 bits possible) 
-      if (rep->iname == 1 && rep->value.integer <= 64)
-      {
-        /*
-          If the window is changed at runtime, two scenarios are possible (see oc_replay.c)
-          - from hi to low --> all before inside the window
-            - marked ssn's are now left outside  = issue new echo challenge request
-            - free ssn's are now left outside = issue new echo challenge request
-          - from low to hi --> all before - would be - echoed frames are now marked as in window = pass msg
-         */
-
-        PRINT("oc_core_knx_auth_o_replwdo_put_handler type: %d value %d", rep->type, (int)rep->value.integer);
-        g_oscore_replay_window_size = (uint16_t)rep->value.integer; // use direct access
-        oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-        return;
-      }
-    }
-    rep = rep->next;
-  }
-
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-}
-
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
@@ -206,7 +169,7 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   {APPLICATION_CBOR, CONTENT_NONE},
   OC_DISCOVERABLE,
   {oc_core_knx_auth_o_replwdo_get_handler, NULL, OC_ACL_D, OC_IF_D},
-  {oc_core_knx_auth_o_replwdo_put_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
+  {NULL, NULL, OC_ACL_NONE, OC_ACL_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL},

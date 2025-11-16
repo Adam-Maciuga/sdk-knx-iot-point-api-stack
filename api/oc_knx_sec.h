@@ -28,7 +28,6 @@
 extern "C" {
 #endif
 
-	#define DEFAULT_REP_WDO_SIZE (32)	// default according to RFC OSCORE -> able to be modified by PUT
   #define DEFAULT_OSN_DELAY (1000)	// default (ms) defined by iot specification -> able to be modified by PUT
 
 	/**
@@ -306,16 +305,6 @@ extern "C" {
    * @return window size
    */
 	uint32_t get_oscore_replay_window_size(void);
-
-	/**
-   * @brief set OSCORE Replay Window Size
-   *
-   * @param size window size
-   *
-   * @note don't allow window size > 64 (used window is of type uint64_t = 64 bits possible) 
-   *
-   */
-  void set_oscore_replay_window_size(uint16_t size);
 
 	/**
    * @brief get OSCORE OSN Delay Time
