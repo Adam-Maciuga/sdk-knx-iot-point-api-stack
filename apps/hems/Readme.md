@@ -14,20 +14,34 @@ for two operation modes.
 The charging mode can be set by the user on the Customer Energy Manager (CEM).The below picture 
 illustrates the use case.
 
-![Concept](concept.png)
+![Concept](pictures/concept.png)
 
 The following functionalities are involved in this demo use case. 
 
 1. Inverter (provides solar energy)
-2. Charger (consumes energy)
-3. Customer Energy Manager (manages energy) 
+2. Customer Energy Manager (manages energy) 
+3. Charger (consumes energy)
 
 > Note that the grid energy as such is not modelled in this demo. For simplification it is assumed 
   that grid energy is (always) available. 
 
-In a typical installation the above defined three functionalities can be shared amongst several (end) devices.
-For example, the CEM can be a standalone device or the functionality is part of the 'Charger' (end) device. 
-In a usual installation with a stationary battery or heat pump the CEM is often part in one of those devices.
+The above defined three functionalities can be shared amongst several (end) devices. Examples:
+
+- The CEM is a standalone end device.
+- The CEM functionality is part of another end device, such a stationary battery.
+- The CEM functionality is not part of any end device, it is part of a 'controller logic' on a higher 
+  automation level (see below 'Vertical Integration').
+
+This demo covers a simple installation and a unambiguous EMS functionality at runtime, for example 
+the inverter functionality runs in an own device. 
+
+> The inverter 'PowerDC' output datapoint maps 1:1 to the counterpart CEM input datapoint. 
+
+Hence this, an individual device configuration by a user is not needed. More complex installations/scenarios
+such as to handle two independent charger devices by the CEM are not considered. 
+
+- user channel assignment, which channel of the same 'charger' functionality operates with what other channel  
+- user parameter adjustment for a specific charger channel
 
 # References
 All applications uses KNX standardized datapoints, the corresponding __Functional Block__ and 
@@ -46,14 +60,7 @@ The inverter demo represents an own end device with the *photovoltaics* function
   sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
   the present DC power from 0 to 10 kW in steps of 1 kW.
 
-# 2. Charger
-
-The charger demo represents an own end device with the *charging** functionality. 
-
-> The demo implements an 'ActivePowerLimit' input datapoint from the Functional Block 'eMoblity', reflecting the
-  charging DC power consumption in kW from the e-car. 
-
-# 3. Customer Energy Manager
+# 2. Customer Energy Manager
 
 The customer energy manager demo represents an own end device with the the *cem** functionality. 
 
@@ -62,90 +69,97 @@ The customer energy manager demo represents an own end device with the the *cem*
 - a counterpart output datapoint for the input 'ActivePowerLimit' datapoint of Functional Block 'eMoblity' 
 - a sun/mix mode operation setting
 
+# 3. Charger
+
+The charger demo represents an own end device with the *charging** functionality. 
+
+> The demo implements an 'ActivePowerLimit' input datapoint from the Functional Block 'eMoblity', reflecting the
+  charging DC power consumption in kW from the e-car. 
+
 # Details 
 
-## Datapoints
+## Application, Datapoints
 
-All above for the runtime relevant mentioned i/o datapoints are of the same type, being DPT 14.056, 
-for this see 03/07/02. 
+In this demo used device serial numbers (SN's) are arbitrary. The EMS functionality (aka device applications)
+is part of the ex-factory device, this also includes the datapoints. 
+  
+**Inverter**
+-  url: '/p/inverter', if.o output, transmit (sends solar power value), 
+   datapoint type IEEE 754 single float (KNX datapoint type (DPT) 14.056, see 03/07/02)  
+   
+**Customer Energy Manager**
+-  url: '/p/inverter', if.i input, write (receives solar power value),
+   datapoint type IEEE 754 single float (KNX datapoint type (DPT) 14.056, see 03/07/02) 
+
+-  url: '/p/charger', if.o output, transmit (sends charger value),
+   datapoint type IEEE 754 single float (KNX datapoint type (DPT) 14.056, see 03/07/02) 
+  
+**Charger**
+-  url: '/p/charger', if.i input, write (receives charger value),
+   datapoint type IEEE 754 single float (KNX datapoint type (DPT) 14.056, see 03/07/02) 
+
+## Communication 
+
+KNX IoT devices support two communication patterns, both patterns can operate at runtime
+standalone or in parallel (in the latter case it is the operator/installer responsibility
+to ensure data validity, such as when writing values from two independent sources).
+
+### Horizontal Interworking
+
+- devices communicate via **s-mode** group communication directly with other devices by using group objects and group addresses
+- over a fix endpoint (s-mode messaging path)
+- all devices together composes the functionality of an individual installation
+- commissioned by ETS, a catalog entry is need for a device, to be created by means of the KNX Manufacturer Tool 
+
+### Vertical Integration
+
+- devices communicate via **pub/sub** communication with a superordinate automation level
+  (CoAP subscription and notification mechanism [CoAP RFC7641](https://www.rfc-editor.org/rfc/rfc7641.html))
+- over several endpoints (a vendor need to support this for each relevant datapoint)
+- commissioned by a vendor client 
+
+The picture below demonstrate this. 
+
+![Concept](pictures/communication-pattern.png)
 
 ## Commissioning
 
-In KNX IoT several device commissioning methods exists. 
+For both patterns from above the commission procedures are described as part of the KNX IoT 
+specification 03/10/05. 
 
-- __S-Mode__ (devices communicate over a fix endpoint, with group addresses)
-- __Publish/Subscribe__ (devices communicate over one or more endpoints, with CoAP subscription and notification
-                         mechanism [CoAP RFC7641](https://www.rfc-editor.org/rfc/rfc7641.html)) 
-
-Both commissioning procedures are described as part of the KNX IoT specification 03/10/05. 
-Client 'ETS' implements the S-Mode.  
-
-This demo covers a simple installation with three (3) end devices and an unambiguous EMS functionality per device 
-at runtime. Hence this, individual configuration steps by a user are not needed, such as when having several 
-'channels' of the same functionality.
-
-- No channel assignment is needed (which channel operates with what other channel, see also below Group Addresses)  
-- No parameter adjustment for a specific channel is needed (all devices works with their default settings)
- 
-### S-Mode
-
-The following commissioning steps are defined for a device. 
+Some device commissioning steps are not needed in case of **ONLY** having a 'Vertical Integration' of devices,
+this is marked with 'optional'. The overall procedure contains of the following main steps. 
 
 1. Device Discovery 
 - (a) add/scan in client the target device certificate (such as a QR Code) 
-- (b) resolve device IPv6 address and port by serial number (CoAP multicast/mDNS discovery)
+- (b) resolve device IPv6 unicast address and port by serial number (CoAP multicast/mDNS discovery)
 - (c) retrieve device functional block information (CoAP unicast discovery) 
 2. Device Preparation 
 - (a) initial onboarding via device certificate (well-known/knx/spake, SPAKE2+) 
-- (b) check and set individual address (well-known/knx/ia)
-- (c) check and reset device programming mode (dev/pm) -> optional
-- (d) check manufacturer id (dev/mid)
+- (b) check and set individual address (well-known/knx/ia) 
+   > optional (not used at runtime on 'Vertical Integration') 
+- (c) check and reset device programming mode (dev/pm)
+   > optional (not needed on 'Vertical Integration')
+- (d) check manufacturer id (dev/mid) 
+   > optional (if not writing any application specific parameter)
 - (e) check hardware type (dev/hwt)
-- (f) reset target device (well-known/knx) -> optional
+   > optional (if not writing any application specific parameter)
+- (f) reset target device (well-known/knx)
+   > optional (vendor application specific)
 3. Device Download
 - (a) check and set the load state machine (a/lsm)
 - (b) write Group Object table entries
+   > optional (additional settings not needed on 'Vertical Integration')
 - (c) write Recipient table entries
+   > optional (not needed on 'Vertical Integration') 
 - (d) write Publisher table entries
+   > optional (not needed on 'Vertical Integration')
 - (e) write Access Token entries
-- (f) write parameter values -> optional 
+- (f) write parameter values
+   > optional (vendor specific, depends on device application) 
 - (g) check and close the load state machine (a/lsm)
 4. Device Finishing
-- (a) read fingerprint and store in client (well-known/knx/f) -> optional
-- (b) restart device (well-known/knx) -> optional 
-
-In case of commissioning with Client 'ETS' a catalog entry is need for a device, to be created by means
-of the KNX Manufacturer Tool. 
-
-#### Group Addresses
-
-In a simple installation usually only one device is present for a specific functionality, for example in this demo 
-a single inverter functionality (and device). The inverter 'PowerDC' output datapoint maps 1:1 to the counterpart CEM 
-input datapoint. Hence this, a user assignment of group addresses is not needed, a commissioning client can assign them 
-by own means. For more complex installations/scenarios such as to handle two independent charger devices by the CEM, 
-for this a user interaction is needed. This is not considered by this demo.  
-
-#### Individual Addresses (IA)/ Serial Numbers (SN) / Installation ID (IID)
-
-In this demo used SN's are arbitrary. 
-The IA's and the IID depends on the commissioning client (step 2.b). 
-
-### Objects and Tables
-
-The Group Object are commissioned with step 3.b from above, Recipient and Publisher Tables
-with step 3.c/d from above. Important runtime i/o datapoint information are described as follows: 
-  
-**Inverter**
--  url: '/p/inverter', output (transmits solar power value), 
-   datapoint type IEEE 754 single float (KNX datapoint type 14.056)  
-   
-**Customer Energy Manager**
--  url: '/p/inverter', input (receives solar power value),
-   datapoint type IEEE 754 single float (KNX datapoint type 14.056)
-
--  url: '/p/charger', output (transmits charger value),
-   datapoint type IEEE 754 single float (KNX datapoint type 14.056) 
-  
-**Charger**
--  url: '/p/charger', input (receives charger value),
-   datapoint type IEEE 754 single float (KNX datapoint type 14.056)
+- (a) read fingerprint and store in client (well-known/knx/f)
+   > optional (not needed on 'Vertical Integration')  
+- (b) restart device (well-known/knx)
+   > optional (vendor specific, depends on device application)
