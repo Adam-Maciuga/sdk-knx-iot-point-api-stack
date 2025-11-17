@@ -2702,8 +2702,6 @@ static void oc_init_tables(void)
 
 void oc_create_knx_fp_resources(void)
 {
-  OC_DBG("oc_create_knx_fp_resources");
-
   oc_init_tables();
   oc_load_group_object_table();
   oc_load_object_table();

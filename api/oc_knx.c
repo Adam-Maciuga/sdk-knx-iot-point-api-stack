@@ -257,8 +257,8 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     // safe '-1' 'erase code' value (restart don't use a value)
     cached_erase_code_value = erase_code_value;
 
-    // restart callback 
-    oc_set_delayed_callback_ms(NULL, restart, 100);
+    // restart callback with 75 ms (see (1) below)
+    oc_set_delayed_callback_ms(NULL, restart, 75);
 
     // send NO response
     PRINT("oc_core_knx_post_handler - end, restart");
@@ -269,14 +269,25 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     // safe 'erase code' value (reset uses a value)
     cached_erase_code_value = erase_code_value;
 
-    // init reset callback with 2 seconds  
-    oc_set_delayed_callback_ms(NULL, reset, 2000);
+    // init reset callback with 75 ms (see (1) below)  
+    oc_set_delayed_callback_ms(NULL, reset, 75);
 
-    // Before executing the reset function, the KNX IoT device MUST return a
-    // response with CoAP response code 2.04 CHANGED and with payload containing
-    // Error Code and Process Time in seconds as defined for the Response
-    // to a Master Reset Request for KNX Classic devices, see [09].
+    /*
+    (1) The device internal time to execute the reset/restart callback must be less than below
+        responded Process Time time, moreover, this time must ensure to issue (2) from below.
+        The 75 ms are used to complete a reset/restart with less than 100ms (= EITT test sequence delay),
+        it may need to be changed for specific embedded hardware 
 
+    (2) Before executing the reset function, the KNX IoT device MUST return a
+        response with CoAP response code 2.04 CHANGED and with payload containing
+        Error Code and Process Time in seconds as defined for the Response
+        to a Master Reset Request for KNX Classic devices, see [09].
+
+        The Process Time is a max time, a client should consider it
+        when sending a next message. If not, the device behavior is not predictable,
+        such as when a client continue downloading data and allover sudden
+        in between the delayed device reset will be executed locally.
+    */
     // check erase code value for response error (0:no error, 2:unsupported erase code, others not used here)
     const unsigned int response_code =
       erase_code_value == RESET_TO_DEFAULT_STATE || 
