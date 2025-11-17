@@ -633,8 +633,8 @@ extern "C"
    *                      oc_request_callback_t. The pointer must remain valid as
    *                      long as the resource exists. NULL if no user data needed.
    *
-   * @param[in] scopes the scope of this resource for the given method (will be added, by respect other acl's)
-   * @param[in] interfaces the interface of this for the given method (will be added, by respect other if's)
+   * @param[in] scopes the scope of this resource for the given method (will be added, by respecting other acl's)
+   * @param[in] interfaces the interface of this for the given method (will be added, by respecting other if's)
    *
    * @see oc_new_resource to see example code using this function
    */

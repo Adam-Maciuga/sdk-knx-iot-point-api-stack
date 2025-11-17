@@ -682,58 +682,77 @@ int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_le
   return -1;
 }
 
-int oc_uri_get_wildcard_string_value_as_int(const char* uri_resource, size_t uri_len,
-                                            const char* uri_invoked,  size_t invoked_len, 
-                                            bool scan_from_left_side)
+int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_len,
+                                      const char* invoked_uri, size_t invoked_len,
+                                      bool instance_number)
 {
-  if (uri_resource[uri_len - 1] == '*')
-  { // EP must be defined with a '*' at the end of e.g.; /f/* 
-    if (invoked_len + 1 >= uri_len)
-    { // - invoked uri has no heading '/', need at least one digit from invoked uri, 
-      // - 'f/4_1' versus '/f/*', set pointer - 2 = heading '/' and trailing '*' from '/f/*'
+  if (resource_uri[resource_len - 1] == '*')
+  { // EP must be defined with a '*' at the end of e.g.; /f/*
 
-      char* ptr_last_converted_digit = NULL;
-      const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
+    if (invoked_len + 1 >= resource_len)
+    { // - invoked uri 'f/4' has no heading '/', + 1 -> need at least one digit from invoked uri 
+      // - cut from resource uri '/f/*' - 2  -> get first number position 
 
-      // scan for '_'  
+      const char* ptr_first_to_be_converted_digit = &invoked_uri[resource_len - 2];
+      const char* ptr_last_to_be_converted_digit = &invoked_uri[invoked_len];
       const char* underscore = strchr(ptr_first_to_be_converted_digit, '_');
+
+      errno = 0;
       if (underscore)
-      {
-        int converted_value;
-        errno = 0;
+      { // an FB with instance is asked (x_y)
 
-        /*
-        convert from pointer after 'f/4_', note that
-        - f/4_001 or f/4_1 results both in 1
-        - f/4_abc, f/4_1abc results in string errors '-1'
-        */
-
-        if (scan_from_left_side)
+        if (instance_number)
         { 
-          converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_converted_digit, 10);
+           /*
+           convert fb instance, convert from pointer after 'f/4_', note that
+           - f/4_001, f/4_1 results both in 1
+           - f/4_abc, f/4_1abc results in string error '-1'
+         */
 
-          // accept only entire numbers (ptr_last_converted_digit = '-' string position)
-          // with no conversion errors (see 'strtol' details)
-          if (errno || ptr_last_converted_digit != underscore)
-            return -1;
+          ptr_first_to_be_converted_digit = underscore + 1;
+          
         }
         else
         {
-          const char* address_after_underscore = underscore + 1;
-          converted_value = strtol(address_after_underscore, &ptr_last_converted_digit, 10);
+          /*
+            convert fb number, convert from pointer after 'f/', note that
+            - f/4_, f/004_ results in 4
+            - f/4abc_, f/abc_ results in string error '-1'
 
-          // accept only entire numbers (ptr_last_converted_digit = last string position)
-          // with no conversion errors (see 'strtol' details)
-          if (errno || ptr_last_converted_digit != &uri_invoked[invoked_len])
-            return -1;
-
+          */
+          ptr_last_to_be_converted_digit = underscore;
         }
-
-        return converted_value;
       }
+      else
+      { // an FB without instance is asked
+
+        if (instance_number)
+        {
+          /*
+            convert fb instance, is always 0
+          */
+          return 0;
+         
+        }
+        else
+        {
+          /*
+           convert fb number, convert from pointer after 'f/', note that
+           - f/4, f/004 results in 4
+           - f/4abc, f/abc results in string error '-1'
+         */
+        }
+      }
+
+      char* ptr_last_is_converted_digit;
+      const int converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_is_converted_digit, 10);
+
+      // accept only entire numbers (ptr_last_converted_digit = '_' string position)
+      // with no conversion errors (see 'strtol' details)
+      if (errno || ptr_last_is_converted_digit != ptr_last_to_be_converted_digit)
+        return -1;
       
-      // no underscore, an invalid FB number '_' instance combination
-      return -1;
+      return converted_value;
     }
   }
 

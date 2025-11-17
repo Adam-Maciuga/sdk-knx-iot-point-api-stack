@@ -502,24 +502,26 @@ extern "C" {
 																			 const char* uri_invoked, size_t invoked_len);
 
 	/**
-	 * @brief retrieve the integer after the "_" (underscore)
-	 *        e.g. retrieve instance 1 from FB url 333_1
+	 * @brief retrieve the FB number/instance
 	 *
-	 * @param uri_resource The URI with wild card
-	 * @param uri_len The length of the URI with wild card
-	 * @param uri_invoked The URI that should match a wild card
+	 * @note the "_" (underscore)separates FB numbers from their instances,
+	 *       such as 333_1
+	 *
+	 * @param resource_uri The URI with wild card
+	 * @param resource_len The length of the URI with wild card
+	 * @param invoked_uri The URI that should match a wild card
 	 * @param invoked_len The URI length of the invoked URI
-	 * @param scan_from_left_side The info if value has to be taken from left side (true) of '_' or right side (false)
+	 * @param instance_number if true the instance number, otherwise the FB number
 	 *
 	 * @return int FB instance number
 	 * - instance, if instance url with number was defined
 	 * - 0, no instance url was defined
 	 */
-	int oc_uri_get_wildcard_string_value_as_int(const char* uri_resource,
-                                              size_t uri_len,
-                                              const char* uri_invoked,
-                                              size_t invoked_len,
-                                              bool scan_from_left_side);
+	int oc_uri_get_fb_string_value_as_int(const char* resource_uri,
+                                        size_t resource_len,
+                                        const char* invoked_uri,
+                                        size_t invoked_len,
+                                        bool instance_number);
 
 	/**
 

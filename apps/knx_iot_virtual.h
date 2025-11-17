@@ -98,8 +98,8 @@
        output datapoint (GO), this can damage your hardware. Reading an input datapoint is less
        critical, but requires a kind of caching the value. An EXAMPLE how to handle/distinguish
        the 's-mode' and 'property' calls and options how to react is given below in the callback handler code.
-      Another option to circumvent the problem is to not declare the PUT handler for those resources (GOs) where
-      a PUT is not possible.
+       Another option to circumvent the problem is to not declare the PUT handler for those resources (GOs) where
+       a PUT is not possible.
 
      - Read metadata by using a GET + query (?m=m/o parameters) is mandatory
        - (m) mandatory parameters (id, value, rt, if, dpt, ga, href)
@@ -198,7 +198,7 @@ typedef struct
   uint8_t fb_number_of_datapoints;
 
   int_datapoint_t point;
-} int_functional_block_t;
+} int_functional_block_t; // see Functional Block Notes
 
 typedef struct
 {
@@ -207,7 +207,7 @@ typedef struct
   uint8_t fb_number_of_datapoints;
 
   float_datapoint_t point;
-} float_functional_block_t;
+} float_functional_block_t; // see Functional Block Notes
 
 typedef struct
 {
@@ -216,7 +216,7 @@ typedef struct
   uint8_t fb_number_of_datapoints;
 
   int_datapoint_t point[NUM_CEM_POINTS];
-} int_array_functional_block_t;
+} int_array_functional_block_t; // see Functional Block Notes
 
 typedef struct
 {
@@ -225,7 +225,7 @@ typedef struct
   uint8_t fb_number_of_datapoints;
 
   bool_datapoint_t point[NUM_CHANNELS];
-} bool_array_functional_block_t, lsxb_channel_t;
+} bool_array_functional_block_t, lsxb_channel_t; // see Functional Block Notes
 
 
 #ifdef _WIN32

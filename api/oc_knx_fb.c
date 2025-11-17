@@ -125,21 +125,21 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
   }
 
-  // fb number such as 417 from 417_01 (00417_01 by EITT)
-  const int fb_number = oc_uri_get_wildcard_string_value_as_int(
+  // fb number such as 417 from f/417 or f/417_01 (used by EITT)
+  const int fb_number = oc_uri_get_fb_string_value_as_int(
     oc_string(request->resource->uri), 
     oc_string_len(request->resource->uri),
     request->uri_path, 
     request->uri_path_len,
-    true);
+    false);
 
-  // fb instance such as 1 from 417_01 (00417_01 by EITT)
-  const int fb_instance = oc_uri_get_wildcard_string_value_as_int(
+  // fb instance such as 0 from f/417 or 1 from 417_01 (used by EITT)
+  const int fb_instance = oc_uri_get_fb_string_value_as_int(
     oc_string(request->resource->uri), 
     oc_string_len(request->resource->uri),
     request->uri_path,
     request->uri_path_len,
-    false );
+    true );
 
   OC_DBG("request url : %.*s", (int)request->uri_path_len, request->uri_path);
   OC_DBG("resource url: %s", oc_string(request->resource->uri));

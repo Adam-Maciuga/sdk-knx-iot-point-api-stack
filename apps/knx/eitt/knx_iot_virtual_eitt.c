@@ -56,10 +56,10 @@ const uint32_t mid = 667;                     // same as eitt test template
 // LSAB/LSSB channel 0..1 + included EPs switch control/status
 
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {417,1, 2,{
+  {417,0, 2,{
     {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", (0 << 8) + 0}, 
     {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", (0 << 8) + 1}}},
-  {421, 1, 2,{
+  {421, 0, 2,{
     {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},
     {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", (1 << 8) + 1}}},
 };
@@ -92,11 +92,11 @@ void register_resources(void)
     oc_resource_bind_content_type(ioo_resource_lssb, APPLICATION_CBOR, CONTENT_NONE);
 
     // set instance (see above)
-    oc_resource_set_functional_block_data(soo_resource_lsab, lsxb[LSAB].fb_number, lsxb[LSAB].fb_instance,
-      lsxb[LSAB].fb_number_of_datapoints);
+    oc_resource_set_functional_block_data(soo_resource_lsab, lsxb[LSAB].fb_number, lsxb[LSAB].fb_instance, lsxb[LSAB].fb_number_of_datapoints);
+    oc_resource_set_functional_block_data(ioo_resource_lsab, lsxb[LSAB].fb_number, lsxb[LSAB].fb_instance, lsxb[LSAB].fb_number_of_datapoints);
+    oc_resource_set_functional_block_data(soo_resource_lssb, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance, lsxb[LSSB].fb_number_of_datapoints);
+    oc_resource_set_functional_block_data(ioo_resource_lssb, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance, lsxb[LSSB].fb_number_of_datapoints);
 
-    oc_resource_set_functional_block_data(ioo_resource_lsab, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance,
-      lsxb[LSSB].fb_number_of_datapoints);
 
     oc_resource_set_properties(soo_resource_lsab, OC_DISCOVERABLE + OC_OBSERVABLE);
     oc_resource_set_properties(ioo_resource_lsab, OC_DISCOVERABLE + OC_OBSERVABLE);

@@ -263,7 +263,7 @@ void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
         return;
       }
 
-      // see 'Callback Notes' above
+      // see 'Callback Notes'
       charger.point.value = (int)rep->value.integer;
       error_state = false;
 
