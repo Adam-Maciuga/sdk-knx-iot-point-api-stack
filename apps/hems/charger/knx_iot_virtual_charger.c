@@ -17,35 +17,6 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-/**
- * @file
- *
- * KNX virtual sensor
- *
- * ## Application Design
- *
- * - app_init, initializes the stack values.
- *
- * - register_resources, function that registers all endpoints, e.g. sets the GET/.../DELETE
- *   handlers for each end point
- *
- * - main, starts the stack, with the registered resources, can be compiled out with NO_MAIN
- *
- * - callback handlers for the implemented methods, see callback handler 'Callback Notes'
- *   
- * ## stack specific defines
- * - __linux__, build for Linux
- * - WIN32,  build for Windows
- * - OC_OSCORE, oscore is enabled as compile flag
- *
- * ## File specific defines
- * - NO_MAIN
- *   compile out the function main()
- * - KNX_GUI
- *   build the GUI with console option, so that all
- *   logging can be seen in the command window
- */
-
 #include "oc_api.h"
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
@@ -60,14 +31,14 @@ const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
 const char dev_model[] = "6800";              // reuse mask version from iot device
 const uint32_t mid = 0x00fa;                  // manufacturer id, here KNXA
 
-int_functional_block_t charger = 
+float_functional_block_t charger = 
 {426, 0,1,
   {
     0, /* IEEE 754 single float, KNX DPT: 14.056 */
     "/p/charger",
     "urn:knx:dpa.426.52",
     ":dpt.value_power", 
-    "Charger Input"
+    "Charger Input from CEM"
   }
 };
 
@@ -83,7 +54,13 @@ void register_resources(void)
 
   oc_resource_set_properties(active_power_limit_resource_charger_in, OC_OBSERVABLE + OC_DISCOVERABLE);
 
-  oc_resource_set_request_handler(active_power_limit_resource_charger_in, OC_GET, get_charger, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
+  /* Charger defines
+       GET**, PUT
+       Interface type if.p is set in addition, the point can also be used as parameter point (in add. to s-mode).
+
+       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
+  */
+  oc_resource_set_request_handler(active_power_limit_resource_charger_in, OC_GET, get_charger, NULL, OC_ACL_I , OC_IF_I);
   oc_resource_set_request_handler(active_power_limit_resource_charger_in, OC_PUT, put_charger, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P); 
 
   oc_add_resource(active_power_limit_resource_charger_in);
@@ -91,7 +68,7 @@ void register_resources(void)
 
 // charger local functions 
 
-int get_charger_value(void) { return charger.point.value; }
+float get_charger_value(void) { return charger.point.value; }
 
 char* app_retrieve_href_from_charger(void) { return charger.point.resource_path; }
 
@@ -154,7 +131,7 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
       if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
         // see 'Callback Notes'
-        oc_rep_i_set_int(root, 1, charger.point.value);
+        oc_rep_i_set_float(root, 1, charger.point.value);
         error_state = false;
       }
       // rt
@@ -207,7 +184,7 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
   { // ... no query parameter 'm' present at all, set value for the GET
 
     // see 'Callback Notes'
-    oc_rep_i_set_int(root, 1, charger.point.value);
+    oc_rep_i_set_float(root, 1, charger.point.value);
     error_state = false;
   }
 
@@ -254,7 +231,7 @@ void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
   // loop over object
   while (rep)
   {
-    if (rep->iname == 1 && rep->type == OC_REP_INT)
+    if (rep->iname == 1 && rep->type == OC_REP_FLOAT)
     {
       if (!is_input_datapoint)
       {
@@ -264,10 +241,10 @@ void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
       }
 
       // see 'Callback Notes'
-      charger.point.value = (int)rep->value.integer;
+      charger.point.value = rep->value.float_p;
       error_state = false;
 
-      PRINT("set LSSB to %d", charger.point.value);
+      PRINT("set charger to %f", charger.point.value);
       break;
     }
     rep = rep->next;

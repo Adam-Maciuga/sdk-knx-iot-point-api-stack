@@ -17,132 +17,6 @@
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
 
-// about this app and its datapoints
-/**
- * CEM stands for Central Energy Manager.
- *
- * The current implementation contains two datapoints and foresees two operation modes.
- *
- * The first datapoint serves the role of capturing the present DC power from the medium, which is typically send out to the
- * medium by Invertor PV control devices.
- *
- * The two operation modes are:
- *  - sun mode: the principle is to only charge the electric car at 4 kW if at least 4kW DC power is procuded by sun light
- * (through PV panels)
- *  - mix mode: charge the electric car at 4 kW regardless of the present produced DC power by sun light
- * The operation mode is represented by a dedicated button, wich allows the user to toggle its value, the current value is
- * indicated inside the button, either 'sun' or 'mix'.
- *
- * The second datapoint sends, depending on the operation mode out to the medium the requested (calculated) charge rate,
- * eihter at 0 kW or at 4 kW
- *
- * References
- * - PV: description of the functional block(s): 7/8/1 Photovoltaics
- * - Charger: description of the functional block(s): Application_EVSE
- * - Datapoints: DPT 14.056: 3/7/2 Datapoint Types
- */
-// implemented demo configuration concept
-/**
- * The following concept has been implemented:
- * - The CEM is considered being the central 'unit'
- * - The configuration for all three devices is derived from the serial number of the CEM device
- * - The configuration algorithm can be found in the source code of all three devices, it sets the:
- *   - IA: individual address
- *   - IID: installation identifier
- *   - Group Object Table
- *   - Publisher Table
- *   - Recipient Table
- *   - Authentication Table
- * - The PV and the Charger device come with an extra configuration datapoint (not standardized)
- *   - PV: its auth/at table comes with a specific pre-configured entry based on the serial number of the PV device
- *   - Charger: its auth/at table comes with a specific pre-configured entry based on the serial number of the Charger device
- * - The CEM device
- *   - comes with an extra link datapoint (not standardized)
- *   - this link object allows the CEM to make a connection to any target device, based on the serial number of the device to
- * be connected
- * - In practise:
- *   - click either the 'settings' or the 'usage' icon of the target device (either the PV or the Charger device)
- *   - click the 'copy serial number' button
- *   - click either the 'settings' or the 'usage' icon of the CEM device
- *   - paste the previously copied (target) serial number into the input field of the CEM device
- *   - then click in the CEM device the 'Link' button, this will:
- *     - update the auth/at table of the CEM device so that data between the link object of the CEM device and the
- * configuration object of the target device can be exchanged
- *     - transmit the serial number of the CEM device to the target device (in this case the PV device)
- *     - the target device uses this transmitted serial number to set up its data object(s) according the above mentioned
- * algorithm
- *   - the 'UnLink' button clears the auth/at entry in the CEM device
- */
-// implemented demo configuration algorithm
-/**
- * this eihter based on the own serial number: device->serialnumber
- * -> in this case sn_link is set to "000000000000"
- *
- * or both the own serial number and serial number the to be linked target device
- * -> in this case sn_link is NOT set to "000000000000"
- *
- * Details:
- *
- * IA (and serial number)
- *
- * The IA of the three devices are set as follows, ETS notation:
- * -  PV: 15.15.15 (serial number = 00fa:1002:0b00)
- * -  CEM: 15.15.15 (serial number = 00fa:1002:0c00)
- * -  Charger: 15.15.15 (serial number = 00fa:1002:0d00)
- *
- * IID
- *
- * The IID of the three devices is set to: 00fa:0000
- *
- * Group Object Table
- *
- * The Group Object Tables of the three devices are set as follows:
- *
- * PV:
- * -  url: '/p/pv'      cflags : '64' ...t.  ga : [ 0/0/1 ]
- * -  url: '/p/CEM'     cflags : '16' .w...  ga : [ 0/0/3 ]
- *
- * CEM:
- * -  url: '/p/pv'      cflags : '16' .w...  ga : [ 0/0/1 ]
- * -  url: '/p/charger' cflags : '64' ...t.  ga : [ 0/0/2 ]
- * -  url: '/p/link'    cflags : '64' ...t.  ga : [ 0/0/3 ]
- *
- * Charger:
- * -  url: '/p/charger' cflags : '16' .w...  ga : [ 0/0/2 ]
- * -  url: '/p/CEM'     cflags : '16' .w...  ga : [ 0/0/3 ]
- *
- * Publisher and Recipient Table
- *
- * Both the Publisher and Recipeint Tables of the three devices are set as follows:
- *
- * PV:
- * -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/3]
- *
- * CEM:
- * -  grpid:  00fa:0000  ga : [ 0/0/1 0/0/2 0/0/3]
- *
- * Charger:
- * -  grpid:  00fa:0000  ga : [ 0/0/2 0/0/3]
- *
- * Authentication Table
- *
- * The Authentication Tables of the three devices are set as follows:
- *
- * PV:
- * -  ga 0/0/1 osc_id [2]: 0001  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
- * -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00fa10020b00060708090a0b0c0d0e0f  osc_contextid (o)[6]: 00fa00000003
- *
- * CEM:
- * -  ga 0/0/1 osc_id [2]: 0001  osc_ms [16]: 000102030405060708090a0b0c0d0e0f  osc_contextid (o)[6]: 10020c000001
- * -  ga 0/0/2 osc_id [2]: 0002  osc_ms [16]: 000102030405060708090a0b0c0d0e0f  osc_contextid (o)[6]: 10020c000002
- * -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
- *
- * Charger:
- * -  ga 0/0/2 osc_id [2]: 0002  osc_ms [16]: 00000000000000000000000000000000  osc_contextid (o)[6]: 000000000000
- * -  ga 0/0/3 osc_id [2]: 0003  osc_ms [16]: 00fa10020d00060708090a0b0c0d0e0f  osc_contextid (o)[6]: 00fa00000003
- *
- */
-
 #include "oc_api.h"
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
@@ -150,7 +24,7 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
-const char application_name[] = "Central Energy Manager";
+const char application_name[] = "Customer Energy Manager";
 const char sn_lower_case[] = "00fa10020c00";  // deliberated incorrect serial numbers
 const char hostname[] = "knx-00fa10020c00";   // default host name (reset uses this default)
 const char hw_type[] = "000102030405";        // 12 string chars, MSB = 00
@@ -159,7 +33,7 @@ const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
 cem_mode_t cem_mode = sun_mode;
 
-int_array_functional_block_t cem = {
+float_array_functional_block_t cem = {
   427,
   1,
   1,
@@ -181,7 +55,6 @@ void register_resources(void)
 {
   oc_resource_t* power_dc_resource_inverter_in = oc_new_resource(cem.point[CEM_INVERTER].resource_path, 1);
   oc_resource_t* power_dc_resource_charger_out = oc_new_resource(cem.point[CEM_CHARGER].resource_path, 1);
-  
 
   oc_resource_bind_resource_type(power_dc_resource_inverter_in, cem.point[CEM_INVERTER].dpa);
   oc_resource_bind_resource_type(power_dc_resource_charger_out, cem.point[CEM_CHARGER].dpa);
@@ -198,10 +71,16 @@ void register_resources(void)
   oc_resource_set_properties(power_dc_resource_inverter_in, OC_OBSERVABLE + OC_DISCOVERABLE);
   oc_resource_set_properties(power_dc_resource_charger_out, OC_OBSERVABLE + OC_DISCOVERABLE);
 
-  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_GET, get_cem_inverter, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
-  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_PUT, put_cem_inverter, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
+  /* CEM defines
+       GET**, PUT
+       GET**
+       Interface type if.p/if.d is set in addition, the point can also be used as parameter point (in add. to s-mode).
 
-  oc_resource_set_request_handler(power_dc_resource_charger_out, OC_GET, get_cem_charger, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
+       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
+    */
+  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_GET, get_cem_inverter, NULL, OC_ACL_I , OC_IF_I);
+  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_PUT, put_cem_inverter, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
+  oc_resource_set_request_handler(power_dc_resource_charger_out, OC_GET, get_cem_charger, NULL, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
 
   oc_add_resource(power_dc_resource_inverter_in);
   oc_add_resource(power_dc_resource_charger_out);
@@ -209,23 +88,24 @@ void register_resources(void)
 
 // cem local functions 
 
-void cem_process_inverter_input(void)
+void cem_process_charger_output(void)
 {
-  const int mode = retrieve_cem_mode();
-  const int current_inverter_power = get_cem_inverter_value() / 1000; // kW
-  int current_charger_power = 4; // default 4 kW
+  const cem_mode_t mode = retrieve_cem_mode();
+  
+  float current_charger_power = 4; 
 
   if (mode == sun_mode)
   {
-    if (current_inverter_power < 4)
+    // in watt
+    if (get_cem_inverter_value() < 4000)
     {
       // SUN mode, pause charging
       current_charger_power = 0;
     }
   }
-  if (mode == mix_mode)
+  else if (mode == mix_mode)
   {
-    // MIX mode, continue charging
+    // MIX mode, continue charging with default 4 kW
   }
 
   // set charger output value
@@ -239,8 +119,8 @@ void cem_process_inverter_input(void)
 cem_mode_t retrieve_cem_mode(void) { return cem_mode; }
 void set_cem_mode(cem_mode_t mode) { cem_mode = mode; }
 
-int get_cem_inverter_value(void) { return cem.point[CEM_INVERTER].value; }
-int get_cem_charger_value(void) { return cem.point[CEM_CHARGER].value; }
+float get_cem_inverter_value(void) { return cem.point[CEM_INVERTER].value; }
+float get_cem_charger_value(void) { return cem.point[CEM_CHARGER].value; }
 
 char* app_retrieve_href_from_cem_inverter(void) { return cem.point[CEM_INVERTER].resource_path; }
 char* app_retrieve_href_from_cem_charger(void) { return cem.point[CEM_CHARGER].resource_path; }
@@ -270,7 +150,7 @@ void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
   // loop over object
   while (rep)
   {
-    if (rep->iname == 1 && rep->type == OC_REP_INT)
+    if (rep->iname == 1 && rep->type == OC_REP_FLOAT)
     {
       if (!is_input_datapoint)
       {
@@ -280,10 +160,10 @@ void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
       }
 
       // see 'Callback Notes'
-      cem.point[CEM_INVERTER].value = (int)rep->value.integer;
+      cem.point[CEM_INVERTER].value = rep->value.float_p;
       error_state = false;
 
-      PRINT("set inverter input to %lld", rep->value.integer);
+      PRINT("set inverter to %f", cem.point[CEM_INVERTER].value);
       break;
     }
     rep = rep->next;
@@ -297,8 +177,8 @@ void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
 
     PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 
-    // process input, may change the charger output
-    cem_process_inverter_input();
+    // here called only on a value change
+    cem_process_charger_output();
 
     return;
   }
@@ -366,7 +246,7 @@ void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
       if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
         // see 'Callback Notes'
-        oc_rep_i_set_int(root, 1, cem.point[CEM_INVERTER].value);
+        oc_rep_i_set_float(root, 1, cem.point[CEM_INVERTER].value);
         error_state = false;
       }
       // rt
@@ -419,7 +299,7 @@ void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
   { // ... no query parameter 'm' present at all, set value for the GET
 
     // see 'Callback Notes'
-    oc_rep_i_set_int(root, 1, cem.point[CEM_INVERTER].value);
+    oc_rep_i_set_float(root, 1, cem.point[CEM_INVERTER].value);
     error_state = false;
   }
 
@@ -502,7 +382,7 @@ void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void
       if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
       {
         // see 'Callback Notes'
-        oc_rep_i_set_int(root, 1, cem.point[CEM_CHARGER].value);
+        oc_rep_i_set_float(root, 1, cem.point[CEM_CHARGER].value);
         error_state = false;
       }
       // rt
@@ -555,7 +435,7 @@ void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void
   { // ... no query parameter 'm' present at all, set value for the GET
 
     // see 'Callback Notes'
-    oc_rep_i_set_int(root, 1, cem.point[CEM_CHARGER].value);
+    oc_rep_i_set_float(root, 1, cem.point[CEM_CHARGER].value);
     error_state = false;
   }
 

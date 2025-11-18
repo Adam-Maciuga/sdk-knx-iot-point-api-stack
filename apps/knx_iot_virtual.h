@@ -106,9 +106,11 @@
        - (o) optional parameters (desc, unit, min, max, mrt, cov, hbt, sns)
 
      - Write metadata by using a PUT + query (?m=m/o parameters) is optional, this adheres to the
-       POST /p + query (?m=m/o parameters) -> if PUT can do that POST must also allow that (and vice versa)
+       POST /p + query (?m=m/o parameters) -> if PUT can do that POST must also allow that (and vice versa).
        - (m) mandatory parameters (id, value, rt, if, dpt, ga, href)
        - (o) optional parameters (desc, unit, min, max, mrt, cov, hbt, sns)
+
+ - Outputs with interface type if.o MUST support OBSERVE
 
  - A NON KNX related resource path can be defined for any vendor specific (configuration) purpose. In this case
    the device configuration is also vendor specific, e.g; by a vendor client. It MAY also be supported in the future by
@@ -215,8 +217,8 @@ typedef struct
   uint8_t fb_instance;
   uint8_t fb_number_of_datapoints;
 
-  int_datapoint_t point[NUM_CEM_POINTS];
-} int_array_functional_block_t; // see Functional Block Notes
+  float_datapoint_t point[NUM_CEM_POINTS];
+} float_array_functional_block_t; // see Functional Block Notes
 
 typedef struct
 {

@@ -95,7 +95,6 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
                      }
                    });
   hbox->Add(copyButton, 0, wxLEFT, 5);  
-
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
   vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
@@ -122,7 +121,6 @@ private:
 
   void OnListAll(wxCommandEvent& event);
 
-
   void OnProgrammingMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
@@ -130,9 +128,7 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
 
-  void OnThumbReleased_PV_slider(wxCommandEvent& event);
-  void OnSlider_PV_slider(wxCommandEvent& event);
-
+  void ProcessUpdateFromSlider(wxCommandEvent& event);
   void updateDeviceData();
 
   wxMenu* m_menuFile;
@@ -146,12 +142,6 @@ private:
   wxIMPLEMENT_APP(MyApp);
 #endif
 
-/**
- * @brief initialization of the application
- *
- * @return true
- * @return false
- */
 bool MyApp::OnInit()
 {
   // call in c-code
@@ -209,7 +199,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
-  // slider
+  // inverter slider
   wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
   wxStaticText* label = new wxStaticText(this, wxID_ANY, "Present DC Power (0..10 kW)");
   mainSizer->Add(label, 0, wxALL, 5);
@@ -218,7 +208,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   SetSizerAndFit(mainSizer);
 
   // slider events
-  m_PV_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::OnSlider_PV_slider, this);
+  m_PV_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::ProcessUpdateFromSlider, this);
   m_PV_slider->Enable(true);
   m_PV_slider->SetValue(0);
 
@@ -313,7 +303,7 @@ void MyFrame::OnListAll(wxCommandEvent& event)
   bool iid_conversion = true;
 
   wxString all;
-  all << util_dumpDeviceIDs()        << "\n\n"
+  all << util_dumpDeviceIDs()  << "\n\n"
       << util_dumpLsmState()   << "\n\n"
       << util_dumpGroupObjectTable(ga_conversion) << "\n\n"
       << util_dumpPublisherTable(ga_conversion, grpid_conversion, iid_conversion)   << "\n\n"
@@ -345,7 +335,7 @@ void MyFrame::OnAbout(wxCommandEvent& event)
  * - check boxes
  * - info buttons
  * - text buttons
- * does a oc_main_poll to give a tick to the stack
+ * does an oc_main_poll to give a tick to the stack
  * takes into account if the device is sleepy
  * e.g. then it only does an poll each 20 seconds
  * @param event triggered by a timer
@@ -355,29 +345,20 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   // stack polling 
   (void)oc_main_poll();
 
-  // update possible events
+  // update possible user events
   this->updateDeviceData();
 }
 
-void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
+void MyFrame::ProcessUpdateFromSlider(wxCommandEvent& event)
 {
-  /*
-    if (PV_retrieve_link() != 0)
-  {
-  }
-  else
-  {
-    SetStatusText("not linked");
-  }
-    */
+  // get the slider value in W
+  const float val = static_cast<float>(m_PV_slider->GetValue());
+
+  // set value in kW
+  set_inverter_value(val * 1000);
 
   // get url
   char* url = app_retrieve_href_from_inverter();
-
-  // get the slider value
-  const int val = m_PV_slider->GetValue();
-
-  set_inverter_value(static_cast<float>(val * 1000));
 
   oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
@@ -385,7 +366,6 @@ void MyFrame::OnSlider_PV_slider(wxCommandEvent& event)
   char statusBarText[100];
 
   // Present DC power of all solar panels connected to this PV control
-  (void)sprintf(statusBarText, "Present DC power = %d kW", val);
+  (void)sprintf(statusBarText, "Present DC solar power = %.02f kW", val);
   SetStatusText(statusBarText);
-
 }

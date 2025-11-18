@@ -91,15 +91,16 @@ void register_resources(void)
     void* soo_user_data = (void*)(uintptr_t)lsxb[i].point[SOO].id;
     void* ioo_user_data = (void*)(uintptr_t)lsxb[i].point[IOO].id;
 
-    // LSAB defines
-    // soo
-    // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
-    // - PUT
-    oc_resource_set_request_handler(soo_resource, OC_GET, get_lsxb, soo_user_data, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
-    oc_resource_set_request_handler(soo_resource, OC_PUT, put_lsab, soo_user_data, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
-    // ioo
-    // - GET
-    oc_resource_set_request_handler(ioo_resource, OC_GET, get_lsxb, ioo_user_data, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
+    /* LSAB defines
+       soo, GET**, PUT
+       ioo, GET**
+       No interface type if.p/if.d is set in addition, the points are only used for s-mode runtime communication.
+
+       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
+    */
+    oc_resource_set_request_handler(soo_resource, OC_GET, get_lsxb, soo_user_data, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(soo_resource, OC_PUT, put_lsab, soo_user_data, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource, OC_GET, get_lsxb, ioo_user_data, OC_ACL_O , OC_IF_O);
 
     oc_add_resource(soo_resource);
     oc_add_resource(ioo_resource);

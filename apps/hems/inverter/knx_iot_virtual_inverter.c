@@ -16,35 +16,6 @@
  limitations under the License.
 -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 */
-
-/**
- * @file
- *
- * KNX virtual sensor
- *
- * ## Application Design
- *
- * - app_init, initializes the stack values.
- *
- * - register_resources, function that registers all endpoints, e.g. sets the GET/.../DELETE
- *   handlers for each end point
- *
- * - main, starts the stack, with the registered resources, can be compiled out with NO_MAIN
- *
- * - callback handlers for the implemented methods, see callback handler 'Callback Notes'
- *   
- * ## stack specific defines
- * - __linux__, build for Linux
- * - WIN32,  build for Windows
- * - OC_OSCORE, oscore is enabled as compile flag
- *
- * ## File specific defines
- * - NO_MAIN
- *   compile out the function main()
- * - KNX_GUI
- *   build the GUI with console option, so that all
- *   logging can be seen in the command window
- */
 #include "oc_api.h"
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "oc_core_res.h"
@@ -66,7 +37,7 @@ float_functional_block_t inverter = {
     "/p/inverter",
     "urn:knx:dpa.425.60",
     ":dpt.value_power",
-    "Inverter Output"}
+    "Inverter Output to CEM"}
 };
 
 void register_resources(void)
@@ -81,7 +52,13 @@ void register_resources(void)
 
   oc_resource_set_properties(power_dc_resource_inverter_out, OC_OBSERVABLE + OC_DISCOVERABLE);
 
-  oc_resource_set_request_handler(power_dc_resource_inverter_out, OC_GET, get_inverter, NULL, OC_ACL_I | OC_ACL_D, OC_IF_I);
+  /* Inverter defines
+       GET**
+       Interface type if.d is set in addition, the point can also be used as parameter point (in add. to s-mode).
+
+       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
+  */
+  oc_resource_set_request_handler(power_dc_resource_inverter_out, OC_GET, get_inverter, NULL, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
   
   oc_add_resource(power_dc_resource_inverter_out);  
 }

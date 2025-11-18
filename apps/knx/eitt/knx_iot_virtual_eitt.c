@@ -47,7 +47,7 @@ const uint32_t mid = 667;                     // same as eitt test template
  417 (LSAB) and 421 (LSBB) EITT test template defaults.
 
  Set instance to 1, even if there are no more instances for the specific FB;
- for EITT test 5.7.2.1 with default template test value 00417_01
+ for EITT test 5.7.2.1/ 5.3.20 with default template test value 00417_01
 
  Details see on 'lsxb_channel_t' definition.
  
@@ -56,10 +56,10 @@ const uint32_t mid = 667;                     // same as eitt test template
 // LSAB/LSSB channel 0..1 + included EPs switch control/status
 
 lsxb_channel_t lsxb[NUM_CHANNELS] = {
-  {417,0, 2,{
+  {417,1, 2,{
     {false, "/p/1", "urn:knx:dpa.417.61", ":dpt.switch", (0 << 8) + 0}, 
     {false, "/p/2", "urn:knx:dpa.417.62", ":dpt.switch", (0 << 8) + 1}}},
-  {421, 0, 2,{
+  {421, 1, 2,{
     {false, "/p/3", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},
     {false, "/p/4", "urn:knx:dpa.421.62", ":dpt.switch", (1 << 8) + 1}}},
 };
@@ -109,25 +109,27 @@ void register_resources(void)
     void* soo_user_data_lssb = (void*)(uintptr_t)lsxb[LSSB].point[SOO].id;
     void* ioo_user_data_lssb = (void*)(uintptr_t)lsxb[LSSB].point[IOO].id;
 
-    // LSAB defines
-    // soo
-    // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
-    // - PUT
-    // ioo
-    // - GET
-    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, get_lsxb, soo_user_data_lsab, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
-    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, put_lsab, soo_user_data_lsab, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
-    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, get_lsxb, ioo_user_data_lsab, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
+    /* LSAB defines
+       soo, GET**, PUT
+       ioo, GET**
+       No interface type if.p/if.d is set in addition, the points are only used for s-mode runtime communication.
 
-    // LSSB defines
-    // soo
-    // - GET
-    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, get_lsxb, soo_user_data_lssb, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
-    // ioo
-    // - GET note that a GET also handles the query metadata request, regardless if it is an 'input'
-    // - PUT 
-    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, get_lsxb, ioo_user_data_lssb, OC_ACL_I | OC_ACL_D, OC_IF_I | OC_IF_D);
-    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, put_lssb, ioo_user_data_lssb, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
+       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
+    */
+    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, get_lsxb, soo_user_data_lsab, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, put_lsab, soo_user_data_lsab, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, get_lsxb, ioo_user_data_lsab, OC_ACL_O , OC_IF_O);
+
+    /* LSSB defines
+       soo, GET**
+       ioo, GET**, PUT
+       No interface type if.p/if.d is set in addition, the points are only used for s-mode runtime communication.
+
+       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
+    */
+    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, get_lsxb, soo_user_data_lssb, OC_ACL_O , OC_IF_O);
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, get_lsxb, ioo_user_data_lssb, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, put_lssb, ioo_user_data_lssb, OC_ACL_I , OC_IF_I);
 
     oc_add_resource(soo_resource_lsab);
     oc_add_resource(ioo_resource_lsab);

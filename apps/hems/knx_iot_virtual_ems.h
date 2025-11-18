@@ -66,15 +66,15 @@ extern "C"
   void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
   // ems local functions, 
-  void cem_process_inverter_input(void);
+  void cem_process_charger_output(void);
 
   cem_mode_t retrieve_cem_mode(void);
   void set_cem_mode(cem_mode_t mode);
 
-  int get_cem_inverter_value(void);
-  int get_cem_charger_value(void);
+  float get_cem_inverter_value(void);
+  float get_cem_charger_value(void);
   void set_inverter_value(float value);
-  int get_charger_value(void);
+  float get_charger_value(void);
 
   char* app_retrieve_href_from_charger(void);
   char* app_retrieve_href_from_inverter(void);
