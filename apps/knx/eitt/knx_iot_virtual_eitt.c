@@ -34,12 +34,12 @@
  * device lifetime or are predefined in the KNX IoT specification.
  *
  */
-const char application_name[] = "KNX virtual EITT certification application";
-const char sn_lower_case[] = "00fa10020800";  // same as eitt test template, deliberated incorrect serial number
-const char hostname[] = "knx-00fa10020800";   // default host name (reset uses this default)
-const char hw_type[] = "Windows";             // 12 string chars, same as eitt test template
-const char dev_model[] = "KNX Certification"; // same as eitt test template
-const uint32_t mid = 667;                     // same as eitt test template
+const char application_name[] KNX_TOOL_WEAK = "KNX virtual EITT certification application";
+const char sn_lower_case[] KNX_TOOL_WEAK = "00fa10020800";  // same as eitt test template, deliberated incorrect serial number
+const char hostname[] KNX_TOOL_WEAK = "knx-00fa10020800";   // default host name (reset uses this default)
+const char hw_type[] KNX_TOOL_WEAK = "Windows";             // 12 string chars, same as eitt test template
+const char dev_model[] KNX_TOOL_WEAK = "KNX Certification"; // same as eitt test template
+const uint32_t mid KNX_TOOL_WEAK = 667;                     // same as eitt test template
 
 /*
 

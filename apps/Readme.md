@@ -21,6 +21,54 @@ interaction buttons. The code is defined in *.c and *.cpp files.
   'application' library. It hosts only for the application demos commonly used functionality in 
   one place.
 
+## Usage as Application Common Layer
+
+An alternative integration example for the basic KNX IoT demos such as LSAB and LSSB can use the following
+application specific files from the apps structure:
+
+### Light Switch Actuator Basic (LSAB)
+
+- **`knx/lsab/knx_iot_virtual_lsab.c`** - Core LSAB functionality and KNX IoT data definitions
+- **`knx/lsab/knx_iot_virtual_lsab.cpp`** - GUI demo application for LSAB
+
+### Light Switch Sensor Basic (LSSB)
+
+- **`knx/lssb/knx_iot_virtual_lssb.c`** - Core LSSB functionality and KNX IoT data definitions
+- **`knx/lssb/knx_iot_virtual_lssb.cpp`** - GUI demo application for LSSB
+
+## Common KNX IoT Files
+
+- **`knx/knx_iot_virtual_knx.c`** - PUT/GET method implementations
+- **`knx/knx_iot_virtual_knx.h`** - Header definitions for KNX methods
+  - Used by LSAB, LSSB, and EITT applications
+  - Contains common KNX IoT Point API method definitions
+
+## Shared Virtual Demo Files
+
+- **`knx_iot_virtual.c`** - Shared C functions for KNX IoT virtual demo applications
+- **`knx_iot_virtual.cpp`** - Shared C++ functions for KNX IoT virtual demo applications
+- **`knx_iot_virtual.h`** - Header definitions for shared KNX IoT virtual demo functionality
+
+User applications can leverage these files as a **KNX IoT Point API application common layer**, as demonstrated in the `knx_iot_application_template` file.
+
+### Example of Integration Pattern
+
+```text
+User Application
+├── Application-specific logic (.c/.cpp)
+├── knx_iot_virtual_lsxb (LSAB/LSSB specific declaration of resources)
+├── knx_iot_virtual_knx.c/h (KNX IoT PUT/GET method definitions)
+├── knx_iot_virtual.c/h (Shared demo functions)
+└── KNX IoT Point API Stack (Core)
+```
+
+This layered approach allows developers to:
+
+1. Reuse common KNX IoT functionality
+2. Build upon proven LSAB/LSSB implementations
+3. Leverage shared KNX IoT virtual demo application functions
+4. Focus on application-specific logic
+
 ## Folder '/hems'
 The Energy Management System (EMS) [samples](apps/hems/Readme.md) are used to play with the stack and 
 KNX based EMS applications (Inverter, Charger, Customer Energy Manager).	

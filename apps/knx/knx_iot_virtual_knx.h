@@ -41,6 +41,9 @@
  for functional block details see Functional Block Notes in 'knx_iot_virtual.h'
 */
 
+// Application callback for channel
+typedef void (*app_channel_callback_t)(uint16_t channel, uint16_t point);
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -86,6 +89,14 @@ extern "C"
    */
   bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point);
 
+
+  /**
+   * @brief Sets application callbacks for handling put request for LSAB and LSSB
+   *
+   * @param lsabCb the callback for LSAB put request
+   * @param lssbCb the callback for LSSB put request
+   */
+  void app_register_put_callback(app_channel_callback_t lsabCb, app_channel_callback_t lssbCb);
 
 #ifdef __cplusplus
 }
