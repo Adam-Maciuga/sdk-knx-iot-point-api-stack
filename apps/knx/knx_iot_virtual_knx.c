@@ -28,6 +28,9 @@
 extern lsxb_channel_t lsxb[];
 extern int_datapoint_t test_parameter;
 
+static app_channel_callback_t app_channel_lsab_cb = NULL;
+static app_channel_callback_t app_channel_lssb_cb = NULL;
+
 // generic GET for LSSB/LSAB/EITT applications for SOO and IOO
 void get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -214,6 +217,13 @@ void put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
       // see 'Callback Notes'
       lsxb[channel].point[point].value = rep->value.boolean;
+
+      // Call the application-defined callback if set
+      if (app_channel_lsab_cb)
+      {
+        app_channel_lsab_cb(channel, point);
+      }
+
       error_state = false;
 
       PRINT("set LSAB to %d", rep->value.boolean);
@@ -288,6 +298,13 @@ void put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_
 
       // see 'Callback Notes'
       lsxb[channel].point[point].value = rep->value.boolean;
+
+      // Call the application-defined callback if set
+      if (app_channel_lssb_cb)
+      {
+        app_channel_lssb_cb(channel, point);
+      }
+
       error_state = false;
 
       PRINT("set LSSB to %d", rep->value.boolean);
@@ -513,4 +530,9 @@ void app_set_bool_variable_from_channel(uint8_t channel, uint8_t point, bool val
 bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point)
 {
   return lsxb[channel].point[point].value;
+}
+
+void app_register_put_callback(app_channel_callback_t lsabCb, app_channel_callback_t lssbCb) {
+    app_channel_lsab_cb = lsabCb;
+    app_channel_lssb_cb = lssbCb;
 }

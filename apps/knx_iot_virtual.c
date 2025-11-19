@@ -232,7 +232,7 @@ int app_init(void)
  * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
  * so we don't need to wake up a blocking loop.
  */
-void signal_event_loop(void)
+KNX_TOOL_WEAK void signal_event_loop(void)
 {
   // DO NOTHING, wxTimer drives oc_main_poll()
 }

@@ -254,6 +254,16 @@ typedef struct
 #define GetCurrentDir getcwd                   // path of current working directory, linux, mac
 #endif
 
+
+/* Definition of weak symbol for cross-platform compatibility */
+//NOTE: on Windows with MSVC the weak symbol is not supported for functions, hence we define an empty macro for now
+//TODO: find a better way to handle weak symbols cross platform
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+#define KNX_TOOL_WEAK
+#elif defined(__GNUC__)
+#define KNX_TOOL_WEAK __attribute__((weak))
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
