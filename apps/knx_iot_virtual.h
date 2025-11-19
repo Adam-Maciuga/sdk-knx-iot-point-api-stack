@@ -155,7 +155,8 @@ typedef enum
   no_error = 0,         // no error 
   error = 1,            // handler error occurred
   get = 2,              // was a get 
-  put = 4               // was a put
+  put = 4,              // was a put
+  new_event = 8         // new event occured, should be reset if event was processed
 
 } app_handler_flags_t;
 
@@ -278,7 +279,7 @@ extern "C"
   /**
    * @brief initialize the stack
    *
-   * @param storage_folder_name the folder name
+   * @param storage_folder_name the folder name, max 64 chars, more chars are cut
    *
    * @note the folder name will be appended by the device serial number,
    *       the folder as such is used to save the device configuration data,

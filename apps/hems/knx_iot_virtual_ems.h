@@ -37,6 +37,7 @@ typedef enum cem_mode_t
 
 #define CEM_INVERTER (0)
 #define CEM_CHARGER (1)
+#define CEM_INVERTER_TRESHOLD (3990) // float compare is tricky, so make it easy
 
 
 /*
@@ -65,27 +66,41 @@ extern "C"
   void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
-  // ems local functions, 
-  void cem_process_charger_output(void);
+  // ems local functions
 
-  cem_mode_t retrieve_cem_mode(void);
+  // cem
+  cem_mode_t get_cem_mode(void);
   void set_cem_mode(cem_mode_t mode);
 
   float get_cem_inverter_value(void);
   float get_cem_charger_value(void);
-  void set_inverter_value(float value);
-  float get_charger_value(void);
-
-  char* app_retrieve_href_from_charger(void);
-  char* app_retrieve_href_from_inverter(void);
-  char* app_retrieve_href_from_cem_inverter(void);
-  char* app_retrieve_href_from_cem_charger(void);
-
-  uint8_t charger_flags(void);
-  uint8_t inverter_flags(void);
+  void set_cem_charger_value(float value);
 
   uint8_t cem_charger_flags(void);
   uint8_t cem_inverter_flags(void);
+
+  void clear_cem_charger_flags(uint8_t flags);
+  void clear_cem_inverter_flags(uint8_t flags);
+
+  char* app_retrieve_href_from_cem_inverter(void);
+  char* app_retrieve_href_from_cem_charger(void);
+
+  // inverter
+  void set_inverter_value(float value);
+
+  uint8_t inverter_flags(void);
+  void clear_inverter_flags(uint8_t flags);
+  
+  char* app_retrieve_href_from_inverter(void);
+  
+
+  // charger
+  float get_charger_value(void);
+
+  uint8_t charger_flags(void);
+  void clear_charger_flags(uint8_t flags);
+
+  char* app_retrieve_href_from_charger(void);
 
 #ifdef __cplusplus
 }

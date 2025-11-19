@@ -248,17 +248,12 @@ int app_initialize_stack(const char* storage_folder_name)
     For a specific embedded OS usually this functionality needs to be adapted.
   */
 
-  char storage[64];
-  
+  // current directory, storage = './' + folder name + '_' + serial number + '\0'
+  char storage[2 + 64 + 1 + SERIAL_NUM_SIZE + 1];
 
   #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
 
-  // current directory, folder name appended with serial number
-  char folder[64] = "./";
-  strcat(folder, storage_folder_name);
-  strcat(folder, "_%s");
-
-  (void)snprintf(storage, sizeof(storage), folder, sn_lower_case);
+  (void)snprintf(storage, sizeof(storage), "./%s_%s", storage_folder_name, sn_lower_case);
 
   #ifdef OC_DEBUG
 

@@ -59,12 +59,12 @@ static CRITICAL_SECTION critical_section;
 #endif
 
 // application template definitions
-const char application_name[] = "KNX virtual template application";
-const char sn_lower_case[] = "00fa10020600"; // deliberated incorrect serial numbers
-const char hostname[] = "knx-00fa10020600"; // default host name (reset uses this default)
-const char hw_type[] = "000102030405"; // 12 string chars, MSB = 00
-const char dev_model[] = "6800"; // reuse mask version from iot device
-const uint32_t mid = 0x00fa; // first 4 digits of sn_lower_case
+const char application_name[] KNX_TOOL_WEAK = "KNX virtual template application";
+const char sn_lower_case[] KNX_TOOL_WEAK = "00fa10020600";  // deliberated incorrect serial numbers
+const char hostname[] KNX_TOOL_WEAK = "knx-00fa10020600";   // default host name (reset uses this default)
+const char hw_type[] KNX_TOOL_WEAK = "000102030405";        // 12 string chars, MSB = 00
+const char dev_model[] KNX_TOOL_WEAK = "6800";              // reuse mask version from iot device
+const uint32_t mid KNX_TOOL_WEAK = 0x00fa;                  // first 4 digits of sn_lower_case
 
 // global variables
 

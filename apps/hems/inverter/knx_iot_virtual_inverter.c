@@ -70,6 +70,7 @@ void set_inverter_value(float value) { inverter.point.value = value; }
 char* app_retrieve_href_from_inverter(void) { return inverter.point.resource_path; }
 
 uint8_t inverter_flags(void) { return inverter.point.flags; }
+void clear_inverter_flags(uint8_t flags) { UNSET_BIT(inverter.point.flags, flags); }
 
 // inverter has GET (is output)
 void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
@@ -201,12 +202,12 @@ void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* u
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
   {
-    inverter.point.flags = error + get;
+    inverter.point.flags = error + get + new_event;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
   else
   {
-    inverter.point.flags = no_error + get;
+    inverter.point.flags = no_error + get + new_event;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
   }
 

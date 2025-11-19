@@ -75,6 +75,8 @@ char* app_retrieve_href_from_charger(void) { return charger.point.resource_path;
 
 uint8_t charger_flags(void) { return charger.point.flags; }
 
+void clear_charger_flags(uint8_t flags) { UNSET_BIT(charger.point.flags, flags); }
+
 // charger has GET + PUT (is input)
 void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -205,12 +207,12 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
   {
-    charger.point.flags = error + get;
+    charger.point.flags = error + get + new_event;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
   else
   {
-    charger.point.flags = no_error + get;
+    charger.point.flags = no_error + get + new_event;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
   }
 
@@ -264,12 +266,12 @@ void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
   // correct data retrieved
   if (error_state)
   {
-    charger.point.flags = error + put;
+    charger.point.flags = error + put + new_event;
     status = OC_STATUS_BAD_REQUEST;
   }
   else
   {
-    charger.point.flags = no_error + put;
+    charger.point.flags = no_error + put + new_event;
     status = OC_STATUS_CHANGED;
   }
 

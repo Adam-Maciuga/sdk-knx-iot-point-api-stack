@@ -20,21 +20,16 @@
 
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
-
 #include <wx/scrolbar.h>
 #include <wx/wxprec.h>
 #include <wx/wx.h>
-
 #include "wx/config.h" // for native wxConfig
 #include "wx/dnd.h" // drag and drop for the playlist
-#include "wx/filedlg.h" // for opening files from OpenFile
 #include "wx/filename.h" // For wxFileName::GetName()
 #include "wx/listctrl.h" // for wxListCtrl
 #include "wx/mediactrl.h" // for wxMediaCtrl
-#include "wx/notebook.h" // for wxNotebook and putting movies in pages
 #include "wx/sizer.h" // for positioning controls/wxBoxSizer
 #include "wx/slider.h" // for a slider for seeking within media
-#include "wx/textdlg.h" // for getting user text from OpenURL/Debug
 #include "wx/timer.h" // timer for updating status bar
 #include "wx/vector.h"
 #include <wx/stdpaths.h>
@@ -69,21 +64,21 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
     wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {  
   this->SetSize(wxSize(size_x + 30, size_y));
-  
-  wxPanel* panel = new wxPanel(this, -1);
 
-  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
+  auto panel = new wxPanel(this, -1);
 
-  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+  auto vbox = new wxBoxSizer(wxVERTICAL);
+  auto hbox = new wxBoxSizer(wxHORIZONTAL);
 
-  wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
+  auto tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+
+  auto closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
 
   oc_device_info_t* device = oc_core_get_device_info();
-  char* sn = oc_string(device->serialnumber);
+  auto sn = oc_string(device->serialnumber);
 
-  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
+  auto copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
   copyButton->Bind(wxEVT_BUTTON,
                    [this, sn](wxCommandEvent&)
                    {
@@ -128,7 +123,7 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
 
-  void ProcessUpdateFromSlider(wxCommandEvent& event);
+  void ProcessSliderUpdate(wxCommandEvent& event);
   void updateDeviceData();
 
   wxMenu* m_menuFile;
@@ -147,9 +142,9 @@ bool MyApp::OnInit()
   // call in c-code
   app_initialize_stack("knx_iot_virtual_inverter");
 
-  wxInitAllImageHandlers();   
+  wxInitAllImageHandlers();
 
-  MyFrame* frame = new MyFrame();
+  auto frame = new MyFrame();
 
   frame->SetSize(350, 150);
   frame->Show(true);
@@ -180,12 +175,12 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   m_menuFile->Append(wxID_EXIT);
 
   // help menu
-  wxMenu* menuHelp = new wxMenu;
+  const auto menuHelp = new wxMenu;
   menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
   menuHelp->Append(wxID_ABOUT);
 
   // full menu bar
-  wxMenuBar* menuBar = new wxMenuBar;
+  const auto menuBar = new wxMenuBar;
   menuBar->Append(m_menuFile, "&File");
   menuBar->Append(menuHelp, "&Help");
   wxFrameBase::SetMenuBar(menuBar);
@@ -200,15 +195,17 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
   // box + slider for inverter
-  wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
-  wxStaticText* label = new wxStaticText(this, wxID_ANY, "Present DC Power (0..10 kW)");
+  const auto mainSizer = new wxBoxSizer(wxVERTICAL);
+
+  const auto label = new wxStaticText(this, wxID_ANY, "Present DC Power (0..10 kW)");
   mainSizer->Add(label, 0, wxALL, 5);
+
   inverter_slider = new wxSlider(this, wxID_SLIDER, 0, 0, 10, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
   mainSizer->Add(inverter_slider, 0, wxEXPAND | wxALL, 5);
   SetSizerAndFit(mainSizer);
 
   // slider events
-  inverter_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::ProcessUpdateFromSlider, this);
+  inverter_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::ProcessSliderUpdate, this);
   inverter_slider->Enable(true);
   inverter_slider->SetValue(0);
   
@@ -349,12 +346,12 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   this->updateDeviceData();
 }
 
-void MyFrame::ProcessUpdateFromSlider(wxCommandEvent& event)
+void MyFrame::ProcessSliderUpdate(wxCommandEvent& event)
 {
-  // get the slider value in W
+  // get the slider value in kW
   const float val = static_cast<float>(inverter_slider->GetValue());
 
-  // set value in kW
+  // set value in watt
   set_inverter_value(val * 1000);
 
   // get url

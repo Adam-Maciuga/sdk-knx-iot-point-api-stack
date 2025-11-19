@@ -94,45 +94,21 @@ void register_resources(void)
 
 // cem local functions 
 
-void cem_process_charger_output(void)
-{
-  const cem_mode_t mode = retrieve_cem_mode();
-  
-  float current_charger_power = 4; 
-
-  if (mode == sun_mode)
-  {
-    // in watt
-    if (get_cem_inverter_value() < 4000)
-    {
-      // SUN mode, pause charging
-      current_charger_power = 0;
-    }
-  }
-  else if (mode == mix_mode)
-  {
-    // MIX mode, continue charging with default 4 kW
-  }
-
-  // set charger output value
-  const char* url = app_retrieve_href_from_cem_charger();
-  cem.point[CEM_CHARGER].value = current_charger_power;
-
-  // send message
-  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
-}
-
-cem_mode_t retrieve_cem_mode(void) { return cem_mode; }
+cem_mode_t get_cem_mode(void) { return cem_mode; }
 void set_cem_mode(cem_mode_t mode) { cem_mode = mode; }
 
 float get_cem_inverter_value(void) { return cem.point[CEM_INVERTER].value; }
 float get_cem_charger_value(void) { return cem.point[CEM_CHARGER].value; }
+void set_cem_charger_value(float value) { cem.point[CEM_CHARGER].value = value; }
 
 char* app_retrieve_href_from_cem_inverter(void) { return cem.point[CEM_INVERTER].resource_path; }
 char* app_retrieve_href_from_cem_charger(void) { return cem.point[CEM_CHARGER].resource_path; }
 
 uint8_t cem_charger_flags(void) { return cem.point[CEM_CHARGER].flags; }
 uint8_t cem_inverter_flags(void) { return cem.point[CEM_INVERTER].flags; }
+
+void clear_cem_charger_flags(uint8_t flags) { UNSET_BIT(cem.point[CEM_CHARGER].flags, flags); }
+void clear_cem_inverter_flags(uint8_t flags) { UNSET_BIT(cem.point[CEM_INVERTER].flags, flags); }
 
 // cem inverter has GET + PUT (is input)
 void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
@@ -183,12 +159,12 @@ void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
   // correct data retrieved
   if (error_state)
   {
-    cem.point[CEM_INVERTER].flags = error + put;
+    cem.point[CEM_INVERTER].flags = error + put + new_event;
     status = OC_STATUS_BAD_REQUEST;
   }
   else
   {
-    cem.point[CEM_INVERTER].flags = no_error + put;
+    cem.point[CEM_INVERTER].flags = no_error + put + new_event;
     status = OC_STATUS_CHANGED;
   }
 
@@ -326,12 +302,12 @@ void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
   {
-    cem.point[CEM_INVERTER].flags = error + get;
+    cem.point[CEM_INVERTER].flags = error + get + new_event;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
   else
   {
-    cem.point[CEM_INVERTER].flags = no_error + get;
+    cem.point[CEM_INVERTER].flags = no_error + get + new_event;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
   }
 
@@ -468,12 +444,12 @@ void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
   {
-    cem.point[CEM_CHARGER].flags = error + get;
+    cem.point[CEM_CHARGER].flags = error + get + new_event;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
   else
   {
-    cem.point[CEM_CHARGER].flags = no_error + get;
+    cem.point[CEM_CHARGER].flags = no_error + get + new_event;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
   }
 

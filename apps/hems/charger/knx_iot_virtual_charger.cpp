@@ -24,25 +24,17 @@
 #include <wx/wxprec.h>
 #include <wx/wx.h>
 #include <wx/cmdline.h>
-#include <wx/scrolbar.h>
 #include "wx/config.h" // for native wxConfig
 #include "wx/dnd.h" // drag and drop for the playlist
-#include "wx/filedlg.h" // for opening files from OpenFile
 #include "wx/filename.h" // For wxFileName::GetName()
 #include "wx/listctrl.h" // for wxListCtrl
-#include "wx/mediactrl.h" // for wxMediaCtrl
-#include "wx/notebook.h" // for wxNotebook and putting movies in pages
 #include "wx/sizer.h" // for positioning controls/wxBoxSizer
-#include "wx/slider.h" // for a slider for seeking within media
-#include "wx/textdlg.h" // for getting user text from OpenURL/Debug
 #include "wx/timer.h" // timer for updating status bar
 #include "wx/vector.h"
-#include <wx/stdpaths.h>
 #include <wx/artprov.h>
 #include <wx/mstream.h>
 #include <wx/image.h>
 #include <wx/bitmap.h>
-
 #include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
@@ -50,7 +42,6 @@
 #include "port/dns-sd.h"
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "apps/hems/icons/charger_ico.h"
-
 #include <wx/clipbrd.h>
 
 
@@ -93,7 +84,7 @@ private:
   wxTimer m_timer;
   int offset = 0;
   int m_speed = 50; // milliseconds per frame
-  wxColour m_color = wxColour(0, 220, 0); // green
+  wxColour m_color = wxColour(0, 0, 255); // blue
 
   void OnTimer(wxTimerEvent&)
   {
@@ -134,21 +125,21 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
     wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {  
   this->SetSize(wxSize(size_x + 30, size_y));
-  
-  wxPanel* panel = new wxPanel(this, -1);
 
-  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
+  auto panel = new wxPanel(this, -1);
 
-  wxTextCtrl* tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+  auto vbox = new wxBoxSizer(wxVERTICAL);
+  auto hbox = new wxBoxSizer(wxHORIZONTAL);
 
-  wxButton* closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
+  auto tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
+
+  auto closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
 
   oc_device_info_t* device = oc_core_get_device_info();
-  char* sn = oc_string(device->serialnumber);
+  auto sn = oc_string(device->serialnumber);
 
-  wxButton* copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
+  auto copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
   copyButton->Bind(wxEVT_BUTTON,
                    [this, sn](wxCommandEvent&)
                    {
@@ -194,17 +185,16 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
  
-  void ProcessUpdateFromCem();
+  void ProcessCemUpdate();
   void updateDeviceData();
 
   wxMenu* m_menuFile;
   wxTimer m_timer;
 
-  float m_chargeRate = -1;
+  float m_chargeRate = 0;
 
   // non static device properties
   wxTextCtrl* m_charger_text; // text control for charger
-
   FlowAnimation* m_flow = nullptr;
 };
 
@@ -219,9 +209,9 @@ bool MyApp::OnInit()
   // call in c-code
   app_initialize_stack("knx_iot_virtual_charger");
 
-  wxInitAllImageHandlers(); 
+  wxInitAllImageHandlers();
 
-  MyFrame* frame = new MyFrame();
+  auto frame = new MyFrame();
 
   frame->SetSize(350, 150);
   frame->Show(true);
@@ -252,12 +242,12 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
   m_menuFile->Append(wxID_EXIT);
 
   // help menu
-  wxMenu* menuHelp = new wxMenu;
+  const auto menuHelp = new wxMenu;
   menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
   menuHelp->Append(wxID_ABOUT);
 
   // full menu bar
-  wxMenuBar* menuBar = new wxMenuBar;
+  const auto menuBar = new wxMenuBar;
   menuBar->Append(m_menuFile, "&File");
   menuBar->Append(menuHelp, "&Help");
   wxFrameBase::SetMenuBar(menuBar);
@@ -272,25 +262,25 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
   // charger flow
-  wxColor wxBackColor = this->GetBackgroundColour(); 
+  const auto v_box = new wxBoxSizer(wxVERTICAL);
 
-  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
-  wxBoxSizer* hbox1 = new wxBoxSizer(wxHORIZONTAL);
+  m_charger_text = new wxTextCtrl(this, LS_TEXT, "Present DC charging power = 0.00 kW", wxDefaultPosition, wxSize(100, 25), wxBORDER_NONE);
+  m_charger_text->SetBackgroundColour(this->GetBackgroundColour());
+  m_charger_text->SetEditable(false);
 
-  m_charger_text = new wxTextCtrl(this, LS_TEXT, "test", wxDefaultPosition, wxSize(100, 25), wxBORDER_NONE);
-  m_charger_text->SetBackgroundColour(wxBackColor);
+  const auto h_box1 = new wxBoxSizer(wxHORIZONTAL);
+  h_box1->Add(m_charger_text, 1, wxEXPAND); // stretches horizontally
 
-  hbox1->Add(m_charger_text, 1, wxEXPAND); // stretches horizontally
-    
-  wxBoxSizer* hbox2 = new wxBoxSizer(wxHORIZONTAL);
   m_flow = new FlowAnimation(this);
-  m_flow->SetColor(wxColour(0xff, 0, 0));
-  hbox2->Add(m_flow, 1, wxEXPAND); // stretches horizontally
-  
-  vbox->Add(hbox1, 0, wxEXPAND | wxALL, 10);
-  vbox->Add(hbox2, 0, wxEXPAND | wxALL, 10);
+  m_flow->SetColor(wxColour(0, 0, 255));
+  m_flow->Stop();
 
-  this->SetSizerAndFit(vbox);
+  const auto h_box2 = new wxBoxSizer(wxHORIZONTAL);
+  h_box2->Add(m_flow, 1, wxEXPAND); // stretches horizontally
+
+  v_box->Add(h_box1, 0, wxEXPAND | wxALL, 10);
+  v_box->Add(h_box2, 0, wxEXPAND | wxALL, 10);
+  this->SetSizerAndFit(v_box);
 
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
@@ -416,30 +406,26 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   (void)oc_main_poll();
 
   // data polling
-  ProcessUpdateFromCem();
+  this->ProcessCemUpdate();
 
   // update possible user events
   this->updateDeviceData();
 }
 
-void MyFrame::ProcessUpdateFromCem()
+void MyFrame::ProcessCemUpdate()
 {
-  // get charger value in kW
-  const float charge_rate = get_charger_value() / 1000;  
+  if (charger_flags() & new_event)
+  { 
+    // clear event
+    clear_charger_flags(new_event);
 
-  #define FLOAT_PRECISION (0.00001)
+    // get charger value in watt
+    m_chargeRate = get_charger_value();
 
-  // simple (incomplete) float compare to identify a value change  
-  const bool is_different = 
-    charge_rate < m_chargeRate || 
-    charge_rate > m_chargeRate; 
+    #define FLOAT_PRECISION (0.00001)
 
-  if (is_different)
-  {
-    m_chargeRate = charge_rate;
-
-    // close to '0' -> stop
-    if (charge_rate < FLOAT_PRECISION)
+    // close to '0' -> stop, any other value would be 'charging', also '2000' 
+    if (m_chargeRate < FLOAT_PRECISION)
       m_flow->Stop();
     else
       m_flow->Start();
@@ -447,7 +433,7 @@ void MyFrame::ProcessUpdateFromCem()
     // show in bar
     char barText[100];
 
-    (void)sprintf(barText, "Present DC charging powers = %.02f kW", charge_rate);
+    (void)sprintf(barText, "Present DC charging power = %.02f kW", m_chargeRate / 1000);
     m_charger_text->SetValue(barText);
   }
 }
