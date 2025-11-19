@@ -81,6 +81,11 @@ extern "C"
   char* app_retrieve_href_from_cem_inverter(void);
   char* app_retrieve_href_from_cem_charger(void);
 
+  uint8_t charger_flags(void);
+  uint8_t inverter_flags(void);
+
+  uint8_t cem_charger_flags(void);
+  uint8_t cem_inverter_flags(void);
 
 #ifdef __cplusplus
 }

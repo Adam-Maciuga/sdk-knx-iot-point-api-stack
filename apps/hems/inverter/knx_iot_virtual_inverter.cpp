@@ -133,7 +133,7 @@ private:
 
   wxMenu* m_menuFile;
   wxTimer m_timer;
-  wxSlider* m_PV_slider;
+  wxSlider* inverter_slider;
 };
 
 #ifdef USE_CONSOLE
@@ -199,19 +199,19 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
-  // inverter slider
+  // box + slider for inverter
   wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
   wxStaticText* label = new wxStaticText(this, wxID_ANY, "Present DC Power (0..10 kW)");
   mainSizer->Add(label, 0, wxALL, 5);
-  m_PV_slider = new wxSlider(this, wxID_SLIDER, 0, 0, 10, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
-  mainSizer->Add(m_PV_slider, 0, wxEXPAND | wxALL, 5);
+  inverter_slider = new wxSlider(this, wxID_SLIDER, 0, 0, 10, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
+  mainSizer->Add(inverter_slider, 0, wxEXPAND | wxALL, 5);
   SetSizerAndFit(mainSizer);
 
   // slider events
-  m_PV_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::ProcessUpdateFromSlider, this);
-  m_PV_slider->Enable(true);
-  m_PV_slider->SetValue(0);
-
+  inverter_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::ProcessUpdateFromSlider, this);
+  inverter_slider->Enable(true);
+  inverter_slider->SetValue(0);
+  
   // start the 1ms interval timer for UI updates and stack polls
   m_timer.Bind(wxEVT_TIMER, &MyFrame::OnTimer, this);
   m_timer.Start(1, wxTIMER_CONTINUOUS);
@@ -352,7 +352,7 @@ void MyFrame::OnTimer(wxTimerEvent& event)
 void MyFrame::ProcessUpdateFromSlider(wxCommandEvent& event)
 {
   // get the slider value in W
-  const float val = static_cast<float>(m_PV_slider->GetValue());
+  const float val = static_cast<float>(inverter_slider->GetValue());
 
   // set value in kW
   set_inverter_value(val * 1000);

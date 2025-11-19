@@ -194,7 +194,7 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
  
-  void ProcessUpdateFromBus();
+  void ProcessUpdateFromCem();
   void updateDeviceData();
 
   wxMenu* m_menuFile;
@@ -277,7 +277,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
   wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
   wxBoxSizer* hbox1 = new wxBoxSizer(wxHORIZONTAL);
 
-  m_charger_text = new wxTextCtrl(this, LS_TEXT, "", wxDefaultPosition, wxSize(100, 25), wxBORDER_NONE);
+  m_charger_text = new wxTextCtrl(this, LS_TEXT, "test", wxDefaultPosition, wxSize(100, 25), wxBORDER_NONE);
   m_charger_text->SetBackgroundColour(wxBackColor);
 
   hbox1->Add(m_charger_text, 1, wxEXPAND); // stretches horizontally
@@ -415,14 +415,14 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   // stack polling 
   (void)oc_main_poll();
 
-  // update possible system events
-  this->ProcessUpdateFromBus();
+  // data polling
+  ProcessUpdateFromCem();
 
   // update possible user events
   this->updateDeviceData();
 }
 
-void MyFrame::ProcessUpdateFromBus()
+void MyFrame::ProcessUpdateFromCem()
 {
   // get charger value in kW
   const float charge_rate = get_charger_value() / 1000;  
@@ -447,7 +447,7 @@ void MyFrame::ProcessUpdateFromBus()
     // show in bar
     char barText[100];
 
-    (void)sprintf(barText, "Present DC charging power = %.02f kW", charge_rate);
+    (void)sprintf(barText, "Present DC charging powers = %.02f kW", charge_rate);
     m_charger_text->SetValue(barText);
   }
 }

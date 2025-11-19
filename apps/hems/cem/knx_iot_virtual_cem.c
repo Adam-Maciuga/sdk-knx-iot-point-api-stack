@@ -33,6 +33,10 @@ const uint32_t mid = 0x00fa;                  // first 4 digits of sn_lower_case
 
 cem_mode_t cem_mode = sun_mode;
 
+bool cem_inverter_put_called = false; // binary (toggle) marker to tell parent c++ code an action
+bool cem_inverter_get_called = false; // binary (toggle) marker to tell parent c++ code an action
+bool cem_charger_put_called = false; // binary (toggle) marker to tell parent c++ code an action
+
 float_array_functional_block_t cem = {
   427,
   1,
@@ -42,12 +46,14 @@ float_array_functional_block_t cem = {
       "/p/inverter",
       "urn:knx:dpa.427.60",
       ":dpt.value_power",
-    "CEM Input from Inverter"},
+      "CEM Input from Inverter",
+      no_error},
     {0, /* IEEE 754 single float, KNX DPT: 14.056 */
      "/p/charger",
      "urn:knx:dpa.427.52",
      ":dpt.value_power",
-     "CEM Output to Charger"}
+     "CEM Output to Charger",
+     no_error}
   }
 };
 
@@ -125,7 +131,10 @@ float get_cem_charger_value(void) { return cem.point[CEM_CHARGER].value; }
 char* app_retrieve_href_from_cem_inverter(void) { return cem.point[CEM_INVERTER].resource_path; }
 char* app_retrieve_href_from_cem_charger(void) { return cem.point[CEM_CHARGER].resource_path; }
 
-// cem inverter has GET + PUT (has input)
+uint8_t cem_charger_flags(void) { return cem.point[CEM_CHARGER].flags; }
+uint8_t cem_inverter_flags(void) { return cem.point[CEM_INVERTER].flags; }
+
+// cem inverter has GET + PUT (is input)
 void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   bool error_state = true;
@@ -169,22 +178,22 @@ void put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
     rep = rep->next;
   }
 
+  oc_status_t status;
+
   // correct data retrieved
-  if (!error_state)
+  if (error_state)
   {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
-
-    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
-
-    // here called only on a value change
-    cem_process_charger_output();
-
-    return;
+    cem.point[CEM_INVERTER].flags = error + put;
+    status = OC_STATUS_BAD_REQUEST;
+  }
+  else
+  {
+    cem.point[CEM_INVERTER].flags = no_error + put;
+    status = OC_STATUS_CHANGED;
   }
 
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+  // inform the stack on status
+  oc_prepare_no_format_response_no_payload(request, status);
 
   PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }
@@ -316,14 +325,20 @@ void get_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, voi
 
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
+  {
+    cem.point[CEM_INVERTER].flags = error + get;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  }
   else
+  {
+    cem.point[CEM_INVERTER].flags = no_error + get;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
+  }
 
   PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }
 
-// cem charger has GET (has only output)
+// cem charger has GET (is output)
 void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
@@ -452,9 +467,15 @@ void get_cem_charger(oc_request_t* request, oc_interface_mask_t interfaces, void
 
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
+  {
+    cem.point[CEM_CHARGER].flags = error + get;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  }
   else
+  {
+    cem.point[CEM_CHARGER].flags = no_error + get;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
+  }
 
   PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }

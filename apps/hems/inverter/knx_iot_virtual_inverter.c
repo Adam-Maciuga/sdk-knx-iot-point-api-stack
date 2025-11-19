@@ -37,7 +37,8 @@ float_functional_block_t inverter = {
     "/p/inverter",
     "urn:knx:dpa.425.60",
     ":dpt.value_power",
-    "Inverter Output to CEM"}
+    "Inverter Output to CEM",
+    no_error}
 };
 
 void register_resources(void)
@@ -68,7 +69,9 @@ void set_inverter_value(float value) { inverter.point.value = value; }
 
 char* app_retrieve_href_from_inverter(void) { return inverter.point.resource_path; }
 
-// inverter has GET (has only output)
+uint8_t inverter_flags(void) { return inverter.point.flags; }
+
+// inverter has GET (is output)
 void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
@@ -197,9 +200,15 @@ void get_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* u
 
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
+  {
+    inverter.point.flags = error + get;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  }
   else
+  {
+    inverter.point.flags = no_error + get;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
+  }
 
   PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }

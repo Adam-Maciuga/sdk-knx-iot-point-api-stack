@@ -38,7 +38,8 @@ float_functional_block_t charger =
     "/p/charger",
     "urn:knx:dpa.426.52",
     ":dpt.value_power", 
-    "Charger Input from CEM"
+    "Charger Input from CEM",
+    no_error
   }
 };
 
@@ -72,7 +73,9 @@ float get_charger_value(void) { return charger.point.value; }
 
 char* app_retrieve_href_from_charger(void) { return charger.point.resource_path; }
 
-// charger has GET + PUT (has input)
+uint8_t charger_flags(void) { return charger.point.flags; }
+
+// charger has GET + PUT (is input)
 void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
   (void)interfaces;
@@ -201,9 +204,15 @@ void get_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
 
   // wrong device, cbor error or unknown 'm' query parameter key values
   if (error_state)
+  {
+    charger.point.flags = error + get;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  }
   else
+  {
+    charger.point.flags = no_error + get;
     oc_prepare_cbor_response(request, OC_STATUS_OK);
+  }
 
   PRINT("-- End GET at %s ", oc_string(request->resource->uri));
 }
@@ -250,17 +259,22 @@ void put_charger(oc_request_t* request, oc_interface_mask_t interfaces, void* us
     rep = rep->next;
   }
 
-  // correct data retrieved
-  if (!error_state)
-  {
-    // inform the stack on status
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+  oc_status_t status;
 
-    PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
-    return;
+  // correct data retrieved
+  if (error_state)
+  {
+    charger.point.flags = error + put;
+    status = OC_STATUS_BAD_REQUEST;
+  }
+  else
+  {
+    charger.point.flags = no_error + put;
+    status = OC_STATUS_CHANGED;
   }
 
-  // bad request status
-  oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+  // inform the stack on status
+  oc_prepare_no_format_response_no_payload(request, status);
+
   PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
 }

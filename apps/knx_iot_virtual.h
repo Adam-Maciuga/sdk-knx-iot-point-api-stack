@@ -122,7 +122,7 @@
 /*
  Datapoint definitions are used to register/create a datapoint resource in the application. 
  Either the href/description/... data consumes the space in a static structure definition as below,
- or they are hard coded when you register them, so no space difference but better structured.
+ or they are hard coded when you register them, so no space difference, but better structured.
 
   - value types must respect the bit size definition of a MaC (ETS) product, e.g.; 32-bit int or bool
 
@@ -135,11 +135,29 @@
 
   - the resource (DPT) type
   
-  - the 'id' is optional, if included as part of a point it can be used for an n-fold channel oriented application
+  - the 'id' is optional and can be removed if not needed (to reduce resource consumption),
+    if included as part of a point it can be used for an n-fold channel oriented application
     to define a generic PUT/GET handler for all channels. The addressed channel and datapoint can be identified
     from the generic handler, e.g. by setting the value to ch# << 8 + point# (see application handler examples).
 
+  - the 'flags' is optional and can be removed if not needed (to reduce resource consumption),
+    if included as part of a point it can be used to inform an upper layer (such as a c++ GUI application
+    on caller actions errors)   
+
 */
+
+/**
+ * @brief handler flags (bit map), 
+ * these flags are used to determine what to do on application level
+ */
+typedef enum
+{
+  no_error = 0,         // no error 
+  error = 1,            // handler error occurred
+  get = 2,              // was a get 
+  put = 4               // was a put
+
+} app_handler_flags_t;
 
 typedef struct
 {
@@ -166,6 +184,7 @@ typedef struct
   char* dpa;
   char* dpt;
   char* name;
+  volatile uint8_t flags;
 } float_datapoint_t;
 
 // Functional Block Notes
@@ -198,7 +217,6 @@ typedef struct
   uint16_t fb_number;
   uint8_t fb_instance;
   uint8_t fb_number_of_datapoints;
-
   int_datapoint_t point;
 } int_functional_block_t; // see Functional Block Notes
 
@@ -207,7 +225,6 @@ typedef struct
   uint16_t fb_number;
   uint8_t fb_instance;
   uint8_t fb_number_of_datapoints;
-
   float_datapoint_t point;
 } float_functional_block_t; // see Functional Block Notes
 
@@ -216,7 +233,6 @@ typedef struct
   uint16_t fb_number;
   uint8_t fb_instance;
   uint8_t fb_number_of_datapoints;
-
   float_datapoint_t point[NUM_CEM_POINTS];
 } float_array_functional_block_t; // see Functional Block Notes
 
