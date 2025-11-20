@@ -278,7 +278,17 @@ extern "C"
 
   /**
    * @brief Function to set up the device on stack startup.
-   *        It is called at the end of 'app_initialize_stack'
+   *        - sn, application name, hwv, hwt, device model -> permanent
+   *        - fwv, application version, host name -> volatile, may be changed by MaC configuration
+   *
+   * @note
+   * - It initializes data with permanent values,
+   *   but also data with their (volatile) default values that may be changed or where
+   *   already changed at runtime (see above).
+     - It is called at the end of 'app_initialize_stack', before reading device storage data.
+       Hence, written default values on 'init' may be overwritten (again) with storage values
+       such as the storage host name (if present on storage, then this would be correct).
+        
    */
   int app_init(void);
 
@@ -497,6 +507,13 @@ enum controls : uint16_t
 // C++ only functions (using wxString)
 
 // Utility functions for dumping tables (implemented in knx_iot_virtual.cpp)
+
+/**
+ * @brief Dump QR Code information
+ *
+ * @return wxString containing formatted QR Code
+ */
+wxString util_dumpQRCode();
 
 /**
  * @brief Dump device identification information

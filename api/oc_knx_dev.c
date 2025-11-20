@@ -1192,10 +1192,17 @@ void oc_knx_load_device(void)
   device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*)&pm, sizeof(pm)) > 0 ? pm : false;
   PRINT("pm (storage) %d", pm);
 
-  // read host name from storage (on error = empty string "" else '0' terminated oc_string)
-  char hostname[128] = "";
-  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hostname, 128);
-  oc_core_set_device_hostname(hostname);
+  /*
+      set default host name to device serial number and leading
+      'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
+      header defined by specification
+   */
+  char hname[HNAME_SIZE];
+  (void)snprintf(hname, HNAME_SIZE, "knx-%s", oc_string(device->serialnumber));
+
+  // read host name from storage (on error = default host name, otherwise stored host name)
+  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, 128);
+  oc_core_set_device_hostname(hname);
   PRINT("hostname (storage) %s", oc_string(device->iot_hostname));
 
   // read major/minor/patch version from storage (on error = '0.0.0')
@@ -1240,12 +1247,12 @@ void oc_knx_device_storage_reset(int reset_mode)
 
     /*
       set default host name to device serial number and leading
-      'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
-    */
-
-    char hostname[20] = "knx-";
-    strcat(hostname, oc_string(device->serialnumber));
-    oc_core_set_device_hostname(hostname);
+      'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
+      header defined by specification
+   */
+    char hname[HNAME_SIZE];
+    (void)snprintf(hname, HNAME_SIZE, "knx-%s", oc_string(device->serialnumber));
+    oc_core_set_device_hostname(hname);
 
     // delete iot device tables
     oc_delete_group_object_table();

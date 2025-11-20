@@ -24,9 +24,15 @@
 #include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
 
+/*
+ * Charger definitions
+ *
+ * Note that all below values are statically defined since they do not change during
+ * device lifetime or are predefined in the KNX IoT specification.
+ *
+ */
 const char application_name[] KNX_TOOL_WEAK = "Charger";
 const char sn_lower_case[] KNX_TOOL_WEAK = "00fa10020d00";  // deliberated incorrect serial numbers
-const char hostname[] KNX_TOOL_WEAK = "knx-00fa10020d00";   // default host name (reset uses this default)
 const char hw_type[] KNX_TOOL_WEAK = "000102030405";        // 12 string chars, MSB = 00
 const char dev_model[] KNX_TOOL_WEAK = "6800";              // reuse mask version from iot device
 const uint32_t mid KNX_TOOL_WEAK = 0x00fa;                  // manufacturer id, here KNXA

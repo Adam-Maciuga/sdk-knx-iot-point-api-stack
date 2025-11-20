@@ -31,7 +31,6 @@
 
 extern const char application_name[];
 extern const char sn_lower_case[];
-extern const char hostname[];
 extern const uint32_t mid;
 extern const char hw_type[];
 extern const char dev_model[];
@@ -187,29 +186,37 @@ int app_init(void)
   #endif
   #endif
 
-  // set the device 
+  // set the device sn, application name -> permanent
   oc_core_set_device(sn_lower_case, application_name);
 
-  // set the hardware version 0.0.1, value used from EITT for testing
+  // set the hardware version 0.0.1 -> permanent
   oc_core_set_device_hwv(0, 0, 1);
 
-  // set the hardware version 0.0.1, value used from EITT for testing
+  // set the firmware version 0.0.1 -> volatile, value may be overwritten at runtime by MaC
   oc_core_set_device_fwv(0, 0, 1);
 
-  // set the application version 1.0.0, value may be overwritten at runtime by MaC PUT
+  // set the application version 1.0.0, > volatile,  value may be overwritten at runtime by MaC
   oc_core_set_device_apv(1, 0, 0);
 
-  // set manufacturer id, value used from EITT for testing
+  // set manufacturer id, -> permanent
   oc_core_set_device_mid(mid);
 
-  // set the hardware type -> 12 chars, value used from EITT for testing
+  // set the hardware type -> 12 chars, -> permanent
   oc_core_set_device_hwt(hw_type);
 
-  // set device model, value used from EITT for testing
+  // set device model, -> permanent
   oc_core_set_device_model(dev_model);
 
-  // set host name, value used from EITT for testing
-  oc_core_set_device_hostname(hostname);
+  /*
+      set default host name to device serial number and leading
+      'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
+      header defined by specification
+   */
+  char hname[HNAME_SIZE];
+  (void)snprintf(hname, HNAME_SIZE, "knx-%s", sn_lower_case);
+
+  // set default host name, reset uses this default, -> volatile
+  oc_core_set_device_hostname(hname);
 
   // set response callback (if needed must be filled with code)
   oc_set_s_mode_response_cb(oc_s_mode_response_cb);

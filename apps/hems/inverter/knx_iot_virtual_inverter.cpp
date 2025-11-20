@@ -35,7 +35,6 @@
 #include "apps/hems/icons/pv_ico.h"
 #include <wx/clipbrd.h>
 #include <wx/display.h>
-
 #include <algorithm>
 
 class CustomDialog : public wxDialog
@@ -287,7 +286,8 @@ void MyFrame::OnListAll(wxCommandEvent& event)
   bool iid_conversion = true;
 
   wxString all;
-  all << util_dumpDeviceIDs()  << "\n\n"
+  all << util_dumpQRCode()     << "\n\n"
+      << util_dumpDeviceIDs()  << "\n\n"
       << util_dumpLsmState()   << "\n\n"
       << util_dumpGroupObjectTable(ga_conversion) << "\n\n"
       << util_dumpPublisherTable(ga_conversion, grpid_conversion, iid_conversion)   << "\n\n"

@@ -35,6 +35,31 @@
 #include <cstdio>
 #include <cstring>
 
+
+/**
+ * @brief Dump QR Code
+ *
+ * Displays:
+ * - Serial Number and QR Code to copy/paste it to a configuration client 
+ *
+ * @return wxString containing formatted QR Code
+ */
+wxString util_dumpQRCode()
+{
+  oc_device_info_t* device = oc_core_get_device_info();
+
+  wxString out("=== QR Code ===\n");
+  char line[256];
+
+  // QR code
+  (void)sprintf(line, "KNX:S:%s;P:%s\n", oc_string(device->serialnumber), app_get_password());
+  app_str_to_upper(line);
+  out += line;
+
+  return out;
+}
+
+
 /**
  * @brief Dump device identification information
  *

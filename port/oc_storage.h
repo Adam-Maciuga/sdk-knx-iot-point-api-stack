@@ -44,6 +44,9 @@ int oc_storage_config(const char *store);
  * @param store the path to be read
  * @param buf the buffer to store the contents
  * @param size amount of bytes to read
+ *
+ * @note if storage path 'store' is not present, the 'buf' is not changed
+ *
  * @return long amount of bytes read
  */
 long oc_storage_read(const char *store, uint8_t *buf, size_t size);

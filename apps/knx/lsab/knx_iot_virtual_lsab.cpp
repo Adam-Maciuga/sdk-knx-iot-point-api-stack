@@ -266,13 +266,12 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
     m_LSAB_1_SOO->Enable(false);
   }
 
-  constexpr int width_size = 180; // size of the knx info widgets
+  constexpr int width_size = 220; // size of the knx info widgets
   char text[500]; 
 
   // serial number 
-  strcpy(text, "Serial Number : ");
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  strcat(text, oc_string(device->serialnumber));
+  (void)sprintf(text, "SN:\t%s", oc_string(device->serialnumber));
 
   wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, 
                                           wxPoint(10, 10 + ((max_instances + 1) * x_height)),
@@ -290,10 +289,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
        this works as the allowed password characters do not interfere
        with the separator characters colon and semicolon and are in the alphanumeric range.
   */
-  strcpy(text, "QR Code:   KNX:S:");
-  strcat(text, oc_string(device->serialnumber));
-  strcat(text, ";P:");
-  strcat(text, app_get_password());
+  (void)sprintf(text, "QR:\tKNX:S:%s;P:%s", oc_string(device->serialnumber), app_get_password());
   app_str_to_upper(text);
 
   wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, 
@@ -331,11 +327,11 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual actuator (LSAB)")
                                    wxSize(width_size, 25), 0);
   m_hn_text->SetEditable(false);
 
-  // SPAKE 2+ pwd
-  strcpy(text, app_get_password());
+  // SPAKE2+ pwd
+  (void)sprintf(text, "PWD:\t%s", app_get_password());
   wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, 
                                   wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
-                                  wxSize(width_size, 25), wxTE_RICH);
+                                  wxSize(width_size, 25), 0);
   static_text2->SetEditable(false);
 
   // update the UI
@@ -435,29 +431,29 @@ void MyFrame::updateDeviceData()
 {
 
   char text[500];
-  
+
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   // get the device data structure
-  const oc_device_info_t* const  device = oc_core_get_device_info();
+  const oc_device_info_t* const device = oc_core_get_device_info();
 
-  const uint16_t ia_a = device->ia >> 12; // area
-  const uint16_t ia_l = device->ia >> 8 & 0xF; // line
-  const uint16_t ia_d = device->ia & 0x00FF; // device
-  (void)sprintf(text, "IA : %d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
+  const uint16_t ia_a = device->ia >> 12;       // area
+  const uint16_t ia_l = device->ia >> 8 & 0xF;  // line
+  const uint16_t ia_d = device->ia & 0x00FF;    // device
+  (void)sprintf(text, "IA:\t%d.%d.%d [%d]", ia_a, ia_l, ia_d, device->ia);
   m_ia_text->SetValue(text);
 
-  (void)sprintf(text, "LoadState : %s", oc_core_get_lsm_state_as_string(device->lsm_s));
+  (void)sprintf(text, "LSM:\t%s", oc_core_get_lsm_state_as_string(device->lsm_s));
   m_pm_text->SetValue(text);
 
-  (void)sprintf(text, "Programming Mode : %d", device->pm);
+  (void)sprintf(text, "PM:\t%s", device->pm ? "on" : "off");
   m_ls_text->SetValue(text);
 
-  strcpy(text, "IID : ");
+  strcpy(text, "IID:\t");
   util_int2grpid_text(device->iid, text, iid_conversion);
   m_iid_text->SetValue(text);
 
-  (void)sprintf(text, "Hostname : %s", oc_string_checked(device->iot_hostname));
+  (void)sprintf(text, "HOST:\t%s", oc_string_checked(device->iot_hostname));
   m_hn_text->SetValue(text);
 
   // set in menu the programming mode to what the device has
@@ -515,7 +511,8 @@ void MyFrame::OnListAll(wxCommandEvent& event)
   bool iid_conversion = m_menuDisplay->IsChecked(CHECK_IID_DISPLAY);
 
   wxString all;
-  all << util_dumpDeviceIDs()        << "\n\n"
+  all << util_dumpQRCode()     << "\n\n"
+      << util_dumpDeviceIDs()  << "\n\n"
       << util_dumpLsmState()   << "\n\n"
       << util_dumpGroupObjectTable(ga_conversion) << "\n\n"
       << util_dumpPublisherTable(ga_conversion, grpid_conversion, iid_conversion)   << "\n\n"
