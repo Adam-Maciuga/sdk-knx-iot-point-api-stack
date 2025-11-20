@@ -8,66 +8,19 @@ e.g., provide information in how to build an KNX IoT Point API device based on t
 # Example Applications
 
 The folder contains windows/linux GUI application demos, with several table views and 
-interaction buttons. The code is defined in *.c and *.cpp files.
+interaction buttons. The demo code is defined in *.c and *.cpp files.
 
-> Some demos uses *.c and *.cpp files. The *.c files hosts KNX data definitions and 
-  application handlers, even it would be also possible to define all of this directly as 
-  part of the *.cpp files. For the demo purpose the files remain separated __on purpose__,
-  to have a nearly full application code skeleton (as c-file) for an embedded device 
-  (only the **int main (void)** is missing). An complete example of skeleton can be found 
-  in the c-file template 'knx_iot_application_template' in folder 'template'.
+- The *.c files hosts KNX data definitions and application handlers.
+- The *.cpp files hosts GUI elements and some control logic. 
 
-> Note that the file 'knx_iot_virtual.c/h' is NOT a part of the stack or not intended to be an 
-  'application' library. It hosts only for the application demos commonly used functionality in 
-  one place.
+The files remain separated __on purpose__, even it would be also possible to define all 
+content from the *.c files directly as part of the *.cpp files.    
+This is to have nearly a full application code skeleton (as c-file) for an embedded device 
+(only the **int main (void)** is missing). An complete example of skeleton can be found 
+in the c-file template 'knx_iot_application_template' in folder 'template'.
 
-## Usage as Application Common Layer
-
-An alternative integration example for the basic KNX IoT demos such as LSAB and LSSB can use the following
-application specific files from the apps structure:
-
-### Light Switch Actuator Basic (LSAB)
-
-- **`knx/lsab/knx_iot_virtual_lsab.c`** - Core LSAB functionality and KNX IoT data definitions
-- **`knx/lsab/knx_iot_virtual_lsab.cpp`** - GUI demo application for LSAB
-
-### Light Switch Sensor Basic (LSSB)
-
-- **`knx/lssb/knx_iot_virtual_lssb.c`** - Core LSSB functionality and KNX IoT data definitions
-- **`knx/lssb/knx_iot_virtual_lssb.cpp`** - GUI demo application for LSSB
-
-## Common KNX IoT Files
-
-- **`knx/knx_iot_virtual_knx.c`** - PUT/GET method implementations
-- **`knx/knx_iot_virtual_knx.h`** - Header definitions for KNX methods
-  - Used by LSAB, LSSB, and EITT applications
-  - Contains common KNX IoT Point API method definitions
-
-## Shared Virtual Demo Files
-
-- **`knx_iot_virtual.c`** - Shared C functions for KNX IoT virtual demo applications
-- **`knx_iot_virtual.cpp`** - Shared C++ functions for KNX IoT virtual demo applications
-- **`knx_iot_virtual.h`** - Header definitions for shared KNX IoT virtual demo functionality
-
-User applications can leverage these files as a **KNX IoT Point API application common layer**, as demonstrated in the `knx_iot_application_template` file.
-
-### Example of Integration Pattern
-
-```text
-User Application
-├── Application-specific logic (.c/.cpp)
-├── knx_iot_virtual_lsxb (LSAB/LSSB specific declaration of resources)
-├── knx_iot_virtual_knx.c/h (KNX IoT PUT/GET method definitions)
-├── knx_iot_virtual.c/h (Shared demo functions)
-└── KNX IoT Point API Stack (Core)
-```
-
-This layered approach allows developers to:
-
-1. Reuse common KNX IoT functionality
-2. Build upon proven LSAB/LSSB implementations
-3. Leverage shared KNX IoT virtual demo application functions
-4. Focus on application-specific logic
+> A proposal how to structure your applications you can find below under 
+  'Usage as Application Common Layer'
 
 ## Folder '/hems'
 The Energy Management System (EMS) [samples](apps/hems/Readme.md) are used to play with the stack and 
@@ -118,6 +71,59 @@ Contains a (pre-registered) ETS6 **product** and a (predefined) ETS6 **project**
 - **knx_iot_virtual_lsxb.knxproj** (project)
 
 More details on how to use/edit the product and/or project in ETS6, for this see in [ETS6 pages](../../wikis/Home/ETS6).
+
+## Usage as Application Common Layer
+
+An alternative integration example for the basic KNX IoT demos such as LSAB and LSSB can use the following
+application specific files from the apps structure:
+
+### Light Switch Actuator Basic (LSAB)
+
+- **`knx/lsab/knx_iot_virtual_lsab.c`** - Core LSAB functionality and KNX IoT data definitions
+- **`knx/lsab/knx_iot_virtual_lsab.cpp`** - GUI demo application for LSAB
+
+### Light Switch Sensor Basic (LSSB)
+
+- **`knx/lssb/knx_iot_virtual_lssb.c`** - Core LSSB functionality and KNX IoT data definitions
+- **`knx/lssb/knx_iot_virtual_lssb.cpp`** - GUI demo application for LSSB
+
+## Common KNX IoT Files
+
+- **`knx/knx_iot_virtual_knx.c`** - PUT/GET method implementations
+- **`knx/knx_iot_virtual_knx.h`** - Header definitions for KNX methods
+  - Used by LSAB, LSSB, and EITT applications
+  - Contains common KNX IoT Point API method definitions
+
+## Shared Virtual Demo Files
+
+- **`knx_iot_virtual.c`** - Shared C functions for KNX IoT virtual demo applications
+- **`knx_iot_virtual.cpp`** - Shared C++ functions for KNX IoT virtual demo applications
+- **`knx_iot_virtual.h`** - Header definitions for shared KNX IoT virtual demo functionality
+
+User applications can leverage these files as a **KNX IoT Point API application common layer**, 
+as demonstrated in the `knx_iot_application_template` file.
+
+> Note that the file 'knx_iot_virtual.c/.cpp/.h' are NOT a (library) part of the stack, as a kind of 
+  'application' library or API. It hosts only the for the application demos commonly used functionality
+  in one place.
+
+### Example of Integration Pattern
+
+```text
+User Application
+├── Application-specific logic (.c/.cpp)
+├── knx_iot_virtual_lsxb (LSAB/LSSB specific declaration of resources)
+├── knx_iot_virtual_knx.c/h (KNX IoT PUT/GET method definitions)
+├── knx_iot_virtual.c/h (Shared demo functions)
+└── KNX IoT Point API Stack (Core)
+```
+
+This layered approach allows developers to:
+
+1. Reuse common KNX IoT functionality
+2. Build upon proven LSAB/LSSB implementations
+3. Leverage shared KNX IoT virtual demo application functions
+4. Focus on application-specific logic
 
 # Wireshark
 
