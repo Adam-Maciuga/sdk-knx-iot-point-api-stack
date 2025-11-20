@@ -31,7 +31,6 @@
 #include "port/dns-sd.h"
 
 
-
 extern lsxb_channel_t lsab[NUM_CHANNELS];
 
 class CustomDialog : public wxDialog

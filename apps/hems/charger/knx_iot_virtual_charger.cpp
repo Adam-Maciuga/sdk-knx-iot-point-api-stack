@@ -33,6 +33,9 @@
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "apps/hems/icons/charger_ico.h"
 #include <wx/clipbrd.h>
+#include <wx/display.h>
+
+#include <algorithm>
 
 class FlowAnimation : public wxPanel
 {
@@ -102,7 +105,7 @@ private:
 class CustomDialog : public wxDialog
 {
 public:
-  CustomDialog(const wxString&, const wxString&, int, int);
+  CustomDialog(const wxString&, const wxString&);
 
 private:
   void OnClose(wxCommandEvent& event);
@@ -110,45 +113,57 @@ private:
 
 void CustomDialog::OnClose(wxCommandEvent& event) { this->Destroy(); }
 
-CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
-    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
-{  
-  this->SetSize(wxSize(size_x + 30, size_y));
+CustomDialog::CustomDialog(const wxString& title, const wxString& text) :
+    wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize,
+             wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX)
+{
+  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
 
-  auto panel = new wxPanel(this, -1);
+  wxTextCtrl* tc =
+    new wxTextCtrl(this, wxID_ANY, text, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE | wxTE_READONLY | wxHSCROLL);
 
-  auto vbox = new wxBoxSizer(wxVERTICAL);
-  auto hbox = new wxBoxSizer(wxHORIZONTAL);
+  vbox->Add(tc, 1, wxEXPAND | wxALL, 10);
 
-  auto tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
-
-  auto closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
+  wxButton* closeButton = new wxButton(this, wxID_OK, "Close");
   closeButton->Bind(wxEVT_BUTTON, &CustomDialog::OnClose, this);
+  vbox->Add(closeButton, 0, wxALIGN_CENTER | wxALL, 10);
 
-  oc_device_info_t* device = oc_core_get_device_info();
-  auto sn = oc_string(device->serialnumber);
+  SetSizer(vbox);
 
-  auto copyButton = new wxButton(this, wxID_ANY, wxT("Copy Certificate"));
-  copyButton->Bind(wxEVT_BUTTON,
-                   [this, sn](wxCommandEvent&)
-                   {
-                     if (wxTheClipboard->Open())
-                     {
-                       wxTheClipboard->SetData(new wxTextDataObject(sn));
-                       wxTheClipboard->Close();
-                       // wxMessageBox("Serial number copied to clipboard!", "Copied", wxOK | wxICON_INFORMATION);
-                     }
-                   });
-  hbox->Add(copyButton, 0, wxLEFT, 5);  
+  // ---- Compute content-based size ----
+  wxClientDC dc(this);
+  dc.SetFont(tc->GetFont());
 
-  hbox->Add(closeButton, 1, wxLEFT, 5);
-  vbox->Add(panel, 1);
-  vbox->Add(hbox, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, 10);
+  wxArrayString lines = wxSplit(text, '\n');
+  int lineHeight = dc.GetCharHeight();
+  int maxWidth = 0;
+  for (auto& line : lines)
+  {
+    int w, h;
+    dc.GetTextExtent(line, &w, &h);
+    maxWidth = std::max(w, maxWidth);
+  }
 
-  SetSizerAndFit(vbox);
+  // Estimated natural size
+  int width = maxWidth + 75; // padding
+  int height = (lines.size() * lineHeight) + 150; // +button space
+
+  // ---- Cap to 80% of screen ----
+  wxDisplay display(wxDisplay::GetFromWindow(this));
+  wxRect screenRect = display.GetGeometry();
+
+  int maxW = screenRect.GetWidth() * 0.8;
+  int maxH = screenRect.GetHeight() * 0.8;
+
+  width = std::min(width, maxW);
+  height = std::min(height, maxH);
+
+  // Apply and allow resizing
+  SetSize(width, height);
+  SetMinSize(wxSize(100, 100)); // reasonable min
+
   Centre();
   ShowModal();
-  Destroy();
 }
 
 class MyApp : public wxApp
@@ -349,7 +364,7 @@ void MyFrame::OnListAll(wxCommandEvent& event)
   wxString title;
   title.Printf("Charger - Device & Tables - %s", oc_string(device->serialnumber));
 
-  CustomDialog(title, all, 520, 400);
+  CustomDialog(title, all);
   SetStatusText("List Device & All Tables");
 }
 
@@ -366,7 +381,7 @@ void MyFrame::OnAbout(wxCommandEvent& event)
         << "\n"
         << "(c) KNX Association, 2025";
 
-  CustomDialog("About", usage, 520, 300);
+  CustomDialog("About", usage);
 }
 
 /**
