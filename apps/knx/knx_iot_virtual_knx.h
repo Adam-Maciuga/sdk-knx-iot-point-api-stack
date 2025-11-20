@@ -93,6 +93,10 @@ extern "C"
   /**
    * @brief Sets application callbacks for handling put request for LSAB and LSSB
    *
+   * @note The callbacks are called in addition to the regular put handler for LSAB/LSSB.
+   *       The update of datapoint values or the response generation is done from original handler,
+   *       not from the callbacks. 
+   *
    * @param lsabCb the callback for LSAB put request
    * @param lssbCb the callback for LSSB put request
    */

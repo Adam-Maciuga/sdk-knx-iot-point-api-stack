@@ -27,17 +27,13 @@
  */
 
 #include "knx_iot_virtual.h"
-#include "api/oc_knx_dev.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_knx.h"
 #include <wx/string.h>
-#include <stdio.h>
-#include <string.h>
-
-
+#include <cstdio>
+#include <cstring>
 
 /**
  * @brief Dump device identification information
@@ -52,23 +48,19 @@
 wxString util_dumpDeviceIDs()
 {
   oc_device_info_t* device = oc_core_get_device_info();
-  if (!device)
-  {
-    return wxString("");
-  }
-
+  
   wxString out("=== Device IDs ===\n");
   char line[256];
 
   // Serial number
-  sprintf(line, "Serial number: '%s'\n", oc_string(device->serialnumber));
+  (void)sprintf(line, "Serial number: '%s'\n", oc_string(device->serialnumber));
   out += line;
 
   // Individual address
   const uint16_t ia_a = device->ia >> 12; // area
   const uint16_t ia_l = device->ia >> 8 & 0xF; // line
   const uint16_t ia_d = device->ia & 0x00FF; // device
-  sprintf(line, "Individual address: %d.%d.%d (%04x)\n", ia_a, ia_l, ia_d, device->ia);
+  (void)sprintf(line, "Individual address: %d.%d.%d (%04x)\n", ia_a, ia_l, ia_d, device->ia);
   out += line;
 
   // Installation ID
@@ -81,11 +73,11 @@ wxString util_dumpDeviceIDs()
 
   if (byte_5 == 0)
   {
-    sprintf(line, "Installation ID: %02x%02x:%02x%02x\n", byte_4, byte_3, byte_2, byte_1);
+    (void)sprintf(line, "Installation ID: %02x%02x:%02x%02x\n", byte_4, byte_3, byte_2, byte_1);
   }
   else
   {
-    sprintf(line, "Installation ID: %02x:%02x%02x:%02x%02x\n", byte_5, byte_4, byte_3, byte_2, byte_1);
+    (void)sprintf(line, "Installation ID: %02x:%02x%02x:%02x%02x\n", byte_5, byte_4, byte_3, byte_2, byte_1);
   }
   out += line;
 
@@ -158,7 +150,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
       // ga list
       strcpy(line, "  ga : [");
       for (int j = 0; j < entry->ga_len; j++) {
-        util_int2gatext(entry->ga[j], line, ga_conversion);
+        util_int2ga_text(entry->ga[j], line, ga_conversion);
       }
       strcat(line, " ]");
       out += line;
@@ -196,14 +188,14 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
       sprintf(line, "Index %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
-      if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpidtext(entry->iid, line, iid_conversion); out += line; }
+      if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
       if (entry->fid >= 0) { sprintf(line, "  fid: '%lld' ", entry->fid); out += line; }
-      if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpidtext(entry->grpid, line, grpid_conversion); out += line; }
+      if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
         strcpy(line, "  ga : [");
         for (int j = 0; j < entry->ga_len; j++) {
-          util_int2gatext(entry->ga[j], line, ga_conversion);
+          util_int2ga_text(entry->ga[j], line, ga_conversion);
         }
         strcat(line, " ]");
         out += line;
@@ -241,14 +233,14 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
       sprintf(line, "Index %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
-      if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpidtext(entry->iid, line, iid_conversion); out += line; }
+      if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
       if (entry->fid >= 0) { sprintf(line, "  fid: '%lld' ", entry->fid); out += line; }
-      if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpidtext(entry->grpid, line, grpid_conversion); out += line; }
+      if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
         strcpy(line, "  ga : [");
         for (int j = 0; j < entry->ga_len; j++) {
-          util_int2gatext(entry->ga[j], line, ga_conversion);
+          util_int2ga_text(entry->ga[j], line, ga_conversion);
         }
         strcat(line, " ]");
         out += line;
@@ -369,13 +361,13 @@ wxString util_dumpAuthTable(bool ga_conversion)
           strcpy(line, "  osc_ga : [");
           out += line;
           for (int j = 0; j < entry->ga_len; j++) {
-            util_int2gatext(entry->ga[j], line, ga_conversion);
+            util_int2ga_text(entry->ga[j], line, ga_conversion);
           }
           strcat(line, " ]");
           out += line;
         } else {
           sprintf(line, "  scope : ");
-          util_int2scopetext(entry->scope, line);
+          util_int2scope_text(entry->scope, line);
           out += line;
         }
       }
@@ -387,7 +379,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
 
 // ===== Utility Functions =====
 
-void util_add_bool_to_text(bool on_off, char* text)
+void util_bool2text(bool on_off, char* text)
 {
   if (on_off)
   {
@@ -402,14 +394,14 @@ void util_add_bool_to_text(bool on_off, char* text)
 void util_int2text(int value, char* text)
 {
   char value_text[50];
-  sprintf(value_text, " %d", value);
+  (void)sprintf(value_text, " %d", value);
   strcat(text, value_text);
 }
 
 void util_double2text(double value, char* text)
 {
   char new_text[200];
-  sprintf(new_text, " %f", value);
+  (void)sprintf(new_text, " %f", value);
   strcat(text, new_text);
 }
 
@@ -430,7 +422,7 @@ void util_double2text(double value, char* text)
  * @param text Buffer to append the formatted text to
  * @param as_ets If true, format as ETS 3-level (main/middle/sub), otherwise as integer
  */
-void util_int2gatext(uint32_t value, char* text, bool as_ets)
+void util_int2ga_text(uint32_t value, char* text, bool as_ets)
 {
   char value_text[50];
 
@@ -440,12 +432,12 @@ void util_int2gatext(uint32_t value, char* text, bool as_ets)
     uint32_t ga_main = (ga >> 11);
     uint32_t ga_middle = (ga >> 8) & 0x7;
     uint32_t ga_sub = (ga & 0x000000FF);
-    sprintf(value_text, " %lu/%lu/%lu", ga_main, ga_middle, ga_sub);
+    (void)sprintf(value_text, " %u/%u/%u", ga_main, ga_middle, ga_sub);
     strcat(text, value_text);
   }
   else
   {
-    sprintf(value_text, " %lu", value);
+    (void)sprintf(value_text, " %u", value);
     strcat(text, value_text);
   }
 }
@@ -456,11 +448,12 @@ void util_int2gatext(uint32_t value, char* text, bool as_ets)
  * @param value The scope value
  * @param text Buffer to append the formatted text to
  */
-void util_int2scopetext(uint32_t value, char* text)
+void util_int2scope_text(uint32_t value, char* text)
 {
   char value_text[150];
 
-  sprintf(value_text, " [%d]", value);
+  (void)sprintf(value_text, " [%u]", value);
+
   strcat(text, value_text);
   // should be the same as
   if (value & (1 << 1))
@@ -510,14 +503,14 @@ void util_int2scopetext(uint32_t value, char* text)
  * @param text Buffer to append the formatted text to
  * @param as_ets If true, format as partial IPv6 address, otherwise as integer
  */
-void util_int2grpidtext(uint64_t value, char* text, bool as_ets)
+void util_int2grpid_text(uint64_t value, char* text, bool as_ets)
 {
   char value_text[50];
 
   if (as_ets)
   {
     // group number to the various bytes
-    uint8_t byte_1 = static_cast<uint8_t>(value);
+    uint8_t byte_1 = static_cast<uint8_t>(value >> 0);
     uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
     uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
     uint8_t byte_4 = static_cast<uint8_t>(value >> 24);

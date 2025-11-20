@@ -23,27 +23,16 @@
 
 #include <wx/wxprec.h>
 #include <wx/wx.h>
-#include <wx/cmdline.h>
-#include "wx/config.h" // for native wxConfig
-#include "wx/dnd.h" // drag and drop for the playlist
-#include "wx/filename.h" // For wxFileName::GetName()
-#include "wx/listctrl.h" // for wxListCtrl
-#include "wx/sizer.h" // for positioning controls/wxBoxSizer
-#include "wx/timer.h" // timer for updating status bar
-#include "wx/vector.h"
-#include <wx/artprov.h>
+#include "wx/sizer.h"
+#include "wx/timer.h"
 #include <wx/mstream.h>
 #include <wx/image.h>
-#include <wx/bitmap.h>
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "apps/hems/icons/charger_ico.h"
 #include <wx/clipbrd.h>
-
 
 class FlowAnimation : public wxPanel
 {
@@ -116,10 +105,10 @@ public:
   CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
-  void on_close(wxCommandEvent& event);
+  void OnClose(wxCommandEvent& event);
 };
 
-void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
+void CustomDialog::OnClose(wxCommandEvent& event) { this->Destroy(); }
 
 CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
     wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
@@ -134,7 +123,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
   auto tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
   auto closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
-  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::OnClose, this);
 
   oc_device_info_t* device = oc_core_get_device_info();
   auto sn = oc_string(device->serialnumber);
@@ -174,10 +163,7 @@ public:
   MyFrame();
 
 private:
-  void OnUsage(wxCommandEvent& event);
-
   void OnListAll(wxCommandEvent& event);
-
   void OnProgrammingMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
@@ -185,17 +171,16 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
  
-  void ProcessCemUpdate();
+  void OnProcessCemUpdate();
   void updateDeviceData();
 
   wxMenu* m_menuFile;
   wxTimer m_timer;
 
-  float m_chargeRate = 0;
-
-  // non static device properties
-  wxTextCtrl* m_charger_text; // text control for charger
+  wxTextCtrl* m_charger_text; 
   FlowAnimation* m_flow = nullptr;
+
+  float m_chargeRate = 0;
 };
 
 #ifdef USE_CONSOLE
@@ -243,8 +228,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
 
   // help menu
   const auto menuHelp = new wxMenu;
-  menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
-  menuHelp->Append(wxID_ABOUT);
+  menuHelp->Append(wxID_ABOUT, "About & Usage", "Show device information and usage instructions", false);
 
   // full menu bar
   const auto menuBar = new wxMenuBar;
@@ -253,7 +237,6 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
 
-  Bind(wxEVT_MENU, &MyFrame::OnUsage, this, DEVICE_USAGE);
   Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
@@ -293,6 +276,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Charger")
  * @param event command triggered by the framework
  */
 void MyFrame::OnExit(wxCommandEvent& event) { Close(true); }
+
 void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 {
   SetStatusText("Changing programming mode");
@@ -306,6 +290,7 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
   // update mdns
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
+
 void MyFrame::updateDeviceData()
 {
   oc_device_info_t* device = oc_core_get_device_info();
@@ -344,16 +329,6 @@ void MyFrame::OnReset(wxCommandEvent& event)
   this->updateDeviceData();
 }
 
-void MyFrame::OnUsage(wxCommandEvent& event)
-{
-  wxString usage;
-  usage << "Usage:" << "\n"
-        << "- Represents an Charger." << "\n"
-        << "- Receives and applies the charging power from the CEM" << "\n";
-
-  CustomDialog("Charger Usage", usage, 480, 130);
-}
-
 void MyFrame::OnListAll(wxCommandEvent& event)
 {
   const oc_device_info_t* const device = oc_core_get_device_info();
@@ -385,8 +360,13 @@ void MyFrame::OnListAll(wxCommandEvent& event)
  */
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
-  constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text, 520, 300);
+
+  wxString usage;
+  usage << "- The charger receives and applies the charging power from the CEM." << "\n"
+        << "\n"
+        << "(c) KNX Association, 2025";
+
+  CustomDialog("About", usage, 520, 300);
 }
 
 /**
@@ -406,13 +386,13 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   (void)oc_main_poll();
 
   // data polling
-  this->ProcessCemUpdate();
+  this->OnProcessCemUpdate();
 
   // update possible user events
   this->updateDeviceData();
 }
 
-void MyFrame::ProcessCemUpdate()
+void MyFrame::OnProcessCemUpdate()
 {
   if (charger_flags() & new_event)
   { 

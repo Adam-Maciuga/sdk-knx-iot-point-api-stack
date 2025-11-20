@@ -20,34 +20,20 @@
 
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
-#include <wx/scrolbar.h>
+
 #include <wx/wxprec.h>
 #include <wx/wx.h>
-#include "wx/config.h" // for native wxConfig
-#include "wx/dnd.h" // drag and drop for the playlist
-#include "wx/filename.h" // For wxFileName::GetName()
-#include "wx/listctrl.h" // for wxListCtrl
-#include "wx/mediactrl.h" // for wxMediaCtrl
-#include "wx/sizer.h" // for positioning controls/wxBoxSizer
-#include "wx/slider.h" // for a slider for seeking within media
-#include "wx/timer.h" // timer for updating status bar
-#include "wx/vector.h"
-#include <wx/stdpaths.h>
-#include <wx/artprov.h>
+#include "wx/sizer.h"
+#include "wx/slider.h"
+#include "wx/timer.h"
 #include <wx/mstream.h>
 #include <wx/image.h>
-#include <wx/bitmap.h>
-
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
-#include "apps/hems/knx_iot_virtual_ems.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
+#include "apps/hems/knx_iot_virtual_ems.h"
 #include "apps/hems/icons/pv_ico.h"
-
 #include <wx/clipbrd.h>
-
 
 class CustomDialog : public wxDialog
 {
@@ -55,10 +41,10 @@ public:
   CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
-  void on_close(wxCommandEvent& event);
+  void OnClose(wxCommandEvent& event);
 };
 
-void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
+void CustomDialog::OnClose(wxCommandEvent& event) { this->Destroy(); }
 
 CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
     wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
@@ -73,7 +59,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
   auto tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
   auto closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
-  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::OnClose, this);
 
   oc_device_info_t* device = oc_core_get_device_info();
   auto sn = oc_string(device->serialnumber);
@@ -112,10 +98,7 @@ public:
   MyFrame();
 
 private:
-  void OnUsage(wxCommandEvent& event);
-
   void OnListAll(wxCommandEvent& event);
-
   void OnProgrammingMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
@@ -123,7 +106,7 @@ private:
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
 
-  void ProcessSliderUpdate(wxCommandEvent& event);
+  void OnProcessSliderUpdate(wxCommandEvent& event);
   void updateDeviceData();
 
   wxMenu* m_menuFile;
@@ -176,8 +159,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
 
   // help menu
   const auto menuHelp = new wxMenu;
-  menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
-  menuHelp->Append(wxID_ABOUT);
+  menuHelp->Append(wxID_ABOUT, "About & Usage", "Show device information and usage instructions", false);
 
   // full menu bar
   const auto menuBar = new wxMenuBar;
@@ -186,7 +168,6 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
 
-  Bind(wxEVT_MENU, &MyFrame::OnUsage, this, DEVICE_USAGE);
   Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
@@ -205,7 +186,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "Inverter")
   SetSizerAndFit(mainSizer);
 
   // slider events
-  inverter_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::ProcessSliderUpdate, this);
+  inverter_slider->Bind(wxEVT_SCROLL_CHANGED, &MyFrame::OnProcessSliderUpdate, this);
   inverter_slider->Enable(true);
   inverter_slider->SetValue(0);
   
@@ -281,16 +262,6 @@ void MyFrame::OnReset(wxCommandEvent& event)
   this->updateDeviceData();
 }
 
-void MyFrame::OnUsage(wxCommandEvent& event)
-{
-  wxString usage;
-  usage << "Usage:" << "\n"
-        << "- Simulates a solar inverter providing power data." << "\n"
-        << "- Enables adjustment of the solar production value (0-10 kW) for testing." << "\n";
-
-  CustomDialog("Inverter Usage", usage, 480, 130);
-}
-
 void MyFrame::OnListAll(wxCommandEvent& event)
 {
   const oc_device_info_t* const device = oc_core_get_device_info();
@@ -322,8 +293,12 @@ void MyFrame::OnListAll(wxCommandEvent& event)
  */
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
-  constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text, 520, 300);
+  wxString usage;
+  usage << "The inverter simulates a solar solar production value (0-10 kW) and provides it to the CEM." << "\n"
+        << "\n"
+        << "(c) KNX Association, 2025";
+
+  CustomDialog("About", usage, 520, 300);
 }
 
 /**
@@ -346,7 +321,7 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   this->updateDeviceData();
 }
 
-void MyFrame::ProcessSliderUpdate(wxCommandEvent& event)
+void MyFrame::OnProcessSliderUpdate(wxCommandEvent& event)
 {
   // get the slider value in kW
   const float val = static_cast<float>(inverter_slider->GetValue());

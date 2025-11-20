@@ -32,11 +32,11 @@ const char dev_model[] KNX_TOOL_WEAK = "6800";              // reuse mask versio
 const uint32_t mid KNX_TOOL_WEAK = 0x00fa;                  // manufacturer id, here KNXA
 
 float_functional_block_t charger = 
-{426, 0,1,
+{1254, 0,1,
   {
     0, /* IEEE 754 single float, KNX DPT: 14.056 */
     "/p/charger",
-    "urn:knx:dpa.426.52",
+    "urn:knx:dpa.1254.52",
     ":dpt.value_power", 
     "Charger Input from CEM",
     no_error

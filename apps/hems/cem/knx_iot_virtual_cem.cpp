@@ -21,36 +21,18 @@
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
 
-#include <wx/cmdline.h>
-#include <wx/scrolbar.h>
 #include <wx/wxprec.h>
 #include <wx/wx.h>
-#include "wx/filename.h"
-#include "wx/listctrl.h"
-#include "wx/mediactrl.h"
 #include "wx/sizer.h"
 #include "wx/timer.h"
-#include "wx/vector.h"
-#include <wx/stdpaths.h>
-#include <wx/artprov.h>
 #include <wx/mstream.h>
 #include <wx/image.h>
-#include <wx/bitmap.h>
-#include <wx/valnum.h>
-
 #include "api/oc_knx_dev.h"
-#include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
-#include "apps/knx_iot_virtual.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "oc_oscore_context.h"
-
 #include "apps/hems/knx_iot_virtual_ems.h"
 #include "apps/hems/icons/cem_ico.h"
-
 #include <wx/clipbrd.h>
-
 
 class CustomDialog : public wxDialog
 {
@@ -58,141 +40,10 @@ public:
   CustomDialog(const wxString&, const wxString&, int, int);
 
 private:
-  wxTextCtrl* inputField = nullptr;
-  void on_close(wxCommandEvent& event);
-  void on_set_link(wxCommandEvent& event);
-  void on_reset_link(wxCommandEvent& event);
+  void OnClose(wxCommandEvent& event);
 };
-void CustomDialog::on_close(wxCommandEvent& event) { this->Destroy(); }
 
-void CustomDialog::on_set_link(wxCommandEvent& event)
-{
-  if (inputField)
-  {
-    wxString sn_link = inputField->GetValue();
-
-    unsigned char sn_L[6];
-    int len;
-
-    for (size_t i = 0; i < 6; i++)
-      sn_L[i] = 0x00;
-
-    len = strlen(sn_link);
-
-    if (len % 2 == 0)
-    {
-      if (len / 2 == 6)
-      {
-        for (size_t i = 0; i < 6; i++)
-        {
-          char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
-          sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
-        }
-      }
-      else
-      {
-        return;
-      }
-    }
-    else
-    {
-      return;
-    }
-
-    uint64_t sn;
-
-    sn = 0x00;
-    sn += sn_L[0];
-    sn <<= 8;
-    sn += sn_L[1];
-    sn <<= 8;
-    sn += sn_L[2];
-    sn <<= 8;
-    sn += sn_L[3];
-    sn <<= 8;
-    sn += sn_L[4];
-    sn <<= 8;
-    sn += sn_L[5];
-
-    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
-    char str[13]; // 6 bytes → 12 hex chars + '\0'
-
-    // Format with leading zeros
-    snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
-
-    // CEM_init_tables(str);
-
-    
-    char* url = app_retrieve_href_from_cem_inverter();
-    oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
-  }
-
-  this->Destroy();
-}
-void CustomDialog::on_reset_link(wxCommandEvent& event)
-{
-  if (inputField)
-  {
-    wxString sn_link = inputField->GetValue();
-
-    unsigned char sn_L[6];
-    int len;
-
-    for (size_t i = 0; i < 6; i++)
-      sn_L[i] = 0x00;
-
-    len = strlen(sn_link);
-
-    if (len % 2 == 0)
-    {
-      if (len / 2 == 6)
-      {
-        for (size_t i = 0; i < 6; i++)
-        {
-          char buf[3] = {sn_link[2 * i], sn_link[2 * i + 1], '\0'}; // 2 hex chars
-          sn_L[i] = (unsigned char)strtol(buf, NULL, 16);
-        }
-      }
-      else
-      {
-        return;
-      }
-    }
-    else
-    {
-      return;
-    }
-
-    uint64_t sn;
-
-    sn = 0x00;
-    sn += sn_L[0];
-    sn <<= 8;
-    sn += sn_L[1];
-    sn <<= 8;
-    sn += sn_L[2];
-    sn <<= 8;
-    sn += sn_L[3];
-    sn <<= 8;
-    sn += sn_L[4];
-    sn <<= 8;
-    sn += sn_L[5];
-
-    // Allocate enough space: 2 hex chars per byte + 1 for null terminator
-    char str[13]; // 6 bytes → 12 hex chars + '\0'
-
-    // Format with leading zeros
-    snprintf(str, sizeof(str), "%012llx", (unsigned long long)sn);
-
-    //CEM_init_tables(str);
-
-    
-     char* url = app_retrieve_href_from_cem_inverter();
-    oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
-  }
-
-  this->Destroy();
-}
+void CustomDialog::OnClose(wxCommandEvent& event) { this->Destroy(); }
 
 CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size_x, int size_y) :
     wxDialog(NULL, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
@@ -207,7 +58,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text, int size
   auto tc = new wxTextCtrl(panel, -1, text, wxPoint(10, 10), wxSize(size_x, size_y), wxTE_MULTILINE | wxTE_READONLY);
 
   auto closeButton = new wxButton(this, -1, wxT("Close"), wxDefaultPosition, wxDefaultSize);
-  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::OnClose, this);
 
   hbox->Add(closeButton, 1, wxLEFT, 5);
   vbox->Add(panel, 1);
@@ -231,10 +82,7 @@ public:
   MyFrame();
 
 private:
-  void OnUsage(wxCommandEvent& event);
-
   void OnListAll(wxCommandEvent& event);
-
   void OnProgrammingMode(wxCommandEvent& event);
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
@@ -243,8 +91,7 @@ private:
   void OnTimer(wxTimerEvent& event);
 
   void ProcessModeUpdate(wxCommandEvent& event);
-
-  void ProcessInverterUpdate();
+  void OnProcessInverterUpdate();
   void updateDeviceData();
 
   wxMenu* m_menuFile;
@@ -252,8 +99,8 @@ private:
 
   wxButton* m_mode_button;
 
-  wxTextCtrl* m_inverter_text;      // text control for pv
-  wxTextCtrl* m_charger_text; // text control for charger
+  wxTextCtrl* m_inverter_text;  // text control for pv
+  wxTextCtrl* m_charger_text;   // text control for charger
 };
 
 #ifdef USE_CONSOLE
@@ -296,8 +143,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "CEM")
 
   // help menu
   auto menuHelp = new wxMenu;
-  menuHelp->Append(DEVICE_USAGE, "Usage", "Show device information and usage instructions", false);
-  menuHelp->Append(wxID_ABOUT);
+  menuHelp->Append(wxID_ABOUT, "About & Usage", "Show device information and usage instructions", false);
 
   // full menu bar
   auto menuBar = new wxMenuBar;
@@ -306,7 +152,6 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "CEM")
   wxFrameBase::SetMenuBar(menuBar);
   wxFrameBase::CreateStatusBar();
 
-  Bind(wxEVT_MENU, &MyFrame::OnUsage, this, DEVICE_USAGE);
   Bind(wxEVT_MENU, &MyFrame::OnListAll, this, LIST_ALL);
   Bind(wxEVT_MENU, &MyFrame::OnProgrammingMode, this, CHECK_PM);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
@@ -392,19 +237,6 @@ void MyFrame::OnReset(wxCommandEvent& event)
   this->updateDeviceData();
 }
 
-void MyFrame::OnUsage(wxCommandEvent& event)
-{
-  wxString usage;
-  usage << "Usage:" << "\n"
-        << "- Acts as the brain of the EMS system." << "\n"
-        << "- Two operation modes:" << "\n"
-        << "    1) Sun Mode: Car charges only if solar production is at least 4 kW." << "\n"
-        << "    2) Mix Mode: Car charges at 4 kW regardless of solar availability." << "\n"
-        << "- Calculates and sends the appropriate charging rate." << "\n";
-
-  CustomDialog("CEM Usage", usage, 480, 180);
-}
-
 void MyFrame::ProcessModeUpdate(wxCommandEvent& event)
 {
 
@@ -486,8 +318,15 @@ void MyFrame::OnListAll(wxCommandEvent& event)
 
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
-  constexpr char text[] = "(c) KNX Association, 2025-09";
-  CustomDialog("About", text, 520, 300);
+  wxString usage;
+  usage << "- The CEM has two operation modes:" << "\n"
+        << "  1) Sun Mode: Car charges only if solar production is at least 4 kW." << "\n"
+        << "  2) Mix Mode: Car charges at 4 kW regardless of solar availability." << "\n"
+        << "- The CEM calculates and sends the appropriate charging rate to the charger." << "\n"
+        << "\n"
+        << "(c) KNX Association, 2025";
+
+  CustomDialog("About", usage, 520, 300);
 }
 
 void MyFrame::OnTimer(wxTimerEvent& event)
@@ -496,13 +335,13 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   (void)oc_main_poll();
 
   // data polling
-  this->ProcessInverterUpdate();
+  this->OnProcessInverterUpdate();
 
   // update possible user events
   this->updateDeviceData();
 }
 
-void MyFrame::ProcessInverterUpdate()
+void MyFrame::OnProcessInverterUpdate()
 {
   if (cem_inverter_flags() & new_event)
   {

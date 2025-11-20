@@ -532,7 +532,8 @@ bool app_retrieve_bool_variable_from_channel(uint8_t channel, uint8_t point)
   return lsxb[channel].point[point].value;
 }
 
-void app_register_put_callback(app_channel_callback_t lsabCb, app_channel_callback_t lssbCb) {
+void app_register_put_callback(app_channel_callback_t lsabCb, app_channel_callback_t lssbCb)
+{
     app_channel_lsab_cb = lsabCb;
     app_channel_lssb_cb = lssbCb;
 }

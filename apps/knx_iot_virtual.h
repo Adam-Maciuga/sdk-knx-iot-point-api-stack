@@ -135,12 +135,12 @@
 
   - the resource (DPT) type
   
-  - the 'id' is optional and can be removed if not needed (to reduce resource consumption),
+  - the 'id' is optional and can be added/removed (to reduce resource consumption),
     if included as part of a point it can be used for an n-fold channel oriented application
     to define a generic PUT/GET handler for all channels. The addressed channel and datapoint can be identified
     from the generic handler, e.g. by setting the value to ch# << 8 + point# (see application handler examples).
 
-  - the 'flags' is optional and can be removed if not needed (to reduce resource consumption),
+  - the 'flags' is optional and can be added/removed (to reduce resource consumption),
     if included as part of a point it can be used to inform an upper layer (such as a c++ GUI application
     on caller actions errors)   
 
@@ -154,9 +154,9 @@ typedef enum
 {
   no_error = 0,         // no error 
   error = 1,            // handler error occurred
-  get = 2,              // was a get 
-  put = 4,              // was a put
-  new_event = 8         // new event occured, should be reset if event was processed
+  get = 2,              // was a get, request contains it, but on upper layer it is not present anymore 
+  put = 4,              // was a put, request contains it, but on upper layer it is not present anymore 
+  new_event = 8         // new event occured, should be reset if event was processed in upper layer
 
 } app_handler_flags_t;
 
@@ -246,7 +246,6 @@ typedef struct
   bool_datapoint_t point[NUM_CHANNELS];
 } bool_array_functional_block_t, lsxb_channel_t; // see Functional Block Notes
 
-
 #ifdef _WIN32
 #include <direct.h>
 #define GetCurrentDir _getcwd                  // path of current working directory, WIN
@@ -256,13 +255,20 @@ typedef struct
 #endif
 
 
-/* Definition of weak symbol for cross-platform compatibility */
-//NOTE: on Windows with MSVC the weak symbol is not supported for functions, hence we define an empty macro for now
-//TODO: find a better way to handle weak symbols cross platform
+/*
+  Definition of weak symbol for cross-platform compatibility.
+  - on Windows with MSVC the weak symbol is not supported for functions, hence we define an empty macro for now
+  - TODO find a better way to handle weak symbols cross-platform
+ 
+ */
 #if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+
 #define KNX_TOOL_WEAK
+
 #elif defined(__GNUC__)
+
 #define KNX_TOOL_WEAK __attribute__((weak))
+
 #endif
 
 #ifdef __cplusplus
@@ -410,7 +416,7 @@ extern "C"
    * @param on_off the boolean
    * @param text the text to add the boolean as text
    */
-  void util_add_bool_to_text(bool on_off, char* text);
+  void util_bool2text(bool on_off, char* text);
 
   /**
    * @brief convert the integer to text for display
@@ -427,7 +433,7 @@ extern "C"
    * @param text the text to add info to
    * @param as_ets the text as terminology as used in ets
    */
-  void util_int2gatext(uint32_t value, char* text, bool as_ets);
+  void util_int2ga_text(uint32_t value, char* text, bool as_ets);
 
   /**
    * @brief convert the scope to text for display
@@ -435,7 +441,7 @@ extern "C"
    * @param value the scope
    * @param text the text to add info too
    */
-  void util_int2scopetext(uint32_t value, char* text);
+  void util_int2scope_text(uint32_t value, char* text);
 
   /**
    * @brief convert the group id to text for display
@@ -444,7 +450,7 @@ extern "C"
    * @param text the text to add info too
    * @param as_ets the text as terminology as used in ets
    */
-  void util_int2grpidtext(uint64_t value, char* text, bool as_ets);
+  void util_int2grpid_text(uint64_t value, char* text, bool as_ets);
 
   /**
    * @brief convert the double (e.g. float)  to text for display
@@ -476,7 +482,6 @@ enum controls : uint16_t
   CHECK_PM,             // programming mode check in menu bar
   LIST_ALL,             // list all tables (GO/PUB/RCP/AT)
   RESTART_DEVICE,       // restart device
-  DEVICE_USAGE,
 
   EITT_SOO,             // EITT test button
   wxID_SLIDER,          // EMS Inverter slider
@@ -486,7 +491,6 @@ enum controls : uint16_t
   LSSB_1_IOO,           // LSSB info, channel 1
   LSAB_0_SOO,           // LSAB switch, channel 0
   LSAB_1_SOO,           // LSAB switch, channel 1
-
 };
 
 #include <wx/string.h>

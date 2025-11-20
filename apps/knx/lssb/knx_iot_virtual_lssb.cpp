@@ -40,7 +40,7 @@ public:
   CustomDialog(const wxString& title, const wxString& text);
 
 private:
-  void on_close(wxCommandEvent& event);
+  void OnClose(wxCommandEvent& event);
 };
 
 CustomDialog::CustomDialog(const wxString& title, const wxString& text)
@@ -57,7 +57,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text)
   vbox->Add(tc, 1, wxEXPAND | wxALL, 10);
 
   wxButton* closeButton = new wxButton(this, wxID_OK, "Close");
-  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::on_close, this);
+  closeButton->Bind(wxEVT_BUTTON, &CustomDialog::OnClose, this);
   vbox->Add(closeButton, 0, wxALIGN_CENTER | wxALL, 10);
 
   SetSizer(vbox);
@@ -97,7 +97,7 @@ CustomDialog::CustomDialog(const wxString& title, const wxString& text)
   ShowModal();
 }
 
-void CustomDialog::on_close(wxCommandEvent& event)
+void CustomDialog::OnClose(wxCommandEvent& event)
 {
   EndModal(wxID_OK);
 }
@@ -481,7 +481,7 @@ void MyFrame::updateDeviceData()
   m_ls_text->SetValue(text);
 
   strcpy(text, "IID : ");
-  util_int2grpidtext(device->iid, text, iid_conversion);
+  util_int2grpid_text(device->iid, text, iid_conversion);
   m_iid_text->SetValue(text);
 
   (void)sprintf(text, "Hostname : %s", oc_string_checked(device->iot_hostname));
@@ -634,7 +634,7 @@ void MyFrame::updateCheckBoxesFromLiveIOOData()
 
   // update check box text
   strcpy(text, "IOO = ");
-  util_add_bool_to_text(p, text);
+  util_bool2text(p, text);
   m_LSSB_0_IOO->SetLabel(text);
 
   // update check box
@@ -643,7 +643,7 @@ void MyFrame::updateCheckBoxesFromLiveIOOData()
 
   // update check box text
   strcpy(text, "IOO = ");
-  util_add_bool_to_text(p, text);
+  util_bool2text(p, text);
   m_LSSB_1_IOO->SetLabel(text);
   
 }
@@ -668,7 +668,7 @@ void MyFrame::OnPressed_LSSB_0_SOO(wxCommandEvent& event)
   char text[200];
   strcpy(text, "SOO = ");
 
-  util_add_bool_to_text(p, text);
+  util_bool2text(p, text);
   m_LSSB_0_SOO->SetLabel(text);
 
   // show in status bar
@@ -697,7 +697,7 @@ void MyFrame::OnPressed_LSSB_1_SOO(wxCommandEvent& event)
   char text[200];
   strcpy(text, "SOO = ");
 
-  util_add_bool_to_text(p, text);
+  util_bool2text(p, text);
   m_LSSB_1_SOO->SetLabel(text);
 
   // show in status bar

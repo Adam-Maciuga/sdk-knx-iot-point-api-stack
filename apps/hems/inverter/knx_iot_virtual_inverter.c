@@ -31,11 +31,11 @@ const char dev_model[] KNX_TOOL_WEAK = "6800";              // reuse mask versio
 const uint32_t mid KNX_TOOL_WEAK = 0x00fa;                  // first 4 digits of sn_lower_case
 
 float_functional_block_t inverter = {
-  425, 1, 1,
+  1250, 1, 1,
   {
     0, /* IEEE 754 single float, KNX DPT: 14.056 */
     "/p/inverter",
-    "urn:knx:dpa.425.60",
+    "urn:knx:dpa.1250.60",
     ":dpt.value_power",
     "Inverter Output to CEM",
     no_error}
