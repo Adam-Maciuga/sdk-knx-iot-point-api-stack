@@ -87,7 +87,7 @@ extern "C" {
 	/**
 	 * @brief Set device serial number, mfg name and some default data, init then device (/dev, ...) resources 
 	 *
-	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case
+	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case, MUST be exactly 12 SN chars (+ '\')
 	 * @param app_friendly_name the user-friendly name of the application
 
 	 */

@@ -144,8 +144,8 @@ void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 	// assign default ia 
   oc_device_info.ia = 0xffff;
 
-	// caller MUST ensure that the hand-over serial number is in ASCII lower case
-	oc_new_string(&oc_device_info.serialnumber, serialnumber, strlen(serialnumber));
+	// caller MUST ensure that the hand-over serial number is in ASCII lower case and 12 chars long 
+  oc_new_string(&oc_device_info.serialnumber, serialnumber, SERIAL_NUM_SIZE);
 
 	// device application  friendly name
 	oc_new_string(&oc_device_info.app_friendly_name, app_friendly_name, strlen(app_friendly_name));

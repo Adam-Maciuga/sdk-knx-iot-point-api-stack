@@ -71,6 +71,7 @@ extern "C" {
     ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
   };
 
+
   #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
 
   /*
@@ -79,6 +80,7 @@ extern "C" {
     header defined by specification
  */
   #define HNAME_SIZE (4 + SERIAL_NUM_SIZE + 1)
+  #define HNAME_TYPE ("knx-%s")
   
   // reset/set a specific bit from above, used to suppress compiler warnings
   #define UNSET_BIT(flags, bit)  ((flags) &= ~(bit))
@@ -145,16 +147,6 @@ extern "C" {
    * @param endpoint the endpoint to be freed
    */
   void oc_free_endpoint(oc_endpoint_t* endpoint);
-
-  /**
-   * @brief set the OSCORE identifier (SID)
-   *
-   * @param endpoint the end point
-   * @param oscore_str_id the OSCORE id (as string in hex) to use for
-   * encryption/decryption
-   * @return int 0 success
-   */
-  int oc_endpoint_set_oscore_id_from_str(oc_endpoint_t* endpoint, char* oscore_str_id);
 
   /**
    * @brief set the OSCORE identifier (SID)

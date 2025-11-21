@@ -356,7 +356,7 @@ oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 int
 oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
 {
-  // 64 bit = 16 nibbles + '\0'
+  // 64 bit = 16 nibble chars + '\0' -> 0x 1122 3344 5566 7788
   char temp_str[17] = "";
 
   if (number == 0)

@@ -362,9 +362,13 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
       }
 
       response_length += oc_rep_add_line_to_buffer("</fp/g/");
-      char string[10];
-      (void)sprintf(string, "%d>", g_got[i].id);
-      response_length += oc_rep_add_line_to_buffer(string);
+
+      // max id = 65535, see table id, but 32-bit id covers 10 chars + '>'
+      #define MAX_ID_LEN (10 + 1)
+      char id[MAX_ID_LEN];
+      (void)snprintf(id, MAX_ID_LEN, "%d>", g_got[i].id);
+      response_length += oc_rep_add_line_to_buffer(id);
+
       response_length += oc_rep_add_line_to_buffer(";ct=60");
 
       query_parameter_kvpair_matches++;
@@ -920,9 +924,13 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
       }
 
       response_length += oc_rep_add_line_to_buffer("</fp/p/");
-      char string[10];
-      (void)sprintf((char*)&string, "%d>", g_gpt[i].id);
-      response_length += oc_rep_add_line_to_buffer(string);
+
+      // max id = 65535, see table id, but 32-bit id covers 10 chars + '>'
+      #define MAX_ID_LEN (10 + 1)
+      char id[MAX_ID_LEN];
+      (void)snprintf(id, MAX_ID_LEN, "%d>", g_gpt[i].id);
+      response_length += oc_rep_add_line_to_buffer(id);
+
       response_length += oc_rep_add_line_to_buffer(";ct=60");
 
       query_parameter_kvpair_matches++;
@@ -1450,9 +1458,13 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
       }
 
       response_length += oc_rep_add_line_to_buffer("</fp/r/");
-      char string[10];
-      (void)sprintf(string, "%d>", g_grt[i].id);
-      response_length += oc_rep_add_line_to_buffer(string);
+
+      // max id = 65535, see table id, but 32-bit id covers 10 chars + '>'
+      #define MAX_ID_LEN (10 + 1) 
+      char id[MAX_ID_LEN];
+      (void)snprintf(id, MAX_ID_LEN, "%d>", g_grt[i].id);
+      response_length += oc_rep_add_line_to_buffer(id);
+
       response_length += oc_rep_add_line_to_buffer(";ct=60");
 
       query_parameter_kvpair_matches++;

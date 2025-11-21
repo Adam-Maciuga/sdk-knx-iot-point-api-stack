@@ -213,7 +213,7 @@ int app_init(void)
       header defined by specification
    */
   char hname[HNAME_SIZE];
-  (void)snprintf(hname, HNAME_SIZE, "knx-%s", sn_lower_case);
+  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, sn_lower_case);
 
   // set default host name, reset uses this default, -> volatile
   oc_core_set_device_hostname(hname);

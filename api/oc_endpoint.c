@@ -57,15 +57,6 @@ oc_free_endpoint(oc_endpoint_t* endpoint)
 	}
 }
 
-int
-oc_endpoint_set_oscore_id_from_str(oc_endpoint_t* endpoint, char* oscore_id)
-{
-	endpoint->oscore_id_len = SERIAL_NUM_SIZE;
-	return oc_conv_hex_string_to_byte_array(oscore_id, strlen(oscore_id),
-																					(uint8_t*) &endpoint->oscore_id,
-																					&endpoint->oscore_id_len);
-}
-
 void oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, 
 															 uint8_t* oscore_id,
 															 int oscore_id_len)
@@ -186,11 +177,13 @@ oc_ipv6_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str)
 	}
 	if (max_zeros_start != 0)
 	{
-		sprintf(&ip[str_idx + 1], "]:%u", endpoint->addr.ipv6.port);
+		// ']:' + 16 bit port = 7
+	  (void)snprintf(&ip[str_idx + 1],2 + 5, "]:%u", endpoint->addr.ipv6.port);
 	}
 	else
 	{
-		sprintf(&ip[str_idx], "]:%u", endpoint->addr.ipv6.port);
+    // ']:' + 16 bit port = 7
+	  (void)snprintf(&ip[str_idx],2 + 5, "]:%u", endpoint->addr.ipv6.port);
 	}
 #ifdef OC_TCP
 	if (endpoint->flags & TCP)

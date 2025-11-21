@@ -130,38 +130,35 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 	// ct, if defined first
 	if (resource->content_type[0] != CONTENT_NONE)
 	{
-		// space for one type only (max 5 digits up to number of CONTENT_NONE)
-		char my_ct_value[5];
-		*response_length += oc_rep_add_line_to_buffer("ct=");
-
 		// ct, if defined second
 		if (resource->content_type[1] != CONTENT_NONE)
 		{// 2 types, ct="60 40"
 
-			// "
-			*response_length += oc_rep_add_line_to_buffer("\"");
+			// space for two types (max 5 digits up to number of CONTENT_NONE = 99999)
+      #define MAX_CT_LEN_DOUBLE (3 + 1 + 5 + 1 + 5 + 1)
 
-			// number
-			(void) sprintf(my_ct_value, "%d", resource->content_type[0]);
-			*response_length += oc_rep_add_line_to_buffer(my_ct_value);
+      char double_my_ct_value[MAX_CT_LEN_DOUBLE];
 
-			// space
-			*response_length += oc_rep_add_line_to_buffer(" ");
 
-			// number
-			(void) sprintf(my_ct_value, "%d", resource->content_type[1]);
-			*response_length += oc_rep_add_line_to_buffer(my_ct_value);
-
-			// "
-			*response_length += oc_rep_add_line_to_buffer("\"");
+			// ct= + " + number + ' ' + number + "
+      (void)snprintf(double_my_ct_value, MAX_CT_LEN_DOUBLE, "ct=\"%d %d\"", 
+										 resource->content_type[0],
+                     resource->content_type[1]);
+      *response_length += oc_rep_add_line_to_buffer(double_my_ct_value);
 
 		}
 		else
 		{// 1 type, ct=60
 
-			// number 
-			(void) sprintf(my_ct_value, "%d", resource->content_type[0]);
-			*response_length += oc_rep_add_line_to_buffer(my_ct_value);
+			// space for one type (max 5 digits up to number of CONTENT_NONE = 99999)
+		  #define MAX_CT_LEN_SINGLE (3 + 5)
+
+      char single_my_ct_value[MAX_CT_LEN_SINGLE];
+
+		  // ct= + number 
+			(void)snprintf(single_my_ct_value, MAX_CT_LEN_SINGLE, "ct=%d", 
+										 resource->content_type[0]);
+      *response_length += oc_rep_add_line_to_buffer(single_my_ct_value);
 		}
 	}
 
@@ -293,12 +290,14 @@ static int frame_sn(const char* serial_number, const uint64_t iid, const uint16_
 	framed_bytes = oc_rep_add_line_to_buffer(" knx://ia.");
 	response_length += framed_bytes;
 
+	// max 16 nibble hex iid chars, max 4 nibble hex ia chars
 	char text_hex[20];
 	oc_conv_uint64_to_hex_string(text_hex, iid);
 	framed_bytes = oc_rep_add_line_to_buffer(text_hex);
 	response_length += framed_bytes;
 
-	(void) snprintf(text_hex, 19, ".%x", ia);
+	// reuse buffer, '.' + max 5 digits for the decimal coded 16-bit ia
+	(void) snprintf(text_hex, 1 + 5, ".%x", ia);
 	framed_bytes = oc_rep_add_line_to_buffer(text_hex);
 	response_length += framed_bytes;
 

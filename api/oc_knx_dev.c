@@ -1198,7 +1198,7 @@ void oc_knx_load_device(void)
       header defined by specification
    */
   char hname[HNAME_SIZE];
-  (void)snprintf(hname, HNAME_SIZE, "knx-%s", oc_string(device->serialnumber));
+  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
 
   // read host name from storage (on error = default host name, otherwise stored host name)
   oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, 128);
@@ -1251,7 +1251,7 @@ void oc_knx_device_storage_reset(int reset_mode)
       header defined by specification
    */
     char hname[HNAME_SIZE];
-    (void)snprintf(hname, HNAME_SIZE, "knx-%s", oc_string(device->serialnumber));
+    (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
     oc_core_set_device_hostname(hname);
 
     // delete iot device tables
