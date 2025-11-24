@@ -173,16 +173,21 @@ extern "C"
    *
    * Note that some (int) integers are tested in the code on their init values
    * '-1' for (non) validity, this is a problem in case of 16-bit platforms --> hence the plain int was changed to int32_t
-   * - ia : (-1 = 0xFFFF = a valid KNX ia)
-   * - id : (-1 = 0xFFFF = a valid id range)
+   * - ia : (-1 = 0xFFFF = a valid/written KNX ia)
+   * - id : (-1 = 0xFFFF = a valid/written id )
+   * 
+   * 'ia' on RCP table -> defines if the own message will be sent as uc/mc (uc= ia set, mc= grpid set) 
+   * 'ia' on PUB table -> defines to which 'ia' device a subscription (with GET /k) has to be sent out,
+   *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present) 
+   *
    */
   typedef struct oc_group_table
   {
     int32_t id;       // id, specification demands a range of 0 ... 65535 (see note above)
-    int32_t ia;       // individual address for uc requests, KNX spec. demands of 16 bit (see note above)
+    int32_t ia;       // individual address specification demands of 16 bit (see note above)
     int64_t iid;      // installation id
     int64_t fid;      // fabric id
-    uint32_t grpid;   // group id for mc requests, KNX spec. demands 32 bit (in ULA/IANA format style)
+    uint32_t grpid;   // group id, specification demands 32 bit (in ULA/IANA format style)
     oc_string_t at;   // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;     // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;  // group address array len, specification demands at least 20 entries must be supported
@@ -190,11 +195,12 @@ extern "C"
   } oc_group_table_t;
 
   /*
+    'non'
     - optional property 
-    - uc (grpid not set) = confirmable by default, flag = false (except a MaC overwrites it)
-    - mc (grpid set) = non-confirmable, not applicable as confirmable on mc, hence
+    - uc = confirmable by default, flag = false (except a MaC overwrites it)
+    - mc = non-confirmable, not applicable as confirmable on mc, hence
       always 'ASSUMED' as true (the flag is NOT evaluated by the stack in case of sending mc messages) 
-    - used only on RCP table
+    - used only on RCP table (when sending messages)
 
    */
 

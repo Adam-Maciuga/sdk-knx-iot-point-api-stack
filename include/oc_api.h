@@ -401,13 +401,14 @@ extern "C"
 
   /**
    * Set the programming mode callback
-   * NOTE: It is the responsibility of this callback (if registered), to
-   * set the programming mode of the device via a call to
-   * oc_knx_device_set_programming_mode();
-   *
-   * @param[in] programming_mode whether to set the programming mode to true or
-   * false
+   * 
+   * 
+   * @param[in] programming_mode whether to set the programming mode to true or false
    * @param[in] data the user supplied data
+   *
+   * @note It is the responsibility of this callback (if registered), to
+   *       set the programming mode of the device via a call to
+   *       oc_knx_device_set_programming_mode();
    *
    */
   typedef void (*oc_programming_mode_cb_t)(bool programming_mode, void* data);

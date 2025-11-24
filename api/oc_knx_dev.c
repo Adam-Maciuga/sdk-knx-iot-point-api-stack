@@ -1300,8 +1300,14 @@ void oc_knx_device_storage_reset(int reset_mode)
 
 bool oc_knx_device_in_programming_mode(void)
 {
-  const oc_device_info_t* const  device = oc_core_get_device_info();
+  const oc_device_info_t* const device = oc_core_get_device_info();
   return device->pm;
+}
+
+void oc_knx_device_set_programming_mode(bool programming_mode)
+{
+  oc_device_info_t* const device = oc_core_get_device_info();
+  device->pm = programming_mode;
 }
 
 void oc_knx_device_restart(void)

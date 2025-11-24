@@ -118,19 +118,19 @@ wxString util_dumpLsmState()
 {
   oc_device_info_t* device = oc_core_get_device_info();
   
-  wxString out("- LSM State:\n");
+  wxString out("=== Load State Machine (LSM) ===\n");
 
   if (device->lsm_s == LSM_S_UNLOADED)
   {
-    out += "  LSM: unloaded\n";
+    out += "Unloaded\n";
   }
   else if (device->lsm_s == LSM_S_LOADING)
   {
-    out += "  LSM: loading\n";
+    out += "Loading\n";
   }
   else if (device->lsm_s == LSM_S_LOADED)
   {
-    out += "  LSM: loaded\n";
+    out += "Loaded\n";
   }
 
   return out;
@@ -293,14 +293,11 @@ wxString util_dumpParameterList()
   wxString out("=== Parameter List ===\n");
   char line[256];
 
-  int index = 1;
+  int index = 0;
   char* url = app_get_parameter_url(index);
-  if (url == NULL) {
-    out += "no parameters in this device\n";
-  }
   while (url) {
-    sprintf(line, "\nIndex %02d ", index); out += line;
-    sprintf(line, "  url : '%s'  ", url); out += line;
+    sprintf(line, "index %02d ", index); out += line;
+    sprintf(line, "\turl: '%s' ", url); out += line;
     char* name = app_get_parameter_name(index);
     if (name) { sprintf(line, "  name: '%s'  ", name); out += line; }
     index++;

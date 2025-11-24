@@ -52,7 +52,7 @@ extern "C" {
  *  @note if storage cannot be read, their default values will be applied to the properties
  *
  */
-void oc_knx_load_device();
+void oc_knx_load_device(void);
 
 /**
  * @brief clear the persistent storage
@@ -82,7 +82,7 @@ void oc_knx_device_storage_reset(int reset_mode);
  * @return true in programming mode
  * @return false not in programming mode
  */
-bool oc_knx_device_in_programming_mode();
+bool oc_knx_device_in_programming_mode(void);
 
 /**
  * @brief function set the programming mode of the device to true or false
