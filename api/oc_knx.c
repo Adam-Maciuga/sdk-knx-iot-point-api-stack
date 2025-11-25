@@ -150,7 +150,7 @@ static oc_event_callback_retval_t reset(void* context)
       - PASE token (explicitly)
       - all access tokens that do not contain 'if.sec'
    
-    @note Before the actual reset actions the factory preset callback handler is called ,
+    @note Before the actual reset actions the factory preset callback handler is called,
           after the actions the reset callback handler
 
   */

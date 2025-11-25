@@ -45,43 +45,44 @@ such as to handle two independent charger devices by the CEM are not considered.
 
 # References
 All applications uses KNX standardized datapoints, the corresponding __Functional Block__ and 
-__Datapoint Type__ definitions you can find in folder 'apps/hems/data'
+__Datapoint Type__ definitions you can find in folder 'apps/hems/data'. 
 
 - 07_80 Introduction 
-- 07_80_01 Photovoltaics 
-- 07_80_03 eMoblity 
+- 07_80_01 Photovoltaics (Inverter, Battery) 
+- 07_80_02 HVAC for EMS (Heat Pump, Domestic Hot Water, Buffer)
+- 07_80_03 eMoblity (Charger)
 - 03_07_02 Datapoint Types 
 
 # 1. Inverter
 
-The inverter demo represents an own end device with the *photovoltaics* functionality. 
+The inverter demo represents an own end device with an *inverter* functionality from 07_80_01. 
 
-> The demo implements an 'PowerDC' output datapoint from the Functional Block 'Photovoltaics', reflecting the
-  sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
+> The demo implements a 'PowerDC' output datapoint from the Functional Block 'FB PV Inverter Control', 
+  reflecting the sun beam radiation. It is represented by a slider, which allows the user to 'simulate'
   the present DC power from 0 to 10 kW in steps of 1 kW.
 
 # 2. Customer Energy Manager
 
-The customer energy manager demo represents an own end device with the the *cem** functionality. 
+The customer energy manager demo represents an own end device with a *cem** functionality. 
 
 > The demo application implements
-  a counterpart input datapoint for the output 'PowerDC' datapoint of Functional Block 'Photovoltaics'
-- a counterpart output datapoint for the input 'ActivePowerLimit' datapoint of Functional Block 'eMoblity' 
+  a counterpart input datapoint for the output 'PowerDC' datapoint of the inverter.
+- a counterpart output datapoint for the input 'ActivePowerLimit' datapoint of the charger 
 - a sun/mix mode operation setting
 
 # 3. Charger
 
-The charger demo represents an own end device with the *charging** functionality. 
+The charger demo represents an own end device with a *charger** functionality from 07_80_03. 
 
-> The demo implements an 'ActivePowerLimit' input datapoint from the Functional Block 'eMoblity', reflecting the
-  charging DC power consumption in kW from the e-car. 
+> The demo implements an 'ActivePowerLimit' input datapoint from the Functional Block 'EVSE AC', 
+  reflecting the charging DC power consumption in kW from the e-car. 
 
 # Details 
 
 ## Application, Datapoints
 
-In this demo used device serial numbers (SN's) are arbitrary. The EMS functionality (aka device applications)
-is part of the ex-factory device, this also includes the datapoints. 
+In this demo used device serial numbers (SN's) are arbitrary. The EMS functionality 
+(aka device applications) is part of the ex-factory device, this also includes the datapoints. 
   
 **Inverter**
 -  url: '/p/inverter', if.o output, transmit (sends solar power value), 

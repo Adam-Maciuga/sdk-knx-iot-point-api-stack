@@ -329,7 +329,7 @@ extern "C"
    * @param[in] data the user supplied data
    *
    */
-  typedef void (*oc_reset_cb_t)( int reset_value, void* data);
+  typedef void (*oc_reset_cb_t)(int reset_value, void* data);
 
   /**
    * Set the reset callback.

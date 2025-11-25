@@ -322,6 +322,9 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
 
+  // stop animation 
+  m_flow->Stop();
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
 
@@ -338,8 +341,13 @@ void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
   // reset the device
+
+  // stop animation
+  m_flow->Stop();
+  
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
   // update the UI
+  
   this->updateDeviceData();
 }
 

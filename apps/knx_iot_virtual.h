@@ -158,7 +158,7 @@ typedef enum
   put = 4,              // was a put, request contains it, but on upper layer it is not present anymore 
   new_event = 8         // new event occured, should be reset if event was processed in upper layer
 
-} app_handler_flags_t;
+} app_datapoint_handler_flags_t;
 
 typedef struct
 {
