@@ -2,8 +2,10 @@
 
 # Introduction 
 
-A common (stack) introduction is available under the [wiki pages](../../wikis/Home), 
+A common (stack) introduction is available on the [wiki pages](../../wikis/Home), 
 more branch specific topics are listed here below. 
+
+To directly jump the demo apps, go [here](apps/Readme.md).
 
 # Project Directory Structure
 
