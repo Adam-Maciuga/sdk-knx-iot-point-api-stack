@@ -476,7 +476,10 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request, oc_interface_mas
   }
 
   if (query_ps > 1)
-  { // return > 1 entries {1: "200..."} within array = [ {1: h'200...'}, {1: h'300...'}]
+  { /* 
+      try to return > 1 entries {1: "200..."} within array = [ {1: h'200...'}, {1: h'300...'}],
+      also on one available IPv6 address but ps > 1 an array will be filled (with one element)
+    */
 
     // [ (open) => see https://intel.github.io/tinycbor/current/a00046.html
     cbor_encoder_create_array(&g_encoder, &root_map, CborIndefiniteLength);

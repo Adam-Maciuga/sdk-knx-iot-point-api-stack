@@ -126,7 +126,7 @@ extern "C" {
 	{
 		oc_string_t id;							// (0) id, hex encoded 
 		oc_acl_mask_t scope;	      // (9) acl scopes (compacted as bit field)
-		oc_at_profile_t profile;		// (38) "coap_oscore" or "coap_dtls", only oscore implemented
+		oc_at_profile_t profile;		// (38) "coap_oscore", ...
 		oc_string_t sub;						// (2) TLS kid (optional - not used)
 		oc_string_t kid;						// (8:3) TLS cnf:sub (optional - not used)
 		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional - not used) 

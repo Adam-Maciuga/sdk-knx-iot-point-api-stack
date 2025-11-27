@@ -1080,8 +1080,8 @@ oc_rep_i_get_mixed_array(oc_rep_t *rep, int key, oc_rep_t **value)
  * Internal function used to complete the oc_rep_to_json function
  *
  * This function is used when pretty_print parameter of the oc_rep_to_json
- * function is set to true. It helps produce output with reasonably human
- * readable white-space.
+ * function is set to true. It helps produce output with reasonably human-readable
+ * white-space.
  */
 static size_t oc_rep_to_json_tab(char *buf, size_t buf_size, int tab_depth)
 {
@@ -1140,7 +1140,7 @@ oc_rep_to_json_base64_encoded_byte_string(char *buf, size_t buf_size,
  * equivalent of that value.  This function will be called recursively for
  * nested objects.
  *
- * Currently does not handle OC_REP_ARRAY data type.
+ * Currently, does not handle OC_REP_ARRAY data type.
  */
 static size_t oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, int tab_depth,
                       bool pretty_print)
