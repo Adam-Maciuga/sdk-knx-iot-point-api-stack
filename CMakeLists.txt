@@ -66,6 +66,9 @@ set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table 
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 set(KNX_SPAKE_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake")
 
+# KNX reset "Process Time" in seconds
+set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
+
 # dont show below variables in any (command) GUI
 mark_as_advanced(KNX_SPAKE_ITERATIONS)
 
@@ -570,6 +573,9 @@ add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher 
 add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
 add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile definitions)
 add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
+
+# KNX reset Process Time (seconds)
+add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
 ## Security 
 if(OC_OSCORE_ENABLED)
