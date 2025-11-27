@@ -677,9 +677,16 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		}
 		else
 		{
-			// on unicast/multicast request w/ query parameter and NO hit
-			// TODO topic will be decided by iot group (#14 clarification list)
-			oc_ignore_request(request);
+      if (request->origin && request->origin->flags & MULTICAST)
+      {
+        // multicast request w/ query parameter and NO hit
+        oc_ignore_request(request);
+      }
+      else
+      {
+        // unicast request w/ query parameter and NO hit
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+      }
 		}
 		return;
 	}
