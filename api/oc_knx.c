@@ -293,8 +293,14 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
       erase_code_value == RESET_TO_DEFAULT_STATE || 
       erase_code_value == RESET_TO_DEFAULT_WO_IA ? RESET_NO_ERROR : RESET_UNSUPPORTED_ERASE_CODE;
 
-    // response time (fixed value, need to be set in relation of the used hardware)
-    const unsigned int response_time = 2;
+    /*
+      Response time ("Process Time") in seconds.
+      - Indicates the maximum duration the device may need to complete the reset locally.
+      - Management clients (EITT/MaC) should wait this long before sending follow-up requests
+        to avoid race conditions while the device is resetting.
+      - The value is supplied via CMake as the compile definition KNX_RESPONSE_TIME_SECONDS.
+    */
+    const unsigned int response_time = KNX_RESPONSE_TIME_SECONDS;
 
     oc_rep_begin_root_object();
     oc_rep_text_set_int(root, code, response_code);
