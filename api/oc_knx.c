@@ -214,11 +214,8 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
   int erase_code_value = -1; // JSON key
   int cmd = -1; // JSON key
 
-  // all values init to '0', 200 byte size is sufficient for request data
-  char buffer[200] = {0};
-  oc_rep_to_json(request->request_payload, buffer, 200, false);
-
-  PRINT("oc_core_knx_post_handler with data %s", buffer);
+  PRINT("oc_core_knx_post_handler - start");
+  oc_print_rep_as_json(request->request_payload, false);
 
   oc_rep_t* rep = request->request_payload;
   while (rep)

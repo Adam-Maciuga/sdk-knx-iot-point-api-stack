@@ -386,7 +386,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
    * unicast
    *
    * without rt/if query parameter
-   * - (a0) core resources (/dev, /k, ...) -> mandatory/ optional defined ones (see  
+   * - (a0) core resources (/dev, /k, ...) -> mandatory/ optional defined ones  
    * - (b0) application functional blocks (FB) -> at least one resource type must be defined (such 'fb.0')
    *
    * with rt/if query parameter

@@ -1509,107 +1509,26 @@ static size_t oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, i
   return total_char_printed;
 }
 
-size_t
-oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size, bool pretty_print)
+size_t oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size, bool pretty_print)
 {
-  size_t num_char_printed = 0;
   size_t total_char_printed = 0;
 
   bool object_array =
-    (rep && (rep->type == OC_REP_OBJECT) && (oc_string_len(rep->name) == 0));
+    (rep && rep->type == OC_REP_OBJECT && oc_string_len(rep->name) == 0);
 
-  num_char_printed = (pretty_print)
-                       ? snprintf(buf, buf_size, (object_array) ? "[\n" : "{\n")
-                       : snprintf(buf, buf_size, (object_array) ? "[" : "{");
+  size_t num_char_printed = pretty_print
+    ? snprintf(buf, buf_size, object_array ? "[\n" : "{\n")
+    : snprintf(buf, buf_size, object_array ? "[" : "{");
   OC_JSON_UPDATE_BUFFER_AND_TOTAL;
 
   num_char_printed = oc_rep_to_json_format(rep, buf, buf_size, 0, pretty_print);
   OC_JSON_UPDATE_BUFFER_AND_TOTAL;
 
-  num_char_printed = (pretty_print)
-                       ? snprintf(buf, buf_size, (object_array) ? "]\n" : "}\n")
-                       : snprintf(buf, buf_size, (object_array) ? "]" : "}");
+  num_char_printed = pretty_print
+                       ? snprintf(buf, buf_size, object_array ? "]\n" : "}\n")
+                       : snprintf(buf, buf_size, object_array ? "]" : "}");
 
   OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-  return total_char_printed;
-}
-
-size_t
-py_oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size, bool pretty_print)
-{
-  size_t num_char_printed = 0;
-  size_t total_char_printed = 0;
-  char *my_buf = buf;
-  int tab = 1;
-
-  bool object_array = (rep && (rep->type == OC_REP_ARRAY) &&
-                       (oc_string_len(rep->name) == 0) && (rep->iname == -1));
-  bool object = (rep && (rep->type == OC_REP_OBJECT) &&
-                 (oc_string_len(rep->name) == 0) && (rep->iname == -1));
-
-  PRINT("===> py_oc_rep_to_json: array:%d object:%d", object_array, object);
-  if (rep) {
-    PRINT("type: %d", rep->type);
-    if ((rep->type != OC_REP_ARRAY) && (rep->type != OC_REP_OBJECT)) {
-      tab = 0;
-    }
-  }
-  PRINT("tab: %d \n\n", tab);
-
-  // reserve space
-  num_char_printed = snprintf(buf, buf_size, " ");
-  OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-
-  if (object_array) {
-    num_char_printed = (pretty_print) ? snprintf(buf, buf_size, "[\n")
-                                      : snprintf(buf, buf_size, "[");
-    OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-  }
-  if (object) {
-    num_char_printed = (pretty_print) ? snprintf(buf, buf_size, "{\n")
-                                      : snprintf(buf, buf_size, "{");
-    OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-  }
-
-  num_char_printed =
-    oc_rep_to_json_format(rep, buf, buf_size, tab, pretty_print);
-  OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-
-  char *found = NULL;
-  if (my_buf) {
-    found = strchr((const char *)my_buf, ':');
-  }
-  if (found != NULL) {
-    // content is an object
-    object = true;
-    my_buf[0] = '{';
-  } else {
-    // check if the contents maybe an array
-    char *found_comma = NULL;
-    if (my_buf) {
-      found_comma = strchr((const char *)my_buf, ',');
-    }
-    if (found_comma != NULL) {
-      // content is an array
-      object_array = true;
-      my_buf[0] = '[';
-    }
-  }
-
-  if (object_array) {
-    num_char_printed = (pretty_print) ? snprintf(buf, buf_size, "]\n")
-                                      : snprintf(buf, buf_size, "]");
-    OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-  }
-  if (object) {
-    num_char_printed = (pretty_print) ? snprintf(buf, buf_size, "}\n")
-                                      : snprintf(buf, buf_size, "}");
-    OC_JSON_UPDATE_BUFFER_AND_TOTAL;
-  }
-
-  PRINT("total printed: %d \n", (int)total_char_printed);
-  PRINT("%s\n", my_buf);
-
   return total_char_printed;
 }
 
@@ -1617,14 +1536,15 @@ py_oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size, bool pretty_print)
  * function to print the returned cbor as JSON
  *
  */
-void
-oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print)
+void oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print)
 {
-#ifdef OC_PRINT
-  size_t json_size = oc_rep_to_json(rep, NULL, 0, pretty_print);
-  char* json = malloc(json_size + 1);
+  #ifdef OC_PRINT
+  
+  const size_t json_size = oc_rep_to_json(rep, NULL, 0, pretty_print);
+  char* json = (char*)malloc(json_size + 1);
   oc_rep_to_json(rep, json, json_size + 1, pretty_print);
-  PRINT("oc_print_rep_as_json: %s", json);
+  PRINT("cbor as json: %s", json);
   free(json);
-#endif
+  
+  #endif
 }

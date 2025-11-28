@@ -2554,8 +2554,7 @@ bool oc_rep_i_get_mixed_array(oc_rep_t *rep, int key, oc_rep_t **value);
  * output to strings).
  *
  */
-size_t oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size,
-                      bool pretty_print);
+size_t oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size,bool pretty_print);
 
 /**
  * @brief prints the response tree as JSON to the output
@@ -2567,11 +2566,7 @@ size_t oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size,
  */
 void oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print);
 
-size_t py_oc_rep_to_json(oc_rep_t *rep, char *buf, size_t buf_size,
-                         bool pretty_print);
-
 size_t oc_rep_to_json_base64_encoded_byte_string(char* buf, size_t buf_size, char* byte_str, size_t byte_str_size);
-
 
 #ifdef __cplusplus
 }

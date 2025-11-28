@@ -39,6 +39,16 @@
 */
 static uint16_t g_array_of_different_fbs[2][64];
 
+#define NUM_FBS (64)
+
+static typedef struct functional_block_t
+{
+  uint16_t fb_number;
+  uint16_t fb_instance;
+  
+} functional_block_t[NUM_FBS] = {0};
+
+
 // number of different application FBs 
 static int g_array_current_amount_of_scanned_fbs = 0; 
 
@@ -145,9 +155,6 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("resource url: %s", oc_string(request->resource->uri));
   OC_DBG("FB value    : %d", fb_number);
   OC_DBG("FB instance : %d", fb_instance);
-
-  // catch the application resource
-  const oc_resource_t* corresponding_application_resource = NULL;
 
   // if instance/number not found a '-1'/'-1' is input here that results in total =0
   const int total = oc_core_get_dps_in_a_specific_fb(fb_number, fb_instance);
@@ -334,12 +341,13 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
   return false;
 }
 
-bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request, bool short_urn_form, size_t* response_length, int* matches,
-                                               int* skipped, int first_entry, int last_entry)
+bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request, bool short_urn_form, 
+                                                           size_t* response_length, int* matches,
+                                                           int* skipped, int first_entry, int last_entry)
 {
   (void)request;
 
-  // input of - by caller - already found AND to the response added matches 
+  // input of - by caller - already found AND to the response already added matches 
   const int already_key_value_pair_matches_added_to_response = *matches;
 
   // runs until last re-counted FB
