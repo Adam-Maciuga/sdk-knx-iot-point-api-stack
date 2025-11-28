@@ -622,10 +622,12 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       #define MANDATORY_AT_PROPERTIES (5) // id, profile, scope, cnf:osc:id/ms
       bool id_only = true; // used to delete the AT table entry
 
-      // set AT id, note that access token is (too) complex to use a shadow copy as for POST on pub/rcp/go 
-      oc_free_string(&(g_at_entries[array_index].id));
+      // set access token id, note that an access token is (too) complex to use a shadow copy as for POST on pub/rcp/go 
+      oc_free_string(&g_at_entries[array_index].id);
       oc_new_string(&g_at_entries[array_index].id, oc_string(*access_token_id), oc_string_len(*access_token_id));
-      int current_at_properties = 1; // AT id already set
+      
+      // access token id already set
+      int current_at_properties = 1; 
 
       while (object)
       {
@@ -640,7 +642,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             // array of scopes as (32 byte) strings (no useful macro found)
             // - char ptr must iterate each 32 bytes
             // - length must iterate over length / 32
-            char* array = object->value.array.ptr;
+            char* array = (char*)object->value.array.ptr;
             const int new_array_size = (int)object->value.array.size / STRING_ARRAY_ITEM_MAX_LEN;
 
             // set default scope
@@ -662,7 +664,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               acl_scopes += oc_ri_get_scope_mask(acl_string, strlen(acl_string));
             }
 
-            // no scope or a bad scope was set such as if.ll
+            // no scope (an empty array) or a bad scope was set (such as if.ll)
             if (acl_scopes == OC_ACL_NONE)
             {
               OC_ERR("no valid access scope was set");
@@ -685,7 +687,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // scope with GA integer array from MaC such as [200, 201]
           if (object->iname == 9)
           {
-            // default, overwritten if GA array was correctly assigned
+            // default, will be overwritten in access token if GA array was correctly assigned
             g_at_entries[array_index].scope = OC_ACL_NONE;
 
             // a post request does NOT append items to an (existing) array, it overwrites them  
@@ -693,33 +695,41 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             const int new_array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
-            if (new_array && new_array_size > 0)
+            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
+            if (new_array)
             {
-              for (int i = 0; i < new_array_size; i++)
+              if (new_array_size > 0)
               {
-                new_array[i] = (uint32_t)array[i];
+                for (int i = 0; i < new_array_size; i++)
+                {
+                  new_array[i] = (uint32_t)array[i];
+                }
+
+                PRINT("ga size %d", new_array_size);
+
+                // release a possible ga array, it will be overwritten, free ignores NULL ptr
+                free(g_at_entries[array_index].ga);
+
+                g_at_entries[array_index].ga_len = new_array_size;
+                g_at_entries[array_index].ga = new_array;
+
+                // define THIS auth at token below with <ga> scope 's-mode messaging',
+                // - is defined only here in the code
+                // - is used only on /k resource (see also oc_knx_sec_check_acl)
+                // - is used only in combination with a present ga array / array len (see above)
+                g_at_entries[array_index].scope = OC_ACL_GA;
+                current_at_properties++;
               }
-
-              PRINT("ga size %d", new_array_size);
-
-              // release a possible ga array, it will be overwritten, free ignores NULL ptr
-              free(g_at_entries[array_index].ga);
-
-              g_at_entries[array_index].ga_len = new_array_size;
-              g_at_entries[array_index].ga = new_array;
-
-              // define THIS auth at token below with <ga> scope 's-mode messaging',
-              // - is defined only here in the code
-              // - is used only on /k resource (see also oc_knx_sec_check_acl)
-              // - is used only in combination with a present ga array / array len (see above)
-              g_at_entries[array_index].scope = OC_ACL_GA;
-              current_at_properties++;
+              else
+              {
+                OC_ERR("no valid access GA scope was set");
+                oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                return;
+              }
             }
             else
             {
               OC_ERR("out of stack memory");
-
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
             }
@@ -752,7 +762,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // profile (38)
           if (object->iname == 38)
           {
-            g_at_entries[array_index].profile = (int)object->value.integer;
+            g_at_entries[array_index].profile = (oc_at_profile_t)object->value.integer;
             current_at_properties++;
           }
         }
@@ -771,9 +781,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             if (sub_object->type == OC_REP_STRING)
             {
               if (sub_object_nr == 8 && sub_object->iname == 3)
-              {
-                // cnf:kid (8:3)
-                oc_free_string(&(g_at_entries[array_index].kid));
+              {// cnf:kid (8:3)
+                oc_free_string(&g_at_entries[array_index].kid);
                 oc_new_string(&g_at_entries[array_index].kid, oc_string(sub_object->value.string), oc_string_len(sub_object->value.string));
               }
             }
@@ -782,13 +791,14 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
               oscore_object = sub_object->value.object;
               int oscore_object_nr = sub_object->iname;
               while (oscore_object)
-              {
+              {// cnf:osc(8:4)
                 if (oscore_object->type == OC_REP_INT)
                 {
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 4)
-                  {
+                  {// cnf:osc:ms (8:4:4)
+                    
                     // algorithm (10) only supports value 10 at the moment, EITT test 5.3.19.3
-                    if ((int)object->value.integer != 10)
+                    if (object->value.integer != 10)
                     {
                       OC_ERR("algorithm is not 10 : %d", (int)object->value.integer);
                       return_status = OC_STATUS_BAD_REQUEST;
@@ -799,38 +809,79 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 if (oscore_object->type == OC_REP_BYTE_STRING)
                 {
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 2)
-                  {
-                    // cnf:osc:ms (8:4:2)
-                    oc_free_string(&(g_at_entries[array_index].osc_ms));
-                    oc_new_byte_string(&g_at_entries[array_index].osc_ms, oc_string(oscore_object->value.string), 
-                                       oc_string_len(oscore_object->value.string));
+                  { // cnf:osc:ms (8:4:2)
+
+                    size_t mastersecret_size = oc_string_len(oscore_object->value.string);
+                    char* mastersecret_ptr = oc_string(oscore_object->value.string);
+
+                    // size does not fit
+                    if (mastersecret_size < OSCORE_KEY_LEN || mastersecret_size > OSCORE_MASTER_SECRET_LEN)
+                    {
+                      OC_ERR("master secret size is must be in range 16 ... 32 : %llu", mastersecret_size);
+                      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                      return;
+                    }
+
+                    // all '0'
+                    if (oc_check_string_on_zero_content(mastersecret_ptr))
+                    {
+                      OC_ERR("master secret content cannot be zero : %llu", mastersecret_size);
+                      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                      return;
+                    }
+
+                    oc_free_string(&g_at_entries[array_index].osc_ms);
+                    oc_new_byte_string(&g_at_entries[array_index].osc_ms, mastersecret_ptr, mastersecret_size);
 
                     other_updated = true;
                     current_at_properties++;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
-                  {
-                    // cnf:osc:contextId (8:4:6)
-                    oc_free_string(&(g_at_entries[array_index].osc_contextid));
-                    oc_new_byte_string(&g_at_entries[array_index].osc_contextid, oc_string(oscore_object->value.string),
-                                       oc_string_len(oscore_object->value.string));
+                  { // cnf:osc:contextId (8:4:6)
+
+                    size_t id_context_size = oc_string_len(oscore_object->value.string);
+
+                    // size does not fit
+                    if (id_context_size > OSCORE_ID_CONTEXT_LEN)
+                    {
+                      OC_ERR("id context size to big : %llu", id_context_size);
+                      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                      return;
+                    }
+
+                    oc_free_string(&g_at_entries[array_index].osc_contextid);
+                    oc_new_byte_string(&g_at_entries[array_index].osc_contextid, 
+                                       oc_string(oscore_object->value.string),
+                                       id_context_size);
                     other_updated = true;
                   
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
-                  {
-                    // cnf:osc:id (8:4:0)
+                  { // cnf:osc:id (8:4:0)
+
+                    size_t sender_id_size = oc_string_len(oscore_object->value.string);
+
+                    // size does not fit
+                    if (sender_id_size > OSCORE_SENDER_ID_LEN)
+                    {
+                      OC_ERR("sender id size to big : %llu", sender_id_size);
+                      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+                      return;
+                    }
+
                     oc_free_string(&(g_at_entries[array_index].osc_id));
-                    oc_new_byte_string(&g_at_entries[array_index].osc_id, oc_string(oscore_object->value.string),
-                                       oc_string_len(oscore_object->value.string));
+                    oc_new_byte_string(&g_at_entries[array_index].osc_id, 
+                                       oc_string(oscore_object->value.string),
+                                       sender_id_size);
                     other_updated = true;
                     current_at_properties++;
                   }
                   if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
-                  {
-                    // cnf:osc:salt (8:4:5)
-                    oc_free_string(&(g_at_entries[array_index].osc_salt));
-                    oc_new_byte_string(&g_at_entries[array_index].osc_salt, oc_string(oscore_object->value.string),
+                  { // cnf:osc:salt (8:4:5), RFC 9003 max 255 bytes on JSON ....
+
+                    oc_free_string(&g_at_entries[array_index].osc_salt);
+                    oc_new_byte_string(&g_at_entries[array_index].osc_salt, 
+                                       oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
@@ -863,9 +914,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         if (return_status == OC_STATUS_CREATED && current_at_properties < MANDATORY_AT_PROPERTIES)
         { // a
 
-          // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
           PRINT("mandatory items missing, no entry created at index: %d", array_index);
-
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -1347,7 +1396,7 @@ static void oc_store_at_table_entry(int entry)
   char filename[AT_SIZE];
   (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
 
-  uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
+  uint8_t* buf = (uint8_t*) malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
@@ -1404,7 +1453,7 @@ static void oc_load_at_table_entry(int entry)
 
   oc_rep_t* rep;
 
-  uint8_t* buf = malloc(OC_MAX_APP_DATA_SIZE);
+  uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
   if (!buf)
     return;
 
@@ -1500,7 +1549,7 @@ static void oc_load_at_table_entry(int entry)
             const int new_array_size = oc_int_array_size(rep->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
             if (new_array && new_array_size > 0)
             {
               for (int i = 0; i < new_array_size; i++)

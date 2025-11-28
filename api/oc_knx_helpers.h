@@ -24,8 +24,7 @@
 extern "C" {
 	#endif
 
-	// default batch size if ps is not part of the request
-	// (see if.b in clause 2.5.3.8 of iot specification, ONLY GET dev/ipv6)
+	// default batch size if ps is not part of the request, see clause 2.5.3.8, GET dev/ipv6
 	#define BATCH_SIZE 1
 	// default page number if pn is not part of the request
 	#define PAGE_NUMBER 0
@@ -109,6 +108,13 @@ extern "C" {
 	 * @return total bytes framed
 	 */
 	int oc_frame_integer(int value);
+
+	/**
+   * @brief helper function to check if a string contains only of '0'
+   * @param stream the string pointer
+   * @return all zero, true
+   */
+	bool oc_check_string_on_zero_content(const char* stream);
 
 	#ifdef __cplusplus
 }

@@ -93,6 +93,10 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   A | - Request   | Sender Context    | Recipient Context | Request Key
   B | - Response  | Recipient Context | Sender Context    | Response Key
 
+ Client  |                | Server
+ A1 (8.1)| -> REQUEST  -> | A2 (8.2)
+ B1 (8.4)| <- RESPONSE <- | B2 (8.3)
+
   A1: client composing a request
       - OSCORE 8.1 https://www.rfc-editor.org/rfc/rfc8613.html#section-8.1
       - 'oc_oscore_send_unicast_message',

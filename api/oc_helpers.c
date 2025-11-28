@@ -224,8 +224,7 @@ oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray,
                                const char str[], size_t str_len)
 {
   bool success = false;
-  size_t i;
-  for (i = 0; i < oc_byte_string_array_get_allocated_size(*ocstringarray);
+  for (size_t i = 0; i < oc_byte_string_array_get_allocated_size(*ocstringarray);
        i++)
   {
     if (oc_byte_string_array_get_item_size(*ocstringarray, i) == 0)
@@ -798,7 +797,18 @@ char* oc_strnchr(char* string, char p, int size)
 
 int oc_charstream_convert_to_lower(char* stream)
 {
-  for (; *stream; stream++)           // loops until *str is 0, e.g.; stream ends with \0
+  for (; *stream; stream++) // loops until *str is 0, e.g.; stream ends with \0
     *stream = (char)tolower(*stream);       
   return 0;
+}
+
+bool oc_check_string_on_zero_content(const char* stream)
+{
+  while (*stream) // loops until *str is 0, e.g.; stream ends with \0
+  {
+    if (*stream != '0')
+      return false; // there was one byte not zero ...
+    stream++;
+  }
+  return true;
 }
