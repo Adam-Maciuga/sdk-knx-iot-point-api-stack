@@ -210,7 +210,7 @@ extern "C"
    *
    * @return int -1 : not found, > -1 : value found
    */
-  int oc_table_find_id_from_payload(const oc_rep_t* object);
+  int32_t oc_table_find_id_from_payload(const oc_rep_t* object);
 
   /**
    * @brief retrieve the group object table total size,
@@ -233,10 +233,10 @@ extern "C"
    * ga_len > 0, if ga_len <= 0 then the group object table does
    * not contain an entry.
    *
-   * @param index the index in the group object table
+   * @param entry the index in the group object table
    * @return oc_group_object_table_t* pointer to the entry
    */
-  oc_group_object_table_t* oc_core_get_group_object_table_entry(int index);
+  oc_group_object_table_t* oc_core_get_group_object_table_entry(int entry);
 
   /**
    * @brief find empty slot in group object table
@@ -295,9 +295,9 @@ extern "C"
    * @brief find index belonging to the id
    *
    * @param id the identifier of the entry
-   * @return int the index in the table or -1
+   * @return int the index in the go table (is 32 bit) or -1
    */
-  int oc_core_find_index_in_group_object_table_from_id(int id);
+  int oc_core_find_index_in_group_object_table_from_id(int32_t id);
 
   /**
   * @brief find 'first' index in the group object table where a GA is included
@@ -378,15 +378,6 @@ extern "C"
   int oc_core_get_ga_table_len_from_group_object_table_index(int index);
 
   /**
-   * @brief get group address of index, and entry (e.g. list)
-   *
-   * @param index the entry in the group address table
-   * @param entry the entry in the list of addresses at index
-   * @return int the group address
-   */
-  uint32_t oc_core_get_ga_table_entry_from_group_object_table_index(int index, int entry);
-
-  /**
    * @brief print the entry in the Group Object Table
    *
    * @param entry the index of the entry in the Group Object Table
@@ -441,7 +432,7 @@ extern "C"
   /**
    * @brief delete entry of the Group Object Table,
    * - the GO table entry in RAM is invalidated
-   * - the GO table entry on storage disappears
+   * - the GO table entry on storage (file system) disappears
    *
    * @param entry the index of the entry in the Group Object Table
    */
@@ -590,7 +581,7 @@ extern "C"
    *
    * created
    */
-  void oc_create_knx_fp_resources(void);
+  void oc_create_knx_table_resources(void);
 
   /**
    * @brief free the GO/PUB/SUB tables in RAM

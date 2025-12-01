@@ -30,23 +30,24 @@
 
  allows to scan for up to 64 different functional blocks,
  note that an FB with another instance is also a 'new' FB such as
- [0][0] = 417, [0][1] = 1 -> 417_01
- [1][0] = 417, [1][1] = 3 -> 417_03
+ [0].fb_number = 417, [0].fb_instance= 1 -> 417_1
+ [0].fb_number = 417, [0].fb_instance= 1 -> 417_3
+ 
 
- The option to count only the consecutive instances instead is risky, it would mean that all
- instances up a number are also present (see above, last number = 3 but only two instances present)
+ The option to count only the consecutive instances instead is risky, it would mean that
+ all instances up a number are also present (see above, last number = 3 but only
+ two instances present -> application error)
  
 */
-static uint16_t g_array_of_different_fbs[2][64];
 
 #define NUM_FBS (64)
 
-static typedef struct functional_block_t
+static struct functional_block_t
 {
   uint16_t fb_number;
   uint16_t fb_instance;
   
-} functional_block_t[NUM_FBS] = {0};
+} g_array_of_different_fbs[NUM_FBS] = {0}; // nothing occupied
 
 
 // number of different application FBs 
@@ -70,27 +71,32 @@ int get_fb_number_from_dp(const char* dpt)
   return errno ? -1 : fb_number;
 }
 
-// add an FB instance if it is fresh (NOT yet present), note that the first handed over FB is always fresh
+// add an FB instance if it is fresh (NOT yet present)
 static void check_array_for_scanned_fbs_and_add_if_fresh(uint16_t number, uint8_t instance)
 {
-  // on g_array_current_amount_of_scanned_fbs = 0 the array is empty, and for sure the first FB is always fresh 
   for (int i = 0; i < g_array_current_amount_of_scanned_fbs; i++)
   {
-    if (number == g_array_of_different_fbs[0][i] && instance == g_array_of_different_fbs[1][i])
-    {
-      // leave if already present
-      return; 
+    if (number == g_array_of_different_fbs[i].fb_number && instance == g_array_of_different_fbs[i].fb_instance)
+      {
+        /*
+           leave if fb number + fb instance is already present,
+           it must be an application error when you would add the same FB number/instance
+           here again but already present
+         */
+        return;
+      }
+      
     }
-  }
 
-  // add FB, it is fresh
-  g_array_of_different_fbs[0][g_array_current_amount_of_scanned_fbs] = number; // functional block number, never negative
-  g_array_of_different_fbs[1][g_array_current_amount_of_scanned_fbs] = instance; // instance occurence of the functional block, never negative
+  
+
+  // add FB, it is fresh on the next index
+  g_array_of_different_fbs[g_array_current_amount_of_scanned_fbs].fb_number = number; // fb number, never negative
+  g_array_of_different_fbs[g_array_current_amount_of_scanned_fbs].fb_instance = instance; // fb instance occurence
 
   // do not overflow the array
   if (g_array_current_amount_of_scanned_fbs < 63)
     g_array_current_amount_of_scanned_fbs++;
-
 }
 
 // get number of datapoint(s) for an FB with number/instance
@@ -135,7 +141,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     return;
   }
 
-  // fb number such as 417 from f/417 or f/417_01 (used by EITT)
+  // fb number such as 417 from f/417 or f/417_1 (format must be user defined in EITT)
   const int fb_number = oc_uri_get_fb_string_value_as_int(
     oc_string(request->resource->uri), 
     oc_string_len(request->resource->uri),
@@ -143,7 +149,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     request->uri_path_len,
     false);
 
-  // fb instance such as 0 from f/417 or 1 from 417_01 (used by EITT)
+  // fb instance such as 0 from f/417 or 1 from 417_1 (format must be user defined in EITT)
   const int fb_instance = oc_uri_get_fb_string_value_as_int(
     oc_string(request->resource->uri), 
     oc_string_len(request->resource->uri),
@@ -257,7 +263,7 @@ int oc_count_functional_blocks_from_application(void)
   // on any new scan reset the global counter of different FBs
   g_array_current_amount_of_scanned_fbs = 0; 
 
-  // scan all application resources
+  // scan all application resources, note they are not ordered
   for (const oc_resource_t* resource = oc_ri_get_app_resources(); resource; resource = resource->next)
   {
     // skip non discoverable resources
@@ -365,8 +371,7 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
     }
     else
     {
-      // the FB number with possible instance as 12345_01 (8 chars)
-      char fb_number_and_instance_text[10];
+      
 
       if (*response_length > 0)
       {
@@ -377,18 +382,21 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
       // FB URI (fix)
       *response_length += oc_rep_add_line_to_buffer("</f/");
 
-      if (g_array_of_different_fbs[1][i] > 0)
+      const uint16_t tmp_fb_n = g_array_of_different_fbs[i].fb_number;
+      const uint16_t tmp_fb_i = g_array_of_different_fbs[i].fb_instance;
+
+      // the FB number with possible instance as 12345_xyz (9 chars)
+      char fb_number_and_instance_text[9];
+
+      if (tmp_fb_i > 0)
       {
-        // FB instance > 0, adding 2 instance digits (01 - 99) , e.g. <fb>_<instance> -> example: 417_01
-        (void)snprintf(fb_number_and_instance_text, 8, "%d_%02d", 
-                       g_array_of_different_fbs[0][i], 
-                       g_array_of_different_fbs[1][i]);
+        // FB instance > 0, adding instance (array allows only 64 instances), e.g. <fb>_<instance> -> example: 417_1
+        (void)snprintf(fb_number_and_instance_text, 9, "%d_%d", tmp_fb_n, tmp_fb_i);
       }
       else
       {
         // FB instance = 0, e.g. <fb> -> example: 417
-        (void)snprintf(fb_number_and_instance_text, 5, "%d", 
-                       g_array_of_different_fbs[0][i]);
+        (void)snprintf(fb_number_and_instance_text, 5, "%d", tmp_fb_n);
       }
 
       // added a next matching resource to the response  ...
@@ -404,7 +412,7 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t* request
         *response_length += oc_rep_add_line_to_buffer(">;rt=\"urn:knx:fb.");
 
       // FB number 
-      (void)snprintf(fb_number_and_instance_text, 5, "%d", g_array_of_different_fbs[0][i]);
+      (void)snprintf(fb_number_and_instance_text, 5, "%d", tmp_fb_n);
       *response_length += oc_rep_add_line_to_buffer(fb_number_and_instance_text);
 
       // FB if and ct (fix)

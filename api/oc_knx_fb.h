@@ -59,8 +59,9 @@ bool oc_add_functional_blocks_from_application_to_response(oc_request_t *request
  /**
  * @brief Count all different 'application' functional blocks with its instances.
 
- * @note  Uses an internal (static) array to store the scanned FB numbers/instances, the array is reused
- *        from other methods (can be optimized). 
+ * @note  
+ * - uses an internal (static) array to store the scanned FB numbers/instances 
+ * - rescans on all calls of /.well-known/core and /fb the number of current FB's
  *
  */
 int oc_count_functional_blocks_from_application(void);

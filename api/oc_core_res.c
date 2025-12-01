@@ -151,7 +151,7 @@ void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 	oc_new_string(&oc_device_info.app_friendly_name, app_friendly_name, strlen(app_friendly_name));
 	
 	// init tables
-	oc_create_knx_fp_resources();
+	oc_create_knx_table_resources();
 	oc_create_knx_sec_resources();
 	oc_create_knx_swu_resources();
 

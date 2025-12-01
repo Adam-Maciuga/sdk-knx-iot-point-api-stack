@@ -1323,7 +1323,6 @@ void oc_knx_device_restart(void)
      - apply (changed) configuration parameters latest after 30s
 
   */
-
   oc_device_info_t* const device = oc_core_get_device_info();
 
   // disable PROG mode

@@ -214,7 +214,6 @@ int oc_core_get_ga_table_len_from_group_object_table_index(int index)
 uint32_t oc_core_get_ga_table_entry_from_group_object_table_index(int index, int entry)
 {
   if (index < GOT_MAX_ENTRIES)
-  {
     if (entry < g_got[index].ga_len)
     {
       return g_got[index].ga[entry];
