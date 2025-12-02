@@ -1111,7 +1111,7 @@ extern "C"
                             int* p_len);
 
   /**
-   * @brief initialize a NON multicast message (to be sent out)  by allocating a static buffer
+   * @brief initialize a non-confirmable multicast message (to be sent out)  by allocating a static buffer
    *
    * @param mcast the multicast address to be used
    * @param uri the uri to be used
@@ -1122,7 +1122,7 @@ extern "C"
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        a NON multicast message
+   *        a non-confirmable multicast message
    *
    * @return true
    * @return false

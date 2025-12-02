@@ -142,7 +142,7 @@
 
   - the 'flags' is optional and can be added/removed (to reduce resource consumption),
     if included as part of a point it can be used to inform an upper layer (such as a c++ GUI application
-    on caller actions errors)   
+    on caller actions and errors)   
 
 */
 

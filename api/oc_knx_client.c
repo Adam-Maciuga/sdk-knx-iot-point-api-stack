@@ -18,29 +18,16 @@
 #include "oc_api.h"
 #include "api/oc_knx_client.h"
 #include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
-#ifdef OC_SPAKE
-#include "oc_spake2plus.h"
-#endif
 #include "oc_core_res.h"
-#include <stdio.h>
-#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
-#include <inttypes.h>
 
-typedef struct broker_s_mode_userdata_t
-{
-  int ia;                 /**< internal address of the destination */
-  char path[20];          /**< the path on the device designated with ia */
-  uint32_t ga;            /**< group address to use */
-  char service_type[3];   /**< mode to send the message "w"  = 1  "r" = 2  "a" = 3 */
-  char resource_url[20];  /**< the url to pull the data from. */
-} broker_s_mode_userdata_t;
+#define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
+
 
 oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
 // external definitions
 
-static void oc_issue_s_mode_non_multicast_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
+static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
@@ -81,14 +68,16 @@ void oc_send_s_mode_non_multicast_message(uint8_t scope, uint16_t sia, uint32_t 
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  oc_issue_s_mode_non_multicast_message(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
+  oc_issue_s_mode_non_confirmable_multicast_message(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
 }
 
-static void oc_issue_s_mode_non_multicast_message(oc_endpoint_t* endpoint, char* path, 
-                           uint32_t sia_value,
-                           uint32_t group_address, 
-                           const char* service_type, 
-                           uint8_t* value_data, int value_size)
+static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* endpoint, 
+                                                  char* path, 
+                                                  uint32_t sia_value,
+                                                  uint32_t group_address, 
+                                                  const char* service_type, 
+                                                  uint8_t* value_data, 
+                                                  int value_size)
 {
 
   #ifndef OC_OSCORE
@@ -176,7 +165,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
   response_buffer.buffer_size = 50;
   response_buffer.code = 0;
   response_buffer.response_length = 0;
-  response_buffer.content_format = 0;
+  response_buffer.content_format = TEXT_PLAIN;
   response_buffer.max_age = 0;
 
   // empty response object,later filled, same initialization as oc_ri.c 
@@ -228,7 +217,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
 {
   PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
 
-  // max resource application value size, note that here a #define must be used
+  // max resource application value size, note that here a literal with #define must be used
   uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
 
   if (!resource_path)
@@ -317,7 +306,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
 
       // grpid
-      uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
+      const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
       if (grpid > 0)
       { // mc: request -> grpid is used from RCP table (configured by MaC)
 

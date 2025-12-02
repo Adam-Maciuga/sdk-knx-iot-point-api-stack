@@ -124,8 +124,8 @@ void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
 }
 
 /**
- * @brief s-mode response callback
- * will be called when a response is received on an s-mode read request
+ * @brief s-mode response callback, will be called when a response is 
+ *        received on an s-mode read request
  *
  * @param url the url
  * @param rep the full response

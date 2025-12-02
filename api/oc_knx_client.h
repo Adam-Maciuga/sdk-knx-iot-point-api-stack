@@ -25,7 +25,6 @@
 #ifndef OC_KNX_CLIENT_INTERNAL_H
 #define OC_KNX_CLIENT_INTERNAL_H
 
-#include <stddef.h>
 #include "oc_core_res.h"
 
 #ifdef __cplusplus
@@ -49,8 +48,8 @@ typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep, oc_rep_t *rep_
 */
 
 /**
- * @brief set the s-mode response callback
- * e.g. function is called when a s-mode response is coming back
+ * @brief set the s-mode response callback, e.g. function is called when 
+ *        an s-mode response is coming back
  *
  * @param my_func the callback function
  * @return true function set

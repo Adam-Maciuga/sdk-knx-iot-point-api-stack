@@ -935,7 +935,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                b: for uc/mc /k only a POST is defined
                c: for uc /p{property-path} a PUT is defined (oc_invoke_coap_entity_handler)
 
-               - a.b,c (must) call the same application callback handler
+               - a,b,c (must) call the same application callback handler
                - uri path is used for a redirect check in application callback handler
                - use new request (not the received one with POST), user data are possible
                - call application handler with own interface/ user data

@@ -16,17 +16,13 @@
 */
 
 #include "messaging/coap/coap.h"
-#include "messaging/coap/transactions.h"
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
 #endif 
 #include "oc_api.h"
-#ifdef OC_OSCORE
-#include "security/oc_tls.h"
-#endif 
+
 #ifdef OC_CLIENT
 
-static coap_transaction_t *transaction;
 coap_packet_t request[1];
 oc_client_cb_t *client_cb;
 
@@ -42,7 +38,6 @@ oc_message_t *multicast_update = NULL;
 #endif
 
 #ifdef OC_OSCORE
-
 
 bool oc_do_multicast_update(void)
 {

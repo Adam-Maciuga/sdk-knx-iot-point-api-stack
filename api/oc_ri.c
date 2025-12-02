@@ -415,7 +415,7 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
 
 	while (i < n - 1 && current)
 	{
-		current = memchr(start, '&', end - start);
+		current = (char*)memchr(start, '&', end - start);
 		if (current == NULL)
 		{
 			// no n-th query fragment present as part of uri
@@ -426,8 +426,8 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
 	}
 
 	// find '=' after the '&'
-	current = memchr(start, '=', end - start);
-	const char* next_query_fragment = memchr(start, '&', end - start);
+	current = (char*)memchr(start, '=', end - start);
+	const char* next_query_fragment = (char*)memchr(start, '&', end - start);
 
   if (next_query_fragment)
 	{
@@ -443,7 +443,7 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
 		*key = start;
 		*value = current + 1;
 
-	  current = memchr(*value, '&', end - *value);
+	  current = (char*)memchr(*value, '&', end - *value);
 
 	  if (current == NULL)
 		{
@@ -503,16 +503,14 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, 
 {
 	int next_pos = -1;
 	size_t i = 0;
-	size_t value_len;
-	char* start = (char*) query, * current, * current2,
-		* end = (char*) query + query_len;
-	char* value = NULL;
-	current = start;
 
-	while (i < (n - 1) && current != NULL)
-	{
-		current = memchr(start, '&', end - start);
-		if (current == NULL)
+  const char* start = query, * end = query + query_len;
+  const char* current = start;
+
+	while (i < n - 1 && current)
+	{ // loop until requested n-th key by search for '&'
+		current = (char*)memchr(start, '&', end - start);
+		if (!current)
 		{
 			return -1;
 		}
@@ -520,43 +518,50 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, 
 		start = current + 1;
 	}
 
-	current = memchr(start, '=', end - start);
-	current2 = memchr(start, '&', end - start);
-	if (current2 != NULL)
+	// find key value separator '='
+	current = (char*)memchr(start, '=', end - start);
+
+	const char* current2 = (char*)memchr(start, '&', end - start);
+	
+  if (current2)
 	{
 		if (current2 < current)
 		{
-			/* the key is does not have = */
+			// the key does not have a '='
 			current = NULL;
 		}
 	}
-	if (current != NULL)
-	{
-		/* there is a value */
-		*key_len = (current - start);
+
+	if (current)
+	{ // there is a value
+    size_t value_len;
+    
+		*key_len = current - start;
 		*key = start;
-		value = current + 1;
-		current = memchr(value, '&', end - value);
-		if (current == NULL)
+
+		const char* value = current + 1;
+		current = (char*)memchr(value, '&', end - value);
+		
+	  if (current == NULL)
 		{
 			value_len = (end - value);
 		}
 		else
 		{
-			value_len = (current - value);
+			value_len = current - value;
 		}
 		next_pos = (int) (value + value_len - query + 1);
 	}
 	else
 	{
-		current = memchr(start, '&', end - start);
+		current = (char*)memchr(start, '&', end - start);
 		if (current == NULL)
 		{
 			current = end;
 		}
-		/* there is no value */
+		// there is no value 
 		*key = start;
-		*key_len = (current - start);
+		*key_len = current - start;
 		next_pos = (int) (*key_len + 1);
 	}
 
