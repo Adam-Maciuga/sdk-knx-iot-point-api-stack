@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2021-2022 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +21,6 @@
 #ifndef OC_KNX_FP_INTERNAL_H
 #define OC_KNX_FP_INTERNAL_H
 
-#include <stddef.h>
 #include "oc_helpers.h"
 #include "oc_ri.h"
 
@@ -35,7 +35,7 @@ extern "C"
    * Group Object Table Resource (/fp/g)
    *
    */
-  typedef enum
+  typedef enum 
   {
     OC_CFLAG_NONE = 0,                // uninitialized communication flags (used on init)
     OC_CFLAG_COMMUNICATION = 1 << 2,  // if true communication enabled (not used in KNX iot as an explicit flag)
@@ -44,7 +44,7 @@ extern "C"
     OC_CFLAG_INIT = 1 << 5,           // if true read on init (transmission flag don't care)
     OC_CFLAG_TRANSMISSION = 1 << 6,   // if true can transmit (checked on self triggered app. actions)
     OC_CFLAG_UPDATE = 1 << 7,         // if true update value on a response (transmission flag don't care)
-  } oc_cflag_mask_t;
+  } oc_cflag_mask_t; 
 
   /**
    * @brief print the communication flags to standard output
@@ -73,13 +73,13 @@ extern "C"
    * [
    *    {
    *        "id": "1",
-   *        "href":"/LDSB1/SOO",
+   *        "href":"p/lssb/soo",
    *        "ga":[2305, 2401],
    *        "cflag":["r","w","t","u"]  // note this is an integer
    *    },
    *    {
    *        "id": "2",
-   *        "href":"/LDSB1/RSC",
+   *        "href":"p/lssb/ioo",
    *        "ga":[2306],
    *        "cflag":["t"]  // note this is an integer
    *     }
@@ -104,25 +104,15 @@ extern "C"
    * | ga       | 7             |
    * | cflag    | 8             |
    *
-   * The structure stores the information.
-   * The structure will be used as an array.
-   * There are function to find
-   * - empty index in the array
-   * - find the index with a specific id
-   * - delete an index, e.g. delete the array entry of data (persistent)
-   * - make the entry persistent
-   * - free the data
-   *
    * Note that some (int) integers are tested in the code on their init values
-   * '-1' for validity, this is a problem in case of a 16-bit platforms --> hence they were changed to int32_t
-   * - ia : (-1 = 0xFFFF = a valid KNX ia)
+   * '-1' for validity (0xFFFFFFFF), this is a problem in case of a 16-bit platforms --> hence they were changed to int32_t
    * - id : (-1 = 0xFFFF = a valid id range)
    */
   typedef struct oc_group_object_table_t
   {
     int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
     oc_string_t href;         // resource path
-    oc_cflag_mask_t cflags;   // cflags as in KNX
+    oc_cflag_mask_t cflags;   // cflags as in KNX (can be optimized on embedded platforms, to force it to be 8-bit data)
     uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (0...n) / send (1)  
     uint16_t ga_len;          // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
@@ -141,11 +131,9 @@ extern "C"
    *        "id": "1",
    *        "ia": 5,
    *        "ga":[2305, 2401],
-   *        "url": "k",
    *    },
    *    {
    *        "id": "2",
-   *        "url": "coap://<IP multicast, unicast address or fqdn>/<path>",
    *        "ga": [2305, 2306, 2307, 2308]
    *     }
    * ]
@@ -162,17 +150,8 @@ extern "C"
    * | ga       | 7             |
    * | non      | -             |
    *
-   * The structure stores the information as an array. There are function to find:
-   * - max amount of entries
-   * - empty index in the array
-   * - find the index with a specific id
-   * - delete an index, e.g. delete the array entry of data
-   * - make the entry persistent
-   * - free up the allocated data
-   * - return the structure at a specific index
-   *
    * Note that some (int) integers are tested in the code on their init values
-   * '-1' for (non) validity, this is a problem in case of 16-bit platforms --> hence the plain int was changed to int32_t
+   * '-1' for (non) validity (0xFFFFFFFF), this is a problem in case of 16-bit platforms --> hence the plain int was changed to int32_t
    * - ia : (-1 = 0xFFFF = a valid/written KNX ia)
    * - id : (-1 = 0xFFFF = a valid/written id )
    * 
@@ -282,11 +261,11 @@ extern "C"
 
   /**
    * @brief initializes the data points at initialization
-   * e.g. sends out a read s-mode message request when the 'read on init' I flag
-   * is set.
+   *        e.g. sends out a read s-mode message request when the 'read on init' I flag
+   *        is set.
    *
    * @note only applicable if device can also receive (publisher table must be
-   * present)
+   *       present)
    *
    */
   void oc_init_datapoints_at_initialization(void);

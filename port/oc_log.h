@@ -253,10 +253,10 @@ extern "C" {
 #ifdef OC_DEBUG
 
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
-  #define OC_LOGbytes(bytes, length)                                             \
-    do {                                                                         \
-      for (uint16_t i = 0; i < (length); i++)                                    \
-        PRINTF("%02X", (bytes)[i]);                                              \
+  #define OC_LOGbytes(bytes, length)                            \
+    do {                                                        \
+      for (uint16_t i = 0; i < (length); i++)                   \
+        PRINTF("%02X", (bytes)[i]);                             \
     } while (0)
 
 #else
@@ -271,14 +271,12 @@ extern "C" {
   #define OC_DBG_OSCORE(...) OC_LOG("OSC", __VA_ARGS__)
   #define OC_DBG_SPAKE(...)  OC_LOG("SPK", __VA_ARGS__)
   #define OC_LOGbytes_OSCORE(bytes, length) OC_LOGbytes(bytes, length)
-  #define OC_LOGbytes_SPAKE(bytes, length)  OC_LOGbytes(bytes, length)
 
 #else
 
   #define OC_DBG_OSCORE(...)
   #define OC_DBG_SPAKE(...)
   #define OC_LOGbytes_OSCORE(bytes, length)
-  #define OC_LOGbytes_SPAKE(bytes, length)
 
 #endif
 

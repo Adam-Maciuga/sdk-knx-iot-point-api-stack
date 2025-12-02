@@ -1342,12 +1342,10 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 		return 0;
 	}
 
-  OC_DBG("serialize CBOR message (len %u, header %u, payload %u) : ",
+  OC_DBG("serialize CBOR message (len %u, header %u, payload %u)",
 				 (unsigned int) (coap_pkt->payload_len + option - buffer),
 				 (unsigned int) (option - buffer), 
 				 coap_pkt->payload_len);
-
-	OC_LOGbytes(coap_pkt->buffer, coap_pkt->payload_len + option - buffer);
 
 	// packet length 
 	return coap_pkt->payload_len + option - buffer;

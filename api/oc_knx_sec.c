@@ -362,13 +362,13 @@ PRAGMA_OUT
 
 // ----------------------------------------------------------------------------
 
-// empty ... when 'id' string is ""
+// empty ... when 'id' string is an empty string "" 
 static int find_empty_at_index(void)
 {
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) == 0)
-    {
+    { // found an empty string  
       return i;
     }
   }
@@ -429,7 +429,11 @@ static bool check_access_token_for_group_address(int access_token_index, uint32_
 
 int oc_core_get_at_table_size(void) { return G_AT_MAX_ENTRIES; }
 
-// TODO use static variable
+/*
+  count items on demand is easier than inc/dec on creation/deletion of individual entries
+  (reason: functions to create/ delete an entry are also used to delete entire tables w/o having present entries),
+  but it is a bit more time-consuming (battery devices)
+ */
 int oc_core_items_used_in_auth_at_table(void)
 {
   int counter = 0;
@@ -498,16 +502,14 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   // next page
   const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
-  // example </auth/at/token-id>;ct=60 ; must run through entire table since
-  // entries are stored randomly
+  // example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly
   for (int i = first_entry; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
       if (response_length > 0)
       {
-        // close previous record to create a new without LF (not found in RFC
-        // 6690)
+        // close previous record to create a new without LF (not found in RFC 6690)
         response_length += oc_rep_add_line_to_buffer(",");
       }
 

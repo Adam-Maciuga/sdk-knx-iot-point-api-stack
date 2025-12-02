@@ -241,9 +241,6 @@ int coap_receive(oc_message_t* incoming_message)
   else
    OC_DBG("CoAP Engine: receive data from NETWORK layer with len=%u from ", (unsigned int) incoming_message->length);
 
-  PRINTipaddr(incoming_message->endpoint);
-	OC_LOGbytes(incoming_message->data, incoming_message->length);
-
   #endif
 
 	/*

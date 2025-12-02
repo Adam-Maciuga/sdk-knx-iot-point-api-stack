@@ -64,7 +64,6 @@ int oc_spake_free(void);
  *
  * @param rand Random number
  * @param salt The salt to be used for PBKDF2
- * @param it The number of iterations to be used for PBKDF2
  * @return int 0 on success, mbedtls error code on failure
  */
 int oc_spake_parameter_exchange(uint8_t* rand, uint8_t* salt);
