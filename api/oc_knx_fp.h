@@ -35,7 +35,7 @@ extern "C"
    * Group Object Table Resource (/fp/g)
    *
    */
-  enum
+  typedef enum 
   {
     OC_CFLAG_NONE = 0,                // uninitialized communication flags (used on init)
     OC_CFLAG_COMMUNICATION = 1 << 2,  // if true communication enabled (not used in KNX iot as an explicit flag)
@@ -44,9 +44,7 @@ extern "C"
     OC_CFLAG_INIT = 1 << 5,           // if true read on init (transmission flag don't care)
     OC_CFLAG_TRANSMISSION = 1 << 6,   // if true can transmit (checked on self triggered app. actions)
     OC_CFLAG_UPDATE = 1 << 7,         // if true update value on a response (transmission flag don't care)
-  } ; 
-
-  typedef uint8_t oc_cflag_mask_t;    // force the flags to be 8-bit, must be in line with max enum from above
+  } oc_cflag_mask_t;
 
   /**
    * @brief print the communication flags to standard output
@@ -114,7 +112,7 @@ extern "C"
   {
     int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
     oc_string_t href;         // resource path
-    oc_cflag_mask_t cflags;   // cflags as in KNX (to be forced to be 8-bit data)
+    oc_cflag_mask_t cflags;   // cflags as in KNX (embedded compile option should force it to be 8-bit data)
     uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (0...n) / send (1)  
     uint16_t ga_len;          // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;

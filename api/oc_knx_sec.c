@@ -746,13 +746,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             id_only = false;
           }
 
-          // sub (2)
-          if (object->iname == 2)
-          {
-            
-            oc_free_string(&(g_at_entries[array_index].sub));
-            oc_new_string(&g_at_entries[array_index].sub, oc_string(object->value.string), oc_string_len(object->value.string));
-          }
+          
           
         }
         else if (object->type == OC_REP_INT)
@@ -780,15 +774,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           PRINT("sub object nr %d", sub_object_nr);
           while (sub_object)
           {
-            if (sub_object->type == OC_REP_STRING)
-            {
-              if (sub_object_nr == 8 && sub_object->iname == 3)
-              {// cnf:kid (8:3)
-                oc_free_string(&g_at_entries[array_index].kid);
-                oc_new_string(&g_at_entries[array_index].kid, oc_string(sub_object->value.string), oc_string_len(sub_object->value.string));
-              }
-            }
-            else if (sub_object->type == OC_REP_OBJECT)
+            if (sub_object->type == OC_REP_OBJECT)
             {
               oscore_object = sub_object->value.object;
               int oscore_object_nr = sub_object->iname;
@@ -1369,12 +1355,6 @@ int oc_delete_at_table_entry(int entry)
   oc_free_string(&g_at_entries[entry].osc_id);
   oc_new_byte_string(&g_at_entries[entry].osc_id, "", 0);
 
-  // TLS object
-  oc_free_string(&g_at_entries[entry].sub);
-  oc_new_string(&g_at_entries[entry].sub, "", 0);
-  oc_free_string(&g_at_entries[entry].kid);
-  oc_new_string(&g_at_entries[entry].kid, "", 0);
-
   // release a possible ga array, free ignores NULL ptr
   free(g_at_entries[entry].ga);
 
@@ -1410,17 +1390,13 @@ static void oc_store_at_table_entry(int entry)
   // 0: id
   oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[entry].id));
 
-  // 2: sub
-  oc_rep_i_set_text_string(root, 2, oc_string(g_at_entries[entry].sub));
+  
 
   // 9: acl scope (compacted bits)
   oc_rep_i_set_int(root, 9, g_at_entries[entry].scope);
 
   // 38: profile
   oc_rep_i_set_int(root, 38, g_at_entries[entry].profile);
-
-  // 83: kid
-  oc_rep_i_set_text_string(root, 83, oc_string(g_at_entries[entry].kid));
 
   // 84x: cnf:osc:xx map
   oc_rep_i_set_byte_string(root, 840, oc_byte_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
@@ -1495,20 +1471,6 @@ static void oc_load_at_table_entry(int entry)
           {
             oc_free_string(&g_at_entries[entry].id);
             oc_new_string(&g_at_entries[entry].id, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-
-          // 2 - sub
-          if (rep->iname == 2)
-          {
-            oc_free_string(&g_at_entries[entry].sub);
-            oc_new_string(&g_at_entries[entry].sub, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-
-          // 83 - kid
-          if (rep->iname == 83)
-          {
-            oc_free_string(&g_at_entries[entry].kid);
-            oc_new_string(&g_at_entries[entry].kid, oc_string(rep->value.string), oc_string_len(rep->value.string));
           }
           break;
         case OC_REP_BYTE_STRING:
@@ -1718,14 +1680,6 @@ void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size
     // pase token owns only if.sec scope 
     g_at_entries[index].scope = OC_ACL_SEC;
     g_at_entries[index].profile = OC_PROFILE_COAP_PASE;
-
-    // no (TLS) sub
-    oc_free_string(&g_at_entries[index].sub);
-    oc_new_string(&g_at_entries[index].sub,"",0);
-
-    // no (TLS) kid
-    oc_free_string(&g_at_entries[index].kid);
-    oc_new_string(&g_at_entries[index].kid, "" ,0);
 
     // secret
     oc_free_string(&g_at_entries[index].osc_ms);

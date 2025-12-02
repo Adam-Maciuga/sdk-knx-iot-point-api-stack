@@ -335,15 +335,6 @@ wxString util_dumpAuthTable(bool ga_conversion)
               oc_at_profile_to_string(entry->profile));
       out += line;
 
-      if (entry->profile == OC_PROFILE_COAP_DTLS) {
-        if (oc_string_len(entry->sub) > 0) {
-          sprintf(line, "  sub : %s", oc_string(entry->sub)); out += line;
-        }
-        if (oc_string_len(entry->kid) > 0) {
-          sprintf(line, "  kid : %s", oc_string(entry->kid)); out += line;
-        }
-      }
-
       if (entry->profile == OC_PROFILE_COAP_OSCORE) {
         // osc_id
         if (oc_byte_string_len(entry->osc_id) > 0) {

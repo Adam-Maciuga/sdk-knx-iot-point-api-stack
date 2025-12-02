@@ -125,10 +125,8 @@ extern "C" {
 	typedef struct oc_auth_at
 	{
 		oc_string_t id;							// (0) id, hex encoded 
-		oc_acl_mask_t scope;	      // (9) acl scopes (compacted as bit field)
-		oc_at_profile_t profile;		// (38) "coap_oscore", ...
-		oc_string_t sub;						// (2) TLS kid (optional - not used)
-		oc_string_t kid;						// (8:3) TLS cnf:sub (optional - not used)
+		oc_acl_mask_t scope;	      // (9) acl scopes (embedded compile option should force it to be 16-bit data)
+		oc_at_profile_t profile;		// (38) "coap_oscore", ... (embedded compile option should force it to be 8-bit data)
 		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional - not used) 
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
 		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional - not used) default:	decimal value
