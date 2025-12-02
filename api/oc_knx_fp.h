@@ -205,15 +205,14 @@ extern "C"
   /**
    * @brief retrieve the group object table entry
    *
-   * Note that always the group object table is returned.
-   * regardless if the data is valid or not.
-   *
-   * To check if the data is valid, please check if
-   * ga_len > 0, if ga_len <= 0 then the group object table does
-   * not contain an entry.
+   * 
    *
    * @param entry the index in the group object table
-   * @return oc_group_object_table_t* pointer to the entry
+   * @return oc_group_object_table_t* pointer to the entry or NULL
+   *
+   * @note A group object table entry is returned,
+   *       regardless if the contained data are valid or not (if not NULL). 
+   *       The caller must check it, if needed.
    */
   oc_group_object_table_t* oc_core_get_group_object_table_entry(int entry);
 

@@ -1105,7 +1105,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add an integer array with `values` of `length` to the cbor `object` under the
- * `key` name.
+ * `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1142,7 +1142,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add an integer array with `values` of `length` to the cbor `object` under the
- * integer `key` name.
+ * integer `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1180,7 +1180,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a boolean array with `values` of `length` to the cbor `object` under the
- * `key` name.
+ * `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1217,7 +1217,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a boolean array with `values` of `length` to the cbor `object` under the
- * integer `key` name.
+ * integer `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1255,7 +1255,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a float array with `values` of `length` to the cbor `object` under the
- * `key` name.
+ * `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1294,7 +1294,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a float array with `values` of `length` to the cbor `object` under the
- * integer `key` name.
+ * integer `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1336,7 +1336,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a double array with `values` of `length` to the cbor `object` under the
- * `key` name.
+ * `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1375,7 +1375,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a double array with `values` of `length` to the cbor `object` under the
- * integer `key` name.
+ * integer `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1417,7 +1417,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a string array using an oc_string_array_t as `values` to the cbor
- * `object` under the `key` name.
+ * `object` under the `key` name. If `values` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1478,7 +1478,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a float array with `values` of `length` to the cbor `object` under the
- * `key` name.
+ * `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1517,7 +1517,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a float array with `values` of `length` to the cbor `object` under the
- * integer `key` name.
+ * integer `key` name. If `length` = 0 the array will be empty.
  *
  * Example:
  *
@@ -1559,7 +1559,7 @@ int oc_rep_add_line_size_to_buffer(const char *line, int len);
 
 /**
  * Add a string array using an oc_string_array_t as `values` to the cbor
- * `object` under the integer `key` name.
+ * `object` under the integer `key` name. If `values` = 0 the array will be empty.
  *
  * Example:
  *
