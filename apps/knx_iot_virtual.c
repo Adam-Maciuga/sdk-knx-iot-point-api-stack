@@ -123,22 +123,6 @@ void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
   oc_free_string_array(&interface_list);
 }
 
-/**
- * @brief s-mode response callback, will be called when a response is 
- *        received on an s-mode read request
- *
- * @param url the url
- * @param rep the full response
- * @param rep_value the parsed value of the response
- */
-void oc_s_mode_response_cb(char* url, oc_rep_t* rep, oc_rep_t* rep_value)
-{
-  (void)rep;
-  (void)rep_value;
-
-  PRINT("oc_s_mode_response_cb %s", url);
-}
-
 void factory_presets_cb(void* data)
 {
   (void)data;
@@ -217,9 +201,6 @@ int app_init(void)
 
   // set default host name, reset uses this default, -> volatile
   oc_core_set_device_hostname(hname);
-
-  // set response callback (if needed must be filled with code)
-  oc_set_s_mode_response_cb(oc_s_mode_response_cb);
 
 #if defined (OC_SPAKE) && defined (OC_DEBUG) 
 

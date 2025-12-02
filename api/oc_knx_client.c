@@ -22,9 +22,6 @@
 
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 
-
-oc_s_mode_response_cb_t m_s_mode_cb = NULL;
-
 // external definitions
 
 static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
@@ -434,16 +431,3 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
   OC_ERR("service type value incorrect %s , allowed are only w+r", srv_type);
   return -1;
 }
-
-bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func)
-{
-  m_s_mode_cb = my_func;
-  return true;
-}
-
-oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void)
-{
-  return m_s_mode_cb;
-}
-
-// ----------------------------------------------------------------------------

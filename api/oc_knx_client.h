@@ -31,8 +31,6 @@
 extern "C" {
 #endif
 
-typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep, oc_rep_t *rep_value);
-
 /**
   @defgroup doc_module_tag_s_mode_server s-mode server
   S-mode server side support functions.
@@ -46,23 +44,6 @@ typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep, oc_rep_t *rep_
 
   @{
 */
-
-/**
- * @brief set the s-mode response callback, e.g. function is called when 
- *        an s-mode response is coming back
- *
- * @param my_func the callback function
- * @return true function set
- * @return false function set failed
- */
-bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
-
-/**
- * @brief retrieve the callback function
- *
- * @return oc_s_mode_response_cb_t the callback function that has been set
- */
-oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
 
 /**
  * @brief  checks if the request is a redirected request from /k, /p or /p/{point-path},
