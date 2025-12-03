@@ -1118,7 +1118,7 @@ extern "C"
    * @return true
    * @return false
    */
-  bool oc_init_multicast_update(oc_endpoint_t* mcast, const char* uri);
+  bool oc_init_update(oc_endpoint_t* mcast, const char* uri);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
@@ -1127,7 +1127,7 @@ extern "C"
    * @return true
    * @return false
    */
-  bool oc_do_multicast_update(void);
+  bool oc_do_update(void);
 
   /**
    * Free a list of endpoints from the oc_endpoint_t
