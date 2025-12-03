@@ -312,22 +312,22 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	(void) iface_mask;
 	(void) data;
 
-	char* key;             // one key pointer for a key=value 'pair' 
+	char* key;								// one key pointer for a key=value 'pair' 
 	size_t key_len;
 
-	char* value;           // one value pointer for a key=value 'pair' 
+	char* value;							// one value pointer for a key=value 'pair' 
 	size_t value_len;
 
-	char* rt_request = 0;   // 'rt'
+	char* rt_request = NULL;	// 'rt'
 	int rt_len = 0;
 
-	char* ep_request = 0;   // 'ep' 
+	char* ep_request = NULL;	// 'ep' 
 	int ep_len = 0;
 
-	char* if_request = 0;   // 'if'
+	char* if_request = NULL;	// 'if'
 	int if_len = 0;
 
-	char* d_request = 0;    // 'd'
+	char* d_request = NULL;		// 'd'
 	int d_len = 0;
 
 	int query_parameter_key_value_pair_matches = 0; // how many query parameter key/value pair matches where found AND added to the response
@@ -525,7 +525,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
 			PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on");
 
-			if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
+			if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 			{ // query parameter if=urn:knx:if.pm AND ep=knx://sn. AND some extra xx data present
 
 				// get sn from request, fix position
@@ -555,7 +555,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			{ // query parameter if=urn:knx:if.pm AND some extra xx (nothing up to wildcard)  
 
 				if (skipped < first_entry)
-				{ // do not add, is lower than needed for thsi page
+				{ // do not add, is lower than needed for this page
 					skipped++;
 				}
 				else
@@ -589,15 +589,15 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	}
 
 	// handle individual address 
-	if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://ia.", 9) == 0)
+	if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://ia.", 9) == 0)
 	{
 		/* request with IA = ...ia.IID.IA -> knx://ia.d773e094b6.1101
 			 the IA is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
 		*/
 
 		#define EP_STR_LEN_DOT_IA  (9)  // knx://ia.
-		#define IID_STR_LEN_MAX    (10) // max IID length
-		#define IA_STR_LEN_MAX     (4)  // max IA length
+		#define IID_STR_LEN_MAX    (10) // max IID length in hex coded ASCII (5 octets = 40 bit)
+		#define IA_STR_LEN_MAX     (4)  // max IA length in hex coded ASCII (2 octets = 16 bit)
 
 		// IID pos is fixed after first '.', IA pos follows after second '.' (distance = max iid + 1)
 		char* ep_iid_start_pos = ep_request + EP_STR_LEN_DOT_IA;
@@ -605,33 +605,37 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.', IID_STR_LEN_MAX + 1);
 		char* ep_ia_start_pos = ep_ia_dot_pos + 1; // on error = NULL + 1 = 1
 
-		// max len IA +\0
-		char ia_str[IA_STR_LEN_MAX + 1] = "";
-
 		if (ep_ia_dot_pos)
-		{
-			//copy actual IA size
-			strncpy(ia_str, ep_ia_start_pos, ep_ia_end_pos - ep_ia_dot_pos);
-		}
+    { 
+		  // empty max len IA + string termination '\0'
+		  char ia_str[IA_STR_LEN_MAX + 1] = "";
+		  
+		  // copy actual IA size
+      strncpy_s(ia_str, sizeof(ia_str), ep_ia_start_pos, ep_ia_end_pos - ep_ia_dot_pos);
 
-		// string is hex formatted, on conversion error = 0 --> ignores request
-		const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
+      // string is hex formatted, on conversion error = 0, device will not have ia = 0, default is 0xFFFF -> ignores request
+      const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
 
-		if (ia == device->ia)
-		{
-			// max len IID + \0
-			char iid_str[IID_STR_LEN_MAX + 1] = "";
-			strncpy(iid_str, ep_iid_start_pos, ep_ia_dot_pos - ep_iid_start_pos);
-			// string is hex formatted, on conversion error = 0 (performance ...)
-			const uint64_t iid = strtoull(iid_str, NULL, 16);
+			// test IA first since many devices will have the same IID
+      if (ia == device->ia)
+      {
+        // empty max len IID + string termination '\0'
+        char iid_str[IID_STR_LEN_MAX + 1] = "";
+        
+				// copy actual ID size
+        strncpy_s(iid_str, sizeof(iid_str), ep_iid_start_pos, ep_ia_dot_pos - ep_iid_start_pos);
 
-			if (iid == device->iid)
-			{
-				response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
-				oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
-				return;
-			}
-		}
+        // string is hex formatted, on conversion error = 0 device will not have IID = 0 -> ignores request
+        const uint64_t iid = strtoull(iid_str, NULL, 16);
+
+        if (iid == device->iid)
+        {
+          response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
+          oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
+          return;
+        }
+      }
+    }
 
 		if (request->origin && request->origin->flags & MULTICAST)
     {
@@ -647,7 +651,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	}
 
 	// handle serial number
-	if (ep_request != 0 && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
+	if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 	{
 
 		#define EP_STR_LEN_DOT_SN  (9)  // knx://sn.

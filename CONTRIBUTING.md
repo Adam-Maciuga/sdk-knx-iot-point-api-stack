@@ -13,13 +13,17 @@ There are several tools/vendors already using the API, several workflows prepare
 
 To keep control over the (build) tools and their generated artefact's please simply:
 
-1. create a git issue in this [repository](https://gitlab.knx.org/public-projects/knx-iot-point-api-stack/-/issues) by using your credentials/username
-2. describe your requested change or issue/bug (you may also add a code snippet)
-3. All submissions require review. We use the [Feature Branch Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/feature-branch-workflow) and review all changes before we merge to the work_in_progress branch. Merge requests are only possible by the repository maintainer, this prevents accidental damage. After merging/testing/publishing it, the change will also be deployed here.
+1. Create a git issue in this [repository](https://gitlab.knx.org/public-projects/knx-iot-point-api-stack/-/issues) by using your credentials/username
+2. Describe your requested change or issue/bug (you may also add a code snippet)
+3. All submissions require review. We use the [Feature Branch Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/feature-branch-workflow) and review all 
+   changes before we merge to the 'main' branch. Merge requests are only possible by the repository maintainer, this prevents accidental damage.
+1. After merging/testing/publishing it, the change will also be deployed here.
 
 ## Contribution License Agreement ("Agreement")
 
-This Contribution License Agreement ("Agreement") is agreed to by the party signing below ("You"), and conveys certain license rights to the KNX Association, ("KNX Association") for Your contributions to KNX Association open source projects. This Agreement is effective by performing a _Submit_ to one of the KNX Association open source _Projects_. 
+This Contribution License Agreement ("Agreement") is agreed to by the party signing below ("You"), and conveys certain license rights to the KNX Association, ("KNX Association") 
+for Your contributions to KNX Association open source projects. 
+This Agreement is effective by performing a _Submit_ to one of the KNX Association open source _Projects_. 
 
 1. **Definitions**
 

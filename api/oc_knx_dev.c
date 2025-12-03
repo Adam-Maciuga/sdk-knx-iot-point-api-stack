@@ -350,7 +350,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
   while (rep)
   {
@@ -359,21 +359,22 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_iid_put_handler received : %lld", rep->value.integer);
-        oc_core_set_and_store_device_iid(rep->value.integer);
 
-        // do the run time installation
-        if (oc_is_device_in_runtime())
+        if (oc_core_set_and_store_device_iid(rep->value.integer))
         {
-          oc_register_group_multicasts();
-          oc_init_datapoints_at_initialization();
+          if (oc_is_device_in_runtime())
+          { // if iid changed outside configuration ... (will be buggy since RCP table is then out of sync) 
+            oc_register_group_multicasts();
+            oc_init_datapoints_at_initialization();
 
-          PRINT("Re-register mDNS after a writing iid)");
-          const oc_device_info_t* const  device = oc_core_get_device_info();
-          knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+            PRINT("Re-register mDNS after a writing iid)");
+            const oc_device_info_t* const device = oc_core_get_device_info();
+            knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+          }
+
+          oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+          return;
         }
-
-        oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-        return;
       }
     }
     rep = rep->next;
@@ -734,9 +735,9 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request, oc_interface_mask_
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  
+  const int64_t sa = device->ia >> 8; // hi byte
+
   oc_rep_begin_root_object();
-  const uint32_t sa = device->ia >> 8; // hi byte
   oc_rep_i_set_int(root, 1, sa);
   oc_rep_end_root_object();
 
@@ -778,10 +779,9 @@ static void oc_core_dev_da_get_handler(oc_request_t* request, oc_interface_mask_
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  
-  oc_rep_begin_root_object();
+  const int64_t da = device->ia & 0xFF; // lo byte
 
-  const uint32_t da = device->ia & 0xFF; // lo byte
+  oc_rep_begin_root_object();
   oc_rep_i_set_int(root, 1, da);
   oc_rep_end_root_object();
 
@@ -839,18 +839,21 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
     return;
   }
 
-
-  oc_rep_t* rep = request->request_payload;
-  while (rep != NULL)
+  const oc_rep_t* rep = request->request_payload;
+  
+  while (rep)
   {
     if (rep->type == OC_REP_INT)
     {
       if (rep->iname == 1)
       {
         PRINT("oc_core_dev_fid_put_handler received : %lld", rep->value.integer);
-        oc_core_set_and_store_device_fid(rep->value.integer);
-        oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-        return;
+
+        if (oc_core_set_and_store_device_fid(rep->value.integer))
+        {
+          oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+          return;
+        }
       }
     }
     rep = rep->next;

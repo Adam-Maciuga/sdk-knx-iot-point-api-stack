@@ -2760,34 +2760,34 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
       | 3 == scope
    Multicast prefix: FF35:0030:          [4 bytes]
    ULA routing prefix: FD11:2222:33a3::  [6 bytes + 2 empty bytes]
-   Group Identifier: 8000 : 0068         [4 bytes ] -> ULA style : MSB ='1'n = 0x80 ; IANA style: MSB ='0' = 0x00
+   Group Identifier: 8000 : 0068         [4 bytes ] -> ULA style : MSB ='1' = 0x80 ; IANA style: MSB ='0' = 0x00
 
 
   */
 
-  // group number to the various bytes
-  uint8_t byte_1 = (uint8_t)group_id;
-  uint8_t byte_2 = (uint8_t)(group_id >> 8);
-  uint8_t byte_3 = (uint8_t)(group_id >> 16);
-  uint8_t byte_4 = (uint8_t)(group_id >> 24);
+  // extract 32-bit group identifier to the various bytes
+  const uint8_t byte_1 = (uint8_t)group_id;
+  const uint8_t byte_2 = (uint8_t)(group_id >> 8);
+  const uint8_t byte_3 = (uint8_t)(group_id >> 16);
+  const uint8_t byte_4 = (uint8_t)(group_id >> 24);
 
-  // iid as  ula prefix to various bytes
-  uint8_t ula_1 = (uint8_t)iid;
-  uint8_t ula_2 = (uint8_t)(iid >> 8);
-  uint8_t ula_3 = (uint8_t)(iid >> 16);
-  uint8_t ula_4 = (uint8_t)(iid >> 24);
-  uint8_t ula_5 = (uint8_t)(iid >> 32);
+  // extract 40-bit iid as ula routing prefix to various bytes
+  const uint8_t ula_1 = (uint8_t)iid;
+  const uint8_t ula_2 = (uint8_t)(iid >> 8);
+  const uint8_t ula_3 = (uint8_t)(iid >> 16);
+  const uint8_t ula_4 = (uint8_t)(iid >> 24);
+  const uint8_t ula_5 = (uint8_t)(iid >> 32);
 
   // flags
-  int my_transport_flags = IPV6 + MULTICAST;
+  enum transport_flags my_transport_flags = IPV6 + MULTICAST;
 
-#ifdef OC_OSCORE
+  #ifdef OC_OSCORE
   my_transport_flags |= OSCORE;
-#endif
+  #endif
 
   oc_make_ipv6_endpoint(group_mcast, my_transport_flags, 
-                        port, 0xff, 0x30 + scope, 0, 0x30,        // FF35::30:
-                        0xfd, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD11 : 2222 : 3333
+                        port, 0xFF, 0x30 + scope, 0, 0x30,        // FF35::30:
+                        0xFD, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD + IID 
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
@@ -2924,8 +2924,8 @@ void oc_init_datapoints_at_initialization(void)
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 
           const oc_device_info_t* const  device = oc_core_get_device_info();
-          uint16_t sia_value = device->ia;
-          uint64_t iid = device->iid;
+          const uint16_t sia_value = device->ia;
+          const uint64_t iid = device->iid;
 
           OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
 

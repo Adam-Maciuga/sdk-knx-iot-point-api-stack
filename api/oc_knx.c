@@ -1155,15 +1155,16 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
   (void)data;
   (void)iface_mask;
 
-  bool ia_set = false;
-  bool iid_set = false;
+  bool ia_ok = false;    // is mandatory, per default not ok
+  bool iid_ok = false;   // is mandatory, per default not ok
+  bool fid_ok = true;    // is optional, per default ok
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
   while (rep)
   {
@@ -1171,27 +1172,25 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 12)
       {
-        PRINT("received 12 (ia) : %d", (int)rep->value.integer);
-        oc_core_set_and_store_device_ia((uint16_t)rep->value.integer);
-        ia_set = true;
+        PRINT("received 12 (ia) : %lli", rep->value.integer);
+        ia_ok = oc_core_set_and_store_device_ia(rep->value.integer);
       }
       else if (rep->iname == 25)
       {
-        PRINT("received 25 (fid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_and_store_device_fid(rep->value.integer);
+        PRINT("received 25 (fid): %lli", rep->value.integer);
+        fid_ok = oc_core_set_and_store_device_fid(rep->value.integer);
       }
       else if (rep->iname == 26)
       {
-        PRINT("received 26 (iid): %llu", (uint64_t)rep->value.integer);
-        oc_core_set_and_store_device_iid(rep->value.integer);
-        iid_set = true;
+        PRINT("received 26 (iid): %lli", rep->value.integer);
+        iid_ok = oc_core_set_and_store_device_iid(rep->value.integer);
       }
     }
     rep = rep->next;
   }
 
-  // iid/ia are mandatory
-  if (iid_set && ia_set)
+  // check iid/ia and fid  
+  if (iid_ok && ia_ok && fid_ok)
   {
     if (oc_is_device_in_runtime())
     {

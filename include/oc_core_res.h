@@ -147,9 +147,10 @@ extern "C" {
 	 * @brief sets and stores the individual address
 	 *
 	 * @param ia the individual address
-	 * @return int error status, 0 = OK
+	 * @return false = error, ia out of 16-bit range
+	 * @return true = OK 
 	 */
-	int oc_core_set_and_store_device_ia(uint16_t ia);
+	bool oc_core_set_and_store_device_ia(int64_t ia);
 
 	/**
 	 * @brief sets the hardware type (string)
@@ -180,17 +181,19 @@ extern "C" {
 	 * @brief sets the installation identifier (iid) and store it
 	 *
 	 * @param iid the KNX installation id
-	 * @return int error status, 0 = OK
+	 * @return false = error, iid out of 40-bit range
+	 * @return true = OK 
 	 */
-	int oc_core_set_and_store_device_iid(uint64_t iid);
+bool oc_core_set_and_store_device_iid(int64_t iid);
 
 	/**
 	 * @brief sets the fabric identifier (fid)
 	 *
 	 * @param fid the fabric id
-	 * @return int error status, 0 = OK
+	 * @return false = error, fid out of 40-bit range
+	 * @return true = OK 
 	 */
-	int oc_core_set_and_store_device_fid(uint64_t fid);
+bool oc_core_set_and_store_device_fid(int64_t fid);
 
 	/**
 	 * @brief gets the installation identifier (iid) (unsigned int)

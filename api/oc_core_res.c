@@ -64,12 +64,19 @@ int oc_core_set_device_mid(uint32_t mid)
 	return 0;
 }
 
-int oc_core_set_and_store_device_ia(uint16_t ia)
+bool oc_core_set_and_store_device_ia(int64_t ia)
 {
-  oc_device_info.ia = ia;
-  oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia));
+  // max IA number as 16 bit, 0 = in KNX not allowed but here accepted (specification does not limit it)
+  #define MAX_IA (0xFFFF)
 
-  return 0;
+  if (ia >= 0 && ia <= MAX_IA)
+  {
+    oc_device_info.ia = (uint16_t)ia;
+    oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&oc_device_info.ia, sizeof(oc_device_info.ia));
+
+    return true;
+  }
+  return false;
 }
 
 int oc_core_set_device_hwt(const char* hardware_type)
@@ -101,12 +108,18 @@ uint64_t oc_core_get_device_iid(void)
 	return oc_device_info.iid;
 }
 
-int oc_core_set_and_store_device_iid(uint64_t iid)
+bool oc_core_set_and_store_device_iid(int64_t iid)
 {
-  oc_device_info.iid = iid;
-  oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid));
-
-  return 0;
+  // max IID number as 40 bit, 0 = allowed (specification does not limit it)
+  #define MAX_IID (0xFFFFFFFFFF)
+  
+  if (iid >= 0 && iid <= MAX_IID)
+  {
+    oc_device_info.iid = iid;
+    oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid));
+    return true;
+  }
+  return false;
 }
 
 int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t minor, uint16_t patch)
@@ -120,12 +133,19 @@ int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t mi
   return 0;
 }
 
-int oc_core_set_and_store_device_fid(uint64_t fid)
+bool oc_core_set_and_store_device_fid(int64_t fid)
 {
-	oc_device_info.fid = fid;
-  oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
+  // max FID number as 40 bit, 0 = allowed (specification does not limit it)
+  #define MAX_FID (0xFFFFFFFFFF)
 
-	return 0;
+  if (fid >= 0 && fid <= MAX_FID)
+  {
+    oc_device_info.fid = fid;
+    oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid));
+
+    return true;
+  }
+  return false;
 }
 
 void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
