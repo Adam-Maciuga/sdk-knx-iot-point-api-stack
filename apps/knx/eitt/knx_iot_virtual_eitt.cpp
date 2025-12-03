@@ -119,6 +119,8 @@ private:
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
   void OnRestartDevice(wxCommandEvent& event);
+  void OnResolveIPv6Test(wxCommandEvent& event);
+  void OnSendUnicastTest(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
@@ -145,6 +147,8 @@ private:
 
   // eitt
   wxButton *m_EITT_SOO;
+  wxButton *m_IPV6_RESOLVE_TEST;
+  wxButton *m_UNICAST_TEST;
 };
 #ifdef USE_CONSOLE
   wxIMPLEMENT_APP_CONSOLE(MyApp);
@@ -241,12 +245,29 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
                      wxPoint(10 + column * x_width, 10 + x_height * row),
                      wxSize(x_width, x_height), wxALIGN_LEFT);
 
-    // control
+    // SOO control button
     m_EITT_SOO = new wxButton(this, EITT_SOO, _T("SOO, press me ..."),
                                 wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
-
     m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_SOO, this);
     m_EITT_SOO->Enable(true);
+    
+    // IPv6 resolution test button
+    row++;
+    new wxStaticText(this, wxID_ANY, "Test Functions",
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
+    
+    m_IPV6_RESOLVE_TEST = new wxButton(this, RESOLVE_IPV6_TEST, _T("Resolve IPv6 Test"),
+                                wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
+    m_IPV6_RESOLVE_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnResolveIPv6Test, this);
+    m_IPV6_RESOLVE_TEST->Enable(true);
+    
+    // Unicast test button
+    row++;
+    m_UNICAST_TEST = new wxButton(this, SEND_UNICAST_TEST, _T("Send Unicast Test"),
+                                wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
+    m_UNICAST_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnSendUnicastTest, this);
+    m_UNICAST_TEST->Enable(true);
   }
 
   constexpr int width_size = 220; // size of the knx info widgets
@@ -479,6 +500,155 @@ void MyFrame::OnRestartDevice(wxCommandEvent& event)
   this->updateCheckBoxesFromLiveIOOData();
 
   SetStatusText("Restart Initiated");
+}
+
+/**
+ * @brief Test IPv6 resolution via CoAP discovery
+ *
+ * Sends CoAP GET to ff02::fd with query ep=knx://ia.1199887766.110F
+ */
+void MyFrame::OnResolveIPv6Test(wxCommandEvent& event)
+{
+  SetStatusText("Sending CoAP Discovery...");
+
+  // Test parameters
+  uint32_t target_ia = 0x110F;
+  uint64_t target_iid = 0x1199887766ULL;
+
+  wxString result;
+  result += "CoAP Discovery Test\n";
+  result += "===================\n\n";
+  result += wxString::Format("Target: knx://ia.%llX.%X\n", (unsigned long long)target_iid, (unsigned int)target_ia);
+  result += wxString::Format("IID: 0x%llX (%llu)\n", (unsigned long long)target_iid, (unsigned long long)target_iid);
+  result += wxString::Format("IA: 0x%X (%u)\n\n", (unsigned int)target_ia, (unsigned int)target_ia);
+
+  result += "Sending CoAP GET to: ff02::fd\n";
+  result += "Query: /.well-known/core?ep=knx://ia.1199887766.110F\n\n";
+
+  // Send discovery (recipient_index = -1 for test mode)
+  int ret = knx_resolve_via_coap_discovery(target_ia, target_iid, -1);
+
+  if (ret == 0) {
+    result += "✓ Discovery packet sent successfully!\n\n";
+    result += "Check console for response logs.\n";
+    result += "The response handler will log any received responses.";
+    SetStatusText("Discovery Sent");
+  } else {
+    result += wxString::Format("✗ Failed to send discovery! Error code: %d\n", ret);
+    SetStatusText("Send Failed");
+  }
+
+  CustomDialog dialog("CoAP Discovery Test", result);
+}
+
+void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
+{
+  SetStatusText("Sending Unicast Test...");
+
+  // Test parameters - search for recipient with GA 65535
+  const uint32_t target_ga = 65535;  // Group Address from test spec
+
+  wxString result;
+  result += "Unicast S-Mode Test\n";
+  result += "===================\n\n";
+  result += wxString::Format("Group Address: %u (31/7/255)\n\n", target_ga);
+
+  // Get device info for sender IA
+  const oc_device_info_t* device = oc_core_get_device_info();
+  if (!device) {
+    result += "✗ Failed to get device info\n";
+    SetStatusText("Send Failed");
+    CustomDialog dialog("Unicast Test Error", result);
+    return;
+  }
+
+  // Find recipient table entry with GA=65535
+  int total = oc_core_get_recipient_table_size();
+  oc_group_table_t* recipient_entry = NULL;
+  int recipient_index = -1;
+  
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
+    if (entry && entry->id >= 0) {
+      // Check if this entry has GA 65535
+      for (int j = 0; j < entry->ga_len; j++) {
+        if (entry->ga[j] == target_ga) {
+          recipient_entry = entry;
+          recipient_index = i;
+          break;
+        }
+      }
+      if (recipient_entry) break;
+    }
+  }
+
+  if (!recipient_entry) {
+    result += "\u2717 No recipient table entry found with GA=65535\n";
+    result += "\nPlease configure recipient table with GA [65535]\n";
+    SetStatusText("No Recipient Entry");
+    CustomDialog dialog("Unicast Test Error", result);
+    return;
+  }
+
+  result += wxString::Format("Found Recipient Entry (id=%d):\n", recipient_entry->id);
+  result += wxString::Format("  Destination IA: %u (0x%X)\n", recipient_entry->ia, recipient_entry->ia);
+  result += wxString::Format("  AT: %s\n\n", oc_string_checked(recipient_entry->at));
+
+  // Use device's own IID for discovery (not recipient table's IID)
+  uint64_t device_iid = device->iid;
+  result += wxString::Format("Using device IID for discovery: %llu (0x%llX)\n\n", 
+                             (unsigned long long)device_iid, (unsigned long long)device_iid);
+
+  // Check if IPv6 is resolved
+  if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
+    result += "IPv6 not resolved, triggering resolution...\n\n";
+    
+    int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device_iid, recipient_index);
+    
+    if (ret == 0) {
+      result += "✓ Discovery sent, waiting for response...\n";
+      result += "\nPlease retry after IPv6 is resolved.\n";
+      SetStatusText("Discovery Sent");
+    } else {
+      result += wxString::Format("✗ Failed to send discovery! Error code: %d\n", ret);
+      SetStatusText("Discovery Failed");
+    }
+    
+    CustomDialog dialog("IPv6 Resolution Required", result);
+    return;
+  }
+
+  result += "Resolved IPv6: ";
+  for (int i = 0; i < 16; i++) {
+    result += wxString::Format("%02x", recipient_entry->ipadd.ipv6[i]);
+    if (i % 2 == 1 && i < 15) result += ":";
+  }
+  result += "\n\nSending unicast s-mode message...\n";
+
+  // Get the resource path from channel 1 (same as SOO button)
+  char* url = app_retrieve_href_from_channel(1, SOO);
+  
+  // Send using the standard s-mode API which handles unicast when grpid=0
+  int send_result = oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
+
+  if (send_result == 0) {
+    result += "\n\u2713 Unicast message sent!\n";
+  } else {
+    result += wxString::Format("\n\u2717 Failed to send message (error %d)\n", send_result);
+  }
+  
+  result += "\nMessage Format:\n";
+  result += "  Endpoint: /k\n";
+  result += "  Method: POST\n";
+  result += "  Secured: yes (OSCORE)\n";
+  result += wxString::Format("  SIA (sender): %u\n", device->ia);
+  result += wxString::Format("  Destination IA: %u\n", recipient_entry->ia);
+  result += wxString::Format("  GA: %u\n", target_ga);
+  result += "  ST: w (write)\n";
+  result += wxString::Format("  Resource: %s\n", url);
+
+  SetStatusText(send_result == 0 ? "Unicast Test Sent" : "Send Failed");
+  CustomDialog dialog("Unicast Test", result);
 }
 
 /**

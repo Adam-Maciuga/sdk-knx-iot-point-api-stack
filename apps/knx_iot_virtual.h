@@ -492,6 +492,8 @@ enum controls : uint16_t
   CHECK_PM,             // programming mode check in menu bar
   LIST_ALL,             // list all tables (GO/PUB/RCP/AT)
   RESTART_DEVICE,       // restart device
+  RESOLVE_IPV6_TEST,    // test IPv6 resolution
+  SEND_UNICAST_TEST,    // send unicast test message
 
   EITT_SOO,             // EITT test button
   wxID_SLIDER,          // EMS Inverter slider

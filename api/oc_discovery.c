@@ -466,6 +466,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// handle sector, if device belongs to a GA ?d=urn:knx:g.s.[ga] list the data points to which the GA applies to
 	if (d_len > 12 && strncmp(d_request, "urn:knx:g.s.", 12) == 0)
 	{
+		//TODO replace atoi with strtol
 		const int group_address = atoi(&d_request[12]);
 		PRINT("group address: %d", group_address);
 
