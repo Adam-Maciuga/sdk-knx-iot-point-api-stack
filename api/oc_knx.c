@@ -1108,10 +1108,12 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
   }
 
   // check if the state is loaded
-
-  if (oc_knx_get_lsm() != LSM_S_LOADED)
+  if (!oc_is_device_in_runtime())
   {
-    OC_ERR("not in loaded state");
+    OC_ERR("not in loaded state, service unavailable, a client may retry the request after max age seconds");
+    
+    // set a max-age of fix 2 seconds (see KNX specification)
+    request->response->response_buffer->max_age = 2;
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
     return;
   }

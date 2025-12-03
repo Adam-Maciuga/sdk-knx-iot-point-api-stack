@@ -47,7 +47,7 @@ OC_FETCH    /**< FETCH*/
 OC_WRITE_AFFECTS_FP
 
 - Specify that a write request to the resource changes the application fingerprint.
-- Must be set by vendor in relation if  a change of value affects the fingerprint.
+- Must be set by vendor in relation if a change of value affects the fingerprint.
   It is NOT checked by stack if the actual written value really changes the original value,
   the aspect of a POST/PUT is the only criteria.
 - What is covered by the fingerprint, see KNX IoT specification.
