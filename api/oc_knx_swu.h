@@ -91,7 +91,7 @@ extern "C" {
     oc_swu_result_t result;   // download result
     bool downloaded_once;     // marker for a never updated device
     uint8_t protocol;         // only 0=unicast CoAP supported
-    oc_string_t hwref;        // hardware reference number (manufacturer specific)
+    oc_string_t hwref;        // hardware reference text string, 8 octets, formatted in 16 chars - hex notation (manufacturer specific)
   } oc_device_swu_t;
 
   /**
