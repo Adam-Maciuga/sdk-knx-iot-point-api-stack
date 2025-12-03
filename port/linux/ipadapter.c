@@ -28,6 +28,7 @@
 #include "oc_network_monitor.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
+#include "port/oc_network_interface.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -316,6 +317,64 @@ add_mcast_sock_to_ipv6_mcast_group(int mcast_sock, int interface_index)
   return 0;
 }
 
+static void
+drop_all_mcast_memberships(int mcast_sock, int sa_family)
+{
+  struct ifaddrs *ifs = NULL, *interface = NULL;
+  if (getifaddrs(&ifs) < 0) {
+    return;
+  }
+
+  struct ipv6_mreq mreq;
+  for (interface = ifs; interface != NULL; interface = interface->ifa_next) {
+    if (!(interface->ifa_flags & IFF_UP) || (interface->ifa_flags & IFF_LOOPBACK)) {
+      continue;
+    }
+    if (interface->ifa_addr && interface->ifa_addr->sa_family != sa_family) {
+      continue;
+    }
+
+    int if_index = if_nametoindex(interface->ifa_name);
+
+    if (sa_family == AF_INET6) {
+      struct sockaddr_in6 *a = (struct sockaddr_in6 *)interface->ifa_addr;
+      if (a && IN6_IS_ADDR_LINKLOCAL(&a->sin6_addr)) {
+        // Drop ALL_COAP_NODES_LL
+        memset(&mreq, 0, sizeof(mreq));
+        memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_COAP_NODES_LL, 16);
+        mreq.ipv6mr_interface = if_index;
+        setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+
+        // Drop ALL_COAP_NODES_RL
+        memset(&mreq, 0, sizeof(mreq));
+        memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_COAP_NODES_RL, 16);
+        mreq.ipv6mr_interface = if_index;
+        setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+
+        // Drop ALL_COAP_NODES_SL
+        memset(&mreq, 0, sizeof(mreq));
+        memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_COAP_NODES_SL, 16);
+        mreq.ipv6mr_interface = if_index;
+        setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+      }
+    }
+#ifdef OC_IPV4
+    else if (sa_family == AF_INET) {
+      struct sockaddr_in *a = (struct sockaddr_in *)interface->ifa_addr;
+      if (a) {
+        struct ip_mreq mreq4;
+        memset(&mreq4, 0, sizeof(mreq4));
+        memcpy(&mreq4.imr_multiaddr.s_addr, ALL_COAP_NODES_IPV4, 4);
+        memcpy(&mreq4.imr_interface.s_addr, &a->sin_addr.s_addr, 4);
+        setsockopt(mcast_sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq4, sizeof(mreq4));
+      }
+    }
+#endif
+  }
+
+  freeifaddrs(ifs);
+}
+
 static int
 configure_mcast_socket(int mcast_sock, int sa_family)
 {
@@ -325,6 +384,12 @@ configure_mcast_socket(int mcast_sock, int sa_family)
     OC_ERR("querying interface addrs");
     return -1;
   }
+
+  // First, drop ALL existing multicast memberships
+  drop_all_mcast_memberships(mcast_sock, sa_family);
+
+  uint32_t filter = oc_network_get_interface_filter();
+
   for (interface = ifs; interface != NULL; interface = interface->ifa_next) {
     /* Ignore interfaces that are down and the loopback interface */
     if (!(interface->ifa_flags & IFF_UP) ||
@@ -338,6 +403,12 @@ configure_mcast_socket(int mcast_sock, int sa_family)
     }
     /* Obtain interface index for this address */
     int if_index = if_nametoindex(interface->ifa_name);
+
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && (uint32_t)if_index != filter) {
+      continue;
+    }
+
     /* Accordingly handle IPv6/IPv4 addresses */
     if (sa_family == AF_INET6) {
       struct sockaddr_in6 *a = (struct sockaddr_in6 *)interface->ifa_addr;
@@ -434,6 +505,13 @@ get_interface_addresses(ip_context_t *dev, unsigned char family, uint16_t port,
         if ((int)addrmsg->ifa_index == prev_interface_index) {
           goto next_ifaddr;
         }
+        
+        // Filter by interface if filter is set
+        uint32_t filter = oc_network_get_interface_filter();
+        if (filter != 0 && addrmsg->ifa_index != filter) {
+          goto next_ifaddr;
+        }
+        
         ep.interface_index = addrmsg->ifa_index;
         include = true;
         struct rtattr *attr = (struct rtattr *)IFA_RTA(addrmsg);
@@ -560,8 +638,8 @@ oc_connectivity_get_endpoints()
  * This function reconfigures IPv6/v4 multicast sockets for
  * all logical devices.
  */
-static int
-process_interface_change_event(void)
+int
+oc_network_refresh_endpoints(void)
 {
   int ret = 0, i;
   struct nlmsghdr *response = NULL;
@@ -875,7 +953,7 @@ network_event_thread(void *data)
 
     for (i = 0; i < n; i++) {
       if (FD_ISSET(ifchange_sock, &setfds)) {
-        if (process_interface_change_event() < 0) {
+        if (oc_network_refresh_endpoints() < 0) {
           OC_WRN("caught errors while handling a network interface change");
         }
         FD_CLR(ifchange_sock, &setfds);
@@ -1087,12 +1165,21 @@ oc_send_discovery_request(oc_message_t *message)
 
   ip_context_t *dev = get_ip_context_for_device();
 
+  uint32_t filter = oc_network_get_interface_filter();
+
 #define IN6_IS_ADDR_MC_REALM_LOCAL(addr)                                       \
   IN6_IS_ADDR_MULTICAST(addr) && ((((const uint8_t *)(addr))[1] & 0x0f) == 0x03)
 
   for (iface = ifs; iface != NULL; iface = iface->ifa_next) {
     if (!(iface->ifa_flags & IFF_UP) || (iface->ifa_flags & IFF_LOOPBACK))
       continue;
+
+    unsigned int if_idx = if_nametoindex(iface->ifa_name);
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && if_idx != filter) {
+      continue;
+    }
+
     if ((message->endpoint.flags & IPV6) && iface->ifa_addr &&
         iface->ifa_addr->sa_family == AF_INET6) {
       struct sockaddr_in6 *addr = (struct sockaddr_in6 *)iface->ifa_addr;
@@ -1104,16 +1191,15 @@ oc_send_discovery_request(oc_message_t *message)
       bool is_thread_mesh = memcmp(epaddr, thread_prefix, 8) == 0;
       if (is_thread_mesh)
         continue;
-      unsigned int mif = if_nametoindex(iface->ifa_name);
-      if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, &mif,
-                     sizeof(mif)) == -1) {
+      if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, &if_idx,
+                     sizeof(if_idx)) == -1) {
         OC_ERR("setting socket option for default IPV6_MULTICAST_IF: %d",
                errno);
         goto done;
       }
-      message->endpoint.interface_index = mif;
+      message->endpoint.interface_index = if_idx;
       if (IN6_IS_ADDR_MC_LINKLOCAL(message->endpoint.addr.ipv6.address)) {
-        message->endpoint.addr.ipv6.scope = mif;
+        message->endpoint.addr.ipv6.scope = if_idx;
         unsigned int hops = 1;
         setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops,
                    sizeof(hops));
@@ -1140,7 +1226,7 @@ oc_send_discovery_request(oc_message_t *message)
         OC_ERR("setting socket option for default IP_MULTICAST_IF: %d", errno);
         goto done;
       }
-      message->endpoint.iface = if_nametoindex(iface->ifa_name);
+      message->endpoint.iface = if_idx;
       oc_send_buffer(message);
     }
 #else  /* OC_IPV4 */
@@ -1844,6 +1930,9 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
   if (getifaddrs(&ifs) < 0) {
     return;
   }
+
+  uint32_t filter = oc_network_get_interface_filter();
+
   for (interface = ifs; interface != NULL; interface = interface->ifa_next) {
     /* Ignore interfaces that are down and the loopback interface */
     if (!(interface->ifa_flags & IFF_UP) ||
@@ -1857,6 +1946,12 @@ oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     }
     /* Obtain interface index for this address */
     int if_index = if_nametoindex(interface->ifa_name);
+
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && (uint32_t)if_index != filter) {
+      continue;
+    }
+
     /* Accordingly handle IPv6/IPv4 addresses */
     struct sockaddr_in6 *a = (struct sockaddr_in6 *)interface->ifa_addr;
     if (a) {
@@ -1899,6 +1994,9 @@ oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
   if (getifaddrs(&ifs) < 0) {
     return;
   }
+
+  uint32_t filter = oc_network_get_interface_filter();
+
   for (interface = ifs; interface != NULL; interface = interface->ifa_next) {
     /* Ignore interfaces that are down and the loopback interface */
     if (!(interface->ifa_flags & IFF_UP) ||
@@ -1912,6 +2010,12 @@ oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     }
     /* Obtain interface index for this address */
     int if_index = if_nametoindex(interface->ifa_name);
+
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && (uint32_t)if_index != filter) {
+      continue;
+    }
+
     /* Accordingly handle IPv6/IPv4 addresses */
     struct sockaddr_in6 *a = (struct sockaddr_in6 *)interface->ifa_addr;
     if (a) {

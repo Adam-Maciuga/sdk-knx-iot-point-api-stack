@@ -29,6 +29,7 @@
 #include "apps/knx/knx_iot_virtual_knx.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
+#include "port/oc_network_interface.h"
 
 
 extern lsxb_channel_t lsab[NUM_CHANNELS];
@@ -121,6 +122,8 @@ private:
   void OnRestartDevice(wxCommandEvent& event);
   void OnResolveIPv6Test(wxCommandEvent& event);
   void OnSendUnicastTest(wxCommandEvent& event);
+  void OnNetworkInterfaceChange(wxCommandEvent& event);
+  wxString GetIPv6AddressForInterface(int if_index);
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
@@ -149,6 +152,8 @@ private:
   wxButton *m_EITT_SOO;
   wxButton *m_IPV6_RESOLVE_TEST;
   wxButton *m_UNICAST_TEST;
+  wxComboBox *m_network_interface;
+  wxTextCtrl *m_ipv6_address;
 };
 #ifdef USE_CONSOLE
   wxIMPLEMENT_APP_CONSOLE(MyApp);
@@ -268,6 +273,43 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
                                 wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
     m_UNICAST_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnSendUnicastTest, this);
     m_UNICAST_TEST->Enable(true);
+    
+    // Network interface selector
+    row++;
+    new wxStaticText(this, wxID_ANY, "Network Interface:",
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
+    
+    wxArrayString interface_choices;
+    interface_choices.Add("All interfaces");
+    
+    oc_network_interface_info_t interfaces[32];
+    int iface_count = oc_network_enumerate_interfaces(interfaces, 32);
+    for (int i = 0; i < iface_count; i++) {
+      wxString choice = wxString::Format("[%d] %s", interfaces[i].if_index, interfaces[i].name);
+      interface_choices.Add(choice);
+    }
+    
+    m_network_interface = new wxComboBox(this, wxID_ANY, "All interfaces",
+                                wxPoint(120 + column * x_width, 10 + x_height * row),
+                                wxSize(x_width * 3, x_height),
+                                interface_choices, wxCB_READONLY);
+    m_network_interface->SetSelection(0);
+    m_network_interface->Bind(wxEVT_COMBOBOX, &MyFrame::OnNetworkInterfaceChange, this);
+
+    // IPv6 address display
+    row++;
+    new wxStaticText(this, wxID_ANY, "IPv6 Address:",
+                     wxPoint(10 + column * x_width, 10 + x_height * row),
+                     wxSize(x_width, x_height), wxALIGN_LEFT);
+    
+    m_ipv6_address = new wxTextCtrl(this, wxID_ANY, "(not available)",
+                                     wxPoint(120 + column * x_width, 10 + x_height * row),
+                                     wxSize(x_width * 3, x_height), wxTE_READONLY);
+    m_ipv6_address->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+
+    // Add spacing row before device info
+    row++;
   }
 
   constexpr int width_size = 220; // size of the knx info widgets
@@ -277,7 +319,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   const oc_device_info_t* const  device = oc_core_get_device_info();
   (void)sprintf(text, "SN:\t%s", oc_string(device->serialnumber));
 
-  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 1) * x_height)),
+  wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 2) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);
   static_text0->SetEditable(false);
 
@@ -295,37 +337,37 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   (void)sprintf(text, "QR:\tKNX:S:%s;P:%s", oc_string(device->serialnumber), app_get_password());
   app_str_to_upper(text);
 
-  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 2) * x_height)),
+  wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 3) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);
   static_text1->SetEditable(false);
 
   // individual address, displayed data set/refreshed later
   m_ia_text =
-    new wxTextCtrl(this, IA_TEXT, "", wxPoint(10, 10 + ((max_instances + 3) * x_height)), wxSize(width_size, x_height), 0);
+    new wxTextCtrl(this, IA_TEXT, "", wxPoint(10, 10 + ((max_instances + 4) * x_height)), wxSize(width_size, x_height), 0);
   m_ia_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
-  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
+  m_iid_text = new wxTextCtrl(this, IID_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 4) * x_height)),
                               wxSize(width_size, x_height), 0);
   m_iid_text->SetEditable(false);
 
   // programming mode, displayed data set/refreshed later
   m_pm_text =
-    new wxTextCtrl(this, PM_TEXT, "", wxPoint(10, 10 + ((max_instances + 4) * x_height)), wxSize(width_size, x_height), 0);
+    new wxTextCtrl(this, PM_TEXT, "", wxPoint(10, 10 + ((max_instances + 5) * x_height)), wxSize(width_size, x_height), 0);
   m_pm_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
   m_ls_text =
-    new wxTextCtrl(this, LS_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)), wxSize(width_size, 25), 0);
+    new wxTextCtrl(this, LS_TEXT, "", wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), 0);
   m_ls_text->SetEditable(false);
 
   // hostname, displayed data set/refreshed later
-  m_hn_text = new wxTextCtrl(this, LS_TEXT, "", wxPoint(10, 10 + ((max_instances + 5) * 25)), wxSize(width_size, 25), 0);
+  m_hn_text = new wxTextCtrl(this, LS_TEXT, "", wxPoint(10, 10 + ((max_instances + 6) * 25)), wxSize(width_size, 25), 0);
   m_hn_text->SetEditable(false);
 
   // SPAKE2+ pwd
   (void)sprintf(text, "PWD:\t%s", app_get_password());
-  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
+  wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, wxPoint(10 + width_size, 10 + ((max_instances + 6) * 25)),
                                             wxSize(width_size, 25), 0);
   static_text2->SetEditable(false);
 
@@ -786,5 +828,66 @@ void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
   char statusBarText[100];
   (void)sprintf(statusBarText, "Switch On/Off @ '%s' pressed: %s", url, p ? "On" : "Off");
   SetStatusText(statusBarText);
+}
+
+wxString MyFrame::GetIPv6AddressForInterface(int if_index)
+{
+  // Get endpoint list from stack
+  oc_endpoint_t *ep = oc_connectivity_get_endpoints();
+  
+  while (ep) {
+    if ((ep->flags & IPV6) && ep->interface_index == (unsigned int)if_index) {
+      // Found IPv6 endpoint on this interface
+      char ipv6_str[64];
+      snprintf(ipv6_str, sizeof(ipv6_str),
+               "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+               ep->addr.ipv6.address[0], ep->addr.ipv6.address[1],
+               ep->addr.ipv6.address[2], ep->addr.ipv6.address[3],
+               ep->addr.ipv6.address[4], ep->addr.ipv6.address[5],
+               ep->addr.ipv6.address[6], ep->addr.ipv6.address[7],
+               ep->addr.ipv6.address[8], ep->addr.ipv6.address[9],
+               ep->addr.ipv6.address[10], ep->addr.ipv6.address[11],
+               ep->addr.ipv6.address[12], ep->addr.ipv6.address[13],
+               ep->addr.ipv6.address[14], ep->addr.ipv6.address[15]);
+      return wxString(ipv6_str);
+    }
+    ep = ep->next;
+  }
+  
+  return "(not available)";
+}
+
+void MyFrame::OnNetworkInterfaceChange(wxCommandEvent& event)
+{
+  int selection = m_network_interface->GetSelection();
+  
+  if (selection == 0) {
+    // "All interfaces" selected
+    oc_network_set_interface_filter(0);
+    oc_network_refresh_endpoints();
+    SetStatusText("Network: All interfaces enabled");
+    m_ipv6_address->SetValue("(multiple)");
+  } else {
+    // Specific interface selected - extract interface index from "[index] name" format
+    wxString choice = m_network_interface->GetStringSelection();
+    
+    // Parse interface index from "[123] interface_name" format
+    long if_index = 0;
+    wxString index_str = choice.AfterFirst('[').BeforeFirst(']');
+    if (index_str.ToLong(&if_index)) {
+      oc_network_set_interface_filter((int)if_index);
+      oc_network_refresh_endpoints();
+      
+      // Get IPv6 address for this interface
+      wxString ipv6_str = GetIPv6AddressForInterface((int)if_index);
+      m_ipv6_address->SetValue(ipv6_str);
+      
+      wxString status = wxString::Format("Network: Using interface %ld", if_index);
+      SetStatusText(status);
+    } else {
+      SetStatusText("Network: Error parsing interface index");
+      m_ipv6_address->SetValue("(error)");
+    }
+  }
 }
 

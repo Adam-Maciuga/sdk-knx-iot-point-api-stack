@@ -42,6 +42,7 @@
 #include "oc_endpoint.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
+#include "port/oc_network_interface.h"
 
 #define COAP_PORT_UNSECURED (5683)
 
@@ -328,6 +329,50 @@ add_mcast_sock_to_ipv6_mcast_group(SOCKET mcast_sock, DWORD if_index)
   return 0;
 }
 
+static void
+drop_all_mcast_memberships(SOCKET mcast_sock, int sa_family)
+{
+  ifaddr_t *ifaddr_list = get_network_addresses();
+  if (!ifaddr_list) {
+    return;
+  }
+
+  struct ipv6_mreq mreq;
+  for (ifaddr_t *ifaddr = ifaddr_list; ifaddr; ifaddr = ifaddr->next) {
+    if (sa_family == AF_INET6 && ifaddr->addr.ss_family == AF_INET6) {
+      // Drop ALL_COAP_NODES_LL
+      memset(&mreq, 0, sizeof(mreq));
+      memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_COAP_NODES_LL, 16);
+      mreq.ipv6mr_interface = ifaddr->if_index;
+      setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq));
+
+      // Drop ALL_COAP_NODES_RL  
+      memset(&mreq, 0, sizeof(mreq));
+      memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_COAP_NODES_RL, 16);
+      mreq.ipv6mr_interface = ifaddr->if_index;
+      setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq));
+
+      // Drop ALL_COAP_NODES_SL
+      memset(&mreq, 0, sizeof(mreq));
+      memcpy(mreq.ipv6mr_multiaddr.s6_addr, ALL_COAP_NODES_SL, 16);
+      mreq.ipv6mr_interface = ifaddr->if_index;
+      setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP, (char *)&mreq, sizeof(mreq));
+    }
+#ifdef OC_IPV4
+    else if (sa_family == AF_INET && ifaddr->addr.ss_family == AF_INET) {
+      struct sockaddr_in *a = (struct sockaddr_in *)&ifaddr->addr;
+      struct ip_mreq mreq4;
+      memset(&mreq4, 0, sizeof(mreq4));
+      memcpy(&mreq4.imr_multiaddr.s_addr, ALL_COAP_NODES_IPV4, 4);
+      memcpy(&mreq4.imr_interface.s_addr, &a->sin_addr.s_addr, 4);
+      setsockopt(mcast_sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *)&mreq4, sizeof(mreq4));
+    }
+#endif
+  }
+
+  free_network_addresses(ifaddr_list);
+}
+
 static int
 update_mcast_socket(SOCKET mcast_sock, int sa_family, ifaddr_t *ifaddr_list)
 {
@@ -344,7 +389,17 @@ update_mcast_socket(SOCKET mcast_sock, int sa_family, ifaddr_t *ifaddr_list)
     ifaddr_supplied = true;
   }
 
+  // First, drop ALL existing multicast memberships on all interfaces
+  drop_all_mcast_memberships(mcast_sock, sa_family);
+
+  uint32_t filter = oc_network_get_interface_filter();
+
   for (ifaddr = ifaddr_list; ifaddr; ifaddr = ifaddr->next) {
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && ifaddr->if_index != filter) {
+      continue;
+    }
+
     if (sa_family == AF_INET6 && ifaddr->addr.ss_family == AF_INET6) {
       ret += add_mcast_sock_to_ipv6_mcast_group(mcast_sock, ifaddr->if_index);
 #ifdef OC_IPV4
@@ -390,6 +445,12 @@ get_interface_addresses(ifaddr_t *ifaddr_list, ip_context_t *dev,
   }
 
   for (ifaddr = ifaddr_list; ifaddr != NULL; ifaddr = ifaddr->next) {
+    // Filter by interface if filter is set
+    uint32_t filter = oc_network_get_interface_filter();
+    if (filter != 0 && ifaddr->if_index != filter) {
+      continue;
+    }
+
     ep.interface_index = ifaddr->if_index;
     if (family == AF_INET6 && ifaddr->addr.ss_family == AF_INET6) {
       struct sockaddr_in6 *addr = (struct sockaddr_in6 *)&ifaddr->addr;
@@ -477,8 +538,8 @@ refresh_endpoints_list(ip_context_t *dev, ifaddr_t *ifaddr_list)
   }
 }
 
-static int
-process_interface_change_event(void)
+int
+oc_network_refresh_endpoints(void)
 {
   int ret = 0;
   ifaddr_t *ifaddr_list = get_network_addresses();
@@ -712,7 +773,7 @@ network_event_thread(void *data)
   DWORD IFCHANGE = 0;
   events_list[0] = ifchange_event.hEvent;
   events_list_size++;
-  process_interface_change_event();
+  oc_network_refresh_endpoints();
   DWORD MCAST6 = events_list_size;
   events_list[events_list_size] = mcast6_event;
   events_list_size++;
@@ -757,7 +818,7 @@ network_event_thread(void *data)
           OC_WRN("WSAResetEvent returned error: %d", WSAGetLastError());
         }
         if (i == IFCHANGE) {
-          process_interface_change_event();
+          oc_network_refresh_endpoints();
           DWORD bytes_returned = 0;
           if (WSAIoctl(ifchange_sock, SIO_ADDRESS_LIST_CHANGE, NULL, 0, NULL, 0,
                        &bytes_returned, &ifchange_event,
@@ -1168,7 +1229,14 @@ oc_send_discovery_request(oc_message_t *message)
          sizeof(message->endpoint.addr_local));
   message->endpoint.interface_index = 0;
 
+  uint32_t filter = oc_network_get_interface_filter();
+
   for (ifaddr = ifaddr_list; ifaddr != NULL; ifaddr = ifaddr->next) {
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && ifaddr->if_index != filter) {
+      continue;
+    }
+
     if (message->endpoint.flags & IPV6 && ifaddr->addr.ss_family == AF_INET6) {
       struct sockaddr_in6 *addr = (struct sockaddr_in6 *)&ifaddr->addr;
       DWORD mif = (DWORD)ifaddr->if_index;
@@ -1791,8 +1859,15 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     return;
   }
 
+  uint32_t filter = oc_network_get_interface_filter();
+
   // for every interface...
   for (ifaddr_t * interface = get_network_addresses(); interface != NULL; interface = interface->next) {
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && interface->if_index != filter) {
+      continue;
+    }
+
     /*
     if (!(interface->ifa_flags & IFF_UP) ||
         (interface->ifa_flags & IFF_LOOPBACK)) {
@@ -1837,8 +1912,15 @@ oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     return;
   }
 
+  uint32_t filter = oc_network_get_interface_filter();
+
   // for every interface...
   for (ifaddr_t * interface = get_network_addresses(); interface != NULL; interface = interface->next) {
+    // Skip interface if filter is set and doesn't match
+    if (filter != 0 && interface->if_index != filter) {
+      continue;
+    }
+
     /*
     if (!(interface->ifa_flags & IFF_UP) ||
         (interface->ifa_flags & IFF_LOOPBACK)) {
