@@ -162,6 +162,33 @@ extern "C"
    *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present) 
    *
    */
+
+  /**
+   * @brief IP address initialization status enumeration
+   * 
+   * Defines the various states of IP address initialization
+   */
+  typedef enum
+  {
+    OC_IP_STATUS_UNRESOLVED = 0,  // IP address not resolved yet
+    OC_IP_STATUS_RESOLVING = 1,   // IP address resolving in progress
+    OC_IP_STATUS_RESOLVED = 2,    // IP address successfully resolved
+    OC_IP_STATUS_FAILED = 3,         // IP address resolving failed
+    OC_IP_STATUS_EXPIRED = 4         // IP address expired/needs refresh
+  } oc_ip_status_t;
+
+  /**
+   * @brief IP address information structure
+   * 
+   * Contains IPv6 address and initialization status
+   */
+  typedef struct oc_ip_address_t
+  {
+    oc_ip_status_t init_status;  // initialization status with multiple states
+    uint8_t ipv6[16];            // IPv6 address (128 bits = 16 bytes)
+    int interface_index;         // network interface index for link-local addresses
+  } oc_ip_address_t;
+
   typedef struct oc_group_table
   {
     int32_t id;       // id, specification demands a range of 0 ... 65535 (see note above)
@@ -173,6 +200,7 @@ extern "C"
     uint32_t* ga;     // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;  // group address array len, specification demands at least 20 entries must be supported
     bool non;         // non-confirmable request, see details below
+    oc_ip_address_t ipadd;  // IP address information with IPv6 address and initialization status
   } oc_group_table_t;
 
   /*

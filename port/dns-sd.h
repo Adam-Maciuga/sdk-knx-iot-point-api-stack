@@ -22,6 +22,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include "../api/oc_knx_fp.h"  // for oc_ip_status_t
 
 /**
    @brief Publish a KNX mDNS service in order to enable DNS-SD discovery on server side.
@@ -49,37 +50,7 @@ extern "C" {
  */
 int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
 
-  /**
- @brief Invoke a KNX mDNS service in order to get an IPv6 unicast address that
-        belongs to an individual address on client side (see specification clause 2.4.2).
-
-  Step 1: dns-sd -B _ia0-<ia>.sub_._knx._udp
-
-    Timestamp     A/R Flags if Domain  Service Type  Instance Name
-    10:41:09.844  Add     2 18 local.  _knx._udp.    00fa10020800
-
-  Step 2: dns-sd -L "00fa10020800" _knx._udp
-
-    10:44:03.360  00fa10020800._knx._udp.local. can be reached at LT-AH-002.local.:58445 (interface 18)
-
-  Step 3:  dns-sd -G v6 LT-AH-002.local
-
-    Timestamp     A/R Flags if Hostname           Address                                      TTL
-    10:45:01.890  Add     3 18 LT-AH-002.local.   2003:00E1:2711:B800:5EF6:XXXX:XXXX:XXXX%<0>  120
-    :
-    10:45:01.897  Add     3 18 LT-AH-002.local.   FDFE:4EFB:062A:0000:79DD:XXXX:XXXX:XXXX%<0>  120
-
- @param ia KNX Individual Address from the counterpart device
- @param list_of_ipv6_addresses resolved IPv6 addresses
-
- @return int 0 on success, -1 on error
-
- @note for each platform a specific call of this resolving method must be used
-       (windows = bonjour / thread = open thread /unix = avahi ...)
  
-*/
-int knx_resolve_ipv6_unicast_address(uint16_t ia, char* list_of_ipv6_addresses);
-
 /**
  * @brief Set the advertised sleep period within the mDNS service.
  *
@@ -97,6 +68,96 @@ void knx_service_sleep_period(int sp);
  *
  */
 uint16_t knx_get_used_port(void);
+
+/**
+ * @brief Resolve IPv6 address for an Individual Address
+ *
+ * This function looks up the IA in the recipient table and resolves its IPv6 address
+ * using DNS-SD if not already resolved.
+ *
+ * @param ia Individual Address to resolve
+ * @return 0 on success (already resolved, in progress, or resolution started), -1 on error
+ *
+ * @note The function updates the init_status field in the recipient table entry:
+ *       - Returns immediately if already OC_IP_STATUS_RESOLVED
+ *       - Returns immediately if OC_IP_STATUS_RESOLVING (in progress)
+ *       - Starts async resolution if UNINITIALIZED, FAILED, or EXPIRED
+ */
+int knx_resolve_recipient_ipv6_address(uint32_t ia);
+
+/**
+ * @brief Resolve IPv6 addresses for all valid recipient table entries
+ *
+ * This function iterates through all recipient table entries and resolves
+ * IPv6 addresses for entries that have valid IA and GAs but uninitialized
+ * or failed IPv6 addresses.
+ *
+ * @return 0 if all resolutions succeeded, -1 if any failed
+ *
+ * @note Only processes entries with:
+ *       - Valid IA (> 0)  
+ *       - Valid GAs (ga_len > 0)
+ *       - Uninitialized or failed IPv6 status
+ */
+int knx_resolve_all_recipient_ipv6_addresses(void);
+
+/**
+ * @brief Convert IPv6 bytes array to string representation
+ *
+ * @param ipv6_bytes 16-byte IPv6 address array
+ * @param ipv6_string Output buffer for string representation 
+ * @param max_len Maximum length of output buffer (should be at least INET6_ADDRSTRLEN)
+ * @return 0 on success, -1 on error
+ */
+int knx_ipv6_bytes_to_string(const uint8_t ipv6_bytes[16], char* ipv6_string, size_t max_len);
+
+/**
+ * @brief Parse IPv6 string to bytes array
+ *
+ * Converts a standard IPv6 string to 16-byte array representation.
+ *
+ * @param ipv6_str IPv6 string in standard format
+ * @param ipv6_bytes Output array of 16 bytes for IPv6 address
+ * @return 0 on success, -1 on error
+ */
+int parse_ipv6_string_to_bytes(const char* ipv6_str, uint8_t ipv6_bytes[16]);
+
+
+/**
+ * @brief Check IPv6 resolution status for a recipient table entry
+ *
+ * @param recipient_index Index of the recipient table entry
+ * @return oc_ip_status_t Current status of IPv6 resolution
+ */
+oc_ip_status_t knx_get_recipient_ipv6_status(int recipient_index);
+
+/**
+ * @brief Get IPv6 address from recipient table entry as string
+ *
+ * @param recipient_index Index of the recipient table entry
+ * @param ipv6_string Output buffer for IPv6 string
+ * @param max_len Maximum length of output buffer
+ * @return 0 on success, -1 if not resolved or error
+ */
+int knx_get_recipient_ipv6_string(int recipient_index, char* ipv6_string, size_t max_len);
+
+/**
+ * @brief Reset IPv6 resolution status for a recipient table entry
+ *
+ * Forces re-resolution by setting status to uninitialized and clearing IPv6 data.
+ *
+ * @param recipient_index Index of the recipient table entry
+ * @return 0 on success, -1 on error
+ */
+int knx_reset_recipient_ipv6_status(int recipient_index);
+
+/**
+ * @brief Print IPv6 resolution status for all recipient table entries
+ *
+ * Debug function that prints the current IPv6 resolution status for all
+ * valid entries in the recipient table.
+ */
+void knx_print_recipient_ipv6_status_table(void);
 
 #ifdef __cplusplus
 }

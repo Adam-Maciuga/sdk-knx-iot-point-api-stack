@@ -24,3 +24,4 @@ deps/**
 
 # GitHub files
 .github
+docs/IPv6_Resolution_Implementation_Summary.md

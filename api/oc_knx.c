@@ -1010,12 +1010,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                 { // grpid is set in case of multicast in RCP table (configured by MaC)
 
                   #ifdef OC_USE_MULTICAST_SCOPE_2
-                  oc_send_s_mode_non_multicast_message(2, device->ia, grpid, sending_ga, device->iid, "a",
+                  oc_send_s_mode_non_confirmable_multicast_message(2, device->ia, grpid, sending_ga, device->iid, "a",
                                      new_request.response->response_buffer->buffer,
                                      (int)new_request.response->response_buffer->response_length);
 
                   #endif
-                  oc_send_s_mode_non_multicast_message(5, device->ia, grpid, sending_ga, device->iid, "a",
+                  oc_send_s_mode_non_confirmable_multicast_message(5, device->ia, grpid, sending_ga, device->iid, "a",
                                      new_request.response->response_buffer->buffer,
                                      (int)new_request.response->response_buffer->response_length);
                 }

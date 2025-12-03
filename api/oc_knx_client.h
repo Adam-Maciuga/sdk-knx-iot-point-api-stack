@@ -100,10 +100,45 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  */
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type);
 
-void oc_send_s_mode_non_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
+void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
                          uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
+/**
+ * @brief Callback function type for s-mode responses
+ *
+ * @param url The URL of the resource
+ * @param rep The representation payload
+ * @param rep_value The value representation
+ */
+typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep, oc_rep_t *rep_value);
+
+/**
+ * @brief Set the s-mode response callback
+ * @param my_func The callback function
+ * @return true on success
+ */
+bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
+
+/**
+ * @brief Get the s-mode response callback
+ * @return The current callback function
+ */
+oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
+
 /** @} */ // end of doc_module_tag_s_mode_client
+
+/**
+ * @brief Resolve IPv6 address via CoAP discovery
+ *
+ * Sends CoAP GET to /.well-known/core?ep=knx://ia.<iid>.<ia> via multicast (ff02::fd scope 2)
+ * and extracts the IPv6 address from the source address of the response.
+ *
+ * @param ia Individual Address to resolve
+ * @param iid Installation ID  
+ * @param recipient_index Index in recipient table (-1 for test mode, no storage)
+ * @return 0 on success (request sent), -1 on error
+ */
+int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_index);
 
 #ifdef __cplusplus
 }
