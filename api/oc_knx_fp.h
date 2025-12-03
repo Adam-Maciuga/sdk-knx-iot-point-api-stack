@@ -112,10 +112,12 @@ extern "C"
   {
     int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
     oc_string_t href;         // resource path
-    oc_cflag_mask_t cflags;   // cflags as in KNX (embedded compile option should force it to be 8-bit data)
+    oc_cflag_mask_t cflags;   // cflags as in KNX (to reduce size, please check to use a compile option such as for gcc -fshort-enums)
     uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (0...n) / send (1)  
     uint16_t ga_len;          // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
+
+
 
   /**
    * @brief Function point Recipient - Publisher Table Resource (/fp/r) (/fp/p)
@@ -187,9 +189,11 @@ extern "C"
    * @brief find id (cbor key 0) in the request
    * @note parameter object is not changed, even if it is a pointer
    *
-   * @return int -1 : not found, > -1 : value found
+   * @return int -1 : id not found in request
+   * @return int -2 : id found but not in range of 0...65535
+   * @return int > -1 : id found and value in range
    */
-  int32_t oc_table_find_id_from_payload(const oc_rep_t* object);
+  int32_t oc_table_find_id_from_payload_and_check_if_in_16_bit_range(const oc_rep_t* object);
 
   /**
    * @brief retrieve the group object table total size,
@@ -433,16 +437,6 @@ extern "C"
   void oc_delete_group_tables(void);
 
   /**
-   * @brief checks if the group address is part of the recipient table at index
-   *
-   * @param index the index in the recipient table
-   * @param group_address the group address to check
-   * @return true is part of the recipient entry
-   * @return false is not part of the recipient entry
-   */
-  bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_address);
-
-  /**
    * @brief get the destination (url or 'k') of the recipient table at index
    *
    * @param index the index in the recipient table
@@ -452,14 +446,6 @@ extern "C"
    * - ia == -1 is the init value; ia == 0 is reserved in KNX
    */
   char* oc_core_get_recipient_index_url(int index);
-
-  /**
-   * @brief retrieve the internal address of the recipient in the table
-   *
-   * @param index the index number in the recipient table
-   * @return uint32_t 0 does not exit otherwise the ia
-   */
-  uint16_t oc_core_get_recipient_ia(int index);
 
   /**
    * @brief return the size of the recipient table

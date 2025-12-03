@@ -23,7 +23,6 @@
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 #include <inttypes.h>
-#include "oc_knx_fp.h"
 #include "security/oc_oscore_context.h"
 #include "oc_knx_helpers.h"
 #include "oc_storage.h"
@@ -1323,45 +1322,45 @@ void oc_print_auth_at_entry(int index)
 
 static oc_acl_mask_t oc_at_get_scope_mask(int entry)
 {
-  return entry < 0 || entry >= G_AT_MAX_ENTRIES ? OC_ACL_NONE : g_at_entries[entry].scope;
+  return entry >= 0 && entry < G_AT_MAX_ENTRIES ? g_at_entries[entry].scope : OC_ACL_NONE;
 }
 
 int oc_delete_at_table_entry(int entry)
 {
-  if (entry < 0 || entry >= G_AT_MAX_ENTRIES)
-    return -1;
+  if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
+  {
+    // AT file entry
+    char filename[AT_SIZE];
+    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
+    oc_storage_erase(filename);
 
-  // AT file entry
-  char filename[AT_SIZE];
-  (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
-  oc_storage_erase(filename);
+    // id, scope, profile
+    oc_free_string(&g_at_entries[entry].id);
+    oc_new_string(&g_at_entries[entry].id, "", 0);
+    g_at_entries[entry].scope = OC_ACL_NONE;
+    g_at_entries[entry].profile = OC_PROFILE_UNKNOWN;
 
-  // id, scope, profile
-  oc_free_string(&g_at_entries[entry].id);
-  oc_new_string(&g_at_entries[entry].id, "", 0);
-  g_at_entries[entry].scope = OC_ACL_NONE;
-  g_at_entries[entry].profile = OC_PROFILE_UNKNOWN;
+    // oscore object
+    oc_free_string(&g_at_entries[entry].osc_ms);
+    oc_new_byte_string(&g_at_entries[entry].osc_ms, "", 0);
 
-  // oscore object
-  oc_free_string(&g_at_entries[entry].osc_ms);
-  oc_new_byte_string(&g_at_entries[entry].osc_ms, "", 0);
+    oc_free_string(&g_at_entries[entry].osc_salt);
+    oc_new_byte_string(&g_at_entries[entry].osc_salt, "", 0);
 
-  oc_free_string(&g_at_entries[entry].osc_salt);
-  oc_new_byte_string(&g_at_entries[entry].osc_salt, "", 0);
+    oc_free_string(&g_at_entries[entry].osc_contextid);
+    oc_new_byte_string(&g_at_entries[entry].osc_contextid, "", 0);
 
-  oc_free_string(&g_at_entries[entry].osc_contextid);
-  oc_new_byte_string(&g_at_entries[entry].osc_contextid, "", 0);
+    oc_free_string(&g_at_entries[entry].osc_id);
+    oc_new_byte_string(&g_at_entries[entry].osc_id, "", 0);
 
-  oc_free_string(&g_at_entries[entry].osc_id);
-  oc_new_byte_string(&g_at_entries[entry].osc_id, "", 0);
+    // release a possible ga array, free ignores NULL ptr
+    free(g_at_entries[entry].ga);
 
-  // release a possible ga array, free ignores NULL ptr
-  free(g_at_entries[entry].ga);
-
-  g_at_entries[entry].ga = NULL;
-  g_at_entries[entry].ga_len = 0;
-
-  return 0;
+    g_at_entries[entry].ga = NULL;
+    g_at_entries[entry].ga_len = 0;
+    return 0;
+  }
+  return -1;
 }
 
 /*
@@ -1565,9 +1564,9 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
     {
       oc_delete_at_table_entry(i);      // delete entry from AT table
-#ifdef OC_OSCORE
+      #ifdef OC_OSCORE
       oc_oscore_free_contexts_at_id(i); // removes possible references
-#endif
+      #endif
       PRINT("PASE key found at id : %d, invalidated...", i);
     }
   }
@@ -1619,9 +1618,9 @@ void oc_delete_at_table(void)
     oc_print_auth_at_entry(i);
     oc_delete_at_table_entry(i);
   }
-#ifdef OC_OSCORE
+  #ifdef OC_OSCORE
   oc_oscore_free_all_contexts();
-#endif
+  #endif
 }
 
 void oc_delete_at_table_except_sec_scope_entries(void)
@@ -1639,10 +1638,10 @@ void oc_delete_at_table_except_sec_scope_entries(void)
       oc_delete_at_table_entry(i);
     }
   }
-#ifdef OC_OSCORE
+  #ifdef OC_OSCORE
   // (re)create the oscore contexts in the table that still remains
   oc_init_oscore_from_storage(true);
-#endif
+  #endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1714,7 +1713,7 @@ void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size
 
 oc_auth_at_t* oc_get_auth_at_entry(int index)
 {
-  return index < 0 || index >= G_AT_MAX_ENTRIES ? NULL : &g_at_entries[index];
+  return index >= 0 && index < G_AT_MAX_ENTRIES ? &g_at_entries[index] : NULL;
 }
 
 void oc_create_knx_sec_resources(void)

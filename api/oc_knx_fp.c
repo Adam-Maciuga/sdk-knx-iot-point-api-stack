@@ -59,30 +59,33 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
 
 static int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max_size);
 
-int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size);
+static int find_empty_slot_in_table(const oc_group_table_t* table, int max_size);
 
-static uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, uint32_t group_address);
+static uint32_t oc_find_grpid_in_table(const oc_group_table_t* table, int max_size, uint32_t group_address);
 
 // ------------
 
-int32_t oc_table_find_id_from_payload(const oc_rep_t* object)
+int32_t oc_table_find_id_from_payload_and_check_if_in_16_bit_range(const oc_rep_t* object)
 {
   while (object)
   {
     switch (object->type)
     {
-    case OC_REP_INT:
-    {
-      // pub/rcp id (0) is only for type int defined
-      if (object->iname == 0)
+      case OC_REP_INT:
       {
-        const int32_t id = (int32_t)object->value.integer;
-        PRINT("find id from request: %d ", id);
-        return id;
+        // pub/rcp/go table id (0) is only for type int defined
+        if (object->iname == 0)
+        {
+          const int32_t id = (int32_t)object->value.integer;
+          const bool id_out_of_range = id < 0 || id > 65535; // see KNX specification
+          
+          PRINT("find id from request: %d ", id);
+          return id_out_of_range ? -2 : id;
+        }
       }
-    }
-    break;
-    default:
+      break;
+
+      default:
       break;
     }
     object = object->next;
@@ -426,10 +429,10 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         const oc_rep_t* object = rep->value.object;
 
         // find GO id in request
-        const int32_t id = oc_table_find_id_from_payload(object);
-        if (id == -1)
+        const int32_t id = oc_table_find_id_from_payload_and_check_if_in_16_bit_range(object);
+        if (id < 0)
         {
-          OC_ERR("GO table id not found in request, but is a mandatory part");
+          OC_ERR("GO table mandatory id not found in request OR id not in range 0 ... 65535");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -980,7 +983,6 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
   // set ptr to collection of 1...n PUB entries in payload
   const oc_rep_t* rep = request->request_payload;
-  const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
   while (rep)
@@ -989,22 +991,23 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
     {
     // a possible collection of PUB entries
     case OC_REP_OBJECT:
+    {
 
       // treat request payload value as one entry (that itself defines a chain of objects for id, ia,...)
-      object = rep->value.object;
+      const oc_rep_t* object = rep->value.object;
 
       // find PUB id in request
-      const int id = oc_table_find_id_from_payload(object);
-      if (id == -1)
+      const int32_t id = oc_table_find_id_from_payload_and_check_if_in_16_bit_range(object);
+      if (id < 0)
       {
-        OC_ERR("PUB table id not found in request, but is a mandatory part");
+        OC_ERR("PUB table mandatory id not found in request OR id not in range 0 ... 65535");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
 
       // find index in PUB table
-      int array_index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
-      if (array_index != -1)
+      int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+      if (index != -1)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
@@ -1015,8 +1018,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         return_status = OC_STATUS_CREATED;
 
         // no index, so we will create one (default)
-        array_index = find_empty_slot_in_table(id, g_gpt, GPT_MAX_ENTRIES);
-        if (array_index == -1)
+        index = find_empty_slot_in_table(g_gpt, GPT_MAX_ENTRIES);
+        if (index == -1)
         {
           OC_ERR("PUB table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1034,7 +1037,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       uint8_t allocator = 0;
 
       // fill with live PUB entry (from a present/empty entry)
-      oc_group_table_t tmp_gpt_entry = g_gpt[array_index];
+      oc_group_table_t tmp_gpt_entry = g_gpt[index];
 
       // set PUB id
       tmp_gpt_entry.id = id;
@@ -1100,13 +1103,13 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7) - used on multicast
           if (object->iname == 7) // resource 'ga array'
           {
-            // a post request does NOT append items to an (existing) array, it overwrites them  
+            // a post request does NOT append items to an (existing) array, it overwrites them
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             // ga size shall be 32 bit
-            uint32_t* new_array = malloc(array_size * sizeof(uint32_t));
+            uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
             if (new_array && array_size > 0)
             {
               for (int i = 0; i < array_size; i++)
@@ -1180,8 +1183,8 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       { // c
 
         // no tmp elements will be allocated ...
-        PRINT("only found id in request, deleting entry at index: %d", array_index);
-        oc_delete_group_table_entry(array_index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
+        PRINT("only found id in request, deleting entry at index: %d", index);
+        oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
       }
       else
       {
@@ -1189,7 +1192,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         { // a
 
           // see details on constant
-          PRINT("mandatory items missing, no entry created at index: %d", array_index);
+          PRINT("mandatory items missing, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
@@ -1199,27 +1202,29 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
 
         // b + d, here all ok, set new PUB entry
-        PRINT("storing PUB table at %d", array_index);
+        PRINT("storing PUB table at %d", index);
 
         /*
           Free - on stack allocated -  live PUB table entry elements that will be overwritten next.
           - created : 2 elements (GAs, AT)
           - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete a PUB entry
         */
-        oc_free_allocated_table_elements(&g_gpt[array_index], allocator);
+        oc_free_allocated_table_elements(&g_gpt[index], allocator);
 
         // assign PUB table entry with tmp PUB (all elements)
-        g_gpt[array_index] = tmp_gpt_entry;
+        g_gpt[index] = tmp_gpt_entry;
 
         // debugging
-        oc_print_group_table_entry(array_index, GPT_STORE, g_gpt);
+        oc_print_group_table_entry(index, GPT_STORE, g_gpt);
 
         // store (includes here an overwrite)
-        oc_store_group_table_entry(array_index, GPT_STORE, g_gpt);
+        oc_store_group_table_entry(index, GPT_STORE, g_gpt);
       }
 
       break;
-    default:
+    }
+    
+      default:
       break;
     }
 
@@ -1347,13 +1352,13 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
     return;
   }
 
-  int id = oc_uri_get_wildcard_int_value_as_int(
+  const int id = oc_uri_get_wildcard_int_value_as_int(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path,
     request->uri_path_len);
 
-  int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
+  const int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
 
   if (index == -1)
   {
@@ -1513,7 +1518,6 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
   // set ptr to collection of 1...n RCP entries in payload
   const oc_rep_t* rep = request->request_payload;
-  const oc_rep_t* object = NULL;
 
   // no payload -> 4.00
   while (rep)
@@ -1522,22 +1526,22 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
     {
       // a possible collection of RCP entries
     case OC_REP_OBJECT:
-
+    {
       // treat request payload value as one entry (that itself defines a chain of objects for id, ia,...)
-      object = rep->value.object;
+      const oc_rep_t* object = rep->value.object;
 
       // find RCP id in request
-      const int id = oc_table_find_id_from_payload(object);
-      if (id == -1)
+      const int32_t id = oc_table_find_id_from_payload_and_check_if_in_16_bit_range(object);
+      if (id < 0)
       {
-        OC_ERR("RCP table id not found in request, but is a mandatory part");
+        OC_ERR("RCP table mandatory id not found in request OR id not in range 0 ... 65535");
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
         return;
       }
 
       // find index in RCP table
-      int array_index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
-      if (array_index != -1)
+      int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
+      if (index != -1)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
@@ -1547,9 +1551,9 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         // no index, so we will create one
         return_status = OC_STATUS_CREATED;
 
-        // no index, so we will create one
-        array_index = find_empty_slot_in_table(id, g_grt, GRT_MAX_ENTRIES);
-        if (array_index == -1)
+        // no index, so we will create one (default)
+        index = find_empty_slot_in_table(g_grt, GRT_MAX_ENTRIES);
+        if (index == -1)
         {
           OC_ERR("RCP table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -1569,7 +1573,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       uint8_t allocator = 0;
 
       // fill with live RCP entry (from a present/empty entry)
-      oc_group_table_t tmp_grt_entry = g_grt[array_index];
+      oc_group_table_t tmp_grt_entry = g_grt[index];
 
       // set RCP id
       tmp_grt_entry.id = id;
@@ -1627,7 +1631,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           break;
-        case OC_REP_INT_ARRAY: 
+        case OC_REP_INT_ARRAY:
 
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
@@ -1635,13 +1639,13 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // ga array (7) - used on multicast
           if (object->iname == 7)
           {
-            // a post request does NOT append items to an (existing) array, it overwrites them  
+            // a post request does NOT append items to an (existing) array, it overwrites them
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t new_array_size = oc_int_array_size(object->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             // ga size shall be 32 bit
-            uint32_t* new_array = malloc(new_array_size * sizeof(uint32_t));
+            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
             if (new_array && new_array_size > 0)
             {
               for (int i = 0; i < new_array_size; i++)
@@ -1695,8 +1699,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           // resource 'non' (CBOR/JSON = 'non'/'non') - see 'non' details
           if (oc_string_len(object->name) > 0 && strncmp(oc_string(object->name), "non", 3) == 0)
           {
-              // take as it is, regardless if resource is mc or uc, see stack handling details on flag description
-              tmp_grt_entry.non = object->value.boolean;
+            // take as it is, regardless if resource is mc or uc, see stack handling details on flag description
+            tmp_grt_entry.non = object->value.boolean;
           }
 
           break;
@@ -1759,8 +1763,8 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       { // c
 
         // no tmp elements will be allocated ...
-        PRINT("only found id in request, deleting entry at index: %d", array_index);
-        oc_delete_group_table_entry(array_index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
+        PRINT("only found id in request, deleting entry at index: %d", index);
+        oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
       }
       else
       {
@@ -1768,7 +1772,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         { // a
 
           // see details on constant
-          PRINT("mandatory items missing, no entry created at index: %d", array_index);
+          PRINT("mandatory items missing, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
@@ -1778,27 +1782,29 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         }
 
         // b + d, here all ok, set new PUB entry
-        PRINT("storing RCP table at %d", array_index);
+        PRINT("storing RCP table at %d", index);
 
         /*
           Free - on stack allocated -  live RCP table entry elements that will be overwritten next.
           - created : 2 elements (GAs, AT)
           - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete an RCP entry
         */
-        oc_free_allocated_table_elements(&g_grt[array_index], allocator);
+        oc_free_allocated_table_elements(&g_grt[index], allocator);
 
         // assign RCP table entry with tmp RCP (all elements)
-        g_grt[array_index] = tmp_grt_entry;
+        g_grt[index] = tmp_grt_entry;
 
         // debugging
-        oc_print_group_table_entry(array_index, GRT_STORE, g_grt);
+        oc_print_group_table_entry(index, GRT_STORE, g_grt);
 
         // store (includes here an overwrite)
-        oc_store_group_table_entry(array_index, GRT_STORE, g_grt);
+        oc_store_group_table_entry(index, GRT_STORE, g_grt);
       }
 
       break;
-    default:
+    }
+    
+      default:
       break;
     }
 
@@ -1968,36 +1974,6 @@ const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_k
                                                 1,
                                                 &core_resource_knx_fp_r_x_data};
 PRAGMA_OUT
-
-bool oc_core_check_recipient_index_on_group_address(int index, uint32_t group_address)
-{
-  if (index >= GRT_MAX_ENTRIES)
-  {
-    return -1;
-  }
-  if (group_address <= 0)
-  {
-    return -1;
-  }
-  for (int i = 0; g_grt[index].ga_len; i++)
-  {
-    if (g_grt[index].ga[i] == group_address)
-    {
-      return true;
-    }
-  }
-  return false;
-}
-
-uint16_t oc_core_get_recipient_ia(int index)
-{
-  if (index >= GRT_MAX_ENTRIES)
-  {
-    return 0;
-  }
-
-  return (uint16_t)g_grt[index].ia;
-}
 
 // -utilities -
 
@@ -2596,16 +2572,17 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
 static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   // use either GPT or GRT table size
-  if (entry < 0 || entry >= max_size)
-    return -1;
+  if (entry >= 0 && entry < max_size)
+  {
+    // delete GPT/GRT entry (note, one file per entry)
+    char filename[TAB_SIZE];
+    (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
+    oc_storage_erase(filename);
 
-  // delete GPT/GRT entry (note, one file per entry)
-  char filename[TAB_SIZE];
-  (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
-  oc_storage_erase(filename);
-
-  oc_free_group_table_entry(entry, table, false);
-  return 0;
+    oc_free_group_table_entry(entry, table, false);
+    return 0;
+  }
+  return -1;
 }
 
 void oc_delete_group_tables(void)
@@ -2617,14 +2594,14 @@ void oc_delete_group_tables(void)
     oc_print_group_table_entry(i, GRT_STORE, g_grt);
   }
 
-#ifdef OC_PUBLISHER_TABLE
+  #ifdef OC_PUBLISHER_TABLE
   PRINT("Deleting Publisher table from RAM and storage (file system)");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
     oc_print_group_table_entry(i, GPT_STORE, g_gpt);
   }
-#endif
+  #endif
 }
 
 static void oc_free_group_tables(void)
@@ -2635,23 +2612,18 @@ static void oc_free_group_tables(void)
     oc_free_group_table_entry(i, g_grt, false);
   }
 
-#ifdef OC_PUBLISHER_TABLE
+  #ifdef OC_PUBLISHER_TABLE
   PRINT("Free Publisher table from RAM");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_gpt, false);
   }
-#endif
+  #endif
 }
 
-int find_empty_slot_in_table(int id, oc_group_table_t* table, int max_size)
+// max_size MUST respect the array size
+static int find_empty_slot_in_table(const oc_group_table_t* table, int max_size)
 {
-  if (id < 0)
-  {
-    // shall be 0...65535
-    return -1;
-  }
-
   for (int i = 0; i < max_size; i++)
   {
     if (table[i].id == -1)
@@ -2667,7 +2639,7 @@ int oc_core_get_recipient_table_size(void) { return GRT_MAX_ENTRIES; }
 
 oc_group_table_t* oc_core_get_recipient_table_entry(int index)
 {
-  return index < 0 ? NULL : index >= GRT_MAX_ENTRIES ? NULL : &g_grt[index];
+  return index >= 0 && index < GRT_MAX_ENTRIES ? &g_grt[index] : NULL;
 }
 
 int oc_core_get_publisher_table_size(void)
@@ -2696,18 +2668,18 @@ int oc_core_find_index_in_recipient_table_from_id(int id)
 
 static void oc_init_tables(void)
 {
-#ifdef OC_PUBLISHER_TABLE
+  #ifdef OC_PUBLISHER_TABLE
 
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    // init GPT table, assumes in PUB table uninitialized/random string data - don't release it ...
+    // init Publisher table, true = assumes in PUB table uninitialized/random string data - don't release it ...
     oc_free_group_table_entry(i, g_gpt, true);
   }
-#endif
+  #endif
 
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    // init GRT table,assumes in RCP table uninitialized/random string data - don't release it ...
+    // init Recipient table, true = assumes in RCP table uninitialized/random string data - don't release it ...
     oc_free_group_table_entry(i, g_grt, true);
   }
 
@@ -2876,14 +2848,14 @@ void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
-uint32_t oc_find_grpid_in_table(oc_group_table_t* table, int max_size, const uint32_t group_address)
+static uint32_t oc_find_grpid_in_table(const oc_group_table_t* table, int max_size, uint32_t group_address)
 {
-  for (int index = 0; index < max_size; index++)
+  for (int i = 0; i < max_size; i++)
   {
-    if (is_in_array(group_address, table[index].ga, table[index].ga_len))
+    if (is_in_array(group_address, table[i].ga, table[i].ga_len))
     {
       // break immediately
-      return table[index].grpid;
+      return table[i].grpid;
     }
   }
   // not found

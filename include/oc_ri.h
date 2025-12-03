@@ -62,11 +62,11 @@ OC_OBSERVABLE
 */
 typedef enum
 {
-OC_NO_PROPERTIES = 0,		      // no properties are set at all, means that all other properties are false
-OC_DISCOVERABLE = 1 << 1,			// resource can be discovered (true) or not (false)
-OC_OBSERVABLE = 1 << 2,				// resource can be observed (true) or not (false)
-OC_PERIODIC = 1 << 3,					// the resource will cyclically send a periodical notification update, details on enum definition 
-OC_WRITE_AFFECTS_FP = 1 << 4, // write (PUT/POST) access affects fingerprint, must be set by vendor, details on enum definition
+  OC_NO_PROPERTIES = 0,		      // no properties are set at all, means that all other properties are false
+  OC_DISCOVERABLE = 1 << 1,			// resource can be discovered (true) or not (false)
+  OC_OBSERVABLE = 1 << 2,				// resource can be observed (true) or not (false)
+  OC_PERIODIC = 1 << 3,					// the resource will cyclically send a periodical notification update, details on enum definition 
+  OC_WRITE_AFFECTS_FP = 1 << 4, // write (PUT/POST) access affects fingerprint, must be set by vendor, details on enum definition
 } oc_resource_properties_t;
 
 /**
@@ -78,29 +78,29 @@ OC_WRITE_AFFECTS_FP = 1 << 4, // write (PUT/POST) access affects fingerprint, mu
 */
 typedef enum
 {
-OC_STATUS_OK = 0,                   /**< Content 2.05 */
-OC_STATUS_CREATED,                  /**< Created 2.01 */
-OC_STATUS_CHANGED,                  /**< Changed 2.04 */
-OC_STATUS_DELETED,                  /**< Deleted 2.02 */
-OC_STATUS_NOT_MODIFIED,             /**< Not Modified (VALID 2.03) */
-OC_STATUS_BAD_REQUEST,              /**< Bad Request 4.00*/
-OC_STATUS_UNAUTHORIZED,             /**< Unauthorized 4.01*/
-OC_STATUS_BAD_OPTION,               /**< Bad Option 4.02*/
-OC_STATUS_FORBIDDEN,                /**< Forbidden 4.03*/
-OC_STATUS_NOT_FOUND,                /**< Not Found 4.04*/
-OC_STATUS_METHOD_NOT_ALLOWED,       /**< Method Not Allowed 4.05*/
-OC_STATUS_NOT_ACCEPTABLE,           /**< Not Acceptable 4.06 */
-OC_STATUS_REQUEST_ENTITY_TOO_LARGE, /**< Request Entity Too Large 4.13*/
-OC_STATUS_UNSUPPORTED_MEDIA_TYPE,   /**< Unsupported Media Type 4.15*/
-OC_STATUS_INTERNAL_SERVER_ERROR,    /**< Internal Server Error 5.00 */
-OC_STATUS_NOT_IMPLEMENTED,          /**< Not Implemented 5.01*/
-OC_STATUS_BAD_GATEWAY,              /**< Bad Gateway 5.02*/
-OC_STATUS_SERVICE_UNAVAILABLE,      /**< Service Unavailable 5.03*/
-OC_STATUS_GATEWAY_TIMEOUT,          /**< Gateway Timeout 5.04*/
-OC_STATUS_PROXYING_NOT_SUPPORTED,   /**< Proxying not supported 5.05 */
-NUMBER_OF_OC_STATUS_CODES,          // artificial code to count above codes 
-OC_IGNORE,                          /**< Ignore: do not respond to request */
-OC_PING_TIMEOUT                     /**< Ping Time out */
+  OC_STATUS_OK = 0,                   /**< Content 2.05 */
+  OC_STATUS_CREATED,                  /**< Created 2.01 */
+  OC_STATUS_CHANGED,                  /**< Changed 2.04 */
+  OC_STATUS_DELETED,                  /**< Deleted 2.02 */
+  OC_STATUS_NOT_MODIFIED,             /**< Not Modified (VALID 2.03) */
+  OC_STATUS_BAD_REQUEST,              /**< Bad Request 4.00*/
+  OC_STATUS_UNAUTHORIZED,             /**< Unauthorized 4.01*/
+  OC_STATUS_BAD_OPTION,               /**< Bad Option 4.02*/
+  OC_STATUS_FORBIDDEN,                /**< Forbidden 4.03*/
+  OC_STATUS_NOT_FOUND,                /**< Not Found 4.04*/
+  OC_STATUS_METHOD_NOT_ALLOWED,       /**< Method Not Allowed 4.05*/
+  OC_STATUS_NOT_ACCEPTABLE,           /**< Not Acceptable 4.06 */
+  OC_STATUS_REQUEST_ENTITY_TOO_LARGE, /**< Request Entity Too Large 4.13*/
+  OC_STATUS_UNSUPPORTED_MEDIA_TYPE,   /**< Unsupported Media Type 4.15*/
+  OC_STATUS_INTERNAL_SERVER_ERROR,    /**< Internal Server Error 5.00 */
+  OC_STATUS_NOT_IMPLEMENTED,          /**< Not Implemented 5.01*/
+  OC_STATUS_BAD_GATEWAY,              /**< Bad Gateway 5.02*/
+  OC_STATUS_SERVICE_UNAVAILABLE,      /**< Service Unavailable 5.03*/
+  OC_STATUS_GATEWAY_TIMEOUT,          /**< Gateway Timeout 5.04*/
+  OC_STATUS_PROXYING_NOT_SUPPORTED,   /**< Proxying not supported 5.05 */
+  NUMBER_OF_OC_STATUS_CODES,          // artificial code to count above codes 
+  OC_IGNORE,                          /**< Ignore: do not respond to request */
+  OC_PING_TIMEOUT                     /**< Ping Time out */
 } oc_status_t;
 
 /**
@@ -111,49 +111,49 @@ OC_PING_TIMEOUT                     /**< Ping Time out */
 */
 typedef enum oc_content_format
 {
-TEXT_PLAIN = 0,                    /**< text/plain */
-TEXT_XML = 1,                      /**< text/xml */
-TEXT_CSV = 2,                      /**< text/csv */
-TEXT_HTML = 3,                     /**< text/html */
-IMAGE_GIF = 21,                    /**< image/gif - not used */
-IMAGE_JPEG = 22,                   /**< image/jpeg - not used */
-IMAGE_PNG = 23,                    /**< image/png - not used */
-IMAGE_TIFF = 24,                   /**< image/tiff - not used */
-AUDIO_RAW = 25,                    /**< audio/raw - not used */
-VIDEO_RAW = 26,                    /**< video/raw - not used */
-APPLICATION_LINK_FORMAT = 40,      /**< application/link-format */
-APPLICATION_XML = 41,              /**< application/xml */
-APPLICATION_OCTET_STREAM = 42,     /**< application/octet-stream */
-APPLICATION_RDF_XML = 43,          /**< application - not used */
-APPLICATION_SOAP_XML = 44,         /**< application/soap - not used */
-APPLICATION_ATOM_XML = 45,         /**< application - not used */
-APPLICATION_XMPP_XML = 46,         /**< application - not used */
-APPLICATION_EXI = 47,              /**< application/exi */
-APPLICATION_FASTINFOSET = 48,      /**< application */
-APPLICATION_SOAP_FASTINFOSET = 49, /**< application */
-APPLICATION_JSON = 50,             /**< application/json */
-APPLICATION_X_OBIX_BINARY = 51,    /**< application - not used */
-APPLICATION_CBOR = 60,             /**< application/cbor */
-APPLICATION_SENML_JSON = 110,      /**< application/senml+json */
-APPLICATION_SENSML_JSON = 111,     /**< application/sensml+json */
-APPLICATION_SENML_CBOR = 112,      /**< application/senml+cbor */
-APPLICATION_SENSML_CBOR = 113,     /**< application/sensml+cbor */
-APPLICATION_SENML_EXI = 114,       /**< application/senml-exi */
-APPLICATION_SENSML_EXI = 115,      /**< application/sensml-exi */
-APPLICATION_PKCS7_SGK = 280,			 /**< application/pkcs7-mime; smime-type=server-generated-key */
-APPLICATION_PKCS7_CO = 281,			      /**<< application/pkcs7-mime; smime-type=certs-only */
-APPLICATION_PKCS7_CMC_REQUEST = 282,    /**< application/pkcs7-mime; smime-type=CMC-Request */
-APPLICATION_PKCS7_CMC_RESPONSE = 283,    /**< application/pkcs7-mime; smime-type=CMC-Response */
-APPLICATION_PKCS8 = 284,                /**< application/pkcs8 */
-APPLICATION_CRATTRS = 285,              /**< application/csrattrs */
-APPLICATION_PKCS10 = 286,               /**< application/pkcs10 */
-APPLICATION_PKIX_CERT = 287,            /**< application/pkix-cert */
-APPLICATION_VND_OCF_CBOR = 10000,       /**< application/vnd.ocf+cbor */
-APPLICATION_OSCORE = 10001,             /**< application/oscore */
-APPLICATION_VND_OMA_LWM2M_TLV = 11542,  /**< application/vnd.oma.lwm2m+tlv */
-APPLICATION_VND_OMA_LWM2M_JSON = 11543, /**< application/vnd.oma.lwm2m+json */
-APPLICATION_VND_OMA_LWM2M_CBOR = 11544, /**< application/vnd.oma.lwm2m+cbor */
-CONTENT_NONE = 99999                    /**< no content format */
+  TEXT_PLAIN = 0,                    /**< text/plain */
+  TEXT_XML = 1,                      /**< text/xml */
+  TEXT_CSV = 2,                      /**< text/csv */
+  TEXT_HTML = 3,                     /**< text/html */
+  IMAGE_GIF = 21,                    /**< image/gif - not used */
+  IMAGE_JPEG = 22,                   /**< image/jpeg - not used */
+  IMAGE_PNG = 23,                    /**< image/png - not used */
+  IMAGE_TIFF = 24,                   /**< image/tiff - not used */
+  AUDIO_RAW = 25,                    /**< audio/raw - not used */
+  VIDEO_RAW = 26,                    /**< video/raw - not used */
+  APPLICATION_LINK_FORMAT = 40,      /**< application/link-format */
+  APPLICATION_XML = 41,              /**< application/xml */
+  APPLICATION_OCTET_STREAM = 42,     /**< application/octet-stream */
+  APPLICATION_RDF_XML = 43,          /**< application - not used */
+  APPLICATION_SOAP_XML = 44,         /**< application/soap - not used */
+  APPLICATION_ATOM_XML = 45,         /**< application - not used */
+  APPLICATION_XMPP_XML = 46,         /**< application - not used */
+  APPLICATION_EXI = 47,              /**< application/exi */
+  APPLICATION_FASTINFOSET = 48,      /**< application */
+  APPLICATION_SOAP_FASTINFOSET = 49, /**< application */
+  APPLICATION_JSON = 50,             /**< application/json */
+  APPLICATION_X_OBIX_BINARY = 51,    /**< application - not used */
+  APPLICATION_CBOR = 60,             /**< application/cbor */
+  APPLICATION_SENML_JSON = 110,      /**< application/senml+json */
+  APPLICATION_SENSML_JSON = 111,     /**< application/sensml+json */
+  APPLICATION_SENML_CBOR = 112,      /**< application/senml+cbor */
+  APPLICATION_SENSML_CBOR = 113,     /**< application/sensml+cbor */
+  APPLICATION_SENML_EXI = 114,       /**< application/senml-exi */
+  APPLICATION_SENSML_EXI = 115,      /**< application/sensml-exi */
+  APPLICATION_PKCS7_SGK = 280,			 /**< application/pkcs7-mime; smime-type=server-generated-key */
+  APPLICATION_PKCS7_CO = 281,			      /**<< application/pkcs7-mime; smime-type=certs-only */
+  APPLICATION_PKCS7_CMC_REQUEST = 282,    /**< application/pkcs7-mime; smime-type=CMC-Request */
+  APPLICATION_PKCS7_CMC_RESPONSE = 283,    /**< application/pkcs7-mime; smime-type=CMC-Response */
+  APPLICATION_PKCS8 = 284,                /**< application/pkcs8 */
+  APPLICATION_CRATTRS = 285,              /**< application/csrattrs */
+  APPLICATION_PKCS10 = 286,               /**< application/pkcs10 */
+  APPLICATION_PKIX_CERT = 287,            /**< application/pkix-cert */
+  APPLICATION_VND_OCF_CBOR = 10000,       /**< application/vnd.ocf+cbor */
+  APPLICATION_OSCORE = 10001,             /**< application/oscore */
+  APPLICATION_VND_OMA_LWM2M_TLV = 11542,  /**< application/vnd.oma.lwm2m+tlv */
+  APPLICATION_VND_OMA_LWM2M_JSON = 11543, /**< application/vnd.oma.lwm2m+json */
+  APPLICATION_VND_OMA_LWM2M_CBOR = 11544, /**< application/vnd.oma.lwm2m+cbor */
+  CONTENT_NONE = 99999                    /**< no content format */
 } oc_content_format_t;
 
 /**
@@ -556,12 +556,12 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
 * @param event_callback the callback
 * @param seconds time in seconds
 */
-#define oc_ri_add_timed_event_callback_seconds(cb_data, event_callback,        \
-                                         seconds)                        \
-do {                                                                         \
-oc_ri_add_timed_event_callback_ticks(cb_data, event_callback,              \
-                                   (oc_clock_time_t)(seconds) *          \
-                                     (oc_clock_time_t)OC_CLOCK_SECOND);  \
+#define oc_ri_add_timed_event_callback_seconds(cb_data, event_callback, \
+                                         seconds)                       \
+do {                                                                    \
+oc_ri_add_timed_event_callback_ticks(cb_data, event_callback,           \
+                                   (oc_clock_time_t)(seconds) *         \
+                                     (oc_clock_time_t)OC_CLOCK_SECOND); \
 } while (0)
 
 /**

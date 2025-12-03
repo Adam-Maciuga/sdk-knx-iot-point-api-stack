@@ -1,13 +1,11 @@
 cmake_minimum_required (VERSION 3.15)
 project(knx-iot-stack) 
 
-# dedicated apps folder for the EMS PoC
-# add_subdirectory(apps/EMS)
-
 # load module to fetch external content
 include(FetchContent)
 
-# compiler options 
+# compiler options (please do not forget to add own options such as to reduce enum sizes, such as for gcc -fshort-enums) 
+
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
   # emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
   add_compile_options(-fPIC) 
