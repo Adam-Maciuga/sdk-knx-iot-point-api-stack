@@ -40,6 +40,7 @@
 #include <wx/combobox.h>
 #include <wx/button.h>
 #include <wx/textctrl.h>
+#include <wx/settings.h>
 #include <cstdio>
 #include <cstring>
 
