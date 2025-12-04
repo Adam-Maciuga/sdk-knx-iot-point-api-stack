@@ -31,7 +31,15 @@
 #include "api/oc_knx_sec.h"
 #include "oc_core_res.h"
 #include "oc_knx.h"
+#include "port/oc_network_interface.h"
+#include "port/oc_storage.h"
 #include <wx/string.h>
+#include <wx/dialog.h>
+#include <wx/sizer.h>
+#include <wx/stattext.h>
+#include <wx/combobox.h>
+#include <wx/button.h>
+#include <wx/textctrl.h>
 #include <cstdio>
 #include <cstring>
 
@@ -568,4 +576,198 @@ void util_int2grpid_text(uint64_t value, char* text, bool as_ets)
     (void)sprintf(value_text, " %llu", value);
     strcat(text, value_text);
   }
+}
+
+// Network Interface Dialog Implementation
+
+NetworkInterfaceDialog::NetworkInterfaceDialog(wxWindow* parent)
+  : wxDialog(parent, wxID_ANY, "Network Interfaces",
+             wxDefaultPosition, wxSize(500, 200),
+             wxDEFAULT_DIALOG_STYLE)
+{
+  wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
+  
+  // Interface selector row
+  wxBoxSizer* ifaceBox = new wxBoxSizer(wxHORIZONTAL);
+  wxStaticText* label = new wxStaticText(this, wxID_ANY, "Network Interface:");
+  ifaceBox->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+  
+  m_interface_combo = new wxComboBox(this, wxID_ANY, "All interfaces",
+                                     wxDefaultPosition, wxSize(300, -1),
+                                     wxArrayString(), wxCB_READONLY);
+  m_interface_combo->Bind(wxEVT_COMBOBOX, &NetworkInterfaceDialog::OnInterfaceChange, this);
+  ifaceBox->Add(m_interface_combo, 1, wxEXPAND | wxRIGHT, 5);
+  
+  m_refresh_btn = new wxButton(this, wxID_ANY, wxT("\u21BB"), wxDefaultPosition, wxSize(30, 30));
+  m_refresh_btn->SetToolTip("Refresh Interfaces");
+  m_refresh_btn->Bind(wxEVT_BUTTON, &NetworkInterfaceDialog::OnRefresh, this);
+  ifaceBox->Add(m_refresh_btn, 0);
+  
+  vbox->Add(ifaceBox, 0, wxEXPAND | wxALL, 10);
+  
+  // IPv6 address row
+  wxBoxSizer* ipBox = new wxBoxSizer(wxHORIZONTAL);
+  wxStaticText* ipLabel = new wxStaticText(this, wxID_ANY, "IPv6 Address:");
+  ipBox->Add(ipLabel, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+  
+  m_ipv6_text = new wxTextCtrl(this, wxID_ANY, "(not available)",
+                                wxDefaultPosition, wxSize(300, -1), wxTE_READONLY);
+  m_ipv6_text->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+  ipBox->Add(m_ipv6_text, 1, wxEXPAND);
+  
+  vbox->Add(ipBox, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+  
+  // Close button
+  wxButton* closeBtn = new wxButton(this, wxID_OK, "Close");
+  closeBtn->Bind(wxEVT_BUTTON, &NetworkInterfaceDialog::OnClose, this);
+  vbox->Add(closeBtn, 0, wxALIGN_CENTER | wxALL, 10);
+  
+  SetSizer(vbox);
+  Centre();
+  
+  // Populate interfaces and restore saved selection
+  PopulateInterfaces();
+  
+  uint32_t saved_filter = oc_network_get_interface_filter();
+  if (saved_filter == 0) {
+    m_interface_combo->SetSelection(0);
+    m_ipv6_text->SetValue("(multiple)");
+  } else {
+    bool found = false;
+    for (unsigned int i = 0; i < m_interface_combo->GetCount(); i++) {
+      wxString choice = m_interface_combo->GetString(i);
+      long if_index = 0;
+      wxString index_str = choice.AfterFirst('[').BeforeFirst(']');
+      if (index_str.ToLong(&if_index) && (uint32_t)if_index == saved_filter) {
+        m_interface_combo->SetSelection(i);
+        wxString ipv6_str = GetIPv6AddressForInterface((int)if_index);
+        m_ipv6_text->SetValue(ipv6_str);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      m_interface_combo->SetSelection(0);
+      m_ipv6_text->SetValue("(multiple)");
+    }
+  }
+}
+
+wxString NetworkInterfaceDialog::GetStatusMessage()
+{
+  uint32_t filter = oc_network_get_interface_filter();
+  if (filter == 0) {
+    return "Network: All interfaces enabled";
+  } else {
+    return wxString::Format("Network: Using interface %u", filter);
+  }
+}
+
+void NetworkInterfaceDialog::PopulateInterfaces()
+{
+  m_interface_combo->Clear();
+  
+  wxArrayString interface_choices;
+  interface_choices.Add("All interfaces");
+  
+  oc_network_interface_info_t interfaces[32];
+  int iface_count = oc_network_enumerate_interfaces(interfaces, 32);
+  for (int i = 0; i < iface_count; i++) {
+    if (!interfaces[i].is_up || !interfaces[i].has_ipv6) {
+      continue;
+    }
+    wxString choice = wxString::Format("[%d] %s", interfaces[i].if_index, interfaces[i].name);
+    interface_choices.Add(choice);
+  }
+  
+  m_interface_combo->Append(interface_choices);
+}
+
+void NetworkInterfaceDialog::OnRefresh(wxCommandEvent& event)
+{
+  uint32_t current_filter = oc_network_get_interface_filter();
+  PopulateInterfaces();
+  
+  if (current_filter == 0) {
+    m_interface_combo->SetSelection(0);
+    m_ipv6_text->SetValue("(multiple)");
+  } else {
+    bool found = false;
+    for (unsigned int i = 0; i < m_interface_combo->GetCount(); i++) {
+      wxString choice = m_interface_combo->GetString(i);
+      long if_index = 0;
+      wxString index_str = choice.AfterFirst('[').BeforeFirst(']');
+      if (index_str.ToLong(&if_index) && (uint32_t)if_index == current_filter) {
+        m_interface_combo->SetSelection(i);
+        wxString ipv6_str = GetIPv6AddressForInterface((int)if_index);
+        m_ipv6_text->SetValue(ipv6_str);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      m_interface_combo->SetSelection(0);
+      m_ipv6_text->SetValue("(previous interface unavailable)");
+      oc_network_set_interface_filter(0);
+      oc_network_refresh_endpoints();
+    }
+  }
+}
+
+void NetworkInterfaceDialog::OnInterfaceChange(wxCommandEvent& event)
+{
+  int selection = m_interface_combo->GetSelection();
+  
+  if (selection == 0) {
+    oc_network_set_interface_filter(0);
+    oc_network_refresh_endpoints();
+    m_ipv6_text->SetValue("(multiple)");
+    
+    uint32_t filter = 0;
+    oc_storage_write("network_interface", (uint8_t*)&filter, sizeof(filter));
+  } else {
+    wxString choice = m_interface_combo->GetStringSelection();
+    long if_index = 0;
+    wxString index_str = choice.AfterFirst('[').BeforeFirst(']');
+    if (index_str.ToLong(&if_index)) {
+      oc_network_set_interface_filter((int)if_index);
+      oc_network_refresh_endpoints();
+      
+      wxString ipv6_str = GetIPv6AddressForInterface((int)if_index);
+      m_ipv6_text->SetValue(ipv6_str);
+      
+      uint32_t filter = (uint32_t)if_index;
+      oc_storage_write("network_interface", (uint8_t*)&filter, sizeof(filter));
+    }
+  }
+}
+
+wxString NetworkInterfaceDialog::GetIPv6AddressForInterface(int if_index)
+{
+  oc_endpoint_t *ep = oc_connectivity_get_endpoints();
+  
+  while (ep) {
+    if ((ep->flags & IPV6) && ep->interface_index == (unsigned int)if_index) {
+      char ipv6_str[64];
+      snprintf(ipv6_str, sizeof(ipv6_str),
+               "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+               ep->addr.ipv6.address[0], ep->addr.ipv6.address[1],
+               ep->addr.ipv6.address[2], ep->addr.ipv6.address[3],
+               ep->addr.ipv6.address[4], ep->addr.ipv6.address[5],
+               ep->addr.ipv6.address[6], ep->addr.ipv6.address[7],
+               ep->addr.ipv6.address[8], ep->addr.ipv6.address[9],
+               ep->addr.ipv6.address[10], ep->addr.ipv6.address[11],
+               ep->addr.ipv6.address[12], ep->addr.ipv6.address[13],
+               ep->addr.ipv6.address[14], ep->addr.ipv6.address[15]);
+      return wxString(ipv6_str);
+    }
+    ep = ep->next;
+  }
+  
+  return "(not available)";
+}
+
+void NetworkInterfaceDialog::OnClose(wxCommandEvent& event)
+{
+  EndModal(wxID_OK);
 }
