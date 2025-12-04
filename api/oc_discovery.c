@@ -26,6 +26,7 @@
 #include "oc_knx_helpers.h"
 #include <inttypes.h>
 #include "oc_knx_dev.h"
+#include <errno.h>
 
 /*
  * - below resources must be in the uc/mc response for well-known/core,
