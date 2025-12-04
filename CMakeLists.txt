@@ -298,6 +298,7 @@ if(UNIX)
             ${PORT_DIR}/random.c
             ${PORT_DIR}/storage.c
             ${PORT_DIR}/tcpadapter.c
+            ${PORT_DIR}/oc_network_interface.c
         )
 endif()
 
@@ -323,6 +324,7 @@ if(WIN32)
             ${PORT_DIR}/random.c
             ${PORT_DIR}/storage.c
             ${PORT_DIR}/tcpadapter.c
+            ${PORT_DIR}/oc_network_interface.c
         )
 
         target_sources(kis-port PRIVATE

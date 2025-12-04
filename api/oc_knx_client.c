@@ -40,7 +40,7 @@ oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
 // external definitions
 
-static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
+static void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
@@ -81,10 +81,10 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t si
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  oc_issue_s_mode_non_confirmable_multicast_message(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
+  oc_issue_s_mode_non_confirmable_message(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
 }
 
-static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* endpoint, char* path, 
+static void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, 
                            uint32_t sia_value,
                            uint32_t group_address, 
                            const char* service_type, 
@@ -99,7 +99,7 @@ static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* end
   // set since method is called also with empty EP data (oc_issue_s_mode)
   endpoint->flags |= OSCORE;
 
-  if (oc_init_multicast_update(endpoint, path))
+  if (oc_init_update(endpoint, path))
   {
   #endif 
 
@@ -141,7 +141,7 @@ static void oc_issue_s_mode_non_confirmable_multicast_message(oc_endpoint_t* end
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
     // called only in case the static buffer was allocated 
-    oc_do_multicast_update();
+    oc_do_update();
   }
 }
 
@@ -328,7 +328,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
         PRINT("Sending unicast read to IA 0x%x via resolved IPv6", recipient_entry->ia);
 
         // Send unicast read request (no value data needed)
-        oc_issue_s_mode_non_confirmable_multicast_message(&uc_endpoint, "/k", device->ia, sending_ga, srv_type, resource_value_buffer, 0);
+        oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", device->ia, sending_ga, srv_type, resource_value_buffer, 0);
       }
       return 0;
     }
@@ -418,7 +418,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
         PRINT("Sending unicast write to IA 0x%x via resolved IPv6", recipient_entry->ia);
 
         // Send unicast write request with value data
-        oc_issue_s_mode_non_confirmable_multicast_message(&uc_endpoint, "/k", device->ia, sending_ga, srv_type, resource_value_buffer, resource_value_size);
+        oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", device->ia, sending_ga, srv_type, resource_value_buffer, resource_value_size);
       }
 
       

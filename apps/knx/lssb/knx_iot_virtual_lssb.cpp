@@ -29,6 +29,8 @@
 #include "apps/knx/knx_iot_virtual_knx.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
+#include "port/oc_network_interface.h"
+#include "port/oc_storage.h"
 
 
 
@@ -120,6 +122,7 @@ private:
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
   void OnRestartDevice(wxCommandEvent& event);
+  void OnNetworkInterfaces(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
   void OnTimer(wxTimerEvent& event);
@@ -189,6 +192,8 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual sensor (LSSB)")
   m_menuFile->Append(RESET, "Reset (2) (ex-factory)", "Reset 2 (Reset to default state)", false);
   m_menuFile->Append(RESTART_DEVICE, "Restart Device", "Simulate a device restart", false);
   m_menuFile->AppendSeparator();
+  m_menuFile->Append(NETWORK_INTERFACES, "Network Interfaces...", "Configure network interface selection", false);
+  m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
 
   // display menu
@@ -226,6 +231,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual sensor (LSSB)")
   Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnRestartDevice, this, RESTART_DEVICE);
+  Bind(wxEVT_MENU, &MyFrame::OnNetworkInterfaces, this, NETWORK_INTERFACES);
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
 
@@ -300,7 +306,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual sensor (LSSB)")
   (void)sprintf(text, "SN:\t%s", oc_string(device->serialnumber));
 
   wxTextCtrl* static_text0 = new wxTextCtrl(this, wxID_ANY, text, 
-                                          wxPoint(10, 10 + ((max_instances + 1) * x_height)),
+                                          wxPoint(10, 10 + ((max_instances + 4) * x_height)),
                                           wxSize(width_size * 2, x_height), 0);
   static_text0->SetEditable(false);
 
@@ -319,41 +325,37 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX virtual sensor (LSSB)")
   app_str_to_upper(text);
 
   wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, 
-                                            wxPoint(10, 10 + ((max_instances + 2) * x_height)),
+                                            wxPoint(10, 10 + ((max_instances + 5) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);
   static_text1->SetEditable(false);
 
   // individual address, displayed data set/refreshed later
   m_ia_text = new wxTextCtrl(this, IA_TEXT, "",
-                             wxPoint(10, 10 + ((max_instances + 3) * x_height)), 
+                             wxPoint(10, 10 + ((max_instances + 6) * x_height)), 
                              wxSize(width_size, x_height), 0);
   m_ia_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
   m_iid_text = new wxTextCtrl(this, IID_TEXT, "", 
-                              wxPoint(10 + width_size, 10 + ((max_instances + 3) * x_height)),
+                              wxPoint(10 + width_size, 10 + ((max_instances + 6) * x_height)),
                               wxSize(width_size, x_height), 0);
   m_iid_text->SetEditable(false);
 
   // programming mode, displayed data set/refreshed later
-  m_pm_text = new wxTextCtrl(this, PM_TEXT, "",
-                             wxPoint(10, 10 + ((max_instances + 4) * x_height)), 
+  m_pm_text = new wxTextCtrl(this, PM_TEXT, "", 
+                             wxPoint(10, 10 + ((max_instances + 7) * x_height)), 
                              wxSize(width_size, x_height), 0);
   m_pm_text->SetEditable(false);
 
   // installation id, displayed data set/refreshed later
   m_ls_text = new wxTextCtrl(this, LS_TEXT, "", 
-                             wxPoint(10 + width_size, 10 + ((max_instances + 4) * 25)),
+                             wxPoint(10 + width_size, 10 + ((max_instances + 7) * 25)), 
                              wxSize(width_size, 25), 0);
-  m_ls_text->SetEditable(false);
-
-  // hostname, displayed data set/refreshed later
-  m_hn_text = new wxTextCtrl(this, LS_TEXT, "",
-                                   wxPoint(10, 10 + ((max_instances + 5) * 25)), 
-                                   wxSize(width_size, 25), 0);
-  m_hn_text->SetEditable(false);
-
-  // SPAKE2+ pwd
+  m_ls_text->SetEditable(false);  // hostname, displayed data set/refreshed later
+  m_hn_text = new wxTextCtrl(this, LS_TEXT, "", 
+                             wxPoint(10, 10 + ((max_instances + 8) * 25)), 
+                             wxSize(width_size, 25), 0);
+  m_hn_text->SetEditable(false);  // SPAKE2+ pwd
   (void)sprintf(text, "PWD:\t%s", app_get_password());
   wxTextCtrl* static_text2 = new wxTextCtrl(this, LS_TEXT, text, 
                                   wxPoint(10 + width_size, 10 + ((max_instances + 5) * 25)),
@@ -720,3 +722,12 @@ void MyFrame::OnRestartDevice(wxCommandEvent& event)
 
   SetStatusText("Restart Initiated");
 }
+
+void MyFrame::OnNetworkInterfaces(wxCommandEvent& event)
+{
+  NetworkInterfaceDialog dialog(this);
+  dialog.ShowModal();
+  SetStatusText(NetworkInterfaceDialog::GetStatusMessage());
+}
+
+

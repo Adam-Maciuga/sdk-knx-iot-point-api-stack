@@ -492,6 +492,8 @@ enum controls : uint16_t
   CHECK_PM,             // programming mode check in menu bar
   LIST_ALL,             // list all tables (GO/PUB/RCP/AT)
   RESTART_DEVICE,       // restart device
+  NETWORK_INTERFACES,   // network interfaces dialog
+  REFRESH_INTERFACES,   // refresh network interfaces
   RESOLVE_IPV6_TEST,    // test IPv6 resolution
   SEND_UNICAST_TEST,    // send unicast test message
 
@@ -506,7 +508,36 @@ enum controls : uint16_t
 };
 
 #include <wx/string.h>
+#include <wx/dialog.h>
 // C++ only functions (using wxString)
+
+// Forward declarations
+class wxWindow;
+class wxComboBox;
+class wxButton;
+class wxTextCtrl;
+class wxCommandEvent;
+
+// Network Interface Dialog class
+class NetworkInterfaceDialog : public wxDialog
+{
+public:
+  NetworkInterfaceDialog(wxWindow* parent);
+  
+  // Get status message for current interface selection
+  static wxString GetStatusMessage();
+
+private:
+  void OnRefresh(wxCommandEvent& event);
+  void OnInterfaceChange(wxCommandEvent& event);
+  void OnClose(wxCommandEvent& event);
+  wxString GetIPv6AddressForInterface(int if_index);
+  void PopulateInterfaces();
+
+  wxComboBox* m_interface_combo;
+  wxButton* m_refresh_btn;
+  wxTextCtrl* m_ipv6_text;
+};
 
 // Utility functions for dumping tables (implemented in knx_iot_virtual.cpp)
 

@@ -39,7 +39,7 @@ oc_message_t *multicast_update = NULL;
 
 #ifdef OC_OSCORE
 
-bool oc_do_multicast_update(void)
+bool oc_do_update(void)
 {
   const int payload_size = oc_rep_get_encoded_payload_size();
 
@@ -95,7 +95,7 @@ bool oc_do_multicast_update(void)
 }
 
 
-bool oc_init_multicast_update(oc_endpoint_t* mcast, const char *uri)
+bool oc_init_update(oc_endpoint_t* mcast, const char *uri)
 {
   multicast_update = oc_internal_allocate_outgoing_message();
 
