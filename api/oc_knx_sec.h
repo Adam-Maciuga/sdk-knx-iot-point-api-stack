@@ -52,9 +52,9 @@ extern "C" {
 	char* oc_at_profile_to_string(oc_at_profile_t at_profile);
 
 	/**
-	 * @brief Access Token (at) Information
-	 * payload for a unicast message
-	 * Example(JSON):
+	 * @brief Access Token (at) Information payload for a unicast message
+	 *
+	 * Example for scope (JSON):
 	 * ```
 	 *{
 	 * "id": "OC5BLLhkAG ...",
@@ -68,7 +68,7 @@ extern "C" {
 	 * "ms": "f9af8s.6bd94e6f"
 	 * }}}
 	 * ```
-	 * second example of (JSON) payload for a group address:
+	 * Example for group address (JSON):
 	 * ```
 	 *{
 	 * "id": "OC5BLLhkAG ...",
@@ -76,39 +76,44 @@ extern "C" {
 	 * "scope": [0, 1, 2],
 	 * "cnf": {
 	 * "osc": {
-	 * "alg": "AES-CCM-16-64-128",
+	 * "alg": "AES-CCM-16-64-128", (decimal 10)
 	 * "id": "<kid>/<sid>",
 	 * "ms": "f9af8s.6bd94e6f"
 	 * }}}
 	 * ```
-	 * scope : "coap_oscore" [OSCORE] or "coap_dtls"
+	 * Access Token
 	 *
-	 *  | name      | CBOR key | CBOR type  | mandatory  |
-	 *  |-----------|----------|------------|------------|
-	 *  | id        | 0        | string     | yes        |
-	 *  | profile   | 38       | unsigned   | yes        |
-	 *  | scope     | 9        | str/int [] | yes        |
-	 *  | cnf       | 8        | map        | yes        |
-	 *  | osc       | 4        | map        | oscore     |
-	 *  | kid       | 2        | string     | optional   |
-	 *  | nbf       | 5        | integer    | optional   |
-	 *  | sub       | 2        | string     | conditional|
+	 * | name      | CBOR key | CBOR type  | mandatory  |
+	 * |-----------|----------|------------|------------|
+	 * | id        | 0        | string     | yes        |
+	 * | profile   | 38       | unsigned   | yes        |
+	 * | scope     | 9        | str/int [] | yes        |
+	 * | cnf       | 8        | map        | yes        |
+	 * | osc       | 4        | map        | yes        |
+	 * | kid       | 3        | byte string| optional   |
+	 * | nbf       | 5        | integer    | optional   |
+	 * | sub       | 2        | text string| optional   |
+	 * | exp       | 4        | unsigned   | optional   |
 	 *
+	 * Note that 'optional' values are not implemented, neither in the access token table 
+	 * nor in the POST handler
 	 *
-	 * Specific oscore values (ACE):
+	 * Oscore Map (cnf:osc), ACE
 	 *
-	 * https://datatracker.ietf.org/doc/html/draft-ietf-ace-oscore-profile-19#section-3.2.1
+	 * https://datatracker.ietf.org/doc/rfc9203/
 	 *
 	 * | name      | CBOR label | CBOR type   | description                        |default value              |
 	 * | ----------| -----------| ------------|------------------------------------|---------------------------|
 	 * | id        | 0          | string      | full ctx identifier                | -                         |
 	 * | ms        | 8:4:2      | byte string | Master Secret value (shall be PSK) | -                         |
 	 * | version   | 8:4:1      | uint        | OSCORE Version                     | 1                         |
-	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HKDF SHA-256  (-10)       |
+	 * | hkdf      | 8:4:3      | integer     | HKDF value                         | HKDF SHA-256 (-10)        |
 	 * | alg       | 8:4:4      | integer     | AEAD Algorithm                     | AES-CCM-16-64-128 (10)    |
 	 * | salt      | 8:4:5      | byte string | Master Salt                        | Default empty byte string |
 	 * | contextId | 8:4:6      | byte string | OSCORE ID Context value            | omit                      |
 	 * | osc_id    | 8:4:0      | byte string | OSCORE SID                         | -                         |
+	 *
+	 * HKDF SHA-256, AES-CCM-16-64-128 -> https://www.iana.org/assignments/cose/cose.xhtml#algorithms
 	 *
 	 * Example payload:
 	 * ```
@@ -127,14 +132,15 @@ extern "C" {
 		oc_string_t id;							// (0) id, hex encoded 
 		oc_acl_mask_t scope;	      // (9) acl scopes (to reduce size, please check to use a compile option such as for gcc -fshort-enums)
 		oc_at_profile_t profile;		// (38) "coap_oscore", ... (to reduce size, please check to use a compile option such as for gcc -fshort-enums)
-		oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (optional - not used) 
+    
+	  oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id -> 'kid' (in msg) / 'Sender ID' (OSC) / osc:id (OSC Profile) - max 7 byte string 
+	  oc_string_t osc_version;		// (8:4:1) OSCORE cnf:osc:version (defined, but not used)  
 		oc_string_t osc_ms;					// (8:4:2) OSCORE cnf:osc:ms (byte string) 
-		uint8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf (optional - not used) default:	decimal value
-		uint8_t osc_alg;						// (8:4:4) OSCORE cnf:osc:alg (optional - not used) default: decimal value 10
-		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default: empty string 
+		int8_t osc_hkdf;						// (8:4:3) OSCORE cnf:osc:hkdf, default decimal value -10 (defined, but not used) 
+    int8_t osc_alg;							// (8:4:4) OSCORE cnf:osc:alg, default decimal value 10 (defined, but not used) 
+		oc_string_t osc_salt;				// (8:4:5) OSCORE cnf:osc:salt default empty string 
 		oc_string_t osc_contextid;	// (8:4:6) OSCORE cnf:osc:contextid -> 'kid_context' (in msg) / 'ID Context'  (OSC) / osc:contextid (OSC Profile) - max 16 byte string 
-		oc_string_t osc_id;         // (8:4:0) OSCORE cnf:osc:id -> 'kid' (in msg) / 'Sender ID' (OSC) / osc:id (OSC Profile) - max 7 byte string 
-		int nbf;										// token not valid before (optional - not used) 
+		
 		int ga_len;									// length of the group addresses (ga) in the scope, specification demands at least 20 entries must be supported
 		uint32_t* ga;								// (777, artificial number) group address array of 32 bit values 
 

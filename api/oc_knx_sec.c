@@ -541,7 +541,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   (void)iface_mask;
 
   oc_rep_t* rep = NULL;
-  oc_rep_t* sub_object = NULL;
+  oc_rep_t* cnf_object = NULL;
   oc_rep_t* oscore_object = NULL;
 
   // default assumption
@@ -550,7 +550,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   bool scope_updated = false;
   bool other_updated = false;
 
-  int array_index = -1;
+  int index = -1;
   PRINT("oc_core_auth_at_post_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
@@ -584,7 +584,6 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         object = object->next;
       }
 
-      // reassign to original pointer ...
       // treat request payload value as one entry (that itself defines a chain of objects for id, scopes,...)
       object = rep->value.object;
 
@@ -599,8 +598,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       // find index from access token table
-      array_index = find_index_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
-      if (array_index != -1)
+      index = find_index_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
+      if (index != -1)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
@@ -611,8 +610,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         return_status = OC_STATUS_CREATED;
 
         // no index, so we will create one (default)
-        array_index = find_empty_at_index();
-        if (array_index == -1)
+        index = find_empty_at_index();
+        if (index == -1)
         {
           OC_ERR("AT table has no empty slot to add a new entry");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -624,8 +623,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       bool id_only = true; // used to delete the AT table entry
 
       // set access token id, note that an access token is (too) complex to use a shadow copy as for POST on pub/rcp/go 
-      oc_free_string(&g_at_entries[array_index].id);
-      oc_new_string(&g_at_entries[array_index].id, oc_string(*access_token_id), oc_string_len(*access_token_id));
+      oc_free_string(&g_at_entries[index].id);
+      oc_new_string(&g_at_entries[index].id, oc_string(*access_token_id), oc_string_len(*access_token_id));
       
       // access token id already set
       int current_at_properties = 1; 
@@ -650,11 +649,11 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             oc_acl_mask_t acl_scopes = OC_ACL_NONE;
 
             // release a possible ga array (same id was used with GA list, now without), free ignores NULL ptr
-            free(g_at_entries[array_index].ga);
+            free(g_at_entries[index].ga);
 
             // in case of scopes the GA/GA len property is not used
-            g_at_entries[array_index].ga = NULL;
-            g_at_entries[array_index].ga_len = 0;
+            g_at_entries[index].ga = NULL;
+            g_at_entries[index].ga_len = 0;
 
             for (int i = 0; i < new_array_size; i++)
             {
@@ -676,7 +675,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             scope_updated = true;
 
             // scopes (compacted bits)
-            g_at_entries[array_index].scope = acl_scopes;
+            g_at_entries[index].scope = acl_scopes;
             current_at_properties++;
           }
         }
@@ -689,7 +688,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           if (object->iname == 9)
           {
             // default, will be overwritten in access token if GA array was correctly assigned
-            g_at_entries[array_index].scope = OC_ACL_NONE;
+            g_at_entries[index].scope = OC_ACL_NONE;
 
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
@@ -709,16 +708,16 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 PRINT("ga size %d", new_array_size);
 
                 // release a possible ga array, it will be overwritten, free ignores NULL ptr
-                free(g_at_entries[array_index].ga);
+                free(g_at_entries[index].ga);
 
-                g_at_entries[array_index].ga_len = new_array_size;
-                g_at_entries[array_index].ga = new_array;
+                g_at_entries[index].ga_len = new_array_size;
+                g_at_entries[index].ga = new_array;
 
                 // define THIS auth at token below with <ga> scope 's-mode messaging',
                 // - is defined only here in the code
                 // - is used only on /k resource (see also oc_knx_sec_check_acl)
                 // - is used only in combination with a present ga array / array len (see above)
-                g_at_entries[array_index].scope = OC_ACL_GA;
+                g_at_entries[index].scope = OC_ACL_GA;
                 current_at_properties++;
               }
               else
@@ -740,13 +739,10 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         {
           if (object->iname != 0)
           {
-            // NOT id (0), for sure from now on a not 'ID only' case,
-            // note that id (0) was already scanned/assigned  
+            // NOT id (0), for sure from now on a not 'ID only' case, note that id (0) was already scanned/assigned  
             id_only = false;
           }
 
-          
-          
         }
         else if (object->type == OC_REP_INT)
         {
@@ -757,7 +753,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // profile (38)
           if (object->iname == 38)
           {
-            g_at_entries[array_index].profile = (oc_at_profile_t)object->value.integer;
+            g_at_entries[index].profile = (oc_at_profile_t)object->value.integer;
             current_at_properties++;
           }
         }
@@ -766,22 +762,22 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // level of cnf or sub
-          sub_object = object->value.object;
-          int sub_object_nr = object->iname;
+          // level of cnf:xxx
+          cnf_object = object->value.object;
+          int cnf_object_nr = object->iname;
 
-          PRINT("sub object nr %d", sub_object_nr);
-          while (sub_object)
+          PRINT("cnf object nr %d", cnf_object_nr);
+          while (cnf_object)
           {
-            if (sub_object->type == OC_REP_OBJECT)
+            if (cnf_object->type == OC_REP_OBJECT)
             {
-              oscore_object = sub_object->value.object;
-              int oscore_object_nr = sub_object->iname;
+              oscore_object = cnf_object->value.object;
+              int oscore_object_nr = cnf_object->iname;
               while (oscore_object)
               {// cnf:osc(8:4)
                 if (oscore_object->type == OC_REP_INT)
                 {
-                  if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 4)
+                  if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 4)
                   {// cnf:osc:ms (8:4:4)
                     
                     // algorithm (10) only supports value 10 at the moment, EITT test 5.3.19.3
@@ -795,7 +791,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 }
                 if (oscore_object->type == OC_REP_BYTE_STRING)
                 {
-                  if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 2)
+                  if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 2)
                   { // cnf:osc:ms (8:4:2)
 
                     size_t mastersecret_size = oc_string_len(oscore_object->value.string);
@@ -817,13 +813,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                       return;
                     }
 
-                    oc_free_string(&g_at_entries[array_index].osc_ms);
-                    oc_new_byte_string(&g_at_entries[array_index].osc_ms, mastersecret_ptr, mastersecret_size);
+                    oc_free_string(&g_at_entries[index].osc_ms);
+                    oc_new_byte_string(&g_at_entries[index].osc_ms, mastersecret_ptr, mastersecret_size);
 
                     other_updated = true;
                     current_at_properties++;
                   }
-                  if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
+                  if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 6)
                   { // cnf:osc:contextId (8:4:6)
 
                     size_t id_context_size = oc_string_len(oscore_object->value.string);
@@ -836,14 +832,14 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                       return;
                     }
 
-                    oc_free_string(&g_at_entries[array_index].osc_contextid);
-                    oc_new_byte_string(&g_at_entries[array_index].osc_contextid, 
+                    oc_free_string(&g_at_entries[index].osc_contextid);
+                    oc_new_byte_string(&g_at_entries[index].osc_contextid, 
                                        oc_string(oscore_object->value.string),
                                        id_context_size);
                     other_updated = true;
                   
                   }
-                  if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
+                  if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
                   { // cnf:osc:id (8:4:0)
 
                     size_t sender_id_size = oc_string_len(oscore_object->value.string);
@@ -856,18 +852,18 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                       return;
                     }
 
-                    oc_free_string(&(g_at_entries[array_index].osc_id));
-                    oc_new_byte_string(&g_at_entries[array_index].osc_id, 
+                    oc_free_string(&(g_at_entries[index].osc_id));
+                    oc_new_byte_string(&g_at_entries[index].osc_id, 
                                        oc_string(oscore_object->value.string),
                                        sender_id_size);
                     other_updated = true;
                     current_at_properties++;
                   }
-                  if (sub_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
+                  if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 5)
                   { // cnf:osc:salt (8:4:5), RFC 9003 max 255 bytes on JSON ....
 
-                    oc_free_string(&g_at_entries[array_index].osc_salt);
-                    oc_new_byte_string(&g_at_entries[array_index].osc_salt, 
+                    oc_free_string(&g_at_entries[index].osc_salt);
+                    oc_new_byte_string(&g_at_entries[index].osc_salt, 
                                        oc_string(oscore_object->value.string),
                                        oc_string_len(oscore_object->value.string));
                     other_updated = true;
@@ -877,7 +873,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                 oscore_object = oscore_object->next;
               }
             }
-            sub_object = sub_object->next;
+            cnf_object = cnf_object->next;
           }
         }
         object = object->next;
@@ -893,23 +889,23 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
       if (return_status == OC_STATUS_CHANGED && id_only)
       { // c
-        PRINT("only found id in request, deleting entry at index: %d", array_index);
-        oc_delete_at_table_entry(array_index);
+        PRINT("only found id in request, deleting entry at index: %d", index);
+        oc_delete_at_table_entry(index);
       }
       else
       {
         if (return_status == OC_STATUS_CREATED && current_at_properties < MANDATORY_AT_PROPERTIES)
         { // a
 
-          PRINT("mandatory items missing, no entry created at index: %d", array_index);
+          PRINT("mandatory items missing, no entry created at index: %d", index);
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
 
         // b + d
-        PRINT("storage index: %d (%s) ", array_index, oc_string_checked(*access_token_id));
-        oc_print_auth_at_entry(array_index);
-        oc_store_at_table_entry(array_index);
+        PRINT("storage index: %d (%s) ", index, oc_string_checked(*access_token_id));
+        oc_print_auth_at_entry(index);
+        oc_store_at_table_entry(index);
       }
     }
     rep = rep->next;
@@ -1273,7 +1269,7 @@ void oc_print_auth_at_entry(int index)
 {
 #ifdef OC_PRINT
 
-  if (index > -1)
+  if (index >= 0 && index < G_AT_MAX_ENTRIES)
   {
     if (oc_string_len(g_at_entries[index].id) > 0)
     {
@@ -1374,175 +1370,180 @@ static void oc_store_at_table_entry(int entry)
   PRINT("no storage for the AT table enabled");
 #else
 
-  char filename[AT_SIZE];
-  (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
-
-  uint8_t* buf = (uint8_t*) malloc(OC_MAX_APP_DATA_SIZE);
-  if (!buf)
-    return;
-
-  oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
-
-  // write the data
-  oc_rep_begin_root_object();
-
-  // 0: id
-  oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[entry].id));
-
-  
-
-  // 9: acl scope (compacted bits)
-  oc_rep_i_set_int(root, 9, g_at_entries[entry].scope);
-
-  // 38: profile
-  oc_rep_i_set_int(root, 38, g_at_entries[entry].profile);
-
-  // 84x: cnf:osc:xx map
-  oc_rep_i_set_byte_string(root, 840, oc_byte_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
-  oc_rep_i_set_byte_string(root, 842, oc_byte_string(g_at_entries[entry].osc_ms), oc_byte_string_len(g_at_entries[entry].osc_ms));
-  oc_rep_i_set_byte_string(root, 845, oc_byte_string(g_at_entries[entry].osc_salt), oc_byte_string_len(g_at_entries[entry].osc_salt));
-  oc_rep_i_set_byte_string(root, 846, oc_byte_string(g_at_entries[entry].osc_contextid), oc_byte_string_len(g_at_entries[entry].osc_contextid));
-
-  // 777: ga's
-  oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
-
-  oc_rep_end_root_object();
-
-  const int size = oc_rep_get_encoded_payload_size();
-  if (size > 0)
+  if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
   {
-    OC_DBG("stored current state [%s] [%d]: size %d", filename, entry, size);
+    char filename[AT_SIZE];
+    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
 
-    long written_size = oc_storage_write(filename, buf, size);
-    if (written_size != (long)size)
+    uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+    if (!buf)
+      return;
+
+    oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
+
+    // write the data
+    oc_rep_begin_root_object();
+
+    // 0: id
+    oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[entry].id));
+
+    // 9: acl scope (compacted bits)
+    oc_rep_i_set_int(root, 9, g_at_entries[entry].scope);
+
+    // 38: profile
+    oc_rep_i_set_int(root, 38, g_at_entries[entry].profile);
+
+    // 84x: cnf:osc:xx map
+    oc_rep_i_set_byte_string(root, 840, oc_byte_string(g_at_entries[entry].osc_id), oc_byte_string_len(g_at_entries[entry].osc_id));
+    oc_rep_i_set_byte_string(root, 842, oc_byte_string(g_at_entries[entry].osc_ms), oc_byte_string_len(g_at_entries[entry].osc_ms));
+    oc_rep_i_set_byte_string(root, 845, oc_byte_string(g_at_entries[entry].osc_salt), oc_byte_string_len(g_at_entries[entry].osc_salt));
+    oc_rep_i_set_byte_string(root, 846, oc_byte_string(g_at_entries[entry].osc_contextid), oc_byte_string_len(g_at_entries[entry].osc_contextid));
+
+    // 777: ga's
+    oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
+
+    oc_rep_end_root_object();
+
+    const int size = oc_rep_get_encoded_payload_size();
+    if (size > 0)
     {
-      PRINT("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
+      OC_DBG("stored current state [%s] [%d]: size %d", filename, entry, size);
+
+      const long written_size = oc_storage_write(filename, buf, size);
+      if (written_size != (long)size)
+      {
+        PRINT("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
+      }
     }
+    free(buf);
   }
-  free(buf);
 #endif
 }
 
 static void oc_load_at_table_entry(int entry)
 {
-  char filename[AT_SIZE];
-  (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
-
-  oc_rep_t* rep;
-
-  uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
-  if (!buf)
-    return;
-
-  const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
-  PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
-  if (bytes_to_read > 0)
+  if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
   {
-    struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-    oc_rep_set_pool(&rep_objects);
+    char filename[AT_SIZE];
+    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
 
-    int err = oc_parse_rep(buf, bytes_to_read, &rep);
-    oc_rep_t* head = rep;
-    if (err == 0)
+    oc_rep_t* rep;
+
+    uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+    if (!buf)
+      return;
+
+    const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
+    PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
+    if (bytes_to_read > 0)
     {
-      while (rep)
+      struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
+      oc_rep_set_pool(&rep_objects);
+
+      const int err = oc_parse_rep(buf, bytes_to_read, &rep);
+      oc_rep_t* head = rep;
+
+      if (err == 0)
       {
-        switch (rep->type)
+        while (rep)
         {
-        case OC_REP_INT:
-
-          // 9 - scope (compacted bits)
-          if (rep->iname == 9)
+          switch (rep->type)
           {
-            g_at_entries[entry].scope = (int)rep->value.integer;
-          }
+          case OC_REP_INT:
 
-          // 38 - profile
-          if (rep->iname == 38)
-          {
-            g_at_entries[entry].profile = (int)rep->value.integer;
-          }
-          break;
-        case OC_REP_STRING:
-
-          // 0 - id
-          if (rep->iname == 0)
-          {
-            oc_free_string(&g_at_entries[entry].id);
-            oc_new_string(&g_at_entries[entry].id, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-          break;
-        case OC_REP_BYTE_STRING:
-
-          // reading back the strings should be done with oc_string_len, not with oc_byte_string_len
-          // string_len = len - 1 to exclude the '\0' from rep object; byte string len includes it
-
-          if (rep->iname == 840)
-          {
-            oc_free_string(&g_at_entries[entry].osc_id);
-            oc_new_byte_string(&g_at_entries[entry].osc_id, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-          if (rep->iname == 842)
-          {
-            oc_free_string(&g_at_entries[entry].osc_ms);
-            oc_new_byte_string(&g_at_entries[entry].osc_ms, oc_string(rep->value.string), oc_string_len(rep->value.string));
-          }
-
-          if (rep->iname == 845)
-          {
-            oc_free_string(&g_at_entries[entry].osc_salt);
-            oc_new_byte_string(&g_at_entries[entry].osc_salt, oc_string(rep->value.string),
-                               oc_string_len(rep->value.string));
-          }
-
-          if (rep->iname == 846)
-          {
-            oc_free_string(&g_at_entries[entry].osc_contextid);
-            oc_new_byte_string(&g_at_entries[entry].osc_contextid, oc_string(rep->value.string),
-                               oc_string_len(rep->value.string));
-          }
-          break;
-        case OC_REP_INT_ARRAY:
-
-          // ga array with GAs from MaC
-          if (rep->iname == 777)
-          {
-            // a load command does NOT append items to an (existing) array, it overwrites them  
-            const int64_t* array = oc_int_array(rep->value.array);
-            const int new_array_size = oc_int_array_size(rep->value.array);
-
-            // malloc of 'zero' byte return pointer is undefined
-            uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
-            if (new_array && new_array_size > 0)
+            // 9 - scope (compacted bits)
+            if (rep->iname == 9)
             {
-              for (int i = 0; i < new_array_size; i++)
-              {
-                new_array[i] = (uint32_t)array[i];
-              }
-
-              // release a possible ga array, it will be overwritten (no selective adding, free ignores NULL ptr
-              free(g_at_entries[entry].ga);
-
-              // assign only when the new array is allocated correctly
-              g_at_entries[entry].ga_len = new_array_size;
-              g_at_entries[entry].ga = new_array;
-
-              PRINT("ga size %d", new_array_size);
+              g_at_entries[entry].scope = (oc_acl_mask_t)rep->value.integer;
             }
+
+            // 38 - profile
+            if (rep->iname == 38)
+            {
+              g_at_entries[entry].profile = (oc_at_profile_t)rep->value.integer;
+            }
+            break;
+          case OC_REP_STRING:
+
+            // 0 - id
+            if (rep->iname == 0)
+            {
+              oc_free_string(&g_at_entries[entry].id);
+              oc_new_string(&g_at_entries[entry].id, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            }
+            break;
+          case OC_REP_BYTE_STRING:
+
+            // reading back the strings should be done with oc_string_len, not with oc_byte_string_len
+            // string_len = len - 1 to exclude the '\0' from rep object; byte string len includes it
+
+            if (rep->iname == 840)
+            {
+              oc_free_string(&g_at_entries[entry].osc_id);
+              oc_new_byte_string(&g_at_entries[entry].osc_id, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            }
+            if (rep->iname == 842)
+            {
+              oc_free_string(&g_at_entries[entry].osc_ms);
+              oc_new_byte_string(&g_at_entries[entry].osc_ms, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            }
+
+            if (rep->iname == 845)
+            {
+              oc_free_string(&g_at_entries[entry].osc_salt);
+              oc_new_byte_string(&g_at_entries[entry].osc_salt, oc_string(rep->value.string),
+                                 oc_string_len(rep->value.string));
+            }
+
+            if (rep->iname == 846)
+            {
+              oc_free_string(&g_at_entries[entry].osc_contextid);
+              oc_new_byte_string(&g_at_entries[entry].osc_contextid, oc_string(rep->value.string),
+                                 oc_string_len(rep->value.string));
+            }
+            break;
+          case OC_REP_INT_ARRAY:
+
+            // ga array with GAs from MaC
+            if (rep->iname == 777)
+            {
+              // a load command does NOT append items to an (existing) array, it overwrites them
+              const int64_t* array = oc_int_array(rep->value.array);
+              const int new_array_size = oc_int_array_size(rep->value.array);
+
+              // malloc of 'zero' byte return pointer is undefined
+              uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
+              if (new_array && new_array_size > 0)
+              {
+                for (int i = 0; i < new_array_size; i++)
+                {
+                  new_array[i] = (uint32_t)array[i];
+                }
+
+                // release a possible ga array, it will be overwritten (no selective adding, free ignores NULL ptr
+                free(g_at_entries[entry].ga);
+
+                // assign only when the new array is allocated correctly
+                g_at_entries[entry].ga_len = new_array_size;
+                g_at_entries[entry].ga = new_array;
+
+                PRINT("ga size %d", new_array_size);
+              }
+            }
+            break;
+          default:
+            // any other invalid type prints ...
+            // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
+            PRINT("invalid object type detected");
+            break;
           }
-          break;
-        default:
-          // any other invalid type prints ...
-          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
-          PRINT("invalid object type detected");
-          break;
+          rep = rep->next;
         }
-        rep = rep->next;
       }
+      oc_free_rep(head);
     }
-    oc_free_rep(head);
+    free(buf);
   }
-  free(buf);
 }
 
 static int oc_core_find_at_entry_with_id(char* id)
@@ -1719,9 +1720,7 @@ oc_auth_at_t* oc_get_auth_at_entry(int index)
 void oc_create_knx_sec_resources(void)
 {
   OC_DBG("oc_create_knx_sec_resources");
-
   oc_load_at_table();
-  return;
 }
 
 void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
