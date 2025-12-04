@@ -30,6 +30,7 @@
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
 #include "port/oc_network_interface.h"
+#include "port/oc_storage.h"
 
 
 extern lsxb_channel_t lsab[NUM_CHANNELS];
@@ -122,6 +123,7 @@ private:
   void OnRestartDevice(wxCommandEvent& event);
   void OnResolveIPv6Test(wxCommandEvent& event);
   void OnSendUnicastTest(wxCommandEvent& event);
+  void OnRefreshInterfaces(wxCommandEvent& event);
   void OnNetworkInterfaceChange(wxCommandEvent& event);
   wxString GetIPv6AddressForInterface(int if_index);
   void OnExit(wxCommandEvent& event);
@@ -153,6 +155,7 @@ private:
   wxButton *m_IPV6_RESOLVE_TEST;
   wxButton *m_UNICAST_TEST;
   wxComboBox *m_network_interface;
+  wxButton *m_refresh_interfaces_btn;
   wxTextCtrl *m_ipv6_address;
 };
 #ifdef USE_CONSOLE
@@ -286,6 +289,10 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
     oc_network_interface_info_t interfaces[32];
     int iface_count = oc_network_enumerate_interfaces(interfaces, 32);
     for (int i = 0; i < iface_count; i++) {
+      // Only show interfaces that are up and have IPv6
+      if (!interfaces[i].is_up || !interfaces[i].has_ipv6) {
+        continue;
+      }
       wxString choice = wxString::Format("[%d] %s", interfaces[i].if_index, interfaces[i].name);
       interface_choices.Add(choice);
     }
@@ -296,6 +303,12 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
                                 interface_choices, wxCB_READONLY);
     m_network_interface->SetSelection(0);
     m_network_interface->Bind(wxEVT_COMBOBOX, &MyFrame::OnNetworkInterfaceChange, this);
+    
+    m_refresh_interfaces_btn = new wxButton(this, wxID_ANY, wxT("\u21BB"),
+                                wxPoint(120 + column * x_width + x_width * 3 + 5, 10 + x_height * row),
+                                wxSize(x_height, x_height), 0);
+    m_refresh_interfaces_btn->SetToolTip("Refresh Interfaces");
+    m_refresh_interfaces_btn->Bind(wxEVT_BUTTON, &MyFrame::OnRefreshInterfaces, this);
 
     // IPv6 address display
     row++;
@@ -310,6 +323,38 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
 
     // Add spacing row before device info
     row++;
+
+    // Restore saved network interface selection
+    uint32_t saved_filter = 0;
+    long bytes_read = oc_storage_read("network_interface", (uint8_t*)&saved_filter, sizeof(saved_filter));
+    if (bytes_read == sizeof(saved_filter) && saved_filter != 0) {
+      // Find and select the saved interface in ComboBox
+      bool found = false;
+      for (unsigned int i = 0; i < m_network_interface->GetCount(); i++) {
+        wxString choice = m_network_interface->GetString(i);
+        long if_index = 0;
+        wxString index_str = choice.AfterFirst('[').BeforeFirst(']');
+        if (index_str.ToLong(&if_index) && (uint32_t)if_index == saved_filter) {
+          m_network_interface->SetSelection(i);
+          // Apply the saved selection
+          oc_network_set_interface_filter(saved_filter);
+          oc_network_refresh_endpoints();
+          wxString ipv6_str = GetIPv6AddressForInterface((int)if_index);
+          m_ipv6_address->SetValue(ipv6_str);
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        // Saved interface no longer available
+        m_ipv6_address->SetValue("(saved interface not available)");
+        wxString status = wxString::Format("Network: Saved interface [%u] not found, using all interfaces", saved_filter);
+        SetStatusText(status);
+        // Clear invalid saved preference
+        oc_storage_erase("network_interface");
+      }
+    }
   }
 
   constexpr int width_size = 220; // size of the knx info widgets
@@ -542,6 +587,62 @@ void MyFrame::OnRestartDevice(wxCommandEvent& event)
   this->updateCheckBoxesFromLiveIOOData();
 
   SetStatusText("Restart Initiated");
+}
+
+void MyFrame::OnRefreshInterfaces(wxCommandEvent& event)
+{
+  SetStatusText("Refreshing network interfaces...");
+  
+  // Save current selection to restore if possible
+  uint32_t current_filter = oc_network_get_interface_filter();
+  
+  // Clear and rebuild interface list
+  m_network_interface->Clear();
+  
+  wxArrayString interface_choices;
+  interface_choices.Add("All interfaces");
+  
+  oc_network_interface_info_t interfaces[32];
+  int iface_count = oc_network_enumerate_interfaces(interfaces, 32);
+  for (int i = 0; i < iface_count; i++) {
+    // Only show interfaces that are up and have IPv6
+    if (!interfaces[i].is_up || !interfaces[i].has_ipv6) {
+      continue;
+    }
+    wxString choice = wxString::Format("[%d] %s", interfaces[i].if_index, interfaces[i].name);
+    interface_choices.Add(choice);
+  }
+  
+  m_network_interface->Append(interface_choices);
+  
+  // Try to restore previous selection
+  if (current_filter == 0) {
+    m_network_interface->SetSelection(0);
+    m_ipv6_address->SetValue("(multiple)");
+  } else {
+    bool found = false;
+    for (unsigned int i = 0; i < m_network_interface->GetCount(); i++) {
+      wxString choice = m_network_interface->GetString(i);
+      long if_index = 0;
+      wxString index_str = choice.AfterFirst('[').BeforeFirst(']');
+      if (index_str.ToLong(&if_index) && (uint32_t)if_index == current_filter) {
+        m_network_interface->SetSelection(i);
+        wxString ipv6_str = GetIPv6AddressForInterface((int)if_index);
+        m_ipv6_address->SetValue(ipv6_str);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      // Previous interface no longer available, reset to all
+      m_network_interface->SetSelection(0);
+      m_ipv6_address->SetValue("(previous interface unavailable)");
+      oc_network_set_interface_filter(0);
+      oc_network_refresh_endpoints();
+    }
+  }
+  
+  SetStatusText("Network interfaces refreshed");
 }
 
 /**
@@ -867,6 +968,10 @@ void MyFrame::OnNetworkInterfaceChange(wxCommandEvent& event)
     oc_network_refresh_endpoints();
     SetStatusText("Network: All interfaces enabled");
     m_ipv6_address->SetValue("(multiple)");
+    
+    // Save selection
+    uint32_t filter = 0;
+    oc_storage_write("network_interface", (uint8_t*)&filter, sizeof(filter));
   } else {
     // Specific interface selected - extract interface index from "[index] name" format
     wxString choice = m_network_interface->GetStringSelection();
@@ -884,6 +989,10 @@ void MyFrame::OnNetworkInterfaceChange(wxCommandEvent& event)
       
       wxString status = wxString::Format("Network: Using interface %ld", if_index);
       SetStatusText(status);
+      
+      // Save selection
+      uint32_t filter = (uint32_t)if_index;
+      oc_storage_write("network_interface", (uint8_t*)&filter, sizeof(filter));
     } else {
       SetStatusText("Network: Error parsing interface index");
       m_ipv6_address->SetValue("(error)");

@@ -492,6 +492,7 @@ enum controls : uint16_t
   CHECK_PM,             // programming mode check in menu bar
   LIST_ALL,             // list all tables (GO/PUB/RCP/AT)
   RESTART_DEVICE,       // restart device
+  REFRESH_INTERFACES,   // refresh network interfaces
   RESOLVE_IPV6_TEST,    // test IPv6 resolution
   SEND_UNICAST_TEST,    // send unicast test message
 
