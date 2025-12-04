@@ -668,25 +668,44 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		#define EP_STR_LEN_DOT_SN  (9)  // knx://sn.
 		#define SN_STR_LEN_MAX    (12)  // max SN length
 
-		// SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn size)
+		// SN pos is fixed after first '.', '*' pos may follow somewhere after this (distance = max sn + 1)
 		char* ep_serialnumber_start_pos = ep_request + EP_STR_LEN_DOT_SN;
-		char* ep_star_pos = oc_strnchr(ep_serialnumber_start_pos, '*', SN_STR_LEN_MAX);
+		char* ep_wildcard_pos = oc_strnchr(ep_serialnumber_start_pos, '*', SN_STR_LEN_MAX + 1);
 
-		// max len SN + \0
-		char sn_substr[SN_STR_LEN_MAX + 1] = "";
+		/*
+     (a) sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP)
+     (b) sn.00fa...  fits to the sn entirely (useful on mc)
+     (c) sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
+    */
 
-		if (ep_star_pos)
-		{
-			// copy part SN size 
-			strncpy(sn_substr, ep_serialnumber_start_pos, ep_star_pos - ep_serialnumber_start_pos);
-		}
+		// a ('*' is next char after '.') / b / c
+    const bool only_wildcard = ep_wildcard_pos == ep_serialnumber_start_pos + 1;
+    bool full_sn = false;
+    bool part_sn = false;
 
-	  // - sn.*        fits always (to get all KNX devices in an IP network, note other system uses also well-known EP) 
-		// - sn.00fa...  fits to the sn entirely (useful on mc)
-		// - sn.00fa*    fits to the sn part (clause 2.6.1.3.4)
-		if (strncmp(ep_serialnumber_start_pos, "*", 1) == 0 ||
-				strncmp(oc_string(device->serialnumber), ep_serialnumber_start_pos, strlen(oc_string(device->serialnumber))) == 0 ||
-				strstr(oc_string(device->serialnumber), sn_substr) != NULL)
+		if (!only_wildcard)
+    { // do not check anything else if only wildcard = true, result is already clear
+
+      if (ep_wildcard_pos)
+      { // partial compare somewhere in sn string
+
+        // empty max len SN + string termination '\0'
+        char sn_substr[SN_STR_LEN_MAX + 1] = "";
+
+        // SN can be of 1..12 chars (valid) or > 12 (attack/error)
+        size_t ep_sn_len = ep_wildcard_pos - ep_serialnumber_start_pos;
+
+        // copy SN part size 0..12 , but don't copy > 12 chars
+        strncpy(sn_substr, ep_serialnumber_start_pos, ep_sn_len > SN_STR_LEN_MAX ? SN_STR_LEN_MAX : ep_sn_len);
+        part_sn = strstr(oc_string(device->serialnumber), sn_substr) != NULL;
+      }
+      else
+      { // full compare (device has a string, ep_request has a stream without /0 
+        full_sn = strncmp(oc_string(device->serialnumber), ep_serialnumber_start_pos, oc_string_len(device->serialnumber)) == 0;
+      }
+    }
+
+		if (only_wildcard || full_sn || part_sn)
 		{
 			response_length = frame_sn(oc_string(device->serialnumber), device->iid, device->ia);
 			oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
