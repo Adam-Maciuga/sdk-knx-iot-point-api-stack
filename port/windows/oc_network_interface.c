@@ -34,6 +34,18 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     return 0;
   }
 
+  // Initialize Winsock if not already initialized (required for GetAdaptersAddresses with MSVC)
+  static int winsock_initialized = 0;
+  if (!winsock_initialized) {
+    WSADATA wsadata;
+    int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsadata);
+    if (wsa_result != 0) {
+      OC_ERR("WSAStartup failed with error: %d", wsa_result);
+      return 0;
+    }
+    winsock_initialized = 1;
+  }
+
   ULONG family = AF_INET6;
   IP_ADAPTER_ADDRESSES *adapter_list = NULL;
   IP_ADAPTER_ADDRESSES *adapter = NULL;
@@ -44,8 +56,14 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
   family = AF_UNSPEC;
 #endif
 
-  // Allocate buffer for adapter addresses
-  adapter_list = (IP_ADAPTER_ADDRESSES *)malloc(out_buf_len);
+  // Use HeapAlloc instead of malloc for better MSVC compatibility
+  HANDLE heap = GetProcessHeap();
+  if (!heap) {
+    OC_ERR("Failed to get process heap");
+    return 0;
+  }
+
+  adapter_list = (IP_ADAPTER_ADDRESSES *)HeapAlloc(heap, HEAP_ZERO_MEMORY, out_buf_len);
   if (!adapter_list) {
     OC_ERR("Failed to allocate memory for adapter list");
     return 0;
@@ -61,8 +79,8 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
   );
 
   if (ret == ERROR_BUFFER_OVERFLOW) {
-    free(adapter_list);
-    adapter_list = (IP_ADAPTER_ADDRESSES *)malloc(out_buf_len);
+    HeapFree(heap, 0, adapter_list);
+    adapter_list = (IP_ADAPTER_ADDRESSES *)HeapAlloc(heap, HEAP_ZERO_MEMORY, out_buf_len);
     if (!adapter_list) {
       OC_ERR("Failed to allocate memory for adapter list");
       return 0;
@@ -79,7 +97,7 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
 
   if (ret != NO_ERROR) {
     OC_ERR("GetAdaptersAddresses failed with error: %d", ret);
-    free(adapter_list);
+    HeapFree(GetProcessHeap(), 0, adapter_list);
     return 0;
   }
 
@@ -123,7 +141,7 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     count++;
   }
 
-  free(adapter_list);
+  HeapFree(GetProcessHeap(), 0, adapter_list);
   return count;
 }
 
