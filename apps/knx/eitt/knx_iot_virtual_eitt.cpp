@@ -626,26 +626,47 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
 
   result += "Sending unicast s-mode message...\n";
 
-  // Get the resource path from channel 1 (same as SOO button)
+  // Get the resource path and value
   char* url = app_retrieve_href_from_channel(1, SOO);
+  bool bool_value = app_retrieve_bool_variable_from_channel(1, SOO);
   
-  // Send using the standard s-mode API - it will handle queuing if not resolved
-  int send_result = oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
-
-  if (send_result == 0) {
-    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
-      result += "\n\u2713 Unicast message sent!\n";
+  // Encode boolean value as CBOR (simple value: 0xF4 for false, 0xF5 for true)
+  uint8_t resource_value_buffer[3];
+  resource_value_buffer[0] = 0x01; // CBOR type prefix
+  resource_value_buffer[1] = bool_value ? 0xF5 : 0xF4; // CBOR simple value
+  resource_value_buffer[2] = 0xFF; // End marker
+  int resource_value_size = 3;
+  
+  int send_result = -1;
+  
+  // Check if resolved and send confirmable
+  if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
+    // Create unicast endpoint
+    oc_endpoint_t uc_endpoint = {0};
+    uc_endpoint.flags = (transport_flags)(IPV6 | SECURED);
+    uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
+    memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
+    uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
+    uc_endpoint.group_address = target_ga;
+    uc_endpoint.auth_at_index = -1;
+    
+    // Send confirmable message
+    send_result = oc_send_s_mode_confirmable_unicast_message(&uc_endpoint, device->ia, target_ga, 
+                                                               "w", resource_value_buffer, resource_value_size);
+    
+    if (send_result == 0) {
+      result += "\n\u2713 CON unicast message sent!\n";
     } else {
-      result += "\n\u2713 Message queued, resolution triggered!\n";
-      result += "Message will be sent automatically after IPv6 is resolved.\n";
+      result += wxString::Format("\n\u2717 Failed to send message (error %d)\n", send_result);
     }
   } else {
-    result += wxString::Format("\n\u2717 Failed to send message (error %d)\n", send_result);
+    result += "\n\u2717 IPv6 not resolved - cannot send CON message\n";
+    result += "Please resolve IPv6 first using the 'Resolve IPv6 Test' button.\n";
   }
   
   result += "\nMessage Format:\n";
   result += "  Endpoint: /k\n";
-  result += "  Method: POST\n";
+  result += "  Method: POST CON (confirmable)\n";
   result += "  Secured: yes (OSCORE)\n";
   result += wxString::Format("  SIA (sender): %u\n", device->ia);
   result += wxString::Format("  Destination IA: %u\n", recipient_entry->ia);
