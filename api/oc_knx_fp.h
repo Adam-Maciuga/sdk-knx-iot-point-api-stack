@@ -182,7 +182,8 @@ extern "C"
    * - ia : (-1 = 0xFFFF = a valid/written KNX ia)
    * - id : (-1 = 0xFFFF = a valid/written id )
    *
-   * 'ia' on RCP table -> defines if the own message will be sent as uc/mc (uc= ia set, mc= grpid set)
+   * 'ia' on RCP table -> defines if the own message will be sent as uc/mc (uc= ia set, mc= grpid set),
+   *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present)
    * 'ia' on PUB table -> defines to which 'ia' device a subscription (with GET /k) has to be sent out,
    *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present)
    *
