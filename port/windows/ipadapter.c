@@ -1584,7 +1584,7 @@ oc_connectivity_init(void)
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
   l->sin6_family = AF_INET6;
   l->sin6_addr = in6addr_any;
-  l->sin6_port = htons(g_unicast_port);  // Use same port as mcast with SO_REUSEADDR
+  l->sin6_port = 0;  // Let OS assign ephemeral port - will be consistent for this process
 
 //#ifdef OC_SECURITY
 #ifdef OC_OSCORE
