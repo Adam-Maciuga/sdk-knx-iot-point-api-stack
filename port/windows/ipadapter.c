@@ -1581,7 +1581,7 @@ oc_connectivity_init(void)
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
   l->sin6_family = AF_INET6;
   l->sin6_addr = in6addr_any;
-  l->sin6_port = 0;
+  l->sin6_port = htons(g_unicast_port);  // Bind to consistent port for both multicast and unicast
 
 //#ifdef OC_SECURITY
 #ifdef OC_OSCORE
