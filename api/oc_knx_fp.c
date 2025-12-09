@@ -2546,7 +2546,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].grpid = 0; // init value, used also in code to check on its validity
 
   // Clear resolved IPv6 address data
-  table[entry].ipadd.init_status = OC_IP_STATUS_UNINITIALIZED;
+  table[entry].ipadd.init_status = OC_IP_STATUS_UNRESOLVED;
   memset(table[entry].ipadd.ipv6, 0, 16);
   table[entry].ipadd.interface_index = 0;
 
