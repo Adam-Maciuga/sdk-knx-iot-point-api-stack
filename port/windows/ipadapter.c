@@ -1210,6 +1210,9 @@ oc_send_buffer(oc_message_t *message)
   }
   #endif 
 
+  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", 
+         (int)send_sock, (int)dev->server_sock, (int)dev->secure_sock, message->endpoint.flags);
+
   return send_msg(send_sock, &receiver, message);
 }
 
@@ -1581,7 +1584,7 @@ oc_connectivity_init(void)
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
   l->sin6_family = AF_INET6;
   l->sin6_addr = in6addr_any;
-  l->sin6_port = htons(g_unicast_port);  // Bind to consistent port for both multicast and unicast
+  l->sin6_port = htons(g_unicast_port);  // Use same port as mcast with SO_REUSEADDR
 
 //#ifdef OC_SECURITY
 #ifdef OC_OSCORE
