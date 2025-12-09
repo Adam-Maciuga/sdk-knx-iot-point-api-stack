@@ -581,69 +581,44 @@ int oc_send_s_mode_confirmable_unicast_message(oc_endpoint_t* endpoint,
     return -1;
   }
 
-  // Allocate message buffer
-  oc_message_t *message = oc_internal_allocate_outgoing_message();
-  if (!message) {
-    OC_ERR("Failed to allocate outgoing message");
+  // Set OSCORE flag
+  endpoint->flags |= OSCORE;
+
+  // Initialize confirmable message to endpoint
+  if (!oc_init_update_con(endpoint, "/k")) {
+    OC_ERR("Failed to initialize CON message");
     return -1;
   }
 
-  // Copy endpoint
-  memcpy(&message->endpoint, endpoint, sizeof(oc_endpoint_t));
-  message->endpoint.flags |= OSCORE;
-
-  // Initialize CBOR encoder
-  oc_rep_new(message->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
-
-  // Create CoAP confirmable message
-  coap_packet_t request[1];
-  coap_udp_init_message(request, COAP_TYPE_CON, OC_POST, coap_get_next_mid());
-  coap_set_header_accept(request, APPLICATION_CBOR);
-  coap_set_header_uri_path(request, "/k", 2);
-
-  // Generate 8-byte token
-  request->token_len = 8;
-  uint32_t r1 = oc_random_value();
-  uint32_t r2 = oc_random_value();
-  memcpy(request->token, &r1, 4);
-  memcpy(request->token + 4, &r2, 4);
-
   // Build s-mode CBOR payload: { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
   oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 4, sia);
-  oc_rep_i_set_key(&root_map, 5);
+  oc_rep_i_set_int(root, 4, sia);                   // 4: <sia>
+
+  oc_rep_i_set_key(&root_map, 5);                   // 5:
 
   CborEncoder value_map;
   cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
-  oc_rep_i_set_int(value, 7, ga);
-  oc_rep_i_set_text_string(value, 6, service_type);
+
+  oc_rep_i_set_int(value, 7, ga);                   // 7: <ga>
+  oc_rep_i_set_text_string(value, 6, service_type); // 6: <st>
 
   if (value_size > 2) {
+    // Copy raw CBOR data (skip first byte 0xBF, last byte 0xFF)
     oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
   }
 
   cbor_encoder_close_container_checked(&root_map, &value_map);
   oc_rep_end_root_object();
 
-  // Set payload
-  int payload_size = oc_rep_get_encoded_payload_size();
-  coap_set_payload(request, oc_rep_get_encoder_buf(), payload_size);
-
-  OC_INF("Sending CON s-mode to IA, payload size: %d", payload_size);
+  // Debug output
+  OC_INF("Sending CON s-mode to IPv6 address:");
   PRINTipaddr(*endpoint);
+  OC_INF("CON s-mode CBOR payload (%d bytes):", oc_rep_get_encoded_payload_size());
+  OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
-  // Serialize into message buffer
-  message->length = coap_serialize_message(request, message->data);
-  if (message->length == 0) {
-    OC_ERR("Failed to serialize CoAP message");
-    oc_message_unref(message);
-    return -1;
-  }
-
-  // Send the message
-  oc_send_buffer(message);
-  oc_message_unref(message);
-
+  // Send the confirmable message
+  oc_do_update();
+  
   return 0;
 }
 

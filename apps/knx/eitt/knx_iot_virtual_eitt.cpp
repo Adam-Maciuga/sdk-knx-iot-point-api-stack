@@ -626,16 +626,34 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
 
   result += "Sending unicast s-mode message...\n";
 
-  // Get the resource path and value
+  // Get the resource path
   char* url = app_retrieve_href_from_channel(1, SOO);
-  bool bool_value = app_retrieve_bool_variable_from_channel(1, SOO);
   
-  // Encode boolean value as CBOR (simple value: 0xF4 for false, 0xF5 for true)
-  uint8_t resource_value_buffer[3];
-  resource_value_buffer[0] = 0x01; // CBOR type prefix
-  resource_value_buffer[1] = bool_value ? 0xF5 : 0xF4; // CBOR simple value
-  resource_value_buffer[2] = 0xFF; // End marker
-  int resource_value_size = 3;
+  // Get resource value using the same method as NON messages
+  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
+  int resource_value_size = 0;
+  
+  // Call the resource GET handler to get CBOR-encoded value
+  const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(url, strlen(url));
+  if (resource && resource->get_handler.cb) {
+    oc_request_t request_obj = {0};
+    oc_response_t response_obj = {0}; 
+    oc_response_buffer_t response_buffer = {0};
+    
+    response_buffer.buffer = resource_value_buffer;
+    response_buffer.buffer_size = sizeof(resource_value_buffer);
+    response_obj.response_buffer = &response_buffer;
+    request_obj.response = &response_obj;
+    request_obj.resource = resource;
+    request_obj.accept = APPLICATION_CBOR;
+    
+    // Initialize CBOR encoder
+    oc_rep_new(response_buffer.buffer, response_buffer.buffer_size);
+    
+    // Call GET handler
+    resource->get_handler.cb(&request_obj, resource->get_handler.interface_mask, resource->get_handler.user_data);
+    resource_value_size = oc_rep_get_encoded_payload_size();
+  }
   
   int send_result = -1;
   
