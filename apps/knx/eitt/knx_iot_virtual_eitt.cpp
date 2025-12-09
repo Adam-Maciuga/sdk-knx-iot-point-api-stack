@@ -655,31 +655,20 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
     resource_value_size = oc_rep_get_encoded_payload_size();
   }
   
-  int send_result = -1;
+  // Send confirmable message (stack handles resolution and queuing automatically)
+  int send_result = oc_send_s_mode_confirmable_unicast_message(recipient_entry->ia, target_ga,
+                                                                 "w", resource_value_buffer, resource_value_size,
+                                                                 recipient_index);
   
-  // Check if resolved and send confirmable
-  if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
-    // Create unicast endpoint
-    oc_endpoint_t uc_endpoint = {0};
-    uc_endpoint.flags = (transport_flags)(IPV6 | SECURED);
-    uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
-    memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
-    uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
-    uc_endpoint.group_address = target_ga;
-    uc_endpoint.auth_at_index = -1;
-    
-    // Send confirmable message
-    send_result = oc_send_s_mode_confirmable_unicast_message(&uc_endpoint, device->ia, target_ga, 
-                                                               "w", resource_value_buffer, resource_value_size);
-    
-    if (send_result == 0) {
+  if (send_result == 0) {
+    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
       result += "\n\u2713 CON unicast message sent!\n";
     } else {
-      result += wxString::Format("\n\u2717 Failed to send message (error %d)\n", send_result);
+      result += "\n\u2713 Message queued, IPv6 resolution triggered!\n";
+      result += "Message will be sent automatically after resolution completes.\n";
     }
   } else {
-    result += "\n\u2717 IPv6 not resolved - cannot send CON message\n";
-    result += "Please resolve IPv6 first using the 'Resolve IPv6 Test' button.\n";
+    result += wxString::Format("\n\u2717 Failed to send/queue message (error %d)\n", send_result);
   }
   
   result += "\nMessage Format:\n";

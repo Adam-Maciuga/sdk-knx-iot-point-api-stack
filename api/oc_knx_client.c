@@ -569,30 +569,68 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void)
 // Confirmable unicast s-mode send
 // ----------------------------------------------------------------------------
 
-int oc_send_s_mode_confirmable_unicast_message(oc_endpoint_t* endpoint, 
-                                                 uint32_t sia,
+int oc_send_s_mode_confirmable_unicast_message(uint32_t recipient_ia,
                                                  uint32_t ga,
                                                  const char* service_type,
                                                  uint8_t* value_data,
-                                                 int value_size)
+                                                 int value_size,
+                                                 int recipient_index)
 {
-  if (!endpoint || !service_type) {
+  if (!service_type) {
     OC_ERR("Invalid parameters for confirmable unicast");
     return -1;
   }
 
-  // Set OSCORE flag
-  endpoint->flags |= OSCORE;
+  const oc_device_info_t* device = oc_core_get_device_info();
+  if (!device) {
+    OC_ERR("Failed to get device info");
+    return -1;
+  }
+
+  // Get recipient table entry
+  oc_group_table_t* recipient_entry = oc_core_get_recipient_table_entry(recipient_index);
+  if (!recipient_entry || recipient_entry->ia != recipient_ia) {
+    OC_ERR("Invalid recipient table entry");
+    return -1;
+  }
+
+  // Check if IPv6 is resolved
+  if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
+    OC_INF("IPv6 not resolved for IA 0x%x, queuing CON message and triggering resolution", recipient_ia);
+    
+    // Queue the message
+    oc_knx_queue_pending_message(recipient_ia, ga, device->ia, 
+                                  service_type, value_data, value_size, recipient_index);
+    
+    // Trigger resolution
+    int ret = knx_resolve_via_coap_discovery(recipient_ia, device->iid, recipient_index);
+    if (ret != 0) {
+      OC_ERR("Failed to trigger CoAP discovery for IA 0x%x", recipient_ia);
+      return -1;
+    }
+    
+    OC_INF("Message queued, resolution triggered for IA 0x%x", recipient_ia);
+    return 0;
+  }
+
+  // IPv6 is resolved - send immediately
+  oc_endpoint_t uc_endpoint = {0};
+  uc_endpoint.flags = IPV6 | SECURED | OSCORE;
+  uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
+  memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
+  uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
+  uc_endpoint.group_address = ga;
+  uc_endpoint.auth_at_index = -1;
 
   // Initialize confirmable message to endpoint
-  if (!oc_init_update_con(endpoint, "/k")) {
+  if (!oc_init_update_con(&uc_endpoint, "/k")) {
     OC_ERR("Failed to initialize CON message");
     return -1;
   }
 
   // Build s-mode CBOR payload: { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
   oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 4, sia);                   // 4: <sia>
+  oc_rep_i_set_int(root, 4, device->ia);            // 4: <sia>
 
   oc_rep_i_set_key(&root_map, 5);                   // 5:
 
@@ -612,7 +650,7 @@ int oc_send_s_mode_confirmable_unicast_message(oc_endpoint_t* endpoint,
 
   // Debug output
   OC_INF("Sending CON s-mode to IPv6 address:");
-  PRINTipaddr(*endpoint);
+  PRINTipaddr(uc_endpoint);
   OC_INF("CON s-mode CBOR payload (%d bytes):", oc_rep_get_encoded_payload_size());
   OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
