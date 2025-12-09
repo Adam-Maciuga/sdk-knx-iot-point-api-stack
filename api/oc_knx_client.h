@@ -140,6 +140,16 @@ oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
  */
 int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_index);
 
+/**
+ * @brief Process pending s-mode messages for a resolved IA
+ *
+ * Called after IPv6 resolution completes to send any queued messages
+ * that were waiting for this IA to be resolved.
+ *
+ * @param ia Individual Address that was just resolved
+ */
+void oc_knx_process_pending_messages_for_ia(uint32_t ia);
+
 #ifdef __cplusplus
 }
 #endif

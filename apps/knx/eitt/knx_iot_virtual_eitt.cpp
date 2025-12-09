@@ -612,40 +612,33 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
   result += wxString::Format("Using device IID for discovery: %llu (0x%llX)\n\n", 
                              (unsigned long long)device_iid, (unsigned long long)device_iid);
 
-  // Check if IPv6 is resolved
+  // Check resolution status
   if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
-    result += "IPv6 not resolved, triggering resolution...\n\n";
-    
-    int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device_iid, recipient_index);
-    
-    if (ret == 0) {
-      result += "✓ Discovery sent, waiting for response...\n";
-      result += "\nPlease retry after IPv6 is resolved.\n";
-      SetStatusText("Discovery Sent");
-    } else {
-      result += wxString::Format("✗ Failed to send discovery! Error code: %d\n", ret);
-      SetStatusText("Discovery Failed");
+    result += "IPv6 not yet resolved - will trigger resolution and queue message...\n\n";
+  } else {
+    result += "Resolved IPv6: ";
+    for (int i = 0; i < 16; i++) {
+      result += wxString::Format("%02x", recipient_entry->ipadd.ipv6[i]);
+      if (i % 2 == 1 && i < 15) result += ":";
     }
-    
-    CustomDialog dialog("IPv6 Resolution Required", result);
-    return;
+    result += "\n\n";
   }
 
-  result += "Resolved IPv6: ";
-  for (int i = 0; i < 16; i++) {
-    result += wxString::Format("%02x", recipient_entry->ipadd.ipv6[i]);
-    if (i % 2 == 1 && i < 15) result += ":";
-  }
-  result += "\n\nSending unicast s-mode message...\n";
+  result += "Sending unicast s-mode message...\n";
 
   // Get the resource path from channel 1 (same as SOO button)
   char* url = app_retrieve_href_from_channel(1, SOO);
   
-  // Send using the standard s-mode API which handles unicast when grpid=0
+  // Send using the standard s-mode API - it will handle queuing if not resolved
   int send_result = oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
 
   if (send_result == 0) {
-    result += "\n\u2713 Unicast message sent!\n";
+    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
+      result += "\n\u2713 Unicast message sent!\n";
+    } else {
+      result += "\n\u2713 Message queued, resolution triggered!\n";
+      result += "Message will be sent automatically after IPv6 is resolved.\n";
+    }
   } else {
     result += wxString::Format("\n\u2717 Failed to send message (error %d)\n", send_result);
   }
