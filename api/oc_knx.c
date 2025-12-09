@@ -267,13 +267,18 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     cached_erase_code_value = erase_code_value;
 
     // init reset callback with 75 ms (see (1) below)  
-    oc_set_delayed_callback_ms(NULL, reset, 75);
+    oc_set_delayed_callback_ms(NULL, reset, 200);
 
     /*
     (1) The device internal time to execute the reset/restart callback must be less than below
         responded Process Time time, moreover, this time must ensure to issue (2) from below.
-        The 75 ms are used to complete a reset/restart with less than 100ms (= EITT test sequence delay),
-        it may need to be changed for specific embedded hardware 
+        The 200 ms delay ensures the CoAP ACK response is transmitted to the network before
+        the reset executes. The delay must be:
+        - Long enough for the response to be sent (network stack processing time)
+        - Short enough to complete within the KNX_RESPONSE_TIME_SECONDS promise to the client
+        
+        For EITT test sequences with 100ms delays, 200ms provides sufficient margin for
+        response transmission while staying well under the 2-second process time.
 
     (2) Before executing the reset function, the KNX IoT device MUST return a
         response with CoAP response code 2.04 CHANGED and with payload containing
