@@ -1176,8 +1176,9 @@ oc_send_buffer(oc_message_t *message)
   }
 #endif 
 
-// OSCORE is not using secure socket to send, it uses server_sock, see below
-#ifdef OC_OSCORE  
+// OSCORE always uses server_sock (not secure_sock) to maintain consistent source port
+// The secure_sock is only for DTLS which is not used with OSCORE
+#ifdef OC_OSCORE_DTLS_NOT_USED
   if (message->endpoint.flags & SECURED) 
   { 
   #ifdef OC_IPV4
@@ -1204,7 +1205,7 @@ oc_send_buffer(oc_message_t *message)
   }
   #else 
   {
-    // IPv6 and OSCORE + all other 
+    // IPv6 - use server_sock for both OSCORE and unsecured messages
     send_sock = dev->server_sock;
   }
   #endif 
