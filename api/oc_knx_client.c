@@ -53,6 +53,7 @@ typedef struct pending_s_mode_message_t
   int value_size;                                  /**< size of value_data */
   int recipient_index;                             /**< index in recipient table */
   uint64_t timestamp;                              /**< when this was queued (for timeout) */
+  bool is_confirmable;                             /**< true for CON, false for NON */
 } pending_s_mode_message_t;
 
 // Use static array (OC_MEMB doesn't work with OC_DYNAMIC_ALLOCATION on Windows)
@@ -64,7 +65,7 @@ oc_s_mode_response_cb_t m_s_mode_cb = NULL;
 
 static void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
-static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia, const char* service_type, uint8_t* value_data, int value_size, int recipient_index);
+static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia, const char* service_type, uint8_t* value_data, int value_size, int recipient_index, bool is_confirmable);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -329,7 +330,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           
           // Queue the message
           oc_knx_queue_pending_message(recipient_entry->ia, sending_ga, device->ia, 
-                                        srv_type, resource_value_buffer, 0, recipient_index);
+                                        srv_type, resource_value_buffer, 0, recipient_index, false);
           
           // Trigger resolution
           int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device->iid, recipient_index);
@@ -424,7 +425,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           
           // Queue the message
           oc_knx_queue_pending_message(recipient_entry->ia, sending_ga, device->ia, 
-                                        srv_type, resource_value_buffer, resource_value_size, recipient_index);
+                                        srv_type, resource_value_buffer, resource_value_size, recipient_index, false);
           
           // Trigger resolution
           int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device->iid, recipient_index);
@@ -600,7 +601,7 @@ int oc_send_s_mode_confirmable_unicast_message(uint32_t recipient_ia,
     
     // Queue the message
     oc_knx_queue_pending_message(recipient_ia, ga, device->ia, 
-                                  service_type, value_data, value_size, recipient_index);
+                                  service_type, value_data, value_size, recipient_index, true);
     
     // Trigger resolution
     int ret = knx_resolve_via_coap_discovery(recipient_ia, device->iid, recipient_index);
@@ -729,7 +730,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia, 
                                          const char* service_type, 
                                          uint8_t* value_data, int value_size,
-                                         int recipient_index)
+                                         int recipient_index, bool is_confirmable)
 {
   // Validate buffer size
   if (value_size > OC_MAX_APP_DATA_SIZE_STATIC) {
@@ -756,8 +757,10 @@ static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia,
       
       g_pending_messages[i].recipient_index = recipient_index;
       g_pending_messages[i].timestamp = oc_clock_time();
+      g_pending_messages[i].is_confirmable = is_confirmable;
       
-      OC_INF("Queued pending message for IA 0x%x, GA %d, ST=%s", ia, ga, service_type);
+      OC_INF("Queued pending %s message for IA 0x%x, GA %d, ST=%s", 
+             is_confirmable ? "CON" : "NON", ia, ga, service_type);
       return 0;
     }
   }
@@ -796,23 +799,46 @@ void oc_knx_process_pending_messages_for_ia(uint32_t ia)
       if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
         // Build unicast endpoint
         oc_endpoint_t uc_endpoint = {0};
-        uc_endpoint.flags = IPV6 | SECURED;
+        uc_endpoint.flags = IPV6 | SECURED | OSCORE;
         uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
         memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
         uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
         uc_endpoint.group_address = g_pending_messages[i].ga;
         uc_endpoint.auth_at_index = -1;
         
-        OC_INF("Sending queued message to IA 0x%x (GA %d) on interface %d", 
+        OC_INF("Sending queued %s message to IA 0x%x (GA %d) on interface %d", 
+               g_pending_messages[i].is_confirmable ? "CON" : "NON",
                ia, g_pending_messages[i].ga, uc_endpoint.interface_index);
         
-        // Send the message
-        oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", 
-                                                 g_pending_messages[i].sia,
-                                                 g_pending_messages[i].ga,
-                                                 g_pending_messages[i].service_type,
-                                                 g_pending_messages[i].value_data,
-                                                 g_pending_messages[i].value_size);
+        // Send the message with appropriate confirmability
+        if (g_pending_messages[i].is_confirmable) {
+          // Initialize confirmable message
+          if (oc_init_update_con(&uc_endpoint, "/k")) {
+            // Build s-mode CBOR payload: { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
+            oc_rep_begin_root_object();
+            oc_rep_i_set_int(root, 4, g_pending_messages[i].sia);
+            oc_rep_i_set_key(&root_map, 5);
+            CborEncoder value_map;
+            cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
+            oc_rep_i_set_int(value, 7, g_pending_messages[i].ga);
+            oc_rep_i_set_text_string(value, 6, g_pending_messages[i].service_type);
+            if (g_pending_messages[i].value_size > 2) {
+              oc_rep_encode_raw_encoder(&value_map, &g_pending_messages[i].value_data[1], 
+                                        g_pending_messages[i].value_size - 2);
+            }
+            cbor_encoder_close_container_checked(&root_map, &value_map);
+            oc_rep_end_root_object();
+            oc_do_update();
+          }
+        } else {
+          // Send non-confirmable message
+          oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", 
+                                                   g_pending_messages[i].sia,
+                                                   g_pending_messages[i].ga,
+                                                   g_pending_messages[i].service_type,
+                                                   g_pending_messages[i].value_data,
+                                                   g_pending_messages[i].value_size);
+        }
         
         // Clear the slot
         g_pending_messages[i].in_use = false;
