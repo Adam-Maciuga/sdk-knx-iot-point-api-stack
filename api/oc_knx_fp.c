@@ -2545,6 +2545,11 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].fid = -1; // init value, used also in code to check on its validity
   table[entry].grpid = 0; // init value, used also in code to check on its validity
 
+  // Clear resolved IPv6 address data
+  table[entry].ipadd.init_status = OC_IP_STATUS_UNINITIALIZED;
+  memset(table[entry].ipadd.ipv6, 0, 16);
+  table[entry].ipadd.interface_index = 0;
+
   // free "string" data memory only if already initialized
   // assumes in table uninitialized/random string data - don't release it ...
   if (init == false)
