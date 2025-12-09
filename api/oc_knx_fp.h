@@ -117,52 +117,6 @@ extern "C"
     uint16_t ga_len;          // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
 
-
-
-  /**
-   * @brief Function point Recipient - Publisher Table Resource (/fp/r) (/fp/p)
-   *
-   * the same table is used for recipient and publisher.
-   * the only difference is the confirmable/not confirmable flag.
-   * There will be 2 arrays of the structure to store the /fp/r or /fp/p data
-   *
-   * Example (JSON): array of objects
-   * ```
-   * [
-   *    {
-   *        "id": "1",
-   *        "ia": 5,
-   *        "ga":[2305, 2401],
-   *    },
-   *    {
-   *        "id": "2",
-   *        "ga": [2305, 2306, 2307, 2308]
-   *     }
-   * ]
-   * ```
-   * 
-   * Key translation
-   * | Json Key | Integer Value |
-   * | -------- | ------------- |
-   * | id       | 0             |
-   * | ia       | 12            |
-   * | iid      | 26            |
-   * | fid      | 25            |
-   * | grpid    | 13            |
-   * | ga       | 7             |
-   * | non      | -             |
-   *
-   * Note that some (int) integers are tested in the code on their init values
-   * '-1' for (non) validity (0xFFFFFFFF), this is a problem in case of 16-bit platforms --> hence the plain int was changed to int32_t
-   * - ia : (-1 = 0xFFFF = a valid/written KNX ia)
-   * - id : (-1 = 0xFFFF = a valid/written id )
-   * 
-   * 'ia' on RCP table -> defines if the own message will be sent as uc/mc (uc= ia set, mc= grpid set) 
-   * 'ia' on PUB table -> defines to which 'ia' device a subscription (with GET /k) has to be sent out,
-   *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present) 
-   *
-   */
-
   /**
    * @brief IP address initialization status enumeration
    * 
@@ -189,6 +143,50 @@ extern "C"
     int interface_index;         // network interface index for link-local addresses
   } oc_ip_address_t;
 
+  /**
+   * @brief Function point Recipient - Publisher Table Resource (/fp/r) (/fp/p)
+   *
+   * the same table is used for recipient and publisher.
+   * the only difference is the confirmable/not confirmable flag.
+   * There will be 2 arrays of the structure to store the /fp/r or /fp/p data
+   *
+   * Example (JSON): array of objects
+   * ```
+   * [
+   *    {
+   *        "id": "1",
+   *        "ia": 5,
+   *        "ga":[2305, 2401],
+   *    },
+   *    {
+   *        "id": "2",
+   *        "ga": [2305, 2306, 2307, 2308]
+   *     }
+   * ]
+   * ```
+   *
+   * Key translation
+   * | Json Key | Integer Value |
+   * | -------- | ------------- |
+   * | id       | 0             |
+   * | ia       | 12            |
+   * | iid      | 26            |
+   * | fid      | 25            |
+   * | grpid    | 13            |
+   * | ga       | 7             |
+   * | non      | -             |
+   *
+   * Note that some (int) integers are tested in the code on their init values
+   * '-1' for (non) validity (0xFFFFFFFF), this is a problem in case of 16-bit platforms --> hence the plain int was changed
+   * to int32_t
+   * - ia : (-1 = 0xFFFF = a valid/written KNX ia)
+   * - id : (-1 = 0xFFFF = a valid/written id )
+   *
+   * 'ia' on RCP table -> defines if the own message will be sent as uc/mc (uc= ia set, mc= grpid set)
+   * 'ia' on PUB table -> defines to which 'ia' device a subscription (with GET /k) has to be sent out,
+   *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present)
+   *
+   */
   typedef struct oc_group_table
   {
     int32_t id;             // id, specification demands a range of 0 ... 65535 (see note above)
