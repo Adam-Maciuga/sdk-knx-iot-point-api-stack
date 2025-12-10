@@ -1103,7 +1103,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	   This function is a server-side entry point solely for requests.
 	   Hence, "code" contains the CoAP method code.
 	*/
-	oc_method_t method = packet->code;
+  oc_method_t method = (oc_method_t)packet->code;
 
 	// create local request/response messages to call core/application callback handler
   // - local request message
@@ -1126,7 +1126,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	// empty response buffer, the response buffer is assigned LATER
 	response_buffer.code = 0;
 	response_buffer.response_length = 0;
-	response_buffer.content_format = 0;
+  response_buffer.content_format = TEXT_PLAIN;
 	response_buffer.max_age = 0;
 
 	// empty response object, later filled   
@@ -1159,7 +1159,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	// read the accept CoAP option in the request, set default none
 	unsigned int accept_int = CONTENT_NONE;
 	coap_get_header_accept(request, &accept_int);
-	oc_content_format_t accept = accept_int;
+  oc_content_format_t accept = (oc_content_format_t)accept_int;
 
 	// 'if' query mask (from request), initialized with default
 	oc_interface_mask_t if_mask_from_query = OC_IF_NONE;
@@ -1363,7 +1363,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, request_obj.request_payload))
 		{ // access scope NOT ok
 			authorized = false;
-      bad_request = true;
 		}
 		else
 		#ifdef OC_SECURITY
