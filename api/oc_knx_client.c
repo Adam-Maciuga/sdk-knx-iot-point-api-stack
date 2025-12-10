@@ -29,6 +29,15 @@
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 
+// External declarations
+extern oc_message_t *oc_internal_allocate_outgoing_message(void);
+extern oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t *endpoint,
+                                               oc_method_t method, const char* query,
+                                               oc_client_handler_t handler, oc_qos_t qos,
+                                               void* user_data);
+extern oc_event_callback_retval_t oc_ri_remove_client_cb(void* data);
+extern void oc_send_discovery_request(oc_message_t *message);
+
 // Pending message queue for unresolved unicast sends
 #define MAX_PENDING_MESSAGES 10
 #define PENDING_MESSAGE_TIMEOUT_SECONDS 10  /**< Timeout for queued messages */
@@ -675,22 +684,8 @@ void oc_knx_process_pending_messages_for_ia(uint32_t ia)
       continue;
     }
     
-    // Check if this message is for the resolved IA
-    if (recipient_entry->ia != ia) {
-      continue;
-    }
-    
-    // Check for timeout
-    if ((now - g_pending_messages[i].timestamp) > (PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)) {
-      OC_WRN("Pending message for IA 0x%x timed out after %d seconds", 
-             ia, PENDING_MESSAGE_TIMEOUT_SECONDS);
-      g_pending_messages[i].in_use = false;
-      continue;
-    }
-      
-      OC_INF("  Recipient status: %d (RESOLVED=%d)", 
-             recipient_entry->ipadd.init_status, OC_IP_STATUS_RESOLVED);
-      if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
+    // Check if IPv6 is resolved for this recipient
+    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
         // Build unicast endpoint
         oc_endpoint_t uc_endpoint = {0};
         uc_endpoint.flags = IPV6 | SECURED | OSCORE;
@@ -738,7 +733,6 @@ void oc_knx_process_pending_messages_for_ia(uint32_t ia)
         g_pending_messages[i].in_use = false;
         processed_count++;
       }
-    }
   }
   
   if (processed_count > 0) {
@@ -749,8 +743,6 @@ void oc_knx_process_pending_messages_for_ia(uint32_t ia)
 // Send CoAP discovery multicast to resolve IA to IPv6
 int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_index)
 {
-  extern oc_message_t *oc_internal_allocate_outgoing_message(void);
-
   // Create multicast endpoint - ff02::fd (link-local all CoAP nodes, scope 2)
   oc_endpoint_t mcast_ep = {0};
   mcast_ep.flags = IPV6 | MULTICAST;
@@ -786,10 +778,6 @@ int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_inde
     .discovery_all = NULL
   };
 
-  extern oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t *endpoint,
-                                                 oc_method_t method, const char* query,
-                                                 oc_client_handler_t handler, oc_qos_t qos,
-                                                 void* user_data);
   oc_client_cb_t *cb = oc_ri_alloc_client_cb(uri, &message->endpoint, OC_GET, query,
                                                handler, LOW_QOS,
                                                (void*)(intptr_t)recipient_index);
@@ -814,14 +802,12 @@ int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_inde
   message->length = coap_serialize_message(request, message->data);
   if (message->length == 0) {
     OC_ERR("CoAP discovery: Failed to serialize message");
-    extern oc_event_callback_retval_t oc_ri_remove_client_cb(void* data);
     oc_ri_remove_client_cb(cb);
     oc_message_unref(message);
     return -1;
   }
 
   // Send via oc_send_discovery_request (handles multi-interface)
-  extern void oc_send_discovery_request(oc_message_t *message);
   oc_send_discovery_request(message);
   oc_message_unref(message);
 

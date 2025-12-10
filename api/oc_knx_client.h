@@ -104,6 +104,27 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t si
                          uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 
+/**
+ * @brief Send unicast s-mode message (confirmable or non-confirmable)
+ * 
+ * Unified function that handles both CON and NON unicast messages.
+ * Automatically handles IPv6 resolution:
+ * - If IPv6 is resolved: sends immediately
+ * - If IPv6 is not resolved: queues message and triggers CoAP discovery
+ * 
+ * @param sending_ga Group address to send on
+ * @param sia Sender individual address
+ * @param iid Installation ID
+ * @param service_type "w", "r", or "a"
+ * @param value_data CBOR encoded value
+ * @param value_size Size of value_data
+ * @param is_confirmable true for CON, false for NON
+ * @return 0 on success (sent or queued), -1 on error
+ */
+int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
+                                     const char* service_type, uint8_t* value_data, 
+                                     int value_size, bool is_confirmable);
+
 /** @} */ // end of doc_module_tag_s_mode_client
 
 /**
