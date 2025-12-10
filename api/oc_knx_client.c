@@ -38,6 +38,24 @@ extern oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t *end
 extern oc_event_callback_retval_t oc_ri_remove_client_cb(void* data);
 extern void oc_send_discovery_request(oc_message_t *message);
 
+// Internal helper function to find recipient table entry by GA
+// Note: Not in header - used only within this file and oc_knx.c/oc_knx_fp.c via direct access
+oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
+{
+  int total = oc_core_get_recipient_table_size();
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
+    if (entry && entry->id >= 0) {
+      for (int j = 0; j < entry->ga_len; j++) {
+        if (entry->ga[j] == ga) {
+          return entry;
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
 // Pending message queue for unresolved unicast sends
 #define MAX_PENDING_MESSAGES 10
 #define PENDING_MESSAGE_TIMEOUT_SECONDS 10  /**< Timeout for queued messages */
@@ -95,11 +113,16 @@ int oc_is_redirected_request_from(const oc_request_t* request)
 // Returns: 0 = success (sent or queued), -1 = error (no recipient found)
 int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
                                      const char* service_type, uint8_t* value_data, 
-                                     int value_size, bool is_confirmable)
+                                     int value_size, bool non_confirmable)
 {
-  // Find recipient table entry with this GA to get IA/IID
+  // Determine confirmability from recipient table "non" parameter:
+  // - "non" = false (default) -> Confirmable (CON)
+  // - "non" = true -> Non-Confirmable (NON)
+  bool is_confirmable = !non_confirmable;
+  
+  // Find recipient table entry with this GA
   int total = oc_core_get_recipient_table_size();
-  oc_group_table_t* recipient_entry = NULL;
+  oc_group_table_t* recipient = NULL;
   int recipient_index = -1;
   
   for (int i = 0; i < total; i++) {
@@ -108,36 +131,41 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t i
       // Check if this entry has the sending GA
       for (int j = 0; j < entry->ga_len; j++) {
         if (entry->ga[j] == sending_ga) {
-          recipient_entry = entry;
+          recipient = entry;
           recipient_index = i;
           break;
         }
       }
-      if (recipient_entry) break;
+      if (recipient) break;
     }
   }
 
-  if (!recipient_entry || recipient_entry->ia <= 0) {
-    OC_ERR("Cannot send unicast: no recipient entry found for GA %d", sending_ga);
+  if (!recipient) {
+    OC_ERR("Cannot send unicast: no recipient found for GA %d", sending_ga);
+    return -1;
+  }
+  
+  if (recipient->ia <= 0) {
+    OC_ERR("Cannot send unicast: invalid IA in recipient for GA %d", sending_ga);
     return -1;
   }
 
   // Check if IPv6 is resolved
-  if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
-    OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient_entry->ia);
+  if (recipient->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
+    OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient->ia);
     
     // Queue the message
     oc_knx_queue_pending_message(sending_ga, sia, service_type, value_data, 
                                   value_size, recipient_index, is_confirmable);
     
     // Trigger resolution
-    int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, iid, recipient_index);
+    int ret = knx_resolve_via_coap_discovery(recipient->ia, iid, recipient_index);
     if (ret != 0) {
-      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x", recipient_entry->ia);
+      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x", recipient->ia);
       return -1;
     }
     
-    OC_INF("IPv6 resolution started for IA 0x%x, message queued for later delivery", recipient_entry->ia);
+    OC_INF("IPv6 resolution started for IA 0x%x, message queued for later delivery", recipient->ia);
     return 0; // Success - message is queued
   }
 
@@ -145,13 +173,13 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t i
   oc_endpoint_t uc_endpoint = {0};
   uc_endpoint.flags = IPV6 | SECURED | OSCORE;
   uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
-  memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
-  uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
+  memcpy(uc_endpoint.addr.ipv6.address, recipient->ipadd.ipv6, 16);
+  uc_endpoint.interface_index = recipient->ipadd.interface_index;
   uc_endpoint.group_address = sending_ga;
   uc_endpoint.auth_at_index = -1;
 
   PRINT("Sending %s unicast %s to IA 0x%x via resolved IPv6 (interface %d)", 
-        is_confirmable ? "CON" : "NON", service_type, recipient_entry->ia, uc_endpoint.interface_index);
+        is_confirmable ? "CON" : "NON", service_type, recipient->ia, uc_endpoint.interface_index);
 
   // Send unicast message (confirmable or non-confirmable)
   if (is_confirmable) {
@@ -397,8 +425,11 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       else
       { // uc: request -> ia is used from RCP table (configured by MaC)
-        oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
-                                        srv_type, resource_value_buffer, 0, false);
+        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+        if (recipient) {
+          oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
+                                          srv_type, resource_value_buffer, 0, recipient->non);
+        }
       }
       return 0;
     }
@@ -436,8 +467,11 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       else
       { // uc: request -> ia is used from RCP table (configured by MaC)
-        oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
-                                        srv_type, resource_value_buffer, resource_value_size, false);
+        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+        if (recipient) {
+          oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
+                                          srv_type, resource_value_buffer, resource_value_size, recipient->non);
+        }
       }
 
       

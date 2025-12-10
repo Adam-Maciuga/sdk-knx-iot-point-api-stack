@@ -121,7 +121,6 @@ private:
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
   void OnRestartDevice(wxCommandEvent& event);
-  void OnResolveIPv6Test(wxCommandEvent& event);
   void OnSendUnicastTest(wxCommandEvent& event);
   void OnNetworkInterfaces(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
@@ -257,19 +256,12 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
     m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_SOO, this);
     m_EITT_SOO->Enable(true);
     
-    // IPv6 resolution test button
     row++;
     new wxStaticText(this, wxID_ANY, "Test Functions",
                      wxPoint(10 + column * x_width, 10 + x_height * row),
                      wxSize(x_width, x_height), wxALIGN_LEFT);
     
-    m_IPV6_RESOLVE_TEST = new wxButton(this, RESOLVE_IPV6_TEST, _T("Resolve IPv6 Test"),
-                                wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
-    m_IPV6_RESOLVE_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnResolveIPv6Test, this);
-    m_IPV6_RESOLVE_TEST->Enable(true);
-    
     // Unicast test button
-    row++;
     m_UNICAST_TEST = new wxButton(this, SEND_UNICAST_TEST, _T("Send Unicast Test"),
                                 wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
     m_UNICAST_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnSendUnicastTest, this);
@@ -515,45 +507,6 @@ void MyFrame::OnNetworkInterfaces(wxCommandEvent& event)
   SetStatusText(NetworkInterfaceDialog::GetStatusMessage());
 }
 
-/**
- * @brief Test IPv6 resolution via CoAP discovery
- *
- * Sends CoAP GET to ff02::fd with query ep=knx://ia.1199887766.110F
- */
-void MyFrame::OnResolveIPv6Test(wxCommandEvent& event)
-{
-  SetStatusText("Sending CoAP Discovery...");
-
-  // Test parameters
-  uint32_t target_ia = 0x110F;
-  uint64_t target_iid = 0x1199887766ULL;
-
-  wxString result;
-  result += "CoAP Discovery Test\n";
-  result += "===================\n\n";
-  result += wxString::Format("Target: knx://ia.%llX.%X\n", (unsigned long long)target_iid, (unsigned int)target_ia);
-  result += wxString::Format("IID: 0x%llX (%llu)\n", (unsigned long long)target_iid, (unsigned long long)target_iid);
-  result += wxString::Format("IA: 0x%X (%u)\n\n", (unsigned int)target_ia, (unsigned int)target_ia);
-
-  result += "Sending CoAP GET to: ff02::fd\n";
-  result += "Query: /.well-known/core?ep=knx://ia.1199887766.110F\n\n";
-
-  // Send discovery (recipient_index = -1 for test mode)
-  int ret = knx_resolve_via_coap_discovery(target_ia, target_iid, -1);
-
-  if (ret == 0) {
-    result += "✓ Discovery packet sent successfully!\n\n";
-    result += "Check console for response logs.\n";
-    result += "The response handler will log any received responses.";
-    SetStatusText("Discovery Sent");
-  } else {
-    result += wxString::Format("✗ Failed to send discovery! Error code: %d\n", ret);
-    SetStatusText("Send Failed");
-  }
-
-  CustomDialog dialog("CoAP Discovery Test", result);
-}
-
 void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
 {
   SetStatusText("Sending Unicast Test...");
@@ -655,9 +608,9 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
     resource_value_size = oc_rep_get_encoded_payload_size();
   }
   
-  // Send confirmable message (stack handles resolution and queuing automatically)
+  // Send unicast message (confirmability determined by recipient table "non" flag)
   int send_result = oc_send_s_mode_unicast_message(target_ga, device->ia, device->iid,
-                                                     "w", resource_value_buffer, resource_value_size, true);
+                                                     "w", resource_value_buffer, resource_value_size, recipient_entry->non);
   
   if (send_result == 0) {
     if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {

@@ -35,6 +35,9 @@
 #include "security/oc_spake2plus.h"
 #endif
 
+// Forward declaration for helper from oc_knx_client.c
+extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
+
 // ---------------------------Variables --------------------------------------
 
 static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
@@ -1026,13 +1029,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                 }
                 else
                 { // uc: read response -> ia is used from RCP table (configured by MaC)
-
-                  extern int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
-                                                             const char* service_type, uint8_t* value_data, 
-                                                             int value_size, bool is_confirmable);
-                  oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, "a",
-                                                  new_request.response->response_buffer->buffer,
-                                                  (int)new_request.response->response_buffer->response_length, false);
+                  oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+                  if (recipient) {
+                    oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, "a",
+                                                    new_request.response->response_buffer->buffer,
+                                                    (int)new_request.response->response_buffer->response_length, recipient->non);
+                  }
                 }
               }
 

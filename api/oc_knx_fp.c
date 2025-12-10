@@ -27,6 +27,9 @@
 #include "oc_knx_client.h"
 #include "oc_storage.h"
 
+// Forward declaration for helper from oc_knx_client.c
+extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
+
 // PUB/RCV/GOT storage data (must use all the same name length, since TAB_SIZE is used for all)
 #define GPT_STORE "dev_knx_pub_entry"       // PUB table base file name
 #define GRT_STORE "dev_knx_rcv_entry"       // RCV table base file name
@@ -2946,11 +2949,10 @@ void oc_init_datapoints_at_initialization(void)
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)
-
-            extern int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
-                                                       const char* service_type, uint8_t* value_data, 
-                                                       int value_size, bool is_confirmable);
-            oc_send_s_mode_unicast_message(sending_group_address, sia_value, iid, "r", NULL, 0, false);
+            oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
+            if (recipient) {
+              oc_send_s_mode_unicast_message(sending_group_address, sia_value, iid, "r", NULL, 0, recipient->non);
+            }
           }
         }
       }
