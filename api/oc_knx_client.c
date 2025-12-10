@@ -29,15 +29,6 @@
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 
-typedef struct broker_s_mode_userdata_t
-{
-  int ia;                 /**< internal address of the destination */
-  char path[20];          /**< the path on the device designated with ia */
-  uint32_t ga;            /**< group address to use */
-  char service_type[3];   /**< mode to send the message "w"  = 1  "r" = 2  "a" = 3 */
-  char resource_url[20];  /**< the url to pull the data from. */
-} broker_s_mode_userdata_t;
-
 // Pending message queue for unresolved unicast sends
 #define MAX_PENDING_MESSAGES 10
 #define PENDING_MESSAGE_TIMEOUT_SECONDS 10  /**< Timeout for queued messages */
@@ -59,13 +50,11 @@ typedef struct pending_s_mode_message_t
 // Use static array (OC_MEMB doesn't work with OC_DYNAMIC_ALLOCATION on Windows)
 static pending_s_mode_message_t g_pending_messages[MAX_PENDING_MESSAGES] = {0};
 
-oc_s_mode_response_cb_t m_s_mode_cb = NULL;
-
 // external definitions
 
 static void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
-static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia, const char* service_type, uint8_t* value_data, int value_size, int recipient_index, bool is_confirmable);
+static int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia, const char* service_type, uint8_t* value_data, int value_size, int recipient_index);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -329,8 +318,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient_entry->ia);
           
           // Queue the message
-          oc_knx_queue_pending_message(recipient_entry->ia, sending_ga, device->ia, 
-                                        srv_type, resource_value_buffer, 0, recipient_index, false);
+          oc_knx_queue_pending_message(sending_ga, device->ia, 
+                                        srv_type, resource_value_buffer, 0, recipient_index);
           
           // Trigger resolution
           int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device->iid, recipient_index);
@@ -424,8 +413,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient_entry->ia);
           
           // Queue the message
-          oc_knx_queue_pending_message(recipient_entry->ia, sending_ga, device->ia, 
-                                        srv_type, resource_value_buffer, resource_value_size, recipient_index, false);
+          oc_knx_queue_pending_message(sending_ga, device->ia, 
+                                        srv_type, resource_value_buffer, resource_value_size, recipient_index);
           
           // Trigger resolution
           int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device->iid, recipient_index);
@@ -553,17 +542,6 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
   // must be one of w/r
   OC_ERR("service type value incorrect %s , allowed are only w+r", srv_type);
   return -1;
-}
-
-bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func)
-{
-  m_s_mode_cb = my_func;
-  return true;
-}
-
-oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void)
-{
-  return m_s_mode_cb;
 }
 
 // ----------------------------------------------------------------------------
@@ -743,7 +721,6 @@ static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia,
     if (!g_pending_messages[i].in_use) {
       memset(&g_pending_messages[i], 0, sizeof(pending_s_mode_message_t));
       g_pending_messages[i].in_use = true;
-      g_pending_messages[i].ia = ia;
       g_pending_messages[i].ga = ga;
       g_pending_messages[i].sia = sia;
       strncpy(g_pending_messages[i].service_type, service_type, sizeof(g_pending_messages[i].service_type) - 1);
@@ -759,13 +736,15 @@ static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia,
       g_pending_messages[i].timestamp = oc_clock_time();
       g_pending_messages[i].is_confirmable = is_confirmable;
       
+      oc_group_table_t* entry = oc_core_get_recipient_table_entry(recipient_index);
       OC_INF("Queued pending %s message for IA 0x%x, GA %d, ST=%s", 
-             is_confirmable ? "CON" : "NON", ia, ga, service_type);
+             is_confirmable ? "CON" : "NON", entry ? entry->ia : 0, ga, service_type);
       return 0;
     }
   }
   
-  OC_WRN("Pending message queue full, cannot queue message for IA 0x%x", ia);
+  oc_group_table_t* entry = oc_core_get_recipient_table_entry(recipient_index);
+  OC_WRN("Pending message queue full, cannot queue message for IA 0x%x", entry ? entry->ia : 0);
   return -1;
 }
 
@@ -776,23 +755,44 @@ void oc_knx_process_pending_messages_for_ia(uint32_t ia)
   uint64_t now = oc_clock_time();
   
   for (int i = 0; i < MAX_PENDING_MESSAGES; i++) {
-    if (g_pending_messages[i].in_use && g_pending_messages[i].ia == ia) {
-      // Check for timeout
-      if ((now - g_pending_messages[i].timestamp) > (PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)) {
-        OC_WRN("Pending message for IA 0x%x timed out after %d seconds", 
-               ia, PENDING_MESSAGE_TIMEOUT_SECONDS);
-        g_pending_messages[i].in_use = false;
-        continue;
-      }
-      
-      // Get recipient entry
-      oc_group_table_t* recipient_entry = oc_core_get_recipient_table_entry(g_pending_messages[i].recipient_index);
-      
-      if (!recipient_entry) {
-        OC_ERR("Recipient entry %d is NULL", g_pending_messages[i].recipient_index);
-        g_pending_messages[i].in_use = false;
-        continue;
-      }
+    if (!g_pending_messages[i].in_use) {
+      continue;
+    }
+    
+    // Get recipient entry
+    oc_group_table_t* recipient_entry = oc_core_get_recipient_table_entry(g_pending_messages[i].recipient_index);
+    
+    if (!recipient_entry) {
+      OC_ERR("Recipient entry %d is NULL", g_pending_messages[i].recipient_index);
+      g_pending_messages[i].in_use = false;
+      continue;
+    }
+    
+    // Check if this message is for the resolved IA
+    if (recipient_entry->ia != ia) {
+      continue;
+    }
+    
+    // Check for timeout
+    if ((now - g_pending_messages[i].timestamp) > (PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)) {
+      OC_WRN("Pending message for IA 0x%x timed out after %d seconds", 
+             ia, PENDING_MESSAGE_TIMEOUT_SECONDS);
+      g_pending_messages[i].in_use = false;
+      continue;
+    }
+    
+    // Check if this message is for the resolved IA
+    if (recipient_entry->ia != ia) {
+      continue;
+    }
+    
+    // Check for timeout
+    if ((now - g_pending_messages[i].timestamp) > (PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)) {
+      OC_WRN("Pending message for IA 0x%x timed out after %d seconds", 
+             ia, PENDING_MESSAGE_TIMEOUT_SECONDS);
+      g_pending_messages[i].in_use = false;
+      continue;
+    }
       
       OC_INF("  Recipient status: %d (RESOLVED=%d)", 
              recipient_entry->ipadd.init_status, OC_IP_STATUS_RESOLVED);

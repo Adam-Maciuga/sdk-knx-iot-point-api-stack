@@ -104,28 +104,6 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t si
                          uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
 /**
- * @brief Callback function type for s-mode responses
- *
- * @param url The URL of the resource
- * @param rep The representation payload
- * @param rep_value The value representation
- */
-typedef void (*oc_s_mode_response_cb_t)(char *url, oc_rep_t *rep, oc_rep_t *rep_value);
-
-/**
- * @brief Set the s-mode response callback
- * @param my_func The callback function
- * @return true on success
- */
-bool oc_set_s_mode_response_cb(oc_s_mode_response_cb_t my_func);
-
-/**
- * @brief Get the s-mode response callback
- * @return The current callback function
- */
-oc_s_mode_response_cb_t oc_get_s_mode_response_cb(void);
-
-/**
  * @brief Send s-mode confirmable unicast message
  * 
  * Sends a confirmable CoAP message for unicast s-mode communication.
