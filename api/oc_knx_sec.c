@@ -1868,9 +1868,9 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     { // O2 - a call with <ga> access token, here this is only possible if /k resource was addressed
       // (caller_acl_scope & called_res_scope ->  OC_ACL_GA & (OC_ACL_GA + OC_ACL_G) = true for /k resource definition)
 
-      // scan received payload for request ga
+      // scan received payload for request ga (may also have 32-bit value 0xFFFFFFFF) 
       const oc_rep_t* rep = value_object;
-      int group_address_in_payload = -1;
+      bool group_address_match = false;
 
       while (rep)
       {
@@ -1884,7 +1884,10 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
             if (s_map->type == OC_REP_INT && s_map->iname == 7)
             { // only GA is of interest
 
-              group_address_in_payload = (int)s_map->value.integer;
+              // found a GA, check it, and break ...
+              group_address_match = check_access_token_for_group_address(
+                endpoint->auth_at_index,
+                (uint32_t)s_map->value.integer);
               break;
             }
             s_map = s_map->next;
@@ -1893,10 +1896,13 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
         rep = rep->next;
       }
 
-      // no ga found in request payload = request payload error (no access), ga found in request payload, check ...
-      return group_address_in_payload == -1
-        ? false 
-        : check_access_token_for_group_address(endpoint->auth_at_index, group_address_in_payload);
+      /*
+        a: no ga found in request payload at all = request payload error (no access) -> false 
+        b: ga found in request payload, was checked
+        - b1 : true -> found in access token
+        - b2 : false -> not found in access token
+      */
+      return group_address_match;
     }
 
     // acl scopes + method OK

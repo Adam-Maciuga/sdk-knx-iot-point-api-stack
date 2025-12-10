@@ -1363,6 +1363,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, request_obj.request_payload))
 		{ // access scope NOT ok
 			authorized = false;
+      bad_request = true;
 		}
 		else
 		#ifdef OC_SECURITY
