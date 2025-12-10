@@ -1025,21 +1025,14 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                                      (int)new_request.response->response_buffer->response_length);
                 }
                 else
-                {
-                  // TODO resolve IP unicast to send via unicast...
+                { // uc: read response -> ia is used from RCP table (configured by MaC)
 
-                  /*
-                   - get IA from RCP table + AT token reference (a)
-                   - get at token 'id' (cbor key 0) from (a)
-                   - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
-
-            
-                   - from stream of responses create new unicast EP
-                   - use non flag as defined in GRP table
-                   - send message (to be checked what can be used)
-                  */  
-
-                  PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
+                  extern int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
+                                                             const char* service_type, uint8_t* value_data, 
+                                                             int value_size, bool is_confirmable);
+                  oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, "a",
+                                                  new_request.response->response_buffer->buffer,
+                                                  (int)new_request.response->response_buffer->response_length, false);
                 }
               }
 

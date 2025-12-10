@@ -103,29 +103,6 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
 void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
                          uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
 
-/**
- * @brief Send s-mode confirmable unicast message
- * 
- * Sends a confirmable CoAP message for unicast s-mode communication.
- * Automatically handles IPv6 resolution and message queuing.
- * If IPv6 is not resolved, the message will be queued and sent after resolution.
- * 
- * Note: Multicast messages cannot be confirmable per CoAP RFC 7252.
- *
- * @param recipient_ia Recipient Individual Address
- * @param ga Group Address
- * @param service_type Service type ("w", "r", or "a")
- * @param value_data CBOR encoded value data
- * @param value_size Size of value_data
- * @param recipient_index Index in recipient table
- * @return 0 on success, -1 on error
- */
-int oc_send_s_mode_confirmable_unicast_message(uint32_t recipient_ia,
-                                                 uint32_t ga,
-                                                 const char* service_type,
-                                                 uint8_t* value_data,
-                                                 int value_size,
-                                                 int recipient_index);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

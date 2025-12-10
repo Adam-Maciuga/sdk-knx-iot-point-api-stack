@@ -656,9 +656,8 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
   }
   
   // Send confirmable message (stack handles resolution and queuing automatically)
-  int send_result = oc_send_s_mode_confirmable_unicast_message(recipient_entry->ia, target_ga,
-                                                                 "w", resource_value_buffer, resource_value_size,
-                                                                 recipient_index);
+  int send_result = oc_send_s_mode_unicast_message(target_ga, device->ia, device->iid,
+                                                     "w", resource_value_buffer, resource_value_size, true);
   
   if (send_result == 0) {
     if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {

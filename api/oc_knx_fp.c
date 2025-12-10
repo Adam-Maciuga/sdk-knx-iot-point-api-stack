@@ -2945,20 +2945,12 @@ void oc_init_datapoints_at_initialization(void)
             oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
           }
           else
-          {
-            // TODO resolve IP unicast to send via unicast...
+          { // uc: read request -> ia is used from RCP table (configured by MaC)
 
-            /*
-             - get IA from RCP table + AT token reference (a)
-             - get at token 'id' (cbor key 0) from (a)
-             - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
-
-
-             - from stream of responses create new unicast EP
-             - use non flag as defined in GRP table
-             - send message
-            */ 
-            PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
+            extern int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
+                                                       const char* service_type, uint8_t* value_data, 
+                                                       int value_size, bool is_confirmable);
+            oc_send_s_mode_unicast_message(sending_group_address, sia_value, iid, "r", NULL, 0, false);
           }
         }
       }

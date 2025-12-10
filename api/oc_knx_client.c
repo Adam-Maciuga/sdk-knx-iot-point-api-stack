@@ -52,9 +52,9 @@ static pending_s_mode_message_t g_pending_messages[MAX_PENDING_MESSAGES] = {0};
 
 // external definitions
 
-static void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
+void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, uint32_t sia_value, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size);
 static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
-static int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia, const char* service_type, uint8_t* value_data, int value_size, int recipient_index);
+int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia, const char* service_type, uint8_t* value_data, int value_size, int recipient_index, bool is_confirmable);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -82,6 +82,107 @@ int oc_is_redirected_request_from(const oc_request_t* request)
   return 2;
 }
 
+// Helper function to send unicast message (with automatic resolution if needed)
+// Returns: 0 = success (sent or queued), -1 = error (no recipient found)
+int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
+                                     const char* service_type, uint8_t* value_data, 
+                                     int value_size, bool is_confirmable)
+{
+  // Find recipient table entry with this GA to get IA/IID
+  int total = oc_core_get_recipient_table_size();
+  oc_group_table_t* recipient_entry = NULL;
+  int recipient_index = -1;
+  
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
+    if (entry && entry->id >= 0) {
+      // Check if this entry has the sending GA
+      for (int j = 0; j < entry->ga_len; j++) {
+        if (entry->ga[j] == sending_ga) {
+          recipient_entry = entry;
+          recipient_index = i;
+          break;
+        }
+      }
+      if (recipient_entry) break;
+    }
+  }
+
+  if (!recipient_entry || recipient_entry->ia <= 0) {
+    OC_ERR("Cannot send unicast: no recipient entry found for GA %d", sending_ga);
+    return -1;
+  }
+
+  // Check if IPv6 is resolved
+  if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
+    OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient_entry->ia);
+    
+    // Queue the message
+    oc_knx_queue_pending_message(sending_ga, sia, service_type, value_data, 
+                                  value_size, recipient_index, is_confirmable);
+    
+    // Trigger resolution
+    int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, iid, recipient_index);
+    if (ret != 0) {
+      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x", recipient_entry->ia);
+      return -1;
+    }
+    
+    OC_INF("IPv6 resolution started for IA 0x%x, message queued for later delivery", recipient_entry->ia);
+    return 0; // Success - message is queued
+  }
+
+  // Create unicast endpoint from resolved IPv6
+  oc_endpoint_t uc_endpoint = {0};
+  uc_endpoint.flags = IPV6 | SECURED | OSCORE;
+  uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
+  memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
+  uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
+  uc_endpoint.group_address = sending_ga;
+  uc_endpoint.auth_at_index = -1;
+
+  PRINT("Sending %s unicast %s to IA 0x%x via resolved IPv6 (interface %d)", 
+        is_confirmable ? "CON" : "NON", service_type, recipient_entry->ia, uc_endpoint.interface_index);
+
+  // Send unicast message (confirmable or non-confirmable)
+  if (is_confirmable) {
+    // Initialize confirmable message
+    if (!oc_init_update_con(&uc_endpoint, "/k")) {
+      OC_ERR("Failed to initialize CON message");
+      return -1;
+    }
+
+    // Build s-mode CBOR payload: { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
+    oc_rep_begin_root_object();
+    oc_rep_i_set_int(root, 4, sia);                   // 4: <sia>
+    oc_rep_i_set_key(&root_map, 5);                   // 5:
+
+    CborEncoder value_map;
+    cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
+
+    oc_rep_i_set_int(value, 7, sending_ga);           // 7: <ga>
+    oc_rep_i_set_text_string(value, 6, service_type); // 6: <st>
+
+    if (value_size > 2) {
+      oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
+    }
+
+    cbor_encoder_close_container_checked(&root_map, &value_map);
+    oc_rep_end_root_object();
+
+    OC_INF("Sending CON s-mode (%d bytes) to IPv6:", oc_rep_get_encoded_payload_size());
+    PRINTipaddr(uc_endpoint);
+    OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
+
+    oc_do_update();
+  } else {
+    // Send non-confirmable message
+    oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", sia, sending_ga, 
+                                             service_type, value_data, value_size);
+  }
+  
+  return 0;
+}
 
 void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid,
                         uint32_t group_address, uint64_t iid, const char* service_type,
@@ -97,7 +198,7 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t si
   oc_issue_s_mode_non_confirmable_message(&group_mcast_endpoint, "/k", sia, group_address, service_type, value_data, value_size);
 }
 
-static void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, 
+void oc_issue_s_mode_non_confirmable_message(oc_endpoint_t* endpoint, char* path, 
                            uint32_t sia_value,
                            uint32_t group_address, 
                            const char* service_type, 
@@ -287,64 +388,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       else
       { // uc: request -> ia is used from RCP table (configured by MaC)
-
-        // Find recipient table entry with this GA to get IA/IID
-        int total = oc_core_get_recipient_table_size();
-        oc_group_table_t* recipient_entry = NULL;
-        int recipient_index = -1;
-        
-        for (int i = 0; i < total; i++) {
-          oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
-          if (entry && entry->id >= 0) {
-            // Check if this entry has the sending GA
-            for (int j = 0; j < entry->ga_len; j++) {
-              if (entry->ga[j] == sending_ga) {
-                recipient_entry = entry;
-                recipient_index = i;
-                break;
-              }
-            }
-            if (recipient_entry) break;
-          }
-        }
-
-        if (!recipient_entry || recipient_entry->ia <= 0) {
-          OC_ERR("Cannot send unicast read: no recipient entry found for GA %d", sending_ga);
-          return -1;
-        }
-
-        // Check if IPv6 is resolved
-        if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
-          OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient_entry->ia);
-          
-          // Queue the message
-          oc_knx_queue_pending_message(sending_ga, device->ia, 
-                                        srv_type, resource_value_buffer, 0, recipient_index);
-          
-          // Trigger resolution
-          int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device->iid, recipient_index);
-          if (ret != 0) {
-            OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x", recipient_entry->ia);
-            return -1;
-          }
-          
-          OC_INF("IPv6 resolution started for IA 0x%x, message queued for later delivery", recipient_entry->ia);
-          return 0; // Success - message is queued
-        }
-
-        // Create unicast endpoint from resolved IPv6
-        oc_endpoint_t uc_endpoint = {0};
-        uc_endpoint.flags = IPV6 | SECURED;
-        uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
-        memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
-        uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;  // Required for link-local
-        uc_endpoint.group_address = sending_ga;  // Set GA for OSCORE context lookup
-        uc_endpoint.auth_at_index = -1;  // Force OSCORE to use group_address (case c), not auth_at (case a)
-
-        PRINT("Sending unicast read to IA 0x%x via resolved IPv6 (interface %d)", recipient_entry->ia, uc_endpoint.interface_index);
-
-        // Send unicast read request (no value data needed)
-        oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", device->ia, sending_ga, srv_type, resource_value_buffer, 0);
+        oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
+                                        srv_type, resource_value_buffer, 0, false);
       }
       return 0;
     }
@@ -382,64 +427,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       else
       { // uc: request -> ia is used from RCP table (configured by MaC)
-
-        // Find recipient table entry with this GA to get IA/IID
-        int total = oc_core_get_recipient_table_size();
-        oc_group_table_t* recipient_entry = NULL;
-        int recipient_index = -1;
-        
-        for (int i = 0; i < total; i++) {
-          oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
-          if (entry && entry->id >= 0) {
-            // Check if this entry has the sending GA
-            for (int j = 0; j < entry->ga_len; j++) {
-              if (entry->ga[j] == sending_ga) {
-                recipient_entry = entry;
-                recipient_index = i;
-                break;
-              }
-            }
-            if (recipient_entry) break;
-          }
-        }
-
-        if (!recipient_entry || recipient_entry->ia <= 0) {
-          OC_ERR("Cannot send unicast write: no recipient entry found for GA %d", sending_ga);
-          return -1;
-        }
-
-        // Check if IPv6 is resolved
-        if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
-          OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient_entry->ia);
-          
-          // Queue the message
-          oc_knx_queue_pending_message(sending_ga, device->ia, 
-                                        srv_type, resource_value_buffer, resource_value_size, recipient_index);
-          
-          // Trigger resolution
-          int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device->iid, recipient_index);
-          if (ret != 0) {
-            OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x", recipient_entry->ia);
-            return -1;
-          }
-          
-          OC_INF("IPv6 resolution started for IA 0x%x, message queued for later delivery", recipient_entry->ia);
-          return 0; // Success - message is queued
-        }
-
-        // Create unicast endpoint from resolved IPv6
-        oc_endpoint_t uc_endpoint = {0};
-        uc_endpoint.flags = IPV6 | SECURED;
-        uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
-        memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
-        uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;  // Required for link-local
-        uc_endpoint.group_address = sending_ga;  // Set GA for OSCORE context lookup
-        uc_endpoint.auth_at_index = -1;  // Force OSCORE to use group_address (case c), not auth_at (case a)
-
-        PRINT("Sending unicast write to IA 0x%x via resolved IPv6 (interface %d)", recipient_entry->ia, uc_endpoint.interface_index);
-
-        // Send unicast write request with value data
-        oc_issue_s_mode_non_confirmable_message(&uc_endpoint, "/k", device->ia, sending_ga, srv_type, resource_value_buffer, resource_value_size);
+        oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
+                                        srv_type, resource_value_buffer, resource_value_size, false);
       }
 
       
@@ -545,101 +534,6 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
 }
 
 // ----------------------------------------------------------------------------
-// Confirmable unicast s-mode send
-// ----------------------------------------------------------------------------
-
-int oc_send_s_mode_confirmable_unicast_message(uint32_t recipient_ia,
-                                                 uint32_t ga,
-                                                 const char* service_type,
-                                                 uint8_t* value_data,
-                                                 int value_size,
-                                                 int recipient_index)
-{
-  if (!service_type) {
-    OC_ERR("Invalid parameters for confirmable unicast");
-    return -1;
-  }
-
-  const oc_device_info_t* device = oc_core_get_device_info();
-  if (!device) {
-    OC_ERR("Failed to get device info");
-    return -1;
-  }
-
-  // Get recipient table entry
-  oc_group_table_t* recipient_entry = oc_core_get_recipient_table_entry(recipient_index);
-  if (!recipient_entry || recipient_entry->ia != recipient_ia) {
-    OC_ERR("Invalid recipient table entry");
-    return -1;
-  }
-
-  // Check if IPv6 is resolved
-  if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
-    OC_INF("IPv6 not resolved for IA 0x%x, queuing CON message and triggering resolution", recipient_ia);
-    
-    // Queue the message
-    oc_knx_queue_pending_message(recipient_ia, ga, device->ia, 
-                                  service_type, value_data, value_size, recipient_index, true);
-    
-    // Trigger resolution
-    int ret = knx_resolve_via_coap_discovery(recipient_ia, device->iid, recipient_index);
-    if (ret != 0) {
-      OC_ERR("Failed to trigger CoAP discovery for IA 0x%x", recipient_ia);
-      return -1;
-    }
-    
-    OC_INF("Message queued, resolution triggered for IA 0x%x", recipient_ia);
-    return 0;
-  }
-
-  // IPv6 is resolved - send immediately
-  oc_endpoint_t uc_endpoint = {0};
-  uc_endpoint.flags = IPV6 | SECURED | OSCORE;
-  uc_endpoint.addr.ipv6.port = COAP_DEFAULT_PORT;
-  memcpy(uc_endpoint.addr.ipv6.address, recipient_entry->ipadd.ipv6, 16);
-  uc_endpoint.interface_index = recipient_entry->ipadd.interface_index;
-  uc_endpoint.group_address = ga;
-  uc_endpoint.auth_at_index = -1;
-
-  // Initialize confirmable message to endpoint
-  if (!oc_init_update_con(&uc_endpoint, "/k")) {
-    OC_ERR("Failed to initialize CON message");
-    return -1;
-  }
-
-  // Build s-mode CBOR payload: { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
-  oc_rep_begin_root_object();
-  oc_rep_i_set_int(root, 4, device->ia);            // 4: <sia>
-
-  oc_rep_i_set_key(&root_map, 5);                   // 5:
-
-  CborEncoder value_map;
-  cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
-
-  oc_rep_i_set_int(value, 7, ga);                   // 7: <ga>
-  oc_rep_i_set_text_string(value, 6, service_type); // 6: <st>
-
-  if (value_size > 2) {
-    // Copy raw CBOR data (skip first byte 0xBF, last byte 0xFF)
-    oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
-  }
-
-  cbor_encoder_close_container_checked(&root_map, &value_map);
-  oc_rep_end_root_object();
-
-  // Debug output
-  OC_INF("Sending CON s-mode to IPv6 address:");
-  PRINTipaddr(uc_endpoint);
-  OC_INF("CON s-mode CBOR payload (%d bytes):", oc_rep_get_encoded_payload_size());
-  OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
-
-  // Send the confirmable message
-  oc_do_update();
-  
-  return 0;
-}
-
-// ----------------------------------------------------------------------------
 // CoAP Discovery for IPv6 Resolution
 // ----------------------------------------------------------------------------
 
@@ -705,7 +599,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 }
 
 // Queue a message for later sending when IPv6 is resolved
-static int oc_knx_queue_pending_message(uint32_t ia, uint32_t ga, uint32_t sia, 
+int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia, 
                                          const char* service_type, 
                                          uint8_t* value_data, int value_size,
                                          int recipient_index, bool is_confirmable)
