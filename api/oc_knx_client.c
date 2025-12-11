@@ -412,24 +412,21 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
     
     if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
     {
-      // grpid
-      const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
+      // Find recipient entry (contains both grpid and non flag)
+      oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
       
-      if (grpid > 0)
+      if (recipient && recipient->grpid > 0)
       { // grpid is set in case of multicast in RCP table (configured by MaC)
 
         PRINT("grpid > 0, send mc via sending ga");
 
         // multicast read, NO value data needed
-        oc_send_s_mode_non_confirmable_multicast_message(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
+        oc_send_s_mode_non_confirmable_multicast_message(scope, device->ia, recipient->grpid, sending_ga, device->iid, srv_type, resource_value_buffer, 0);
       }
-      else
+      else if (recipient)
       { // uc: request -> ia is used from RCP table (configured by MaC)
-        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
-        if (recipient) {
-          oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
-                                          srv_type, resource_value_buffer, 0, recipient->non);
-        }
+        oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
+                                        srv_type, resource_value_buffer, 0, recipient->non);
       }
       return 0;
     }
@@ -456,22 +453,19 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       // copy resource value to buffer, return value size
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
 
-      // grpid
-      const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-      if (grpid > 0)
+      // Find recipient entry (contains both grpid and non flag)
+      oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+      if (recipient && recipient->grpid > 0)
       { // mc: request -> grpid is used from RCP table (configured by MaC)
 
         // multicast write, value data needed
-        oc_send_s_mode_non_confirmable_multicast_message(scope, device->ia, grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
+        oc_send_s_mode_non_confirmable_multicast_message(scope, device->ia, recipient->grpid, sending_ga, device->iid, srv_type, resource_value_buffer, resource_value_size);
 
       }
-      else
+      else if (recipient)
       { // uc: request -> ia is used from RCP table (configured by MaC)
-        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
-        if (recipient) {
-          oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
-                                          srv_type, resource_value_buffer, resource_value_size, recipient->non);
-        }
+        oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, 
+                                        srv_type, resource_value_buffer, resource_value_size, recipient->non);
       }
 
       

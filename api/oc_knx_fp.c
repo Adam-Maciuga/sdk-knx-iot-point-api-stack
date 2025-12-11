@@ -2937,22 +2937,20 @@ void oc_init_datapoints_at_initialization(void)
 
           OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
 
-          // find the (mc) grpid that belongs to the group address
-          const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_group_address);
-          if (grpid > 0)
+          // Find recipient entry (contains both grpid and non flag)
+          oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
+          
+          if (recipient && recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_send_s_mode_non_confirmable_multicast_message(2, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_confirmable_multicast_message(2, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
           #endif
-            oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
           }
-          else
+          else if (recipient)
           { // uc: read request -> ia is used from RCP table (configured by MaC)
-            oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
-            if (recipient) {
-              oc_send_s_mode_unicast_message(sending_group_address, sia_value, iid, "r", NULL, 0, recipient->non);
-            }
+            oc_send_s_mode_unicast_message(sending_group_address, sia_value, iid, "r", NULL, 0, recipient->non);
           }
         }
       }

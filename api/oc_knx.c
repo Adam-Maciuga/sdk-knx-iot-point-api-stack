@@ -1012,29 +1012,27 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
               if (sending_ga != -1)
               { // we have a sending GA, now we can send the read response, rest was checked before
 
-                // grpid
-                uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-                if (grpid > 0)
+                // Find recipient entry (contains both grpid and non flag)
+                oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+                
+                if (recipient && recipient->grpid > 0)
                 { // grpid is set in case of multicast in RCP table (configured by MaC)
 
                   #ifdef OC_USE_MULTICAST_SCOPE_2
-                  oc_send_s_mode_non_confirmable_multicast_message(2, device->ia, grpid, sending_ga, device->iid, "a",
+                  oc_send_s_mode_non_confirmable_multicast_message(2, device->ia, recipient->grpid, sending_ga, device->iid, "a",
                                      new_request.response->response_buffer->buffer,
                                      (int)new_request.response->response_buffer->response_length);
 
                   #endif
-                  oc_send_s_mode_non_confirmable_multicast_message(5, device->ia, grpid, sending_ga, device->iid, "a",
+                  oc_send_s_mode_non_confirmable_multicast_message(5, device->ia, recipient->grpid, sending_ga, device->iid, "a",
                                      new_request.response->response_buffer->buffer,
                                      (int)new_request.response->response_buffer->response_length);
                 }
-                else
+                else if (recipient)
                 { // uc: read response -> ia is used from RCP table (configured by MaC)
-                  oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
-                  if (recipient) {
-                    oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, "a",
-                                                    new_request.response->response_buffer->buffer,
-                                                    (int)new_request.response->response_buffer->response_length, recipient->non);
-                  }
+                  oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, "a",
+                                                  new_request.response->response_buffer->buffer,
+                                                  (int)new_request.response->response_buffer->response_length, recipient->non);
                 }
               }
 
