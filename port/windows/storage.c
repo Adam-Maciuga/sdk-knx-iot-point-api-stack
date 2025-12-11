@@ -26,8 +26,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-
 #include <windows.h>
 
 #define STORE_PATH_SIZE 64
@@ -94,7 +92,7 @@ oc_storage_read(const char* store, uint8_t* buf, size_t size)
 	strncpy(store_path + store_path_len, store, store_len);
 	store_path[store_path_len + store_len] = '\0';
 
-	OC_DBG("Reading [%s]", store_path);
+	PRINT("Reading [%s]", store_path);
 	FILE* fp = fopen(store_path, "rb");
 	if (!fp)
 	{
@@ -117,7 +115,7 @@ oc_storage_write(const char* store, uint8_t* buf, size_t size)
 	strncpy(store_path + store_path_len, store, store_len);
 	store_path[store_path_len + store_len] = '\0';
 	
-	OC_DBG("Writing [%s]", store_path);
+	PRINT("Writing [%s]", store_path);
 	FILE* fp = fopen(store_path, "wb");
 	if (!fp)
 	{
