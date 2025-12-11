@@ -263,53 +263,14 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
    */
   void oc_knx_load_fingerprint(void);
 
-  /**
-   * @delete entry from Group Mapping Table
-   *
-   * @param entry the index of the entry in the Group Mapping Table
-   */
-  void oc_delete_group_mapping_table_entry(int entry);
-
-  /**
-   * @brief print the entry in the Group Mapping Table
-   *
-   * @param entry the index of the entry in the Group Mapping Table
-   */
-  void oc_print_group_mapping_table_entry(int entry);
-
-  /**
-   * @brief load the Group Mapping Table
-   *
-   */
-  void oc_load_group_mapping_table(void);
-
-  /**
-   * @brief delete entry from Group Mapping Table
-   *
-   * @param entry then index of the entry in the Group Mapping Table
-   * @param init if true free the Groups Address for this entry
-   */
-  void oc_free_group_mapping_table_entry(int entry, bool init);
-
-  /**
-   * @brief delete the Group Mapping Table
-   */
-  void oc_free_group_mapping_table(void);
-
-  /**
-   * @brief find the number of entries in use in the Group Mapping Table
-   * @return int number of entries in use
-   */
-  int oc_core_find_nr_used_in_group_mapping_table(void);
-
-#ifdef OC_SPAKE
+  #ifdef OC_SPAKE
   /**
    * @brief Initialise the RNG used for SPAKE2+ and global data structures
    * @return int -1 error, 0 success
    *
    */
   int oc_initialise_spake_data(void);
-#endif
+  #endif
 
 #ifdef __cplusplus
 }

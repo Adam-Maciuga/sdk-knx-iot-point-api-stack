@@ -1898,9 +1898,9 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
 
       /*
         a: no ga found in request payload at all = request payload error (no access) -> false 
-        b: ga found in request payload, was checked
-        - b1 : true -> found in access token
-        - b2 : false -> not found in access token
+        b: acl scopes + method OK + ga found in request payload, was checked
+        - b1 : true -> found in an access token
+        - b2 : false -> not found in any access token
       */
       return group_address_match;
     }

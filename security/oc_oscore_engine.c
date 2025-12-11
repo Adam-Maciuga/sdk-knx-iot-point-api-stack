@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2020 Intel Corporation
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -142,8 +143,6 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   Send a message
   =================
   
-
-
   Sender -> Message -> Receiver
   =============================
 
@@ -207,7 +206,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 {
   {
     bool s_mode_echo_re_request = false;
-    OC_DBG_OSCORE("### process OSCORE message ###");
+    OC_DBG_OSCORE("### process inbound OSCORE message ###");
 
     /*
       here we know (and set as default) it is an OSCORE message (it host the OSCORE option header)
@@ -473,7 +472,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     // set access token index that was used to decrypt 
     msg->endpoint.auth_at_index = oscore_ctx->auth_at_index;
 
-    // 'Sender ID'  is NOT NULL in case of 'echo re-request'  
+    // 'Sender ID' is NOT NULL in case of 'echo re-request'  
     oc_endpoint_set_oscore_id(&msg->endpoint, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
 
     // use recipient key for decryption
@@ -482,7 +481,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     /* If received Partial IV in message */
     if (oscore_pkt->piv_len > 0)
     {
-      /* If message is request */
+      /* If received message is request */
       if (oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH)
       {
         uint64_t ssn; // piv -> ssn
@@ -513,7 +512,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
     }
 
-    /* If message is response */
+    /* If received message is response */
     if (oscore_pkt->code > OC_FETCH)
     {
       OC_DBG_OSCORE("---got request_piv from client callback");
@@ -567,7 +566,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     if (ret != 0)
     {
       /*
-        response + encrypted problem = 8.04 step 5  = stop processing
+        response + encrypted problem = 8.4 step 5  = stop processing
         request + encrypted problem = 8.2 step 6 = unsecured 4.00
       */
 
@@ -585,7 +584,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     OC_DBG_OSCORE("### successfully decrypted OSCORE payload ###");
 
-    /* Adjust payload length to size after decryption (i.e. exclude the tag)
+    /* 
+      Adjust payload length to size after decryption (i.e. exclude the tag)
      */
     oscore_pkt->payload_len -= OSCORE_AEAD_TAG_LEN;
 
@@ -704,6 +704,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
   // get sending ga
   const uint32_t group_address = msg->endpoint.group_address;
+  OC_DBG_OSCORE("### process outbound multicast OSCORE message with ga : %u ###", group_address);
 
   if (group_address == 0)
   {
@@ -714,7 +715,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
   // find context with sending ga 
   oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(group_address);
-  PRINT("oc_oscore_send_multicast_message : group_address = %u", group_address);
   if (oscore_ctx)
   {
     
@@ -853,7 +853,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 static int oc_oscore_send_unicast_message(oc_message_t* msg)
 {
   /*
-    Cases for an unicast (outbound) message:
+    Cases for a unicast (outbound) message:
 
     (a) context will be retrieved by kid
         - uc outbound response -> former inbound request such as uc read request -> response OR uc write requests -> 2.04 changed
@@ -874,6 +874,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     
    */
 
+  OC_DBG_OSCORE("### process outbound unicast OSCORE message ###");
+  
   // get message, otherwise stop
   oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
   if (!outgoing_msg)
