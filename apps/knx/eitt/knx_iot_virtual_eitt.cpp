@@ -122,6 +122,7 @@ private:
   void OnClearTables(wxCommandEvent& event);
   void OnRestartDevice(wxCommandEvent& event);
   void OnSendUnicastTest(wxCommandEvent& event);
+  void OnDebugUnicastSending(wxCommandEvent& event);
   void OnNetworkInterfaces(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
@@ -192,6 +193,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   m_menuFile->Append(RESET, "Reset (2) (ex-factory)", "Reset 2 (Reset to default state)", false);
   m_menuFile->Append(RESTART_DEVICE, "Restart Device", "Simulate a device restart", false);
   m_menuFile->AppendSeparator();
+  m_menuFile->Append(DEBUG_UNICAST_SENDING, "Debug Unicast Sending", "Show detailed unicast sending debug info", false);
   m_menuFile->Append(NETWORK_INTERFACES, "Network Interfaces...", "Configure network interface selection", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
@@ -231,6 +233,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnRestartDevice, this, RESTART_DEVICE);
+  Bind(wxEVT_MENU, &MyFrame::OnDebugUnicastSending, this, DEBUG_UNICAST_SENDING);
   Bind(wxEVT_MENU, &MyFrame::OnNetworkInterfaces, this, NETWORK_INTERFACES);
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
@@ -508,6 +511,70 @@ void MyFrame::OnNetworkInterfaces(wxCommandEvent& event)
 }
 
 void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
+{
+  // Simple send - just trigger unicast and update status
+  const uint32_t target_ga = 65535;
+  
+  // Find recipient
+  int total = oc_core_get_recipient_table_size();
+  oc_group_table_t* recipient_entry = NULL;
+  
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
+    if (entry && entry->id >= 0) {
+      for (int j = 0; j < entry->ga_len; j++) {
+        if (entry->ga[j] == target_ga) {
+          recipient_entry = entry;
+          break;
+        }
+      }
+      if (recipient_entry) break;
+    }
+  }
+
+  if (!recipient_entry) {
+    SetStatusText("No recipient with GA 65535");
+    return;
+  }
+
+  // Get resource value
+  char* url = app_retrieve_href_from_channel(1, SOO);
+  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
+  int resource_value_size = 0;
+  
+  const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(url, strlen(url));
+  if (resource && resource->get_handler.cb) {
+    oc_request_t request_obj = {0};
+    oc_response_t response_obj = {0}; 
+    oc_response_buffer_t response_buffer = {0};
+    
+    response_buffer.buffer = resource_value_buffer;
+    response_buffer.buffer_size = sizeof(resource_value_buffer);
+    response_obj.response_buffer = &response_buffer;
+    request_obj.response = &response_obj;
+    request_obj.resource = resource;
+    request_obj.accept = APPLICATION_CBOR;
+    
+    oc_rep_new(response_buffer.buffer, response_buffer.buffer_size);
+    resource->get_handler.cb(&request_obj, resource->get_handler.interface_mask, resource->get_handler.user_data);
+    resource_value_size = oc_rep_get_encoded_payload_size();
+  }
+  
+  // Send
+  int result = oc_send_s_mode_unicast_message(target_ga, "w", resource_value_buffer, resource_value_size, recipient_entry);
+  
+  if (result == 0) {
+    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
+      SetStatusText("Unicast sent");
+    } else {
+      SetStatusText("Unicast queued, resolving...");
+    }
+  } else {
+    SetStatusText("Unicast send failed");
+  }
+}
+
+void MyFrame::OnDebugUnicastSending(wxCommandEvent& event)
 {
   SetStatusText("Sending Unicast Test...");
 
