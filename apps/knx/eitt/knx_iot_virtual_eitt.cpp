@@ -564,11 +564,7 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
   int result = oc_send_s_mode_unicast_message(target_ga, "w", resource_value_buffer, resource_value_size, recipient_entry);
   
   if (result == 0) {
-    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
-      SetStatusText("Unicast sent");
-    } else {
-      SetStatusText("Unicast queued, resolving...");
-    }
+    SetStatusText("Unicast sent");
   } else {
     SetStatusText("Unicast send failed");
   }
