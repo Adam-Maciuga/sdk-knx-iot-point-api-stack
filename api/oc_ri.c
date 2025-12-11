@@ -223,13 +223,13 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
 			{
         // returning the short interface type names
         n = strlen(interface_string_short_urn[i]);
-        oc_rep_encode_raw((uint8_t*)interface_string_short_urn[i], n);
+        oc_rep_encode_raw((const uint8_t*)interface_string_short_urn[i], n);
 			}
       else
       {
         // returning the full interface type names
         n = strlen(interface_string_full_urn[i]);
-        oc_rep_encode_raw((uint8_t*)interface_string_full_urn[i], n);
+        oc_rep_encode_raw((const uint8_t*)interface_string_full_urn[i], n);
       }
 
 			total_size += (int)n;
@@ -286,7 +286,7 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
     if (acl_scope_name_len == strlen(n) && strncmp(acl_scope_name, n, acl_scope_name_len) == 0)
     {
       // on a hit return immediately
-      return 1 << i;
+      return (oc_acl_mask_t)(1 << i);
     }
   }
   return OC_ACL_NONE;
@@ -336,7 +336,7 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request, oc_reques
 #ifdef OC_SERVER
 const oc_resource_t* oc_ri_get_app_resources(void)
 {
-	return oc_list_head(app_resources);
+  return (oc_resource_t * )oc_list_head(app_resources);
 }
 
 const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len)
@@ -1093,11 +1093,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 #endif 
 {
 	// flags that capture status along various stages of processing the request.
-	bool method_impl = true, bad_request = false, success = false,
-		forbidden = false, entity_too_large = false, authorized = true;
+	bool method_impl = true, bad_request = false, success = false, forbidden = false, entity_too_large = false;
 
 	/* Parsed CoAP PDU structure. */
-	coap_packet_t* const packet = request;
+  coap_packet_t* const packet = (coap_packet_t*) request;
 
 	/*
 	   This function is a server-side entry point solely for requests.
@@ -1361,8 +1360,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 		// check access, use as payload the CBOR data
     if (!oc_knx_sec_check_acl(method, matching_resource, endpoint, request_obj.request_payload))
-		{ // access scope NOT ok
-			authorized = false;
+		{ // access scope NOT ok, 4.03 forbidden ...
+			forbidden = true;
 		}
 		else
 		#ifdef OC_SECURITY
@@ -1428,7 +1427,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
 	if (forbidden)
 	{
-		OC_WRN("forbidden request");
+    /*
+      If the requestor (subject) does not have access granted via an
+      access control entry in the ACL, then it is not authorized to
+      access the resource Table 40, KNX specification.
+    */
+	  
+	  OC_WRN("forbidden request");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_FORBIDDEN);
 	}
@@ -1455,19 +1460,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 		OC_WRN("could not find method");
 		response_buffer.response_length = 0;
 		response_buffer.code = oc_status_code(OC_STATUS_METHOD_NOT_ALLOWED);
-	}
-	else if (!authorized)
-	{
-		OC_WRN("subject not authorized");
-
-	  /*
-	    If the requestor (subject) does not have access granted via an
-		  access control entry in the ACL, then it is not authorized to
-		  access the resource.
-		*/
-		response_buffer.response_length = 0;
-		OC_ERR("subject not authorized");
-		response_buffer.code = oc_status_code(OC_STATUS_UNAUTHORIZED);
 	}
 	else
 	{

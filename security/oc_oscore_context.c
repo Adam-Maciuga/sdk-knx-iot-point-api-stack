@@ -241,7 +241,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t
 oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address)
 {
   // get first context of list
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   while (ctx)
   {
@@ -268,8 +268,8 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
     }
     ctx = ctx->next;
   }
-  // here NULL
-  return ctx;
+  // nothing found
+  return NULL;
 }
 
 void oc_oscore_free_all_contexts(void)

@@ -706,14 +706,11 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   const uint32_t group_address = msg->endpoint.group_address;
   OC_DBG_OSCORE("### process outbound multicast OSCORE message with ga : %u ###", group_address);
 
-  if (group_address == 0)
-  {
-    OC_ERR("sending group_address is ZERO");
-    oc_message_unref(msg);
-    return -1;
-  }
-
-  // find context with sending ga 
+  /* 
+    find context for sending ga, in case 
+    - ga = '0' = NOT initialized this call fails since no context will be available
+    - ga = '0' = i want to send ga 0 this call succeeds since context will be available
+  */
   oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(group_address);
   if (oscore_ctx)
   {
@@ -829,7 +826,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   }
   else
   {
-    OC_ERR("*** could not find group OSCORE context ***");
+    OC_ERR("*** could not find group OSCORE context for the given ga ***");
     oc_message_unref(msg);
     return -1;
   }
