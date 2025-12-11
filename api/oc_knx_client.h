@@ -26,6 +26,7 @@
 #define OC_KNX_CLIENT_INTERNAL_H
 
 #include "oc_core_res.h"
+#include "oc_knx_fp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,22 +117,22 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t si
  * - If IPv6 is resolved: sends immediately
  * - If IPv6 is not resolved: queues message and triggers CoAP discovery
  * 
- * @param sending_ga Group address to send on
- * @param sia Sender individual address
- * @param iid Installation ID
+ * Sender IA and IID are obtained internally from the local device info.
+ * 
+ * @param sending_ga Group address to send on (specific GA for this message)
  * @param service_type "w", "r", or "a"
  * @param value_data CBOR encoded value
  * @param value_size Size of value_data
- * @param non_confirmable Non-confirmable flag from recipient table (false=CON, true=NON)
+ * @param recipient Recipient table entry (contains ia, non flag, IPv6 address)
  * @return 0 on success (sent or queued), -1 on error
  *
- * Note: Message confirmability is determined by the non_confirmable parameter:
- *   - non_confirmable = false (default) -> sends Confirmable (CON)
- *   - non_confirmable = true -> sends Non-Confirmable (NON)
+ * Note: Message confirmability is determined by recipient->non:
+ *   - recipient->non = false (default) -> sends Confirmable (CON)
+ *   - recipient->non = true -> sends Non-Confirmable (NON)
  */
-int oc_send_s_mode_unicast_message(uint32_t sending_ga, uint32_t sia, uint64_t iid,
-                                     const char* service_type, uint8_t* value_data, 
-                                     int value_size, bool non_confirmable);
+int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type, 
+                                     uint8_t* value_data, int value_size, 
+                                     oc_group_table_t* recipient);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

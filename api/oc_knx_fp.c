@@ -2950,7 +2950,7 @@ void oc_init_datapoints_at_initialization(void)
           }
           else if (recipient)
           { // uc: read request -> ia is used from RCP table (configured by MaC)
-            oc_send_s_mode_unicast_message(sending_group_address, sia_value, iid, "r", NULL, 0, recipient->non);
+            oc_send_s_mode_unicast_message(sending_group_address, "r", NULL, 0, recipient);
           }
         }
       }

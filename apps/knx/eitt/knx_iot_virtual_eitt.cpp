@@ -609,8 +609,8 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
   }
   
   // Send unicast message (confirmability determined by recipient table "non" flag)
-  int send_result = oc_send_s_mode_unicast_message(target_ga, device->ia, device->iid,
-                                                     "w", resource_value_buffer, resource_value_size, recipient_entry->non);
+  int send_result = oc_send_s_mode_unicast_message(target_ga, "w", 
+                                                     resource_value_buffer, resource_value_size, recipient_entry);
   
   if (send_result == 0) {
     if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {

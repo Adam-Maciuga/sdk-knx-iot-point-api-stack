@@ -1030,9 +1030,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                 }
                 else if (recipient)
                 { // uc: read response -> ia is used from RCP table (configured by MaC)
-                  oc_send_s_mode_unicast_message(sending_ga, device->ia, device->iid, "a",
+                  oc_send_s_mode_unicast_message(sending_ga, "a",
                                                   new_request.response->response_buffer->buffer,
-                                                  (int)new_request.response->response_buffer->response_length, recipient->non);
+                                                  (int)new_request.response->response_buffer->response_length, recipient);
                 }
               }
 
