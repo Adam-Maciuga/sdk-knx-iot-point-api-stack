@@ -139,15 +139,16 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type
 /**
  * @brief Resolve IPv6 address via CoAP discovery
  *
- * Sends CoAP GET to /.well-known/core?ep=knx://ia.<iid>.<ia> via multicast (ff02::fd scope 2)
+ * Sends CoAP GET to /.well-known/core?ep=knx://ia.<iid>.<ia> via multicast
  * and extracts the IPv6 address from the source address of the response.
  *
+ * @param scope Multicast scope: 2 (ff02::fd link-local) or 5 (ff05::fd site-local)
  * @param ia Individual Address to resolve
  * @param iid Installation ID  
  * @param recipient_index Index in recipient table (-1 for test mode, no storage)
  * @return 0 on success (request sent), -1 on error
  */
-int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_index);
+int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, int recipient_index);
 
 /**
  * @brief Process pending s-mode messages for a resolved IA

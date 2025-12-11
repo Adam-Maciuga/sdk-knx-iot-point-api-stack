@@ -158,10 +158,17 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type
     oc_knx_queue_pending_message(sending_ga, sia, service_type, value_data, 
                                   value_size, recipient_index, is_confirmable);
     
-    // Trigger resolution
-    int ret = knx_resolve_via_coap_discovery(recipient->ia, iid, recipient_index);
-    if (ret != 0) {
-      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x", recipient->ia);
+    // Trigger resolution - send discovery to both scopes (like multicast pattern)
+    int ret2 = -1;
+    int ret5 = -1;
+    #ifdef OC_USE_MULTICAST_SCOPE_2
+    ret2 = knx_resolve_via_coap_discovery(2, recipient->ia, iid, recipient_index);
+    #endif
+    ret5 = knx_resolve_via_coap_discovery(5, recipient->ia, iid, recipient_index);
+    
+    // Fail only if both scopes failed
+    if (ret2 != 0 && ret5 != 0) {
+      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%x on all scopes", recipient->ia);
       return -1;
     }
     
@@ -767,16 +774,18 @@ void oc_knx_process_pending_messages_for_ia(uint32_t ia)
 }
 
 // Send CoAP discovery multicast to resolve IA to IPv6
-int knx_resolve_via_coap_discovery(uint32_t ia, uint64_t iid, int recipient_index)
+int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, int recipient_index)
 {
-  // Create multicast endpoint - ff02::fd (link-local all CoAP nodes, scope 2)
+  // Create multicast endpoint - scope-dependent all CoAP nodes address
   oc_endpoint_t mcast_ep = {0};
   mcast_ep.flags = IPV6 | MULTICAST;
   mcast_ep.addr.ipv6.port = COAP_DEFAULT_PORT;
   
-  // ff02::fd = link-local all CoAP nodes
-  static const uint8_t ff02_fd[16] = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd};
-  memcpy(mcast_ep.addr.ipv6.address, ff02_fd, 16);
+  // Build scope-dependent multicast address:
+  // - scope 2: ff02::fd (link-local all CoAP nodes)
+  // - scope 5: ff05::fd (site-local all CoAP nodes)
+  uint8_t mcast_addr[16] = {0xff, scope, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd};
+  memcpy(mcast_ep.addr.ipv6.address, mcast_addr, 16);
   mcast_ep.interface_index = 0; // All interfaces
 
   // Allocate outgoing message
