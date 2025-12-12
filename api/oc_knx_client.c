@@ -74,7 +74,6 @@ typedef struct pending_s_mode_message_t
   bool is_confirmable;                             /**< true for CON, false for NON */
 } pending_s_mode_message_t;
 
-// Use static array (OC_MEMB doesn't work with OC_DYNAMIC_ALLOCATION on Windows)
 static pending_s_mode_message_t g_pending_messages[MAX_PENDING_MESSAGES] = {0};
 
 // external definitions
@@ -139,7 +138,7 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type
   if (recipient->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
     OC_INF("IPv6 not resolved for IA 0x%x, queuing message and triggering resolution", recipient->ia);
     
-    // Find recipient_index (only needed for queuing - rare path)
+    // Find recipient_index
     int recipient_index = -1;
     int total = oc_core_get_recipient_table_size();
     for (int i = 0; i < total; i++) {
@@ -158,7 +157,7 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type
     oc_knx_queue_pending_message(sending_ga, sia, service_type, value_data, 
                                   value_size, recipient_index, is_confirmable);
     
-    // Trigger resolution - send discovery to both scopes (like multicast pattern)
+    // Trigger resolution - send discovery to both scopes
     int ret2 = -1;
     int ret5 = -1;
     #ifdef OC_USE_MULTICAST_SCOPE_2
