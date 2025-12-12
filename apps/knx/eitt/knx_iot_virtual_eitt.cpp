@@ -194,6 +194,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   m_menuFile->Append(RESTART_DEVICE, "Restart Device", "Simulate a device restart", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(DEBUG_UNICAST_SENDING, "Debug Unicast Sending", "Show detailed unicast sending debug info", false);
+  m_menuFile->AppendSeparator();
   m_menuFile->Append(NETWORK_INTERFACES, "Network Interfaces...", "Configure network interface selection", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
