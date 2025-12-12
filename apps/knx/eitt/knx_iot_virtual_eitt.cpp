@@ -121,8 +121,8 @@ private:
   void OnReset(wxCommandEvent& event);
   void OnClearTables(wxCommandEvent& event);
   void OnRestartDevice(wxCommandEvent& event);
-  void OnResolveIPv6Test(wxCommandEvent& event);
   void OnSendUnicastTest(wxCommandEvent& event);
+  void OnDebugUnicastSending(wxCommandEvent& event);
   void OnNetworkInterfaces(wxCommandEvent& event);
   void OnExit(wxCommandEvent& event);
   void OnAbout(wxCommandEvent& event);
@@ -193,6 +193,8 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   m_menuFile->Append(RESET, "Reset (2) (ex-factory)", "Reset 2 (Reset to default state)", false);
   m_menuFile->Append(RESTART_DEVICE, "Restart Device", "Simulate a device restart", false);
   m_menuFile->AppendSeparator();
+  m_menuFile->Append(DEBUG_UNICAST_SENDING, "Debug Unicast Sending", "Show detailed unicast sending debug info", false);
+  m_menuFile->AppendSeparator();
   m_menuFile->Append(NETWORK_INTERFACES, "Network Interfaces...", "Configure network interface selection", false);
   m_menuFile->AppendSeparator();
   m_menuFile->Append(wxID_EXIT);
@@ -232,6 +234,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
   Bind(wxEVT_MENU, &MyFrame::OnSleepyMode, this, CHECK_SLEEPY);
   Bind(wxEVT_MENU, &MyFrame::OnReset, this, RESET);
   Bind(wxEVT_MENU, &MyFrame::OnRestartDevice, this, RESTART_DEVICE);
+  Bind(wxEVT_MENU, &MyFrame::OnDebugUnicastSending, this, DEBUG_UNICAST_SENDING);
   Bind(wxEVT_MENU, &MyFrame::OnNetworkInterfaces, this, NETWORK_INTERFACES);
   Bind(wxEVT_MENU, &MyFrame::OnAbout, this, wxID_ABOUT);
   Bind(wxEVT_MENU, &MyFrame::OnExit, this, wxID_EXIT);
@@ -257,19 +260,12 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
     m_EITT_SOO->Bind(wxEVT_BUTTON, &MyFrame::OnPressed_LSAB_SOO, this);
     m_EITT_SOO->Enable(true);
     
-    // IPv6 resolution test button
     row++;
     new wxStaticText(this, wxID_ANY, "Test Functions",
                      wxPoint(10 + column * x_width, 10 + x_height * row),
                      wxSize(x_width, x_height), wxALIGN_LEFT);
     
-    m_IPV6_RESOLVE_TEST = new wxButton(this, RESOLVE_IPV6_TEST, _T("Resolve IPv6 Test"),
-                                wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
-    m_IPV6_RESOLVE_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnResolveIPv6Test, this);
-    m_IPV6_RESOLVE_TEST->Enable(true);
-    
     // Unicast test button
-    row++;
     m_UNICAST_TEST = new wxButton(this, SEND_UNICAST_TEST, _T("Send Unicast Test"),
                                 wxPoint(120 + column * x_width, 10 + x_height * row), wxSize(x_width, x_height), 0);
     m_UNICAST_TEST->Bind(wxEVT_BUTTON, &MyFrame::OnSendUnicastTest, this);
@@ -515,46 +511,67 @@ void MyFrame::OnNetworkInterfaces(wxCommandEvent& event)
   SetStatusText(NetworkInterfaceDialog::GetStatusMessage());
 }
 
-/**
- * @brief Test IPv6 resolution via CoAP discovery
- *
- * Sends CoAP GET to ff02::fd with query ep=knx://ia.1199887766.110F
- */
-void MyFrame::OnResolveIPv6Test(wxCommandEvent& event)
+void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
 {
-  SetStatusText("Sending CoAP Discovery...");
-
-  // Test parameters
-  uint32_t target_ia = 0x110F;
-  uint64_t target_iid = 0x1199887766ULL;
-
-  wxString result;
-  result += "CoAP Discovery Test\n";
-  result += "===================\n\n";
-  result += wxString::Format("Target: knx://ia.%llX.%X\n", (unsigned long long)target_iid, (unsigned int)target_ia);
-  result += wxString::Format("IID: 0x%llX (%llu)\n", (unsigned long long)target_iid, (unsigned long long)target_iid);
-  result += wxString::Format("IA: 0x%X (%u)\n\n", (unsigned int)target_ia, (unsigned int)target_ia);
-
-  result += "Sending CoAP GET to: ff02::fd\n";
-  result += "Query: /.well-known/core?ep=knx://ia.1199887766.110F\n\n";
-
-  // Send discovery (recipient_index = -1 for test mode)
-  int ret = knx_resolve_via_coap_discovery(target_ia, target_iid, -1);
-
-  if (ret == 0) {
-    result += "✓ Discovery packet sent successfully!\n\n";
-    result += "Check console for response logs.\n";
-    result += "The response handler will log any received responses.";
-    SetStatusText("Discovery Sent");
-  } else {
-    result += wxString::Format("✗ Failed to send discovery! Error code: %d\n", ret);
-    SetStatusText("Send Failed");
+  // Simple send - just trigger unicast and update status
+  const uint32_t target_ga = 65535;
+  
+  // Find recipient
+  int total = oc_core_get_recipient_table_size();
+  oc_group_table_t* recipient_entry = NULL;
+  
+  for (int i = 0; i < total; i++) {
+    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
+    if (entry && entry->id >= 0) {
+      for (int j = 0; j < entry->ga_len; j++) {
+        if (entry->ga[j] == target_ga) {
+          recipient_entry = entry;
+          break;
+        }
+      }
+      if (recipient_entry) break;
+    }
   }
 
-  CustomDialog dialog("CoAP Discovery Test", result);
+  if (!recipient_entry) {
+    SetStatusText("No recipient with GA 65535");
+    return;
+  }
+
+  // Get resource value
+  char* url = app_retrieve_href_from_channel(1, SOO);
+  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
+  int resource_value_size = 0;
+  
+  const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(url, strlen(url));
+  if (resource && resource->get_handler.cb) {
+    oc_request_t request_obj = {0};
+    oc_response_t response_obj = {0}; 
+    oc_response_buffer_t response_buffer = {0};
+    
+    response_buffer.buffer = resource_value_buffer;
+    response_buffer.buffer_size = sizeof(resource_value_buffer);
+    response_obj.response_buffer = &response_buffer;
+    request_obj.response = &response_obj;
+    request_obj.resource = resource;
+    request_obj.accept = APPLICATION_CBOR;
+    
+    oc_rep_new(response_buffer.buffer, response_buffer.buffer_size);
+    resource->get_handler.cb(&request_obj, resource->get_handler.interface_mask, resource->get_handler.user_data);
+    resource_value_size = oc_rep_get_encoded_payload_size();
+  }
+  
+  // Send
+  int result = oc_send_s_mode_unicast_message(target_ga, "w", resource_value_buffer, resource_value_size, recipient_entry);
+  
+  if (result == 0) {
+    SetStatusText("Unicast sent");
+  } else {
+    SetStatusText("Unicast send failed");
+  }
 }
 
-void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
+void MyFrame::OnDebugUnicastSending(wxCommandEvent& event)
 {
   SetStatusText("Sending Unicast Test...");
 
@@ -612,47 +629,67 @@ void MyFrame::OnSendUnicastTest(wxCommandEvent& event)
   result += wxString::Format("Using device IID for discovery: %llu (0x%llX)\n\n", 
                              (unsigned long long)device_iid, (unsigned long long)device_iid);
 
-  // Check if IPv6 is resolved
+  // Check resolution status
   if (recipient_entry->ipadd.init_status != OC_IP_STATUS_RESOLVED) {
-    result += "IPv6 not resolved, triggering resolution...\n\n";
-    
-    int ret = knx_resolve_via_coap_discovery(recipient_entry->ia, device_iid, recipient_index);
-    
-    if (ret == 0) {
-      result += "✓ Discovery sent, waiting for response...\n";
-      result += "\nPlease retry after IPv6 is resolved.\n";
-      SetStatusText("Discovery Sent");
-    } else {
-      result += wxString::Format("✗ Failed to send discovery! Error code: %d\n", ret);
-      SetStatusText("Discovery Failed");
+    result += "IPv6 not yet resolved - will trigger resolution and queue message...\n\n";
+  } else {
+    result += "Resolved IPv6: ";
+    for (int i = 0; i < 16; i++) {
+      result += wxString::Format("%02x", recipient_entry->ipadd.ipv6[i]);
+      if (i % 2 == 1 && i < 15) result += ":";
     }
-    
-    CustomDialog dialog("IPv6 Resolution Required", result);
-    return;
+    result += "\n\n";
   }
 
-  result += "Resolved IPv6: ";
-  for (int i = 0; i < 16; i++) {
-    result += wxString::Format("%02x", recipient_entry->ipadd.ipv6[i]);
-    if (i % 2 == 1 && i < 15) result += ":";
-  }
-  result += "\n\nSending unicast s-mode message...\n";
+  result += "Sending unicast s-mode message...\n";
 
-  // Get the resource path from channel 1 (same as SOO button)
+  // Get the resource path
   char* url = app_retrieve_href_from_channel(1, SOO);
   
-  // Send using the standard s-mode API which handles unicast when grpid=0
-  int send_result = oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
-
+  // Get resource value using the same method as NON messages
+  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
+  int resource_value_size = 0;
+  
+  // Call the resource GET handler to get CBOR-encoded value
+  const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(url, strlen(url));
+  if (resource && resource->get_handler.cb) {
+    oc_request_t request_obj = {0};
+    oc_response_t response_obj = {0}; 
+    oc_response_buffer_t response_buffer = {0};
+    
+    response_buffer.buffer = resource_value_buffer;
+    response_buffer.buffer_size = sizeof(resource_value_buffer);
+    response_obj.response_buffer = &response_buffer;
+    request_obj.response = &response_obj;
+    request_obj.resource = resource;
+    request_obj.accept = APPLICATION_CBOR;
+    
+    // Initialize CBOR encoder
+    oc_rep_new(response_buffer.buffer, response_buffer.buffer_size);
+    
+    // Call GET handler
+    resource->get_handler.cb(&request_obj, resource->get_handler.interface_mask, resource->get_handler.user_data);
+    resource_value_size = oc_rep_get_encoded_payload_size();
+  }
+  
+  // Send unicast message (confirmability determined by recipient table "non" flag)
+  int send_result = oc_send_s_mode_unicast_message(target_ga, "w", 
+                                                     resource_value_buffer, resource_value_size, recipient_entry);
+  
   if (send_result == 0) {
-    result += "\n\u2713 Unicast message sent!\n";
+    if (recipient_entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
+      result += "\n\u2713 CON unicast message sent!\n";
+    } else {
+      result += "\n\u2713 Message queued, IPv6 resolution triggered!\n";
+      result += "Message will be sent automatically after resolution completes.\n";
+    }
   } else {
-    result += wxString::Format("\n\u2717 Failed to send message (error %d)\n", send_result);
+    result += wxString::Format("\n\u2717 Failed to send/queue message (error %d)\n", send_result);
   }
   
   result += "\nMessage Format:\n";
   result += "  Endpoint: /k\n";
-  result += "  Method: POST\n";
+  result += "  Method: POST CON (confirmable)\n";
   result += "  Secured: yes (OSCORE)\n";
   result += wxString::Format("  SIA (sender): %u\n", device->ia);
   result += wxString::Format("  Destination IA: %u\n", recipient_entry->ia);

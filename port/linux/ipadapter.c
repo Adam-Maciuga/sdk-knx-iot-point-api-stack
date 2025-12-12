@@ -1122,7 +1122,9 @@ oc_send_buffer(oc_message_t *message)
   }
 #endif /* OC_TCP */
 
-#ifdef OC_OSCORE
+// OSCORE always uses server_sock (not secure_sock) to maintain consistent source port
+// The secure_sock is only for DTLS which is not used with OSCORE
+#ifdef OC_OSCORE_DTLS_NOT_USED
   if (message->endpoint.flags & SECURED) {
 #ifdef OC_IPV4
     if (message->endpoint.flags & IPV4) {

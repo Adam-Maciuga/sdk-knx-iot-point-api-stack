@@ -27,6 +27,9 @@
 #include "oc_knx_client.h"
 #include "oc_storage.h"
 
+// Forward declaration for helper from oc_knx_client.c
+extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
+
 // PUB/RCV/GOT storage data (must use all the same name length, since TAB_SIZE is used for all)
 #define GPT_STORE "dev_knx_pub_entry"       // PUB table base file name
 #define GRT_STORE "dev_knx_rcv_entry"       // RCV table base file name
@@ -2545,6 +2548,11 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].fid = -1; // init value, used also in code to check on its validity
   table[entry].grpid = 0; // init value, used also in code to check on its validity
 
+  // Clear resolved IPv6 address data
+  table[entry].ipadd.init_status = OC_IP_STATUS_UNRESOLVED;
+  memset(table[entry].ipadd.ipv6, 0, 16);
+  table[entry].ipadd.interface_index = 0;
+
   // free "string" data memory only if already initialized
   // assumes in table uninitialized/random string data - don't release it ...
   if (init == false)
@@ -2929,31 +2937,20 @@ void oc_init_datapoints_at_initialization(void)
 
           OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
 
-          // find the (mc) grpid that belongs to the group address
-          const uint32_t grpid = oc_find_grpid_in_recipient_table(sending_group_address);
-          if (grpid > 0)
+          // Find recipient entry (contains both grpid and non flag)
+          oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
+          
+          if (recipient && recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
           #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_send_s_mode_non_confirmable_multicast_message(2, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_confirmable_multicast_message(2, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
           #endif
-            oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
           }
-          else
-          {
-            // TODO resolve IP unicast to send via unicast...
-
-            /*
-             - get IA from RCP table + AT token reference (a)
-             - get at token 'id' (cbor key 0) from (a)
-             - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
-
-
-             - from stream of responses create new unicast EP
-             - use non flag as defined in GRP table
-             - send message
-            */ 
-            PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
+          else if (recipient)
+          { // uc: read request -> ia is used from RCP table (configured by MaC)
+            oc_send_s_mode_unicast_message(sending_group_address, "r", NULL, 0, recipient);
           }
         }
       }

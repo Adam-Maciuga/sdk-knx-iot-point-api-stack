@@ -35,6 +35,9 @@
 #include "security/oc_spake2plus.h"
 #endif
 
+// Forward declaration for helper from oc_knx_client.c
+extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
+
 // ---------------------------Variables --------------------------------------
 
 static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
@@ -267,13 +270,18 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     cached_erase_code_value = erase_code_value;
 
     // init reset callback with 75 ms (see (1) below)  
-    oc_set_delayed_callback_ms(NULL, reset, 75);
+    oc_set_delayed_callback_ms(NULL, reset, 200);
 
     /*
     (1) The device internal time to execute the reset/restart callback must be less than below
         responded Process Time time, moreover, this time must ensure to issue (2) from below.
-        The 75 ms are used to complete a reset/restart with less than 100ms (= EITT test sequence delay),
-        it may need to be changed for specific embedded hardware 
+        The 200 ms delay ensures the CoAP ACK response is transmitted to the network before
+        the reset executes. The delay must be:
+        - Long enough for the response to be sent (network stack processing time)
+        - Short enough to complete within the KNX_RESPONSE_TIME_SECONDS promise to the client
+        
+        For EITT test sequences with 100ms delays, 200ms provides sufficient margin for
+        response transmission while staying well under the 2-second process time.
 
     (2) Before executing the reset function, the KNX IoT device MUST return a
         response with CoAP response code 2.04 CHANGED and with payload containing
@@ -1004,37 +1012,27 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
               if (sending_ga != -1)
               { // we have a sending GA, now we can send the read response, rest was checked before
 
-                // grpid
-                uint32_t grpid = oc_find_grpid_in_recipient_table(sending_ga);
-                if (grpid > 0)
+                // Find recipient entry (contains both grpid and non flag)
+                oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+                
+                if (recipient && recipient->grpid > 0)
                 { // grpid is set in case of multicast in RCP table (configured by MaC)
 
                   #ifdef OC_USE_MULTICAST_SCOPE_2
-                  oc_send_s_mode_non_confirmable_multicast_message(2, device->ia, grpid, sending_ga, device->iid, "a",
+                  oc_send_s_mode_non_confirmable_multicast_message(2, device->ia, recipient->grpid, sending_ga, device->iid, "a",
                                      new_request.response->response_buffer->buffer,
                                      (int)new_request.response->response_buffer->response_length);
 
                   #endif
-                  oc_send_s_mode_non_confirmable_multicast_message(5, device->ia, grpid, sending_ga, device->iid, "a",
+                  oc_send_s_mode_non_confirmable_multicast_message(5, device->ia, recipient->grpid, sending_ga, device->iid, "a",
                                      new_request.response->response_buffer->buffer,
                                      (int)new_request.response->response_buffer->response_length);
                 }
-                else
-                {
-                  // TODO resolve IP unicast to send via unicast...
-
-                  /*
-                   - get IA from RCP table + AT token reference (a)
-                   - get at token 'id' (cbor key 0) from (a)
-                   - resolve IA - knx_resolve_ipv6_unicast_address(device->ia)
-
-            
-                   - from stream of responses create new unicast EP
-                   - use non flag as defined in GRP table
-                   - send message (to be checked what can be used)
-                  */  
-
-                  PRINT("grpid = 0, send uc via resolved IP unicast address from destination ia");
+                else if (recipient)
+                { // uc: read response -> ia is used from RCP table (configured by MaC)
+                  oc_send_s_mode_unicast_message(sending_ga, "a",
+                                                  new_request.response->response_buffer->buffer,
+                                                  (int)new_request.response->response_buffer->response_length, recipient);
                 }
               }
 

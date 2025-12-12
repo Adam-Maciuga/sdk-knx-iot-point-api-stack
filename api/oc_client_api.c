@@ -121,6 +121,33 @@ bool oc_init_update(oc_endpoint_t* mcast, const char *uri)
 
   return true;
 }
+
+bool oc_init_update_con(oc_endpoint_t* endpoint, const char *uri)
+{
+  multicast_update = oc_internal_allocate_outgoing_message();
+
+  if (!multicast_update) 
+  {
+    return false;
+  }
+
+  memcpy(&multicast_update->endpoint, endpoint, sizeof(oc_endpoint_t));
+  oc_rep_new(multicast_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
+
+  coap_udp_init_message(request, COAP_TYPE_CON, OC_POST, coap_get_next_mid());
+
+  // still the inner message
+  coap_set_header_accept(request, APPLICATION_CBOR);
+
+  // set here fix 8 byte token len
+  request->token_len = 8; 
+  const uint32_t a = oc_random_value(); memcpy(request->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(request->token + 4, &b, sizeof(b));
+
+  coap_set_header_uri_path(request, uri, strlen(uri));
+
+  return true;
+}
 #endif 
 
 void

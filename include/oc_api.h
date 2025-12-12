@@ -1122,6 +1122,17 @@ extern "C"
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
+   *        a confirmable unicast message (CON)
+   *
+   * @param endpoint the unicast endpoint to be used
+   * @param uri the uri to be used
+   * @return true
+   * @return false
+   */
+  bool oc_init_update_con(oc_endpoint_t* endpoint, const char* uri);
+
+  /**
+   * @brief fills a PRESENT (beforehand allocated) static buffer to send out
    *        a non-confirmable multicast message
    *
    * @return true

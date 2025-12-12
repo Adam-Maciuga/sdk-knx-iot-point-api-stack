@@ -1176,8 +1176,9 @@ oc_send_buffer(oc_message_t *message)
   }
 #endif 
 
-// OSCORE is not using secure socket to send, it uses server_sock, see below
-#ifdef OC_OSCORE  
+// OSCORE always uses server_sock (not secure_sock) to maintain consistent source port
+// The secure_sock is only for DTLS which is not used with OSCORE
+#ifdef OC_OSCORE_DTLS_NOT_USED
   if (message->endpoint.flags & SECURED) 
   { 
   #ifdef OC_IPV4
@@ -1204,10 +1205,13 @@ oc_send_buffer(oc_message_t *message)
   }
   #else 
   {
-    // IPv6 and OSCORE + all other 
+    // IPv6 - use server_sock for both OSCORE and unsecured messages
     send_sock = dev->server_sock;
   }
   #endif 
+
+  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", 
+         (int)send_sock, (int)dev->server_sock, (int)dev->secure_sock, message->endpoint.flags);
 
   return send_msg(send_sock, &receiver, message);
 }
@@ -1580,7 +1584,7 @@ oc_connectivity_init(void)
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
   l->sin6_family = AF_INET6;
   l->sin6_addr = in6addr_any;
-  l->sin6_port = 0;
+  l->sin6_port = 0;  // Let OS assign ephemeral port - will be consistent for this process
 
 //#ifdef OC_SECURITY
 #ifdef OC_OSCORE
