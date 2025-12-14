@@ -198,7 +198,7 @@ extern "C"
     oc_string_t at;         // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
-    bool non;               // non-confirmable req., checked on sending msg/ RCP table (mc = true, uc = false (default), except a MaC overwrites it)
+    bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = true (always) uc = true (default), except a MaC overwrites it)
     oc_ip_address_t ipadd;  // IPv6 address information with address and initialization status
   } oc_group_table_t;
 

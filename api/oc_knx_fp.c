@@ -2547,6 +2547,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].iid = -1; // init value, used also in code to check on its validity
   table[entry].fid = -1; // init value, used also in code to check on its validity
   table[entry].grpid = 0; // init value, used also in code to check on its validity
+  table[entry].non = true; // init value, see flag description
 
   // Clear resolved IPv6 address data
   table[entry].ipadd.init_status = OC_IP_STATUS_UNRESOLVED;
@@ -2789,6 +2790,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   // flags
   enum transport_flags my_transport_flags = IPV6 + MULTICAST;
 
+  // mc is always secure ...
   #ifdef OC_OSCORE
   my_transport_flags |= OSCORE;
   #endif
@@ -2815,6 +2817,7 @@ oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const 
   // flags
   enum transport_flags my_transport_flags = IPV6;
 
+  // uc is always secure ...
   #ifdef OC_OSCORE
   my_transport_flags |= OSCORE;
   #endif

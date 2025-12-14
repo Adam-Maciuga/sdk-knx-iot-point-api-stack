@@ -62,14 +62,15 @@ oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
 
 typedef struct pending_s_mode_message_t
 {
-  bool in_use;
   uint32_t ga;                                     /**< group address */
   uint32_t sia;                                    /**< sender individual address */
   char service_type[3];                            /**< "w", "r", or "a" */
   uint8_t value_data[OC_MAX_APP_DATA_SIZE_STATIC]; /**< CBOR encoded value */
+  bool in_use;
   int value_size;                                  /**< size of value_data */
   oc_group_table_t* recipient;
   uint64_t timestamp;                              /**< when this was queued (for timeout) */
+  
 } pending_s_mode_message_t;
 
 static pending_s_mode_message_t g_pending_messages[MAX_PENDING_MESSAGES] = {0};
@@ -646,7 +647,7 @@ bool oc_knx_queue_pending_message(uint32_t ga, uint32_t sia,
     }
   }
 
-  OC_WRN("Pending message queue full, cannot queue message for IA 0x%x", (uint32_t)recipient->ia);
+  OC_WRN("Pending message queue full, cannot queue message for IA 0x%04x", (uint16_t)recipient->ia);
   return false;
 }
 
@@ -710,7 +711,7 @@ int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_
     .discovery_all = NULL
   };
 
-  // flags
+  // flags, well-known is never secure ...
   enum transport_flags my_transport_flags = IPV6 + MULTICAST + DISCOVERY;
 
   // create multicast endpoint - scope-dependent all CoAP nodes address, scope-dependent multicast address:
@@ -731,7 +732,7 @@ int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_
 
   // build URI and query: /.well-known/core?ep=knx://ia.<iid>.<ia>
   const char uri[] = "/.well-known/core";
-  char query[EP_STR_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX];
+  char query[EP_STR_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1];
 
   (void)snprintf(query, sizeof(query), "ep=knx://ia.%llx.%x", iid, ia);
 
