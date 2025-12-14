@@ -1111,34 +1111,45 @@ extern "C"
                             int* p_len);
 
   /**
-   * @brief initialize a non-confirmable multicast message (to be sent out)  by allocating a static buffer
+   * @brief initialize an s-mode message (to be sent out)  by allocating a static buffer
    *
-   * @param mcast the multicast address to be used
+   * @param s_mode_message the endpoint to be used
    * @param uri the uri to be used
+   * @param non_confirmable non confirmable (true) or confirmable (false) message 
    * @return true
    * @return false
    */
-  bool oc_init_update(oc_endpoint_t* mcast, const char* uri);
+  bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char* uri, bool non_confirmable);
+
+  /**
+   * @brief initialize a well-known message (to be sent out)  by allocating a static buffer
+   *
+   * @param well_known_message the endpoint to be used
+   * @param uri the uri to be used
+   * @param query the query to be used
+   * @param non_confirmable non confirmable (true) or confirmable (false) message
+   * @return true
+   * @return false
+   */
+  bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        a confirmable unicast message (CON)
+   *        an s-mode message
    *
-   * @param endpoint the unicast endpoint to be used
-   * @param uri the uri to be used
    * @return true
    * @return false
    */
-  bool oc_init_update_con(oc_endpoint_t* endpoint, const char* uri);
+  bool oc_do_s_mode_message_update(void);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        a non-confirmable multicast message
+   *        a well-known message
    *
    * @return true
    * @return false
    */
-  bool oc_do_update(void);
+  bool oc_do_well_known_message_update(void);
 
   /**
    * Free a list of endpoints from the oc_endpoint_t

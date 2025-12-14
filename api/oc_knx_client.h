@@ -101,17 +101,12 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  */
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type);
 
-void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t sia, uint32_t grpid, uint32_t group_address,
-                         uint64_t iid, const char* service_type, uint8_t* value_data, int value_size);
+void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address,
+                                                      const char* service_type, uint8_t* value_data, int value_size);
 
 
 /**
  * @brief Send unicast s-mode message (confirmable or non-confirmable)
- * 
- * Unified function that handles both CON and NON unicast messages.
- * Confirmability is determined by the recipient table "non" parameter:
- * - "non" = false or omitted (default) -> Confirmable (CON)
- * - "non" = true -> Non-Confirmable (NON)
  * 
  * Automatically handles IPv6 resolution:
  * - If IPv6 is resolved: sends immediately
@@ -119,20 +114,20 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint16_t si
  * 
  * Sender IA and IID are obtained internally from the local device info.
  * 
- * @param sending_ga Group address to send on (specific GA for this message)
+ * @param group_address Group address to send on (specific GA for this message)
  * @param service_type "w", "r", or "a"
  * @param value_data CBOR encoded value
  * @param value_size Size of value_data
  * @param recipient Recipient table entry (contains ia, non flag, IPv6 address)
  * @return 0 on success (sent or queued), -1 on error
  *
- * Note: Message confirmability is determined by recipient->non:
- *   - recipient->non = false (default) -> sends Confirmable (CON)
- *   - recipient->non = true -> sends Non-Confirmable (NON)
+ * @note Message confirmability is determined by recipient->non:
+ *       - recipient->non = false (default) -> sends Confirmable (CON)
+ *       - recipient->non = true -> sends Non-Confirmable (NON)
  */
-int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type, 
-                                     uint8_t* value_data, int value_size, 
-                                     oc_group_table_t* recipient);
+int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_type,
+                                   const uint8_t* value_data, int value_size,
+                                   oc_group_table_t* recipient);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 
@@ -145,10 +140,10 @@ int oc_send_s_mode_unicast_message(uint32_t sending_ga, const char* service_type
  * @param scope Multicast scope: 2 (ff02::fd link-local) or 5 (ff05::fd site-local)
  * @param ia Individual Address to resolve
  * @param iid Installation ID  
- * @param recipient_index Index in recipient table (-1 for test mode, no storage)
+ * @param recipient recipient in table
  * @return 0 on success (request sent), -1 on error
  */
-int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, int recipient_index);
+int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient);
 
 /**
  * @brief Process pending s-mode messages for a resolved IA
@@ -158,7 +153,7 @@ int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, int
  *
  * @param ia Individual Address that was just resolved
  */
-void oc_knx_process_pending_messages_for_ia(uint32_t ia);
+void oc_knx_process_pending_messages_for_a_recipient_ia(uint32_t ia);
 
 #ifdef __cplusplus
 }

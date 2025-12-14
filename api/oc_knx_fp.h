@@ -198,19 +198,10 @@ extern "C"
     oc_string_t at;         // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
-    bool non;               // non-confirmable request, see details below
-    oc_ip_address_t ipadd;  // IP address information with IPv6 address and initialization status
+    bool non;               // non-confirmable req., checked on sending msg/ RCP table (mc = true, uc = false (default), except a MaC overwrites it)
+    oc_ip_address_t ipadd;  // IPv6 address information with address and initialization status
   } oc_group_table_t;
 
-  /*
-    'non'
-    - optional property 
-    - uc = confirmable by default, flag = false (except a MaC overwrites it)
-    - mc = non-confirmable, not applicable as confirmable on mc, hence
-      always 'ASSUMED' as true (the flag is NOT evaluated by the stack in case of sending mc messages) 
-    - used only on RCP table (when sending messages)
-
-   */
 
   /**
    * @brief find id (cbor key 0) in the request
@@ -591,6 +582,16 @@ extern "C"
    * @return oc_endpoint_t the modified endpoint
    */
   oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_id, uint64_t iid, uint8_t scope, uint16_t port);
+
+  /**
+   * @brief create a IPv6 group multicast address with port
+   *
+   * @param in the endpoint to adapt
+   * @param ipv6_address the unicast ipv6 address
+   * @param port the port to be used
+   * @return oc_endpoint_t the modified endpoint
+   */
+  oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port);
 
   /**
    * @brief  subscribe to a multicast address, defined by group number and installation id

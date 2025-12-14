@@ -23,7 +23,8 @@
 
 #ifdef OC_CLIENT
 
-coap_packet_t request[1];
+coap_packet_t s_mode_request[1];
+coap_packet_t well_known_request[1];
 oc_client_cb_t *client_cb;
 
 //#define OC_BLOCK_WISE_REQUEST
@@ -33,121 +34,130 @@ static oc_blockwise_state_t *request_buffer = NULL;
 #endif 
 
 #ifdef OC_OSCORE
-// a static pointer, to allocate/ release an outgoing mc message (used like a 2-state state machine)
-oc_message_t *multicast_update = NULL; 
-#endif
 
-#ifdef OC_OSCORE
+// a static pointer, used like a 2-state state machine, to allocate/release an outgoing
+// - uc/mc s-mode message
+// - well-known message
+oc_message_t* s_mode_update = NULL;
+oc_message_t* well_known_update = NULL; 
 
-bool oc_do_update(void)
+bool oc_do_s_mode_message_update(void)
 {
   const int payload_size = oc_rep_get_encoded_payload_size();
 
   if (payload_size) 
   {
-    // multicast_update is initialized
-    coap_set_payload(request, multicast_update->data + COAP_MAX_HEADER_SIZE, payload_size);
+    // s_mode_update is initialized
+    coap_set_payload(s_mode_request, s_mode_update->data + COAP_MAX_HEADER_SIZE, payload_size);
   }
   else 
   {
     // here it may jump with a NULL ptr to the error handling but this is checked there
-    oc_message_unref(multicast_update);
-    multicast_update = NULL;
+    oc_message_unref(s_mode_update);
+    s_mode_update = NULL;
     return false;
   }
 
   // is still the inner header ...
-  coap_set_header_content_format(request, APPLICATION_CBOR);
+  coap_set_header_content_format(s_mode_request, APPLICATION_CBOR);
 
-  multicast_update->length =  coap_serialize_message(request, multicast_update->data);
+  s_mode_update->length = coap_serialize_message(s_mode_request, s_mode_update->data);
 
-  if (multicast_update->length > 0) 
+  if (s_mode_update->length > 0) 
   {
     OC_INF("sent multicast message - OK");
-    oc_send_message(multicast_update);
+    oc_send_message(s_mode_update);
   }
   else 
   {
     OC_WRN("sent multicast message - ERROR");
-    oc_message_unref(multicast_update);
-    multicast_update = NULL;
+    oc_message_unref(s_mode_update);
+    s_mode_update = NULL;
     return false;
   }
 
-  #ifdef OC_IPV4
-  oc_message_t *multicast_update4 = oc_internal_allocate_outgoing_message();
-  if (multicast_update4) {
-    oc_make_ipv4_endpoint(mcast4, IPV4 | MULTICAST | SECURED, 5683, 0xe0, 0x00,
-                          0x01, 0xbb);
-
-    memcpy(&multicast_update4->endpoint, &mcast4, sizeof(oc_endpoint_t));
-
-    multicast_update4->length = multicast_update->length;
-    memcpy(multicast_update4->data, multicast_update->data,
-           multicast_update->length);
-
-    oc_send_message(multicast_update4);
-  }
-  #endif 
-
-  multicast_update = NULL;
+  s_mode_update = NULL;
   return true;
 }
 
-
-bool oc_init_update(oc_endpoint_t* mcast, const char *uri)
+bool oc_do_well_known_message_update(void)
 {
-  multicast_update = oc_internal_allocate_outgoing_message();
+  // is still the inner header ...
+  coap_set_header_content_format(well_known_request, CONTENT_NONE);
 
-  if (!multicast_update) 
+  well_known_update->length = coap_serialize_message(well_known_request, well_known_update->data);
+
+  if (well_known_update->length > 0)
+  {
+    OC_INF("sent well-known message - OK");
+    oc_send_message(well_known_update);
+  }
+  else
+  {
+    OC_WRN("sent well-known message - ERROR");
+    oc_message_unref(well_known_update);
+    well_known_update = NULL;
+    return false;
+  }
+
+  well_known_update = NULL;
+  return true;
+}
+
+bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char *uri, bool non_confirmable)
+{
+  s_mode_update = oc_internal_allocate_outgoing_message();
+
+  if (!s_mode_update) 
   {
     return false;
   }
 
-  memcpy(&multicast_update->endpoint, mcast, sizeof(oc_endpoint_t));
-  oc_rep_new(multicast_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
+  memcpy(&s_mode_update->endpoint, s_mode_message, sizeof(oc_endpoint_t));
+  oc_rep_new(s_mode_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
 
-  coap_udp_init_message(request, COAP_TYPE_NON, OC_POST, coap_get_next_mid());
+  coap_udp_init_message(s_mode_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_POST, coap_get_next_mid());
 
   // still the inner message
-  coap_set_header_accept(request, APPLICATION_CBOR);
+  coap_set_header_accept(s_mode_request, APPLICATION_CBOR);
 
   // set here fix 8 byte token len
-  request->token_len = 8; 
-  const uint32_t a = oc_random_value(); memcpy(request->token + 0, &a, sizeof(a));
-  const uint32_t b = oc_random_value(); memcpy(request->token + 4, &b, sizeof(b));
-
-  coap_set_header_uri_path(request, uri, strlen(uri));
+  s_mode_request->token_len = 8; 
+  const uint32_t a = oc_random_value(); memcpy(s_mode_request->token + 0, &a, sizeof(a)); 
+  const uint32_t b = oc_random_value(); memcpy(s_mode_request->token + 4, &b, sizeof(b)); 
+  
+  coap_set_header_uri_path(s_mode_request, uri, strlen(uri));
 
   return true;
 }
 
-bool oc_init_update_con(oc_endpoint_t* endpoint, const char *uri)
+bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable)
 {
-  multicast_update = oc_internal_allocate_outgoing_message();
+  well_known_update = oc_internal_allocate_outgoing_message();
 
-  if (!multicast_update) 
+  if (!well_known_update)
   {
     return false;
   }
 
-  memcpy(&multicast_update->endpoint, endpoint, sizeof(oc_endpoint_t));
-  oc_rep_new(multicast_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
+  memcpy(&well_known_update->endpoint, well_known_message, sizeof(oc_endpoint_t));
 
-  coap_udp_init_message(request, COAP_TYPE_CON, OC_POST, coap_get_next_mid());
+  coap_udp_init_message(well_known_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_GET, coap_get_next_mid());
 
   // still the inner message
-  coap_set_header_accept(request, APPLICATION_CBOR);
+  coap_set_header_accept(well_known_request, APPLICATION_LINK_FORMAT);
 
   // set here fix 8 byte token len
-  request->token_len = 8; 
-  const uint32_t a = oc_random_value(); memcpy(request->token + 0, &a, sizeof(a));
-  const uint32_t b = oc_random_value(); memcpy(request->token + 4, &b, sizeof(b));
+  well_known_request->token_len = 8;
+  const uint32_t a = oc_random_value(); memcpy(well_known_request->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(well_known_request->token + 4, &b, sizeof(b));
 
-  coap_set_header_uri_path(request, uri, strlen(uri));
+  coap_set_header_uri_path(well_known_request, uri, strlen(uri));
+  coap_set_header_uri_query(well_known_request, query);
 
   return true;
 }
+
 #endif 
 
 void

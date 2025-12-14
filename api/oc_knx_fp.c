@@ -2793,17 +2793,43 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   my_transport_flags |= OSCORE;
   #endif
 
-  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, 
-                        port, 0xFF, 0x30 + scope, 0, 0x30,        // FF35::30:
+  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 
+                        0xFF, 0x30 + scope, 0, 0x30,              // FF35::30:
                         0xFD, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD + IID 
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
+  // debug
   PRINT("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast);
 
   // copy all from local data to (return) pointer
   memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
+
+  return in;
+}
+
+oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port)
+{
+
+  // flags
+  enum transport_flags my_transport_flags = IPV6;
+
+  #ifdef OC_OSCORE
+  my_transport_flags |= OSCORE;
+  #endif
+
+  oc_make_ipv6_endpoint(group_ucast, my_transport_flags, port, 
+                        ipv6_address[0], ipv6_address[1], ipv6_address[2], ipv6_address[3], 
+                        ipv6_address[4], ipv6_address[5], ipv6_address[6], ipv6_address[7], 
+                        ipv6_address[8], ipv6_address[9], ipv6_address[10], ipv6_address[11], 
+                        ipv6_address[12], ipv6_address[13], ipv6_address[14], ipv6_address[15]); 
+
+  // debug
+  PRINTipaddr(group_ucast);
+
+  // copy all from local data to (return) pointer
+  memcpy(&in, &group_ucast, sizeof(oc_endpoint_t));
 
   return in;
 }
@@ -2932,25 +2958,28 @@ void oc_init_datapoints_at_initialization(void)
           OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
 
           const oc_device_info_t* const  device = oc_core_get_device_info();
-          const uint16_t sia_value = device->ia;
+          const uint16_t sia = device->ia;
           const uint64_t iid = device->iid;
 
-          OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
+          OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia, iid);
 
           // Find recipient entry (contains both grpid and non flag)
           oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
           
-          if (recipient && recipient->grpid > 0)
-          { // grpid is set in case of multicast in RCP table (configured by MaC)
+          if (recipient)
+          {
+            if (recipient->grpid > 0)
+            { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-          #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_send_s_mode_non_confirmable_multicast_message(2, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
-          #endif
-            oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
-          }
-          else if (recipient)
-          { // uc: read request -> ia is used from RCP table (configured by MaC)
-            oc_send_s_mode_unicast_message(sending_group_address, "r", NULL, 0, recipient);
+              #ifdef OC_USE_MULTICAST_SCOPE_2
+              oc_send_s_mode_non_confirmable_multicast_message(2, recipient->grpid, sending_group_address, "r", NULL, 0);
+              #endif
+              oc_send_s_mode_non_confirmable_multicast_message(5, recipient->grpid, sending_group_address, "r", NULL, 0);
+            }
+            else 
+            { // uc: read request -> ia is used from RCP table (configured by MaC)
+              oc_send_s_mode_unicast_message(sending_group_address, "r", NULL, 0, recipient);
+            }
           }
         }
       }
