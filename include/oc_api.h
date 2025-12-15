@@ -1115,11 +1115,13 @@ extern "C"
    *
    * @param s_mode_message the endpoint to be used
    * @param uri the uri to be used
-   * @param non_confirmable non confirmable (true) or confirmable (false) message 
+   * @param non_confirmable non confirmable (true) or confirmable (false) message
+   * @param callback the possible callback that is related to this (outbound) message, or NULL  
+   * 
    * @return true
    * @return false
    */
-  bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char* uri, bool non_confirmable);
+  bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char* uri, bool non_confirmable, oc_client_cb_t* callback);
 
   /**
    * @brief initialize a well-known message (to be sent out)  by allocating a static buffer
@@ -1128,10 +1130,12 @@ extern "C"
    * @param uri the uri to be used
    * @param query the query to be used
    * @param non_confirmable non confirmable (true) or confirmable (false) message
+   * @param callback the possible callback that is related to this (outbound) message, or NULL  
+   * 
    * @return true
    * @return false
    */
-  bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable);
+  bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable, oc_client_cb_t* callback);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out

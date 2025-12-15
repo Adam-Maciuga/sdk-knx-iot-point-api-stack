@@ -103,7 +103,7 @@ bool oc_do_well_known_message_update(void)
   return true;
 }
 
-bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char *uri, bool non_confirmable)
+bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char *uri, bool non_confirmable, oc_client_cb_t* callback)
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_s_mode_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
@@ -113,10 +113,12 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
     return false;
   }
 
+  const uint16_t mid = coap_get_next_mid();
+
   // s-mode messages carry a payload, step 2 needed
   memcpy(&udp_message_update->endpoint, s_mode_message, sizeof(oc_endpoint_t));
   oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
-  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_POST, coap_get_next_mid());
+  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_POST, mid);
   coap_set_header_accept(udp_request, APPLICATION_CBOR);
 
   // set here fix 8 byte token len
@@ -126,10 +128,17 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
   
   coap_set_header_uri_path(udp_request, uri, strlen(uri));
 
+  if (callback)
+  { // a callback is attached to this (outbound) message, the callback needs to have the above message token/mid
+    callback->mid = mid;
+    callback->token_len = 8;
+    memcpy(callback->token, udp_request->token, 8);
+  }
+
   return true;
 }
 
-bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable)
+bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable, oc_client_cb_t* callback)
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_well_known_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
@@ -139,9 +148,11 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
     return false;
   }
 
+  const uint16_t mid = coap_get_next_mid();
+
   // well-known messages do not carry a payload
   memcpy(&udp_message_update->endpoint, well_known_message, sizeof(oc_endpoint_t));
-  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_GET, coap_get_next_mid());
+  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_GET, mid);
   coap_set_header_accept(udp_request, APPLICATION_LINK_FORMAT);
 
   // set here fix 8 byte token len
@@ -151,6 +162,13 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
 
   coap_set_header_uri_path(udp_request, uri, strlen(uri));
   coap_set_header_uri_query(udp_request, query);
+
+  if (callback)
+  { // a callback is attached to this (outbound) message, the callback needs to have the above message token/mid
+    callback->mid = mid;
+    callback->token_len = 8;
+    memcpy(callback->token, udp_request->token, 8);
+  }
 
   return true;
 }

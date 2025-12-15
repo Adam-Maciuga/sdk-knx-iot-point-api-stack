@@ -1182,6 +1182,26 @@ int coap_receive(oc_message_t* incoming_message)
 		else
 		{ // handle inbound responses (SERVER SIDE)
 
+			#ifdef OC_DEBUG
+
+      switch (incoming_coap_message->code)
+      {
+      case CONTENT_2_05:
+        PRINT("2.05 - OK");
+        break;
+      case CHANGED_2_04:
+        PRINT("2.04 - CHANGED");
+        break;
+      default:
+        break;
+      }
+      PRINT("URL  : %.*s", (int)incoming_coap_message->uri_path_len, incoming_coap_message->uri_path);
+      PRINT("QUERY: %.*s", (int)incoming_coap_message->uri_query_len, incoming_coap_message->uri_query);
+      PRINT("Payload Len: %d", (int)incoming_coap_message->uri_query_len);
+      // no payload printing ... to long ...
+
+      #endif
+
 		  #ifdef OC_CLIENT
 			#ifdef OC_BLOCK_WISE
 			uint16_t response_mid = coap_get_next_mid();
@@ -1189,9 +1209,13 @@ int coap_receive(oc_message_t* incoming_message)
 			#endif 
 			if (incoming_coap_message->type != COAP_TYPE_RST)
 			{
-				client_cb =
-					oc_ri_find_client_cb_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
-				#ifdef OC_BLOCK_WISE
+        // no payload printing ... to long ...
+			  // find client callback by token
+			  client_cb =	oc_ri_find_client_cb_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
+
+				PRINT("Scanning for client callback -> %s", client_cb ? "... found" : "... not found");
+				
+			  #ifdef OC_BLOCK_WISE
 				if (incoming_coap_message->code >= BAD_REQUEST_4_00 &&
 						incoming_coap_message->code != REQUEST_ENTITY_TOO_LARGE_4_13)
 				{

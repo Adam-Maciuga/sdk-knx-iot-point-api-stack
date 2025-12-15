@@ -167,7 +167,9 @@ extern "C" {
 #endif /* !OC_BLOCK_WISE */
 
 	/**
-	 * @brief allocate the client callback information
+	 * @brief allocate the client callback information, please read the additional notes
+	 *
+	 * 
 	 *
 	 * @param uri the uri to be called
 	 * @param endpoint the endpoint of the device
@@ -177,6 +179,10 @@ extern "C" {
 	 * @param qos quality of service level
 	 * @param user_data user data to be provided with the invocation of the callback
 	 * @return oc_client_cb_t* the client callback info
+	 *
+	 * @note the callback needs to store (the later on sending a message used) CoAP token/mid, 
+	 *       - a message send out without a callback, the callback is not present and hence not called 
+	 *       - a message send out with a callback, the callback is present token/mid MUST be set in callback as in message 
 	 */
 	oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint,
 																				oc_method_t method, const char* query,

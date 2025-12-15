@@ -2547,7 +2547,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].iid = -1; // init value, used also in code to check on its validity
   table[entry].fid = -1; // init value, used also in code to check on its validity
   table[entry].grpid = 0; // init value, used also in code to check on its validity
-  table[entry].non = true; // init value, see flag description
+  table[entry].non = false; // init value, see flag description
 
   // Clear resolved IPv6 address data
   table[entry].ipadd.init_status = OC_IP_STATUS_UNRESOLVED;
