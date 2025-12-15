@@ -160,7 +160,7 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
     return 0; 
   }
 
-  // create unicast endpoint from resolved IPv6
+  // create unicast endpoint from resolved IPv6 TODO which port to use , normally the unicast received one ?
   oc_endpoint_t group_ucast_endpoint = {0};
   oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient->ipadd.ipv6, COAP_DEFAULT_PORT);
 
