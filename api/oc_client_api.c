@@ -23,7 +23,7 @@
 
 #ifdef OC_CLIENT
 
-// used to send out a (uc/mc) s-mode message and a well-known message
+// used to send out a (uc/mc) s-mode message and a well-known (mc) message
 coap_packet_t udp_request[1];
 oc_client_cb_t *client_cb;
 
@@ -105,7 +105,7 @@ bool oc_do_well_known_message_update(void)
 
 bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char *uri, bool non_confirmable)
 {
-  // at this point the handler is empty since it will be released in teh same cycle (oc_do_s_mode_message_update)
+  // at this point the handler is empty since it will be released in the same cycle (oc_do_s_mode_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
 
   if (!udp_message_update) 
@@ -131,7 +131,7 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
 
 bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable)
 {
-  // at this point the handler is empty since it will be released in teh same cycle (oc_do_well_known_message_update)
+  // at this point the handler is empty since it will be released in the same cycle (oc_do_well_known_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
 
   if (!udp_message_update)

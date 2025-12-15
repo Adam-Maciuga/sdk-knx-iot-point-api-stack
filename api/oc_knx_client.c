@@ -700,7 +700,7 @@ void oc_knx_process_pending_messages_for_a_recipient_ia(uint32_t ia)
 }
 
 // send CoAP discovery multicast to resolve IA to IPv6
-int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient)
+bool knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient)
 {
 
   // register client callback
@@ -741,15 +741,15 @@ int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_
   if (!cb)
   {
     OC_ERR("CoAP discovery: Failed to register callback");
-    return -1;
+    return false;
   }
 
   if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query,true))
   {
     oc_do_well_known_message_update();
-    return 0;
+    return true;
   }
 
   OC_ERR("CoAP discovery: Failed to send discovery request");
-  return -1;
+  return false;
 }

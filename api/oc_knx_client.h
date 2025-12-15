@@ -143,7 +143,7 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
  * @param recipient recipient in table
  * @return 0 on success (request sent), -1 on error
  */
-int knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient);
+bool knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient);
 
 /**
  * @brief Process pending s-mode messages for a resolved IA
