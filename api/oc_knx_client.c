@@ -580,9 +580,9 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
   // store resolved IPv6 in recipient table
   if (recipient) 
   {
-    // TODO check if the response matches the request ? 
+    // TODO check if the response matches the request --> TOKEN ? 
 
-    if (recipient->ipadd.init_status != OC_IP_STATUS_RESOLVED) 
+    if (recipient->ipadd.init_status != OC_IP_STATUS_RESOLVED) // TODO a second response (much later ) will be ignored ...
     {
       recipient->ipadd.init_status = OC_IP_STATUS_RESOLVED;
 
