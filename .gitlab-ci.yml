@@ -14,10 +14,10 @@ linux-build:
   image: luftd/knx-ci:latest
   script:
     - cmake --preset=linux-debug-gcc
-    - cmake --build out/build/linux-debug-gcc
+    - cmake --build --preset=linux-debug-gcc
   artifacts:
     paths:
-      - out/build/linux-debug-gcc
+      - out/build/linux-debug-gcc/apps
     expire_in: 1 week
 
 # ----------------------------------------------------------
@@ -34,13 +34,13 @@ windows-cross-build:
       - out/build/windows-cross-release/_deps/wxwidgets-build
   script:
     - cmake --preset=windows-cross-release
-    - cmake --build out/build/windows-cross-release
+    - cmake --build --preset=windows-cross-release
   artifacts:
     paths:
-      - out/build/windows-cross-release/eitt_virtual_gui.exe
-      - out/build/windows-cross-release/lssb_virtual_gui.exe
-      - out/build/windows-cross-release/lsab_virtual_gui.exe
-      - out/build/windows-cross-release/inverter_virtual_gui.exe
-      - out/build/windows-cross-release/cem_virtual_gui.exe
-      - out/build/windows-cross-release/charger_virtual_gui.exe
+      - out/build/windows-cross-release/apps/eitt_virtual_gui.exe
+      - out/build/windows-cross-release/apps/lssb_virtual_gui.exe
+      - out/build/windows-cross-release/apps/lsab_virtual_gui.exe
+      - out/build/windows-cross-release/apps/inverter_virtual_gui.exe
+      - out/build/windows-cross-release/apps/cem_virtual_gui.exe
+      - out/build/windows-cross-release/apps/charger_virtual_gui.exe
     expire_in: 1 week

@@ -1,0 +1,52 @@
+cmake_minimum_required (VERSION 3.21)
+
+### KNX-IoT Stack - Platform Ports ###
+add_library(kis-port ${CMAKE_CURRENT_SOURCE_DIR}/oc_log.c)
+
+# Detect the used platform and pick the right port
+if(WIN32)
+    ## KNX-IoT Stack - Windows Port ##
+    set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/windows CACHE STRING "Platform port directory")
+    target_link_libraries(kis-port PUBLIC iphlpapi) # add Windows SDK API helper 
+
+    # Note:
+    # set(libs ws2_32 bcrypt) moved to deps/CMakeLists.txt
+
+    target_sources(kis-port PRIVATE
+        ${PORT_DIR}/mutex.c
+        ${PORT_DIR}/network_addresses.c
+    ) 
+elseif(UNIX)
+    ## KNX-IoT Stack - Linux Port ##
+    set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/linux CACHE STRING "Platform port directory")
+    target_link_libraries(kis-port PUBLIC pthread m) # add Linux parallel execution helper 
+endif()
+
+target_sources(kis-port PUBLIC
+    ${PORT_DIR}/abort.c
+    ${PORT_DIR}/clock.c
+    ${PORT_DIR}/dns-sd.c
+    ${PORT_DIR}/ipadapter.c
+    ${PORT_DIR}/oc_network_interface.c
+    ${PORT_DIR}/random.c
+    ${PORT_DIR}/storage.c
+    ${PORT_DIR}/tcpadapter.c
+)
+
+target_include_directories(kis-port PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+## KNX-IoT Stack - Platform Port Options ##
+# TBD FIXME do we need this? kis-port is used in kisClientServer, mbedtls is handled there, do we need it for kis-port?
+if(OC_USE_KNX_MBEDTLS)
+    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
+else()
+    target_link_libraries(kis-port PUBLIC kis-common)
+endif()
+
+if(OC_LOG_TO_FILE_ENABLED)
+    target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
+endif()
+
+if (OC_USE_STORAGE)
+    target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+endif()

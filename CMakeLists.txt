@@ -1,14 +1,14 @@
-cmake_minimum_required (VERSION 3.15)
+cmake_minimum_required (VERSION 3.21)
 project(knx-iot-stack) 
 
-# load module to fetch external content
+# Load module to fetch external content.
 include(FetchContent)
 
-# compiler options (please do not forget to add own options such as to reduce enum sizes, such as for gcc -fshort-enums) 
-
+### Compiler ###
+# Compiler options (please do not forget to add own options such as to reduce enum sizes, such as for gcc -fshort-enums).
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
-  # emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
-  add_compile_options(-fPIC) 
+    # Emit position-independent code, see https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html    
+    add_compile_options(-fPIC) 
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC)
@@ -20,20 +20,20 @@ if(CMAKE_COMPILER_IS_CLANG)
 endif(CMAKE_COMPILER_IS_CLANG)
 
 if(MSVC)
-  # add command line definitiosn for the target in the current directory
+  # Add command line definitiosn for the target in the current directory.
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-  # add compile options for the target in the current directory and below
+  # Add compile options for the target in the current directory and below.
   # W4 = max warn level
   # WX = all compile warnings are errors 
   add_compile_options(/W4 /WX-)
 endif()
 
-# add preprocessor definitiosn for the current CMakeLists file
+# Add preprocessor definitions for the current CMakeLists file.
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
-# Stack compilation variables 
-# - each build configuration (debug,release,...) needs to set the values as part of 'CmakePresets.json'
-# - in dependence of a variables value a specific complie flag is set (see cmake 'target_compile_definitions')
+### Stack compilation variables ###
+# - each build configuration (Debug, Release,...) needs to set the values as part of 'CmakePresets.json'
+# - in dependence of a variables value a specific compile flag is set (see cmake 'target_compile_definitions')
 
 ## Common
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
@@ -41,9 +41,13 @@ set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t v
 set(OC_DNS_SD_ENABLED ON CACHE BOOL "Enable DNS SD discovery (in addition to CoAP discovery)")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this a device can (also) receive (OFF: for plain senders).")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
+set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally' group multicast events with scope 2, e.g.; for PC based applications.")
 
-### Allows to use an own security framework, with ON the KNX MBEDTLS framework is used. 
-set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use MBEDTLS associated with KNX IoT repository")
+## External Libraries
+# Mbed TLS
+# Set to ON if the Mbed TLS library provided by the KNX-IoT stack should be used, 
+# set to OFF if the Mbed TLS library is provided in other ways (e.g. the OS).
+set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use the Mbed TLS library provided by the KNX-IoT stack.")
 
 ## Debug 
 set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "Enables that all logging messages are redirected to a file, to use it the 'PRINT' option must be also enabled.")
@@ -55,7 +59,7 @@ set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enables security debug messages for 
 set(USE_CONSOLE ON CACHE BOOL "Enables the console as a logging output also for the GUI applications, typically used for debugging reasons.")
 set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enables security replay protection using the Echo option.")
 
-## iot device specific resource variables
+## KNX-IoT device specific resource variables
 set(KNX_GOT_MAX_ENTRIES "50" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
@@ -71,8 +75,20 @@ set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in second
 # - a network router does not allow to send multicast messages with scope 5 (site local)
 set(OC_SENDER_MULTICAST_SCOPE "2" CACHE STRING "IPv6 multicast scope, used on sending all (multicast) s-mode messages")
 
-# dont show below variables in any (command) GUI
+## Hidden Variables
+# Note:
+# Don't show variables below in any (command) GUI.
 mark_as_advanced(KNX_SPAKE_ITERATIONS)
+
+### KNX-IoT Stack ###
+set(KNX_INCLUDE_DIRS 
+    ${PROJECT_SOURCE_DIR}/
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/security
+    ${PROJECT_SOURCE_DIR}/messaging/coap/
+    ${PROJECT_SOURCE_DIR}/api
+    ${PROJECT_SOURCE_DIR}/api/c-timestamp
+)
 
 set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/oc_base64.c
@@ -109,131 +125,6 @@ set(API_SOURCES
     ${PROJECT_SOURCE_DIR}/api/c-timestamp/timestamp_valid.c
 )
 
-set(CBOR_SOURCES
-     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborerrorstrings.c
-     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborencoder.c
-     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborencoder_close_container_checked.c
-     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborparser.c
-     ${PROJECT_SOURCE_DIR}/deps/tinycbor/src/cborpretty.c
-)
-
-set(CRYPTO_SOURCES
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aes.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aesni.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aesce.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/aria.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/asn1parse.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/asn1write.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/base64.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum_core.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum_mod.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/bignum_mod_raw.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/block_cipher.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/camellia.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ccm.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/chacha20.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/chachapoly.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cipher.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cipher_wrap.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/constant_time.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/cmac.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ctr_drbg.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/des.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/dhm.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecdh.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecdsa.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecjpake.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp_curves.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ecp_curves_new.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/entropy.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/entropy_poll.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/error.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/gcm.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/hkdf.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/hmac_drbg.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/lmots.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/lms.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/md5.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/memory_buffer_alloc.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/nist_kw.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/oid.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/padlock.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pem.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk_ecc.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pk_wrap.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs12.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs5.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkparse.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkwrite.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/platform.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/platform_util.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/poly1305.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_aead.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_cipher.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_client.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_driver_wrappers_no_static.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_ecp.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_ffdh.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_hash.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_mac.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_pake.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_rsa.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_se.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_slot_management.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_crypto_storage.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_its_file.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/psa_util.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ripemd160.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/rsa_alt_helpers.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha1.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha256.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha512.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/sha3.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/threading.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/timing.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/version.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/version_features.c
-)
-
-set(X509_SOURCES
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/pkcs7.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_create.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_crl.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_crt.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509_csr.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write_crt.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/x509write_csr.c
-)
-
-set(TLS_SOURCES
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/debug.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/mps_reader.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/mps_trace.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/net_sockets.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cache.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_ciphersuites.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_client.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_cookie.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_debug_helpers_generated.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_msg.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_ticket.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls12_client.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls12_server.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_keys.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_server.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_client.c
-    ${PROJECT_SOURCE_DIR}/deps/mbedtls/library/ssl_tls13_generic.c
-)
-
 set(CORE_SOURCES
     # Utilities that are used deep within the stack
     ${PROJECT_SOURCE_DIR}/util/oc_etimer.c
@@ -261,328 +152,9 @@ set(COAP_SOURCES
     ${PROJECT_SOURCE_DIR}/messaging/coap/transactions.c
 )
 
-set(KNX_INCLUDE_DIRS 
-    ${PROJECT_SOURCE_DIR}/
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/security
-    ${PROJECT_SOURCE_DIR}/messaging/coap/
-    ${PROJECT_SOURCE_DIR}/api
-    ${PROJECT_SOURCE_DIR}/api/c-timestamp
-)
-
+## KNX-IoT Stack Options ##
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
-
-# physical library targets, with default type STATIC
-add_library(kisClientServer ${CORE_SOURCES} ${COAP_SOURCES} ${API_SOURCES})
-add_library(tinycbor-master ${CBOR_SOURCES})
-
-# integrate MBTLS manually (lean build process) and not with cmake 'add_subdirectory' functionality (directly the mbedtls cmake file)
-# mbed tls version is defined in git .submodles file, see repository(3.6.4)
-if(OC_USE_KNX_MBEDTLS)
-    add_library(mbedtls ${TLS_SOURCES})
-    add_library(mbedx509 ${X509_SOURCES})
-    add_library(mbedcrypto ${CRYPTO_SOURCES})
-endif()
-
-if(UNIX OR WIN32)
-    add_library(kis-port ${PROJECT_SOURCE_DIR}/port/oc_log.c)
-endif()
-
-# Detect the used platform and pick the right port
-if(UNIX)
-        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/linux)      # linux port
-        target_link_libraries(kis-port PUBLIC pthread m)    # add Linux parallel execution helper 
-
-        target_sources(kis-port PUBLIC
-            ${PORT_DIR}/abort.c
-            ${PORT_DIR}/clock.c
-            ${PORT_DIR}/dns-sd.c
-            ${PORT_DIR}/ipadapter.c
-            ${PORT_DIR}/random.c
-            ${PORT_DIR}/storage.c
-            ${PORT_DIR}/tcpadapter.c
-            ${PORT_DIR}/oc_network_interface.c
-        )
-endif()
-
-if(WIN32)
-        
-        # Add manifest for windows GUI applications when using MinGW
-        if(MINGW)
-            set(MANIFEST_RC ${CMAKE_SOURCE_DIR}/apps/manifest.rc)
-        else()
-            set(MANIFEST_RC "")
-        endif()
-        
-        set(PORT_DIR ${PROJECT_SOURCE_DIR}/port/windows)    # windows port
-        target_link_libraries(kis-port PUBLIC iphlpapi)     # add Windows SDK API helper 
-
-        set(libs ws2_32 bcrypt)                             # ensure loading WIN32 socket DLL and bcrypt DLL 
-
-        target_sources(kis-port PUBLIC
-            ${PORT_DIR}/abort.c
-            ${PORT_DIR}/clock.c
-            ${PORT_DIR}/dns-sd.c
-            ${PORT_DIR}/ipadapter.c
-            ${PORT_DIR}/random.c
-            ${PORT_DIR}/storage.c
-            ${PORT_DIR}/tcpadapter.c
-            ${PORT_DIR}/oc_network_interface.c
-        )
-
-        target_sources(kis-port PRIVATE
-            ${PORT_DIR}/mutex.c
-            ${PORT_DIR}/network_addresses.c
-        ) 
-        
-        # fetch GUI framework
-        FetchContent_Declare(
-          wxWidgets
-          URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.8/wxWidgets-3.2.8.7z
-          DOWNLOAD_EXTRACT_TIMESTAMP true
-        )
-
-        # prefer to use extraction timestamp rather than archive timepstamp 
-        option(DOWNLOAD_EXTRACT_TIMESTAMP "" ON) 
-        option(wxBUILD_SHARED "" OFF)
-
-        message(STATUS "Fetching wxWidgets, kindly wait...")
-        FetchContent_MakeAvailable(wxWidgets)
-
-        # physical exe targets
-        ## EITT GUI (for certification)
-        add_executable(eitt_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.cpp
-            ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.c
-            ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-            ${MANIFEST_RC} 
-        )
-
-        ## LSSB GUI 
-        add_executable(lssb_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.cpp
-            ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.c
-            ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-            ${MANIFEST_RC} 
-        )
-
-        ## LSAB GUI 
-        add_executable(lsab_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.cpp
-            ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.c
-            ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-            ${MANIFEST_RC} 
-        )
-
-        ## Inverter GUI
-        add_executable(inverter_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.cpp
-            ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.c
-            ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-            ${MANIFEST_RC} 
-        )
-
-        ## CEM GUI
-        add_executable(cem_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.cpp
-            ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.c
-            ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-            ${MANIFEST_RC} 
-        )
-
-        ## Charger GUI
-        add_executable(charger_virtual_gui WIN32
-            ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.cpp
-            ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.c
-            ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-            ${MANIFEST_RC} 
-        ) 
-
-        # GUI versions
-        target_link_libraries(eitt_virtual_gui wx::net wx::core wx::base kisClientServer)
-        target_link_libraries(lssb_virtual_gui wx::net wx::core wx::base kisClientServer)
-        target_link_libraries(lsab_virtual_gui wx::net wx::core wx::base kisClientServer)
-
-        target_link_libraries(charger_virtual_gui  wx::net wx::core wx::base kisClientServer)
-        target_link_libraries(cem_virtual_gui      wx::net wx::core wx::base kisClientServer)
-        target_link_libraries(inverter_virtual_gui wx::net wx::core wx::base kisClientServer)
-
-        if(USE_CONSOLE)
-          add_compile_definitions(USE_CONSOLE)
-          if(MSVC)
-            set(GUI_FLAG "/SUBSYSTEM:CONSOLE")
-          else()
-            set(GUI_FLAG "-mconsole")
-          endif()
-        else()
-          # No console - use Windows GUI subsystem for all apps
-          if(MSVC)
-            set(GUI_FLAG "/SUBSYSTEM:WINDOWS")
-          else()
-            set(GUI_FLAG "-mwindows")
-          endif()
-        endif()
-        set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-        set_target_properties(lssb_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-        set_target_properties(lsab_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-
-        set_target_properties(charger_virtual_gui  PROPERTIES LINK_FLAGS ${GUI_FLAG})
-        set_target_properties(cem_virtual_gui      PROPERTIES LINK_FLAGS ${GUI_FLAG})
-        set_target_properties(inverter_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})
-
-endif()
-
-if(UNIX)
-    # use system-installed wxWidgets on Linux
-    find_package(wxWidgets REQUIRED net core base)
-    include(${wxWidgets_USE_FILE})
-    
-    # physical exe targets
-    ## EITT GUI (for certification)
-    add_executable(eitt_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.cpp
-        ${PROJECT_SOURCE_DIR}/apps/knx/eitt/knx_iot_virtual_eitt.c
-        ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
-        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-        ${MANIFEST_RC}
-    )
-
-    ## LSSB GUI 
-    add_executable(lssb_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.cpp
-        ${PROJECT_SOURCE_DIR}/apps/knx/lssb/knx_iot_virtual_lssb.c
-        ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
-        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-        ${MANIFEST_RC} 
-    )
-
-    ## LSAB GUI 
-    add_executable(lsab_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.cpp
-        ${PROJECT_SOURCE_DIR}/apps/knx/lsab/knx_iot_virtual_lsab.c
-        ${PROJECT_SOURCE_DIR}/apps/knx/knx_iot_virtual_knx.c
-        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-        ${MANIFEST_RC}
-    )
-
-    ## Inverter GUI
-    add_executable(inverter_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.cpp
-        ${PROJECT_SOURCE_DIR}/apps/hems/inverter/knx_iot_virtual_inverter.c
-        ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
-        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-        ${MANIFEST_RC}
-    )
-
-    ## CEM GUI
-    add_executable(cem_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.cpp
-        ${PROJECT_SOURCE_DIR}/apps/hems/cem/knx_iot_virtual_cem.c
-        ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
-        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-        ${MANIFEST_RC}
-    )
-
-    ## Charger GUI
-    add_executable(charger_virtual_gui WIN32
-        ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.cpp
-        ${PROJECT_SOURCE_DIR}/apps/hems/charger/knx_iot_virtual_charger.c
-        ${PROJECT_SOURCE_DIR}/apps/hems/knx_iot_virtual_ems.c
-        ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.c
-            ${PROJECT_SOURCE_DIR}/apps/knx_iot_virtual.cpp
-        ${MANIFEST_RC}
-    )
-
-    # GUI versions
-    target_link_libraries(eitt_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
-    target_link_libraries(lssb_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
-    target_link_libraries(lsab_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
-
-    target_link_libraries(charger_virtual_gui  ${wxWidgets_LIBRARIES} kisClientServer)
-    target_link_libraries(cem_virtual_gui      ${wxWidgets_LIBRARIES} kisClientServer)
-    target_link_libraries(inverter_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
-
-endif()
-
-# When using KNX standard security source MBTLS -> use config definitions defined by Intel
-if(OC_USE_KNX_MBEDTLS)
-    target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
-endif()
-
-# Stack can send + receive
-target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                   
-
-# Specifies include directories to use when compiling a given target
-target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
-target_include_directories(tinycbor-master PUBLIC ${PROJECT_SOURCE_DIR}/tinycbor/src)
-
-if(OC_USE_KNX_MBEDTLS)
-    target_include_directories(mbedcrypto PUBLIC
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/deps/mbedtls/include
-        ${PROJECT_SOURCE_DIR}/security
-        ${PORT_DIR}
-    )
-endif()
-
-if(UNIX OR WIN32)
-    # Specifies linked libraries (dependencies/references) to build a target
-    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
-    target_include_directories(kis-port PUBLIC ${PORT_DIR}/../)
-endif()
-
-if(OC_USE_KNX_MBEDTLS)
-    target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
-else()
-    target_link_libraries(kisClientServer PUBLIC kis-common tinycbor-master kis-port)
-endif()
-
-if(OC_USE_KNX_MBEDTLS)
-    target_link_libraries(mbedcrypto ${libs})
-    target_link_libraries(mbedx509 mbedcrypto)
-    target_link_libraries(mbedtls mbedx509)
-
-    set_target_properties(mbedcrypto PROPERTIES OUTPUT_NAME mbedcrypto)
-    set_target_properties(mbedx509 PROPERTIES OUTPUT_NAME mbedx509)
-    set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
-
-    install(TARGETS mbedcrypto mbedx509 mbedtls
-            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-endif()
-
-# Process individual stack/ (demo)application behavior 
-
-## Sizes (tables, pagination, ...)
-add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
-add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
-add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
-add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile definitions)
-add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
-
-# KNX reset Process Time (seconds)
-add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
-
-# IPv6 multicast scope
-add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
 
 ## Security 
 if(OC_OSCORE_ENABLED)
@@ -615,19 +187,52 @@ if(OC_PUBLISHER_TABLE_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PUBLISHER_TABLE)
 endif()
 
-if(OC_LOG_TO_FILE_ENABLED)
-    if(UNIX OR WIN32)
-        target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
-    endif()
-endif()
-
-if (OC_USE_STORAGE)
-    if(UNIX OR WIN32)
-        target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
-    endif()
-    target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
-endif()
-
 if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)
     target_compile_definitions(kis-common INTERFACE KNX_LOG_CAST_64_BIT_INTS)
 endif()
+
+### KNX-IoT Stack - Platform Ports ###
+add_subdirectory(port)
+
+### KNX-IoT Stack ###
+# physical library targets, with default type STATIC
+add_library(kisClientServer ${CORE_SOURCES} ${COAP_SOURCES} ${API_SOURCES})
+
+# Stack can send + receive
+target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)                   
+
+# Specifies include directories to use when compiling a given target
+target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
+
+## KNX-IoT Stack Options (2) ##
+if(OC_USE_KNX_MBEDTLS)
+    target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
+else()
+    target_link_libraries(kisClientServer PUBLIC kis-common tinycbor-master kis-port)
+endif()
+
+if (OC_USE_STORAGE)
+    target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
+endif()
+
+### TBD FIXME refactor this section  ###
+# Process individual stack/ (demo)application behavior 
+
+## Sizes (tables, pagination, ...)
+add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
+add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
+add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
+add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile definitions)
+add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
+
+# KNX reset Process Time (seconds)
+add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
+
+# IPv6 multicast scope
+add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
+
+### External Libraries ###
+add_subdirectory(deps)
+
+### Demo Applications ###
+add_subdirectory(apps)
