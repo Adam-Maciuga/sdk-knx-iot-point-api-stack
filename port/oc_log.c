@@ -13,13 +13,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 */
+
+#if defined(OC_PRINT) && defined(OC_LOG_TO_FILE)
+
 #include <stdarg.h>
 #include <stdio.h>
+#include "oc_log.h"
 
 #define OUTPUT_FILE_NAME "stack_print_output.txt"
+
 static FILE *ptr_to_file = NULL;
 
-// used in case CMake compile option is set ....
 void oc_file_print(char *format, ...)
 {
   if (ptr_to_file == NULL) 
@@ -36,3 +40,5 @@ void oc_file_print(char *format, ...)
     (void)fflush(ptr_to_file);
   }
 }
+
+#endif
