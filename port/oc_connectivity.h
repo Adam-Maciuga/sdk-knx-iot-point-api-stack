@@ -163,7 +163,7 @@ int oc_connectivity_init(void);
  * @brief shut down the connectivity
  *
  */
-void oc_connectivity_shutdown();
+void oc_connectivity_shutdown(void);
 
 /**
  * @brief send discovery request
@@ -204,7 +204,7 @@ void oc_dns_clear_cache(void);
  *
  * @return oc_endpoint_t* list of endpoints
  */
-oc_endpoint_t *oc_connectivity_get_endpoints();
+oc_endpoint_t *oc_connectivity_get_endpoints(void);
 
 /**
  * @brief the callback function for an network change

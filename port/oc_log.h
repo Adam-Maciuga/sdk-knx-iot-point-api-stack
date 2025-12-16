@@ -45,6 +45,7 @@
 #ifndef OC_LOG_H
 #define OC_LOG_H
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include "oc_clock_util.h"
@@ -63,30 +64,22 @@ extern "C" {
 #endif
 
 #ifdef OC_PRINT
-
   #ifdef OC_LOG_TO_FILE
-
     // print to file
     void oc_file_print(char* format, ...);
 
     // logging to file
     #define PRINT(...) oc_file_print(__VA_ARGS__)
     #define PRINTF(...) oc_file_print(__VA_ARGS__)
-
   #else
-
     // logging to console
     #define PRINT(...) OC_INF(__VA_ARGS__)
     #define PRINTF(...) printf(__VA_ARGS__)
-
   #endif
-
 #else
-
     // logging to void
     #define PRINT(...)
     #define PRINTF(...)
-
 #endif
 
 #define SPRINTF(...) sprintf(__VA_ARGS__)
@@ -231,7 +224,7 @@ extern "C" {
   strncat(funcShort, "...", sizeof("..."));                     \
   \
   PRINTF("\n"                                                   \
-         "%-14llu: "                                            \
+         "%-14" PRIu64 ": "                                     \
          "%-4s: "                                               \
          "%-20.18s"                                             \
          "%-5d: "                                               \

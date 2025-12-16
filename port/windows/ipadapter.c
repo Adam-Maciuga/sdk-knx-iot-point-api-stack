@@ -17,6 +17,7 @@
 // limitations under the License.
 */
 
+#include <inttypes.h>
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x8000
 // clang-format off
@@ -919,7 +920,7 @@ network_event_thread(void *data)
 #endif 
       common:
 #ifdef OC_DEBUG
-        PRINT("incoming message, %llu bytes, from ", message->length);
+        PRINT("incoming message, %" PRIu64 " bytes, from ", message->length);
         PRINTipaddr(message->endpoint);
 #endif 
         oc_network_event(message);
@@ -1142,7 +1143,7 @@ int
 oc_send_buffer(oc_message_t *message)
 {
 #ifdef OC_DEBUG
-  PRINT("Outgoing message, %llu bytes, to ", message->length);
+  PRINT("Outgoing message, %" PRIu64 " bytes, to ", message->length);
   PRINTipaddr(message->endpoint);
 #endif 
   struct sockaddr_storage receiver = {0};
