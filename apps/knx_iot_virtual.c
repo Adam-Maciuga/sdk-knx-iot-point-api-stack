@@ -96,7 +96,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   FILE* write_ptr = fopen("downloaded_bin", "ab");
   const size_t n = fwrite(block_data, sizeof(*block_data), block_len, write_ptr);
   const size_t r = fclose(write_ptr);
-  OC_DBG("written data: %llu, operation ok (=0): %llu", n, r);
+  OC_DBG("written data: %zu, operation ok (=0): %zu", n, r);
 
   // 
   oc_set_delayed_callback(response, &send_delayed_response, 1);
