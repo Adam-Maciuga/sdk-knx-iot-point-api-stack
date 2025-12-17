@@ -128,6 +128,7 @@ extern "C" {
                              .addr.ipv4 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
 
+// creates endpoint and assign IPv6, other structure members are set to '0'
 #define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)              \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .group_address = 0,                               \

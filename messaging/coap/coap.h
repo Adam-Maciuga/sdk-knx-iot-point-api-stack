@@ -120,7 +120,7 @@ extern "C" {
 	/** parsed message struct */
 	typedef struct
 	{
-		uint8_t* buffer; // pointer to memory that host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
+		uint8_t* buffer; // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
 		coap_transport_type_t transport_type;
 		uint8_t version; // current version is '1'
 		coap_message_type_t type;

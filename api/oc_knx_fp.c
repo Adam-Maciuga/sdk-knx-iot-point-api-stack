@@ -152,13 +152,13 @@ int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_ind
   return -1;
 }
 
-int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags)
+oc_group_object_table_t* oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path)
 {
-  // init with number out of upper range defined so far 0..65535 = error
+  // init with number out of upper ID range defined so far (max 65535) 
   int32_t lowest_id = INT_MAX;
-  uint32_t corresponding_ga = 0;
-  if (cflags)
-    *cflags = OC_CFLAG_NONE;
+  
+  // init with NULL
+  oc_group_object_table_t* go_entry = NULL;
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -169,7 +169,7 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
       { // resource path matches
 
         if (g_got[i].id < lowest_id && g_got[i].ga_len > 0)
-        { // id lower and ga's are used
+        { // id lower (as before) and ga's are used
 
           /*
              id is lower with ga's used, position zero (= sending GA), new id candidate, must loop over
@@ -179,16 +179,13 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
           */
 
           lowest_id = g_got[i].id;
-          // only the first GA can be a sending GA
-          corresponding_ga = g_got[i].ga[0];
-          if (cflags)
-            *cflags = g_got[i].cflags;
+          go_entry = &g_got[i];
         }
       }
     }
   }
-  // no 'ga in pos zero' found returns -1
-  return lowest_id < INT_MAX ? (int)corresponding_ga : -1;
+  // no 'ga in pos zero' found returns NULL, otherwise a GO entry
+  return go_entry;
 }
 
 oc_string_t oc_core_get_href_from_group_object_table_index(int index)
@@ -2795,6 +2792,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   my_transport_flags |= OSCORE;
   #endif
 
+  // creates IPV6 and set rest to '0'
   oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 
                         0xFF, 0x30 + scope, 0, 0x30,              // FF35::30:
                         0xFD, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD + IID 
@@ -2806,7 +2804,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   PRINTipaddr(group_mcast);
 
   // copy all from local data to (return) pointer
-  memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
+  in = group_mcast;
 
   return in;
 }
@@ -2822,6 +2820,7 @@ oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const 
   my_transport_flags |= OSCORE;
   #endif
 
+  // creates IPV6 and set rest to '0'
   oc_make_ipv6_endpoint(group_ucast, my_transport_flags, port, 
                         ipv6_address[0], ipv6_address[1], ipv6_address[2], ipv6_address[3], 
                         ipv6_address[4], ipv6_address[5], ipv6_address[6], ipv6_address[7], 
@@ -2832,7 +2831,7 @@ oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const 
   PRINTipaddr(group_ucast);
 
   // copy all from local data to (return) pointer
-  memcpy(&in, &group_ucast, sizeof(oc_endpoint_t));
+  in = group_ucast;
 
   return in;
 }
@@ -2949,40 +2948,39 @@ void oc_init_datapoints_at_initialization(void)
   {
     if (g_got[i].id > -1)
     {
-      // at least one GA is assigned (is an array)
-      if (g_got[i].ga_len > 0)
-      {
-        if (g_got[i].cflags & OC_CFLAG_INIT)
+      // check, it may be that the current GO entry is not that one that has the ga in position '0' 
+      // TODO in case of 2...n GO entries with same href its send n-times
+      const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
+      if (go_entry && go_entry->cflags & OC_CFLAG_INIT)
+      { // read on init cflags is set, fire (after device restart)
+        
+        // sending ga is always in position zero
+        const uint32_t sending_ga = go_entry->ga[0];
+        
+        OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_ga);
+
+        const oc_device_info_t* const device = oc_core_get_device_info();
+        const uint16_t sia = device->ia;
+        const uint64_t iid = device->iid;
+
+        OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_ga, sia, iid);
+
+        // find recipient entry (contains both grpid and non flag)
+        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+
+        if (recipient)
         {
-          // read on init cflags is set, fire (after device restart)
-          // no check on -1, there MUST be at least one sending GA
-          const uint32_t sending_group_address = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href), NULL);
+          if (recipient->grpid > 0)
+          { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-          OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
-
-          const oc_device_info_t* const  device = oc_core_get_device_info();
-          const uint16_t sia = device->ia;
-          const uint64_t iid = device->iid;
-
-          OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia, iid);
-
-          // Find recipient entry (contains both grpid and non flag)
-          oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
-          
-          if (recipient)
-          {
-            if (recipient->grpid > 0)
-            { // grpid is set in case of multicast in RCP table (configured by MaC)
-
-              #ifdef OC_USE_MULTICAST_SCOPE_2
-              oc_send_s_mode_non_confirmable_multicast_message(2, recipient->grpid, sending_group_address, "r", NULL, 0);
-              #endif
-              oc_send_s_mode_non_confirmable_multicast_message(5, recipient->grpid, sending_group_address, "r", NULL, 0);
-            }
-            else 
-            { // uc: read request -> ia is used from RCP table (configured by MaC)
-              oc_send_s_mode_unicast_message(sending_group_address, "r", NULL, 0, recipient);
-            }
+            #ifdef OC_USE_MULTICAST_SCOPE_2
+            oc_send_s_mode_non_confirmable_multicast_message(2, recipient->grpid, sending_ga, "r", NULL, 0);
+            #endif
+            oc_send_s_mode_non_confirmable_multicast_message(5, recipient->grpid, sending_ga, "r", NULL, 0);
+          }
+          else
+          { // uc: read request -> ia is used from RCP table (configured by MaC)
+            oc_send_s_mode_unicast_message(sending_ga, "r", NULL, 0, recipient);
           }
         }
       }

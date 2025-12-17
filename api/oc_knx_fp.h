@@ -140,6 +140,7 @@ extern "C"
   {
     oc_ip_status_t init_status;  // initialization status with multiple states
     uint8_t ipv6[16];            // IPv6 address (128 bits = 16 bytes)
+    uint16_t port;               // IPv6 port
     int interface_index;         // network interface index for link-local addresses
   } oc_ip_address_t;
 
@@ -325,21 +326,20 @@ extern "C"
   int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index);
 
   /**
-   * @brief retrieve the GA in position 0 for a href with lowest 'id'
+   * @brief retrieve the GO table entry with lowest 'id' for a href (where we have a GA is in position 0)  
    *
    * @note MUST process all GO entries in the table (see comment in code)
    *
    * @param resource_path the resource path for which the GA is searched for
-   * @param cflags NULL, or if of interest a flag variable to get the flags from the GO of the GA in position 0 (flag variable will be init inside the method with none) 
-   * @return the GA, -1 in case of no sending GA was found
+   * @return the GO entry, NULL in case of no go entry  was found for the resource path
    */
-  int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags);
+  oc_group_object_table_t* oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path);
 
   /**
    * @brief find (first) index in the GO object table with the given resource path
    *
    * @param resource_path the resource path to find
-   * @return the first index in the table or -1
+   * @return the first go table entry or NULL
    */
   int oc_core_find_first_group_object_table_index_from_href(const char* resource_path);
 

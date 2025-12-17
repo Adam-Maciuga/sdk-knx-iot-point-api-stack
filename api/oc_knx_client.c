@@ -163,9 +163,9 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
     return 0; 
   }
 
-  // create unicast endpoint from resolved IPv6, source port of own device is always CoAP 
+  // create unicast endpoint from resolved IPv6 address + port
   oc_endpoint_t group_ucast_endpoint = {0};
-  oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient->ipadd.ipv6, COAP_DEFAULT_PORT);
+  group_ucast_endpoint = oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient->ipadd.ipv6, recipient->ipadd.port);
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
@@ -188,7 +188,7 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t gr
   // get local device info (iid) -> always the same
   const uint64_t iid = oc_core_get_device_info()->iid;
   
-  // using group addressing 
+  // create multicast endpoint from grpid/iid and coap default + port
   oc_endpoint_t group_mcast_endpoint = {0};
   group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, scope, COAP_DEFAULT_PORT);
 
@@ -374,17 +374,17 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
     return -1;
   }
 
-  if (strcmp(srv_type, "r") == 0)
-  { // issue a read request
-    
-    oc_cflag_mask_t sending_cflags; 
-    const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path, &sending_cflags);
-    
-    if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
-    {
-      // Find recipient entry (contains both grpid and non flag)
+  const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path);
+  if (go_entry && go_entry->cflags & OC_CFLAG_TRANSMISSION)
+  { 
+    // sending ga is always in position zero
+    const uint32_t sending_ga = go_entry->ga[0];
+
+    if (strcmp(srv_type, "r") == 0)
+    { // issue a read request, with a sending GA that is able to transmit...
+
+      // find recipient entry for sending ga (is always in  position zero), contains both grpid and non flag
       oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
-      
       if (recipient)
       {
         if (recipient->grpid > 0)
@@ -396,8 +396,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid, sending_ga, srv_type, NULL, 0);
         }
         else
-        { // uc: request -> ia is used from RCP table (configured by MaC) 
-          
+        { // uc: request -> ia is used from RCP table (configured by MaC)
+
           PRINT("grpid = 0, send uc via sending ga");
 
           // unicast read, NO value data needed
@@ -406,25 +406,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       return 0;
     }
-
-    /*
-      no sending, this is not automatically an error
-      - the 'resource path' cannot be found, the caller writes to 'something'
-      - the t-flag is not set
-    */
-
-    OC_WRN("sending for the resource path %s not possible sending ga = %d , flags = %d", resource_path, sending_ga, sending_cflags);
-    return -1;
-    
-  }
-  if (strcmp(srv_type, "w") == 0)
-  { // issue a write request
-
-    oc_cflag_mask_t sending_cflags; 
-    const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path, &sending_cflags);
-
-    if (sending_ga != -1 && sending_cflags & OC_CFLAG_TRANSMISSION)
-    { // here we have a sending GA that is able to transmit...
+    if (strcmp(srv_type, "w") == 0)
+    { // issue a write request, with a sending GA that is able to transmit...
 
       // copy resource value to buffer, return value size
       const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
@@ -437,11 +420,12 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
         { // mc: request -> grpid is used from RCP table (configured by MaC)
 
           // multicast write, value data needed
-          oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid, sending_ga, srv_type, resource_value_buffer, resource_value_size);
+          oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid, sending_ga, srv_type,
+                                                           resource_value_buffer, resource_value_size);
         }
-        else 
+        else
         { // uc: request -> ia is used from RCP table (configured by MaC)
-          
+
           // unicast write, value data needed
           oc_send_s_mode_unicast_message(sending_ga, srv_type, resource_value_buffer, resource_value_size, recipient);
         }
@@ -459,7 +443,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           // for all GOs with the GA included -> update the values
           oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-          const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
+          const oc_resource_t* application_resource_with_href_match =
+            oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
           if (!application_resource_with_href_match)
           {
@@ -479,7 +464,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
             */
 
             // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
-            go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
+            go_table_index_where_ga_is_used =
+              oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
             continue;
           }
 
@@ -487,12 +473,13 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           if (oc_string_len(go_href) > 0)
           {
             // get GO c-flags
-            const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
+            const oc_cflag_mask_t cflags =
+              oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
             if (cflags & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
             { // update the resource internally, BUT only all GOs with w-cflag set
 
-              // copy in CBOR object the CBOR encoded resource data from original write request 
+              // copy in CBOR object the CBOR encoded resource data from original write request
               oc_rep_t* cbor_object_ptr;
               struct oc_memb cbor_object = {sizeof(oc_rep_t), 0, 0, 0, 0};
               oc_rep_set_pool(&cbor_object);
@@ -503,7 +490,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
               oc_request_t request_obj;
 
               request_obj.response = NULL; // no response expected
-              request_obj.request_payload = cbor_object_ptr;  // place CBOR payload pointer for PUT 
+              request_obj.request_payload = cbor_object_ptr; // place CBOR payload pointer for PUT
               request_obj.query = NULL;
               request_obj.query_len = 0;
               request_obj.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
@@ -518,7 +505,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
 
               // call application handler with own interface/ user data
               // (it makes no sense to call it with a fix vale)
-              application_resource_with_href_match->put_handler.cb(&request_obj, 
+              application_resource_with_href_match->put_handler.cb(&request_obj,
                                                                    application_resource_with_href_match->put_handler.interface_mask,
                                                                    application_resource_with_href_match->put_handler.user_data);
             }
@@ -530,21 +517,23 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
 
       // notify on a (write) change on the original resource (not the internal updated resources)
       oc_notify_observers(my_resource);
-      
-      return 0 ;
-    }
 
-    /*
-      no sending, this is not automatically an error
-      - the 'resource path' cannot be found, the caller writes to 'something'
-      - the t-flag is not set 
-    */
-    OC_WRN("sending for the resource path %s not possible", resource_path);
+      return 0;
+    }
+    
+    // must be one of w/r
+    OC_ERR("service type value incorrect %s , allowed are only w+r", srv_type);
+   
     return -1;
   }
 
-  // must be one of w/r
-  OC_ERR("service type value incorrect %s , allowed are only w+r", srv_type);
+  /*
+    no sending, this is not automatically an error
+    - the 'resource path' cannot be found, the caller writes to 'something'
+    - the t-flag is not set
+  */
+  
+  OC_WRN("sending for the resource path %s not possible, path not found or cflags not in 't' mode", resource_path);
   return -1;
 }
 
@@ -571,7 +560,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
   // get recipient (pointer) that was issued as suer data with the callback 
   oc_group_table_t* recipient = (oc_group_table_t*)data->user_data;
   
-  OC_INF("CoAP discovery response: IPv6 %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (if=%d)",
+  OC_INF("CoAP discovery response: IPv6 %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (if=%d) ",
          data->endpoint->addr.ipv6.address[0], data->endpoint->addr.ipv6.address[1], data->endpoint->addr.ipv6.address[2],
          data->endpoint->addr.ipv6.address[3], data->endpoint->addr.ipv6.address[4], data->endpoint->addr.ipv6.address[5],
          data->endpoint->addr.ipv6.address[6], data->endpoint->addr.ipv6.address[7], data->endpoint->addr.ipv6.address[8],
@@ -588,15 +577,15 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
     // must be unresolved, otherwise no callback would be issued
     recipient->ipadd.init_status = OC_IP_STATUS_RESOLVED;
 
-    // store IPv6 address and interface index
+    // store IPv6 address, port and interface index
     memcpy(recipient->ipadd.ipv6, data->endpoint->addr.ipv6.address, 16);
+    recipient->ipadd.port = data->endpoint->addr.ipv6.port;
     recipient->ipadd.interface_index = data->endpoint->interface_index;
+
+    OC_INF("Stored IPv6 for IA 0x%04x (test mode)", (uint16_t)recipient->ia);
 
     // check for pending messages waiting for this resolution
     oc_knx_process_pending_messages_for_a_recipient_ia(recipient->ia);
-
-    OC_INF("Stored IPv6 for IA 0x04%x (test mode)", (uint16_t)recipient->ia);
-    
   }
   else
   {

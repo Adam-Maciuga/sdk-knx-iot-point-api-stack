@@ -1793,8 +1793,8 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
 											 oc_endpoint_t * endpoint)
 	#endif 
 {
-	// to be checked, default is not CBOR being returned.
-	oc_content_format_t cf = 60;
+	// to be checked, default is CBOR
+  oc_content_format_t cf = APPLICATION_CBOR;
 	coap_get_header_content_format(response, &cf);
 
 	cb->ref_count = 1;
@@ -2035,7 +2035,11 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 		return cb;
 	}
 
-	// note that token/mid of the callback corresponding (outbound) message must be filled later in the callback
+	// note that token/mid of a created callback  must be filled later in the corresponding (outbound) message
+	cb->mid = coap_get_next_mid();
+	cb->token_len = 8;
+  const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
 
 	oc_new_string(&cb->uri, uri, strlen(uri));
 	cb->method = method;
