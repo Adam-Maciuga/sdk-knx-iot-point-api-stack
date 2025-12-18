@@ -637,7 +637,7 @@ int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia,
       g_pending_messages[i].recipient = recipient;
       g_pending_messages[i].timestamp = oc_clock_time();
 
-      OC_INF("Queued pending %s message for IA 0x%04x, GA %u, ST=%s", recipient->non ? "NON" : "CON", (uint16_t)recipient->ia, ga, service_type);
+      OC_INF("Queued pending %s message for IA 0x%04x, GA %04X, ST=%s", recipient->non ? "NON" : "CON", (uint16_t)recipient->ia, ga, service_type);
       return i;
     }
   }
@@ -683,7 +683,7 @@ void oc_knx_process_pending_messages_for_a_recipient_ia(uint32_t ia)
                                      g_pending_messages[i].value_data, g_pending_messages[i].value_size,
                                      g_pending_messages[i].recipient);
 
-      OC_INF("Sending queued %s message to IA 0x%04x (GA %u) on interface %d", 
+      OC_INF("Sending queued %s message to IA 0x%04x (GA %04X) on interface %d", 
              g_pending_messages[i].recipient->non ? "NON" : "CON",
              (uint16_t)ia, 
              g_pending_messages[i].ga, 

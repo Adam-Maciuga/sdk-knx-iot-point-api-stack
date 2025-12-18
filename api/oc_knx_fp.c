@@ -2371,7 +2371,7 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
   PRINT("ga (7)     : [");
   for (int i = 0; i < table[entry].ga_len; i++)
   {
-    PRINTF("%u", table[entry].ga[i]);
+    PRINTF("%04X", table[entry].ga[i]);
   }
   PRINTF("]");
 
@@ -2761,7 +2761,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
 {
   bool return_value = false;
 
-  PRINT("oc_add_points_from_group_object_table_to_response %u", group_address);
+  PRINT("oc_add_points_from_group_object_table_to_response %04X", group_address);
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -2954,7 +2954,7 @@ void oc_register_group_multicasts(void)
         // check if the 'receiving' GA from the GO table entry is in the publisher table (device wants to receive it)
         const uint32_t grpid = oc_find_grpid_in_publisher_table(g_got[index].ga[i]);
 
-        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u ga: %u cflags=", index, i, grpid, g_got[index].ga[i]);
+        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u ga: %04X cflags=", index, i, grpid, g_got[index].ga[i]);
         oc_print_cflags(cflags);
 
         if (grpid > 0)
@@ -3002,7 +3002,7 @@ void oc_init_datapoints_at_initialization(void)
         const uint16_t sia = device->ia;
         const uint64_t iid = device->iid;
 
-        OC_INF("init datapoint : ga=%u ia=%d, iid=%" PRIu64 "", sending_ga, sia, iid);
+        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 "", sending_ga, sia, iid);
 
         // find recipient entry (contains both grpid and non flag)
         oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);

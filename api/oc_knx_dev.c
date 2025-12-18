@@ -1181,7 +1181,7 @@ void oc_knx_load_device(void)
   // read IA from storage (on error = 0xFFFF)
   uint16_t ia;
   device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
-  PRINT("ia (storage) %u", ia);
+  PRINT("ia (storage) %04X", ia);
 
   // read iid name from storage (on error = 0)
   uint64_t iid;

@@ -704,7 +704,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
   // get sending ga
   const uint32_t group_address = msg->endpoint.group_address;
-  OC_DBG_OSCORE("### process outbound multicast OSCORE message with ga : %u ###", group_address);
+  OC_DBG_OSCORE("### process outbound multicast OSCORE message with ga : %04X ###", group_address);
 
   /* 
     find context for sending ga, in case 
@@ -715,7 +715,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   if (oscore_ctx)
   {
     
-    OC_DBG_OSCORE("found group OSCORE context for GA %u", group_address);
+    OC_DBG_OSCORE("found group OSCORE context for GA %04X", group_address);
 
     // use sender key for encryption
     uint8_t* key = oscore_ctx->sender_key;
@@ -955,7 +955,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     oscore_ctx = oc_oscore_find_context_by_group_address(outgoing_msg->endpoint.group_address);
 
-    OC_DBG_OSCORE("### (c) Found context by 'ga' %u ###", outgoing_msg->endpoint.group_address);
+    OC_DBG_OSCORE("### (c) Found context by 'ga' %04X ###", outgoing_msg->endpoint.group_address);
   }
 
   if (oscore_ctx == NULL)
