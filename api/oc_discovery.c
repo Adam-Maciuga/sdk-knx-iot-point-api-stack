@@ -467,22 +467,24 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// handle sector, if device belongs to a GA ?d=urn:knx:g.s.[ga] list the data points to which the GA applies to
 	if (d_len > 12 && strncmp(d_request, "urn:knx:g.s.", 12) == 0)
 	{
-		//TODO replace atoi with strtol
-		const int group_address = atoi(&d_request[12]);
-		PRINT("group address: %d", group_address);
+		
+		if (strncmp(d_request, "urn:knx:g.s.*", 13) == 0)
+    {
+      // quote from EITT test 5.1.1.8: "Must fail since the response would likely be excessively large"
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+      return;
+    }
+	  
+	  // ga must be decimal coded and at least one digit long, if ga value exceeds 32 bit it is cut to 32 bit 
+	  errno = 0;
+    const uint32_t group_address = strtol(&d_request[12], NULL, 10);
+    PRINT("group address: %04x", group_address);
 
-		// if not in 'runtime' just return
-		if (!oc_is_device_in_runtime())
+		// if not in 'runtime' or a conversion error just return
+    if (!oc_is_device_in_runtime() || errno)
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
-			PRINT("device not at 'runtime'");
-			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-			return;
-		}
-
-		if (strncmp(d_request, "urn:knx:g.s.*", 13) == 0)
-		{
-			// quote from EITT test 5.1.1.8: "Must fail since the response would likely be excessively large"
+			PRINT("device not at 'runtime' or ga conversion error");
 			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 			return;
 		}
