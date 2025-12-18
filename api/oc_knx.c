@@ -727,7 +727,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
   // handle the request loop over the group addresses of the /fp/r (recipient table)
-  PRINT("/k : sia: %u ga: %u st: %s origin: %s", 
+  PRINT("/k : sia: %u ga: %04x st: %s origin: %s", 
         received_notification.sia, 
         received_notification.ga,
         oc_string_checked(received_notification.st), 

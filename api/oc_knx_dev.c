@@ -363,7 +363,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
         if (oc_core_set_and_store_device_iid(rep->value.integer))
         {
           if (oc_is_device_in_runtime())
-          { // if iid changed outside configuration ... (will be buggy since RCP table is then out of sync) 
+          { 
             oc_register_group_multicasts();
             oc_init_datapoints_at_initialization();
 

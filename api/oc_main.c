@@ -360,8 +360,8 @@ int oc_main_init(const oc_handler_t* handler)
   {
     app_callbacks->requests_entry();
   }
-
-  // do initialization of the data points according the 'I' flag in group object table
+  
+  // check and send on i-flags
   oc_init_datapoints_at_initialization();
 
   #endif
