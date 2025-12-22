@@ -28,15 +28,6 @@
 #include "oc_api.h"
 #include "oc_helpers.h"
 
-/*
-
- A network router may not allow to send multicast messages with scope 5 (site local),
- hence the DEMO applications use scope 2 instead. If needed, sendout with scope 2 and 5
- separately may be an option (2 messages).
-
- */
-#define SENDER_SCOPE (2)
-
 // use it in upper case (min 6, max 32), IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
 #define PASSWORD "2X4W3TE0DFLLS19Y1FCH"
 

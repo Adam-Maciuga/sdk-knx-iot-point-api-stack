@@ -44,7 +44,6 @@ extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
 #define GO_GAS (1 << 1)   // identifier for go table ga list ref property
 
 // note static variables are initialized with '0' first time
-
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
 static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
 
@@ -134,9 +133,10 @@ int oc_core_find_first_go_table_index_with_ga(uint32_t group_address)
   return oc_core_find_next_go_table_index_with_ga(group_address, -1);
 }
 
-int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index)
+int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int current_index)
 {
-  for (int i = cur_index + 1; i < GOT_MAX_ENTRIES; i++)
+  if (current_index > -2) // don't allow to access array outside bounds ( > -2 = at least -1, + 1 = 0)
+  for (int i = current_index + 1; i < GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
     {
@@ -152,13 +152,13 @@ int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_ind
   return -1;
 }
 
-int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags)
+oc_group_object_table_t* oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path)
 {
-  // init with number out of upper range defined so far 0..65535 = error
+  // init with number out of upper ID range defined so far (max 65535) 
   int32_t lowest_id = INT_MAX;
-  uint32_t corresponding_ga = 0;
-  if (cflags)
-    *cflags = OC_CFLAG_NONE;
+  
+  // init with NULL
+  oc_group_object_table_t* go_entry = NULL;
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
@@ -169,7 +169,7 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
       { // resource path matches
 
         if (g_got[i].id < lowest_id && g_got[i].ga_len > 0)
-        { // id lower and ga's are used
+        { // id lower (as before) and ga's are used
 
           /*
              id is lower with ga's used, position zero (= sending GA), new id candidate, must loop over
@@ -179,16 +179,13 @@ int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_c
           */
 
           lowest_id = g_got[i].id;
-          // only the first GA can be a sending GA
-          corresponding_ga = g_got[i].ga[0];
-          if (cflags)
-            *cflags = g_got[i].cflags;
+          go_entry = &g_got[i];
         }
       }
     }
   }
-  // no 'ga in pos zero' found returns -1
-  return lowest_id < INT_MAX ? (int)corresponding_ga : -1;
+  // no 'ga in pos zero' found returns NULL, otherwise a GO entry
+  return go_entry;
 }
 
 oc_string_t oc_core_get_href_from_group_object_table_index(int index)
@@ -211,23 +208,12 @@ int oc_core_get_ga_table_len_from_group_object_table_index(int index)
 
 int oc_core_find_first_group_object_table_index_from_href(const char* resource_path)
 {
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
-  {
-    if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
-    { // href len and content matches
-      return i;
-    }
-  }
-  return -1;
+  return oc_core_find_next_group_object_table_index_from_href(resource_path, -1);
 }
 
-int oc_core_find_next_group_object_table_index_from_href(const char* resource_path, const int current_index)
+int oc_core_find_next_group_object_table_index_from_href(const char* resource_path, int current_index)
 {
-  if (current_index == -1)
-  { // don't iterate if already no index is available
-    return -1;
-  }
-
+  if (current_index > -2) // don't allow to access array outside bounds ( > -2 = at least -1, + 1 = 0)
   for (int i = current_index + 1; i < GOT_MAX_ENTRIES; i++)
   {
     if (strlen(resource_path) == oc_string_len(g_got[i].href) && strcmp(resource_path, oc_string(g_got[i].href)) == 0)
@@ -440,7 +426,6 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           return;
         }
 
-        // find index in GO table
         int entry = oc_core_find_index_in_group_object_table_from_id(id);
         if (entry != -1)
         {
@@ -718,9 +703,7 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
     request->uri_path,
     request->uri_path_len);
 
-  // find GO index in GO table
-  const int32_t index = oc_core_find_index_in_group_object_table_from_id(id);
-  PRINT("id=%d index = %d", id, index);
+  const int index = oc_core_find_index_in_group_object_table_from_id(id);
   if (index == -1)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
@@ -771,8 +754,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
     request->uri_path,
     request->uri_path_len);
 
-  const int32_t entry = oc_core_find_index_in_group_object_table_from_id(id);
-
+  const int entry = oc_core_find_index_in_group_object_table_from_id(id);
   if (entry == -1)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
@@ -1036,14 +1018,18 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       // to delete a PUB table entry
       bool id_only = true;
 
+      // identify if ia and grpid is set in the same table entry
+      uint8_t ia_and_grpid_together = 0;
+
       // identify which 'string' memory resource are allocated during the post
       uint8_t allocator = 0;
 
       // fill with live PUB entry (from a present/empty entry)
       oc_group_table_t tmp_gpt_entry = g_gpt[index];
 
-      // set PUB id
+      // set table id
       tmp_gpt_entry.id = id;
+      // id (0) was already scanned/assigned
       int current_gpt_properties = 1;
 
       while (object)
@@ -1054,8 +1040,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
           if (object->iname != 0)
           {
-            // NOT an id (0), for sure from now on a not 'ID only' case,
-            // note that id (0) was already scanned/assigned
+            // NOT an id (0), for sure from now on a not 'ID only' case
             id_only = false;
           }
 
@@ -1064,12 +1049,14 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           {
             tmp_gpt_entry.ia = (int)object->value.integer;
             current_gpt_properties++;
+            ia_and_grpid_together++;
           }
           // grpid (13) - used on multicast
           else if (object->iname == 13)
           {
             tmp_gpt_entry.grpid = (uint32_t)object->value.integer;
             current_gpt_properties++;
+            ia_and_grpid_together++;
           }
           // iid (26) - used on multicast
           else if (object->iname == 26)
@@ -1175,10 +1162,11 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         Options
         -------
 
-        a: created +  id only/< min elements = ERROR (to few elements)
-        b: created +  3 elements             = OK (create)
-        c: changed +  id only                = OK (delete)
-        d: changed +  1/2 elements           = OK (update)
+        a0: created + to few elements         = ERROR 
+        a1: created/changed + wrong elements  = ERROR 
+        b: created +  min 3 elements          = OK (create)
+        c: changed +  id only                 = OK (delete)
+        d: changed +  1...n elements          = OK (update)
 
       */
 
@@ -1192,10 +1180,23 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       else
       {
         if (return_status == OC_STATUS_CREATED && current_gpt_properties < MANDATORY_GPT_PROPERTIES)
-        { // a
+        { // a0
 
           // see details on constant
           PRINT("mandatory items missing, no entry created at index: %d", index);
+
+          // on error: free PUB tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        if (ia_and_grpid_together > 1)
+        { // a1
+
+          // see details on constant
+          PRINT("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
@@ -1571,6 +1572,9 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
       // used to delete the RCP table entry
       bool id_only = true;
+      
+      // identify if ia and grpid is set in the same table entry
+      uint8_t ia_and_grpid_together = 0;
 
       // identify which "stack" memory resource are allocated during the post
       uint8_t allocator = 0;
@@ -1578,8 +1582,9 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       // fill with live RCP entry (from a present/empty entry)
       oc_group_table_t tmp_grt_entry = g_grt[index];
 
-      // set RCP id
+      // set table id
       tmp_grt_entry.id = id;
+      // id (0) was already scanned/assigned
       int current_grt_properties = 1;
 
       while (object)
@@ -1590,8 +1595,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
           if (object->iname != 0)
           {
-            // NOT an id (0), for sure from now on a not 'ID only' case,
-            // note that id (0) was already scanned/assigned
+            // NOT an id (0), for sure from now on a not 'ID only' case
             id_only = false;
           }
 
@@ -1600,12 +1604,14 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           {
             tmp_grt_entry.ia = (int)object->value.integer;
             current_grt_properties++;
+            ia_and_grpid_together++;
           }
           // grpid (13) - used on multicast
           else if (object->iname == 13)
           {
             tmp_grt_entry.grpid = (uint32_t)object->value.integer;
             current_grt_properties++;
+            ia_and_grpid_together++;
           }
           // iid (26) - used on multicast
           else if (object->iname == 26)
@@ -1725,11 +1731,11 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         Options
         -------
 
-        a: created +  id only/< min elements = ERROR (to few elements)
-        b: created +  3 elements             = OK (create)
-        c: changed +  id only                = OK (delete)
-        d: changed +  1/2 elements           = OK (update)
-
+        a0: created + to few elements         = ERROR 
+        a1: created/changed + wrong elements  = ERROR 
+        b: created +  min 3 elements          = OK (create)
+        c: changed +  id only                 = OK (delete)
+        d: changed +  1...n elements          = OK (update)
 
         Notes
         -----
@@ -1772,10 +1778,23 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       else
       {
         if (return_status == OC_STATUS_CREATED && current_grt_properties < MANDATORY_GRT_PROPERTIES)
-        { // a
+        { // a0
 
           // see details on constant
           PRINT("mandatory items missing, no entry created at index: %d", index);
+
+          // on error: free PUB tmp entry (all heap allocations)
+          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
+
+          oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        if (ia_and_grpid_together > 1)
+        { // a1
+
+          // see details on constant
+          PRINT("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
@@ -2102,7 +2121,7 @@ void oc_store_group_object_table_entry(int entry)
   oc_rep_i_set_int(root, 0, g_got[entry].id);
   // href - 11
   oc_rep_i_set_text_string(root, 11, oc_string(g_got[entry].href));
-  // ga - 7
+  // ga - 7 (writes only the ga array as n- elements, the ga len is explicitly not part of the stream)
   oc_rep_i_set_int_array(root, 7, g_got[entry].ga, g_got[entry].ga_len);
   // cflags - 8 (note this is a binary value and different as the response on the wire with r/w/u/t/i)
   oc_rep_i_set_int(root, 8, g_got[entry].cflags);
@@ -2184,7 +2203,10 @@ void oc_load_group_object_table_entry(int entry)
           if (rep->iname == 7)
           {
             // a load command does NOT append items to an (existing) array, it overwrites them  
+            
             const int64_t* array = oc_int_array(rep->value.array);
+
+            // reads only the ga array as n- elements, the ga len is explicitly not part of the stream 
             const uint16_t new_array_size = oc_int_array_size(rep->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
@@ -2204,7 +2226,7 @@ void oc_load_group_object_table_entry(int entry)
               PRINT("ga size %d", new_array_size);
 
               // assign only when the new array is allocated correctly
-              g_got[entry].ga_len = new_array_size;
+              g_got[entry].ga_len = new_array_size; // calculated from stream
               g_got[entry].ga = new_array;
             }
           }
@@ -2349,7 +2371,7 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
   PRINT("ga (7)     : [");
   for (int i = 0; i < table[entry].ga_len; i++)
   {
-    PRINTF("%u", table[entry].ga[i]);
+    PRINTF("%04X", table[entry].ga[i]);
   }
   PRINTF("]");
 
@@ -2388,7 +2410,7 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   oc_rep_i_set_int(root, 13, table[entry].grpid);
   // at - 14
   oc_rep_i_set_text_string(root, 14, oc_string(table[entry].at));
-  // ga - 7
+  // ga - 7 (writes only the ga array as n- elements, the ga len is explicitly not part of the stream)
   oc_rep_i_set_int_array(root, 7, table[entry].ga, table[entry].ga_len);
   // non - 'non'
   oc_rep_text_set_text_string(root, non, oc_string(table[entry].at));
@@ -2481,8 +2503,11 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
           if (rep->iname == 7)
           {
             // a load command does NOT append items to an (existing) array, it overwrites them  
+
             const int64_t* array = oc_int_array(rep->value.array);
-            const uint16_t new_array_size = (int)oc_int_array_size(rep->value.array);
+
+            // reads only the ga array as n- elements, the ga len is explicitly not part of the stream 
+            const uint16_t new_array_size = oc_int_array_size(rep->value.array);
 
             // malloc of 'zero' byte return pointer is undefined
             uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
@@ -2501,7 +2526,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
               PRINT("ga size %d", new_array_size);
 
               // assign only when the new array is allocated correctly
-              table[entry].ga_len = new_array_size;
+              table[entry].ga_len = new_array_size; // calculated from stream
               table[entry].ga = new_array;
             }
           }
@@ -2547,10 +2572,12 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].iid = -1; // init value, used also in code to check on its validity
   table[entry].fid = -1; // init value, used also in code to check on its validity
   table[entry].grpid = 0; // init value, used also in code to check on its validity
+  table[entry].non = false; // init value, see flag description
 
-  // Clear resolved IPv6 address data
+  // clear resolved IPv6 address data
   table[entry].ipadd.init_status = OC_IP_STATUS_UNRESOLVED;
   memset(table[entry].ipadd.ipv6, 0, 16);
+  table[entry].ipadd.port = 0;
   table[entry].ipadd.interface_index = 0;
 
   // free "string" data memory only if already initialized
@@ -2711,22 +2738,22 @@ void oc_free_knx_table_resources(void)
   oc_free_group_object_table();
 }
 
-static bool is_in_array(uint32_t value, uint32_t* array, int array_size)
+// checks GO/PUB/RCP table for a given ga (arrays MUST have always the same type)
+static bool is_in_array(uint32_t value, const uint32_t* array, uint16_t array_size)
 {
-  if (array == NULL)
+  if (array)
   {
-    // // no ga's assigned to this (go/pub/rcp) table entry
-    return false;
-  }
-
-  // loop with an array size = 0, -1 will not start -> return false
-  for (int i = 0; i < array_size; i++)
-  {
-    if (array[i] == value)
+    // loop with an array size = 0, -1 will not start -> return false
+    for (int i = 0; i < array_size; i++)
     {
-      return true;
+      if (array[i] == value)
+      {
+        return true;
+      }
     }
   }
+
+  // no ga's assigned to this (go/pub/rcp) table entry or nothing found
   return false;
 }
 
@@ -2734,7 +2761,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
 {
   bool return_value = false;
 
-  PRINT("oc_add_points_from_group_object_table_to_response %u", group_address);
+  PRINT("oc_add_points_from_group_object_table_to_response %04X", group_address);
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -2789,21 +2816,51 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   // flags
   enum transport_flags my_transport_flags = IPV6 + MULTICAST;
 
+  // mc is always secure ...
   #ifdef OC_OSCORE
   my_transport_flags |= OSCORE;
   #endif
 
-  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, 
-                        port, 0xFF, 0x30 + scope, 0, 0x30,        // FF35::30:
+  // creates IPV6 and set rest to '0'
+  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 
+                        0xFF, 0x30 + scope, 0, 0x30,              // FF35::30: -> FF3X [RFC3306]
                         0xFD, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD + IID 
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
+  // debug
   PRINT("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast);
 
   // copy all from local data to (return) pointer
-  memcpy(&in, &group_mcast, sizeof(oc_endpoint_t));
+  in = group_mcast;
+
+  return in;
+}
+
+oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port)
+{
+
+  // flags
+  enum transport_flags my_transport_flags = IPV6;
+
+  // uc is always secure ...
+  #ifdef OC_OSCORE
+  my_transport_flags |= OSCORE;
+  #endif
+
+  // creates IPV6 and set rest to '0'
+  oc_make_ipv6_endpoint(group_ucast, my_transport_flags, port, 
+                        ipv6_address[0], ipv6_address[1], ipv6_address[2], ipv6_address[3], 
+                        ipv6_address[4], ipv6_address[5], ipv6_address[6], ipv6_address[7], 
+                        ipv6_address[8], ipv6_address[9], ipv6_address[10], ipv6_address[11], 
+                        ipv6_address[12], ipv6_address[13], ipv6_address[14], ipv6_address[15]); 
+
+  // debug
+  PRINTipaddr(group_ucast);
+
+  // copy all from local data to (return) pointer
+  in = group_ucast;
 
   return in;
 }
@@ -2897,7 +2954,7 @@ void oc_register_group_multicasts(void)
         // check if the 'receiving' GA from the GO table entry is in the publisher table (device wants to receive it)
         const uint32_t grpid = oc_find_grpid_in_publisher_table(g_got[index].ga[i]);
 
-        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u ga: %u cflags=", index, i, grpid, g_got[index].ga[i]);
+        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u ga: %04X cflags=", index, i, grpid, g_got[index].ga[i]);
         oc_print_cflags(cflags);
 
         if (grpid > 0)
@@ -2914,43 +2971,53 @@ void oc_register_group_multicasts(void)
 
 void oc_init_datapoints_at_initialization(void)
 {
-  PRINT("scan datapoints for possible i-cflag initialization ...");
+  PRINT("scan datapoints for a possible cflag read on 'init' initialization ...");
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    if (g_got[i].id > -1)
+    if (g_got[i].id > -1 && g_got[i].cflags & OC_CFLAG_INIT)
     {
-      // at least one GA is assigned (is an array)
-      if (g_got[i].ga_len > 0)
-      {
-        if (g_got[i].cflags & OC_CFLAG_INIT)
-        {
-          // read on init cflags is set, fire (after device restart)
-          // no check on -1, there MUST be at least one sending GA
-          const uint32_t sending_group_address = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href), NULL);
-
-          OC_INF("init datapoint, index: %d issue read on group address %u", i, sending_group_address);
-
-          const oc_device_info_t* const  device = oc_core_get_device_info();
-          const uint16_t sia_value = device->ia;
-          const uint64_t iid = device->iid;
-
-          OC_INF("oc_do_s_mode_read : ga=%u ia=%d, iid=%" PRIu64 "", sending_group_address, sia_value, iid);
-
-          // Find recipient entry (contains both grpid and non flag)
-          oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_group_address);
+      /*
+        (a)
+          check first on init flag 
+          1. skip all GO entries without init flag 
+             (find later for a path the sending GA and no init flag is set runs again over all GO's -> timing  
           
-          if (recipient && recipient->grpid > 0)
+        (b)
+          it must be checked for the sending ga, it may be that the current GO entry is not that one that has the ga in position '0'
+          1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href
+          2. test again the INIT flag, it may be that the (other) found GO entry does not have it -> would be MaC configuration error
+      */
+      // TODO in case of 2...n GO entries with same href (b.1) its send 2...n-time
+      // TODO spread the init over a time period of x seconds 
+      
+      const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
+      if (go_entry && go_entry->cflags & OC_CFLAG_INIT)
+      { // read on init cflags is set, fire (such as after a device restart, load complete, ...)
+        
+        // sending ga is always in position zero
+        const uint32_t sending_ga = go_entry->ga[0];
+
+        const oc_device_info_t* const device = oc_core_get_device_info();
+        const uint16_t sia = device->ia;
+        const uint64_t iid = device->iid;
+
+        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 "", sending_ga, sia, iid);
+
+        // find recipient entry (contains both grpid and non flag)
+        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+
+        if (recipient)
+        {
+          if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-          #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_send_s_mode_non_confirmable_multicast_message(2, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
-          #endif
-            oc_send_s_mode_non_confirmable_multicast_message(5, sia_value, recipient->grpid, sending_group_address, iid, "r", NULL, 0);
+            oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+                                                             sending_ga, "r", NULL, 0);
           }
-          else if (recipient)
+          else
           { // uc: read request -> ia is used from RCP table (configured by MaC)
-            oc_send_s_mode_unicast_message(sending_group_address, "r", NULL, 0, recipient);
+            oc_send_s_mode_unicast_message(sending_ga, "r", NULL, 0, recipient);
           }
         }
       }

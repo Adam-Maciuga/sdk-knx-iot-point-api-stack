@@ -823,7 +823,7 @@ void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
   app_set_bool_variable_from_channel(1, SOO, p);
 
   // send out, multicast
-  oc_send_s_mode_mc_or_uc_message(SENDER_SCOPE, url, "w");
+  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, "w");
 
   // update button text
   char text[200];

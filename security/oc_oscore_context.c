@@ -258,7 +258,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
         
         if (group_address == group_value)
         {
-          PRINT("found access token for given GA %u", group_address);
+          PRINT("found access token for given GA %04X", group_address);
 
           // refresh time of last use
           ctx->last_used = oc_clock_time();

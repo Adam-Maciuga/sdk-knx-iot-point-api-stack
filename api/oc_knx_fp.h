@@ -104,8 +104,8 @@ extern "C"
    * | ga       | 7             |
    * | cflag    | 8             |
    *
-   * Note that some (int) integers are tested in the code on their init values
-   * '-1' for validity (0xFFFFFFFF), this is a problem in case of a 16-bit platforms --> hence they were changed to int32_t
+   * Note that some (int) integers are tested in the code on their init value '-1' for validity (0xFFFFFFFF), 
+   * this is a problem in case of a 16-bit platforms, hence int32_t is used
    * - id : (-1 = 0xFFFF = a valid id range)
    */
   typedef struct oc_group_object_table_t
@@ -113,7 +113,7 @@ extern "C"
     int32_t id;               // id as int, specification demands a range of 16 bit with 0 ... 65535 (int, see note above)
     oc_string_t href;         // resource path
     oc_cflag_mask_t cflags;   // cflags as in KNX (to reduce size, please check to use a compile option such as for gcc -fshort-enums)
-    uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (0...n) / send (1)  
+    uint32_t* ga;             // group address value array, defines the GAs on which a GO can receive (1...n) / send (1)  
     uint16_t ga_len;          // group address array len, specification demands at least 20 entries must be supported
   } oc_group_object_table_t;
 
@@ -127,8 +127,8 @@ extern "C"
     OC_IP_STATUS_UNRESOLVED = 0,  // IP address not resolved yet
     OC_IP_STATUS_RESOLVING = 1,   // IP address resolving in progress
     OC_IP_STATUS_RESOLVED = 2,    // IP address successfully resolved
-    OC_IP_STATUS_FAILED = 3,         // IP address resolving failed
-    OC_IP_STATUS_EXPIRED = 4         // IP address expired/needs refresh
+    OC_IP_STATUS_FAILED = 3,      // IP address resolving failed
+    OC_IP_STATUS_EXPIRED = 4      // IP address expired/needs refresh
   } oc_ip_status_t;
 
   /**
@@ -140,6 +140,7 @@ extern "C"
   {
     oc_ip_status_t init_status;  // initialization status with multiple states
     uint8_t ipv6[16];            // IPv6 address (128 bits = 16 bytes)
+    uint16_t port;               // IPv6 port
     int interface_index;         // network interface index for link-local addresses
   } oc_ip_address_t;
 
@@ -176,9 +177,8 @@ extern "C"
    * | ga       | 7             |
    * | non      | -             |
    *
-   * Note that some (int) integers are tested in the code on their init values
-   * '-1' for (non) validity (0xFFFFFFFF), this is a problem in case of 16-bit platforms --> hence the plain int was changed
-   * to int32_t
+   * Note that some (int) integers are tested in the code on their init value '-1' for validity (0xFFFFFFFF), 
+   * this is a problem in case of a 16-bit platforms, hence int32_t is used
    * - ia : (-1 = 0xFFFF = a valid/written KNX ia)
    * - id : (-1 = 0xFFFF = a valid/written id )
    *
@@ -186,6 +186,10 @@ extern "C"
    *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present)
    * 'ia' on PUB table -> defines to which 'ia' device a subscription (with GET /k) has to be sent out,
    *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present)
+   *
+   * 'ipadd' on RCP table -> defines the (resolved) IPv6 address (see above), note that it is
+   *                         - a hidden part of the tables and not defined in the specification  
+   *                         - not stored / loaded as part of the storage
    *
    */
   typedef struct oc_group_table
@@ -198,19 +202,10 @@ extern "C"
     oc_string_t at;         // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
-    bool non;               // non-confirmable request, see details below
-    oc_ip_address_t ipadd;  // IP address information with IPv6 address and initialization status
+    bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = true (always) uc = false (default), except a MaC overwrites it)
+    oc_ip_address_t ipadd;  // IPv6 address information with address and initialization status (used only for RCP table)
   } oc_group_table_t;
 
-  /*
-    'non'
-    - optional property 
-    - uc = confirmable by default, flag = false (except a MaC overwrites it)
-    - mc = non-confirmable, not applicable as confirmable on mc, hence
-      always 'ASSUMED' as true (the flag is NOT evaluated by the stack in case of sending mc messages) 
-    - used only on RCP table (when sending messages)
-
-   */
 
   /**
    * @brief find id (cbor key 0) in the request
@@ -323,7 +318,7 @@ extern "C"
    *        where a GA is included
    *
    * @param group_address the group address to find
-   * @param cur_index  the index from which to search
+   * @param current_index  the index from which to search
    *
    * @note  index is zero based, searching starts
    *        from 'cur_index' + 1
@@ -331,24 +326,23 @@ extern "C"
    * @return int the index in the table or -1
    *
    */
-  int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int cur_index);
+  int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int current_index);
 
   /**
-   * @brief retrieve the GA in position 0 for a href with lowest 'id'
+   * @brief retrieve the GO table entry with lowest 'id' for a href (where we have a GA is in position 0)  
    *
    * @note MUST process all GO entries in the table (see comment in code)
    *
    * @param resource_path the resource path for which the GA is searched for
-   * @param cflags NULL, or if of interest a flag variable to get the flags from the GO of the GA in position 0 (flag variable will be init inside the method with none) 
-   * @return the GA, -1 in case of no sending GA was found
+   * @return the GO entry, NULL in case of no go entry  was found for the resource path
    */
-  int oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path, oc_cflag_mask_t* cflags);
+  oc_group_object_table_t* oc_core_find_sending_ga_in_pos_zero_for_href(const char* resource_path);
 
   /**
    * @brief find (first) index in the GO object table with the given resource path
    *
    * @param resource_path the resource path to find
-   * @return the first index in the table or -1
+   * @return the first go table entry or NULL
    */
   int oc_core_find_first_group_object_table_index_from_href(const char* resource_path);
 
@@ -591,6 +585,16 @@ extern "C"
    * @return oc_endpoint_t the modified endpoint
    */
   oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_id, uint64_t iid, uint8_t scope, uint16_t port);
+
+  /**
+   * @brief create a IPv6 group multicast address with port
+   *
+   * @param in the endpoint to adapt
+   * @param ipv6_address the unicast ipv6 address
+   * @param port the port to be used
+   * @return oc_endpoint_t the modified endpoint
+   */
+  oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port);
 
   /**
    * @brief  subscribe to a multicast address, defined by group number and installation id

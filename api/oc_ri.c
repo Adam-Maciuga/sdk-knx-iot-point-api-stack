@@ -1793,8 +1793,8 @@ oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb,
 											 oc_endpoint_t * endpoint)
 	#endif 
 {
-	// to be checked, default is not CBOR being returned.
-	oc_content_format_t cf = 60;
+	// to be checked, default is CBOR
+  oc_content_format_t cf = APPLICATION_CBOR;
 	coap_get_header_content_format(response, &cf);
 
 	cb->ref_count = 1;
@@ -2023,34 +2023,29 @@ free_all_client_cbs(void)
 	}
 }
 
-oc_client_cb_t*
-oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
+oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 											oc_method_t method, const char* query,
 											oc_client_handler_t handler, oc_qos_t qos,
 											void* user_data)
 {
-	oc_client_cb_t* cb = oc_memb_alloc(&client_cbs_s);
+  oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
 	if (!cb)
 	{
 		OC_WRN("insufficient memory to add client callback");
 		return cb;
 	}
 
+	// note that token/mid of a created callback  must be filled later in the corresponding (outbound) message
 	cb->mid = coap_get_next_mid();
+	cb->token_len = 8;
+  const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
+
 	oc_new_string(&cb->uri, uri, strlen(uri));
 	cb->method = method;
 	cb->qos = qos;
 	cb->handler = handler;
 	cb->user_data = user_data;
-	cb->token_len = 8;
-	int i = 0;
-	uint32_t r;
-	while (i < cb->token_len)
-	{
-		r = oc_random_value();
-		memcpy(cb->token + i, &r, sizeof(r));
-		i += sizeof(r);
-	}
 	cb->discovery = false;
 	cb->timestamp = oc_clock_time();
 	cb->observe_seq = -1;
@@ -2059,10 +2054,7 @@ oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 	{
 		oc_new_string(&cb->query, query, strlen(query));
 	}
-	// if ((handler.response != NULL) && (handler.discovery_all != NULL) &&
-	//    (handler.discovery != NULL)) {
 	oc_list_add(client_cbs, cb);
-	//}
 
 	return cb;
 }

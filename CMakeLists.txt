@@ -41,7 +41,6 @@ set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t v
 set(OC_DNS_SD_ENABLED ON CACHE BOOL "Enable DNS SD discovery (in addition to CoAP discovery)")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this a device can (also) receive (OFF: for plain senders).")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
-set(OC_USE_MULTICAST_SCOPE_2 ON CACHE BOOL "devices send 'additionally' group multicast events with scope 2, e.g.; for PC based applications.")
 
 ### Allows to use an own security framework, with ON the KNX MBEDTLS framework is used. 
 set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use MBEDTLS associated with KNX IoT repository")
@@ -66,6 +65,11 @@ set(KNX_SPAKE_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used 
 
 # KNX reset "Process Time" in seconds
 set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
+
+# IPV6 multicast scope, scope 2 MAY be needed for the virtual DEMO applications when:
+# - the devices are running on the same PC (e.g. for testing with EITT)
+# - a network router does not allow to send multicast messages with scope 5 (site local)
+set(OC_SENDER_MULTICAST_SCOPE "2" CACHE STRING "IPv6 multicast scope, used on sending all (multicast) s-mode messages")
 
 # dont show below variables in any (command) GUI
 mark_as_advanced(KNX_SPAKE_ITERATIONS)
@@ -577,6 +581,9 @@ add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server def
 # KNX reset Process Time (seconds)
 add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
+# IPv6 multicast scope
+add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
+
 ## Security 
 if(OC_OSCORE_ENABLED)
    target_compile_definitions(kis-common INTERFACE OC_OSCORE)
@@ -619,10 +626,6 @@ if (OC_USE_STORAGE)
         target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
     endif()
     target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
-endif()
-
-if (OC_USE_MULTICAST_SCOPE_2)
-    target_compile_definitions(kisClientServer PUBLIC OC_USE_MULTICAST_SCOPE_2)
 endif()
 
 if(KNX_LOG_CAST_64_BIT_INTS_ENABLED)

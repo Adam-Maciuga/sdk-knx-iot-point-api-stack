@@ -305,11 +305,10 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
         to avoid race conditions while the device is resetting.
       - The value is supplied via CMake as the compile definition KNX_RESPONSE_TIME_SECONDS.
     */
-    const unsigned int response_time = KNX_RESPONSE_TIME_SECONDS;
 
     oc_rep_begin_root_object();
     oc_rep_text_set_int(root, code, response_code);
-    oc_rep_text_set_int(root, time, response_time);
+    oc_rep_text_set_int(root, time, KNX_RESPONSE_TIME_SECONDS);
     oc_rep_end_root_object();
 
     // send response
@@ -602,7 +601,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
       a: a multicast POST message is received by IP layer,
          mc address is registered (otherwise message is discarded by IP layer)
         -> forward to /k (provided security check was passed)
-      b: an unicast POST message is received by IP layer
+      b: a unicast POST message is received by IP layer
          -> forward to /k (provided security check was passed)
       c: method '/k' checks GO table entries if GA from request is included
          and r/w/a flags from request + resource, if ok call PUT/GET callback handler
@@ -727,7 +726,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
   // handle the request loop over the group addresses of the /fp/r (recipient table)
-  PRINT("/k : sia: %u ga: %u st: %s origin: %s", 
+  PRINT("/k : sia: %u ga: %04x st: %s origin: %s", 
         received_notification.sia, 
         received_notification.ga,
         oc_string_checked(received_notification.st), 
@@ -1004,35 +1003,36 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
               &new_request, application_resource_with_href_match->get_handler.interface_mask,
               application_resource_with_href_match->get_handler.user_data);
 
-            // #2 - send read response
+            // #2 - send read response (flags don't care)
             {
               // Option 4, get sending GA for the current resource path href (out of 0...max GO table entries)
-              const int sending_ga = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href), NULL);
+              const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href));
 
-              if (sending_ga != -1)
+              if (go_entry)
               { // we have a sending GA, now we can send the read response, rest was checked before
 
-                // Find recipient entry (contains both grpid and non flag)
+                // sending ga is always in position zero
+                const uint32_t sending_ga = go_entry->ga[0];
+                
+                // find recipient entry for sending ga , contains both grpid and non flag
                 oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
                 
-                if (recipient && recipient->grpid > 0)
-                { // grpid is set in case of multicast in RCP table (configured by MaC)
+                if (recipient)
+                {
+                  if (recipient->grpid > 0)
+                  { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-                  #ifdef OC_USE_MULTICAST_SCOPE_2
-                  oc_send_s_mode_non_confirmable_multicast_message(2, device->ia, recipient->grpid, sending_ga, device->iid, "a",
-                                     new_request.response->response_buffer->buffer,
-                                     (int)new_request.response->response_buffer->response_length);
-
-                  #endif
-                  oc_send_s_mode_non_confirmable_multicast_message(5, device->ia, recipient->grpid, sending_ga, device->iid, "a",
-                                     new_request.response->response_buffer->buffer,
-                                     (int)new_request.response->response_buffer->response_length);
-                }
-                else if (recipient)
-                { // uc: read response -> ia is used from RCP table (configured by MaC)
-                  oc_send_s_mode_unicast_message(sending_ga, "a",
-                                                  new_request.response->response_buffer->buffer,
-                                                  (int)new_request.response->response_buffer->response_length, recipient);
+                    oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+                                                                     sending_ga, "a", 
+                                                                     new_request.response->response_buffer->buffer,
+                                                                     (int)new_request.response->response_buffer->response_length);
+                  }
+                  else
+                  { // uc: read response -> ia is used from RCP table (configured by MaC)
+                    oc_send_s_mode_unicast_message(sending_ga, "a", 
+                                                   new_request.response->response_buffer->buffer,
+                                                   (int)new_request.response->response_buffer->response_length, recipient);
+                  }
                 }
               }
 
@@ -1056,15 +1056,15 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   if (request->origin && request->origin->flags & MULTICAST)
-  { // multicast request: don't send anything ELSE back as mc or uc
-    // if configured in PUB table a read was answered with multicast response beforehand
+  { // multicast request: don't send anything back (no uc, no mc response)
+    // if configured in PUB table a read was answered beforehand
 
     PRINT("multicast - not sending response");
     oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
   }
   else
   { // unicast request: send status back as unicast
-    // if configured in PUB table a read was answered with multicast (GRIP ID > 0) and/or unicast beforehand
+    // if configured in PUB table a read was answered beforehand
 
     PRINT("unicast - sending response");
     oc_prepare_no_format_response_no_payload(request, summary_handler_status);
