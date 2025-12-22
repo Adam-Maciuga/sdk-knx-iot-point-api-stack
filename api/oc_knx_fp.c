@@ -2823,7 +2823,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
 
   // creates IPV6 and set rest to '0'
   oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 
-                        0xFF, 0x30 + scope, 0, 0x30,              // FF35::30:
+                        0xFF, 0x30 + scope, 0, 0x30,              // FF35::30: -> FF3X [RFC3306]
                         0xFD, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD + IID 
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
