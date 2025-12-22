@@ -305,11 +305,10 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
         to avoid race conditions while the device is resetting.
       - The value is supplied via CMake as the compile definition KNX_RESPONSE_TIME_SECONDS.
     */
-    const unsigned int response_time = KNX_RESPONSE_TIME_SECONDS;
 
     oc_rep_begin_root_object();
     oc_rep_text_set_int(root, code, response_code);
-    oc_rep_text_set_int(root, time, response_time);
+    oc_rep_text_set_int(root, time, KNX_RESPONSE_TIME_SECONDS);
     oc_rep_end_root_object();
 
     // send response
@@ -1023,13 +1022,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                   if (recipient->grpid > 0)
                   { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-                    #ifdef OC_USE_MULTICAST_SCOPE_2
-                    oc_send_s_mode_non_confirmable_multicast_message(2, recipient->grpid, sending_ga, "a", 
-                                                                     new_request.response->response_buffer->buffer,
-                                                                     (int)new_request.response->response_buffer->response_length);
-
-                    #endif
-                    oc_send_s_mode_non_confirmable_multicast_message(5, recipient->grpid, sending_ga, "a", 
+                    oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+                                                                     sending_ga, "a", 
                                                                      new_request.response->response_buffer->buffer,
                                                                      (int)new_request.response->response_buffer->response_length);
                   }

@@ -3012,10 +3012,8 @@ void oc_init_datapoints_at_initialization(void)
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-            #ifdef OC_USE_MULTICAST_SCOPE_2
-            oc_send_s_mode_non_confirmable_multicast_message(2, recipient->grpid, sending_ga, "r", NULL, 0);
-            #endif
-            oc_send_s_mode_non_confirmable_multicast_message(5, recipient->grpid, sending_ga, "r", NULL, 0);
+            oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+                                                             sending_ga, "r", NULL, 0);
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)

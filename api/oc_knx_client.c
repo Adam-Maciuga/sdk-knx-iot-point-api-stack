@@ -52,7 +52,7 @@ oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
 
 // Pending message queue for unresolved unicast sends
 #define MAX_PENDING_MESSAGES 10
-#define PENDING_MESSAGE_TIMEOUT_SECONDS 10  /**< Timeout for queued messages */
+#define PENDING_MESSAGE_TIMEOUT_SECONDS 20  /**< Timeout for queued messages */
 
 typedef struct pending_s_mode_message_t
 {
@@ -138,17 +138,11 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
       return -1;
     }
     
-    // trigger resolution - send discovery to both scopes
-    bool ret2 = false;
-    bool ret5 = false;
-
-    #ifdef OC_USE_MULTICAST_SCOPE_2
-    ret2 = knx_resolve_via_coap_discovery(2, recipient->ia, iid, recipient);
-    #endif
-    ret5 = knx_resolve_via_coap_discovery(5, recipient->ia, iid, recipient);
+    // trigger resolution - send discovery to defined scopes
+    const bool ret = knx_resolve_via_coap_discovery(OC_SENDER_MULTICAST_SCOPE, recipient->ia, iid, recipient);
     
     // fail only if both scopes failed
-    if (!ret2 && !ret5) 
+    if (!ret) 
     {
       OC_ERR("Failed to trigger IPv6 resolution for IA 0x%04x on all scopes", (uint16_t)recipient->ia);
 

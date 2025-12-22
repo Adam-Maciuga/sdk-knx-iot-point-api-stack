@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2022-2023 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,10 +18,6 @@
   @brief client code for the device (s-mode)
   @file
 
-  compile flag:
-  - OC_USE_MULTICAST_SCOPE_2
-    also sends the multicast group events with scope =2
-    this is needed when the devices are running on the same PC
 */
 #ifndef OC_KNX_CLIENT_INTERNAL_H
 #define OC_KNX_CLIENT_INTERNAL_H
