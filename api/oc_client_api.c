@@ -118,6 +118,9 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
   uint8_t* plo;
   uint8_t* phi;
 
+  uint32_t a;
+  uint32_t b;
+
   if (callback)
   { // a callback is attached to this (outbound) message, the message needs to take over the callback token/mid
     mid = callback->mid;
@@ -127,8 +130,8 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
   }
   else
   {
-    uint32_t a = oc_random_value();
-    uint32_t b = oc_random_value();
+    a = oc_random_value();
+    b = oc_random_value();
     
     mid = coap_get_next_mid();
 
@@ -149,13 +152,6 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
   
   coap_set_header_uri_path(udp_request, uri, strlen(uri));
 
-  if (callback)
-  { // a callback is attached to this (outbound) message, the callback needs to have the above message token/mid
-    callback->mid = mid;
-    callback->token_len = 8;
-    memcpy(callback->token, udp_request->token, 8);
-  }
-
   return true;
 }
 
@@ -174,6 +170,9 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   uint8_t* plo;
   uint8_t* phi;
 
+  uint32_t a; 
+  uint32_t b;
+
   if (callback)
   { // a callback is attached to this (outbound) message, the message needs to take over the callback token/mid
     mid = callback->mid;
@@ -184,8 +183,8 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   }
   else
   {
-    uint32_t a = oc_random_value();
-    uint32_t b = oc_random_value();
+    a = oc_random_value();
+    b = oc_random_value();
     
     mid = coap_get_next_mid();
 

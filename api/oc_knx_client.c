@@ -138,13 +138,13 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
       return -1;
     }
     
-    // trigger resolution - send discovery to defined scopes
+    // trigger resolution - send discovery to defined scope
     const bool ret = knx_resolve_via_coap_discovery(OC_SENDER_MULTICAST_SCOPE, recipient->ia, iid, recipient);
     
-    // fail only if both scopes failed
+    // failed
     if (!ret) 
     {
-      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%04x on all scopes", (uint16_t)recipient->ia);
+      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%04x ", (uint16_t)recipient->ia);
 
       // release the occupied pending slot
       oc_knx_release_pending_message(slot);
@@ -203,9 +203,6 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
   if (oc_init_post(path, endpoint, NULL, NULL, LOW_QOS, NULL))
   {
   #else  
-
-  // set since method is called also with empty EP data
-  endpoint->flags |= OSCORE;
 
   // get local device info (sia) -> always the same
   const uint16_t sia = oc_core_get_device_info()->ia;
@@ -543,12 +540,20 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
     return;
   }
 
-  // extract IPv6 address from source endpoint
+  // must be IPv6 addressed
   if (!(data->endpoint->flags & IPV6)) 
   {
     OC_ERR("CoAP discovery: Response not from IPv6 endpoint");
     return;
   }
+
+  // must be non OSCORE
+  if (data->endpoint->flags & OSCORE)
+  {
+    OC_ERR("CoAP discovery: Response is IPv6 OSCORE, but must be unencrypted ");
+    return;
+  }
+
 
   // get recipient (pointer) that was issued as suer data with the callback 
   oc_group_table_t* recipient = (oc_group_table_t*)data->user_data;
@@ -605,7 +610,18 @@ int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia,
     return -1;
   }
 
-  // find empty slot
+  // clean all elapsed discoveries
+  const uint64_t now = oc_clock_time();
+  for (int i = 0; i < MAX_PENDING_MESSAGES; i++)
+  {
+    // step 1: check for timeout and clean all
+    if (now - g_pending_messages[i].timestamp > PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)
+    {
+      g_pending_messages[i].in_use = false;
+    }
+  }
+
+  // step 2: find empty slot
   for (int i = 0; i < MAX_PENDING_MESSAGES; i++) 
   {
     if (!g_pending_messages[i].in_use) 

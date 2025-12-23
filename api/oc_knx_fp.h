@@ -582,7 +582,7 @@ extern "C"
    * @param iid the installation id
    * @param scope the address scope
    * @param port the port to be used
-   * @return oc_endpoint_t the modified endpoint
+   * @return oc_endpoint_t the modified endpoint, , with flags IPv6, MULTICAST and OSCORE (if enabled)
    */
   oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_id, uint64_t iid, uint8_t scope, uint16_t port);
 
@@ -592,7 +592,7 @@ extern "C"
    * @param in the endpoint to adapt
    * @param ipv6_address the unicast ipv6 address
    * @param port the port to be used
-   * @return oc_endpoint_t the modified endpoint
+   * @return oc_endpoint_t the modified endpoint, with flags IPv6 and OSCORE (if enabled)
    */
   oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port);
 

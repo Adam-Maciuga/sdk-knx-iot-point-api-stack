@@ -201,10 +201,10 @@ void oc_send_message(oc_message_t* message)
 	uint8_t* token = message->data + COAP_HEADER_LEN;
   uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
 	
-	if (version == 1 && type == 1 && code >> 5 == 0 && message->endpoint.flags & OSCORE)
+	if (version == 1 && type == COAP_TYPE_NON && code >> 5 == 0 && message->endpoint.flags & OSCORE)
 	{
 	  // here we track the message MUST BE ... a non-confirmable OSCORE request ....
-	  OC_DBG_OSCORE("track outgoing OSCORE NON-confirmable message");
+	  OC_DBG_OSCORE("track outgoing OSCORE NON-confirmable s-mode (uc/mc) message");
 	  oc_replay_message_track(message, token_len, token);
 	}
 
