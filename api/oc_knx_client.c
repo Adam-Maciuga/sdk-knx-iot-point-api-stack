@@ -175,9 +175,7 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
   return 0;
 }
 
-void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid,
-                                                      uint32_t group_address, const char* service_type,
-                                                      uint8_t* value_data, int value_size)
+void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size)
 {
   // get local device info (iid) -> always the same
   const uint64_t iid = oc_core_get_device_info()->iid;
