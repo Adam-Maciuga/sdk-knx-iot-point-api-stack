@@ -484,10 +484,7 @@ enum controls : uint16_t
   LIST_ALL,             // list all tables (GO/PUB/RCP/AT)
   RESTART_DEVICE,       // restart device
   NETWORK_INTERFACES,   // network interfaces dialog
-  REFRESH_INTERFACES,   // refresh network interfaces
-  RESOLVE_IPV6_TEST,    // test IPv6 resolution
-  SEND_UNICAST_TEST,    // send unicast test message
-  DEBUG_UNICAST_SENDING, // debug unicast sending (detailed info dialog)
+  REFRESH_INTERFACES,   // refresh network interface
 
   EITT_SOO,             // EITT test button
   wxID_SLIDER,          // EMS Inverter slider

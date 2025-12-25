@@ -384,7 +384,7 @@ int coap_receive(oc_message_t* incoming_message)
 		      coap_packet_t re_request_packet[1];
 					coap_udp_parse_message(re_request_packet, transaction->message->data, transaction->message->length);
 
-					// find client by using old mid (before increasing mid)
+					// find a POSSIBLE created client callback by using old mid (before increasing mid)
 					client_cb = oc_ri_find_client_cb_by_mid(re_request_packet->mid);
 
 					// copy the echo from the unauthorised response into the new request
@@ -480,7 +480,7 @@ int coap_receive(oc_message_t* incoming_message)
 						coap_packet_t re_request_packet[1];
 						coap_udp_parse_message(re_request_packet, original_message->data, original_message->length);
 
-						// find client by using old mid (before increasing mid)
+						// find a POSSIBLE created client callback by using old mid (before increasing mid)
             client_cb = oc_ri_find_client_cb_by_mid(re_request_packet->mid);
 
 					  // copy the echo from the unauthorised response into the new request

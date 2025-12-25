@@ -387,7 +387,7 @@ typedef struct oc_resource oc_resource_t;
 typedef struct oc_request_t
 {
 oc_endpoint_t* origin;                /**< origin (endpoint) of the request */
-const oc_resource_t* resource;        /**< resource structure */
+const oc_resource_t* resource;        /**< addressed target resource */
 const char* query;                    /**< query (as string) */
 size_t query_len;                     /**< query length */
 const char* uri_path;                 /**< path (as string) */
@@ -760,18 +760,16 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
 oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len);
 
 /**
-* @brief creates a new request from the (old) request by copy 1:1,
+* @brief creates a new request from the (old) request by copy it 1:1,
 *        is used internally for handler calls of /k and /p,
-*				and adds response object (including response buffer) to the new request  
+*				 and adds response object (including response buffer) to the new request  
 *
 * @note
 *  - take care on editing data in the new request (such as in application),
-*    most copied data are pointers, hence a reference to the original source
-*  - copies the response buffer pointer/size to new request, means that new/original request
-*    points to the same response memory
+*    most copied data are pointers, they are a reference to the original source
+*  - adds a new response buffer pointer/size to the new request
 *  - copied endpoint data into new request maybe used in callback handler to access interfaces
 *    or acl scopes
-*  - performance consuming 
 *
 * @param new_request the original request
 * @param inbound_request the new request
@@ -780,9 +778,9 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
 *
 */
 void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
-                                        oc_request_t* inbound_request,
-                                        oc_response_buffer_t* response_buffer,
-                                        oc_response_t* response_obj);
+                                            const oc_request_t* inbound_request,
+                                            oc_response_buffer_t* response_buffer,
+                                            oc_response_t* response_obj);
 
 
 void allocate_events(void);

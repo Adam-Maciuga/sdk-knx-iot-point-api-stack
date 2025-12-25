@@ -103,7 +103,7 @@ bool oc_do_well_known_message_update(void)
   return true;
 }
 
-bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char *uri, bool non_confirmable, oc_client_cb_t* callback)
+bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char *uri, bool non_confirmable)
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_s_mode_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
@@ -113,43 +113,23 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const ch
     return false;
   }
 
-  uint16_t mid;
-
-  uint8_t* plo;
-  uint8_t* phi;
-
-  uint32_t a;
-  uint32_t b;
-
-  if (callback)
-  { // a callback is attached to this (outbound) message, the message needs to take over the callback token/mid
-    mid = callback->mid;
-
-    plo = callback->token + 0;
-    phi = callback->token + 4;
-  }
-  else
-  {
-    a = oc_random_value();
-    b = oc_random_value();
-    
-    mid = coap_get_next_mid();
-
-    plo = (uint8_t*)&a;
-    phi = (uint8_t*)&b;
-  }
-
-  // s-mode messages carry a payload, step 2 needed
+  // no callback is possible to this (outbound) s-mode POST message, the message needs to generate own token/mid
   memcpy(&udp_message_update->endpoint, s_mode_message, sizeof(oc_endpoint_t));
-  oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
-  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_POST, mid);
+  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_POST, coap_get_next_mid());
   coap_set_header_accept(udp_request, APPLICATION_CBOR);
+  
+  // s-mode message MAY carry a payload, this step is needed
+  oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
+
+  uint32_t a = oc_random_value();
+  uint32_t b = oc_random_value();
 
   // set here fix 8 byte token len
   udp_request->token_len = 8; 
-  memcpy(udp_request->token + 0, plo, 4);
-  memcpy(udp_request->token + 4, phi, 4);
+  memcpy(udp_request->token + 0, (uint8_t*)&a, 4);
+  memcpy(udp_request->token + 4, (uint8_t*)&b, 4);
   
+  // s-mode messages carries a uri + no query
   coap_set_header_uri_path(udp_request, uri, strlen(uri));
 
   return true;
@@ -165,53 +145,27 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
     return false;
   }
 
-  uint16_t mid;
-
-  uint8_t* plo;
-  uint8_t* phi;
-
-  uint32_t a; 
-  uint32_t b;
-
-  if (callback)
-  { // a callback is attached to this (outbound) message, the message needs to take over the callback token/mid
-    mid = callback->mid;
-
-    plo = callback->token + 0;
-    phi = callback->token + 4;
-    
-  }
-  else
-  {
-    a = oc_random_value();
-    b = oc_random_value();
-    
-    mid = coap_get_next_mid();
-
-    plo = (uint8_t*)&a;
-    phi = (uint8_t*)&b;
-  }
-
-  // well-known messages do not carry a payload
+  // a callback is attached to this (outbound) well-known GET message, the message needs to take over the callback token/mid
   memcpy(&udp_message_update->endpoint, well_known_message, sizeof(oc_endpoint_t));
-  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_GET, mid);
+  coap_udp_init_message(udp_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_GET, callback->mid);
   coap_set_header_accept(udp_request, APPLICATION_LINK_FORMAT);
+
+  // well-known message DO NOT carry a payload (yet)
 
   // set here fix 8 byte token len
   udp_request->token_len = 8;
-  memcpy(udp_request->token + 0, plo, 4);
-  memcpy(udp_request->token + 4, phi, 4);
+  memcpy(udp_request->token + 0, callback->token + 0, 4);
+  memcpy(udp_request->token + 4, callback->token + 4, 4);
 
+  // well-known messages carries a uri + query
   coap_set_header_uri_path(udp_request, uri, strlen(uri));
   coap_set_header_uri_query(udp_request, query);
-
   return true;
 }
 
 #endif 
 
-void
-oc_free_server_endpoints(oc_endpoint_t *endpoint)
+void oc_free_server_endpoints(oc_endpoint_t *endpoint)
 {
   while (endpoint) 
   {
@@ -229,7 +183,8 @@ bool oc_get_response_payload_raw(oc_client_response_t *response,
   if (!response || !payload || !size || !content_format) {
     return false;
   }
-  if (response->_payload && response->_payload_len > 0) {
+  if (response->_payload && response->_payload_len > 0) 
+  {
     *content_format = response->content_format;
     *payload = response->_payload;
     *size = response->_payload_len;

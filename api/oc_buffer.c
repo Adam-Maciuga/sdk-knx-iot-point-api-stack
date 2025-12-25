@@ -50,13 +50,13 @@ OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 static oc_message_t* allocate_message(struct oc_memb* pool)
 {
 	oc_network_event_handler_mutex_lock();
-	oc_message_t* message = oc_memb_alloc(pool);
+  oc_message_t* message = (oc_message_t*)oc_memb_alloc(pool);
 	oc_network_event_handler_mutex_unlock();
 	if (message)
 	{
 		#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
 
-	  message->data = malloc(OC_PDU_SIZE);
+	  message->data = (uint8_t*)malloc(OC_PDU_SIZE);
 		if (!message->data)
 		{
 			OC_ERR("Out of memory, cannot allocate message");
@@ -255,11 +255,11 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 		else if (ev == oc_events[OUTBOUND_NETWORK_EVENT])
 		{ // outbound
 
-		  oc_message_t* message = data;
+		  oc_message_t* message = (oc_message_t*)data;
 
 		  /*
 		    1. handle OSCORE (mc/uc) messages first, encrypt the outgoing message before sending it (pass to OSCORE)
-				2. handle multicast discovery as second step
+				2. handle PLAIN (multicast) discovery messages as a second step
 
 		  */
 			#if OC_OSCORE
@@ -290,7 +290,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 			else
 			{
 				OC_DBG("Outbound network event: plain unicast message");
-				oc_message_t* type_cast_message = data;
+        oc_message_t* type_cast_message = (oc_message_t*)data;
         oc_send_buffer(type_cast_message);
         oc_message_unref(type_cast_message);
 			}
@@ -298,7 +298,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 		else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED])
 		{
 			OC_DBG("Outbound network event: secure unicast message (request or response), received from OSCORE layer");
-      oc_message_t* type_cast_message = data;
+      oc_message_t* type_cast_message = (oc_message_t*)data;
       oc_send_buffer(type_cast_message);
       oc_message_unref(type_cast_message);
 		}

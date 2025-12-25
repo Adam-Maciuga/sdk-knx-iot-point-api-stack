@@ -21,6 +21,7 @@
 #ifndef OC_KNX_FP_INTERNAL_H
 #define OC_KNX_FP_INTERNAL_H
 
+#include "oc_client_state.h"
 #include "oc_helpers.h"
 #include "oc_ri.h"
 
@@ -136,13 +137,26 @@ extern "C"
    * 
    * Contains IPv6 address and initialization status
    */
-  typedef struct oc_ip_address_t
+  typedef struct oc_ipv6_adr_t
   {
-    oc_ip_status_t init_status;  // initialization status with multiple states
-    uint8_t ipv6[16];            // IPv6 address (128 bits = 16 bytes)
-    uint16_t port;               // IPv6 port
-    int interface_index;         // network interface index for link-local addresses
-  } oc_ip_address_t;
+    uint8_t ipv6[16];     // IPv6 address (128 bits = 16 bytes)
+    uint16_t port;        // IPv6 port
+    int interface_index;  // network interface index for link-local addresses
+  } oc_ipv6_adr_t;
+
+  /**
+   * @brief IP unicast resolver status and linked data
+   *
+   * Contains initialization status and linked GO
+   */
+  typedef struct oc_resolver_t
+  {
+    char service_type[2];                   // service type as "w", "r", or "a" + '/0'
+    oc_ip_status_t resolve_status;          // initialization status with multiple states
+    oc_group_object_table_t* group_object;  // the GO table entry that hosts the sending ga and href
+    oc_client_cb_t* callback;               // host the running discovery callback
+  } oc_resolver_t;
+
 
   /**
    * @brief Function point Recipient - Publisher Table Resource (/fp/r) (/fp/p)
@@ -187,7 +201,7 @@ extern "C"
    * 'ia' on PUB table -> defines to which 'ia' device a subscription (with GET /k) has to be sent out,
    *                      the 'ia' device uc IPv6 address needs to be resolved first (or is present)
    *
-   * 'ipadd' on RCP table -> defines the (resolved) IPv6 address (see above), note that it is
+   * 'ipv6_adr' on RCP table -> defines the (resolved) IPv6 address for the 'ia' (see above), note that this structure is:
    *                         - a hidden part of the tables and not defined in the specification  
    *                         - not stored / loaded as part of the storage
    *
@@ -203,7 +217,8 @@ extern "C"
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
     bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = true (always) uc = false (default), except a MaC overwrites it)
-    oc_ip_address_t ipadd;  // IPv6 address information with address and initialization status
+    oc_ipv6_adr_t ipv6_adr; // IPv6 address, port, interface 
+    oc_resolver_t ipv6_res; // IPV6 unicast address resolver 
   } oc_group_table_t;
 
 

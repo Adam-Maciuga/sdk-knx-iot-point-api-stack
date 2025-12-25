@@ -2574,11 +2574,12 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   table[entry].grpid = 0; // init value, used also in code to check on its validity
   table[entry].non = false; // init value, see flag description
 
-  // clear resolved IPv6 address data
-  table[entry].ipadd.init_status = OC_IP_STATUS_UNRESOLVED;
-  memset(table[entry].ipadd.ipv6, 0, 16);
-  table[entry].ipadd.port = 0;
-  table[entry].ipadd.interface_index = 0;
+  // clear resolver status and callback
+  table[entry].ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+  table[entry].ipv6_res.callback = NULL;
+  
+  // clear IPv6 address data
+  memset(&table[entry].ipv6_adr, 0, sizeof(oc_ipv6_adr_t));
 
   // free "string" data memory only if already initialized
   // assumes in table uninitialized/random string data - don't release it ...
@@ -3017,7 +3018,7 @@ void oc_init_datapoints_at_initialization(void)
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)
-            oc_send_s_mode_unicast_message(sending_ga, "r", NULL, 0, recipient);
+            oc_send_s_mode_unicast_message(sending_ga, "r", NULL, 0, recipient, go_entry);
           }
         }
       }

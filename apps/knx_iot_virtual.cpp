@@ -281,23 +281,32 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
       }
       
       // Display IPv6 resolution status and address
-      if (entry->ipadd.init_status == OC_IP_STATUS_RESOLVED) {
+      if (entry->ipv6_res.resolve_status == OC_IP_STATUS_RESOLVED)
+      {
         sprintf(line, "  ipv6: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (resolved)",
-                entry->ipadd.ipv6[0], entry->ipadd.ipv6[1], entry->ipadd.ipv6[2], entry->ipadd.ipv6[3],
-                entry->ipadd.ipv6[4], entry->ipadd.ipv6[5], entry->ipadd.ipv6[6], entry->ipadd.ipv6[7],
-                entry->ipadd.ipv6[8], entry->ipadd.ipv6[9], entry->ipadd.ipv6[10], entry->ipadd.ipv6[11],
-                entry->ipadd.ipv6[12], entry->ipadd.ipv6[13], entry->ipadd.ipv6[14], entry->ipadd.ipv6[15]);
+                entry->ipv6_adr.ipv6[0], entry->ipv6_adr.ipv6[1], entry->ipv6_adr.ipv6[2], entry->ipv6_adr.ipv6[3],
+                entry->ipv6_adr.ipv6[4], entry->ipv6_adr.ipv6[5], entry->ipv6_adr.ipv6[6], entry->ipv6_adr.ipv6[7],
+                entry->ipv6_adr.ipv6[8], entry->ipv6_adr.ipv6[9], entry->ipv6_adr.ipv6[10], entry->ipv6_adr.ipv6[11],
+                entry->ipv6_adr.ipv6[12], entry->ipv6_adr.ipv6[13], entry->ipv6_adr.ipv6[14], entry->ipv6_adr.ipv6[15]);
         out += line;
-      } else if (entry->ipadd.init_status == OC_IP_STATUS_UNRESOLVED) {
+      }
+      else if (entry->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED)
+      {
         sprintf(line, "  ipv6: (not resolved)");
         out += line;
-      } else if (entry->ipadd.init_status == OC_IP_STATUS_RESOLVING) {
+      }
+      else if (entry->ipv6_res.resolve_status == OC_IP_STATUS_RESOLVING)
+      {
         sprintf(line, "  ipv6: (resolving...)");
         out += line;
-      } else if (entry->ipadd.init_status == OC_IP_STATUS_FAILED) {
+      }
+      else if (entry->ipv6_res.resolve_status == OC_IP_STATUS_FAILED)
+      {
         sprintf(line, "  ipv6: (resolution failed)");
         out += line;
-      } else if (entry->ipadd.init_status == OC_IP_STATUS_EXPIRED) {
+      }
+      else if (entry->ipv6_res.resolve_status == OC_IP_STATUS_EXPIRED)
+      {
         sprintf(line, "  ipv6: (expired)");
         out += line;
       }

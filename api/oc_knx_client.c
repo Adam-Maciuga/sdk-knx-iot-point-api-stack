@@ -50,35 +50,12 @@ oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
   return NULL;
 }
 
-// Pending message queue for unresolved unicast sends
-#define MAX_PENDING_MESSAGES 10
-#define PENDING_MESSAGE_TIMEOUT_SECONDS 20  /**< Timeout for queued messages */
-
-typedef struct pending_s_mode_message_t
-{
-  uint32_t ga;                                     /**< group address */
-  char service_type[3];                            /**< "w", "r", or "a" */
-  uint8_t value_data[OC_MAX_APP_DATA_SIZE_STATIC]; /**< CBOR encoded value */
-  bool in_use;
-  int value_size;                                  /**< size of value_data */
-  oc_group_table_t* recipient;
-  uint64_t timestamp;                              /**< when this was queued (for timeout) */
-  
-} pending_s_mode_message_t;
-
-static pending_s_mode_message_t g_pending_messages[MAX_PENDING_MESSAGES] = {0};
-
 // external definitions
 
 void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, const char* service_type,
                              const uint8_t* value_data, int value_size, bool non_confirmable);
 
-static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, int buffer_size);
 
-int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia, const char* service_type, const uint8_t* value_data,
-                                 int value_size, oc_group_table_t* recipient);
-
-void oc_knx_release_pending_message(int slot);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -107,7 +84,9 @@ int oc_is_redirected_request_from(const oc_request_t* request)
 }
 
 int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_type,
-                                   const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
+                                   const uint8_t* value_data, int value_size, 
+                                   oc_group_table_t* recipient, 
+                                   oc_group_object_table_t* group_object)
 {
   if (!recipient) 
   {
@@ -120,60 +99,45 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
     OC_ERR("Cannot send unicast: invalid IA in recipient for GA %u", group_address);
     return -1;
   }
-  
-  // get local device info (sia and iid)
-  const oc_device_info_t* device = oc_core_get_device_info();
-  const uint32_t sia = device->ia;
-  const uint64_t iid = device->iid;
 
-  // check if IPv6 is resolved
-  if (recipient->ipadd.init_status != OC_IP_STATUS_RESOLVED) 
-  {
-    OC_INF("IPv6 not resolved for IA 0x%04x, queuing message and triggering resolution", (uint16_t)recipient->ia);
+  /*
+    Send s-mode unicast message, IPv6 address of recipient must be known
+    (0) - if already resolved -> skip resolving process, send s-mode message
+    (a) - not resolved, first try -> alloc the callback, send first discovery
+    (b) - not resolved, next (re)tries
+          (1) timed out : simply use the existing callback + refresh coap token/mid, resend discovery
+          (2) not timed out : wait for timeout before sending a next discovery, 
+              also a permanent try to send inside the timeout will not send a next discovery (debouncing)  
+  */
 
-    // queue the message
-    const int slot = oc_knx_queue_pending_message(group_address, sia, service_type, value_data, value_size, recipient);
-    if (slot == -1)
-    {
-      return -1;
-    }
+  if (recipient->ipv6_res.resolve_status != OC_IP_STATUS_RESOLVED)
+  { // check resolving status
+
+    // store GO + service type (overwrites it also when triggers a next message but still not resolved)
+    recipient->ipv6_res.group_object = group_object;
+    strncpy(recipient->ipv6_res.service_type, service_type, sizeof(recipient->ipv6_res.service_type));
     
-    // trigger resolution - send discovery to defined scope
-    const bool ret = knx_resolve_via_coap_discovery(OC_SENDER_MULTICAST_SCOPE, recipient->ia, iid, recipient);
-    
-    // failed
-    if (!ret) 
-    {
-      OC_ERR("Failed to trigger IPv6 resolution for IA 0x%04x ", (uint16_t)recipient->ia);
+    knx_resolve_via_coap_discovery(recipient);
 
-      // release the occupied pending slot
-      oc_knx_release_pending_message(slot);
-
-      return -1;
-    }
-    
-    // success - message is queued
-    OC_INF("IPv6 resolution started for IA 0x%04x, message queued for later delivery", (uint16_t)recipient->ia);
-    return 0; 
+    OC_INF("Cannot send unicast: resolver is (still) pending for GA %u", group_address);
+    return -1;
   }
 
-  // create unicast endpoint from resolved IPv6 address + port
+  // (0), create unicast endpoint from resolved IPv6 address + port
   oc_endpoint_t group_ucast_endpoint = {0};
-  group_ucast_endpoint = oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient->ipadd.ipv6, recipient->ipadd.port);
+  group_ucast_endpoint = oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient->ipv6_adr.ipv6, recipient->ipv6_adr.port);
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
-  group_ucast_endpoint.interface_index = recipient->ipadd.interface_index;
-
-  PRINT("Sending %s unicast %s to IA %04x via resolved IPv6 (interface %d)", 
-        recipient->non ? "NON" : "CON", service_type,
-        (uint16_t)recipient->ia, recipient->ipadd.interface_index);
+  group_ucast_endpoint.interface_index = recipient->ipv6_adr.interface_index;
 
   // send unicast message (confirmable or non-confirmable)
   oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient->non);
   
   return 0;
 }
+
+
 
 void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size)
 {
@@ -205,7 +169,7 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
   // get local device info (sia) -> always the same
   const uint16_t sia = oc_core_get_device_info()->ia;
 
-  if (oc_init_s_mode_message_update(endpoint, path, non_confirmable, NULL))
+  if (oc_init_s_mode_message_update(endpoint, path, non_confirmable))
   {
   #endif 
 
@@ -255,13 +219,17 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
   }
 }
 
-// copies the resource data and returns the data len by invoking the GET resource callback handler 
-static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buffer, const int buffer_size)
-{
-  // max value size of a resource value
-  uint8_t resource_value[OC_MAX_APP_DATA_SIZE_STATIC];
+/* 
+  @brief copies the resource data to a buffer by invoking the GET resource callback handler 
+         (see notes)
 
-  if (resource_path == NULL)
+  @return data len 
+
+  @note buffer len must satisfy the maximum possible resource len 
+*/
+static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, uint16_t buffer_size)
+{
+  if (!resource_path)
   {
     return 0;
   }
@@ -273,77 +241,50 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t * buf
     return 0;
   }
 
-  // create local request/response messages to call application callback handler
-  // - local request message
-  // - local response message
-  // - local response buffer
-  oc_request_t request_obj;
-  oc_response_t response_obj; 
-  oc_response_buffer_t response_buffer; 
+  oc_request_t new_request = {0};               // prepare request from "void" with data needed for the application callback GET
+  oc_response_t response_obj;                   // filled completely later on, hence no init with '0'
+  oc_response_buffer_t response_buffer = {0};   // partiality filled later on, hence init with '0'
 
-  // empty response buffer, same initialization as oc_ri.c
-  response_buffer.buffer = resource_value;
-  response_buffer.buffer_size = 50;
-  response_buffer.code = 0;
-  response_buffer.response_length = 0;
-  response_buffer.content_format = TEXT_PLAIN;
-  response_buffer.max_age = 0;
+  /* 
+    - same initialization as oc_ri.c (oc_ri_new_request_from_inbound_request)
+    - set only data that are not '0' from above
+  */
+  response_buffer.buffer = buffer;
+  response_buffer.buffer_size = buffer_size;
 
-  // empty response object,later filled, same initialization as oc_ri.c 
+  // init response object (fills all)
   response_obj.separate_response = NULL;
   response_obj.response_buffer = &response_buffer;
 
-  // prepare new request from "void" with data needed for the callback GET
-  // NOT the same initialization as oc_ri.c  
-  request_obj.response = &response_obj;
-  request_obj.request_payload = NULL;
-  request_obj.query = NULL;
-  request_obj.query_len = 0;
-  request_obj.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
-  request_obj.origin = NULL; // not known at this point
-  request_obj._payload = NULL;
-  request_obj._payload_len = 0;
-  request_obj.request_method = OC_POST; // s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/ update
-  request_obj.content_format = APPLICATION_CBOR;
-  request_obj.accept = APPLICATION_CBOR; // a GET handler WILL check this
-  request_obj.uri_path = resource_path; // allows (a generic) application callback to identify the caller
-  request_obj.uri_path_len = strlen(resource_path);
+  new_request.response = &response_obj;                        // link new response object
+  new_request.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
+  new_request.request_method = OC_POST;                        // s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/ update
+  new_request.content_format = APPLICATION_CBOR;               
+  new_request.accept = APPLICATION_CBOR;                       // a GET handler WILL check this
+  new_request.uri_path = resource_path;                        // allows (a generic) application callback to identify the caller
+  new_request.uri_path_len = strlen(resource_path);
 
-  // init CBOR response buffer,
   // callback handler will fill this buffer with 'oc_rep_i_set_boolean' or similar calls
-  oc_rep_new(response_buffer.buffer, (int) response_buffer.buffer_size);
+  oc_rep_new(buffer, buffer_size);
 
-  // call application handler GET with own interface/ user data
-  // (it makes no sense to call it with a fix vale)
-  application_resource_with_href_match->get_handler.cb(&request_obj, 
+  // call application handler GET with own interface/ user data (it makes no sense to call it with a fix vale)
+  application_resource_with_href_match->get_handler.cb(&new_request, 
                               application_resource_with_href_match->get_handler.interface_mask, 
                               application_resource_with_href_match->get_handler.user_data);
 
-  // get the ptr + size of - from callback - filled data 
-  int resource_value_size = oc_rep_get_encoded_payload_size();
-  uint8_t* resource_value_data = request_obj.response->response_buffer->buffer;
-
-  // cache resource value data to handed over 'buffer'
-  if (resource_value_size < buffer_size)
-  {
-    // copy to 'buffer' from response buffer data
-    memcpy(buffer, resource_value_data, resource_value_size);
-    return resource_value_size;
-  }
-  OC_ERR(" allocated buffer too small to contain s-mode resource value");
-  return 0;
+  // return the filled data size 
+  return oc_rep_get_encoded_payload_size();
 }
 
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type)
 {
   PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
 
-  // max resource application value size, note that here a literal with #define must be used
-  uint8_t resource_value_buffer[OC_MAX_APP_DATA_SIZE_STATIC];
+  
 
   if (!resource_path)
   {
-    OC_ERR("oc_do_s_mode_with_scope_internal: resource url is NULL");
+    OC_ERR("resource url is NULL");
     return -1;
   }
 
@@ -363,17 +304,18 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
     return -1;
   }
 
-  const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path);
+  oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(resource_path);
   if (go_entry && go_entry->cflags & OC_CFLAG_TRANSMISSION)
   { 
     // sending ga is always in position zero
     const uint32_t sending_ga = go_entry->ga[0];
 
+    // find recipient entry for sending ga (is always in  position zero), contains both grpid and non flag
+    oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+
     if (strcmp(srv_type, "r") == 0)
     { // issue a read request, with a sending GA that is able to transmit...
 
-      // find recipient entry for sending ga (is always in  position zero), contains both grpid and non flag
-      oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
       if (recipient)
       {
         if (recipient->grpid > 0)
@@ -390,7 +332,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           PRINT("grpid = 0, send uc via sending ga");
 
           // unicast read, NO value data needed
-          oc_send_s_mode_unicast_message(sending_ga, srv_type, NULL, 0, recipient);
+          oc_send_s_mode_unicast_message(sending_ga, srv_type, NULL, 0, recipient, go_entry);
         }
       }
       return 0;
@@ -398,29 +340,39 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
     if (strcmp(srv_type, "w") == 0)
     { // issue a write request, with a sending GA that is able to transmit...
 
-      // copy resource value to buffer, return value size
-      const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, sizeof(resource_value_buffer));
-
-      // Find recipient entry (contains both grpid and non flag)
-      oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+      // allocate max resource application value size
+      uint8_t* resource_value_buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+      if (!resource_value_buffer)
+      {
+        OC_ERR("resource value buffer cannot be allocated");
+        return -1;
+      }
+      
+      // copy resource value to buffer, return value size -> buffer must be big enough to carry resource value!
+      const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, OC_MAX_APP_DATA_SIZE);
       if (recipient)
       {
         if (recipient->grpid > 0)
         { // mc: request -> grpid is used from RCP table (configured by MaC)
 
           // multicast write, value data needed
-          oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid, sending_ga, srv_type,
-                                                           resource_value_buffer, resource_value_size);
+          oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid,
+                                                           sending_ga, srv_type, 
+                                                           resource_value_buffer, 
+                                                           resource_value_size);
         }
         else
         { // uc: request -> ia is used from RCP table (configured by MaC)
 
           // unicast write, value data needed
-          oc_send_s_mode_unicast_message(sending_ga, srv_type, resource_value_buffer, resource_value_size, recipient);
+          oc_send_s_mode_unicast_message(sending_ga, srv_type, 
+                                         resource_value_buffer, 
+                                         resource_value_size, 
+                                         recipient, go_entry);
         }
       }
 
-      // update internal GOs on a write request
+      // update internal GOs on any (uc/mc) write request
       {
         PRINT("checking & updating internal group objects");
 
@@ -430,10 +382,9 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
         while (go_table_index_where_ga_is_used != -1)
         {
           // for all GOs with the GA included -> update the values
-          oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
+          const oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-          const oc_resource_t* application_resource_with_href_match =
-            oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
+          const oc_resource_t* application_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
           if (!application_resource_with_href_match)
           {
@@ -461,8 +412,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
           if (oc_string_len(go_href) > 0)
           {
             // get GO c-flags
-            const oc_cflag_mask_t cflags =
-              oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
+            const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
             if (cflags & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
             { // update the resource internally, BUT only all GOs with w-cflag set
@@ -473,27 +423,20 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
               oc_rep_set_pool(&cbor_object);
               oc_parse_rep(resource_value_buffer, resource_value_size, &cbor_object_ptr);
 
-              // prepare new request from "void" with data needed for the callback PUT
-              // NOT the same initialization as oc_ri.c
-              oc_request_t request_obj;
+              // prepare new request from "void" with data needed for the callback PUT (no response object/buffer is needed)
+              oc_request_t new_request = {0};
 
-              request_obj.response = NULL; // no response expected
-              request_obj.request_payload = cbor_object_ptr; // place CBOR payload pointer for PUT
-              request_obj.query = NULL;
-              request_obj.query_len = 0;
-              request_obj.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
-              request_obj.origin = NULL; // not known here
-              request_obj._payload = NULL;
-              request_obj._payload_len = 0;
-              request_obj.request_method = OC_PUT; // A PUT handler MAY check this
-              request_obj.content_format = APPLICATION_CBOR;
-              request_obj.accept = APPLICATION_CBOR; // a PUT MAY need it for response payload with 2.04
-              request_obj.uri_path = oc_string(go_href); // allows (a generic) app. callback to identify the caller resource path
-              request_obj.uri_path_len = oc_string_len(go_href);
+              // init request with non '0' data
+              new_request.request_payload = cbor_object_ptr;                // place CBOR payload pointer for PUT
+              new_request.resource = application_resource_with_href_match;  // allows (a generic) application callback to identify the caller
+              new_request.request_method = OC_PUT;                          // A PUT handler MAY check this
+              new_request.content_format = APPLICATION_CBOR;
+              new_request.accept = APPLICATION_CBOR;                        // a PUT MAY need it for response payload with 2.04
+              new_request.uri_path = oc_string(go_href);                    // allows (a generic) app. callback to identify the caller resource path
+              new_request.uri_path_len = oc_string_len(go_href);
 
-              // call application handler with own interface/ user data
-              // (it makes no sense to call it with a fix vale)
-              application_resource_with_href_match->put_handler.cb(&request_obj,
+              // call application handler with own interface/ user data (it makes no sense to call it with a fix vale)
+              application_resource_with_href_match->put_handler.cb(&new_request,
                                                                    application_resource_with_href_match->put_handler.interface_mask,
                                                                    application_resource_with_href_match->put_handler.user_data);
             }
@@ -506,6 +449,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       // notify on a (write) change on the original resource (not the internal updated resources)
       oc_notify_observers(my_resource);
 
+      // release value buffer, free ignores NULL ptr
+      free(resource_value_buffer);
       return 0;
     }
     
@@ -552,8 +497,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
     return;
   }
 
-
-  // get recipient (pointer) that was issued as suer data with the callback 
+  // get recipient (pointer) that was issued as user data with the callback 
   oc_group_table_t* recipient = (oc_group_table_t*)data->user_data;
   
   OC_INF("CoAP discovery response: IPv6 %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (if=%d) ",
@@ -568,143 +512,48 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
   // store resolved IPv6 in recipient table
   if (recipient) 
   {
+
     // TODO check if the response matches the beforehand request IA/IID? 
 
-    // must be unresolved, otherwise no callback would be issued
-    recipient->ipadd.init_status = OC_IP_STATUS_RESOLVED;
+
+    // on callback issued an "answer" was received -> is resolved now (callback is auto released)
+    recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;
 
     // store IPv6 address, port and interface index
-    memcpy(recipient->ipadd.ipv6, data->endpoint->addr.ipv6.address, 16);
-    recipient->ipadd.port = data->endpoint->addr.ipv6.port;
-    recipient->ipadd.interface_index = data->endpoint->interface_index;
+    memcpy(recipient->ipv6_adr.ipv6, data->endpoint->addr.ipv6.address, 16);
+    recipient->ipv6_adr.port = data->endpoint->addr.ipv6.port;
+    recipient->ipv6_adr.interface_index = data->endpoint->interface_index;
 
-    OC_INF("Stored IPv6 for IA 0x%04x (test mode)", (uint16_t)recipient->ia);
+    // allocate max resource application value size
+    uint8_t* resource_value_buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+    if (!resource_value_buffer)
+    {
+      OC_ERR("resource value buffer cannot be allocated");
+      return;
+    }
 
-    // check for pending messages waiting for this resolution
-    oc_knx_process_pending_messages_for_a_recipient_ia(recipient->ia);
+    const char* resource_path = oc_string(recipient->ipv6_res.group_object->href);
+    const uint32_t group_address = recipient->ipv6_res.group_object->ga[0];
+    const char* service_type = recipient->ipv6_res.service_type;
+
+    // copy resource value to buffer, return value size -> buffer must be big enough to carry resource value!
+    const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, OC_MAX_APP_DATA_SIZE);
+    
+    // since the IPV6 resolving is done, this below call does not end in an endless loop
+    oc_send_s_mode_unicast_message(group_address, service_type, resource_value_buffer, resource_value_size, recipient, NULL);
+
+    // release value buffer, free ignores NULL ptr
+    free(resource_value_buffer);
+
+    OC_INF("IPv6 resolved for IA 0x%04x", (uint16_t)recipient->ia);
   }
   else
-  {
     OC_ERR("Recipient is NULL, callback (init) error");
-  }
-}
-
-// release a pending message slot
-void oc_knx_release_pending_message(int slot)
-{
-  g_pending_messages[slot].in_use = false;
-}
-
-// queue a message for later sending when IPv6 is resolved
-int oc_knx_queue_pending_message(uint32_t ga, uint32_t sia,
-                                 const char* service_type,
-                                 const uint8_t* value_data, int value_size,
-                                 oc_group_table_t* recipient)
-{
-  // validate buffer size
-  if (value_size > OC_MAX_APP_DATA_SIZE_STATIC) 
-  {
-    OC_ERR("Value size %d exceeds maximum %d", value_size, OC_MAX_APP_DATA_SIZE_STATIC);
-    return -1;
-  }
-
-  // clean all elapsed discoveries
-  const uint64_t now = oc_clock_time();
-  for (int i = 0; i < MAX_PENDING_MESSAGES; i++)
-  {
-    // step 1: check for timeout and clean all
-    if (now - g_pending_messages[i].timestamp > PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)
-    {
-      g_pending_messages[i].in_use = false;
-    }
-  }
-
-  // step 2: find empty slot
-  for (int i = 0; i < MAX_PENDING_MESSAGES; i++) 
-  {
-    if (!g_pending_messages[i].in_use) 
-    { // not in use
-
-      memset(&g_pending_messages[i], 0, sizeof(pending_s_mode_message_t));
-
-      g_pending_messages[i].in_use = true;
-      g_pending_messages[i].ga = ga;
-
-      strncpy(g_pending_messages[i].service_type, service_type, sizeof(g_pending_messages[i].service_type) - 1);
-      
-      if (value_data && value_size > 0) 
-      {
-        memcpy(g_pending_messages[i].value_data, value_data, value_size);
-        g_pending_messages[i].value_size = value_size;
-      } 
-      else 
-      {
-        g_pending_messages[i].value_size = 0;
-      }
-      
-      g_pending_messages[i].recipient = recipient;
-      g_pending_messages[i].timestamp = oc_clock_time();
-
-      OC_INF("Queued pending %s message for IA 0x%04x, GA %04X, ST=%s", recipient->non ? "NON" : "CON", (uint16_t)recipient->ia, ga, service_type);
-      return i;
-    }
-  }
-
-  OC_WRN("Pending message queue full, cannot queue message for IA 0x%04x", (uint16_t)recipient->ia);
-  return -1;
-}
-
-// process all pending messages for a newly resolved IA
-void oc_knx_process_pending_messages_for_a_recipient_ia(uint32_t ia)
-{
-  for (int i = 0; i < MAX_PENDING_MESSAGES; i++) 
-  {
-    if (!g_pending_messages[i].in_use) 
-    {
-      continue;
-    }
-
-    // check if this message is for the resolved IA
-    if ((uint32_t)g_pending_messages[i].recipient->ia != ia)
-    {
-      continue;
-    }
-    
-    const uint64_t now = oc_clock_time();
-
-    // check for timeout
-    if (now - g_pending_messages[i].timestamp > PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND) 
-    {
-      
-      OC_WRN("Pending message for IA 0x%04x timed out after %d seconds", (uint16_t)ia, PENDING_MESSAGE_TIMEOUT_SECONDS);
-      g_pending_messages[i].in_use = false;
-
-      continue;
-    }
-    
-    // check if IPv6 is resolved for this recipient
-    if (g_pending_messages[i].recipient->ipadd.init_status == OC_IP_STATUS_RESOLVED) 
-    {
-
-      // since the IPV6 resolving is done, this below call does not end in an endless loop
-      oc_send_s_mode_unicast_message(g_pending_messages[i].ga, g_pending_messages[i].service_type,
-                                     g_pending_messages[i].value_data, g_pending_messages[i].value_size,
-                                     g_pending_messages[i].recipient);
-
-      OC_INF("Sending queued %s message to IA 0x%04x (GA %04X) on interface %d", 
-             g_pending_messages[i].recipient->non ? "NON" : "CON",
-             (uint16_t)ia, 
-             g_pending_messages[i].ga, 
-             g_pending_messages[i].recipient->ipadd.interface_index);
-
-      // clear the slot
-      g_pending_messages[i].in_use = false;
-    }
-  }
+  
 }
 
 // send CoAP discovery multicast to resolve IA to IPv6
-bool knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient)
+oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
 {
 
   // register client callback
@@ -715,14 +564,19 @@ bool knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc
     .discovery_all = NULL
   };
 
+  
   // flags, well-known is never secure ...
-  const enum transport_flags my_transport_flags = IPV6 + MULTICAST + DISCOVERY;
+  const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;
+
+  // get local device info (iid + recipient IA from table -> is valid was checked before)
+  const uint64_t iid = oc_core_get_device_info()->iid;
+  const uint16_t ia = (uint16_t)recipient->ia;
 
   // create multicast endpoint - scope-dependent all CoAP nodes address, scope-dependent multicast address:
   // - scope 2: ff02::fd (link-local all CoAP nodes)
   // - scope 5: ff05::fd (site-local all CoAP nodes)
   oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, COAP_DEFAULT_PORT, 
-                        0xFF, scope, 0, 0, 
+                        0xFF, OC_SENDER_MULTICAST_SCOPE, 0, 0, 
                         0,0,0,0, 
                         0,0,0,0, 
                         0,0,0,0xFD); 
@@ -740,20 +594,54 @@ bool knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc
 
   (void)snprintf(query, sizeof(query), "ep=knx://ia.%llx.%x", iid, ia);
 
-  // user data are recipient table entry
-  oc_client_cb_t* cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, OC_GET, query, handler, LOW_QOS, recipient);
-  if (!cb)
-  {
-    OC_ERR("CoAP discovery: Failed to register callback");
-    return false;
+  // set as default, is NULL in case of the first discovery 
+  oc_client_cb_t* cb = recipient->ipv6_res.callback;
+  const uint64_t now = oc_clock_time();
+
+  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_RESOLVING)
+  { // b, details see code comment when method is called
+
+    // timeout for unicast message resolving, after this a new discovery can be sent out
+    #define PENDING_MESSAGE_TIMEOUT_SECONDS 5
+
+    // check for timeout, start time was set on creating cb (cb MUST be present in state resolving)
+    if (now - cb->timestamp < PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)
+    { // b.2, details see code comment when method is called
+      return OC_IP_STATUS_RESOLVING;
+    }
+
+    // b.1 - took too long, try again to send a next discovery message (needs to update mid/token)
+    cb->timestamp = now;
+    cb->mid = coap_get_next_mid();
+    const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
+    const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
+    
   }
 
+  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED)
+  { // a
+
+    // user data is an entry (pointer) of recipient table
+    cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, OC_GET, query, handler, LOW_QOS, recipient);
+    if (!cb)
+    {
+      OC_ERR("CoAP discovery: Failed to register callback");
+      return OC_IP_STATUS_UNRESOLVED;
+    }
+
+    // remember the callback
+    recipient->ipv6_res.callback = cb;
+    recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
+  } 
+
+  // here we enter on (a) or (b.1)
   if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb))
   {
     oc_do_well_known_message_update();
-    return true;
+    return OC_IP_STATUS_RESOLVING;
   }
 
   OC_ERR("CoAP discovery: Failed to send discovery request");
-  return false;
+  recipient->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+  return OC_IP_STATUS_UNRESOLVED;
 }
