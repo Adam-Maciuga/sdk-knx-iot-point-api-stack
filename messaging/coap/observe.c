@@ -573,21 +573,22 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
 
 #ifndef OC_DYNAMIC_ALLOCATION
   uint8_t buffer[OC_MAX_APP_DATA_SIZE];
-#else  /* !OC_DYNAMIC_ALLOCATION */
-  uint8_t *buffer = malloc(OC_MAX_APP_DATA_SIZE);
-  if (!buffer) {
+#else  
+  uint8_t* buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
+  if (!buffer) 
+  {
     OC_WRN("coap_notify_observers: out of memory allocating buffer");
     goto leave_notify_observers;
-  } //! buffer
-#endif /* OC_DYNAMIC_ALLOCATION */
+  } 
+#endif 
 
   coap_observer_t *obs = NULL;
   oc_request_t request = { 0 };
   oc_response_t response = { 0 };
   response.separate_response = 0;
   oc_response_buffer_t response_buffer;
-  OC_DBG("coap_notify_observers: Issue GET request to resource %s\n",
-         oc_string_checked(resource->uri));
+  OC_DBG("coap_notify_observers: Issue GET request to resource %s\n", oc_string_checked(resource->uri));
+  
   response_buffer.buffer = buffer;
   response_buffer.buffer_size = OC_MAX_APP_DATA_SIZE;
   response.response_buffer = &response_buffer;
@@ -595,32 +596,36 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
   request.response = &response;
   request.request_payload = NULL;
   oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
-  resource->get_handler.cb(&request, iface_mask,
-                           resource->get_handler.user_data);
+  resource->get_handler.cb(&request, iface_mask, resource->get_handler.user_data);
   response_buf = &response_buffer;
-  if (response_buf->code == OC_IGNORE) {
+  if (response_buf->code == OC_IGNORE) 
+  {
     OC_DBG("coap_notify_observers: Resource ignored request");
     goto leave_notify_observers;
-  } // response_buf->code == OC_IGNORE
+  } 
 
   /* iterate over observers */
   obs = (coap_observer_t *)oc_list_head(observers_list);
-  while (obs != NULL) {
-    if (obs->resource != resource) {
+  while (obs) 
+  {
+    if (obs->resource != resource) 
+    {
       obs = obs->next;
       continue;
     } // obs->resource != resource || endpoint != obs->endpoint
-    if (obs->iface_mask != iface_mask) {
+    if (obs->iface_mask != iface_mask) 
+    {
       obs = obs->next;
       continue;
     }
-    if (response.separate_response != NULL) {
+    if (response.separate_response) 
+    {
       coap_packet_t req[1];
-#ifdef OC_TCP
+      #ifdef OC_TCP
       if (obs->endpoint.flags & TCP) {
         coap_tcp_init_message(req, COAP_GET);
       } else
-#endif /* OC_TCP */
+      #endif 
       {
         coap_udp_init_message(req, COAP_TYPE_NON, COAP_GET, 0);
       }
@@ -632,40 +637,39 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
 
       OC_DBG("coap_notify_observers: Creating separate response for "
              "notification");
-#ifdef OC_BLOCK_WISE
-      if (coap_separate_accept(req, response.separate_response, &obs->endpoint,
-                               obs->obs_counter, obs->block2_size) == 1)
-#else  /* OC_BLOCK_WISE */
+      #ifdef OC_BLOCK_WISE
+      if (coap_separate_accept(req, response.separate_response, &obs->endpoint, obs->obs_counter, obs->block2_size) == 1)
+      #else 
       if (coap_separate_accept(req, response.separate_response, &obs->endpoint,
                                obs->obs_counter) == 1)
-#endif /* !OC_BLOCK_WISE */
+      #endif 
         response.separate_response->active = 1;
-    } // separate response
-    else {
+    } 
+    else
+    {
       OC_DBG("coap_notify_observers: notifying observer");
       coap_transaction_t *transaction = NULL;
-      if (response_buf) {
+      if (response_buf) 
+      {
         coap_packet_t notification[1];
         uint8_t status_code = CONTENT_2_05;
-        // if (obs->iface_mask == OC_IF_STARTUP_REVERT) {
-        //  status_code = VALID_2_03;
-        //}
-#ifdef OC_TCP
+
+        #ifdef OC_TCP
         if (obs->endpoint.flags & TCP) {
           coap_tcp_init_message(notification, status_code);
         } else
-#endif /* OC_TCP */
+        #endif 
         {
           coap_udp_init_message(notification, COAP_TYPE_NON, status_code, 0);
         }
 
-#ifdef OC_BLOCK_WISE
-#ifdef OC_TCP
+        #ifdef OC_BLOCK_WISE
+        #ifdef OC_TCP
         if (!(obs->endpoint.flags & TCP) &&
             response_buf->response_length > obs->block2_size) {
-#else  /* OC_TCP */
+        #else 
         if (response_buf->response_length > obs->block2_size) {
-#endif /* !OC_TCP */
+        #endif 
           notification->type = COAP_TYPE_CON;
           response_state = oc_blockwise_find_response_buffer(
             oc_string(obs->resource->uri) + 1,
@@ -703,24 +707,23 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
             coap_set_header_etag(notification, bwt_res_state->etag,
                                  COAP_ETAG_LEN);
           }
-        } // blockwise transfer
+        }
         else
-#endif /* OC_BLOCK_WISE */
+        #endif
         {
-#ifdef OC_TCP
+        #ifdef OC_TCP
           if (!(obs->endpoint.flags & TCP) &&
               obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0) {
-#else  /* OC_TCP */
+        #else 
           if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0) {
-#endif /* !OC_TCP */
-            OC_DBG("coap_observe_notify: forcing CON notification to check for "
-                   "client liveness");
+        #endif 
+            OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
             notification->type = COAP_TYPE_CON;
           }
           coap_set_payload(notification, 
                            response_buf->buffer,
                            response_buf->response_length);
-        } //! blockwise transfer
+        } 
         coap_set_status_code(notification, response_buf->code);
         if (notification->code < BAD_REQUEST_4_00 &&
             obs->resource->runtime_data->num_observers) {
@@ -746,11 +749,11 @@ notify_resource_defaults_observer(const oc_resource_t *resource,
           } else {
             coap_clear_transaction(transaction);
           }
-        } // transaction
-      }   // response_buf != NULL
-    }     //! separate response
+        } 
+      }
+    }
     obs = obs->next;
-  } // While observers
+  }
 leave_notify_observers:;
 #ifdef OC_DYNAMIC_ALLOCATION
   if (buffer) {

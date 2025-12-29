@@ -483,19 +483,8 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
     return;
   }
 
-  // must be IPv6 addressed
-  if (!(data->endpoint->flags & IPV6)) 
-  {
-    OC_ERR("CoAP discovery: Response not from IPv6 endpoint");
-    return;
-  }
-
-  // must be non OSCORE
-  if (data->endpoint->flags & OSCORE)
-  {
-    OC_ERR("CoAP discovery: Response is IPv6 OSCORE, but must be unencrypted ");
-    return;
-  }
+  // IPv6 is set since callback is not executed without 
+  // OSCORE is not set since it would not end up here 
 
   // get recipient (pointer) that was issued as user data with the callback 
   oc_group_table_t* recipient = (oc_group_table_t*)data->user_data;
@@ -513,8 +502,82 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
   if (recipient) 
   {
 
-    // TODO check if the response matches the beforehand request IA/IID? 
+    bool ia_and_iid_valid_and_present = false;
+    
+    // check if the response matches the beforehand request IA/IID 
+    if (data->_payload)
+    {
 
+      /*
+       
+       same principle as inbound discovery on well-known request
+       
+       response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
+       the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
+    */
+      
+      #define LEN_SN (12)           // 00fa12345678
+      #define LEN_DOT_SN (16)       // <>;ep="knx://sn.
+      #define LEN_DOT_IA (9)        // knx://ia.
+      #define IID_STR_LEN_MAX (10)  // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
+      #define IA_STR_LEN_MAX (4)    // max IA length in hex coded ASCII (2 octets = 16 bit)
+
+      // get device
+      const oc_device_info_t* const device = oc_core_get_device_info();
+
+      // find first 'i' in 'knx://ia.', assume heading some SN with at least with one char
+      char* iid_start_pos = oc_strnchr((char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA) + 3; // + 3 = 'ia.'
+      char* ia_start_pos = oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) + 1; // 
+
+      if (iid_start_pos)
+      { // convert only if a 'i' was found
+
+        // empty max len IID + string termination '\0'
+        char iid_str[IID_STR_LEN_MAX + 1] = "";
+
+        // IID can be of 1..10 chars (valid) or > 10 (attack/error)
+
+        size_t iid_len = ia_start_pos - 1 - iid_start_pos; // -1 for the '.' before the ia
+
+        // copy IID size 0..10 , but don't copy > 10 chars
+        strncpy(iid_str, iid_start_pos, iid_len > IID_STR_LEN_MAX ? IID_STR_LEN_MAX : iid_len);
+
+        errno = 0;
+        // string is hex formatted, on conversion error = 0 device will not have IID = 0 -> ignores request
+        const uint64_t iid = strtoull(iid_str, NULL, 16);
+
+        // test IID first since many devices will have the same IID
+        if (errno == 0 && iid == device->iid)
+        {
+          // empty max len IA + string termination '\0'
+          char ia_str[IA_STR_LEN_MAX + 1] = "";
+
+          // IA can be of 0..4 chars (valid) or > 4 (attack/error)
+          char* ia_end_pos = (char*)data->_payload + data->_payload_len - 1; // -1 for escaped " at the end '\"'
+          size_t ia_len = ia_end_pos - ia_start_pos;  
+
+          // copy IA size 0..4 , but don't copy > 4 chars
+          strncpy(ia_str, ia_start_pos, ia_len > IA_STR_LEN_MAX ? IA_STR_LEN_MAX : ia_len);
+
+          errno = 0;
+          // string is hex formatted
+          const uint16_t ia = (uint16_t)strtoul(ia_str, NULL, 16);
+
+           // converted ia = 0 is accepted, but usually the recipient device will not have 0 assigned
+          if (errno == 0 && ia == recipient->ia)
+          {
+            ia_and_iid_valid_and_present = true;
+          }
+        }
+      }
+    }  
+
+    // only if ia + iid is correct accept this response
+    if (!ia_and_iid_valid_and_present)
+    {
+      // discovery response silently ignored, state remains unresolved
+      return;
+    }
 
     // on callback issued an "answer" was received -> is resolved now (callback is auto released)
     recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;
@@ -568,7 +631,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
   // flags, well-known is never secure ...
   const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;
 
-  // get local device info (iid + recipient IA from table -> is valid was checked before)
+  // get local device iid + recipient IA from table -> is valid was checked before
   const uint64_t iid = oc_core_get_device_info()->iid;
   const uint16_t ia = (uint16_t)recipient->ia;
 
@@ -584,9 +647,9 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
   // all interfaces
   group_mcast_endpoint.interface_index = 0; 
 
-  #define EP_STR_LEN_DOT_IA (12) // ep=knx://ia.
-  #define IID_STR_LEN_MAX (10) // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
-  #define IA_STR_LEN_MAX (4) // max IA length in hex coded ASCII (2 octets = 16 bit)
+  #define EP_STR_LEN_DOT_IA (12)  // ep=knx://ia.
+  #define IID_STR_LEN_MAX (10)    // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
+  #define IA_STR_LEN_MAX (4)      // max IA length in hex coded ASCII (2 octets = 16 bit)
 
   // build URI and query: /.well-known/core?ep=knx://ia.<iid>.<ia>
   const char uri[] = "/.well-known/core";

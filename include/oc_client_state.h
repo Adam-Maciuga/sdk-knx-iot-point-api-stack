@@ -52,8 +52,8 @@ extern "C" {
 	 */
 	typedef struct
 	{
-		oc_rep_t* payload;						/**< CBOR encoded payload */
-		const uint8_t* _payload;			/**< RAW encoded payload  */
+		oc_rep_t* payload;						/**< CBOR encoded payload (e.g.; on s-mode responses) */
+		const uint8_t* _payload;			/**< RAW encoded payload (e.g.; on plain text (discovery) responses)  */
 		size_t _payload_len;					/**< payload buffer length */
 		oc_endpoint_t	* endpoint;     /**< endpoint on where the response has been received */
 		void* client_cb;							/**< callback for the response to the calling client */

@@ -2850,7 +2850,7 @@ oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const 
   my_transport_flags |= OSCORE;
   #endif
 
-  // creates IPV6 and set rest to '0'
+  // creates ipv6 and set rest to '0'
   oc_make_ipv6_endpoint(group_ucast, my_transport_flags, port, 
                         ipv6_address[0], ipv6_address[1], ipv6_address[2], ipv6_address[3], 
                         ipv6_address[4], ipv6_address[5], ipv6_address[6], ipv6_address[7], 

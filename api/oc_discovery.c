@@ -375,7 +375,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		}
 	}
 
-	// get device 0
+	// get device 
 	const oc_device_info_t* const device = oc_core_get_device_info();
 
   /*
@@ -594,16 +594,19 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	// handle individual address 
 	if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://ia.", 9) == 0)
 	{
-		/* request with IA = knx://ia.IID.IA -> knx://ia.d773e094b6.1101 (no leading zeros)
-			 the IA is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
+		/* 
+		   same principle as on outbound discovery for unicast s-mode messages
+		   
+		   request with knx://ia.IID.IA -> knx://ia.d773e094b6.1101 (no leading IID zeros)
+			 the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
 		*/
 
-		#define EP_STR_LEN_DOT_IA  (9)  // knx://ia.
-		#define IID_STR_LEN_MAX    (10) // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
-		#define IA_STR_LEN_MAX     (4)  // max IA length in hex coded ASCII (2 octets = 16 bit)
+		#define LEN_DOT_IA (9)				// knx://ia.
+		#define IID_STR_LEN_MAX (10)	// max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
+		#define IA_STR_LEN_MAX  (4)		// max IA length in hex coded ASCII (2 octets = 16 bit)
 
 		// IID pos is fixed after first '.', IA pos follows after second '.' (max size to be searched for second '.' = max iid + 1)
-    char* ep_iid_start_pos = ep_request + EP_STR_LEN_DOT_IA;
+    char* ep_iid_start_pos = ep_request + LEN_DOT_IA;
     char* ep_ia_dot_pos = oc_strnchr(ep_iid_start_pos, '.', IID_STR_LEN_MAX + 1);
 
 		if (ep_ia_dot_pos)
@@ -634,7 +637,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				// IID can be of 1..10 chars (valid) or > 10 (attack/error)
 				size_t ep_iid_len = ep_ia_dot_pos - ep_iid_start_pos;
 
-        // copy IA size 0..4 , but don't copy > 4 chars
+        // copy IID size 0..10 , but don't copy > 10 chars
         strncpy(iid_str, ep_iid_start_pos, ep_iid_len > IID_STR_LEN_MAX ? IID_STR_LEN_MAX : ep_iid_len);
 
 				errno = 0; 
@@ -867,7 +870,7 @@ oc_ri_process_discovery_payload(const uint8_t* payload, const int len,
 	if (content == APPLICATION_LINK_FORMAT)
 	{
 
-		PRINT("oc_ri_process_discovery_payload: calling handler all");
+		PRINT("calling handler 'discovery all'");
 		if (all_handler)
 		{
 			all_handler((const char*) payload, len, endpoint, user_data);
