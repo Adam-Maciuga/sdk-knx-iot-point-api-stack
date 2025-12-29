@@ -920,7 +920,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   }
   else
   {
-    // add the oscore contexts by reinitializing all used oscore keys.
+    // add the oscore contexts by reinitializing all used oscore keys
     oc_init_oscore_from_storage(false);
   }
 
@@ -1727,25 +1727,26 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
 #ifdef OC_OSCORE
 
-  OC_DBG_OSCORE("... activating OSCORE credentials");
   OC_DBG_OSCORE("... removing all present OSCORE sender contexts");
 
   oc_oscore_free_sender_contexts();
 
   OC_DBG_OSCORE("... adding OSCORE contexts from access token table");
+  
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     if (oc_string_len(g_at_entries[i].id) > 0)
     {
       oc_print_auth_at_entry(i);
 
-      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE 
-          || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
+      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
       {
 
-        // 'Client' Side (details see method 'oc_oscore_receive_message' header)
-        // create oscore REQUEST sender context
-        // create oscore RESPONSE recipient context = kid  (h '') + kid_context  (ms/salt from token)
+        /* 
+          'Client' Side (details see method 'oc_oscore_receive_message' header)
+           - create oscore REQUEST sender context
+           - create oscore RESPONSE recipient context = kid  (h '') + kid_context  (ms/salt from token)
+        */
         OC_DBG_OSCORE("... adding oscore REQUEST sender context + RESPONSE recipient context with Sender ID : ");
         oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
 

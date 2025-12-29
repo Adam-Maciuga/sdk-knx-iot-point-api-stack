@@ -36,20 +36,20 @@
 
 static struct oc_replay_record
 {
-	uint64_t rx_ssn;        // most recent received SSN of client
-	oc_string_t rx_kid;     // byte string holding the KID of the client
-	oc_string_t rx_kid_ctx; // byte string holding the KID context of the client, can be null
-	oc_clock_time_t time;   // time of last received packet
-	uint64_t window;        // bitfield indicating received SSNs through bit position, 32 = default by OSCORE RFC (max 64 possible)
+	uint64_t rx_ssn;        // most recent received client SSN
+	oc_string_t rx_kid;     // byte string holding the client KID
+	oc_string_t rx_kid_ctx; // byte string holding the client KID context (can be null)
+	oc_clock_time_t time;   // time of last received client packet
+	uint64_t window;        // bitfield indicating received client SSNs through bit position, 32 = default by OSCORE RFC (max 64 possible)
 	bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
 // used to cache a message for a replay attack 
 static struct oc_cached_message_record
 {
+  struct oc_message_s* message;		// pointer to message
+	uint8_t token[COAP_TOKEN_LEN];	// used msg token 
 	uint16_t token_len;
-	uint8_t token[COAP_TOKEN_LEN]; // used msg token 
-	struct oc_message_s* message;  // pointer to message
 } message_records[OC_MAX_MESSAGE_RECORDS] = { 0 };
 
 // make record available for reuse
@@ -91,7 +91,7 @@ static struct oc_replay_record* get_empty_record(void)
 	return oldest_rec;
 }
 
-// find record with 'kid' and 'kid Context'
+// find record with 'kid' and 'kid context'
 static struct oc_replay_record* get_record(const oc_string_t rx_kid, const oc_string_t rx_kid_ctx)
 {
 	if (oc_byte_string_len(rx_kid) == 0)
@@ -107,11 +107,11 @@ static struct oc_replay_record* get_record(const oc_string_t rx_kid, const oc_st
 		if (rec->in_use)
 		{
 			bool rx_kid_match = oc_byte_string_cmp(rx_kid, rec->rx_kid) == 0;
-			bool null_contexts = oc_byte_string_len(rx_kid_ctx) == 0 && oc_byte_string_len(rec->rx_kid_ctx) == 0;
-			bool contexts_match = oc_byte_string_cmp(rx_kid_ctx, rec->rx_kid_ctx) == 0;
+			bool null_kid_context_match = oc_byte_string_len(rx_kid_ctx) == 0 && oc_byte_string_len(rec->rx_kid_ctx) == 0;
+			bool kid_context_match = oc_byte_string_cmp(rx_kid_ctx, rec->rx_kid_ctx) == 0;
 
 			// kid match and (kid context both '0' = response or both match = request)
-			if (rx_kid_match && (null_contexts || contexts_match))
+			if (rx_kid_match && (null_kid_context_match || kid_context_match))
 				return rec;
 		}
 	}
@@ -178,24 +178,24 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
   const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn);
   const uint32_t replay_window_size = get_oscore_replay_window_size();
 
-	PRINT("new ssn = %llu", rx_ssn);                // %llu = 64 bit ulong
-	PRINT("old ssn = %llu", rec->rx_ssn);           // %llu = 64 bit ulong
-	PRINT("kid     = %s", oc_string(rx_kid));       // %s = string
-	PRINT("wnd old : %llu", rec->window);           // %llu = 64 bit ulong bit field 
-	PRINT("ssn_diff = %lli", ssn_diff);             // 64 bit int
+	PRINT("new ssn  = %llu", rx_ssn);           // %llu = 64 bit ulong
+	PRINT("old ssn  = %llu", rec->rx_ssn);      // %llu = 64 bit ulong
+  PRINT("ssn dif  = %lli", ssn_diff);					// %lli = 64 bit long
+	PRINT("kid      = %s", oc_string(rx_kid));			// %s = string
+	PRINT("wnd old  = %X", (uint32_t)rec->window);  // %llu = 64 bit ulong bit field 
 
 	if (ssn_diff >= 0)
 	{
     // received SSN <= max value of received SSN , either received SSN is
     // - in window 
     // - out of left bound
-	  PRINT("ssn_diff = %lli >= 0", ssn_diff);
 
 		// diff >= window size -> out of left window bound
 		// example: diff from 0...31 = is in 32 bit window ; diff >= 32 is on left side window  
 		if (ssn_diff >= replay_window_size)
 		{
-			PRINT("out of window left bound");
+      PRINT("wnd new  = %llu", rec->window); // %llu = 64 bit ulong bit field 
+		  PRINT("outside window (size %u) left bound by %lli", replay_window_size, ssn_diff);
 			return ECHO; // not known if it was (ever) received before  
 		}
 
@@ -203,7 +203,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 		// see if it has been received before, so this can be a replay
 		if (rec->window & 1 << ssn_diff)
 		{
-			PRINT("within window, replay msg");
+      PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
+		  PRINT("inside window (size %u), replay msg, window bit %lld (%X) is already ticked", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
 			return REPLAY; // known that it was received before 
 		}
 
@@ -211,7 +212,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 		// DO NOT remember SSN, it was not the max value of received SSN's
 		rec->window |= 1 << ssn_diff;
 
-		PRINT("within window, new msg");
+		PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
+		PRINT("inside window (size %u), new msg, tick window bit %lld (%X)", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
 		return SYNCED;
 	}
 
@@ -232,7 +234,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	rec->window |= 1;
 	rec->rx_ssn = rx_ssn;
 
-	PRINT("out of window right bound, new msg");
+	PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
+  PRINT("outside window (size %u) right bound by %lli", replay_window_size, -ssn_diff);
 	return SYNCED;
 }
 
@@ -241,15 +244,17 @@ void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const
 	struct oc_replay_record* rec = get_record(rx_kid, rx_kid_ctx);
 
 	if (!rec)
-	{ // no match
+	{ // no match on first try - get a free record
 		rec = get_empty_record();
 		oc_byte_string_copy(&rec->rx_kid, rx_kid);
 		oc_byte_string_copy(&rec->rx_kid_ctx, rx_kid_ctx);
 		rec->in_use = true;
 	}
 
-	// reinit record with fresh SSN + window, option to receive possible
-	// older SSNs within the old window (if it was present) are gone  
+	/* 
+	 - reinit record with fresh SSN + window (and tick the new ssn as already used),
+	 - the option to receive possible older SSNs within the present/old window (if it was present and not a free record) is gone
+  */
 	rec->rx_ssn = rx_ssn;
 	rec->window = 1;
 	rec->time = oc_clock_time();
