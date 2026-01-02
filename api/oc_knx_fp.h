@@ -48,18 +48,15 @@ extern "C"
   } oc_cflag_mask_t;
 
   /**
-   * @brief print the communication flags to standard output
-   * communication flags in ASCII e.g. "w" "r" "i" "t" "u" without quotes
+   * @brief print the communication flags to standard output (in ASCII e.g. "w" "r" "i" "t" "u", without quotes)
    *
    * @param cflags the communication flags
    */
   void oc_print_cflags(oc_cflag_mask_t cflags);
 
   /**
-   * @brief adds the communication flags a pre-allocated buffer
-
-   * cflags in ASCII e.g. "w" "r" "i" "t" "u" without quotes
-   * if the flag does not exist, then a "." will be added instead
+   * @brief adds the communication flags a pre-allocated buffer (in ASCII e.g. "w" "r" "i" "t" "u", without quotes,
+   *        if the flag does not exist, then a "." will be added instead)
    *
    * @param buffer the string buffer to add the cflags too
    * @param cflags The communication flags
@@ -151,7 +148,7 @@ extern "C"
    */
   typedef struct oc_resolver_t
   {
-    char service_type[2];                   // service type as "w", "r", or "a" + '/0'
+    char service_type;                      // service type as 'w', 'r', or 'a'
     oc_ip_status_t resolve_status;          // initialization status with multiple states
     oc_group_object_table_t* group_object;  // the GO table entry that hosts the sending ga and href
     oc_client_cb_t* callback;               // host the running discovery callback
@@ -590,7 +587,7 @@ extern "C"
   void oc_free_knx_table_resources(void);
 
   /**
-   * @brief create a IPv6 group multicast address with port
+   * @brief create a IPv6 multicast address with port
    *
    * @param in the endpoint to adapt
    * @param group_id the group number
@@ -602,14 +599,13 @@ extern "C"
   oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint32_t group_id, uint64_t iid, uint8_t scope, uint16_t port);
 
   /**
-   * @brief create a IPv6 group multicast address with port
+   * @brief create a IPv6 unicast multicast address with port
    *
    * @param in the endpoint to adapt
-   * @param ipv6_address the unicast ipv6 address
-   * @param port the port to be used
+   * @param recipient the recipient to be sent out the message
    * @return oc_endpoint_t the modified endpoint, with flags IPv6 and OSCORE (if enabled)
    */
-  oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port);
+  oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t in, const oc_group_table_t* recipient);
 
   /**
    * @brief  subscribe to a multicast address, defined by group number and installation id
@@ -621,7 +617,7 @@ extern "C"
    * @param iid the installation id
    * @param scope the address scope
    */
-  void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope);
+  void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope);
 
   /**
    * @brief subscribe to a multicast address, defined by group number and
@@ -634,7 +630,7 @@ extern "C"
    * @param scope the address scope
    * @param port the port
    */
-  void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port);
+  void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port);
 
   /**
    * @brief unsubscribe to a multicast address, defined by group number and
@@ -646,7 +642,7 @@ extern "C"
    * @param iid the installation id
    * @param scope the address scope
    */
-  void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope);
+  void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope);
 
   /**
    * @brief unsubscribe to a multicast address, defined by group number and
@@ -659,7 +655,7 @@ extern "C"
    * @param scope the address scope
    * @param port the port
    */
-  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port);
+  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port);
 
 #ifdef __cplusplus
 }

@@ -1008,16 +1008,16 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             // #2 - send read response (flags don't care)
             {
               // Option 4, get sending GA for the current resource path href (out of 0...max GO table entries)
-              const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href));
+              oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href));
 
               if (go_entry)
               { // we have a sending GA, now we can send the read response, rest was checked before
 
                 // sending ga is always in position zero
-                const uint32_t sending_ga = go_entry->ga[0];
+                uint32_t sending_ga = go_entry->ga[0];
                 
                 // find recipient entry for sending ga , contains both grpid and non flag
-                const oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+                oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
                 
                 if (recipient)
                 {
@@ -1025,13 +1025,13 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                   { // grpid is set in case of multicast in RCP table (configured by MaC)
 
                     oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
-                                                                     sending_ga, "a", 
+                                                                     sending_ga, 'a', 
                                                                      new_request.response->response_buffer->buffer,
                                                                      (int)new_request.response->response_buffer->response_length);
                   }
                   else
                   { // uc: read response -> ia is used from RCP table (configured by MaC)
-                    oc_send_s_mode_unicast_message(sending_ga, "a", 
+                    oc_send_s_mode_unicast_message(sending_ga, 'a', 
                                                    new_request.response->response_buffer->buffer,
                                                    (int)new_request.response->response_buffer->response_length, recipient, go_entry);
                   }

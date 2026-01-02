@@ -315,7 +315,7 @@ void MyFrame::ProcessModeUpdate(wxCommandEvent& event)
   set_cem_charger_value(current_charger_power);
 
   // send message
-  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, "w");
+  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, 'w');
 }
 
 void MyFrame::OnListAll(wxCommandEvent& event)
@@ -418,6 +418,6 @@ void MyFrame::OnProcessInverterUpdate()
     set_cem_charger_value(current_charger_power);
 
     // send message
-    oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, "w");
+    oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, 'w');
   }
 }

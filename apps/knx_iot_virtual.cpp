@@ -756,8 +756,10 @@ wxString NetworkInterfaceDialog::GetIPv6AddressForInterface(int if_index)
 {
   oc_endpoint_t *ep = oc_connectivity_get_endpoints();
   
-  while (ep) {
-    if ((ep->flags & IPV6) && ep->interface_index == (unsigned int)if_index) {
+  while (ep) 
+  {
+    if (ep->flags & IPV6 && ep->interface_index == if_index) 
+    {
       char ipv6_str[64];
       snprintf(ipv6_str, sizeof(ipv6_str),
                "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",

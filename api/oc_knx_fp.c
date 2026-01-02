@@ -2814,12 +2814,11 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   const uint8_t ula_4 = (uint8_t)(iid >> 24);
   const uint8_t ula_5 = (uint8_t)(iid >> 32);
 
-  // flags
-  enum transport_flags my_transport_flags = IPV6 + MULTICAST;
-
-  // mc is always secure ...
+  // flags, mc is always secure ...
   #ifdef OC_OSCORE
-  my_transport_flags |= OSCORE;
+  enum transport_flags my_transport_flags = IPV6 + MULTICAST + OSCORE;
+  #else
+  enum transport_flags my_transport_flags = IPV6 + MULTICAST;
   #endif
 
   // creates IPV6 and set rest to '0'
@@ -2839,24 +2838,26 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   return in;
 }
 
-oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const uint8_t* ipv6_address, uint16_t port)
+oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t in, const oc_group_table_t* recipient)
 {
 
-  // flags
-  enum transport_flags my_transport_flags = IPV6;
-
-  // uc is always secure ...
+  // flags, uc is always secure ...
   #ifdef OC_OSCORE
-  my_transport_flags |= OSCORE;
+  enum transport_flags my_transport_flags = IPV6 + OSCORE;
+  #else
+  enum transport_flags my_transport_flags = IPV6;
   #endif
 
   // creates ipv6 and set rest to '0'
-  oc_make_ipv6_endpoint(group_ucast, my_transport_flags, port, 
-                        ipv6_address[0], ipv6_address[1], ipv6_address[2], ipv6_address[3], 
-                        ipv6_address[4], ipv6_address[5], ipv6_address[6], ipv6_address[7], 
-                        ipv6_address[8], ipv6_address[9], ipv6_address[10], ipv6_address[11], 
-                        ipv6_address[12], ipv6_address[13], ipv6_address[14], ipv6_address[15]); 
+  oc_make_ipv6_endpoint(group_ucast, my_transport_flags, recipient->ipv6_adr.port, 
+                        recipient->ipv6_adr.ipv6[0], recipient->ipv6_adr.ipv6[1], recipient->ipv6_adr.ipv6[2], recipient->ipv6_adr.ipv6[3], 
+                        recipient->ipv6_adr.ipv6[4], recipient->ipv6_adr.ipv6[5], recipient->ipv6_adr.ipv6[6], recipient->ipv6_adr.ipv6[7], 
+                        recipient->ipv6_adr.ipv6[8], recipient->ipv6_adr.ipv6[9], recipient->ipv6_adr.ipv6[10], recipient->ipv6_adr.ipv6[11], 
+                        recipient->ipv6_adr.ipv6[12], recipient->ipv6_adr.ipv6[13], recipient->ipv6_adr.ipv6[14], recipient->ipv6_adr.ipv6[15]); 
 
+  // add interface
+  group_ucast.interface_index = recipient->ipv6_adr.interface_index;
+  
   // debug
   PRINTipaddr(group_ucast);
 
@@ -2866,7 +2867,7 @@ oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const 
   return in;
 }
 
-void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
+void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port)
 {
   // create the multicast address from group and scope and port
   oc_endpoint_t group_mcast_endpoint = {0};
@@ -2877,9 +2878,9 @@ void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int
   oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
-void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
+void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope)
 {
-  // FF35::30: <ULA-routing-prefix>::<group id>
+  // FF3X::30: <ULA-routing-prefix>::<group id>
   //
   // create the multicast address from group and scope
   oc_endpoint_t group_mcast_endpoint = {0};
@@ -2890,7 +2891,7 @@ void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
   oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
-void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, int scope, uint16_t port)
+void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port)
 {
   // create the multicast address from group and scope
   oc_endpoint_t group_mcast_endpoint = {0};
@@ -2901,7 +2902,7 @@ void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, i
   oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
 }
 
-void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, int scope)
+void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope)
 {
   // FF35::30: <ULA-routing-prefix>::<group id>
   
@@ -2920,7 +2921,7 @@ static uint32_t oc_find_grpid_in_table(const oc_group_table_t* table, int max_si
   {
     if (is_in_array(group_address, table[i].ga, table[i].ga_len))
     {
-      // break immediately
+      // break immediately, if incorrect configured with a '0', ... returns also '0'
       return table[i].grpid;
     }
   }
@@ -2952,17 +2953,17 @@ void oc_register_group_multicasts(void)
     {
       for (int i = 0; i < g_got[index].ga_len; i++)
       {
-        // check if the 'receiving' GA from the GO table entry is in the publisher table (device wants to receive it)
+        // check if a 'receiving' GA (0...n) from the GO table entry is in the publisher table (device wants to receive it)
         const uint32_t grpid = oc_find_grpid_in_publisher_table(g_got[index].ga[i]);
 
         PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u ga: %04X cflags=", index, i, grpid, g_got[index].ga[i]);
         oc_print_cflags(cflags);
 
         if (grpid > 0)
-        { // found, note if for different ga's from above the same group id will be found it is registered again here
-          subscribe_group_to_multicast_with_port(grpid, device->iid, 2, COAP_DEFAULT_PORT);
-          subscribe_group_to_multicast_with_port(grpid, device->iid, 5, COAP_DEFAULT_PORT);
+        { // found, note -> if for different ga's from above the same group id will be found it will be registered again here
+          subscribe_group_to_multicast_with_port(grpid, device->iid, OC_SENDER_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
         }
+        // note , unicast will be "resolved" on trigger an r/w s-mode message
       }
     }
   }
@@ -2989,10 +2990,10 @@ void oc_init_datapoints_at_initialization(void)
           1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href
           2. test again the INIT flag, it may be that the (other) found GO entry does not have it -> would be MaC configuration error
       */
-      // TODO in case of 2...n GO entries with same href (b.1) its send 2...n-time
+      // TODO on b.1 : in case of 2...n GO entries with same href its send 2...n-time
       // TODO spread the init over a time period of x seconds 
       
-      const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
+      oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
       if (go_entry && go_entry->cflags & OC_CFLAG_INIT)
       { // read on init cflags is set, fire (such as after a device restart, load complete, ...)
         
@@ -3014,11 +3015,11 @@ void oc_init_datapoints_at_initialization(void)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
             oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
-                                                             sending_ga, "r", NULL, 0);
+                                                             sending_ga, 'r', NULL, 0);
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)
-            oc_send_s_mode_unicast_message(sending_ga, "r", NULL, 0, recipient, go_entry);
+            oc_send_s_mode_unicast_message(sending_ga, 'r', NULL, 0, recipient, go_entry);
           }
         }
       }

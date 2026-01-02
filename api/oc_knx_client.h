@@ -91,15 +91,15 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  *
  * @param scope the multicast scope
  * @param resource_path caller resource path (e.g. implemented on the device that is calling this function)
- * @param srv_type the service type to use, "w" or "r"
+ * @param srv_type the service type to use, 'w' or 'r'
  *
  * @return 0 send out, -1 not send out (path not existing, t-cflag not set)
  *
  */
-int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type);
+int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type);
 
 void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address,
-                                                      const char* service_type, uint8_t* value_data, int value_size);
+                                                      char service_type, const uint8_t* value_data, int value_size);
 
 
 /**
@@ -112,7 +112,7 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t gr
  * Sender IA and IID are obtained internally from the local device info.
  * 
  * @param group_address Group address to send on (specific GA for this message)
- * @param service_type "w", "r", or "a"
+ * @param service_type 'w', 'r', or 'a'
  * @param value_data CBOR encoded value
  * @param value_size Size of value_data
  * @param recipient Recipient table entry (contains ia, non flag, IPv6 address)
@@ -123,7 +123,7 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t gr
  *       - recipient->non = false (default) -> sends Confirmable (CON)
  *       - recipient->non = true -> sends Non-Confirmable (NON)
  */
-int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_type,
+int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
                                    const uint8_t* value_data, int value_size,
                                    oc_group_table_t* recipient, 
                                    oc_group_object_table_t* group_object);

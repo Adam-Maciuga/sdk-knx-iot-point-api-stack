@@ -35,7 +35,7 @@ extern "C" {
    * @param index the resource INDEX to be checked
    * @param request  the request, with all query parameters
    * @param response_length the current response length
-   * @param skipped number of entries already skipped (in case they fo not fit to the page number)
+   * @param skipped number of entries already skipped (in case they do not fit to the page number)
    * @param first_entry first entry to be included
    * @param truncate if true the response payload SHALL carry the short URN for the resource types,
    *                 otherwise it SHALL carry the full URN with leading 'urn:knx' for the resources.

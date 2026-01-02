@@ -52,9 +52,8 @@ oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
 
 // external definitions
 
-void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, const char* service_type,
+void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, char service_type,
                              const uint8_t* value_data, int value_size, bool non_confirmable);
-
 
 
 int oc_is_redirected_request_from(const oc_request_t* request)
@@ -83,7 +82,7 @@ int oc_is_redirected_request_from(const oc_request_t* request)
   return 2;
 }
 
-int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_type,
+int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
                                    const uint8_t* value_data, int value_size, 
                                    oc_group_table_t* recipient, 
                                    oc_group_object_table_t* group_object)
@@ -115,7 +114,7 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
 
     // store GO + service type (overwrites it also when triggers a next message but still not resolved)
     recipient->ipv6_res.group_object = group_object;
-    strncpy(recipient->ipv6_res.service_type, service_type, sizeof(recipient->ipv6_res.service_type));
+    recipient->ipv6_res.service_type = service_type;
     
     knx_resolve_via_coap_discovery(recipient);
 
@@ -125,11 +124,10 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
 
   // (0), create unicast endpoint from resolved IPv6 address + port
   oc_endpoint_t group_ucast_endpoint = {0};
-  group_ucast_endpoint = oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient->ipv6_adr.ipv6, recipient->ipv6_adr.port);
+  group_ucast_endpoint = oc_create_unicast_group_address_with_port_interface(group_ucast_endpoint, recipient);
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
-  group_ucast_endpoint.interface_index = recipient->ipv6_adr.interface_index;
 
   // send unicast message (confirmable or non-confirmable)
   oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient->non);
@@ -137,9 +135,7 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
   return 0;
 }
 
-
-
-void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address, const char* service_type, uint8_t* value_data, int value_size)
+void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address, char service_type, const uint8_t* value_data, int value_size)
 {
   // get local device info (iid) -> always the same
   const uint64_t iid = oc_core_get_device_info()->iid;
@@ -151,14 +147,14 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t gr
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  PRINT("Sending non-confirmable multicast %s", service_type);
+  PRINT("Sending non-confirmable multicast %c", service_type);
 
   // send non-confirmable message
   oc_issue_s_mode_message(&group_mcast_endpoint, "/k", group_address, service_type, value_data, value_size, true);
 }
 
 // sends a mc (non) or uc (con/non) s-mode message
-void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, const char* service_type, const uint8_t* value_data, int value_size, bool non_confirmable)
+void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, char service_type, const uint8_t* value_data, int value_size, bool non_confirmable)
 {
 
   #ifndef OC_OSCORE
@@ -168,6 +164,9 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
 
   // get local device info (sia) -> always the same
   const uint16_t sia = oc_core_get_device_info()->ia;
+  
+  // convert the single char into a string with '\0' for the cbor encoder
+  const char service[] = {service_type, '\0'};
 
   if (oc_init_s_mode_message_update(endpoint, path, non_confirmable))
   {
@@ -185,12 +184,15 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
 
     oc_rep_i_set_int(value, 7, group_address);        // ga
 
-    oc_rep_i_set_text_string(value, 6, service_type); // st (w/r/a)
+    oc_rep_i_set_text_string(value, 6, service);      // 'r/w/a'
 
-    if (value_size > 2)
-    { // on value size > 2 it is a write request/read response with data,
-      // otherwise a read request without data
-
+    /*
+     - on value data && value size > 2 it is a write request / read response with data
+     - otherwise a read request without data
+     - other combinations = error (no value data and size > 2, ...)
+    */
+    if (value_data && value_size > 2)
+    { 
       /*
        copies raw data
        [0] = open object = BF ; [1...size - 1] = data (1: xxx) ; [size] = close object = FF
@@ -276,11 +278,9 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   return oc_rep_get_encoded_payload_size();
 }
 
-int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type)
+int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type)
 {
-  PRINT("scope = %d url = %s service type = %s", scope, resource_path, srv_type);
-
-  
+  PRINT("scope = %d url = %s service type = %c", scope, resource_path, srv_type);
 
   if (!resource_path)
   {
@@ -313,7 +313,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
     // find recipient entry for sending ga (is always in  position zero), contains both grpid and non flag
     oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
 
-    if (strcmp(srv_type, "r") == 0)
+    if (srv_type == 'r')
     { // issue a read request, with a sending GA that is able to transmit...
 
       if (recipient)
@@ -337,7 +337,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
       }
       return 0;
     }
-    if (strcmp(srv_type, "w") == 0)
+    if (srv_type == 'w')
     { // issue a write request, with a sending GA that is able to transmit...
 
       // allocate max resource application value size
@@ -455,7 +455,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, co
     }
     
     // must be one of w/r
-    OC_ERR("service type value incorrect %s , allowed are only w+r", srv_type);
+    OC_ERR("service type value incorrect %c , allowed are only w+r", srv_type);
    
     return -1;
   }
@@ -597,7 +597,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 
     const char* resource_path = oc_string(recipient->ipv6_res.group_object->href);
     const uint32_t group_address = recipient->ipv6_res.group_object->ga[0];
-    const char* service_type = recipient->ipv6_res.service_type;
+    const char service_type = recipient->ipv6_res.service_type;
 
     // copy resource value to buffer, return value size -> buffer must be big enough to carry resource value!
     const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, OC_MAX_APP_DATA_SIZE);
@@ -609,9 +609,10 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
     free(resource_value_buffer);
 
     OC_INF("IPv6 resolved for IA 0x%04x", (uint16_t)recipient->ia);
+    return;
   }
-  else
-    OC_ERR("Recipient is NULL, callback (init) error");
+  
+  OC_ERR("Recipient is NULL, callback (init) error");
   
 }
 
