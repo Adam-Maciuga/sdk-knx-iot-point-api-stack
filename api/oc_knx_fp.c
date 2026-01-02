@@ -27,7 +27,7 @@
 #include "oc_knx_client.h"
 #include "oc_storage.h"
 
-// Forward declaration for helper from oc_knx_client.c
+// forward declaration for helper from oc_knx_client.c
 extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
 
 // PUB/RCV/GOT storage data (must use all the same name length, since TAB_SIZE is used for all)

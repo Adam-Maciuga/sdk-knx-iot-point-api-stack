@@ -28,20 +28,26 @@
 #include <string.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
+#include <errno.h>
 
 // External declarations
 
 
-// Internal helper function to find recipient table entry by GA
-// Note: Not in header - used only within this file and oc_knx.c/oc_knx_fp.c via direct access
+// find a GA within a recipient table entry including a GA array
+// Note, not in header - used only within this file and oc_knx.c/oc_knx_fp.c via direct access
 oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
 {
   int total = oc_core_get_recipient_table_size();
-  for (int i = 0; i < total; i++) {
+  for (int i = 0; i < total; i++) 
+  {
     oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
-    if (entry && entry->id >= 0) {
-      for (int j = 0; j < entry->ga_len; j++) {
-        if (entry->ga[j] == ga) {
+
+    if (entry && entry->id >= 0) 
+    {
+      for (int j = 0; j < entry->ga_len; j++) 
+      {
+        if (entry->ga[j] == ga) 
+        {
           return entry;
         }
       }
