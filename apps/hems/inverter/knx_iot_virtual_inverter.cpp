@@ -348,7 +348,7 @@ void MyFrame::OnProcessSliderUpdate(wxCommandEvent& event)
   // get url
   char* url = app_retrieve_href_from_inverter();
 
-  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, "w");
+  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, 'w');
 
   // show in status bar
   char statusBarText[100];

@@ -58,13 +58,13 @@ extern "C" {
    */
   enum transport_flags
   {
-    DISCOVERY = 1 << 0,        // used for discovery, flag not used  
+    DISCOVERY = 1 << 0,        // used for (plain) discovery requests
     SECURED = 1 << 1,          // secure communication, used only in case of TCP  
     IPV4 = 1 << 2,             // ipv4 communication 
     IPV6 = 1 << 3,             // ipv6 communication 
     TCP = 1 << 4,              // tcp communication 
     OSCORE = 1 << 5,           // OSCORE communication, identifies that OSCORE is used  
-    MULTICAST = 1 << 6,        // multicast message 
+    MULTICAST = 1 << 6,        // multicast message, if not set = unicast message
     ACCEPTED = 1 << 7,         // accepted 
     OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message
     ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)

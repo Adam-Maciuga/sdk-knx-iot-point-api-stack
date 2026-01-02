@@ -547,11 +547,11 @@ extern "C" {
 																					size_t invoked_len, const char** value);
 
 	/**
-	 * @brief search a string (nonnull terminated) for a character
+	 * @brief search a char stream (string), nonnull terminated for a character
 	 *
 	 * @param string the string to be searched
 	 * @param p the character to be found
-	 * @param size the size of the string
+	 * @param size the max size of the string to be searched in (MUST not exceed string total size)
 	 * @return NULL = not found, otherwise position in string
 	 */
 	char* oc_strnchr(char* string, char p, int size);

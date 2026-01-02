@@ -35,7 +35,7 @@
 #include "security/oc_spake2plus.h"
 #endif
 
-// Forward declaration for helper from oc_knx_client.c
+// forward declaration for helper from oc_knx_client.c
 extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
 
 // ---------------------------Variables --------------------------------------
@@ -764,9 +764,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   { // index found
 
     // each application callback handler gets a new copy of the original request + new response buffer
-    oc_request_t new_request; // filled completely later on
-    oc_response_buffer_t response_buffer = {0};
-    oc_response_t response_obj; // filled completely later on
+    oc_request_t new_request;                   // copied completely later from inbound request, hence no with '0' 
+    oc_response_t response_obj;                 // filled completely later on, hence no init with '0'
+    oc_response_buffer_t response_buffer = {0}; // partiality filled later on, hence init with '0'
 
     /*
       Internal Callback Handler, Examples and Handling
@@ -896,7 +896,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
         {
           /*
              here we have
-             - a GO with the GA included
+             - a GO with a GA included in the array
              - a GO with a resource path (href) and an application resource with the SAME resource path (href)
 
              - group object table and application resource definition see above
@@ -933,6 +933,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             oc_ri_new_request_from_inbound_request(&new_request, request, &response_buffer, &response_obj);
 
             // sets the payload pointer to the 'value' OBJECT --> MUST BE IN (otherwise NULL is assigned)
+            // used by /p and /k that calls the same application callback handlers
             new_request.request_payload = received_notification.value_object;
 
             /*
@@ -1000,19 +1001,20 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
               details for this see above for 'w'
             */
             application_resource_with_href_match->get_handler.cb(
-              &new_request, application_resource_with_href_match->get_handler.interface_mask,
+              &new_request, 
+              application_resource_with_href_match->get_handler.interface_mask,
               application_resource_with_href_match->get_handler.user_data);
 
             // #2 - send read response (flags don't care)
             {
               // Option 4, get sending GA for the current resource path href (out of 0...max GO table entries)
-              const oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href));
+              oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(go_href));
 
               if (go_entry)
               { // we have a sending GA, now we can send the read response, rest was checked before
 
                 // sending ga is always in position zero
-                const uint32_t sending_ga = go_entry->ga[0];
+                uint32_t sending_ga = go_entry->ga[0];
                 
                 // find recipient entry for sending ga , contains both grpid and non flag
                 oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
@@ -1023,15 +1025,15 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                   { // grpid is set in case of multicast in RCP table (configured by MaC)
 
                     oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
-                                                                     sending_ga, "a", 
+                                                                     sending_ga, 'a', 
                                                                      new_request.response->response_buffer->buffer,
                                                                      (int)new_request.response->response_buffer->response_length);
                   }
                   else
                   { // uc: read response -> ia is used from RCP table (configured by MaC)
-                    oc_send_s_mode_unicast_message(sending_ga, "a", 
+                    oc_send_s_mode_unicast_message(sending_ga, 'a', 
                                                    new_request.response->response_buffer->buffer,
-                                                   (int)new_request.response->response_buffer->response_length, recipient);
+                                                   (int)new_request.response->response_buffer->response_length, recipient, go_entry);
                   }
                 }
               }

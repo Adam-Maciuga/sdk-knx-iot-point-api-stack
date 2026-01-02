@@ -161,38 +161,35 @@ static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/ge
 #endif                               
 static size_t _OC_BLOCK_SIZE = 1024;        // a static runtime variable (only get), no #define
 
-int
-oc_set_mtu_size(size_t mtu_size)
+int oc_set_mtu_size(size_t mtu_size)
 {
   (void) mtu_size;
 #ifdef OC_INOUT_BUFFER_SIZE
   return -1;
-#endif /* OC_INOUT_BUFFER_SIZE */
+#endif 
 #ifdef OC_BLOCK_WISE
   if (mtu_size < (COAP_MAX_HEADER_SIZE + 16))
     return -1;
 #ifdef OC_OSCORE
   _OC_MTU_SIZE = mtu_size + COAP_MAX_HEADER_SIZE;
-#else  /* OC_OSCORE */
+#else  
   _OC_MTU_SIZE = mtu_size;
-#endif /* !OC_OSCORE */
+#endif 
   mtu_size -= COAP_MAX_HEADER_SIZE;
   size_t i;
   for (i = 10; i >= 4 && (mtu_size >> i) == 0; i--)
     ;
   _OC_BLOCK_SIZE = ((size_t) 1) << i;
-#endif /* OC_BLOCK_WISE */
+#endif 
   return 0;
 }
 
-long
-oc_get_mtu_size(void)
+long oc_get_mtu_size(void)
 {
   return (long) _OC_MTU_SIZE;
 }
 
-void
-oc_set_max_app_data_size(size_t size)
+void oc_set_max_app_data_size(size_t size)
 {
 #ifdef OC_APP_DATA_BUFFER_SIZE
   return;
@@ -201,20 +198,19 @@ oc_set_max_app_data_size(size_t size)
 #ifndef OC_BLOCK_WISE
   _OC_BLOCK_SIZE = size;
   _OC_MTU_SIZE = size + COAP_MAX_HEADER_SIZE;
-#endif /* !OC_BLOCK_WISE */
+#endif 
 }
 
-long
-oc_get_max_app_data_size(void)
+long oc_get_max_app_data_size(void)
 {
   return (long) _OC_MAX_APP_DATA_SIZE;
 }
 
-long
-oc_get_block_size(void)
+long oc_get_block_size(void)
 {
   return (long) _OC_BLOCK_SIZE;
 }
+
 #else
 int
 oc_set_mtu_size(size_t mtu_size)

@@ -70,16 +70,17 @@ typedef struct oc_oscore_context_t
   uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // 'Recipient ID' (in OSCORE)
   uint8_t recipient_id_len;                         // length
 
-  uint64_t ssn;                                     // sender sequence number
-
   uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // 'ID Context' (in OSCORE)
   uint8_t id_context_len;                           // length
+
+  uint64_t ssn;                                     // sender sequence number
+  oc_clock_time_t last_used;                        // time of last use, for runtime caching of recipient contexts
 
   // derived parameters
   uint8_t sender_key[OSCORE_KEY_LEN];               // 128-bit sender key 
   uint8_t recipient_key[OSCORE_KEY_LEN];            // 128-bit recipient key
   uint8_t common_iv[OSCORE_COMMON_IV_LEN];          // Common IV
-  oc_clock_time_t last_used;                        // time of last use, for runtime caching of recipient contexts
+  
 } oc_oscore_context_t;
 
 /**

@@ -114,6 +114,7 @@ static struct
 
 bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16])
 {
+  OC_DBG("checking messages on duplicates ...");
 
 	for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
 	{
@@ -125,7 +126,7 @@ bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16]
 			return true;
 		}
 	}
-  OC_DBG("processing message ...");
+  
 	return false;
 }
 #endif
@@ -237,9 +238,9 @@ int coap_receive(oc_message_t* incoming_message)
   #ifdef OC_DEBUG
 
   if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
-   OC_DBG("CoAP Engine: receive (forwarded) data from OSCORE layer with len=%u from ", (unsigned int)incoming_message->length);
+   OC_DBG("CoAP Engine: receive (forwarded) data from OSCORE layer with len=%u ", (unsigned int)incoming_message->length);
   else
-   OC_DBG("CoAP Engine: receive data from NETWORK layer with len=%u from ", (unsigned int) incoming_message->length);
+   OC_DBG("CoAP Engine: receive data from NETWORK layer with len=%u ", (unsigned int) incoming_message->length);
 
   #endif
 
@@ -301,16 +302,16 @@ int coap_receive(oc_message_t* incoming_message)
      
     {
     case COAP_TYPE_CON:
-      OC_DBG("type: CON");
+      OC_DBG("type\t: CON");
       break;
     case COAP_TYPE_NON:
-      OC_DBG("type: NON");
+      OC_DBG("type\t: NON");
       break;
     case COAP_TYPE_ACK:
-      OC_DBG("type: ACK");
+      OC_DBG("type\t: ACK");
       break;
     case COAP_TYPE_RST:
-      OC_DBG("type: RST");
+      OC_DBG("type\t: RST");
       break;
     default:
       break;
@@ -384,7 +385,7 @@ int coap_receive(oc_message_t* incoming_message)
 		      coap_packet_t re_request_packet[1];
 					coap_udp_parse_message(re_request_packet, transaction->message->data, transaction->message->length);
 
-					// find client by using old mid (before increasing mid)
+					// find a POSSIBLE created client callback by using old mid (before increasing mid)
 					client_cb = oc_ri_find_client_cb_by_mid(re_request_packet->mid);
 
 					// copy the echo from the unauthorised response into the new request
@@ -480,7 +481,7 @@ int coap_receive(oc_message_t* incoming_message)
 						coap_packet_t re_request_packet[1];
 						coap_udp_parse_message(re_request_packet, original_message->data, original_message->length);
 
-						// find client by using old mid (before increasing mid)
+						// find a POSSIBLE created client callback by using old mid (before increasing mid)
             client_cb = oc_ri_find_client_cb_by_mid(re_request_packet->mid);
 
 					  // copy the echo from the unauthorised response into the new request
@@ -556,23 +557,23 @@ int coap_receive(oc_message_t* incoming_message)
 			switch (incoming_coap_message->code)
 			{
 				case COAP_GET:
-					PRINT("GET");
+					PRINT("SRV\t: GET");
 					break;
 				case COAP_PUT:
-					PRINT("PUT");
+					PRINT("SRV\t: PUT");
 					break;
 				case COAP_POST:
-					PRINT("POST");
+					PRINT("SRV\t: POST");
 					break;
 				case COAP_DELETE:
-					PRINT("DELETE");
+					PRINT("SRV\t: DELETE");
 					break;
         default:
           break;
 			}
-			PRINT("URL  : %.*s", (int) incoming_coap_message->uri_path_len, incoming_coap_message->uri_path);
-			PRINT("QUERY: %.*s", (int) incoming_coap_message->uri_query_len, incoming_coap_message->uri_query);
-			PRINT("Payload Len: %d", (int) incoming_coap_message->uri_query_len);
+
+      PRINT("URL\t: %.*s", (int)incoming_coap_message->uri_path_len,  incoming_coap_message->uri_path_len > 0 ? incoming_coap_message->uri_path : "-");
+      PRINT("QUERY\t: %.*s", (int)incoming_coap_message->uri_query_len, incoming_coap_message->uri_query_len > 0 ? incoming_coap_message->uri_query : "-");
 			// no payload printing ... to long ...
 
 			#endif
@@ -594,7 +595,7 @@ int coap_receive(oc_message_t* incoming_message)
 				}
 				else
 				{
-          // NON 
+          // NON -> check on duplicates
 				  #ifdef OC_REQUEST_HISTORY
 
 					if (oc_coap_check_if_duplicate(
@@ -605,7 +606,7 @@ int coap_receive(oc_message_t* incoming_message)
 						return 0;
 					}
 
-					// update history entry
+					// no duplicate, update history entry
 					history[idx].mid = incoming_coap_message->mid;
 					history[idx].port = incoming_message->endpoint.addr.ipv6.port;
 					memcpy(history[idx].address, incoming_message->endpoint.addr.ipv6.address, 16);
@@ -631,13 +632,6 @@ int coap_receive(oc_message_t* incoming_message)
       */
 			for (oc_endpoint_t* ep_i = oc_connectivity_get_endpoints(); ep_i; ep_i = ep_i->next)
 			{
-				#ifdef OC_DEBUG
-
-				PRINT("testing message ...");
-				PRINTipaddr(*ep_i);
-
-				#endif
-
 				if (oc_endpoint_compare_address(&incoming_message->endpoint, ep_i) == 0)
 				{
 					if (incoming_message->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port)
@@ -646,8 +640,11 @@ int coap_receive(oc_message_t* incoming_message)
 						is_myself = true;
 					}
           #ifdef OC_DEBUG
-					else 
-					  OC_DBG("accepting message ...");
+          else
+          {
+            OC_DBG("accepting message ... ");
+            PRINTipaddr(*ep_i);
+          }
           #endif
 				}
 			}
@@ -670,8 +667,8 @@ int coap_receive(oc_message_t* incoming_message)
 
 				/*
 				   Server-side logic for:
-				   - sending an 'unicast echo response' with an echo option
-				   - receiving an 'unicast echo re-request' and checking whether the echo option included in is fresh enough
+				   - sending a 'unicast echo response' with an echo option
+				   - receiving a 'unicast echo re-request' and checking whether the echo option included in is fresh enough
 				*/
 
 				if (!is_myself) // message is not an own loopback response 
@@ -787,8 +784,7 @@ int coap_receive(oc_message_t* incoming_message)
 									&incoming_message->endpoint, 
 									(uint8_t*)&current_time, sizeof(current_time));
 
-								// server sends out a response, no own transaction is needed
-								// can handle NULL pointer ...
+								// server sends out a response, no own transaction is needed, can handle NULL pointer ...
                 coap_clear_transaction(transaction);
 
 								OC_ERR("Stale request from unsycned client, sending 4.01 Echo Response");
@@ -1186,18 +1182,24 @@ int coap_receive(oc_message_t* incoming_message)
 
       switch (incoming_coap_message->code)
       {
-      case CONTENT_2_05:
-        PRINT("2.05 - OK");
+      case CREATED_2_01:
+        PRINT("SRV\t: 2.01 - CREATED ");
         break;
       case CHANGED_2_04:
-        PRINT("2.04 - CHANGED");
+        PRINT("SRV\t: 2.04 - CHANGED ");
+        break;
+      case CONTENT_2_05:
+        PRINT("SRV\t: 2.05 - OK");
+        break;
+      case DELETED_2_02:
+        PRINT("SRV\t: 2.02 - DELETED");
         break;
       default:
         break;
       }
-      PRINT("URL  : %.*s", (int)incoming_coap_message->uri_path_len, incoming_coap_message->uri_path);
-      PRINT("QUERY: %.*s", (int)incoming_coap_message->uri_query_len, incoming_coap_message->uri_query);
-      PRINT("Payload Len: %d", (int)incoming_coap_message->uri_query_len);
+
+			PRINT("URL\t: %.*s", (int)incoming_coap_message->uri_path_len, incoming_coap_message->uri_path_len > 0 ? incoming_coap_message->uri_path : "-");
+      PRINT("QUERY\t: %.*s", (int)incoming_coap_message->uri_query_len, incoming_coap_message->uri_query_len > 0 ? incoming_coap_message->uri_query : "-");
       // no payload printing ... to long ...
 
       #endif
@@ -1251,8 +1253,7 @@ int coap_receive(oc_message_t* incoming_message)
 			#ifdef OC_BLOCK_WISE
 			if (client_cb)
 			{
-				request_buffer = oc_blockwise_find_request_buffer_by_client_cb(
-					&incoming_message->endpoint, client_cb);
+				request_buffer = oc_blockwise_find_request_buffer_by_client_cb(&incoming_message->endpoint, client_cb);
 			}
 			else
 			{
@@ -1266,9 +1267,9 @@ int coap_receive(oc_message_t* incoming_message)
 			if (!error_response && request_buffer &&
 					(block1 || incoming_coap_message->code == REQUEST_ENTITY_TOO_LARGE_4_13))
 			{
-				OC_DBG("found request buffer for uri %s",
-							 oc_string_checked(request_buffer->href));
-				client_cb = (oc_client_cb_t*) request_buffer->client_cb;
+				OC_DBG("found request buffer for uri %s", oc_string_checked(request_buffer->href));
+				
+			  client_cb = (oc_client_cb_t*) request_buffer->client_cb;
 				uint32_t payload_size = 0;
 				const uint8_t* payload = 0;
 
@@ -1337,8 +1338,7 @@ int coap_receive(oc_message_t* incoming_message)
 				}
 			}
 
-			if (request_buffer &&
-					(request_buffer->ref_count == 0 || error_response))
+			if (request_buffer && (request_buffer->ref_count == 0 || error_response))
 			{
 				oc_blockwise_free_request_buffer(request_buffer);
 				request_buffer = NULL;
@@ -1346,9 +1346,9 @@ int coap_receive(oc_message_t* incoming_message)
 
 			if (client_cb)
 			{
-				response_buffer = oc_blockwise_find_response_buffer_by_client_cb(
-					&incoming_message->endpoint, client_cb);
-				if (!response_buffer)
+				response_buffer = oc_blockwise_find_response_buffer_by_client_cb(&incoming_message->endpoint, client_cb);
+				
+			  if (!response_buffer)
 				{
 					response_buffer = oc_blockwise_alloc_response_buffer(
 						oc_string(client_cb->uri) + 1, oc_string_len(client_cb->uri) - 1,
@@ -1431,11 +1431,11 @@ int coap_receive(oc_message_t* incoming_message)
 					request_buffer->ref_count = 0;
 				}
 
-				oc_ri_invoke_client_cb(incoming_coap_message, &response_buffer, client_cb,
-															 &incoming_message->endpoint);
-				/* Do not free the response buffer in case of a separate response
-				 * signal from the server. In this case, the client_cb continues
-				 * to live until the response arrives (or it times out).
+				oc_ri_invoke_client_cb(incoming_coap_message, &response_buffer, client_cb, &incoming_message->endpoint);
+				/* 
+				   Do not free the response buffer in case of a separate response
+				   signal from the server. In this case, the client_cb continues
+				   to live until the response arrives (or it times out).
 				 */
 				if (oc_ri_is_client_cb_valid(client_cb))
 				{
@@ -1562,9 +1562,10 @@ send_message:
 			memcpy(transaction->token, outgoing_coap_response->token, outgoing_coap_response->token_len);
 			transaction->token_len = outgoing_coap_response->token_len;
 		}
-		transaction->message->length =
-			coap_serialize_message(outgoing_coap_response, transaction->message->data);
-		if (transaction->message->length > 0)
+		
+	  transaction->message->length = coap_serialize_message(outgoing_coap_response, transaction->message->data);
+		
+	  if (transaction->message->length > 0)
 		{
 			coap_send_transaction(transaction);
 		}

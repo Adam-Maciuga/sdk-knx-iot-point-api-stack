@@ -100,7 +100,6 @@ extern "C" {
 #endif 
 #define OC_BLOCK_SIZE (oc_get_block_size())
 #define OC_MAX_APP_DATA_SIZE (oc_get_max_app_data_size())
-#define OC_MAX_APP_DATA_SIZE_STATIC (7168)
 #endif 
 
 struct oc_message_s

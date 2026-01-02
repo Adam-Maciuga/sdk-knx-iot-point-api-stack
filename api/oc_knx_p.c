@@ -194,9 +194,9 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   }
 
   // each application callback handler gets a new copy of the original request + new response buffer
-  oc_request_t new_request = {0};
-  oc_response_buffer_t response_buffer = {0};
-  oc_response_t response_obj; // filled complete later on 
+  oc_request_t new_request;                   // copied completely later from inbound request, hence no with '0'
+  oc_response_buffer_t response_buffer = {0}; // partiality filled later on, hence init with '0'
+  oc_response_t response_obj;                 // filled completely later on, hence no init with '0'
 
   // define summary callback handler status
   oc_status_t summary_handler_status = OC_STATUS_OK;

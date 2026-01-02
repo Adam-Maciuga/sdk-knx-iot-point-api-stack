@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2020 Intel Corporation
 // Copyright (c) 2022-2023 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +16,7 @@
 // limitations under the License.
 */
 
-#if defined(OC_OSCORE)
+#ifdef OC_OSCORE
 
 #include "oc_oscore_context.h"
 #include "messaging/coap/transactions.h"
@@ -34,7 +35,7 @@ void oc_oscore_free_lru_recipient_context(void)
   oc_oscore_context_t* lru_ctx;
 
   // get first context of list
-  oc_oscore_context_t* ctx = lru_ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = lru_ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   while (ctx)
   {
@@ -56,14 +57,14 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len
     return NULL;
 
   // list start
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  PRINT("-> inbound kid:(%d) : ", kid_len);
+  PRINT("-> inbound kid (%d)\t: ", kid_len);
   oc_char_println_hex((char*) kid, kid_len);
 
   while (ctx)
   {
-    PRINT("-> scanned kid : ");
+    PRINT("-> scanned kid\t: ");
     oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
 
     if (kid_len == ctx->recipient_id_len && memcmp(kid, ctx->recipient_id, kid_len) == 0)
@@ -82,7 +83,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
 {
   
   // get list start
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   if (kid_len == 0)
     return NULL;
@@ -275,7 +276,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
 void oc_oscore_free_all_contexts(void)
 {
   // get first context of list
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   while (ctx)
   {
@@ -292,7 +293,7 @@ void oc_oscore_free_all_contexts(void)
 void oc_oscore_free_sender_contexts(void)
 {
   // get first context of list
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   while (ctx)
   {
@@ -310,7 +311,7 @@ void oc_oscore_free_sender_contexts(void)
 void oc_oscore_free_contexts_at_id(int auth_at_index)
 {
   // get first context of list
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   while (ctx)
   {
@@ -347,7 +348,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
 {
 
   //get a free sender context
-  oc_oscore_context_t* ctx = oc_memb_alloc(&ctx_s);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_memb_alloc(&ctx_s);
 
   if (!ctx)
   {

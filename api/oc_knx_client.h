@@ -91,15 +91,15 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  *
  * @param scope the multicast scope
  * @param resource_path caller resource path (e.g. implemented on the device that is calling this function)
- * @param srv_type the service type to use, "w" or "r"
+ * @param srv_type the service type to use, 'w' or 'r'
  *
  * @return 0 send out, -1 not send out (path not existing, t-cflag not set)
  *
  */
-int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, const char* srv_type);
+int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type);
 
 void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address,
-                                                      const char* service_type, uint8_t* value_data, int value_size);
+                                                      char service_type, const uint8_t* value_data, int value_size);
 
 
 /**
@@ -112,19 +112,21 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t gr
  * Sender IA and IID are obtained internally from the local device info.
  * 
  * @param group_address Group address to send on (specific GA for this message)
- * @param service_type "w", "r", or "a"
+ * @param service_type 'w', 'r', or 'a'
  * @param value_data CBOR encoded value
  * @param value_size Size of value_data
  * @param recipient Recipient table entry (contains ia, non flag, IPv6 address)
+ * @param group_object Group Object table entry that host the sending GA
  * @return 0 on success (sent or queued), -1 on error
  *
  * @note Message confirmability is determined by recipient->non:
  *       - recipient->non = false (default) -> sends Confirmable (CON)
  *       - recipient->non = true -> sends Non-Confirmable (NON)
  */
-int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_type,
+int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
                                    const uint8_t* value_data, int value_size,
-                                   oc_group_table_t* recipient);
+                                   oc_group_table_t* recipient, 
+                                   oc_group_object_table_t* group_object);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 
@@ -134,13 +136,10 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, const char* service_t
  * Sends CoAP GET to /.well-known/core?ep=knx://ia.<iid>.<ia> via multicast
  * and extracts the IPv6 address from the source address of the response.
  *
- * @param scope Multicast scope: 2 (ff02::fd link-local) or 5 (ff05::fd site-local)
- * @param ia Individual Address to resolve
- * @param iid Installation ID  
  * @param recipient recipient in table
- * @return 0 on success (request sent), -1 on error
+ * @return resolver status
  */
-bool knx_resolve_via_coap_discovery(uint8_t scope, uint32_t ia, uint64_t iid, oc_group_table_t* recipient);
+oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient);
 
 /**
  * @brief Process pending s-mode messages for a resolved IA

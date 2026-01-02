@@ -1285,9 +1285,40 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 	if (outer)
 	{
-		OC_DBG("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
-		OC_DBG("Token (len %u) : ", coap_pkt->token_len);
-		OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
+
+		#ifdef OC_DEBUG
+
+    switch (coap_pkt->code)
+    {
+    case COAP_GET:
+      PRINT("SRV\t: GET");
+      break;
+    case COAP_PUT:
+      PRINT("SRV\t: PUT");
+      break;
+    case COAP_POST:
+      PRINT("SRV\t: POST");
+      break;
+    case COAP_DELETE:
+      PRINT("SRV\t: DELETE");
+      break;
+    case CREATED_2_01:
+      PRINT("SRV\t: 2.01 - CREATED ");
+      break;
+    case CHANGED_2_04:
+      PRINT("SRV\t: 2.04 - CHANGED ");
+      break;
+    case CONTENT_2_05:
+      PRINT("SRV\t: 2.05 - OK");
+      break;
+    case DELETED_2_02:
+      PRINT("SRV\t: 2.02 - DELETED");
+      break;
+    default:
+      break;
+    }
+
+    #endif
 
 		// here the options starts
 		option = coap_pkt->buffer + token_location;

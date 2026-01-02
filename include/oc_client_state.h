@@ -52,14 +52,12 @@ extern "C" {
 	 */
 	typedef struct
 	{
-		oc_rep_t* payload;       /**< response payload, interpreted as cbor */
-		const uint8_t* _payload; /**< payload buffer */
-		size_t _payload_len;     /**< payload buffer length */
-		oc_endpoint_t
-			* endpoint;     /**< endpoint on where the response has been received */
-		void* client_cb; /**< callback for the response to the calling client */
-		void
-			* user_data; /**< user data to be supplied to the callback to the client */
+		oc_rep_t* payload;						/**< CBOR encoded payload (e.g.; on s-mode responses) */
+		const uint8_t* _payload;			/**< RAW encoded payload (e.g.; on plain text (discovery) responses)  */
+		size_t _payload_len;					/**< payload buffer length */
+		oc_endpoint_t	* endpoint;     /**< endpoint on where the response has been received */
+		void* client_cb;							/**< callback for the response to the calling client */
+		void* user_data;							/**< user data to be supplied to the callback to the client */
 		oc_content_format_t content_format; /**< content format of the payload */
 		oc_status_t code;                   /**< status of the response */
 		int observe_option;                 /**< observe indication */
@@ -120,7 +118,7 @@ extern "C" {
 		oc_client_handler_t handler;   /**< handler information */
 		void* user_data;               /**< user data for the callbacks */
 		int32_t observe_seq;           /**< observe sequence number */
-		oc_clock_time_t timestamp;     /**< time stamp */
+		oc_clock_time_t timestamp;     /**< time stamp is INITIALLY set to the time when the callback was created  */
 		oc_qos_t qos;                  /**< quality of service */
 		oc_method_t method;            /**< method used */
 		uint16_t mid;                  /**< CoAP message identifier */
@@ -178,13 +176,15 @@ extern "C" {
 	 * @param user_data user data to be provided with the invocation of the callback
 	 * @return oc_client_cb_t* the client callback info
 	 *
-	 * @note the callback creates and stores a CoAP token/mid that is used later for the sending message, 
-	 *       purpose of that is to match an (outbound) request with a later (inbound) response: 
-	 *       - a message send out without a callback, SOME token/mid MUST be set in the outbound request 
-	 *       - a message send out with a callback, the callback is present, THIS callback token/mid MUST be set in 
-	 *         outbound request
-	 *			 it is better to create token/mid here, usually when creating a callback the caller 
-	 *			 does not have access to the later on sending message
+	 * @note the callback creates and stores 
+	 *       - a CoAP token/mid that is used later for the sending message, 
+	 *         purpose of that is to match an (outbound) request with a later (inbound) response: 
+	 *          - a message send out without a callback, SOME token/mid MUST be set in the outbound request 
+	 *          - a message send out with a callback, the callback is present, THIS callback token/mid MUST be set in 
+	 *            outbound request
+	 *			    it is better to create token/mid here, usually when creating a callback the caller 
+	 *			    does not have access to the later on sending message
+	 *       - a timestamp when the callback was created 
 	 *			  
 	 */
 	oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint,
