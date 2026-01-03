@@ -316,11 +316,11 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
 	// copy inbound request content to new request content
 	memcpy(new_request, inbound_request, sizeof(oc_request_t));
 
-	// init response buffer, buffer pointer and buffer size are copied from inbound request
+	// init response buffer, buffer + size are 'taken over' from inbound request (same buffer is used as allocated for org. request)
   response_buffer->buffer = new_request->response->response_buffer->buffer;
   response_buffer->buffer_size = new_request->response->response_buffer->buffer_size;
 
-	// init response object (fills all)
+	// init response object (sets all data)
 	response_obj->separate_response = NULL;
 	response_obj->response_buffer = response_buffer;
 
@@ -1093,7 +1093,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	*/
   oc_method_t method = (oc_method_t)packet->code;
 
-  // each application callback handler gets a new copy of the original request + new response buffer
+  // each app. callback handler gets a new copy from org. req, the response buffer is a 1:1 pointer copy from org. req
 	oc_request_t new_request = {0};							// partiality filled later on, hence init with '0'
 	oc_response_t response_obj;									// filled completely later on, hence no init with '0'
   oc_response_buffer_t response_buffer = {0};	// partiality filled later on, hence init with '0'
@@ -1109,7 +1109,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 	   in order to reducing peak memory in OC_BLOCK_WISE & OC_DYNAMIC_ALLOCATION
 	*/
 
-	// init response object (fills all)
+	// init response object (sets all data)
 	response_obj.separate_response = NULL;
 	response_obj.response_buffer = &response_buffer;
 

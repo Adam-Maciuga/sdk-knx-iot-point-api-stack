@@ -36,10 +36,10 @@ struct oc_separate_response_s
 
 struct oc_response_buffer_s
 {
-  uint8_t *buffer;
-  size_t buffer_size;
-  size_t response_length;
-  int code;
+  uint8_t *buffer;          // the payload (response) byte buffer
+  size_t buffer_size;       // the total payload buffer size
+  size_t response_length;   // the actual response length (which is usually less than the buffer size)
+  int code;                 // coap code
   oc_content_format_t content_format;
   uint32_t max_age;
 };

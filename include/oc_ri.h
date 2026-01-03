@@ -386,19 +386,19 @@ typedef struct oc_resource oc_resource_t;
 */
 typedef struct oc_request_t
 {
-oc_endpoint_t* origin;                /**< origin (endpoint) of the request */
-const oc_resource_t* resource;        /**< addressed target resource */
-const char* query;                    /**< query (as string) */
-size_t query_len;                     /**< query length */
-const char* uri_path;                 /**< path (as string) */
-size_t uri_path_len;                  /**< path length */
-oc_rep_t* request_payload;            /**< request payload structure as CBOR data */
-const uint8_t* _payload;              /**< request payload structure as BYTE stream */
-size_t _payload_len;                  /**< payload size */
-oc_content_format_t content_format;   /**< content format (of the payload in the request) */
-oc_content_format_t  accept;          /**< accept header, e.g. the format to be returned on the request */
-oc_response_t* response;              /**< pointer to the response */
-oc_method_t request_method;						/**< the request (CoAP) method */
+  oc_endpoint_t* origin;                /**< origin (endpoint) of the request */
+  const oc_resource_t* resource;        /**< addressed target resource */
+  const char* query;                    /**< query (as string) */
+  size_t query_len;                     /**< query length */
+  const char* uri_path;                 /**< path (as string) */
+  size_t uri_path_len;                  /**< path length */
+  oc_rep_t* request_payload;            /**< request payload structure as CBOR data */
+  const uint8_t* _payload;              /**< request payload structure as BYTE stream */
+  size_t _payload_len;                  /**< payload size */
+  oc_content_format_t content_format;   /**< content format (of the payload in the request) */
+  oc_content_format_t  accept;          /**< accept header, e.g. the format to be returned on the request */
+  oc_response_t* response;              /**< pointer to the response */
+  oc_method_t request_method;						/**< the request (CoAP) method */
 } oc_request_t;
 
 /**
@@ -762,7 +762,7 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
 /**
 * @brief creates a new request from the (old) request by copy it 1:1,
 *        is used internally for handler calls of /k and /p,
-*				 and adds response object (including response buffer) to the new request  
+*				 and adds response object to the new request (that includes also the link to the response buffer) 
 *
 * @note
 *  - take care on editing data in the new request (such as in application),
@@ -773,8 +773,8 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
 *
 * @param new_request the original request
 * @param inbound_request the new request
-* @param response_buffer the dummy response buffer for the new request
-* @param response_obj the dummy response object
+* @param response_buffer the response buffer for the new request
+* @param response_obj the response object
 *
 */
 void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,

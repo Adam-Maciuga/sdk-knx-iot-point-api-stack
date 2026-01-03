@@ -260,11 +260,12 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   response_buffer.buffer = buffer;
   response_buffer.buffer_size = buffer_size;
 
-  // init response object (fills all)
+  // init response object (sets all data)
   response_obj.separate_response = NULL;
   response_obj.response_buffer = &response_buffer;
 
   new_request.response = &response_obj;                        // link new response object
+
   new_request.resource = application_resource_with_href_match; // allows (a generic) application callback to identify the caller
   new_request.request_method = OC_POST;                        // s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/ update
   new_request.content_format = APPLICATION_CBOR;               

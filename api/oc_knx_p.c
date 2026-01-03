@@ -193,7 +193,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
     return;
   }
 
-  // each application callback handler gets a new copy of the original request + new response buffer
+  // each app. callback handler gets a new copy from org. req, the response buffer is a 1:1 pointer copy from org. req
   oc_request_t new_request;                   // copied completely later from inbound request, hence no with '0'
   oc_response_buffer_t response_buffer = {0}; // partiality filled later on, hence init with '0'
   oc_response_t response_obj;                 // filled completely later on, hence no init with '0'
