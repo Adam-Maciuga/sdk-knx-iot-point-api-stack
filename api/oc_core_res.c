@@ -180,9 +180,6 @@ void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 	{
 		oc_abort("error initializing connectivity for device");
 	}
-
-	// read OSCORE storage data
-	oc_init_oscore_from_storage(true);
 }
 
 void oc_check_uri(const char* uri)
