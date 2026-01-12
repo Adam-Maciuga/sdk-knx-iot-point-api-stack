@@ -1305,7 +1305,7 @@ void oc_print_auth_at_entry(int index)
           PRINT("osc:ga        : [");
           for (int i = 0; i < g_at_entries[index].ga_len; i++)
           {
-            PRINTF("%" PRIu64 "", (uint64_t)g_at_entries[index].ga[i]);
+            PRINTF("%" PRIu64 " ", (uint64_t)g_at_entries[index].ga[i]);
           }
           PRINTF("]");
         }
@@ -1730,8 +1730,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
   OC_DBG_OSCORE("... removing all present OSCORE sender contexts");
 
   oc_oscore_free_sender_contexts();
-
-  OC_DBG_OSCORE("... adding OSCORE contexts from access token table");
   
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {

@@ -65,7 +65,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len
 
   while (ctx)
   {
-    PRINT("-> scanned kid\t: ");
+    PRINT("-> scanned kid (%d)\t: ", ctx->recipient_id_len);
     oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
 
     if (kid_len == ctx->recipient_id_len && memcmp(kid, ctx->recipient_id, kid_len) == 0)
@@ -428,13 +428,13 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     memcpy(&ctx->master_secret, mastersecret, mastersecret_size);
   }
 
-  PRINT("AT Index      : (%2d)  = ", auth_at_index);
-  PRINT("Sender ID     : (%2d)  = ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
-  PRINT("Recipient ID  : (%2d)  = ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
-  PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
-  PRINT("Master Secret : (%zu) = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("Salt          : (%zu) = ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%" PRIu64 ") = ", ctx->ssn);
+  PRINT("AT Index      : (%2d)\t= ", auth_at_index);
+  PRINT("Sender ID     : (%2d)\t= ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
+  PRINT("Recipient ID  : (%2d)\t= ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
+  PRINT("ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
+  PRINT("Master Secret : (%zu)\t= ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
+  PRINT("Salt          : (%zu)\t= ", salt_size);  oc_char_println_hex(salt, salt_size);
+  PRINT("SSN           : (%" PRIu64 ")\t= ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len,
