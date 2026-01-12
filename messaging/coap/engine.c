@@ -712,7 +712,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 							if (sync_state == REPLAY)
 							{
-                OC_DBG("Replayed (uc/mc) request from unsycned client, sending 4.01 Echo Response");
+                OC_DBG("replayed (uc/mc) request from unsycned client, sending 4.01 Echo Response");
 
 							  // send response -> NO PAYLOAD 
                 // -> multicast : MUST be suppressed (message already received)
@@ -767,7 +767,7 @@ int coap_receive(oc_message_t* incoming_message)
 							// check of time difference, RFC 9175 clause 2.3
 							oc_clock_time_t received_timestamp = *(oc_clock_time_t*) echo_value;
 
-							OC_DBG("Included Echo timestamp difference %" PRIu64 ", threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
+							OC_DBG("received unicast echo re-request - included Echo timestamp difference %" PRIu64 ", threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
 
 							if (current_time - received_timestamp > OC_ECHO_FRESHNESS_TIME)
 							{
@@ -795,7 +795,7 @@ int coap_receive(oc_message_t* incoming_message)
 							// incoming_message from extern received from a new/unknown sender
 							// - MUST init a new replay window
 							// - ignore sync state ECHO/REPLAY -> catch it by time based test above    
-							OC_DBG("Fresh request from unsycned client, updating record's SSN/window");
+							OC_DBG("received unicast echo re-request - fresh request from unsycned client, updating record's SSN/window");
 							oc_replay_add_client(ssn, kid, kid_ctx);
 						}
 					}
