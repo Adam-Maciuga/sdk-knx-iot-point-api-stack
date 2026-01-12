@@ -26,13 +26,9 @@
  *
  */
 
-#include "knx_iot_virtual.h"
-#include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
-#include "oc_core_res.h"
-#include "oc_knx.h"
-#include "port/oc_network_interface.h"
-#include "port/oc_storage.h"
+#include <inttypes.h>
+#include <cstdio>
+#include <cstring>
 #include <wx/string.h>
 #include <wx/dialog.h>
 #include <wx/sizer.h>
@@ -41,9 +37,13 @@
 #include <wx/button.h>
 #include <wx/textctrl.h>
 #include <wx/settings.h>
-#include <cstdio>
-#include <cstring>
-
+#include "knx_iot_virtual.h"
+#include "api/oc_knx_fp.h"
+#include "api/oc_knx_sec.h"
+#include "oc_core_res.h"
+#include "oc_knx.h"
+#include "port/oc_network_interface.h"
+#include "port/oc_storage.h"
 
 /**
  * @brief Dump QR Code
@@ -223,7 +223,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
-      if (entry->fid >= 0) { sprintf(line, "  fid: '%lld' ", entry->fid); out += line; }
+      if (entry->fid >= 0) { sprintf(line, "  fid: '%" PRIi64 "' ", entry->fid); out += line; }
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
@@ -268,7 +268,7 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
-      if (entry->fid >= 0) { sprintf(line, "  fid: '%lld' ", entry->fid); out += line; }
+      if (entry->fid >= 0) { sprintf(line, "  fid: '%'" PRIi64 " ", entry->fid); out += line; }
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
@@ -583,7 +583,7 @@ void util_int2grpid_text(uint64_t value, char* text, bool as_ets)
   }
   else
   {
-    (void)sprintf(value_text, " %llu", value);
+    (void)sprintf(value_text, " %" PRIu64, value);
     strcat(text, value_text);
   }
 }

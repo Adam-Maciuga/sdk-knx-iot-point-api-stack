@@ -1,3 +1,4 @@
+# toolchain-mingw64.cmake
 # Cross-compile to Windows from Linux using MinGW-w64
 
 set(CMAKE_SYSTEM_NAME Windows)

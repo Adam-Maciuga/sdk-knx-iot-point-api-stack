@@ -18,6 +18,7 @@
 
 #ifdef OC_OSCORE
 
+#include <inttypes.h>
 #include "oc_oscore_context.h"
 #include "messaging/coap/transactions.h"
 #include "oc_api.h"
@@ -365,19 +366,19 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
   if (mastersecret_size < OSCORE_KEY_LEN ||
       mastersecret_size > OSCORE_MASTER_SECRET_LEN)
   {
-    OC_ERR("master secret size is must be in range 16 ... 32 : %llu", mastersecret_size);
+    OC_ERR("master secret size is must be in range 16 ... 32 : %zu", mastersecret_size);
     goto add_oscore_context_error;
   }
 
   if (sender_id_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("sender id size > %d = %llu", OSCORE_SENDER_ID_LEN, sender_id_size);
+    OC_ERR("sender id size > %d = %zu", OSCORE_SENDER_ID_LEN, sender_id_size);
     goto add_oscore_context_error;
   }
 
   if (recipient_id_size > OSCORE_SENDER_ID_LEN)
   {
-    OC_ERR("recipient id size > %d = %llu", OSCORE_SENDER_ID_LEN, recipient_id_size);
+    OC_ERR("recipient id size > %d = %zu", OSCORE_SENDER_ID_LEN, recipient_id_size);
     goto add_oscore_context_error;
   }
 
@@ -431,9 +432,9 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
   PRINT("Sender ID     : (%2d)  = ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
   PRINT("Recipient ID  : (%2d)  = ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
   PRINT("ID Context    : (%2d)  = ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
-  PRINT("Master Secret : (%llu) = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("Salt          : (%llu) = ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%llu) = ", ctx->ssn);
+  PRINT("Master Secret : (%zu) = ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
+  PRINT("Salt          : (%zu) = ", salt_size);  oc_char_println_hex(salt, salt_size);
+  PRINT("SSN           : (%" PRIu64 ") = ", ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len,

@@ -16,6 +16,7 @@
  */
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
+#include <inttypes.h>
 #include "oc_api.h"
 #include "oc_knx_dev.h"
 #include <oc_storage.h>
@@ -358,7 +359,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 1)
       {
-        PRINT("oc_core_dev_iid_put_handler received : %lld", rep->value.integer);
+        PRINT("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer);
 
         if (oc_core_set_and_store_device_iid(rep->value.integer))
         {
@@ -847,7 +848,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 1)
       {
-        PRINT("oc_core_dev_fid_put_handler received : %lld", rep->value.integer);
+        PRINT("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer);
 
         if (oc_core_set_and_store_device_fid(rep->value.integer))
         {
@@ -1186,12 +1187,12 @@ void oc_knx_load_device(void)
   // read iid name from storage (on error = 0)
   uint64_t iid;
   device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
-  PRINT("iid (storage) %llu", device->iid);
+  PRINT("iid (storage) %" PRIu64, device->iid);
 
   // read fid name from storage (on error = 0)
   uint64_t fid;
   device->fid = oc_storage_read(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
-  PRINT("fid (storage) %llu", device->fid);
+  PRINT("fid (storage) %" PRIu64, device->fid);
 
   // read prg mode from storage (on error = false)
   bool pm;
