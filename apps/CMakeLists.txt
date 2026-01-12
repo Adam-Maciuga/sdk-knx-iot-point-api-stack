@@ -74,7 +74,7 @@ if(WIN32 OR UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/eitt/knx_iot_virtual_eitt.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/eitt/knx_iot_virtual_eitt.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_virtual_knx.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        #${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
@@ -85,7 +85,7 @@ if(WIN32 OR UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/lssb/knx_iot_virtual_lssb.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/lssb/knx_iot_virtual_lssb.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_virtual_knx.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        #${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
@@ -96,7 +96,7 @@ if(WIN32 OR UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/lsab/knx_iot_virtual_lsab.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/lsab/knx_iot_virtual_lsab.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_virtual_knx.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        #${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
@@ -107,7 +107,7 @@ if(WIN32 OR UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/inverter/knx_iot_virtual_inverter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/inverter/knx_iot_virtual_inverter.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_virtual_ems.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        #${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
@@ -118,7 +118,7 @@ if(WIN32 OR UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/cem/knx_iot_virtual_cem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/cem/knx_iot_virtual_cem.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_virtual_ems.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        #${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
@@ -129,7 +129,7 @@ if(WIN32 OR UNIX)
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/charger/knx_iot_virtual_charger.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/charger/knx_iot_virtual_charger.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_virtual_ems.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        #${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
