@@ -2,20 +2,16 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "windows-debug-msvc",
-      "displayName": "Windows Debug(MSVC)",
-      "description": "Target Windows with the Visual Studio (Code) development environment.",
+      "name": "common-config",
+      "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl",
-        "OC_DEBUG_ENABLED": true,
-        "OC_PRINT_ENABLED": true,
-        "OC_DEBUG_OSCORE_ENABLED": true
-      },
+      "installDir": "${sourceDir}/out/install/${presetName}"
+    },
+    {
+      "name": "windows-common-config",
+      "hidden": true,
+      "inherits": "common-config",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -23,116 +19,9 @@
       }
     },
     {
-      "name": "windows-release-msvc",
-      "displayName": "Windows Release(MSVC)",
-      "description": "Target Windows with the Visual Studio development environment.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "windows-debug-gcc",
-      "displayName": "Windows Debug(gcc)",
-      "description": "Build with MinGW-w64 GCC in Debug mode",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_CXX_COMPILER": "g++",
-        "OC_DEBUG_ENABLED": true,
-        "OC_PRINT_ENABLED": true,
-        "OC_DEBUG_OSCORE_ENABLED": true
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "windows-release-gcc",
-      "displayName": "Windows Release(gcc)",
-      "description": "Build with MinGW-w64 GCC in Release mode",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_CXX_COMPILER": "g++"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "windows-debug-msvc-no-replay",
-      "displayName": "Windows Debug(MSVC) - no replay protection",
-      "description": "Target Windows with the Visual Studio (Code) development environment.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl",
-        "OC_DEBUG_ENABLED": true,
-        "OC_PRINT_ENABLED": true,
-        "OC_DEBUG_OSCORE_ENABLED": true,
-        "OC_REPLAY_PROTECTION_ENABLED": false
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "windows-release-msvc-no-replay",
-      "displayName": "Windows Release(MSVC) - no replay protection",
-      "description": "Target Windows with the Visual Studio (Code) development environment.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl",
-        "OC_REPLAY_PROTECTION_ENABLED": false
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "linux-debug-gcc",
-      "displayName": "Linux Debug(gcc)",
-      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "OC_DEBUG_ENABLED": true,
-        "OC_PRINT_ENABLED": true,
-        "OC_DEBUG_OSCORE_ENABLED": true
-      },
+      "name": "linux-common-config",
+      "hidden": true,
+      "inherits": "common-config",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -140,13 +29,8 @@
       }
     },
     {
-      "name": "windows-cross-debug",
-      "displayName": "Windows Debug (Cross-compile MinGW)",
-      "description": "Cross-compile Windows binaries using MinGW from Linux.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "toolchainFile": "${sourceDir}/cmake/toolchain-mingw.cmake",
+      "name": "debug-common-config",
+      "hidden": true,
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "OC_DEBUG_ENABLED": true,
@@ -155,16 +39,176 @@
       }
     },
     {
-      "name": "windows-cross-release",
-      "displayName": "Windows Release (Cross-compile MinGW)",
-      "description": "Cross-compile Windows binaries using MinGW from Linux.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "toolchainFile": "${sourceDir}/cmake/toolchain-mingw.cmake",
+      "name": "release-common-config",
+      "hidden": true,
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "msvc-common-config",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
+      }
+    },
+    {
+      "name": "gcc-common-config",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+    {
+      "name": "mingw64-common-config",
+      "hidden": true,
+      "toolchainFile": "${sourceDir}/cmake/toolchain-mingw64.cmake"
+    },
+    {
+      "name": "windows-debug-msvc",
+      "inherits": ["windows-common-config", "msvc-common-config", "debug-common-config"],
+      "displayName": "Windows Debug (MSVC)",
+      "description": "Target Windows with the Visual Studio (Code) development environment."
+    },
+    {
+      "name": "windows-release-msvc",
+      "inherits": ["windows-common-config", "msvc-common-config", "release-common-config"],
+      "displayName": "Windows Release (MSVC)",
+      "description": "Target Windows with the Visual Studio development environment."
+    },
+    {
+      "name": "windows-debug-gcc",
+      "inherits": ["windows-common-config", "gcc-common-config", "debug-common-config"],
+      "displayName": "Windows Debug (GCC)",
+      "description": "Build with MinGW-w64 GCC in Debug mode"
+    },
+    {
+      "name": "windows-release-gcc",
+      "inherits": ["windows-common-config", "gcc-common-config", "release-common-config"],
+      "displayName": "Windows Release (GCC)",
+      "description": "Build with MinGW-w64 GCC in Release mode"
+    },
+    {
+      "name": "windows-debug-msvc-no-replay",
+      "inherits": ["windows-common-config", "msvc-common-config", "debug-common-config"],
+      "displayName": "Windows Debug (MSVC) - no replay protection",
+      "description": "Target Windows with the Visual Studio (Code) development environment.",
+      "cacheVariables": {
+        "OC_REPLAY_PROTECTION_ENABLED": false
+      }
+    },
+    {
+      "name": "windows-release-msvc-no-replay",
+      "inherits": ["windows-common-config", "msvc-common-config", "release-common-config"],
+      "displayName": "Windows Release (MSVC) - no replay protection",
+      "description": "Target Windows with the Visual Studio (Code) development environment.",
+      "cacheVariables": {
+        "OC_REPLAY_PROTECTION_ENABLED": false
+      }
+    },
+    {
+      "name": "linux-debug-gcc",
+      "inherits": ["linux-common-config", "gcc-common-config", "debug-common-config"],
+      "displayName": "Linux Debug (GCC)",
+      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system."
+    },
+    {
+      "name": "linux-release-gcc",
+      "inherits": ["linux-common-config", "gcc-common-config", "release-common-config"],
+      "displayName": "Linux Release (GCC)",
+      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system."
+    },
+    {
+      "name": "windows-cross-debug",
+      "inherits": ["common-config", "mingw64-common-config", "debug-common-config"],
+      "displayName": "Windows Debug (Cross-compile MinGW)",
+      "description": "Cross-compile Windows binaries using MinGW from Linux."
+    },
+    {
+      "name": "windows-cross-release",
+      "inherits": ["common-config", "mingw64-common-config", "release-common-config"],
+      "displayName": "Windows Release (Cross-compile MinGW)",
+      "description": "Cross-compile Windows binaries using MinGW from Linux."
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-common-config",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "linux-common-config",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "windows-debug-msvc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Debug (MSVC)",
+      "configurePreset": "windows-debug-msvc"
+    },
+    {
+      "name": "windows-release-msvc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Release (MSVC)",
+      "configurePreset": "windows-release-msvc"
+    },
+    {
+      "name": "windows-debug-gcc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Debug (GCC)",
+      "configurePreset": "windows-debug-gcc"
+    },
+    {
+      "name": "windows-release-gcc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Release (GCC)",
+      "configurePreset": "windows-release-gcc"
+    },
+    {
+      "name": "windows-debug-msvc-no-replay",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Debug (MSVC) - no replay protection",
+      "configurePreset": "windows-debug-msvc-no-replay"
+    },
+    {
+      "name": "windows-release-msvc-no-replay",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Release (MSVC) - no replay protection",
+      "configurePreset": "windows-release-msvc-no-replay"
+    },
+    {
+      "name": "linux-debug-gcc",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Debug (GCC)",
+      "configurePreset": "linux-debug-gcc"
+    },
+    {
+      "name": "linux-release-gcc",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Release (GCC)",
+      "configurePreset": "linux-release-gcc"
+    },
+    {
+      "name": "windows-cross-debug",
+      "displayName": "Windows Debug (Cross-compile MinGW)",
+      "configurePreset": "windows-cross-debug"
+    },
+    {
+      "name": "windows-cross-release",
+      "displayName": "Windows Release (Cross-compile MinGW)",
+      "configurePreset": "windows-cross-release"
     }
   ]
 }

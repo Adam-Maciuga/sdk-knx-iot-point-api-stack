@@ -52,6 +52,7 @@
 #include "oc_buffer.h"
 #include "util/oc_list.h"
 #include "util/oc_memb.h"
+#include <inttypes.h>
 #include <string.h>
 
 #ifdef OC_BLOCK_WISE
@@ -125,7 +126,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #ifdef OC_DEBUG
 
-  OC_DBG("sending transaction (len: %llu , mid %u)", t->message->length, t->mid);
+  OC_DBG("sending transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
 
   if (t == NULL) {
     OC_ERR("transaction == NULL");

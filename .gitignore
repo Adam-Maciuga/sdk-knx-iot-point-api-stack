@@ -2,15 +2,23 @@
 
 # build system files
 out  
+out.*  
 
-# vs code setting files
+# VS Code setting files
 .vscode 
 
-# vs setting files
+# VS setting files
 .vs
 
-# dependend subprojects are not tracked (managed by .gitmodules)
-deps/**
+# CMake
+CMakeUserPresets.json
+
+# Vim
+.*.swp
+.*.swo
+
+# Python
+__pycache__/
 
 # various
 *.o
@@ -18,6 +26,10 @@ deps/**
 *.tmp
 *.gcda
 *.gcno
+
+# dependend subprojects are not tracked (managed by .gitmodules)
+deps/**
+!deps/CMakeLists.txt
 
 # EITT test configuration files 
 /tests/eitt/**

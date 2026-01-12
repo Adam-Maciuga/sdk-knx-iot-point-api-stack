@@ -19,6 +19,7 @@
 #include "oc_storage.h"
 
 #if defined OC_OSCORE
+#include <inttypes.h>
 #include "api/oc_events.h"
 #include "mbedtls/ccm.h"
 #include "messaging/coap/coap_signal.h"
@@ -778,7 +779,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // serialize OSCORE plain text at offset COAP_MAX_HEADER_SIZE (code, inner options, payload)
     size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, msg->data + COAP_MAX_HEADER_SIZE);
 
-    OC_DBG_OSCORE("### serialized OSCORE plaintext: %llu bytes ###", plaintext_size);
+    OC_DBG_OSCORE("### serialized OSCORE plaintext: %" PRIu64 " bytes ###", plaintext_size);
 
     /* Set the OSCORE packet payload to point to location of the serialized
        inner message.
@@ -1278,7 +1279,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     // serialize OSCORE plaintext at offset COAP_MAX_HEADER_SIZE (code, inner options, payload)
     size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, outgoing_msg->data + COAP_MAX_HEADER_SIZE);
 
-    OC_DBG_OSCORE("### serializing OSCORE plaintext with %llu bytes ###", plaintext_size);
+    OC_DBG_OSCORE("### serializing OSCORE plaintext with %" PRIu64 " bytes ###", plaintext_size);
 
     // set the OSCORE packet payload to point to location of the serialized inner message
     coap_pkt->payload = outgoing_msg->data + COAP_MAX_HEADER_SIZE;

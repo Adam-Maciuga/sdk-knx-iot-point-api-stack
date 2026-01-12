@@ -800,7 +800,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     // size does not fit
                     if (mastersecret_size < OSCORE_KEY_LEN || mastersecret_size > OSCORE_MASTER_SECRET_LEN)
                     {
-                      OC_ERR("master secret size is must be in range 16 ... 32 : %llu", mastersecret_size);
+                      OC_ERR("master secret size is must be in range 16 ... 32 : %zu", mastersecret_size);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
@@ -808,7 +808,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     // all '0'
                     if (oc_check_string_on_zero_content(mastersecret_ptr))
                     {
-                      OC_ERR("master secret content cannot be zero : %llu", mastersecret_size);
+                      OC_ERR("master secret content cannot be zero : %zu", mastersecret_size);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
@@ -827,7 +827,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     // size does not fit
                     if (id_context_size > OSCORE_ID_CONTEXT_LEN)
                     {
-                      OC_ERR("id context size to big : %llu", id_context_size);
+                      OC_ERR("id context size to big : %zu", id_context_size);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
@@ -847,7 +847,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                     // size does not fit
                     if (sender_id_size > OSCORE_SENDER_ID_LEN)
                     {
-                      OC_ERR("sender id size to big : %llu", sender_id_size);
+                      OC_ERR("sender id size to big : %zu", sender_id_size);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }

@@ -15,6 +15,7 @@
  // limitations under the License.
  */
 
+#include <inttypes.h>
 #include <oc_storage.h>
 #include "oc_knx.h"
 #include "api/oc_knx_helpers.h"
@@ -1172,17 +1173,17 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 12)
       {
-        PRINT("received 12 (ia) : %lli", rep->value.integer);
+        PRINT("received 12 (ia) : %" PRIi64, rep->value.integer);
         ia_ok = oc_core_set_and_store_device_ia(rep->value.integer);
       }
       else if (rep->iname == 25)
       {
-        PRINT("received 25 (fid): %lli", rep->value.integer);
+        PRINT("received 25 (fid): %" PRIi64, rep->value.integer);
         fid_ok = oc_core_set_and_store_device_fid(rep->value.integer);
       }
       else if (rep->iname == 26)
       {
-        PRINT("received 26 (iid): %lli", rep->value.integer);
+        PRINT("received 26 (iid): %" PRIi64, rep->value.integer);
         iid_ok = oc_core_set_and_store_device_iid(rep->value.integer);
       }
     }
@@ -1718,9 +1719,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
 
     // debugging
-    PRINT("set id : (%llu) ", oc_byte_string_len(g_pase.id));
+    PRINT("set id : (%" PRIu64 ") ", oc_byte_string_len(g_pase.id));
     oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
-    PRINT("set ms : (%llu) ", sizeof(shared_key));
+    PRINT("set ms : (%" PRIu64 ") ", sizeof(shared_key));
     oc_char_println_hex(shared_key, sizeof(shared_key));
 
     // - create the token & store in at table (usually at position 0)

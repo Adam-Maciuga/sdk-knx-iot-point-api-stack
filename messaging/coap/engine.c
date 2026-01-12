@@ -48,6 +48,7 @@
  */
 
 #include "engine.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -766,7 +767,7 @@ int coap_receive(oc_message_t* incoming_message)
 							// check of time difference, RFC 9175 clause 2.3
 							oc_clock_time_t received_timestamp = *(oc_clock_time_t*) echo_value;
 
-							OC_DBG("Included Echo timestamp difference %llu, threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
+							OC_DBG("Included Echo timestamp difference %" PRIu64 ", threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
 
 							if (current_time - received_timestamp > OC_ECHO_FRESHNESS_TIME)
 							{
