@@ -28,11 +28,12 @@ KNX based EMS applications (Inverter, Charger, Customer Energy Manager).
 
 ## Folder '/knx'
 Common KNX samples of a **Light Switch Actuator Basic** (LSAB), **Light Switch Sensor Basic** (LSSB)
-and a test application to pass the stack certification with the EITT test tool from KNX. 
+and an **EITT** stack test application. 
 
 ### '/knx/eitt'
 
-EITT stack test application.
+EITT stack test application, only used to pass the stack certification with the EITT test tool from KNX  
+(no use with ETS).
 
 - **knx_iot_virtual_eitt.cpp** 
 
@@ -54,6 +55,13 @@ stack with the KNX ETS6 tool.
 If (for example) you enable for a sensor in ETS also the actuator functionality and assign to the actuator objects also GA's, 
 the ETS download of sensor application to the virtual sensor device will fail (this demo behavior may be improved in the future). 
 
+All applications uses KNX standardized datapoints, the corresponding __Functional Block__ and 
+__Datapoint Type__ definitions you can find in folder 'apps/knx/data'. 
+
+- 07_20_01 Lighting sensors (LSSB) 
+- 07_20_02 Lighting aensors (LSAB)
+- 03_07_02 Datapoint Types 
+
 If there are multiple instances of the **same** virtual device run in the **same** network problems will occur (e. g.; 
 two developers are testing at the same time their ETS projects with up and running lsab/lssb virtual devices on their computers).
 This is due to the fact that at least two virtual devices uses then the same serial number. An ETS instance may then program not 
@@ -62,6 +70,8 @@ If you run into this problem, you can change the serial number in one test insta
 
 1. in the lsab/lssb c-file (for the virtual devices)
 2. in the ETS project by updating the certificate (see [ETS6 pages](../../wikis/Home/ETS6))
+
+
 
 ### 'knx/ets'
 
