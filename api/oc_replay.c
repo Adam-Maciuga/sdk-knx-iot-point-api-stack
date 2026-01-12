@@ -41,7 +41,7 @@ static struct oc_replay_record
 	oc_string_t rx_kid;     // byte string holding the client KID
 	oc_string_t rx_kid_ctx; // byte string holding the client KID context (can be null)
 	oc_clock_time_t time;   // time of last received client packet
-	uint64_t window;        // bitfield indicating received client SSNs through bit position, 32 = default by OSCORE RFC (max 64 possible)
+	uint32_t window;        // bitfield indicating received client SSNs through bit position, 32 = default by OSCORE RFC
 	bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
@@ -179,11 +179,11 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
     const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn);
     const uint32_t replay_window_size = get_oscore_replay_window_size();
 
-	PRINT("new ssn  = %" PRIu64, rx_ssn);            // 64 bit uint
-	PRINT("old ssn  = %" PRIu64, rec->rx_ssn);       // 64 bit uint
-	PRINT("ssn_diff = %" PRIi64, ssn_diff);          // 64 bit int
-	PRINT("kid      = %s", oc_string(rx_kid));       // %s = string
-	PRINT("wnd old  = %X" , (uint32_t)rec->window);  // 64 bit bit field
+	PRINT("new ssn  = %" PRIu64, rx_ssn);       // 64 bit uint
+	PRINT("old ssn  = %" PRIu64, rec->rx_ssn);  // 64 bit uint
+	PRINT("ssn_diff = %" PRIi64, ssn_diff);     // 64 bit int
+	PRINT("kid      = %s", oc_string(rx_kid));  // %s = string
+	PRINT("wnd old  = %X" , rec->window);				// 32 bit field
 
 	if (ssn_diff >= 0)
 	{
@@ -194,8 +194,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 		// example: diff from 0...31 = is in 32 bit window ; diff >= 32 is on left side window  
 		if (ssn_diff >= replay_window_size)
 		{
-            PRINT("wnd new  = %" PRIu64, rec->window); // 64 bit uint
-		    PRINT("outside window (size %" PRIu32 ") left bound by %" PRIi64, replay_window_size, ssn_diff);
+      PRINT("wnd new  = %" PRIu32, rec->window); 
+		  PRINT("outside window (size %" PRIu32 ") left bound by %" PRIi64, replay_window_size, ssn_diff);
 			return ECHO; // not known if it was (ever) received before  
 		}
 
@@ -203,8 +203,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 		// see if it has been received before, so this can be a replay
 		if (rec->window & 1 << ssn_diff)
 		{
-            PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
-		    PRINT("inside window (size %" PRIu32 "), replay msg, window bit %" PRIi64 " (%X) is already ticked", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
+      PRINT("wnd new  = %X", rec->window);
+		  PRINT("inside window (size %" PRIu32 "), replay msg, window bit %" PRIi64 " (%X) is already ticked", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
 			return REPLAY; // known that it was received before 
 		}
 
@@ -212,7 +212,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 		// DO NOT remember SSN, it was not the max value of received SSN's
 		rec->window |= 1 << ssn_diff;
 
-		PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
+		PRINT("wnd new  = %X", rec->window); 
 		PRINT("inside window (size %" PRIu32 "), new msg, tick window bit %" PRIi64 " (%X)", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
 		return SYNCED;
 	}
@@ -233,7 +233,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	rec->window |= 1;
 	rec->rx_ssn = rx_ssn;
 
-	PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
+	PRINT("wnd new  = %X", rec->window);
   PRINT("outside window (size %" PRIu32 ") right bound by %" PRIi64, replay_window_size, -ssn_diff);
 	return SYNCED;
 }
