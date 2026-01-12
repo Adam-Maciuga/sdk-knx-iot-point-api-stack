@@ -234,7 +234,7 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	rec->rx_ssn = rx_ssn;
 
 	PRINT("wnd new  = %X", (uint32_t)rec->window); // %llu = 64 bit ulong bit field 
-    PRINT("outside window (size %" PRIu32 ") right bound by " PRIi64, replay_window_size, -ssn_diff);
+  PRINT("outside window (size %" PRIu32 ") right bound by %" PRIi64, replay_window_size, -ssn_diff);
 	return SYNCED;
 }
 
