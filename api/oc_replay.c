@@ -222,10 +222,10 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 	// is undefined behaviour, so we must zero the window manually here
 	
 	if (-ssn_diff >= replay_window_size)
-    // 1 << 32++ = undefined for a 32 -bit value
+    // 1 << 32 or higher = undefined for a 32-bit value
 		rec->window = 0;            
 	else
-    // 1 << 31 = ok for a 32-bit value = 10000000'..'..'00000000'
+    // 1 << 31 or lower = ok for a 32-bit value, 1 << 31 = 10000000'..'..'00000000'
 		rec->window <<= -ssn_diff;  
 
 	// set bit 0, indicating ssn 'rec->rx_ssn' has been received
