@@ -34,7 +34,7 @@
 #define OSCORE_STORAGE_KEY_LEN       \
         (OSCORE_STORAGE_PREFIX_LEN + \
          OSCORE_SENDER_ID_LEN  *2 +  \
-         OSCORE_ID_CONTEXT_LEN *2 + 1)  // Save ssn per (hex) sender id and (hex) id context as 'ssn+id+context'   
+         OSCORE_ID_CONTEXT_LEN *2 + 1)  // Save ssn per (byte to hex = * 2) sender id and (byte to hex = * 2) id context as 'ssn+id+context'   
 
 #define OSCORE_INFO_MAX_LEN (128)
 #define OSCORE_AAD_MAX_LEN (128)
