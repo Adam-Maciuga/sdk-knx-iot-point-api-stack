@@ -48,6 +48,15 @@ typedef enum replay_state
 void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx);
 
 /**
+ * @brief Clear all replay records
+ *
+ * This function should be called when OSCORE contexts are recreated (e.g., on
+ * factory resets) to prevent old replay window state from causing new messages
+ * to be rejected as replays.
+ */
+void oc_oscore_free_all_replay_records(void);
+
+/**
  * @brief Check if a client is synchronised
  *
  * If the client is synchronised, this function also updates its entry with the
