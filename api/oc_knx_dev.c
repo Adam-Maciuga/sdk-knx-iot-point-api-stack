@@ -1267,11 +1267,6 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_delete_group_tables();
     oc_delete_at_table();
 
-    // clear replay windows to prevent stale state
-    #ifdef OC_OSCORE
-      oc_oscore_free_all_replay_records();
-    #endif
-
     /*
        writing all above reset values to storage (LSM already written)
        - note that the used uc port will be advertised with each mDNS such as on every startup, so no need to store
@@ -1303,12 +1298,6 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_delete_group_tables();
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
-
-    // TODO: check if replay recoreds get removed in this reset case
-    // clear replay windows to prevent stale state
-    #ifdef OC_OSCORE
-      oc_oscore_free_all_replay_records();
-    #endif
 
     // don't reset security related "replay window size" and "osn delay"
 

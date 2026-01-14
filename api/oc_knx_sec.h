@@ -211,6 +211,8 @@ extern "C" {
 	 * @brief deletes the entire AT table
 	 * - from RAM
 	 * - from storage (file system)
+	 * - includes a deletion of all sender contexts
+	 * - includes a deletion of all replay window records
 	 *
 	 */
 	void oc_delete_at_table(void);

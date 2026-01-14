@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include "security/oc_oscore_context.h"
 #include "oc_knx_helpers.h"
+#include "oc_replay.h"
 #include "oc_storage.h"
 
 // AT storage data
@@ -1610,6 +1611,7 @@ static void oc_load_at_table(void)
   oc_init_oscore_from_storage(true);
 }
 
+
 void oc_delete_at_table(void)
 {
   PRINT("Deleting Access Table from RAM and storage (file system)");
@@ -1621,6 +1623,7 @@ void oc_delete_at_table(void)
   }
   #ifdef OC_OSCORE
   oc_oscore_free_all_contexts();
+  oc_oscore_free_all_replay_records();
   #endif
 }
 
