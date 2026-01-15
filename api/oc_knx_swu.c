@@ -86,6 +86,8 @@ static void oc_knx_swu_protocol_put_handler(oc_request_t* request, oc_interface_
       swu_device.protocol = CoAP;
       oc_storage_write(KNX_STORAGE_SWU_PROTOCOL, &swu_device.protocol, sizeof(swu_device.protocol));
 
+      OC_DBG("swu protocol received : %d", swu_device.protocol);
+
       oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
       return;
     }
@@ -147,9 +149,12 @@ static void oc_knx_swu_max_defer_put_handler(oc_request_t* request, oc_interface
 
   if (rep && rep->type == OC_REP_INT)
   {
-    OC_DBG("oc_knx_swu_max_defer_put_handler received : %d", (int)rep->value.integer);
+    
     swu_device.max_defer = (int)rep->value.integer;
     oc_storage_write(KNX_STORAGE_SWU_MAX_DEFER, (uint8_t*)&swu_device.max_defer, sizeof(swu_device.max_defer));
+
+    OC_DBG("swu max defer received : %d", swu_device.max_defer);
+
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
   }
@@ -258,6 +263,9 @@ static void oc_knx_swu_method_put_handler(oc_request_t* request, oc_interface_ma
       // allow only PUSH method for this stack
       swu_device.update_method = PUSH;
       oc_storage_write(KNX_STORAGE_SWU_METHOD, &swu_device.update_method, sizeof(swu_device.update_method));
+
+      OC_DBG("swu update method received : %d", swu_device.update_method);
+
       oc_prepare_cbor_response(request, OC_STATUS_OK);
       return;
     }
@@ -736,10 +744,11 @@ static void oc_knx_swu_pkg_query_url_put_handler(oc_request_t* request, oc_inter
 
   if (rep && rep->type == OC_REP_STRING)
   {
-    OC_DBG("oc_knx_swu_pkg_query_url_put_handler received : %s", oc_string_checked(rep->value.string));
-
     oc_swu_set_query_url(oc_string_checked(rep->value.string));
     oc_storage_write(KNX_STORAGE_QUERY_URL, (uint8_t*)&swu_device.query_url, oc_string_len(swu_device.query_url));
+
+    OC_DBG("swu pkg query url received : %s", oc_string_checked(rep->value.string));
+
     oc_prepare_cbor_response(request, OC_STATUS_OK);
     return;
   }

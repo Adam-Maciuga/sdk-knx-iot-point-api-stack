@@ -2157,9 +2157,10 @@ void oc_load_group_object_table_entry(int entry)
     return;
 
   const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
-  PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
   if (bytes_to_read > 0)
   {
+    OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
+    
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
 
@@ -2451,9 +2452,10 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
   }
 
   const long bytes_to_read = oc_storage_read(filename, buf, OC_MAX_APP_DATA_SIZE);
-  PRINTF(" ... bytes: %ld", bytes_to_read < 0 ? 0 : bytes_to_read);
   if (bytes_to_read > 0)
   {
+    OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
+    
     struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
     oc_rep_set_pool(&rep_objects);
 

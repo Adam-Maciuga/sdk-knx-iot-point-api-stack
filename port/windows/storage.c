@@ -92,7 +92,6 @@ oc_storage_read(const char* store, uint8_t* buf, size_t size)
 	strncpy(store_path + store_path_len, store, store_len);
 	store_path[store_path_len + store_len] = '\0';
 
-	PRINT("Reading [%s]", store_path);
 	FILE* fp = fopen(store_path, "rb");
 	if (!fp)
 	{
@@ -114,8 +113,7 @@ oc_storage_write(const char* store, uint8_t* buf, size_t size)
 
 	strncpy(store_path + store_path_len, store, store_len);
 	store_path[store_path_len + store_len] = '\0';
-	
-	PRINT("Writing [%s]", store_path);
+
 	FILE* fp = fopen(store_path, "wb");
 	if (!fp)
 	{
