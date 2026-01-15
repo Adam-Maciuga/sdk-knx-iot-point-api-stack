@@ -68,6 +68,19 @@ static void free_record(struct oc_replay_record* rec)
 	}
 }
 
+// Clear all replay window records
+void oc_oscore_free_all_replay_records(void)
+{
+	for (int i = 0; i < OC_MAX_REPLAY_RECORDS; i++)
+	{
+		if (replay_records[i].in_use)
+		{
+			free_record(&replay_records[i]);
+		}
+	}
+	PRINT("Cleared all replay window records");
+}
+
 // find empty record in queue, if queue is full ... free oldest record
 static struct oc_replay_record* get_empty_record(void)
 {

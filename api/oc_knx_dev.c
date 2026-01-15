@@ -28,6 +28,7 @@
 #include "port/dns-sd.h"
 #include <stdio.h>
 #include "oc_core_res.h"
+#include "oc_replay.h"
 #include "oc_discovery.h"
 #include <inttypes.h>
 
@@ -1335,6 +1336,9 @@ void oc_knx_device_restart(void)
   // delete PASE token
   oc_core_find_and_remove_pase_token_in_at_table();
 
+  #ifdef OC_OSCORE
+  oc_init_oscore_from_storage(true);
+  #endif
   // check and send on i-flags
   oc_init_datapoints_at_initialization();
 
