@@ -688,7 +688,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // scope with GA integer array from MaC such as [200, 201]
           if (object->iname == 9)
           {
-            // default, will be overwritten in access token if GA array was correctly assigned
+            // default, will be overwritten if GA array was correctly assigned
             g_at_entries[index].scope = OC_ACL_NONE;
 
             // a post request does NOT append items to an (existing) array, it overwrites them  
@@ -1400,7 +1400,7 @@ static void oc_store_at_table_entry(int entry)
     oc_rep_i_set_byte_string(root, 845, oc_byte_string(g_at_entries[entry].osc_salt), oc_byte_string_len(g_at_entries[entry].osc_salt));
     oc_rep_i_set_byte_string(root, 846, oc_byte_string(g_at_entries[entry].osc_contextid), oc_byte_string_len(g_at_entries[entry].osc_contextid));
 
-    // 777: ga's
+    // 777: ga's (note that here also an empty array (777: []) might be written in case of present scopes such as a binary 'if.sec')
     oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
 
     oc_rep_end_root_object();
@@ -1522,20 +1522,33 @@ static void oc_load_at_table_entry(int entry)
                   new_array[i] = (uint32_t)array[i];
                 }
 
-                // release a possible ga array, it will be overwritten (no selective adding, free ignores NULL ptr
+                // release an already assigned ga array on the org ptr, free ignores NULL ptr
                 free(g_at_entries[entry].ga);
 
                 // assign only when the new array is allocated correctly
                 g_at_entries[entry].ga_len = new_array_size;
                 g_at_entries[entry].ga = new_array;
 
-                PRINT("ga size %d", new_array_size);
+                OC_DBG("at table entry with NON empty ga array 777: [...] loaded from storage, size %d", new_array_size);
               }
             }
             break;
+          case OC_REP_NIL:
+
+            // ga array (777), note that an empty ga array is coded in current CBOR with "OC_REP_NIL"
+            if (rep->iname == 777)
+            {
+              // release an already assigned ga array on the org ptr, free ignores NULL ptr
+              free(g_at_entries[entry].ga);
+              
+              g_at_entries[entry].ga_len = 0;
+              g_at_entries[entry].ga = NULL;
+              
+              OC_DBG("at table entry with empty ga array 777: [] loaded from storage, size 0");
+            }
+
+            break;
           default:
-            // any other invalid type prints ...
-            // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
             PRINT("invalid object type detected");
             break;
           }
@@ -1889,9 +1902,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
             { // only GA is of interest
 
               // found a GA, check it, and break ...
-              group_address_match = check_access_token_for_group_address(
-                endpoint->auth_at_index,
-                (uint32_t)s_map->value.integer);
+              group_address_match = check_access_token_for_group_address(endpoint->auth_at_index, (uint32_t)s_map->value.integer);
               break;
             }
             s_map = s_map->next;

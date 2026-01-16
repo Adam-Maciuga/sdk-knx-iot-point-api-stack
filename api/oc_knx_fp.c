@@ -36,12 +36,9 @@ extern oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
 #define GOT_STORE "dev_knx_got_entry"       // GO table base file name
 #define TAB_SIZE (sizeof(GPT_STORE) + 6)    // support of '_99999' GO/PUB/RCP FILE entries
 
-#define TABLE_ATREF (1 << 0)  // identifier for pub/rcp table access token ref property
-#define TABLE_GAS (1 << 1)    // identifier for pub/rcp table ga list ref property
-
-// identifier for group object properties
-#define GO_HREF (1 << 0)  // identifier for go table href ref property
-#define GO_GAS (1 << 1)   // identifier for go table ga list ref property
+#define GO_HREF (1 << 0)        // identifier for go table href ref property
+#define TABLE_AT_REF (GO_HREF)  // identifier for pub/rcp table access token ref property
+#define TABLE_GAS (1 << 1)      // identifier for pub/rcp/go table ga list ref property
 
 // note static variables are initialized with '0' first time
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
@@ -525,19 +522,19 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
                 PRINT("ga size %d", new_array_size);
 
-                // assign GA array in tmp copy (org ptr still valid)
+                // assign GA array in tmp copy (org ptr still valid in org entry)
                 tmp_go_entry.ga_len = new_array_size;
                 tmp_go_entry.ga = new_array;
 
                 current_go_properties++;
-                allocator |= GO_GAS;
+                allocator |= TABLE_GAS; // GOT1 (see below)
               }
               else
               {
                 OC_ERR("out of stack memory");
 
                 // on error: free GO tmp entry (all heap allocations)
-                oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
+                oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
 
                 oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
                 return;
@@ -545,14 +542,29 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             }
 
             break;
+          case OC_REP_NIL:
+
+            if (object->iname != 7)
+            {
+              break;
+            }
+
+            // specification request, not allowed empty ga array (7) for mc, coded in current CBOR with "OC_REP_NIL"
+
+            /*
+             - GOT1, see above: release a beforehand assigned ga array (2 x in the request would be wrong)
+             - DON'T release HERE a present assigned ga array from the org. ptr (will NOT happen on error)
+             - free ignores NULL ptr
+            */
+
+            // fall through ...
           default:
 
             // any other invalid type returns a 4.00
-            // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
             OC_ERR("invalid object type detected");
 
             // on error: free GO tmp entry (all heap allocations)
-            oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
+            oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
 
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
@@ -585,7 +597,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             PRINT("mandatory items missing, no entry created at index: %d", entry);
 
             // on error: free PUB tmp entry (all heap allocations)
-            oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
+            oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
 
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
@@ -622,7 +634,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           if (!do_save)
           {
             // on error: free GO tmp entry (all heap allocations)
-            oc_free_allocated_go_table_elements(&tmp_go_entry, allocator);
+            oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
 
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
@@ -636,7 +648,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
             - created : 2 elements (GAs, HREF)
             - changed : 1..2 elements (GAs, HREF) - 0 not possible, would be to delete a GO entry
           */
-          oc_free_allocated_go_table_elements(&g_got[entry], allocator);
+          oc_free_allocated_group_object_table_elements(&g_got[entry], allocator);
 
           // assign GO table entry with tmp GO (all elements) and increase number of used GO's
           g_got[entry] = tmp_go_entry;
@@ -1081,7 +1093,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
             // set (new) at in tmp copy (org ptr still valid)
             oc_new_string(&tmp_gpt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
-            allocator |= TABLE_ATREF;
+            allocator |= TABLE_AT_REF;
           }
 
           break;
@@ -1090,15 +1102,14 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga array (7) - used on multicast
-          if (object->iname == 7) // resource 'ga array'
+          // ga array (7)
+          if (object->iname == 7)
           {
             // a post request does NOT append items to an (existing) array, it overwrites them
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            // ga size shall be 32 bit
+            // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
             uint32_t* new_array = (uint32_t*)malloc(array_size * sizeof(uint32_t));
             if (new_array && array_size > 0)
             {
@@ -1109,18 +1120,19 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
               PRINT("ga size %d", array_size);
 
+              // assign GA array in tmp copy (org ptr still valid in org entry)
               tmp_gpt_entry.ga_len = array_size;
               tmp_gpt_entry.ga = new_array;
 
               current_gpt_properties++;
-              allocator |= TABLE_GAS;
+              allocator |= TABLE_GAS; // GPT1 (see below)
             }
             else
             {
               OC_ERR("out of stack memory");
 
               // on error: free PUB tmp entry (all heap allocations)
-              oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
+              oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
 
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
@@ -1133,14 +1145,23 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga array (7) - used on multicast, resource 'ga array' = empty (specification request)
+          // specification request, allowed empty ga array (7) for mc, coded in current CBOR with "OC_REP_NIL"
           if (object->iname == 7)
           {
+            /*
+             - GPT1, see above: release a beforehand assigned ga array (2 x in the request would be wrong)
+             - DON'T release HERE a present assigned ga array from the org. ptr (will happen later on no error)
+             - free ignores NULL ptr
+            */
+            if (allocator & TABLE_GAS)
+              free(tmp_gpt_entry.ga);
+            
             tmp_gpt_entry.ga_len = 0;
             tmp_gpt_entry.ga = NULL;
 
-            current_gpt_properties++; // also on empty ga array satisfies the items number
-            allocator |= TABLE_GAS; // free() ignores NULL ptr
+            // also on empty ga array satisfies the items number
+            current_gpt_properties++; 
+            allocator |= TABLE_GAS; 
           }
 
           break;
@@ -1150,7 +1171,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           OC_ERR("invalid object type detected");
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
+          oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1186,7 +1207,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           PRINT("mandatory items missing, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
+          oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1199,7 +1220,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           PRINT("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_gpt_entry, allocator);
+          oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1213,7 +1234,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
           - created : 2 elements (GAs, AT)
           - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete a PUB entry
         */
-        oc_free_allocated_table_elements(&g_gpt[index], allocator);
+        oc_free_allocated_group_table_elements(&g_gpt[index], allocator);
 
         // assign PUB table entry with tmp PUB (all elements)
         g_gpt[index] = tmp_gpt_entry;
@@ -1636,7 +1657,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
             // set (new) at id in tmp copy (org ptr still valid)
             oc_new_string(&tmp_grt_entry.at, oc_string(object->value.string), oc_string_len(object->value.string));
 
-            allocator |= TABLE_ATREF;
+            allocator |= TABLE_AT_REF;
           }
 
           break;
@@ -1652,8 +1673,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
             const int64_t* array = oc_int_array(object->value.array);
             const uint16_t new_array_size = oc_int_array_size(object->value.array);
 
-            // malloc of 'zero' byte return pointer is undefined
-            // ga size shall be 32 bit
+            // malloc of 'zero' byte return pointer is undefined, ga size shall be 32 bit
             uint32_t* new_array = (uint32_t*)malloc(new_array_size * sizeof(uint32_t));
             if (new_array && new_array_size > 0)
             {
@@ -1664,18 +1684,19 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
               PRINT("ga size %d", new_array_size);
 
+              // assign GA array in tmp copy (org ptr still valid in org entry)
               tmp_grt_entry.ga_len = new_array_size;
               tmp_grt_entry.ga = new_array;
 
               current_grt_properties++;
-              allocator |= TABLE_GAS;
+              allocator |= TABLE_GAS; // GPR1 (see below)
             }
             else
             {
               OC_ERR("out of stack memory");
 
               // on error: free PUB tmp entry (all heap allocations)
-              oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
+              oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
 
               oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
               return;
@@ -1683,20 +1704,28 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           break;
-
         case OC_REP_NIL:
 
           // any extra element - even if not valid - causes a "not an id only"
           id_only = false;
 
-          // ga array (7) - used on multicast, resource 'ga array' = empty (specification request)
+          // specification request, allowed empty ga array (7) for mc, coded in current CBOR with "OC_REP_NIL"
           if (object->iname == 7)
           {
+            /*
+             - GPR1, see above: release a beforehand assigned ga array (2 x in the request would be wrong)
+             - DON'T release HERE a present assigned ga array from the org. ptr (will happen later on no error)
+             - free ignores NULL ptr
+            */
+            if (allocator & TABLE_GAS)
+              free(tmp_grt_entry.ga);
+            
             tmp_grt_entry.ga_len = 0;
             tmp_grt_entry.ga = NULL;
 
-            current_grt_properties++; // also an empty ga array satisfies the items number
-            allocator |= TABLE_GAS; // free() ignores NULL ptr
+            // also an empty ga array satisfies the items number
+            current_grt_properties++; 
+            allocator |= TABLE_GAS; 
           }
 
           break;
@@ -1719,7 +1748,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           OC_ERR("invalid object type detected");
 
           // on error: free RCP tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
+          oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           break;
@@ -1784,7 +1813,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           PRINT("mandatory items missing, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
+          oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1797,7 +1826,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           PRINT("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
-          oc_free_allocated_table_elements(&tmp_grt_entry, allocator);
+          oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
 
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
@@ -1811,7 +1840,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
           - created : 2 elements (GAs, AT)
           - changed : 1..2 elements (GAs, AT) - 0 not possible, would be to delete an RCP entry
         */
-        oc_free_allocated_table_elements(&g_grt[index], allocator);
+        oc_free_allocated_group_table_elements(&g_grt[index], allocator);
 
         // assign RCP table entry with tmp RCP (all elements)
         g_grt[index] = tmp_grt_entry;
@@ -2219,12 +2248,10 @@ void oc_load_group_object_table_entry(int entry)
                 new_array[i] = (uint32_t)array[i];
               }
 
-              // release a possible ga array, it will be overwritten,
-              // no selective adding (note it releases the org ptr)
-              // free ignores NULL ptr
+              // release an already assigned ga array on the org ptr, free ignores NULL ptr
               free(g_got[entry].ga);
 
-              PRINT("ga size %d", new_array_size);
+              OC_DBG("go table entry with NON empty ga array 7: [...] loaded from storage, size %d", new_array_size);
 
               // assign only when the new array is allocated correctly
               g_got[entry].ga_len = new_array_size; // calculated from stream
@@ -2233,10 +2260,22 @@ void oc_load_group_object_table_entry(int entry)
           }
 
           break;
+        case OC_REP_NIL:
+          
+          // load empty ga array (7), coded in current CBOR with "OC_REP_NIL"
+          if (rep->iname == 7)
+          {
+            // release an already assigned ga array on the org ptr, free ignores NULL ptr
+            free(g_got[entry].ga);
+            
+            g_got[entry].ga_len = 0;
+            g_got[entry].ga = NULL;
+            OC_DBG("go table entry with empty ga array 7: [] loaded from storage, size 0");
+          }
+
+          break;
         default:
-          // any other invalid type prints ...
-          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
-          PRINT("invalid object type detected");
+          OC_DBG("invalid object type detected");
           break;
         }
         rep = rep->next;
@@ -2274,14 +2313,14 @@ void oc_free_group_object_table_entry(int entry, bool init)
   g_got[entry].cflags = OC_CFLAG_NONE;
 }
 
-void oc_free_allocated_go_table_elements(oc_group_object_table_t* entry, uint8_t allocator)
+void oc_free_allocated_group_object_table_elements(oc_group_object_table_t* entry, uint8_t allocator)
 {
   if (allocator & GO_HREF)
   {
     oc_free_string(&entry->href);
   }
 
-  if (allocator & GO_GAS)
+  if (allocator & TABLE_GAS)
   {
     free(entry->ga);
     entry->ga_len = 0;
@@ -2289,9 +2328,9 @@ void oc_free_allocated_go_table_elements(oc_group_object_table_t* entry, uint8_t
   }
 }
 
-void oc_free_allocated_table_elements(oc_group_table_t* entry, uint8_t allocator)
+void oc_free_allocated_group_table_elements(oc_group_table_t* entry, uint8_t allocator)
 {
-  if (allocator & TABLE_ATREF)
+  if (allocator & TABLE_AT_REF)
   {
     oc_free_string(&entry->at);
   }
@@ -2520,22 +2559,32 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
                 new_array[i] = (uint32_t)array[i];
               }
 
-              // release a possible ga array, it will be overwritten,
-              // no selective adding (note it releases the org ptr)
-              // free ignores NULL ptr
+              // release an already assigned ga array on the org ptr, free ignores NULL ptr
               free(table[entry].ga);
-
-              PRINT("ga size %d", new_array_size);
 
               // assign only when the new array is allocated correctly
               table[entry].ga_len = new_array_size; // calculated from stream
               table[entry].ga = new_array;
+
+              OC_DBG("pub/rcp table entry with NON empty ga array 7: [...] loaded from storage, size %d", new_array_size);
             }
           }
           break;
+        case OC_REP_NIL:
+
+          // load empty ga array (7), coded in current CBOR with "OC_REP_NIL"
+          if (rep->iname == 7)
+          {
+            // release an already assigned ga array on the org ptr, free ignores NULL ptr
+            free(table[entry].ga);
+
+            table[entry].ga_len = 0; 
+            table[entry].ga = NULL;
+            
+            OC_DBG("pub/rcp table entry with empty ga array 7: [] loaded from storage, size 0");
+          }
+          break;
         default:
-          // any other invalid type prints ...
-          // note that an empty ga array (7: [] = EITT test) is coded in current CBOR with "OC_REP_NIL"
           PRINT("invalid object type detected");
           break;
         }

@@ -432,7 +432,7 @@ extern "C"
    * @param entry the GO entry
    * @param allocator which GO entry element to be freed
    */
-  void oc_free_allocated_go_table_elements(oc_group_object_table_t* entry, const uint8_t allocator);
+  void oc_free_allocated_group_object_table_elements(oc_group_object_table_t* entry, const uint8_t allocator);
 
   /**
    * @brief frees a PUB/RCP 'ocstring' element that is (memory/RAM) allocated in one of the PUB/RCP table entries
@@ -442,7 +442,7 @@ extern "C"
    * @param entry the PUB/RCP entry
    * @param allocator which PUB/RCP 'ocstring' element to be freed for that table entry
    */
-  void oc_free_allocated_table_elements(oc_group_table_t* entry, const uint8_t allocator);
+  void oc_free_allocated_group_table_elements(oc_group_table_t* entry, const uint8_t allocator);
 
   /**
    * @brief delete entry of the Group Object Table,
