@@ -644,6 +644,32 @@ oc_network_refresh_endpoints(void)
   int ret = 0, i;
   struct nlmsghdr *response = NULL;
 
+  // Check if there's data available on the netlink socket (non-blocking)
+  fd_set readfds;
+  struct timeval tv = {0, 0}; // Zero timeout = non-blocking check
+  FD_ZERO(&readfds);
+  FD_SET(ifchange_sock, &readfds);
+  
+  int select_ret = select(ifchange_sock + 1, &readfds, NULL, NULL, &tv);
+  
+  // If no data available (manual call), just rebuild endpoint list
+  if (select_ret == 0) {
+    ip_context_t *dev = get_ip_context_for_device();
+    if (dev) {
+      oc_network_event_handler_mutex_lock();
+      refresh_endpoints_list(dev);
+      oc_network_event_handler_mutex_unlock();
+    }
+    return 0;
+  }
+  
+  // If select failed, return error
+  if (select_ret < 0) {
+    OC_ERR("select() on netlink socket failed");
+    return -1;
+  }
+
+  // Data is available, process the netlink event
   int guess = 512, response_len;
   do {
     guess <<= 1;
