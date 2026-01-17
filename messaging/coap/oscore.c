@@ -154,7 +154,7 @@ uint8_t oscore_get_outer_code(void* packet)
 {
 	coap_packet_t const* coap_pkt = (coap_packet_t*) packet;
 
-	const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE) ? true : false;
+	const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
 
 	if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH
 			#ifdef OC_TCP
@@ -564,7 +564,7 @@ bool oscore_is_oscore_message(oc_message_t* msg)
 
 coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 {
-	coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 	
 	// init with '0'
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
