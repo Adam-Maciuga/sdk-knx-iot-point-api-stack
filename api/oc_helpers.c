@@ -395,9 +395,7 @@ oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
   return 0;
 }
 
-int
-oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
-                                 char* hex_str, size_t* hex_str_len)
+int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len, char* hex_str, size_t* hex_str_len)
 {
   if (*hex_str_len < array_len * 2 + 1)
   {
@@ -406,22 +404,20 @@ oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len,
 
   *hex_str_len = 0;
 
-  size_t i;
-
-  for (i = 0; i < array_len; i++)
+  for (size_t i = 0; i < array_len; i++)
   {
-    snprintf(hex_str + *hex_str_len, 3, "%02x", array[i]);
+    (void)snprintf(hex_str + *hex_str_len, 3, "%02x", array[i]);
     *hex_str_len += 2;
   }
-
-  hex_str[*hex_str_len++] = '\0';
+  
+  // set to next char after string and add string termination
+  *hex_str_len +=1;
+  hex_str[*hex_str_len] = '\0';
 
   return 0;
 }
 
-int
-oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
-                                 uint8_t* array, size_t* array_len)
+int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, uint8_t* array, size_t* array_len)
 {
   if (hex_str_len < 1)
   {
@@ -439,7 +435,7 @@ oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
   a = 0;
 
   uint32_t tmp;
-  size_t i, start;
+  size_t start;
 
   if (hex_str_len % 2 == 0)
   {
@@ -459,7 +455,7 @@ oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len,
   if (hex_str_len >= 2)
   {
     // save guard against string lengths of 1
-    for (i = start; i <= hex_str_len - 2; i += 2)
+    for (size_t i = start; i <= hex_str_len - 2; i += 2)
     {
       int processed_fields = sscanf(&hex_str[i], "%2x", &tmp);
       if (processed_fields != 1)

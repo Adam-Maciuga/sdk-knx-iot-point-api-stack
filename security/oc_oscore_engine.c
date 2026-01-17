@@ -41,34 +41,47 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   ctx->ssn++;
 
   /*
-   store current SSN with frequency OSCORE_WRITE_FREQ_K,
-   based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse
+    store current SSN with frequency OSCORE_WRITE_FREQ_K, 
+    based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse
+
+    
   */
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   {
 
-    // TODO Sender OR Recipient ID + ID Context must be used
-    // in hex encoded ascii
-    // ID Context may be empty 
+    // TODO Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
 
-    // save ssn per (hex) sender id and (hex) id context as storage name 'ssn+id+context'
+    /* 
+      save ssn per (hex) sender id and (hex) id context as storage name 'ssn' + sender id + id context
+      - sender id  -> with max 14 ascii chars (hex coded)
+      - id context -> with max 32 ascii chars (hex coded) - may be empty 
+
+      example: for sender id 0001 and id context 200105b7fd8e = 'ssn_0001_200105b7fd8e'
+     */
     char storage_name[OSCORE_STORAGE_KEY_LEN] = {OSCORE_STORAGE_PREFIX};
     size_t storage_name_len;
 
-    // claim that buffer is big enough
-    storage_name_len = sizeof(storage_name);
-    // add 'id'
+    // claim that first buffer is big enough, is used in method below
+    storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN;
+    
+    // add 'id' behind prefix that is something like 'ssn_' 
     oc_conv_byte_array_to_hex_string(ctx->sender_id, 
                                      ctx->sender_id_len,
+                                     // buffer start ptr, to paste in the hex coded sender id
                                      storage_name + OSCORE_STORAGE_PREFIX_LEN, 
                                      &storage_name_len);
+    
+    // append divider ( -1 to overwrite the '\0')
+    storage_name[OSCORE_STORAGE_PREFIX_LEN + storage_name_len - 1] = '_';
 
-    // claim that buffer is big enough 
-    storage_name_len = sizeof(storage_name);
-    // add 'context'
+    // claim that buffer is big enough, is used in method below ( +1 to include the foreseen sting end '\0' placeholder)
+    storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN - OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
+    
+    // add 'context' behind the 'id'
     oc_conv_byte_array_to_hex_string(ctx->id_context, 
                                      ctx->id_context_len,
-                                     storage_name + (OSCORE_STORAGE_PREFIX_LEN + OSCORE_SENDER_ID_LEN * 2), 
+                                     // buffer start ptr, to paste in the hex coded id context ( + 1 to skip divider)
+                                     storage_name + (OSCORE_STORAGE_PREFIX_LEN + ctx->sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN), 
                                      &storage_name_len);
 
 
