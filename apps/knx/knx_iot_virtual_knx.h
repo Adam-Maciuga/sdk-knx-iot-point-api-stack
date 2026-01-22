@@ -102,6 +102,15 @@ extern "C"
    */
   void app_register_put_callback(app_channel_callback_t lsabCb, app_channel_callback_t lssbCb);
 
+  /**
+   * @brief Application callback handler, called on 'restart' command
+   *
+   * @note The callback handler is individual per applications are call
+   *
+   * @param data callback user data
+   */
+  void app_restart_handler(void* data);
+
 #ifdef __cplusplus
 }
 #endif

@@ -102,6 +102,18 @@ extern "C"
 
   char* app_retrieve_href_from_charger(void);
 
+
+  // common
+
+  /**
+   * @brief Application callback handler, called on 'restart' command
+   *
+   * @note The callback handler is individual per applications are call
+   *
+   * @param data callback user data
+   */
+  void app_restart_handler(void* data);
+
 #ifdef __cplusplus
 }
 #endif

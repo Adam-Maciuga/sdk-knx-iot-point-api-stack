@@ -22,3 +22,8 @@
 
 char* app_get_parameter_url(int index) { return NULL; }
 char* app_get_parameter_name(int index) { return NULL; }
+
+void app_restart_handler(void* data)
+{
+  (void)data;
+}

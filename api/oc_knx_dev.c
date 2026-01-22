@@ -1327,6 +1327,10 @@ void oc_knx_device_restart(void)
      - terminate a possible PASE token (removes all, even that only one should be present)
      - apply (changed) configuration parameters latest after 30s
 
+    Additionally
+    - send read requests for all GO's with i-flag
+    - call individual application restart callback handler
+
   */
   oc_device_info_t* const device = oc_core_get_device_info();
 
@@ -1339,6 +1343,7 @@ void oc_knx_device_restart(void)
   #ifdef OC_OSCORE
   oc_init_oscore_from_storage(true);
   #endif
+  
   // check and send on i-flags
   oc_init_datapoints_at_initialization();
 

@@ -537,3 +537,16 @@ void app_register_put_callback(app_channel_callback_t lsabCb, app_channel_callba
     app_channel_lsab_cb = lsabCb;
     app_channel_lssb_cb = lssbCb;
 }
+
+void app_restart_handler(void *data)
+{
+  (void)data;
+
+  for (int i = 0; i < NUM_CHANNELS; i++)
+  {
+    // set default runtime values after restart, note
+    lsxb[i].point[0].value = false;
+    lsxb[i].point[1].value = false;
+  }
+}
+

@@ -45,10 +45,10 @@ static struct oc_replay_record
 	bool in_use;            // whether this structure is in use & has valid data
 } replay_records[OC_MAX_REPLAY_RECORDS] = { 0 };
 
-// used to cache a message for a replay attack 
+// used to cache an outgoing message for a later replay attack check
 static struct oc_cached_message_record
 {
-  struct oc_message_s* message;		// pointer to message
+  struct oc_message_s* message;		// pointer to original outgoing uc/mc message
 	uint8_t token[COAP_TOKEN_LEN];	// used msg token 
 	uint16_t token_len;
 } message_records[OC_MAX_MESSAGE_RECORDS] = { 0 };

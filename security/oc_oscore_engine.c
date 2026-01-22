@@ -292,7 +292,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
       if (!oscore_ctx)
       {
-        // handle s-mode 'unicast echo response' 
+        // handle s-mode 'unicast echo response' (see specification, figure 26, (2))
         if (oscore_pkt->kid_ctx_len == 10)
         {
           // need to send an s-mode 'unicast echo re-request'   
@@ -757,7 +757,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     // request - use SSN as Partial IV
     oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
-    OC_LOGbytes_OSCORE(piv, piv_len);
 
     /* Increment SSN */
     increment_ssn_in_context(oscore_ctx);
@@ -767,15 +766,14 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     kid_len = oscore_ctx->sender_id_len;
 
     /* Compute nonce using partial IV and context->sender_id */
-    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
-                         OSCORE_AEAD_NONCE_LEN);
+    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-    OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID");
+    OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID :\t ");
     OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 
     /* Compose AAD using partial IV and context->sender_id */
     oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, AAD, &AAD_len);
-    OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID");
+    OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID :\t");
     OC_LOGbytes_OSCORE(AAD, AAD_len);
 
     /* Move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE to accommodate for

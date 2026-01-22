@@ -35,6 +35,9 @@ extern const uint32_t mid;
 extern const char hw_type[];
 extern const char dev_model[];
 
+// actions within must be defied individually for each corresponding LSAB/LSSB/EITT/HEMS/... application
+void app_restart_handler(void* data);
+
 void app_str_to_upper(char* str)
 {
   while (*str != '\0')
@@ -64,7 +67,7 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
 // the delayed swu callback handler 
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
-  oc_separate_response_t* response = context;
+  oc_separate_response_t* response = (oc_separate_response_t*)context;
 
   if (response->active)
   {
@@ -127,6 +130,9 @@ void factory_presets_cb(void* data)
 {
   (void)data;
 }
+
+// the actual restart handler is called per application individually, hence it is forwarded here 
+static void restart_presets_cb(void* data) { app_restart_handler(data); }
 
 void hostname_cb(const oc_string_t host_name, void* data)
 {
@@ -267,6 +273,7 @@ int app_initialize_stack(const char* storage_folder_name)
   // set the application handler callbacks
   oc_set_hostname_cb(hostname_cb, NULL);
   oc_set_factory_presets_cb(factory_presets_cb, NULL);
+  oc_set_restart_cb(restart_presets_cb, NULL);
   oc_set_swu_cb(swu_cb, NULL);
 
   // start the stack, calls directly also the .init handler from above

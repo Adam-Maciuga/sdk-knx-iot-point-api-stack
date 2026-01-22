@@ -221,11 +221,11 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
     if (entry && entry->id >= 0) {
       sprintf(line, "Index %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
-      if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
+      if (entry->ia >= 0) { sprintf(line, "  ia: %d ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
-      if (entry->fid >= 0) { sprintf(line, "  fid: '%" PRIi64 "' ", entry->fid); out += line; }
+      if (entry->fid >= 0) { sprintf(line, "  fid: '% " PRIi64 "' ", entry->fid); out += line; }
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
-      if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
+      if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: %s ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
         strcpy(line, "  ga : [");
         for (int j = 0; j < entry->ga_len; j++) {
@@ -266,11 +266,11 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
     if (entry && entry->id >= 0) {
       sprintf(line, "Index %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
-      if (entry->ia >= 0) { sprintf(line, "  ia: '%d' ", entry->ia); out += line; }
+      if (entry->ia >= 0) { sprintf(line, "  ia: %d ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
-      if (entry->fid >= 0) { sprintf(line, "  fid: '%'" PRIi64 " ", entry->fid); out += line; }
+      if (entry->fid >= 0) { sprintf(line, "  fid: '% " PRIi64 "' ", entry->fid); out += line; }
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
-      if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: '%s' ", oc_string(entry->at)); out += line; }
+      if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: %s ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
         strcpy(line, "  ga : [");
         for (int j = 0; j < entry->ga_len; j++) {

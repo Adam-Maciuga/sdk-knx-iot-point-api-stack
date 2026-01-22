@@ -1759,9 +1759,9 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
         /* 
           'Client' Side (details see method 'oc_oscore_receive_message' header)
-           - create oscore REQUEST sender context = kid   
-           - create oscore RESPONSE recipient context = kid  (h '') 
-           + kid_context + ms + salt from token
+           - create oscore REQUEST sender context = kid + kid_context + ms + salt from token  
+           - create oscore RESPONSE recipient context = kid (h '') + kid_context + ms + salt from token 
+          
         */
         OC_DBG_OSCORE("... adding OSCORE REQUEST sender context + RESPONSE recipient context with Sender ID : ");
         oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
