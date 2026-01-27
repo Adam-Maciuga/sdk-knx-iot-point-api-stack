@@ -44,14 +44,13 @@ void exit_impl(int status);
  *
  * @param msg the message to be printed
  */
-static inline void
-oc_abort(const char *msg)
+static inline void oc_abort(const char *msg)
 {
-  (void)msg;
+
 #if OC_LOG_TO_FILE
-  (void)msg;
-#else
   PRINTF("\n%s\nAbort.\n", msg);
+#else
+  (void)msg;
 #endif
   abort_impl();
 }
