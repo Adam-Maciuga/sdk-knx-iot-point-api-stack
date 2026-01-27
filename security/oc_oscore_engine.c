@@ -18,15 +18,12 @@
 #include "oc_replay.h"
 #include "oc_storage.h"
 
-#if defined OC_OSCORE
+#ifdef OC_OSCORE
 #include <inttypes.h>
 #include "api/oc_events.h"
-#include "mbedtls/ccm.h"
-#include "messaging/coap/coap_signal.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/transactions.h"
 #include "oc_client_state.h"
-#include "oc_oscore.h"
 #include "oc_oscore_context.h"
 #include "oc_oscore_crypto.h"
 #include "oc_tls.h"
@@ -40,18 +37,16 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 {
   ctx->ssn++;
 
-  /*
-    store current SSN with frequency OSCORE_WRITE_FREQ_K, 
-    based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse
-
-    
-  */
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   {
 
     // TODO Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
 
     /* 
+      
+      store current SSN with frequency OSCORE_WRITE_FREQ_K,
+      based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse 
+      
       save ssn per (hex) sender id and (hex) id context as storage name 'ssn' + sender id + id context
       - sender id  -> with max 14 ascii chars (hex coded)
       - id context -> with max 32 ascii chars (hex coded) - may be empty 
@@ -328,14 +323,18 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
           /*
-           'Server' Side (details see method 'oc_oscore_receive_message' header)
-           - create oscore Request Recipient Context  -> kid
-           - create oscore Response Sender Context    -> kid
+           'Server' Side (details see SECURITY DETAILS - A2, method 'oc_oscore_receive_message' header)
+           - create oscore Request Recipient Context  -> kid + kid_context + ms + salt from token
+           - create oscore Response Sender Context    -> kid + kid_context + ms + salt from token
 
            - SSN initialized = 0, context is new
-           - kid_context (ms/salt from access token)
-
+           
           */
+          OC_DBG_OSCORE("... adding OSCORE Request Sender Context with Sender ID : ");
+          oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
+          OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ");
+          oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
+
           oscore_ctx = oc_oscore_add_context(
             oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
             oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
@@ -377,14 +376,18 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
 
         /*
-           'Server' Side (details see method 'oc_oscore_receive_message' header)
-           - create oscore Request Recipient Context  -> kid 
-           - create oscore Response Sender Context    -> kid ('')
+           'Server' Side (details see SECURITY DETAILS - A2, method 'oc_oscore_receive_message' header)
+           - create oscore Request Recipient Context  -> kid + kid_context + ms + salt from token 
+           - create oscore Response Sender Context    -> kid ('') + kid_context + ms + salt from token
 
            - SSN initialized = 0, context is new
-           - kid_context (ms/salt from access token)
 
         */
+
+        OC_DBG_OSCORE("... adding OSCORE Request Sender Context with Sender ID : ''");
+        OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ");
+        oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
+
         oscore_ctx = oc_oscore_add_context("", 0,
                                            oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                            0,
@@ -401,14 +404,17 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
           /*
            'Server' Side (details see method 'oc_oscore_receive_message' header)
-           - create oscore Request Recipient Context  -> kid
-           - create oscore Response Sender Context    -> kid ('')
+           - create oscore Request Recipient Context  -> kid + kid_context + ms + salt from token 
+           - create oscore Response Sender Context    -> kid ('') + kid_context + ms + salt from token 
 
            - SSN initialized = 0, context is new
-           - kid_context (ms/salt from access token)
 
           */
+
+          OC_DBG_OSCORE("... adding OSCORE Request Sender Context with Sender ID : ''");
+          OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
+          
           oscore_ctx = oc_oscore_add_context("", 0,
                                              oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
                                              0,
@@ -1026,15 +1032,19 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           oscore_read_piv(outgoing_msg->endpoint.request_piv, outgoing_msg->endpoint.request_piv_len, &ssn_from_request);
 
           /*
-                 'Server' Side (details see method 'oc_oscore_receive_message' header)
-                 - create oscore Request Recipient Context  -> kid
-                 - create oscore Response Sender Context    -> kid
-                   - 'Recipient ID' = 'Sender ID', used for the AAD composition
+                 'Server' Side (details see SECURITY DETAILS - A2, method 'oc_oscore_receive_message' header)
+                 - create oscore Request Recipient Context  -> kid +  rnd kid_context + ms + salt from token
+                 - create oscore Response Sender Context    -> kid +  rnd kid_context + ms + salt from token
 
-                 - SSN initialized = 0, context is new
-                 - kid_context = rnd, ms/salt from access token
+                 - SSN initialized = from request
 
           */
+
+          OC_DBG_OSCORE("... adding OSCORE Request Sender Context with Sender ID : ");
+          oc_char_println_hex(oc_string(auth_at_entry->osc_id), oc_byte_string_len(auth_at_entry->osc_id));
+          OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ");
+          oc_char_println_hex(oc_string(auth_at_entry->osc_id), oc_byte_string_len(auth_at_entry->osc_id));
+
           oscore_ctx = oc_oscore_add_context(
             oc_string(auth_at_entry->osc_id), oc_byte_string_len(auth_at_entry->osc_id),
             oc_string(auth_at_entry->osc_id), oc_byte_string_len(auth_at_entry->osc_id),

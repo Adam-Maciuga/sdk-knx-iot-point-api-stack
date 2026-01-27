@@ -1758,18 +1758,21 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       {
 
         /* 
-          'Client' Side (details see method 'oc_oscore_receive_message' header)
+          'Client' Side (details see SECURITY DETAILS - A1, method 'oc_oscore_receive_message' header)
            - create oscore REQUEST sender context = kid + kid_context + ms + salt from token  
            - create oscore RESPONSE recipient context = kid (h '') + kid_context + ms + salt from token 
+           
+           - SSN initialized = read from storage, context is already present
           
         */
-        OC_DBG_OSCORE("... adding OSCORE REQUEST sender context + RESPONSE recipient context with Sender ID : ");
+        OC_DBG_OSCORE("... adding OSCORE Request Sender Context with Sender ID : ");
         oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
+        OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ''");
 
         oc_oscore_context_t* ctx = oc_oscore_add_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0, 
-          0, // SSN for REQUEST sender context (from storage, context is already present) // TODO read ssn from storage and pass to add ctx below 
+          0, // TODO read ssn from storage and pass to add ctx below 
           oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
           oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
           oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
