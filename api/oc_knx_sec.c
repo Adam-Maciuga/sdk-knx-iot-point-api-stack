@@ -1833,10 +1833,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           (const uint8_t*)oc_string(g_at_entries[i].osc_contextid), 
           oc_byte_string_len(g_at_entries[i].osc_contextid));
         
-        if (stored_ssn > 0)
-        {
-          PRINT("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
-        }
+        
+        OC_DBG("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
         oc_oscore_context_t* ctx = oc_oscore_add_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),

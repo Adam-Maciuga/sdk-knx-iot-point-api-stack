@@ -82,19 +82,53 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len
 // checking against receiver in contexts
 oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
-  
-  // get list start
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   if (kid_len == 0)
     return NULL;
 
+  // get list start
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+
+  #ifdef OC_DEBUG
+
+  char sid[OSCORE_SENDER_ID_LEN * 2 + 1 + 1];  // extra + 1 to prevent MSVC debug build crash 
+  char rid[OSCORE_SENDER_ID_LEN * 2 + 1]; 
+  char cid[OSCORE_ID_CONTEXT_LEN * 2 + 1]; 
+
+  size_t sid_len;
+  size_t rid_len;
+  size_t cid_len;
+  
+  // print all present context entries 
   while (ctx)
   {
-    // debugging  
-    PRINT("---> scanning oscore context list 'Recipient ID' ': ");
-    oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
 
+    sid_len = sizeof(sid);
+    rid_len = sizeof(rid);
+    cid_len = sizeof(cid);
+
+    oc_conv_byte_array_to_hex_string(ctx->sender_id, ctx->sender_id_len, sid, &sid_len);
+    oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
+    oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
+    
+    
+    OC_DBG("AT index (%d)\t| Sender ID (%d) %-14.14s\t| Recipient ID (%d) %-14.14s\t| ID Context (%d) %-32.32s",
+           ctx->auth_at_index, 
+           ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
+           ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
+           ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a");
+
+    ctx = ctx->next;
+  }
+
+  // restore pointer
+  ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+  
+  #endif
+
+
+  while (ctx)
+  {
     // received frame kid (Sender ID) and kid_context (ID Context) must both match in size and value to an oscore context 
     if (kid_len == ctx->recipient_id_len
         && memcmp(kid, ctx->recipient_id, kid_len) == 0 
@@ -102,7 +136,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
         && memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0)
     {
 
-      PRINT("found oscore context, with auth/at index: %d",ctx->auth_at_index);
+      PRINT("found OSCORE Recipient ID context, with auth/at index: %d",ctx->auth_at_index);
 
       // update time for a possible release of "last used" - if table is full
       ctx->last_used = oc_clock_time();
