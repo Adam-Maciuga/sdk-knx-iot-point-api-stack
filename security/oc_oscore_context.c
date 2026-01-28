@@ -50,36 +50,6 @@ void oc_oscore_free_lru_recipient_context(void)
 }
 
 // checking against receiver in contexts
-oc_oscore_context_t* oc_oscore_find_context_by_kid(uint8_t* kid, uint8_t kid_len)
-{
-
-  // to skip tests for len = 0 which will be always a hit on an empty context ...
-  if (kid_len == 0)
-    return NULL;
-
-  // list start
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
-
-  PRINT("-> inbound kid (%d)\t: ", kid_len);
-  oc_char_println_hex((char*) kid, kid_len);
-
-  while (ctx)
-  {
-    PRINT("-> scanned kid (%d)\t: ", ctx->recipient_id_len);
-    oc_char_println_hex((char*) ctx->recipient_id, ctx->recipient_id_len);
-
-    if (kid_len == ctx->recipient_id_len && memcmp(kid, ctx->recipient_id, kid_len) == 0)
-    {
-      PRINT("-> found context by kid at auth/at index : %d", ctx->auth_at_index);
-      ctx->last_used = oc_clock_time();
-      return ctx;
-    }
-    ctx = ctx->next;
-  }
-  return ctx;
-}
-
-// checking against receiver in contexts
 oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len)
 {
 
