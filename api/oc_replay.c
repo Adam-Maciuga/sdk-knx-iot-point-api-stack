@@ -178,9 +178,10 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
 
 	if (!rec)
 	{
-		// no replay window record available, force echo option
-		// regardless unicast/multicast, either on first pub message
-		// or after a release of an old recipient context
+		/* 
+		   no replay window record available, force echo option,  regardless unicast/multicast, 
+		   either on first pub message or after a release of an old recipient context
+    */
 		return ECHO;
 	}
 
@@ -192,47 +193,54 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
     const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn);
     const uint32_t replay_window_size = get_oscore_replay_window_size();
 
-	PRINT("new ssn  = %" PRIu64, rx_ssn);       // 64 bit uint
-	PRINT("old ssn  = %" PRIu64, rec->rx_ssn);  // 64 bit uint
-	PRINT("ssn_diff = %" PRIi64, ssn_diff);     // 64 bit int
-	PRINT("kid      = %s", oc_string(rx_kid));  // %s = string
-	PRINT("wnd old  = %X" , rec->window);				// 32 bit field
+	PRINT("new ssn\t= %" PRIx64, rx_ssn);							// 64 bit uint
+	PRINT("old ssn\t= %" PRIx64, rec->rx_ssn);				// 64 bit uint
+	PRINT("ssn_diff\t= %" PRIi64, ssn_diff);					// 64 bit int
+  PRINT("kid (%llu)\t= %s", oc_string_len(rx_kid), oc_string(rx_kid)); 
+  PRINT("kid ctx (%llu)\t= %s", oc_string_len(rx_kid_ctx) , oc_string(rx_kid_ctx)); 
+  PRINT("wnd old\t= %" PRIx32, rec->window);				// 32 bit field
 
 	if (ssn_diff >= 0)
 	{
-    // received SSN <= max value of received SSN , either received SSN is
-    // - in window 
-    // - out of left bound
-		// diff >= window size -> out of left window bound
-		// example: diff from 0...31 = is in 32 bit window ; diff >= 32 is on left side window  
-		if (ssn_diff >= replay_window_size)
+    /*
+     received SSN <= max value of received SSN , either received SSN is
+     - in window 
+     - out of left window bound
+		 
+		 diff >= window size 
+		 - out of right window bound
+		 
+		 example: diff from 0...31 = is in 32 bit window ; diff >= 32 is on left side window 
+    
+	  */
+		
+	  if (ssn_diff >= replay_window_size)
 		{
-      PRINT("wnd new  = %" PRIu32, rec->window); 
+      PRINT("wnd new\t= %" PRIx32, rec->window); 
 		  PRINT("outside window (size %" PRIu32 ") left bound by %" PRIi64, replay_window_size, ssn_diff);
 			return ECHO; // not known if it was (ever) received before  
 		}
 
-		// diff < size -> inside window
-		// see if it has been received before, so this can be a replay
+		// diff < size -> inside window, see if it has been received before, so this can be a replay
 		if (rec->window & 1 << ssn_diff)
 		{
-      PRINT("wnd new  = %X", rec->window);
+      PRINT("wnd new\t= %" PRIx32, rec->window); 
 		  PRINT("inside window (size %" PRIu32 "), replay msg, window bit %" PRIi64 " (%X) is already ticked", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
 			return REPLAY; // known that it was received before 
 		}
 
-		// SSN not received before, tick that this SSN is now occupied
-		// DO NOT remember SSN, it was not the max value of received SSN's
+		// SSN not received before, tick that this SSN is now occupied, DO NOT remember SSN, it was not the max value of received SSN's
 		rec->window |= 1 << ssn_diff;
 
-		PRINT("wnd new  = %X", rec->window); 
+		PRINT("wnd new\t= %" PRIx32, rec->window); 
 		PRINT("inside window (size %" PRIu32 "), new msg, tick window bit %" PRIi64 " (%X)", replay_window_size, ssn_diff, (uint32_t)(1 << ssn_diff));
 		return SYNCED;
 	}
 
-	// received SSN > max value of received SSN -> fresh message, slide the window and accept the packet
-	// note that shifting by an amount larger than the size of the type
-	// is undefined behaviour, so we must zero the window manually here
+	/*
+	  received SSN > max value of received SSN -> fresh message, slide the window and accept the packet
+	  note that shifting by an amount larger than the size of the type is undefined behaviour, so we must zero the window manually here
+  */
 	
 	if (-ssn_diff >= replay_window_size)
     // 1 << 32 or higher = undefined for a 32-bit value
@@ -241,12 +249,11 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
     // 1 << 31 or lower = ok for a 32-bit value, 1 << 31 = 10000000'..'..'00000000'
 		rec->window <<= -ssn_diff;  
 
-	// set bit 0, indicating ssn 'rec->rx_ssn' has been received
-	// DO remember SSN, it is now the max value of received SSN's
+	// set bit 0, indicating ssn 'rec->rx_ssn' has been received,  DO remember SSN, it is now the max value of received SSN's
 	rec->window |= 1;
 	rec->rx_ssn = rx_ssn;
 
-	PRINT("wnd new  = %X", rec->window);
+	PRINT("wnd new\t= %" PRIx32, rec->window); 
   PRINT("outside window (size %" PRIu32 ") right bound by %" PRIi64, replay_window_size, -ssn_diff);
 	return SYNCED;
 }
