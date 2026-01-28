@@ -759,7 +759,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   // - position of GA in GA array don't care 
   int go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(received_notification.ga);
 
-  PRINT("/k : index %d", go_table_index_where_ga_is_used);
+  PRINT("/k : GO table index = %d", go_table_index_where_ga_is_used);
 
   if (go_table_index_where_ga_is_used != -1)
   { // index found
@@ -884,7 +884,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       // get href from the GO table index
       oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-      PRINT("/k : resource path %s", oc_string_checked(go_href));
+      PRINT("/k : GO table resource path = %s", oc_string_checked(go_href));
 
       // device EP present (sanity check, GO without href is usually a product problem or MAC configuration error)
       if (oc_string_len(go_href) > 0)
@@ -987,7 +987,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           }
           if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
           {
-            PRINT("/k : read with GOT index %d handled due to read flags enabled %d", go_table_index_where_ga_is_used, cflags);
+            PRINT("/k : read with GO table index %d handled due to read flags enabled 0x%x", go_table_index_where_ga_is_used, (uint32_t)cflags);
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
@@ -1017,13 +1017,13 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                 // sending ga is always in position zero
                 uint32_t sending_ga = go_entry->ga[0];
                 
-                // find recipient entry for sending ga , contains both grpid and non flag
+                // find recipient entry for sending ga, contains both grpid and non flag
                 oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
                 
                 if (recipient)
                 {
                   if (recipient->grpid > 0)
-                  { // grpid is set in case of multicast in RCP table (configured by MaC)
+                  { // multicast: read response uses grpid from RCP table (configured by MaC)
 
                     oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
                                                                      sending_ga, 'a', 
@@ -1031,7 +1031,29 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                                                                      (int)new_request.response->response_buffer->response_length);
                   }
                   else
-                  { // uc: read response -> ia is used from RCP table (configured by MaC)
+                  { // unicast: read response uses ia from RCP table (configured by MaC)
+
+                    /*
+                     
+                      A unicast read request usually results in a unicast read response, the unicast sender IPv6 is known at this point.
+                      For the inbound 'sia' check the RCP table entry if it is the same 'sia' as from inbound request, 
+                         1. IoT device with ia 1234 -> IoT device with ia 2345 AND RCP table entry with sia 1234 = IPV6 'resolved'
+                         2. KNX device with ia 1234 -> IoT Router with ia 5678 -> IoT device with ia 2345 AND RCP table entry with sia 5678 = NOT IPV6 'resolved' 
+                            (the receiving device sees the KNX device ia 1234, not from IoT Router) 
+                    */
+
+                    if (received_notification.sia == (uint32_t)recipient->ia)
+                    {// 1
+
+                      // set as auto resolved...
+                      recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;
+
+                      // store IPv6 address, port and interface index
+                      memcpy(recipient->ipv6_adr.ipv6, new_request.origin->addr.ipv6.address, 16);
+                      recipient->ipv6_adr.port = new_request.origin->addr.ipv6.port;
+                      recipient->ipv6_adr.interface_index = new_request.origin->interface_index;
+                    }
+                    
                     oc_send_s_mode_unicast_message(sending_ga, 'a', 
                                                    new_request.response->response_buffer->buffer,
                                                    (int)new_request.response->response_buffer->response_length, recipient, go_entry);
