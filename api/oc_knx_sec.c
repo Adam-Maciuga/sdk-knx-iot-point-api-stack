@@ -27,6 +27,7 @@
 #include "oc_knx_helpers.h"
 #include "oc_replay.h"
 #include "oc_storage.h"
+#include "messaging/coap/oscore_constants.h"
 
 // AT storage data
 #define AT_STORE "at_store"
@@ -47,6 +48,62 @@ uint32_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms; }
 void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
 
 static void oc_store_at_table_entry(int entry);
+
+/**
+ * @brief Read SSN from storage for a given sender ID and ID context
+ * 
+ * Constructs storage key as 'ssn_<sender_id_hex>_<id_context_hex>' and reads
+ * the stored SSN value. Returns 0 if not found.
+ * 
+ * @param sender_id Sender ID byte array
+ * @param sender_id_len Length of sender ID
+ * @param id_context ID context byte array
+ * @param id_context_len Length of ID context
+ * @return uint64_t Stored SSN value, or 0 if not found
+ */
+static uint64_t oc_read_ssn_from_storage(const uint8_t* sender_id, size_t sender_id_len,
+                                           const uint8_t* id_context, size_t id_context_len)
+{
+#ifdef OC_USE_STORAGE
+  uint64_t ssn = 0;
+  char storage_name[OSCORE_STORAGE_KEY_LEN] = {OSCORE_STORAGE_PREFIX};
+  size_t storage_name_len;
+
+  // Construct storage key: 'ssn_<sender_id_hex>_<id_context_hex>'
+  storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN;
+  
+  // Add sender ID in hex
+  oc_conv_byte_array_to_hex_string(sender_id, 
+                                   sender_id_len,
+                                   storage_name + OSCORE_STORAGE_PREFIX_LEN, 
+                                   &storage_name_len);
+  
+  // Append divider
+  storage_name[OSCORE_STORAGE_PREFIX_LEN + storage_name_len - 1] = '_';
+
+  // Add ID context in hex
+  storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN - OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
+  
+  oc_conv_byte_array_to_hex_string(id_context, 
+                                   id_context_len,
+                                   storage_name + (OSCORE_STORAGE_PREFIX_LEN + sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN), 
+                                   &storage_name_len);
+
+  // Read SSN from storage
+  long bytes_read = oc_storage_read(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+  
+  if (bytes_read == sizeof(ssn))
+  {
+    PRINT("Read SSN from storage '%s': %" PRIu64, storage_name, ssn);
+    return ssn;
+  }
+  else
+  {
+    PRINT("No SSN found in storage '%s', starting from 0", storage_name);
+  }
+#endif
+  return 0;
+}
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
 {
@@ -1769,10 +1826,22 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
         OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ''");
 
+        // Always read stored SSN from storage to maintain continuity
+        uint64_t stored_ssn = oc_read_ssn_from_storage(
+          (const uint8_t*)oc_string(g_at_entries[i].osc_id), 
+          oc_byte_string_len(g_at_entries[i].osc_id),
+          (const uint8_t*)oc_string(g_at_entries[i].osc_contextid), 
+          oc_byte_string_len(g_at_entries[i].osc_contextid));
+        
+        if (stored_ssn > 0)
+        {
+          PRINT("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
+        }
+
         oc_oscore_context_t* ctx = oc_oscore_add_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0, 
-          0, // TODO read ssn from storage and pass to add ctx below 
+          stored_ssn, // Use SSN loaded from storage
           oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
           oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
           oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),

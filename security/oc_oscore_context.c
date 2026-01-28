@@ -260,11 +260,20 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
         
         if (group_address == group_value)
         {
-          PRINT("found access token for given GA %04X", group_address);
+          // Ensure we return a sender context (with sender_id populated) for sending messages
+          // Recipient contexts have empty sender_id and should not be used for sending
+          if (ctx->sender_id_len > 0)
+          {
+            PRINT("found access token for given GA %04X", group_address);
 
-          // refresh time of last use
-          ctx->last_used = oc_clock_time();
-          return ctx;
+            // refresh time of last use
+            ctx->last_used = oc_clock_time();
+            return ctx;
+          }
+          else
+          {
+            PRINT("found GA %04X but context has empty sender_id (recipient context), continuing search", group_address);
+          }
         }
       }
     }
