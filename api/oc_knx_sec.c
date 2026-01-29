@@ -1672,7 +1672,7 @@ int oc_core_find_at_entry_empty_slot(void)
 
 static void oc_load_at_table(void)
 {
-  PRINT("Loading AT Table from persistent storage");
+  PRINT("Loading AT Table into RAM from storage (file system)");
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
     oc_load_at_table_entry(i);
@@ -1685,7 +1685,7 @@ static void oc_load_at_table(void)
 
 void oc_delete_at_table(void)
 {
-  PRINT("Deleting Access Table from RAM and storage (file system)");
+  PRINT("Deleting AT Table from RAM and storage (file system)");
 
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
   {
@@ -1759,15 +1759,14 @@ void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size
     oc_free_string(&g_at_entries[index].osc_ms);
     oc_new_byte_string(&g_at_entries[index].osc_ms, (char*)shared_key, shared_key_size);
 
-    // no kid context
+    // no 'kid_context'
     oc_free_string(&g_at_entries[index].osc_contextid);
     oc_new_byte_string(&g_at_entries[index].osc_contextid, "",0);
 
-    // kid (on the wire it was a byte string, so we have to store the byte string)
+    // 'kid' (on the wire it was a byte string, so we have to store the byte string)
     oc_free_string(&g_at_entries[index].osc_id);
     oc_new_byte_string(&g_at_entries[index].osc_id, client_sender_id, client_sender_id_size);
 
-    
     // release a possible ga array, it will be overwritten, free ignores NULL ptr
     free(g_at_entries[index].ga);
 
@@ -1801,8 +1800,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
 #ifdef OC_OSCORE
 
-  OC_DBG_OSCORE("... removing all present OSCORE sender contexts");
-
   oc_oscore_free_sender_contexts();
   
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
@@ -1815,18 +1812,15 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       {
 
         /* 
-          'Client' Side (details see SECURITY DETAILS - A1, method 'oc_oscore_receive_message' header)
+          'Client' Side (details see method 'oc_oscore_receive_message' header)
            - create oscore REQUEST sender context = kid + kid_context + ms + salt from token  
            - create oscore RESPONSE recipient context = kid (h '') + kid_context + ms + salt from token 
            
            - SSN initialized = read from storage, context is already present
-          
-        */
-        OC_DBG_OSCORE("... adding OSCORE Request Sender Context with Sender ID : ");
-        oc_char_println_hex(oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id));
-        OC_DBG_OSCORE("... adding OSCORE Response Recipient Context with Sender ID : ''");
 
-        // Always read stored SSN from storage to maintain continuity
+        */
+
+        // always read stored SSN from storage to maintain continuity
         uint64_t stored_ssn = oc_read_ssn_from_storage(
           (const uint8_t*)oc_string(g_at_entries[i].osc_id), 
           oc_byte_string_len(g_at_entries[i].osc_id),
@@ -1839,7 +1833,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         oc_oscore_context_t* ctx = oc_oscore_add_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0, 
-          stored_ssn, // Use SSN loaded from storage
+          stored_ssn, // use SSN loaded from storage
           oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
           oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
           oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
@@ -1851,13 +1845,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           OC_ERR("failed to add a context entry for AT table entry = %d", i);
         }
 
-        // - contexts for sending have populated sender id and null receive id
-        // - the spake key, however, is for receiving only, and the osc_id is already inside receiver_id.
-
-        // posts to auth/at set id into the sender id, so the created contexts
-        // are only usable for sending. recipient contexts are created
-        // dynamically with the key from the access token matching the key ID,
-        // and with the context id within the received request
+        
       }
       else
       {
@@ -1865,6 +1853,13 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       }
     }
   }
+
+  #ifdef OC_PRINT
+
+  oc_context_print_all();
+
+  #endif
+
 #endif
 }
 

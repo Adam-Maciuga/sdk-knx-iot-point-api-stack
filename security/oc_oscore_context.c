@@ -56,46 +56,15 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   if (kid_len == 0)
     return NULL;
 
-  // get list start
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
-
-  #ifdef OC_DEBUG
-
-  char sid[OSCORE_SENDER_ID_LEN * 2 + 1 + 1];  // extra + 1 to prevent MSVC debug build crash 
-  char rid[OSCORE_SENDER_ID_LEN * 2 + 1]; 
-  char cid[OSCORE_ID_CONTEXT_LEN * 2 + 1]; 
-
-  size_t sid_len;
-  size_t rid_len;
-  size_t cid_len;
   
-  // print all present context entries 
-  while (ctx)
-  {
+  #ifdef OC_PRINT
 
-    sid_len = sizeof(sid);
-    rid_len = sizeof(rid);
-    cid_len = sizeof(cid);
-
-    oc_conv_byte_array_to_hex_string(ctx->sender_id, ctx->sender_id_len, sid, &sid_len);
-    oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
-    oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
-    
-    
-    OC_DBG("AT index (%d)\t| Sender ID (%d) %-14.14s\t| Recipient ID (%d) %-14.14s\t| ID Context (%d) %-32.32s",
-           ctx->auth_at_index, 
-           ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
-           ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
-           ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a");
-
-    ctx = ctx->next;
-  }
-
-  // restore pointer
-  ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+  oc_context_print_all();
   
   #endif
 
+  // get list start
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
   while (ctx)
   {
@@ -289,6 +258,9 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
 
 void oc_oscore_free_all_contexts(void)
 {
+  
+  OC_DBG_OSCORE("removing all present OSCORE Sender/Recipient Contexts");
+  
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
@@ -297,6 +269,7 @@ void oc_oscore_free_all_contexts(void)
     // tmp copy of next (if released its gone)
     oc_oscore_context_t* next = ctx->next;
     oc_oscore_free_context(ctx);
+    
     // restore next ptr
     ctx = next;
   }
@@ -306,6 +279,9 @@ void oc_oscore_free_all_contexts(void)
 
 void oc_oscore_free_sender_contexts(void)
 {
+  
+  OC_DBG_OSCORE("removing all present OSCORE Sender Contexts");
+  
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
@@ -314,9 +290,10 @@ void oc_oscore_free_sender_contexts(void)
     // tmp copy of next (if released its gone)
     oc_oscore_context_t* next = ctx->next;
 
-    // release if context is not used as a "recipient" context
+    // release any context if it is not used as a "Recipient Context"
     if (ctx->recipient_id_len == 0)
       oc_oscore_free_context(ctx);
+    
     // restore next ptr
     ctx = next;
   }
@@ -349,6 +326,50 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
     // use global variable for the removal
     oc_memb_free(&ctx_s, ctx);
   }
+}
+
+void oc_context_print_all(void)
+{
+#ifdef OC_PRINT
+
+  // get list start
+  const oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+
+  // extra + 1 to prevent MSVC running crash on debug build
+  char sid[OSCORE_SENDER_ID_LEN * 2 + 1 + 1]; 
+  char rid[OSCORE_SENDER_ID_LEN * 2 + 1 + 1];
+  char cid[OSCORE_ID_CONTEXT_LEN * 2 + 1 +1];
+
+  size_t sid_len;
+  size_t rid_len;
+  size_t cid_len;
+
+  //     10        | 21                  | 21                  | 40                                     | 
+  PRINT("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
+        
+  // print all present context entries
+  while (ctx)
+  {
+
+    sid_len = sizeof(sid);
+    rid_len = sizeof(rid);
+    cid_len = sizeof(cid);
+
+    oc_conv_byte_array_to_hex_string(ctx->sender_id, ctx->sender_id_len, sid, &sid_len);
+    oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
+    oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
+
+    
+    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %"PRIu64,
+          ctx->auth_at_index, 
+          ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
+          ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
+          ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
+          ctx->ssn);
+
+    ctx = ctx->next;
+  }
+#endif
 }
 
 oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_id_size,
@@ -447,7 +468,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
   PRINT("ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
   PRINT("Master Secret : (%zu)\t= ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
   PRINT("Salt          : (%zu)\t= ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%" PRIu64 ")\t= ", ctx->ssn);
+  PRINT("SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len,
@@ -455,7 +476,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     "Key",
     mastersecret, (uint8_t)mastersecret_size, 
     salt, (uint8_t)salt_size,
-    ctx->sender_key, OSCORE_KEY_LEN) < 0)
+    ctx->request_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Sender Key ...");
     goto add_oscore_context_error;
@@ -468,7 +489,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     "Key",
     mastersecret, (uint8_t)mastersecret_size, 
     salt, (uint8_t)salt_size,
-    ctx->recipient_key, OSCORE_KEY_LEN) < 0)
+    ctx->response_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Recipient Key ...");
     goto add_oscore_context_error;
@@ -486,9 +507,9 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     goto add_oscore_context_error;
   }
 
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Sender Key    : ", ctx->sender_key));
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Recipient Key : ", ctx->recipient_key));
-  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV     : ", ctx->common_iv));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Request Key  : ", ctx->request_key));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Response Key : ", ctx->response_key));
+  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV    : ", ctx->common_iv));
 
   oc_list_add(contexts, ctx);
 
@@ -552,6 +573,8 @@ int oc_oscore_context_derive_param(
                      info, cbor_encoder_get_buffer_size(&e, info),
                      param, param_len);
 }
+
+
 
 #else  
 typedef int dummy_declaration;

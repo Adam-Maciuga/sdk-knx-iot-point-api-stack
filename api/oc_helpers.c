@@ -339,8 +339,7 @@ oc_conv_uint64_to_dec_string(char* str, uint64_t number)
 int
 oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 {
-  char str[21]; // uint64_t decimal number has max 20 numbers + 1 for null
-  // terminator
+  char str[21]; // uint64_t decimal number has max 20 numbers + 1 for null terminator
 
   if (rep == DEC_REPRESENTATION)
     oc_conv_uint64_to_dec_string(str, number);
@@ -494,8 +493,7 @@ oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
   return return_value;
 }
 
-int
-oc_string_is_hex_array(oc_string_t hex_string)
+int oc_string_is_hex_array(oc_string_t hex_string)
 {
   char* array = oc_string(hex_string);
   int array_len = strlen(array);
@@ -540,50 +538,42 @@ size_t oc_char_println_hex(const char* str, size_t str_len)
   return oc_char_print_hex(str, str_len);
 }
 
-int
-oc_string_copy(oc_string_t* string1, oc_string_t string2)
+int oc_string_copy(oc_string_t* string1, oc_string_t string2)
 {
   oc_free_string(string1);
   oc_new_string(string1, oc_string(string2), oc_string_len(string2));
   return 0;
 }
 
-int
-oc_byte_string_copy(oc_string_t* string1, oc_string_t string2)
+int oc_byte_string_copy(oc_string_t* string1, oc_string_t string2)
 {
   oc_free_string(string1);
   oc_new_byte_string(string1, oc_string(string2), oc_byte_string_len(string2));
   return 0;
 }
 
-int
-oc_string_copy_from_char(oc_string_t* string1, const char* string2)
+int oc_string_copy_from_char(oc_string_t* string1, const char* string2)
 {
   oc_free_string(string1);
   oc_new_string(string1, string2, strlen(string2));
   return 0;
 }
 
-int
-oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2,
-                                   size_t string2_len)
+int oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2, size_t string2_len)
 {
   oc_free_string(string1);
   oc_new_string(string1, string2, string2_len);
   return 0;
 }
 
-int
-oc_byte_string_copy_from_char_with_size(oc_string_t* string1,
-                                        const char* string2, size_t string2_len)
+int oc_byte_string_copy_from_char_with_size(oc_string_t* string1, const char* string2, size_t string2_len)
 {
   oc_free_string(string1);
   oc_new_byte_string(string1, string2, string2_len);
   return 0;
 }
 
-int
-oc_string_cmp(oc_string_t string1, oc_string_t string2)
+int oc_string_cmp(oc_string_t string1, oc_string_t string2)
 {
   if (oc_string_len(string1) != oc_string_len(string2))
   {
@@ -593,8 +583,7 @@ oc_string_cmp(oc_string_t string1, oc_string_t string2)
                  oc_string_len(string1));
 }
 
-int
-oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
+int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
 {
   if (oc_byte_string_len(string1) != oc_byte_string_len(string2))
   {
@@ -604,8 +593,7 @@ oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
                 oc_byte_string_len(string1));
 }
 
-int
-oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
+int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
 {
   char* str1 = oc_string(href_string);  // input is href from request payload 
   char* str2 = oc_string(resource_string); // input is application resource URL 
@@ -627,8 +615,7 @@ oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
   return strncmp(cmp1, cmp2, strlen(cmp1));
 }
 
-bool
-oc_uri_contains_wildcard(const char* uri)
+bool oc_uri_contains_wildcard(const char* uri)
 {
   if (uri == NULL)
     return false;

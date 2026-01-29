@@ -2411,7 +2411,7 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
   PRINT("ga (7)     : [");
   for (int i = 0; i < table[entry].ga_len; i++)
   {
-    PRINTF("%04X", table[entry].ga[i]);
+    PRINTF("%04X ", table[entry].ga[i]);
   }
   PRINTF("]");
 

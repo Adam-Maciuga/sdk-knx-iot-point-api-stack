@@ -1612,8 +1612,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     g_pase.it = OC_SPAKE_IT;
     oc_spake_parameter_exchange(g_pase.rnd, g_pase.salt);
 
-    OC_DBG_SPAKE("Rnd:");  OC_LOGbytes_OSCORE(g_pase.rnd, sizeof(g_pase.rnd));
-    OC_DBG_SPAKE("Salt:"); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
+    OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase.rnd, sizeof(g_pase.rnd));
+    OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
     OC_DBG_SPAKE("Iterations: %u", g_pase.it);
 
     #endif 

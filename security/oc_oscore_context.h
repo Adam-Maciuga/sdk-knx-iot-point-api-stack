@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2020 Intel Corporation
 // Copyright (c) 2022-2023 Cascoda Ltd
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,26 +31,6 @@
 extern "C" {
 #endif
 
-/**
- * @brief Replay window type definition
- *
- */
-typedef struct oc_rwin_t
-{
-  /**
-   * @brief Sender Sequence Number
-   */
-  uint64_t ssn;
-  /**
-   * @brief Sender Address, usually the IPv6 source address of the sending
-   * device
-   */
-  uint8_t sender_address[16];
-  /**
-   * @brief  Destination Address, usually an S-mode multicast address
-   */
-  uint8_t destination_address[16];
-} oc_rwin_t;
 
 /**
 
@@ -64,21 +45,21 @@ typedef struct oc_oscore_context_t
   int auth_at_index;                                // access token index from AT table, that was used to decrypt a received message 
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  // OSCORE master secret
   
-  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          // 'Sender ID' (in OSCORE)
+  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          // 'Sender ID' (in OSCORE) / 'kid' (in msg) / osc:id (OSC Profile)
   uint8_t sender_id_len;                            // length
 
-  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // 'Recipient ID' (in OSCORE)
+  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // 'Recipient ID' (in OSCORE) / 'kid' (in msg) / osc:id (OSC Profile)
   uint8_t recipient_id_len;                         // length
 
-  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // 'ID Context' (in OSCORE)
+  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // 'ID Context' (in OSCORE) / 'kid_context' (in msg) / osc:contextid (OSC Profile)
   uint8_t id_context_len;                           // length
 
   uint64_t ssn;                                     // sender sequence number
   oc_clock_time_t last_used;                        // time of last use, for runtime caching of recipient contexts
 
   // derived parameters
-  uint8_t sender_key[OSCORE_KEY_LEN];               // 128-bit sender key 
-  uint8_t recipient_key[OSCORE_KEY_LEN];            // 128-bit recipient key
+  uint8_t request_key[OSCORE_KEY_LEN];              // 128-bit Request Key 
+  uint8_t response_key[OSCORE_KEY_LEN];             // 128-bit Response Key
   uint8_t common_iv[OSCORE_COMMON_IV_LEN];          // Common IV
   
 } oc_oscore_context_t;
@@ -121,7 +102,7 @@ void oc_oscore_free_all_contexts(void);
 /**
  * @brief free all OSCORE sender contexts
  *
- * @note sender context is released only if recipient context is not used
+ * @note releases any context if it is not used as a "Recipient Context"
  *
  */
 void oc_oscore_free_sender_contexts(void);
@@ -189,10 +170,17 @@ oc_oscore_context_t *oc_oscore_find_context_by_token_mid(
   uint8_t *token, uint8_t token_len, uint16_t mid,
   uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
-oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id,
-                                                         size_t oscore_id_len);
+oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id, size_t oscore_id_len);
+
+/**
+ * @brief Print out all present contexts
+ *
+ */
+void oc_context_print_all(void);
+
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_OSCORE_CONTEXT_H */
+#endif
