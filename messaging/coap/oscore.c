@@ -408,16 +408,19 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 	return option_length + header_length;
 }
 
-size_t
-oscore_serialize_plaintext(void* packet, uint8_t* buffer)
+size_t oscore_serialize_plaintext(void* packet, uint8_t* buffer)
 {
 	return coap_oscore_serialize_message(packet, buffer, true, false, true);
 }
 
-size_t
-oscore_serialize_message(void* packet, uint8_t* buffer)
+size_t oscore_serialize_message(void* packet, uint8_t* buffer)
 {
 	return coap_oscore_serialize_message(packet, buffer, false, true, true);
+}
+
+size_t coap_serialize_message(void* packet, uint8_t* buffer)
+{
+  return coap_oscore_serialize_message(packet, buffer, true, true, false);
 }
 
 coap_status_t

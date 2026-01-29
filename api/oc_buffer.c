@@ -21,7 +21,6 @@
 #include "port/oc_network_events_mutex.h"
 #include "util/oc_memb.h"
 #include "messaging/coap/coap.h"
-#include "api/oc_replay.h"
 #include <stdint.h>
 #include <stdio.h>
 #ifdef OC_DYNAMIC_ALLOCATION
@@ -33,7 +32,6 @@
 #include "security/oc_oscore.h"
 #endif 
 #include "messaging/coap/oscore.h"
-
 #include "oc_buffer.h"
 #include "oc_config.h"
 #include "oc_events.h"
@@ -134,14 +132,12 @@ oc_allocate_message(void)
 	return allocate_message(&oc_incoming_buffers);
 }
 
-oc_message_t*
-oc_internal_allocate_outgoing_message(void)
+oc_message_t* oc_internal_allocate_outgoing_message(void)
 {
 	return allocate_message(&oc_outgoing_buffers);
 }
 
-void
-oc_message_add_ref(oc_message_t* message)
+void oc_message_add_ref(oc_message_t* message)
 {
 	if (message)
 	{
@@ -149,8 +145,7 @@ oc_message_add_ref(oc_message_t* message)
 	}
 }
 
-void
-oc_message_unref(oc_message_t* message)
+void oc_message_unref(oc_message_t* message)
 {
 	if (message)
 	{
@@ -183,32 +178,7 @@ void oc_receive_message(oc_message_t* message)
 
 void oc_send_message(oc_message_t* message)
 {
-	/*
-		We only want to cache OSCORE-secured requests, as these frames are the
-	  only ones that will be challenged with an Echo option. However, at this
-	  point we only have the encoded CoAP bytes, so we parse just the header and token.   
-	
-	  Deserialize it from *data ptr
-		- version = 1 (fix),
-		- type = NON (0=CON,1=NON,ACK=2,RST=3),
-		- code = 3-bit CLASS (0..7)/ 5-bit DETAIL (0..31) = code >> 5 = REQUEST as GET/PUT/POST/DELETE/FETCH (+ empty message)
-		- flags = OSCORE
-     
-    */
-	uint8_t version = (COAP_HEADER_VERSION_MASK & message->data[0]) >> COAP_HEADER_VERSION_POSITION;
-	uint8_t type = (COAP_HEADER_TYPE_MASK & message->data[0]) >> COAP_HEADER_TYPE_POSITION;
-	uint8_t code = message->data[1];
-	uint8_t* token = message->data + COAP_HEADER_LEN;
-  uint8_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & message->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
-	
-	if (version == 1 && type == COAP_TYPE_NON && code >> 5 == 0 && message->endpoint.flags & OSCORE)
-	{
-	  // here we track the message MUST BE ... a non-confirmable OSCORE request ....
-	  OC_DBG_OSCORE("track outgoing OSCORE NON-confirmable s-mode (uc/mc) message");
-	  oc_replay_message_track(message, token_len, token);
-	}
-
-	// forward message (any type such as plain/ secured, CON request, ... )
+  // forward message (any type such as plain/ secured, CON/NON request, ... )
 	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT],	message) == OC_PROCESS_ERR_FULL)
 	{
 		OC_ERR("oc_send_message ref_count decrease due to FULL");
@@ -258,7 +228,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
 		  oc_message_t* message = (oc_message_t*)data;
 
 		  /*
-		    1. handle OSCORE (mc/uc) messages first, encrypt the outgoing message before sending it (pass to OSCORE)
+		    1. handle OSCORE (mc/uc) s-mode messages first, encrypt the outgoing message before sending it (pass to OSCORE)
 				2. handle PLAIN (multicast) discovery messages as a second step
 
 		  */

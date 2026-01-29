@@ -1111,19 +1111,21 @@ extern "C"
                             int* p_len);
 
   /**
-   * @brief initialize an s-mode message (to be sent out)  by allocating a static buffer
+   * @brief initialize an s-mode request message by allocating a static buffer AND
+   *        assigning path, message type CON/NON, new token/ new mid
    *
-   * @param s_mode_message the endpoint to be used
+   *
+   * @param s_mode_message_ep the endpoint to be used
    * @param uri the uri to be used
-   * @param non_confirmable non confirmable (true) or confirmable (false) message  
+   * @param non_confirmable non confirmable (true) or confirmable (false) message, used by mc (true) or uc 
    * 
    * @return true
    * @return false
    */
-  bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message, const char* uri, bool non_confirmable);
+  bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable);
 
   /**
-   * @brief initialize a well-known message (to be sent out)  by allocating a static buffer
+   * @brief initialize a well-known request message by allocating a static buffer  
    *
    * @param well_known_message the endpoint to be used
    * @param uri the uri to be used
@@ -1138,7 +1140,7 @@ extern "C"
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        an s-mode message
+   *        an s-mode request message by creating an s-mode transaction and sending it out ny 'send_transaction'
    *
    * @return true
    * @return false
@@ -1147,7 +1149,7 @@ extern "C"
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
-   *        a well-known message
+   *        a well-known message 
    *
    * @return true
    * @return false

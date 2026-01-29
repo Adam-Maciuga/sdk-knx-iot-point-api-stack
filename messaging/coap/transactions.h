@@ -72,28 +72,30 @@ extern "C" {
    @brief Container for transactions with message buffer and retransmission info
 
    @note
-   - a transaction is an individual CON/NON request/response cycle
-   - an example is a CON/NON read/response cycle
+   - a transaction is an individual CON/NON request/response cycle (example read/response cycle)
+   - messages without token uses the MID such as an empty ACK response of CON message type MAY not carry a token, see CoAP RFC, Figure 20
+   - messages with token
  */
 typedef struct coap_transaction
 {
   struct coap_transaction *next; 
 
-  uint16_t mid;
+  uint16_t mid; // transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
   uint8_t token_len;
-  uint8_t token[COAP_TOKEN_LEN];  
-  struct oc_etimer retrans_timer; 
-  uint8_t retrans_counter;        // 0 = initial message, no retransmission started 
+  uint8_t token[COAP_TOKEN_LEN]; // application level: a client matches a request with a response 
+  struct oc_etimer retransmit_timer; 
+  uint8_t retransmit_counter; // 0 = initial message, no retransmission started 
   oc_message_t *message;
 
 } coap_transaction_t;
 
 void coap_register_as_transaction_handler(void);
 
-  // starting an own transaction
-coap_transaction_t *coap_new_transaction(uint16_t mid, 
-                                         uint8_t *token, uint8_t token_len,
-                                         oc_endpoint_t *endpoint);
+// starting a common CoAP transaction
+coap_transaction_t *coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t *endpoint);
+
+// starting a specific s-mode transaction that init a timeout without sending + copy message data (uses common CoAP transaction)
+coap_transaction_t* coap_new_transaction_and_send_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
 
 void coap_send_transaction(coap_transaction_t *t);
 void coap_clear_transaction(coap_transaction_t *t);
@@ -108,4 +110,4 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint);
 }
 #endif
 
-#endif /* TRANSACTIONS_H */
+#endif 

@@ -249,7 +249,7 @@ extern "C" {
   #define OC_LOGbytes(bytes, length)                            \
     do {                                                        \
       for (uint16_t i = 0; i < (length); i++)                   \
-        PRINTF("%02X", (bytes)[i]);                             \
+        PRINTF("%02d", (bytes)[i]);                             \
     } while (0)
 
 #else

@@ -55,8 +55,8 @@ void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb);
 oc_message_t *oc_allocate_message_from_pool(struct oc_memb *pool);
 
 /**
- * @brief allocate message
- * internal function
+ * @brief allocate a message from message pool, allocate message 'data' 
+ *        buffer (with MTU size) and clears it with '0'
  *
  * @return oc_message_t* the CoAP message
  */
@@ -70,9 +70,9 @@ oc_message_t *oc_internal_allocate_outgoing_message(void);
 void oc_message_add_ref(oc_message_t *message);
 
 /**
- * @brief remove (decrease) reference (for tracking in use)
- *
- * @note in case of reference count is '0' the data ptr + pool ptr are memory wise released (but not the message as such) 
+ * @brief remove (decrease) reference (for tracking in use), in case of reference count 
+ *        is '0' the data ptr + pool ptr are memory wise released 
+ *        (but not the message as such) 
  *
  * @param message the message
  */

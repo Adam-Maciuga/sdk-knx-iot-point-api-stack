@@ -72,44 +72,6 @@ void oc_oscore_free_all_replay_records(void);
 replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
 
 /**
- * @brief Mark a message to be retained for retransmission
- *
- * The message is retained using a soft reference - it will not be freed unless
- * the stack runs out of buffers, or after a timeout.
- *
- * If static message buffers are used, this can lead to a constrained client
- * having to drop messages that are otherwise preserved for echo
- * retransmissions, if many requests are being sent out in a short period of
- * time.
- *
- * Messages that need to be retransmitted are identified by the token of 4.01
- * Unauthorised requests with an Echo option which must be included in the
- * retransmitted request.
- *
- * @param msg the message to be retained
- * @param token_len the length of the message's token
- * @param token the token, used for identifying the message
- */
-void oc_replay_message_track(struct oc_message_s *msg, uint16_t token_len, const uint8_t *token);
-
-/**
- * @brief untrack a message that was previously marked to track
- *
- * @param msg pointer to the message buffer
- */
-void oc_replay_message_untrack(struct oc_message_s *msg);
-
-/**
- * @brief Find a previously tracked message by token
- *
- * @param token Token pointer used to identify the message
- * @param token_len Length of the token
- *
- * @return struct oc_message_s*
- */
-struct oc_message_s* oc_replay_find_msg_by_token(const uint8_t* token, uint16_t token_len);
-
-/**
  * @brief Get the first available (not used) record
  *
  * @return oc_replay_record*
@@ -120,4 +82,4 @@ static struct oc_replay_record *get_empty_record(void);
 }
 #endif
 
-#endif // OC_REPLAY_H
+#endif

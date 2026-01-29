@@ -99,35 +99,43 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 // a duplicate.
 #define OC_REQUEST_HISTORY_SIZE (75)
 
-// current history entry index (auto init with 0)
-static uint8_t idx;
-
-static struct
-{
-	uint16_t mid;
-	uint16_t port;
-	uint8_t address[16];
-} history[OC_REQUEST_HISTORY_SIZE];
 
 #ifndef OC_ECHO_FRESHNESS_TIME
 #define OC_ECHO_FRESHNESS_TIME (10 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 #endif
 
-bool oc_coap_check_if_duplicate(uint16_t mid, uint16_t port, uint8_t address[16])
+bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t port, uint8_t address[16])
 {
-  OC_DBG("checking messages on duplicates ...");
+  // current history entry index (auto init with 0)
+  static uint8_t idx;
 
-	for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
+	static struct
+  {
+    uint16_t mid;
+    uint16_t port;
+    uint8_t address[16];
+  } history[OC_REQUEST_HISTORY_SIZE];
+  
+  for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
 	{
 		if (history[i].mid == mid && 
 				history[i].port == port && 
 				memcmp(history[i].address, address, 16) == 0)
 		{
-      OC_DBG("dropping message, is duplicate with message ID: %d, history[%d]", mid, (int)i);
+      OC_DBG("checking messages on duplicates (mid/port/ipv6) -> dropping message, is duplicate with message ID: %d, history[%d]", mid, (int)i);
 			return true;
 		}
 	}
   
+	// no duplicate, it is usually the first received message, update the history entry
+  history[idx].mid = mid;
+  history[idx].port = port;
+  memcpy(history[idx].address, address, 16);
+
+  // roll over id from 0...74
+  idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
+
+  OC_DBG("checking messages on duplicates (mid/port/ipv6) -> fresh message, is now registered ...");
 	return false;
 }
 #endif
@@ -280,23 +288,16 @@ int coap_receive(oc_message_t* incoming_message)
 
 	if (coap_status_code == COAP_NO_ERROR)
 	{
-		/*
-		Inbound message, here it can be a request or response. An echo should be defined for:
-		- 1 NON multicast (track buffer)   
-		- 2 CON unicast s-mode (transaction buffer)
-    - 3 NON unicast s-mode (track buffer)    
-		- 4 CON unicast configuration (transaction buffer)
-
-    */
 
 	  bool block2 = false;
 		bool block1 = false;
 
     #ifdef OC_DEBUG
 
-		OC_DBG("parsed: CoAP version: %u, (first 2 bytes) token: 0x%02X%02X ..., mid: %u",
+		OC_DBG("parsed: CoAP version: %u, token: 0x%02X%02X%02X%02X%02X%02X%02X%02X , mid: %u",
 					 incoming_coap_message->version, 
-					 incoming_coap_message->token[0], incoming_coap_message->token[1], 
+           incoming_coap_message->token[0], incoming_coap_message->token[1], incoming_coap_message->token[2], incoming_coap_message->token[3],
+           incoming_coap_message->token[4], incoming_coap_message->token[5], incoming_coap_message->token[6], incoming_coap_message->token[7], 
 					 incoming_coap_message->mid);
 
 		switch (incoming_coap_message->type)
@@ -337,218 +338,34 @@ int coap_receive(oc_message_t* incoming_message)
 		block2_size = MIN(block2_size, (uint16_t) OC_BLOCK_SIZE);
 		#endif 
 
-		#ifdef OC_TCP
-		if (!(incoming_message->endpoint.flags & TCP))
-		#endif 
-		{
+    #ifdef OC_TCP
+    if (!(incoming_message->endpoint.flags & TCP))
+    #endif
+    {
 
-			// TODO check if this transaction topic can be moved to receive part below
+      /* 
+				Transaction CHECK must be on this code position to set a value, since it lasts "beyond" the call (on reenter the method, the content is not cleared), 
+				it searches by matching mid* or token** 
+        
+         *assume inbound request of a former outbound request, check by INBOUND mid ...
+          - messages without token
+          - an empty ACK response of CON message type MAY not carry a token, see CoAP RFC, Figure 20
+          - a blockwise transport
 
-			// TODO on server side , do not send an answer on a re-request from client (see spec figure 26, (3) -> (4)
+         **assume inbound request of a former outbound request, check by INBOUND token ...
+          - messages with token
+          - response from extern, check match with beforehand send out request
+            (token matches in piggybacked and separate responses)
 
-			// assume inbound request of a former outbound request, check by INBOUND mid ...
-			// - messages without token
-			//   - an ACK response of CON message type MAY not carry a token, see CoAP RFC, Figure 20
-			//   - a blockwise transport 
-		  transaction = coap_get_transaction_by_mid(incoming_coap_message->mid);
-
-			/*
-			   assume inbound request of a former outbound request, check by INBOUND token ...
-			   - messages with token
-			   - response from extern, check match with beforehand send out request
-			     (token matches in piggybacked and separate responses)
       */
-		  if (!transaction)
-				transaction =	coap_get_transaction_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
 
-			// if transaction is present by mid or token (device still knows the old message since it has a transaction open)
-		  if (transaction)
-			{
-				#ifdef OC_CLIENT
-				/*
-				   Transaction present
-				   - retransmits messages for which we have a transaction (= client requests, e.g, CLIENT is active)
-				     - inserts an echo challenge
-				     - send as unicast acknowledged request
-				   - transaction was registering CON + NON requests (NON = multicast S-Mode messages)
-             -> CON + NON messages will be found HERE 
-        */
+      // * above
+      transaction = coap_get_transaction_by_mid(incoming_coap_message->mid);
 
-		    uint8_t echo_value[COAP_ECHO_LEN];
-				size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
-
-				// incoming echo response (here we are on client side)
-		    if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
-				{
-					OC_DBG("received 4.01 echo response FROM TRANSACTION, sending echo re-request ...");
-
-					// parse the transaction message
-		      coap_packet_t re_request_packet[1];
-					coap_udp_parse_message(re_request_packet, transaction->message->data, transaction->message->length);
-
-					// find a POSSIBLE created client callback by using old mid (before increasing mid)
-					client_cb = oc_ri_find_client_cb_by_mid(re_request_packet->mid);
-
-					// copy the echo from the unauthorised response into the new request
-					coap_set_header_echo(re_request_packet, echo_value, echo_len);
-
-					// sets 8 byte NEW random token, actual message token size may be less than 8
-					// real msg token len decides how many token bytes are used from that 8 bytes
-					unsigned int a = oc_random_value(); memcpy(re_request_packet->token + 0, &a, sizeof(a));
-          unsigned int b = oc_random_value(); memcpy(re_request_packet->token + 4, &b, sizeof(b));
-
-		      // get next mid
-		      re_request_packet->mid = coap_get_next_mid();
-
-					// TODO refreshed payload to be included
-					
-
-		      // re-request has no OSCORE payload, only 10 byte echo challenge
-          UNSET_OPTION(re_request_packet, COAP_OPTION_OSCORE);
-
-					if (client_cb)
-          {
-            // a little bit naughty, modify the old client callback to refer to the new echo re-request packet
-            client_cb->mid = re_request_packet->mid;
-            client_cb->token_len = re_request_packet->token_len;
-            memcpy(client_cb->token, re_request_packet->token, re_request_packet->token_len);
-          }
-
-					// assign original message (most copy task is done inside the method)
-					// note, the by the transaction found original request msg is used (not the inbound msg) 
-					coap_transaction_t* new_transaction = coap_new_transaction(re_request_packet->mid, re_request_packet->token, re_request_packet->token_len, &transaction->message->endpoint);
-		      new_transaction->message->length = coap_oscore_serialize_message(re_request_packet, new_transaction->message->data, true, true,	true);
-
-					// re-requests must always be unicast, so reset mc flag
-          UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST);
-
-          // use 4.01 source as re-request destination
-          new_transaction->message->endpoint.addr = incoming_message->endpoint.addr;
-          new_transaction->message->endpoint.addr_local = incoming_message->endpoint.addr_local;
-
-		      if (new_transaction->message->length > 0)
-					{
-            OC_DBG("retransmitting with included echo option, by using new transaction ...");
-		        coap_send_transaction(new_transaction);
-					}
-          else
-            // on to less payload free transaction 
-						coap_clear_transaction(new_transaction);
-
-					// also in case of not send out re-request message,
-					// drop (old) transaction message tracking (new transaction is already registered)
-		      coap_clear_transaction(transaction);
-
-					// stop further processing on re-request message
-          return 0;
-				}
-				#endif
-
-		    /*
-		       clear transaction after a received 'coap_no_error' confirmation for CON message type,
-		       (we are in coap receive + present transaction), except on an inbound 4.01 + echo
-        */
-				coap_clear_transaction(transaction);
-        transaction = NULL;
-			}
-			else
-			{
-        /*
-				   Transaction NOT present
-           - retransmits messages for which we have a token
-             - inserts an echo challenge
-				     - send as unicast acknowledged request
-           - replay tracking was registering only NON requests (NON = multicast s-mode messages)
-             -> NON messages will be found HERE
-
-        */
-
-			  uint8_t echo_value[COAP_ECHO_LEN];
-				size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
-
-				oc_message_t* original_message = NULL;
-
-				// received echo challenge from extern WITH echo
-			  if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
-				{
-          OC_DBG("received unauthorised response with echo option FROM TOKEN, sending re-request with included echo...");
-
-			    // find original (usually s-mode POST /k ) message in record list and retransmit
-					// note it is used the by the token found original request msg (not the inbound msg) 
-          original_message = oc_replay_find_msg_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
-					if (original_message)
-					{
-						// parse the original message (just like the same as we would have a transaction message)
-						coap_packet_t re_request_packet[1];
-						coap_udp_parse_message(re_request_packet, original_message->data, original_message->length);
-
-						// find a POSSIBLE created client callback by using old mid (before increasing mid)
-            client_cb = oc_ri_find_client_cb_by_mid(re_request_packet->mid);
-
-					  // copy the echo from the unauthorised response into the new request
-						coap_set_header_echo(re_request_packet, echo_value, echo_len);
-
-						// sets 8 byte NEW random token, actual message token size may be less than 8
-					  // real msg token len decides how many token bytes are used from that 8 bytes
-					  unsigned int a = oc_random_value(); memcpy(re_request_packet->token + 0, &a, sizeof(a));
-            unsigned int b = oc_random_value(); memcpy(re_request_packet->token + 4, &b, sizeof(b));
-
-					  // get next mid
-            re_request_packet->mid = coap_get_next_mid();
-
-
-						// TODO refreshed payload to be included 
-
-					  // re-request has no OSCORE payload, only 10 byte echo challenge
-            UNSET_OPTION(re_request_packet, COAP_OPTION_OSCORE);
-
-            if (client_cb)
-            {
-              // a little bit naughty - modify the old client callback to refer to the new (retransmitted) packet
-              client_cb->mid = re_request_packet->mid;
-              client_cb->token_len = re_request_packet->token_len;
-              memcpy(client_cb->token, re_request_packet->token, re_request_packet->token_len);
-            }
-
-						// add reference to original message so that it is not freed while we still need it
-						oc_message_add_ref(original_message);
-
-						// assign original message
-            // note, the by the token found original request msg is used(not the inbound msg)
-						oc_message_t* re_request_message =	oc_internal_allocate_outgoing_message();
-						re_request_message->endpoint = original_message->endpoint;
-						re_request_message->length = coap_oscore_serialize_message(re_request_packet, re_request_message->data, true, true, true);
-
-            // re-requests must always be unicast, so reset mc flag
-            UNSET_BIT(re_request_message->endpoint.flags, MULTICAST);
-
-            // use 4.01 source as re-request destination
-            re_request_message->endpoint.addr = incoming_message->endpoint.addr;
-            re_request_message->endpoint.addr_local = incoming_message->endpoint.addr_local;
-
-					  if (re_request_message->length > 0)
-            {
-              OC_DBG("retransmitting with included echo option, by NOT using transaction ...");
-						  coap_send_message(re_request_message);
-            }
-
-						// stop further processing on re-request message
-            return 0;
-					}
-
-			    // need to retransmit but no longer have original message, just drop incoming request
-					OC_ERR("could not find the original request (by token) for the response with echo, dropping it!");
-					return 0;
-				}
-
-		    /*
-		      clear message after a received 'coap_no_error' confirmation for NON message type
-		      (we are in coap receive + present track message),
-		    // except on an inbound 4.01 + echo
-        */
-        oc_replay_message_untrack(original_message);
-			}
-		}
+      // ** above
+      if (!transaction)
+        transaction = coap_get_transaction_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
+    }
 
 		if (incoming_coap_message->code >= COAP_GET && incoming_coap_message->code <= COAP_DELETE)
 		{ // handle inbound requests (SERVER SIDE)
@@ -591,15 +408,16 @@ int coap_receive(oc_message_t* incoming_message)
 			{
 				if (incoming_coap_message->type == COAP_TYPE_CON)
 				{
-          // CON -> prepare response as ACK with same mid 
+          // CON -> PREPARE (not send) a possible response with type ACK + same mid 
 				  coap_udp_init_message(outgoing_coap_response, COAP_TYPE_ACK, CONTENT_2_05, incoming_coap_message->mid);
 				}
 				else
 				{
           // NON -> check on duplicates
+
 				  #ifdef OC_REQUEST_HISTORY
 
-					if (oc_coap_check_if_duplicate(
+					if (oc_coap_check_if_duplicate_and_if_not_add_to_history(
 						incoming_coap_message->mid,
 						incoming_message->endpoint.addr.ipv6.port,
 						incoming_message->endpoint.addr.ipv6.address))
@@ -607,16 +425,9 @@ int coap_receive(oc_message_t* incoming_message)
 						return 0;
 					}
 
-					// no duplicate, update history entry
-					history[idx].mid = incoming_coap_message->mid;
-					history[idx].port = incoming_message->endpoint.addr.ipv6.port;
-					memcpy(history[idx].address, incoming_message->endpoint.addr.ipv6.address, 16);
-
-					// roll over id from 0...74
-				  idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
 					#endif 
 
-					// NON -> prepare response as NON with increases mid
+					// NON -> PREPARE (not send) a possible response with type NON + increases mid
 					coap_udp_init_message(outgoing_coap_response, COAP_TYPE_NON, CONTENT_2_05, coap_get_next_mid());
 				}
 			}
@@ -624,12 +435,12 @@ int coap_receive(oc_message_t* incoming_message)
 			bool is_myself = false;
 
 			/*
-			  check if incoming message is from myself,
+			  check if incoming message is from myself by checking the endpoint,
 			  - yes : return with bad request
 				- no : continue
 
-        Note that many 'message payload' identical requests may pop up here,
-        it depends on how many endpoints (IP addresses) are registered.  
+        Note that many 'message payload' identical requests may pop up here, it depends on how many endpoints (IP addresses) are registered  
+				(and if the loopback network adapter is used).
       */
 			for (oc_endpoint_t* ep_i = oc_connectivity_get_endpoints(); ep_i; ep_i = ep_i->next)
 			{
@@ -637,44 +448,47 @@ int coap_receive(oc_message_t* incoming_message)
 				{
 					if (incoming_message->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port)
 					{
-						OC_DBG("declining message ... (same address and port)");
+            OC_DBG("checking messages on duplicates (endpoint/port) -> dropping message, same endpoint and port");
 						is_myself = true;
 					}
           #ifdef OC_DEBUG
           else
           {
-            OC_DBG("accepting message ... ");
+            OC_DBG("checking messages on duplicates (endpoint/port) -> accepting message for endpoint ");
             PRINTipaddr(*ep_i);
           }
           #endif
 				}
 			}
 
-			#if defined(OC_REPLAY_PROTECTION) && defined(OC_OSCORE)
+		  /*
+           Server 
+
+           S1 Replay check, sending a 'unicast echo response' with an echo option
+           S2 receiving a 'unicast echo re-request' and checking whether the echo option included in is fresh enough
+
+        */
+		  
+		  #ifdef OC_REPLAY_PROTECTION
 
 			if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
 			{
-
-				oc_string_t kid = { 0 };     // init default kid 
-				oc_string_t kid_ctx = { 0 }; // init default kid_context
-				uint64_t ssn;                // piv -> ssn
-
-				// fill kid/kid context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
-				oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
-        oc_new_byte_string(&kid_ctx, (char*)incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
-				oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
-
-				replay_state_t sync_state = oc_replay_check_client(ssn, kid, kid_ctx);
-
-				/*
-				   Server-side logic for:
-				   - sending a 'unicast echo response' with an echo option
-				   - receiving a 'unicast echo re-request' and checking whether the echo option included in is fresh enough
-				*/
-
 				if (!is_myself) // message is not an own loopback response 
 				{
-					if (sync_state != SYNCED)
+					// S1
+
+				  oc_string_t kid = {0};			// init default kid
+          oc_string_t kid_ctx = {0};	// init default kid_context
+          uint64_t ssn;								// piv -> ssn
+
+          // fill kid/kid context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
+          oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
+          oc_new_byte_string(&kid_ctx, (char*)incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
+          oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
+
+          replay_state_t sync_state = oc_replay_check_client(ssn, kid, kid_ctx);
+				  
+				  if (sync_state != SYNCED)
 					{
 						/*
 						   external client is not synchronised, can be:
@@ -692,7 +506,7 @@ int coap_receive(oc_message_t* incoming_message)
 							{
 								OC_DBG("Regular (uc/mc) request from unsycned client, sending 4.01 Echo Response");
 
-							  // send 'echo response' -> NO PAYLOAD
+							  // send 'unicast echo response' -> NO PAYLOAD
                 // -> multicast : unicast 4.01 with response sender context (there can be many responses from many receivers)
                 // -> unicast   : unicast 4.01 with response sender context 
 								coap_send_response_with_empty_payload(
@@ -706,6 +520,7 @@ int coap_receive(oc_message_t* incoming_message)
 								// server sends out a response, no own transaction is needed
                 // can handle NULL pointer ...
                 coap_clear_transaction(transaction);
+                transaction = NULL;
 
 								return UNAUTHORIZED_4_01;
 							}
@@ -727,8 +542,9 @@ int coap_receive(oc_message_t* incoming_message)
 
 								// can handle NULL pointer ...
 								coap_clear_transaction(transaction);
-
+                transaction = NULL;
 								return UNAUTHORIZED_4_01;
+
 							}
 						}
 						else
@@ -753,7 +569,7 @@ int coap_receive(oc_message_t* incoming_message)
 								// server sends out a response, no own transaction is needed
 								// can handle NULL pointer ...
                 coap_clear_transaction(transaction);
-
+                transaction = NULL;
 								return BAD_OPTION_4_02;
 							}
 
@@ -787,6 +603,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 								// server sends out a response, no own transaction is needed, can handle NULL pointer ...
                 coap_clear_transaction(transaction);
+                transaction = NULL;
 
 								OC_ERR("Stale request from unsycned client, sending 4.01 Echo Response");
 								return UNAUTHORIZED_4_01;
@@ -803,9 +620,122 @@ int coap_receive(oc_message_t* incoming_message)
           // client is synchronised, SSNs updated 
 				}
 			}
-			#endif
+			
+		  #endif
 
-			// TODO block wise transfer has also token ... why it is not set here 
+			// TODO on server side , do not send an answer on a re-request from client (see spec figure 26, (3) -> (4)
+		  
+		  /*
+         S2
+
+         Inbound request messages:
+         (1) NON multicast s-mode
+         (2) NON unicast s-mode
+         (3) CON unicast s-mode
+         (4) CON unicast configuration
+
+
+         Transaction IS NOT present
+         (c) pass through
+
+         Transaction IS present --> by matching mid* or token**, there must be a previous outbound request message we
+         know since it is tracked here, options:
+
+         (a) (2) or (3) + 4.01 + echo = a 'unicast echo response', return with a subsequent 'unicast echo re-request'
+         (b) (2) or (3) + 2.xx = a unicast CON message, clear the matching 'transaction' message due to a 'coap_no_error' confirmation received
+      */
+			
+		  if (transaction)
+      {
+        #ifdef OC_CLIENT
+
+        uint8_t echo_value[COAP_ECHO_LEN];
+        size_t echo_len = coap_get_header_echo(incoming_coap_message, echo_value);
+
+        // incoming 'unicast echo response' (here we 'play' client side)
+        if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
+        { // (a)
+          OC_DBG("received 4.01 echo response FROM TRANSACTION, sending echo re-request ...");
+
+          // parse the stored transaction message + data and copy to 'unicast echo re-request'
+          coap_packet_t re_request_coap_packet[1];
+          coap_udp_parse_message(re_request_coap_packet, transaction->message->data, transaction->message->length);
+
+          // find a POSSIBLE created client callback by using old mid (before increasing mid)
+          client_cb = oc_ri_find_client_cb_by_mid(re_request_coap_packet->mid);
+
+          // copy the echo from the 'unicast echo response' into the new 'unicast echo re-request'
+          coap_set_header_echo(re_request_coap_packet, echo_value, echo_len);
+
+          // sets 8 byte NEW random token, actual message token size may be less than 8
+          // real msg token len decides how many token bytes are used from that 8 bytes
+          unsigned int a = oc_random_value(); memcpy(re_request_coap_packet->token + 0, &a, sizeof(a));
+          unsigned int b = oc_random_value(); memcpy(re_request_coap_packet->token + 4, &b, sizeof(b));
+
+          // get next mid
+          re_request_coap_packet->mid = coap_get_next_mid();
+
+          // TODO refreshed payload to be included
+
+          // re-request has no OSCORE payload, 10 byte echo challenge
+          UNSET_OPTION(re_request_coap_packet, COAP_OPTION_OSCORE);
+
+          if (client_cb)
+          {
+            // a little bit naughty, modify the old client callback to refer to the new 'unicast echo re-request' packet
+            client_cb->mid = re_request_coap_packet->mid;
+            client_cb->token_len = re_request_coap_packet->token_len;
+            memcpy(client_cb->token, re_request_coap_packet->token, re_request_coap_packet->token_len);
+          }
+
+          // create new transaction from original (transaction'ized) s-mode message (not the inbound message)
+          coap_transaction_t* new_transaction =
+            coap_new_transaction(re_request_coap_packet->mid, re_request_coap_packet->token,
+                                 re_request_coap_packet->token_len, &transaction->message->endpoint);
+
+          if (new_transaction)
+          {
+            // fill transaction with prepared coap data
+            new_transaction->message->length =
+              coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
+
+            // re-requests must always be unicast, so reset mc flag
+            UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST);
+
+            // use 4.01 inbound source as 'unicast echo re-request' outbound destination
+            new_transaction->message->endpoint.addr = incoming_message->endpoint.addr;
+            new_transaction->message->endpoint.addr_local = incoming_message->endpoint.addr_local;
+
+            if (new_transaction->message->length > 0)
+            {
+              OC_DBG("retransmitting original s-mode message with included echo option AS unicast");
+              coap_send_transaction(new_transaction);
+            }
+            else
+            {
+              // on to less payload free transaction
+              coap_clear_transaction(new_transaction);
+            }
+
+            // also in case of not send out 'unicast echo re-request' message, drop (old) s-mode message transaction tracking
+            // (new transaction is already registered)
+            coap_clear_transaction(transaction);
+            transaction = NULL;
+
+            // stop further processing on 'unicast echo re-request' message
+            return 0;
+          }
+        }
+
+        #endif
+
+        // (b)
+        OC_DBG("kill transaction for s-mode message (due to a 'coap_no_error' confirmation received)");
+        coap_clear_transaction(transaction);
+        transaction = NULL;
+      }
+		  
+		  // TODO block wise transfer has also token ... why it is not set here 
 		  // create transaction for (block-wise?) response
 			transaction = coap_new_transaction(outgoing_coap_response->mid, NULL, 0, &incoming_message->endpoint);
 
@@ -915,9 +845,9 @@ int coap_receive(oc_message_t* incoming_message)
 					{
 						// UDP transfer can duplicate messages and we want to avoid
 						// terminate BWT, so we drop the message.
-						OC_DBG("dropped message because message was already provided for "
-									 "block2");
+						OC_DBG("dropped message because message was already provided for block2");
 						coap_clear_transaction(transaction);
+            transaction = NULL;
 						return 0;
 					}
 
@@ -1177,7 +1107,7 @@ int coap_receive(oc_message_t* incoming_message)
 			}
 		}
 		else
-		{ // handle inbound responses (SERVER SIDE)
+		{ // handle inbound responses al la 2.05, 2.04, ...(SERVER SIDE)
 
 			#ifdef OC_DEBUG
 
@@ -1230,7 +1160,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 			if (incoming_coap_message->type == COAP_TYPE_CON)
 			{
-        // coap empty ack  
+        // return coap empty ack  
 			  coap_send_response_with_empty_payload(COAP_TYPE_ACK, 
 																 incoming_coap_message->mid, 
 																 NULL, 0, 
@@ -1514,6 +1444,7 @@ send_message:
 	if (coap_status_code == CLEAR_TRANSACTION)
 	{
 		coap_clear_transaction(transaction);
+    transaction = NULL;
 	}
 	else if (transaction)
 	{
@@ -1573,6 +1504,7 @@ send_message:
 		else
 		{
 			coap_clear_transaction(transaction);
+      transaction = NULL;
 		}
 	}
 

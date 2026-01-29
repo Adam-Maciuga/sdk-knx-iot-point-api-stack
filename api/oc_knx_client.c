@@ -135,6 +135,8 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
 
+  PRINT("Sending s-mode unicast %c", service_type);
+
   // send unicast message (confirmable or non-confirmable)
   oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient->non);
   
@@ -153,7 +155,7 @@ void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t gr
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  PRINT("Sending non-confirmable multicast %c", service_type);
+  PRINT("Sending s-mode multicast %c", service_type);
 
   // send non-confirmable message
   oc_issue_s_mode_message(&group_mcast_endpoint, "/k", group_address, service_type, value_data, value_size, true);

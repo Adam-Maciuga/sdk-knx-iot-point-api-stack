@@ -1209,12 +1209,12 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 		return 0;
 	}
 
-	coap_packet_t* const coap_pkt = packet;	// second local ptr copy
-	uint8_t* option;												// ptr to all options 
-	uint8_t token_location = 0;							// location in coap telegram
+	coap_packet_t* const coap_pkt = (coap_packet_t*) packet; 
+	uint8_t* option;						// ptr to all options 
+	uint8_t token_location = 0;	// location in coap telegram
 
 	// init 
-	coap_pkt->buffer = buffer;							// is a ptr copy from org EP data
+	coap_pkt->buffer = buffer;	// is a ptr copy from org endpoint data
 	coap_pkt->version = 1;
 
 	// CoAP header option serialize first to know total length about options 
@@ -1320,13 +1320,13 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
     #endif
 
-		// here the options starts
+		// here the token starts
 		option = coap_pkt->buffer + token_location;
 
 		// depending on token size add 1...n token parts
 		for (unsigned int current_number = 0; current_number < coap_pkt->token_len; current_number++)
 		{
-			// use option ptr to add token and shift option to the right 
+			// use option ptr to add token and shift option memory location to the right 
 			*option = coap_pkt->token[current_number];
 			option++;
 		}
@@ -1397,19 +1397,16 @@ void coap_send_message(oc_message_t* message)
 	}
 	#endif 
 
-	OC_DBG("sending message (%u)", (unsigned int) message->length);
+	OC_DBG("sending CoAP message by forwarding it to the OSCORE layer (%u)", (unsigned int) message->length);
 
 	oc_send_message(message);
 }
 
-size_t coap_serialize_message(void* packet, uint8_t* buffer)
-{
-	return coap_oscore_serialize_message(packet, buffer, true, true, false);
-}
+
 
 coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_len)
 {
-	coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
   // wipe CoAP packet
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
@@ -1452,13 +1449,9 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 
 	// parse inner and outer, on present OSCORE option ... = 4.02 (here the OSCORE payload must be already extracted) 
 	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
-	if (ret != COAP_NO_ERROR)
-	{
-		OC_ERR("coap_oscore_parse_options failed! %d", ret);
-		return ret;
-	}
 
-	return COAP_NO_ERROR;
+	OC_INF("coap oscore parse options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+  return ret;
 }
 /*---------------------------------------------------------------------------*/
 #ifdef OC_TCP
@@ -2098,7 +2091,7 @@ uint32_t coap_get_payload(void* packet, const uint8_t** payload)
 
 uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length)
 {
-	coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
 	coap_pkt->payload = payload;
 

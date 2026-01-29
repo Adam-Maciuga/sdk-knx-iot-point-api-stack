@@ -57,18 +57,12 @@
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif /* OC_BLOCK_WISE */
+#endif 
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
-#endif /* OC_CLIENT */
+#endif 
 
-//#ifdef OC_SECURITY
-#ifdef OC_OSCORE
-#include "security/oc_tls.h"
-#endif
-
-/*---------------------------------------------------------------------------*/
 OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
 OC_LIST(transactions_list);
 
@@ -82,43 +76,74 @@ void coap_register_as_transaction_handler(void)
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-
-coap_transaction_t * coap_new_transaction(uint16_t mid, 
-                                          uint8_t *token, uint8_t token_len, 
-                                          oc_endpoint_t *endpoint)
+coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t* endpoint)
 {
-  coap_transaction_t *t = oc_memb_alloc(&transactions_memb);
-  if (t) {
+  coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
+  if (t) 
+  {
+    // cleared buffers
     t->message = oc_internal_allocate_outgoing_message();
-    if (t->message) {
-      OC_DBG("Created new transaction %u: %p", mid, (void *)t);
+    if (t->message) 
+    {
+      OC_DBG("created new transaction %u: %p", mid, (void *)t);
+      
       t->mid = mid;
-      if (token_len > 0) {
-        memcpy(t->token, token, token_len);
-        t->token_len = token_len;
-      }
-      t->retrans_counter = 0;
+      t->retransmit_counter = 0;
+      
+      // memcpy can handle '0' bytes, so no extra check
+      t->token_len = token_len;
+      memcpy(t->token, token, token_len);
 
-      /* save client address */
+      // save client address 
       memcpy(&t->message->endpoint, endpoint, sizeof(oc_endpoint_t));
 
-      oc_list_add(
-        transactions_list,
-        t); /* list itself makes sure same element is not added twice */
-    } else {
+      oc_list_add(transactions_list,t); // list itself makes sure same element is not added twice
+    } 
+    else 
+    {
       oc_memb_free(&transactions_memb, t);
       t = NULL;
     }
-  } else {
+  } 
+  else 
+  {
     OC_WRN("insufficient memory to create transaction");
   }
 
   return t;
 }
 
-// (re)sends a message by 'transaction' and
-// - NON-confirmable clears the transaction afterward
-// - CON-confirmable MAY clear afterward the transaction (all reps done)
+coap_transaction_t* coap_new_transaction_and_send_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
+{
+  coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
+  if (t)
+  {
+    // copy the message as such, needed for possible 'unicast echo re-request' retransmits within the timeout 
+    t->message->length = s_mode_message->length;
+    // memcpy can handle '0' bytes, so no extra check
+    memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
+
+    // init ~ 5s timeout
+    t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
+
+    OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
+    oc_etimer_restart(&t->retransmit_timer); 
+    OC_PROCESS_CONTEXT_END(transaction_handler_process);
+
+    oc_message_add_ref(t->message);
+    coap_send_message(t->message);
+  }
+  else
+  {
+    OC_WRN("insufficient memory to create transaction");
+  }
+
+  return t;
+}
+
+// sends a message by 'transaction'
+// - NON-confirmable : send + clear the transaction afterward (it is a one time fire and forget send out)
+// - CON-confirmable : send + MAY clear afterward the transaction if all reps are done (it is an n- time fire and forget send out)
 void coap_send_transaction(coap_transaction_t *t)
 {
   if (!oc_main_initialized()) 
@@ -140,7 +165,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #endif
 
-  bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION ? true : false;
+  const bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION ? true : false;
 
   #ifdef OC_TCP
   if (!(t->message->endpoint.flags & TCP) && confirmable) {
@@ -151,24 +176,23 @@ void coap_send_transaction(coap_transaction_t *t)
 
     OC_DBG("send_transaction - CON message");
 
-    if (t->retrans_counter < COAP_MAX_RETRANSMIT) 
+    if (t->retransmit_counter < COAP_MAX_RETRANSMIT) 
     {
-      
-      OC_DBG("not timed out, keeping transaction %u: %p", t->mid, (void *)t);
+      OC_DBG("not timed out, keeping CON transaction %u: %p", t->mid, (void *)t);
 
-      if (t->retrans_counter == 0) 
+      if (t->retransmit_counter == 0) 
       {
-        t->retrans_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS + oc_random_value() % (oc_clock_time_t)COAP_RESPONSE_TIMEOUT_BACKOFF_MASK;
-        OC_DBG("interval initialized %d", (int)t->retrans_timer.timer.interval);
+        t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS + oc_random_value() % (oc_clock_time_t)COAP_RESPONSE_TIMEOUT_BACKOFF_MASK;
+        OC_DBG("interval initialized %d", (int)t->retransmit_timer.timer.interval);
       }
       else 
       {
-        t->retrans_timer.timer.interval <<= 1;
-        OC_DBG("interval doubled %d", (int)t->retrans_timer.timer.interval);
+        t->retransmit_timer.timer.interval <<= 1;
+        OC_DBG("interval doubled %d", (int)t->retransmit_timer.timer.interval);
       }
 
       OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
-      oc_etimer_restart(&t->retrans_timer); // interval updated above
+      oc_etimer_restart(&t->retransmit_timer); // interval updated above
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
       oc_message_add_ref(t->message);
@@ -176,7 +200,7 @@ void coap_send_transaction(coap_transaction_t *t)
     }
     else 
     {
-      OC_WRN("removing transaction (timed out) with mid %u", t->mid);
+      OC_WRN("removing CON transaction - timed out %u: %p", t->mid, (void*)t);
       #ifdef OC_SERVER
       coap_remove_observer_by_client(&t->message->endpoint);
       #endif
@@ -200,15 +224,12 @@ void coap_send_transaction(coap_transaction_t *t)
   }
   else 
   {
-    OC_DBG("send_transaction - NON message");
+    // non-conformable messages, send ones and delete afterward transaction
 
-    // add ref
-    oc_message_add_ref(t->message);
-
-    coap_send_message(t->message);
-
-    // removes also the ref 
-    coap_clear_transaction(t);
+      OC_DBG("send_transaction - NON message");
+      oc_message_add_ref(t->message);
+      coap_send_message(t->message);
+      coap_clear_transaction(t); 
   }
 }
 
@@ -216,9 +237,9 @@ void coap_clear_transaction(coap_transaction_t *t)
 {
   if (t) 
   {
-    OC_DBG("freeing transaction for MID %u", t->mid);
+    OC_DBG("freeing transaction for MID %u: %p", t->mid, (void*)t);
 
-    oc_etimer_stop(&t->retrans_timer);
+    oc_etimer_stop(&t->retransmit_timer);
     oc_message_unref(t->message);
     oc_list_remove(transactions_list, t);
     oc_memb_free(&transactions_memb, t);
@@ -251,30 +272,50 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   return NULL;
 }
 
+// (re)sends a message if the transaction timer is expired (NON -> one time and release transaction, CON -> n-time with increased delay) 
 void coap_check_transactions(void)
 {
-  coap_transaction_t *t = oc_list_head(transactions_list);
+  coap_transaction_t* t = (coap_transaction_t*) oc_list_head(transactions_list);
   while (t) 
   {
     // save next
     coap_transaction_t* next = t->next;
 
-    if (oc_etimer_expired(&t->retrans_timer)) 
+    if (oc_etimer_expired(&t->retransmit_timer)) 
     { // expired
 
       // increase attempts 
-      ++(t->retrans_counter);
+      t->retransmit_counter++;
 
-      OC_DBG("retransmitting MID %u with attempt (%u)", t->mid, t->retrans_counter);
-      coap_send_transaction(t);
+      const int before = oc_list_length(transactions_list);
 
-      const int removed = oc_list_length(transactions_list);
-
-      if (removed - oc_list_length(transactions_list) > 1) 
+      if (t->message->endpoint.flags & S_MODE_REQUEST)
       {
+        OC_DBG("removing timed out s-mode message with MID %u : %p", t->mid, (void*)t);
+        coap_clear_transaction(t);
+        
+      }
+      else
+      {
+        OC_DBG("retransmitting MID %u with attempt (%u)", t->mid, t->retransmit_counter);
+        coap_send_transaction(t);
+      }
 
-        // list is not empty maybe there is transaction needs to be resent, restart the list 
-        t = (coap_transaction_t *)oc_list_head(transactions_list);
+      const int after  = oc_list_length(transactions_list);
+
+      if (before - after > 0) 
+      {
+        /* 
+         * sending out/clearing transaction may/will remove the own transaction 't' and/or possibly other transaction as well, 
+         * in this case the beforehand saved 'next' pointer may be invalid, 
+         * hence check it and reset the list pointer for safety reasons
+         * 
+         * before 3 , after 3 = 0 - continue the list (nothing removed, next = ok)
+         * before 3 , after 2 = 1 - restart the list ('t' or another removed, next = maybe corrupted)
+         * before 3 , after 1 = 1 - restart the list ('t' or other's removed, next = maybe corrupted)
+         *
+         */
+        t = (coap_transaction_t*)oc_list_head(transactions_list);
         continue;
       }
     }
@@ -285,7 +326,7 @@ void coap_check_transactions(void)
 
 void coap_free_all_transactions(void)
 {
-  coap_transaction_t *t = oc_list_head(transactions_list);
+  coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list);
   while (t) 
   {
     // get next 
@@ -299,7 +340,7 @@ void coap_free_all_transactions(void)
 
 void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
 {
-  coap_transaction_t *t = oc_list_head(transactions_list);
+  coap_transaction_t* t = (coap_transaction_t*) oc_list_head(transactions_list);
 
   while (t) 
   {
@@ -307,7 +348,8 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
     coap_transaction_t* next = t->next;
     if (oc_endpoint_compare(&t->message->endpoint, endpoint) == 0) 
     {
-      const int removed = oc_list_length(transactions_list);
+      
+      const int before = oc_list_length(transactions_list);
 
       #ifdef OC_CLIENT
 
@@ -316,7 +358,9 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
 
       #endif 
 
-      if (removed - oc_list_length(transactions_list) > 0) 
+      const int after = oc_list_length(transactions_list);
+
+      if (before - after > 0) 
       {
         // list is not empty maybe there is another transaction for the same endpoint, restart the list 
         t = (coap_transaction_t *)oc_list_head(transactions_list);

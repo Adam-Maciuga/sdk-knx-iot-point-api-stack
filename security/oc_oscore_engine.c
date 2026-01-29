@@ -262,7 +262,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     // check duplication on incoming UDP requests (GET, ...)
     if (oscore_pkt->transport_type == COAP_TRANSPORT_UDP && oscore_pkt->code <= OC_FETCH)
     {
-      if (oc_coap_check_if_duplicate(oscore_pkt->mid, msg->endpoint.addr.ipv6.port, msg->endpoint.addr.ipv6.address))
+      if (oc_coap_check_if_duplicate_and_if_not_add_to_history(oscore_pkt->mid, msg->endpoint.addr.ipv6.port, msg->endpoint.addr.ipv6.address))
       {
         // ignore duplicate request
         goto oscore_recv_error;
@@ -285,52 +285,53 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       OC_DBG_OSCORE("searching OSCORE context from incoming request message by kid (len %d) : ", oscore_pkt->kid_len);
       OC_LOGbytes(oscore_pkt->kid, oscore_pkt->kid_len);
 
-      // scan request recipient id from request
+      // find context from request by searching Recipient ID
       oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
       if (!oscore_ctx)
       {
-        // handle s-mode 'unicast echo response' (see specification, figure 26, (2))
+        /* 
+           no context found, can be a 
+           (a) - new/ fresh inbound message 
+           (b) - an s-mode 'unicast echo response' (see specification, figure 26, (2))
+
+         */
         if (oscore_pkt->kid_ctx_len == 10)
-        {
+        { // b
+          
           // need to send an s-mode 'unicast echo re-request'   
           s_mode_echo_re_request = true;
 
           request_piv = oscore_pkt->piv;
           request_piv_len = oscore_pkt->piv_len;
 
-          oc_message_t* original_message = oc_replay_find_msg_by_token(oscore_pkt->token, oscore_pkt->token_len);
-
-          // ignore an echo challenge from outside if
-          // - not from me send beforehand (within timeout),
-          // - was mine but already released (outside of timeout)
-          if (!original_message)
-          {
-            goto oscore_recv_error;
-          }
-
-          // find auth/at entry with corresponding 'kid' from message
+          // find auth/at entry with corresponding 'kid' from inbound message
           int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
           if (idx == -1)
           {
             /*
-               response (echo challenge) not found = KNX IoT Point API (8.4 step 2) = stop processing
+               'kid' from 'unicast echo response' not found as part of my onw contexts = KNX IoT Point API (8.4 step 2) = stop processing
                - inform AL on failed echo challenge would be needed
             */
 
-            OC_ERR("could not find Access Token matching KID, stop processing");
+            OC_ERR("could not find an Access Token with a matching KID, stop processing");
             goto oscore_recv_error;
           }
 
           // get access token
           oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
-          /*
+          /*  
+           
            'Server' Side (details see method 'oc_oscore_receive_message' header)
-           - create oscore Request Recipient Context  -> kid + kid_context + ms + salt from token
-           - create oscore Response Sender Context    -> kid + kid_context + ms + salt from token
+           
+           - create oscore Response Sender Context    -> kid + kid_context (rnd) + ms + salt from token 
+             (extra context for the answer 'unicast echo re-request' after the inbound 'unicast echo response')
 
-           - SSN initialized = 0, context is new
+           - create oscore Request Recipient Context  -> kid + kid_context (rnd) + ms + salt from token
+             (normal context for the inbound 'unicast echo response' message)
+
+           - SSN initialized = 0, Response Sender Context is new
            
           */
 
@@ -346,10 +347,10 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
           #ifdef OC_DEBUG
 
-          OC_DBG_OSCORE("... adding OSCORE Request Sender Context (A1/8.1) with Sender ID : ");
+          OC_DBG_OSCORE("adding OSCORE Response Sender Context (B2/8.3) with Sender ID      : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
-
-          OC_DBG_OSCORE("... adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
+          
+          OC_DBG_OSCORE("adding OSCORE Request Recipient Context (A2/8.2) with Recipient ID : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
 
           oc_context_print_all();
@@ -358,6 +359,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
 
         }
+        // a
       }
 
       if (!oscore_ctx)
@@ -408,7 +410,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
         #ifdef OC_DEBUG
 
-        OC_DBG_OSCORE("... adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
+        OC_DBG_OSCORE("adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
         oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
 
         oc_context_print_all();
@@ -441,7 +443,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
           #ifdef OC_DEBUG
 
-          OC_DBG_OSCORE("... adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
+          OC_DBG_OSCORE("adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
 
           oc_context_print_all();
@@ -595,7 +597,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     OC_DBG_OSCORE("### decrypting OSCORE payload ###");
 
     /* Verify and decrypt OSCORE payload */
-    uint8_t* output = malloc(oscore_pkt->payload_len);
+    uint8_t* output = (uint8_t*)malloc(oscore_pkt->payload_len);
 
     // int ret = oc_oscore_decrypt(oscore_pkt->payload, oscore_pkt->payload_len,
     //                            OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
@@ -657,13 +659,6 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     }
 
     OC_DBG_OSCORE("### successfully parsed inner message ###");
-
-    // if (c->credtype == OC_CREDTYPE_OSCORE_MCAST_SERVER &&
-    //    coap_pkt->code != OC_POST) {
-    //  OC_ERR("***non-UPDATE multicast request protected using group OSCORE "
-    //         "context; silently ignore***");
-    //  goto oscore_recv_error;
-    //}
 
     // copy type, version, mid, token, observe fields from OSCORE packet to CoAP Packet
     coap_pkt->transport_type = oscore_pkt->transport_type;
@@ -970,7 +965,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       (uint8_t*)oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
       outgoing_msg->endpoint.kid_ctx, outgoing_msg->endpoint.kid_ctx_len);
 
-    OC_DBG_OSCORE("### (a) Found context by access token ###");
+    OC_DBG_OSCORE("### Found context by access token ###");
   }
 
   if (oscore_ctx == NULL)
@@ -981,7 +976,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     // search the oscore id, e.g. the cnf:osc:id ('kid' , 'Sender ID')
     oscore_ctx = oc_oscore_find_context_by_oscore_id(outgoing_msg->endpoint.oscore_id, outgoing_msg->endpoint.oscore_id_len);
 
-    OC_DBG_OSCORE("### (b) Found context by 'Sender ID' ###");
+    OC_DBG_OSCORE("### Found context by 'Sender ID' ###");
     oc_char_println_hex(outgoing_msg->endpoint.oscore_id, (int)outgoing_msg->endpoint.oscore_id_len);
   }
 
@@ -990,7 +985,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     oscore_ctx = oc_oscore_find_context_by_group_address(outgoing_msg->endpoint.group_address);
 
-    OC_DBG_OSCORE("### (c) Found context by 'ga' %04X ###", outgoing_msg->endpoint.group_address);
+    OC_DBG_OSCORE("### Found context by 'ga' %04X ###", outgoing_msg->endpoint.group_address);
   }
 
   if (oscore_ctx == NULL)
@@ -1076,11 +1071,13 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
           #ifdef OC_DEBUG
 
-          OC_DBG_OSCORE("... adding OSCORE Request Sender Context (A1/8.1) with Sender ID : ");
+          OC_DBG_OSCORE("adding OSCORE Request Sender Context (A1/8.1) with Sender ID        : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
 
-          OC_DBG_OSCORE("... adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
+          OC_DBG_OSCORE("adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
           oc_char_println_hex(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id));
+
+          
 
           oc_context_print_all();
 
@@ -1088,7 +1085,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
           unicast_echo_response = true;
 
-          OC_DBG_OSCORE("Echo Response caused by s-mode mc");
+          OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode multicast message");
       }
       else if (outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC)
       { // x1
@@ -1097,9 +1094,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
         // clear marker
         UNSET_BIT(outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
-        unicast_echo_response = true;
 
-        OC_DBG_OSCORE("Echo Response caused by s-mode uc");
+        OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode unicast message");
       }
 
       // x2, x3
@@ -1126,8 +1122,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // (a) ... (e) - the context is a new in case (e) otherwise an existing one 
   if (oscore_ctx)
   { // check again since context from (e) may fail
-    OC_DBG_OSCORE("#################################");
-    OC_DBG_OSCORE("Use OSCORE context with 'Sender ID' = %p : ", oscore_ctx->sender_id);
+    
+    OC_DBG_OSCORE("Use OSCORE context with 'Sender ID' : ");
+    oc_char_println_hex((char*)oscore_ctx->sender_id, oscore_ctx->sender_id_len);
 
     // use sender key for encryption
     uint8_t* key = oscore_ctx->request_key;
@@ -1152,8 +1149,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
       // debugging
-      OC_DBG_OSCORE("sending request, using SSN as Partial IV : ");
-      OC_LOGbytes_OSCORE(piv, piv_len);
+      OC_DBG_OSCORE("sending request, using SSN as Partial IV : %" PRIu64, oscore_ctx->ssn);
 
       /*
         increment SSN
@@ -1165,7 +1161,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       */
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
 
-      bool is_initial_request = transaction && transaction->retrans_counter == 0;
+      bool is_initial_request = transaction && transaction->retransmit_counter == 0;
       bool is_any_request = !transaction;
 
       if (is_initial_request || is_any_request)
@@ -1237,12 +1233,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
       // debugging
-      OC_DBG_OSCORE("protecting outgoing unicast response, using SSN as Partial IV : ");
-      OC_LOGbytes_OSCORE(piv, piv_len);
+      OC_DBG_OSCORE("protecting outgoing unicast response, using SSN as Partial IV : %" PRIu64, oscore_ctx->ssn);
 
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
 
-      bool is_initial_response = transaction && transaction->retrans_counter == 0;
+      bool is_initial_response = transaction && transaction->retransmit_counter == 0;
       bool is_any_response = !transaction;
      
 

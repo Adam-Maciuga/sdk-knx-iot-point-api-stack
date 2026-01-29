@@ -121,14 +121,14 @@ extern "C" {
 	typedef struct
 	{
 		uint8_t* buffer; // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
-		coap_transport_type_t transport_type;
+		coap_transport_type_t transport_type; // UDP or TCP
 		uint8_t version; // current version is '1'
-		coap_message_type_t type;
-		uint8_t code; // CoAP code such as CHANGED_2_04 = 68
-		uint16_t mid;	// used in coap to relate a CON message with an ACK message (used also for messages deduplication)
+		coap_message_type_t type; // CON, NON, ACK, ...
+		uint8_t code; // CoAP code such as GET = 1, CHANGED_2_04 = 68
+		uint16_t mid;	// transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
 
 		uint8_t token_len;
-		uint8_t token[COAP_TOKEN_LEN]; // used in coap to match a request with a response 
+		uint8_t token[COAP_TOKEN_LEN]; // application level: a client matches a request with a response
 
 		uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE + 1]; // results in a 32 byte bitmap, used to set/check options (see macros)
 

@@ -135,11 +135,10 @@ oc_list_tail(oc_list_t list)
 void
 oc_list_add(oc_list_t list, void *item)
 {
-  struct list *l;
 
   ((struct list *)item)->next = NULL;
 
-  l = oc_list_tail(list);
+  struct list* l = oc_list_tail(list);
 
   if (l == NULL) {
     *list = item;
@@ -252,13 +251,13 @@ oc_list_pop(oc_list_t list)
  *
  */
 /*---------------------------------------------------------------------------*/
-void
-oc_list_remove(oc_list_t list, void *item)
+void oc_list_remove(oc_list_t list, void *item)
 {
-  struct list **l;
 
-  for (l = (struct list **)list; *l != NULL; l = &(*l)->next) {
-    if (*l == item) {
+  for (struct list** l = (struct list**)list; *l != NULL; l = &(*l)->next) 
+  {
+    if (*l == item) 
+    {
       *l = (*l)->next;
       return;
     }
@@ -277,13 +276,13 @@ oc_list_remove(oc_list_t list, void *item)
  *
  */
 /*---------------------------------------------------------------------------*/
-void *
-oc_list_remove2(oc_list_t list, void *item)
+void * oc_list_remove2(oc_list_t list, void *item)
 {
-  struct list **l;
 
-  for (l = (struct list **)list; *l != NULL; l = &(*l)->next) {
-    if (*l == item) {
+  for (struct list** l = (struct list**)list; *l != NULL; l = &(*l)->next) 
+  {
+    if (*l == item) 
+    {
       *l = (*l)->next;
       return item;
     }
@@ -358,11 +357,11 @@ oc_list_remove_block2(oc_list_t list, void *firstitem, void *lastitem)
 int
 oc_list_length(oc_list_t list)
 {
-  struct list *l;
   int n = 0;
 
-  for (l = *list; l != NULL; l = l->next) {
-    ++n;
+  for (const struct list* l = *list; l != NULL; l = l->next) 
+  {
+    n++;
   }
 
   return n;
