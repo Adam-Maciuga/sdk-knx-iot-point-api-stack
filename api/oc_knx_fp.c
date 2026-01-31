@@ -1,18 +1,8 @@
-/*
- // Copyright (c) 2021,2023 Cascoda Ltd
- // Copyright (c) 2024-2025 KNX Association
- //
- // Licensed under the Apache License, Version 2.0 (the "License");
- // you may not use this file except in compliance with the License.
- // You may obtain a copy of the License at
- //
- //      http://www.apache.org/licenses/LICENSE-2.0
- //
- // Unless required by applicable law or agreed to in writing, software
- // distributed under the License is distributed on an "AS IS" BASIS,
- // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- // See the License for the specific language governing permissions and
- // limitations under the License.
+/* 
+ * Copyright (c) 2021-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "api/oc_knx_fp.h"
@@ -2076,7 +2066,6 @@ void oc_cflags_as_string(char* buffer, oc_cflag_mask_t cflags)
 void oc_print_cflags(const oc_cflag_mask_t cflags)
 {
 #ifdef OC_PRINT
-
   if (cflags & OC_CFLAG_READ)
   {
     PRINTF("r");
@@ -2097,14 +2086,12 @@ void oc_print_cflags(const oc_cflag_mask_t cflags)
   {
     PRINTF("u");
   }
-
 #endif
 }
 
 void oc_print_group_object_table_entry(int entry)
 {
 #ifdef OC_PRINT
-
   if (g_got[entry].id == -1)
   {
     return;
@@ -2120,17 +2107,11 @@ void oc_print_group_object_table_entry(int entry)
     PRINTF(" %u ", g_got[entry].ga[i]);
   }
   PRINTF("]");
-
 #endif
 }
 
 void oc_store_group_object_table_entry(int entry)
 {
-#ifndef OC_USE_STORAGE
-  (void)entry;
-  PRINT("no storage for the GO table enabled");
-#else
-
   if (entry < 0 || entry >= GOT_MAX_ENTRIES)
     return;
 
@@ -2168,7 +2149,6 @@ void oc_store_group_object_table_entry(int entry)
     }
   }
   free(buf);
-#endif
 }
 
 void oc_load_group_object_table_entry(int entry)
@@ -2421,17 +2401,13 @@ static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t*
 // store RCP/PUB table data in CBOR (hex stream data)
 static void oc_store_group_table_entry(int entry, char* store, const oc_group_table_t* table)
 {
-#ifndef OC_USE_STORAGE
-  (void)entry;
-  PRINT("no storage for the RCP/PUB table enabled");
-#else
-
   char filename[TAB_SIZE];
   (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
 
   uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
-  if (!buf)
+  if (!buf) {
     return;
+  }
 
   oc_rep_new(buf, OC_MAX_APP_DATA_SIZE);
 
@@ -2469,15 +2445,15 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   }
 
   free(buf);
-#endif
 }
 
 static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* table, int max_size)
 {
   
   // use either GPT or GRT table size
-  if (entry < 0 || entry >= max_size)
+  if (entry < 0 || entry >= max_size) {
     return -1;
+  }
   
   char filename[TAB_SIZE];
   (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
@@ -2485,8 +2461,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
   oc_rep_t* rep;
 
   uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
-  if (!buf)
-  {
+  if (!buf) {
     return -1;
   }
 

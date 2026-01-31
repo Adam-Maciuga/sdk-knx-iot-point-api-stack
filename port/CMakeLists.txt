@@ -36,17 +36,11 @@ target_sources(kis-port PUBLIC
 target_include_directories(kis-port PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 ## KNX-IoT Stack - Platform Port Options ##
-# TBD FIXME do we need this? kis-port is used in kisClientServer, mbedtls is handled there, do we need it for kis-port?
-if(OC_USE_KNX_MBEDTLS)
-    target_link_libraries(kis-port PUBLIC kis-common mbedtls)
-else()
-    target_link_libraries(kis-port PUBLIC kis-common)
+target_link_libraries(kis-port PUBLIC kis-common)
+if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
+    target_link_libraries(kis-port PUBLIC mbedtls)
 endif()
 
-if(OC_LOG_TO_FILE_ENABLED)
-    target_compile_definitions(kis-port INTERFACE OC_LOG_TO_FILE)
-endif()
-
-if (OC_USE_STORAGE)
-    target_compile_definitions(kis-port PUBLIC OC_USE_STORAGE)
+if(CONFIG_KNXIOT_KNX_LOG_TO_FILE)
+    target_compile_definitions(kis-port INTERFACE KNX_LOG_TO_FILE)
 endif()

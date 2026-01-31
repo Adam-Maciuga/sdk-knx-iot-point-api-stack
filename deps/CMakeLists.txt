@@ -4,59 +4,33 @@ cmake_minimum_required (VERSION 3.21)
 include(FetchContent)
 
 ### TinyCBOR (provided by the KNX-IoT stack) ###
-set(CBOR_SOURCES
-     ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborencoder.c
-     ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborencoder_close_container_checked.c
-     ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborerrorstrings.c
-     ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborparser.c
-     ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborpretty.c
-)
+if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
+    set(CBOR_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborencoder.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborencoder_close_container_checked.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborerrorstrings.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborparser.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src/cborpretty.c
+    )
 
-add_library(tinycbor-master ${CBOR_SOURCES})
+    add_library(tinycbor-master ${CBOR_SOURCES})
 
-target_include_directories(tinycbor-master PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src)
+    target_include_directories(tinycbor-master PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src)
+endif()
 
 ### Mbed TLS (provided by the KNX-IoT stack) ###
-if(OC_USE_KNX_MBEDTLS)
+if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     # Mbed TLS version is defined in git .submodules file, see repository(3.6.4)
     # TBD FIXME There is no .submodules file, only .gitmodules. As it looks that one doesn't take a specific submodule version.
     # TBD FIXME Updated to version 3.6.5 (LTS security update)
     # $ git checkout tags/mbedtls-3.6.5
+    #
+    # Note:
+    # All *.c files from Mbed TLS v3.6.5 directory mbedtls/library are handled in src_crypto, src_x509 and src_tls.
 
-    set(TLS_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/debug.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/mps_reader.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/mps_trace.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/net_sockets.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_cache.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_ciphersuites.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_client.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_cookie.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_debug_helpers_generated.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_msg.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_ticket.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls12_client.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls12_server.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_keys.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_server.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_client.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_generic.c
-    )
-    
-    set(X509_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/pkcs7.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_create.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_crl.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_crt.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_csr.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509write.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509write_crt.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509write_csr.c
-    )
-    
-    set(CRYPTO_SOURCES
+    set(MBEDTLS_CONFIG_FILE "${PROJECT_SOURCE_DIR}/security/knx_mbedtls_config.h") # TODO refactor config file
+
+    set(src_crypto
         ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/aes.c
         ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/aesni.c
         ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/aesce.c
@@ -140,38 +114,76 @@ if(OC_USE_KNX_MBEDTLS)
         ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/version_features.c
     )
 
-    # Integrate Mbed TLS manually (lean build process) and not with cmake 'add_subdirectory' functionality (directly the mbedtls cmake file)
-    add_library(mbedtls ${TLS_SOURCES})
-    add_library(mbedx509 ${X509_SOURCES})
-    add_library(mbedcrypto ${CRYPTO_SOURCES})
-
-    # When using KNX standard security source MBTLS -> use config definitions defined by Intel
-    target_compile_definitions(mbedcrypto PUBLIC MBEDTLS_CONFIG_FILE=\"knx_mbedtls_config.h\")
-
-    # TBD FIXME why is ${PROJECT_SOURCE_DIR}, ${PROJECT_SOURCE_DIR}/include and ${PORT_DIR} needed?
-    # TBD FIXME #include <oc_config.h>,  #include "port/oc_connectivity.h", #include "port/oc_assert.h" why are those needed!
-    # Note:
-    # knx_mbedtls_config.h is in ${PROJECT_SOURCE_DIR}/security
-    target_include_directories(mbedcrypto PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/include
-        ${PROJECT_SOURCE_DIR}/security
-        ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/include
-        ${PORT_DIR}
+    set(src_x509
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/pkcs7.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_create.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_crl.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_crt.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509_csr.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509write.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509write_crt.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/x509write_csr.c
+    )
+    
+    set(src_tls
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/debug.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/mps_reader.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/mps_trace.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/net_sockets.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_cache.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_ciphersuites.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_client.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_cookie.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_debug_helpers_generated.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_msg.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_ticket.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls12_client.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls12_server.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_keys.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_server.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_client.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/ssl_tls13_generic.c
     )
 
     if(WIN32)
         set(libs ws2_32 bcrypt) # ensure loading WIN32 socket DLL and bcrypt DLL
     endif()
 
-    target_link_libraries(mbedcrypto ${libs})
-    target_link_libraries(mbedx509 mbedcrypto)
-    target_link_libraries(mbedtls mbedx509)
-
+    # Integrate Mbed TLS manually (lean build process) and not with cmake 'add_subdirectory' functionality (directly the mbedtls cmake file)
+    add_library(mbedcrypto ${src_crypto})
     set_target_properties(mbedcrypto PROPERTIES OUTPUT_NAME mbedcrypto)
+    target_link_libraries(mbedcrypto PUBLIC ${libs})
+    
+    add_library(mbedx509 ${src_x509})
     set_target_properties(mbedx509 PROPERTIES OUTPUT_NAME mbedx509)
-    set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
+    target_link_libraries(mbedx509 PUBLIC mbedcrypto)
 
-    install(TARGETS mbedcrypto mbedx509 mbedtls
-            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    add_library(mbedtls ${src_tls})
+    set_target_properties(mbedtls PROPERTIES OUTPUT_NAME mbedtls)
+    target_link_libraries(mbedtls PUBLIC mbedx509)
+
+    # TBD FIXME why is ${PROJECT_SOURCE_DIR}, ${PROJECT_SOURCE_DIR}/include and ${PORT_DIR} needed?
+    # TBD FIXME #include <oc_config.h>,  #include "port/oc_connectivity.h", #include "port/oc_assert.h" why are those needed!
+    target_include_directories(mbedcrypto PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/include
+        ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/include
+        ${PORT_DIR}
+    )
+
+    # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE
+    if(MBEDTLS_CONFIG_FILE)
+        target_compile_definitions(mbedcrypto 
+            PUBLIC MBEDTLS_CONFIG_FILE="${MBEDTLS_CONFIG_FILE}")
+    endif()
+    if(MBEDTLS_USER_CONFIG_FILE)
+        target_compile_definitions(${target}
+            PUBLIC MBEDTLS_USER_CONFIG_FILE="${MBEDTLS_USER_CONFIG_FILE}")
+    endif()
+
+    install(
+        TARGETS mbedcrypto mbedx509 mbedtls
+        PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 endif()

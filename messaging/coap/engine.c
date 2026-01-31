@@ -1,21 +1,9 @@
-/*
-// Copyright (c) 2016 Intel Corporation
-// Copyright (c) 2021-2022 Cascoda Ltd
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
-/*
+/* 
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2021-2022 Cascoda Ltd
+ * Copyright (c) 2024-2025 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
  * All rights reserved.
@@ -61,10 +49,8 @@
 #include "oc_api.h"
 #include "oc_buffer.h"
 
-#ifdef OC_OSCORE
 #include "security/oc_tls.h"
 #include "security/oc_oscore.h"
-#endif
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
@@ -87,8 +73,7 @@ extern bool oc_ri_invoke_coap_entity_handler(
 	oc_endpoint_t* endpoint);
 #else  
 extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
-																						 uint8_t* buffer,
-																						 oc_endpoint_t* endpoint);
+        uint8_t* buffer, oc_endpoint_t* endpoint);
 #endif 
 
 #ifdef OC_REQUEST_HISTORY
@@ -99,35 +84,30 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 // a duplicate.
 #define OC_REQUEST_HISTORY_SIZE (75)
 
-
 #ifndef OC_ECHO_FRESHNESS_TIME
 #define OC_ECHO_FRESHNESS_TIME (10 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 #endif
 
-bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t port, uint8_t address[16])
-{
+bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t port, uint8_t address[16]) {
   // current history entry index (auto init with 0)
   static uint8_t idx;
 
-	static struct
-  {
+  static struct {
     uint16_t mid;
     uint16_t port;
     uint8_t address[16];
   } history[OC_REQUEST_HISTORY_SIZE];
 
-  for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
-	{
-		if (history[i].mid == mid && 
-				history[i].port == port && 
-				memcmp(history[i].address, address, 16) == 0)
-		{
-      OC_DBG("checking messages on duplicates (mid/port/ipv6) -> dropping duplicate message with message ID: %d, history[%d]", mid, (int)i);
-			return true;
-		}
-	}
+  for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++) {
+    if (history[i].mid == mid && history[i].port == port && 
+            memcmp(history[i].address, address, 16) == 0) {
+      OC_DBG("checking messages on duplicates (mid/port/ipv6) -> dropping "
+              "duplicate message with message ID: %d, history[%d]", mid, (int)i);
+      return true;
+    }
+  }
   
-	// no duplicate, it is usually the first received message, update the history entry
+  // no duplicate, it is usually the first received message, update the history entry
   history[idx].mid = mid;
   history[idx].port = port;
   memcpy(history[idx].address, address, 16);
@@ -136,7 +116,7 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t
   idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
 
   OC_DBG("checking messages on duplicates (mid/port/ipv6) -> fresh message, is now registered ...");
-	return false;
+  return false;
 }
 #endif
 
@@ -158,11 +138,9 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t
  * 
  */
 static void coap_send_response_with_empty_payload(coap_message_type_t type, 
-																		 uint16_t mid,
-																		 const uint8_t* token, size_t token_len, 
-																		 coap_status_t code,
-																		 const oc_endpoint_t* endpoint,
-                                     const uint8_t* echo, size_t echo_len)
+        uint16_t mid, const uint8_t* token, size_t token_len, 
+        coap_status_t code, const oc_endpoint_t* endpoint,
+        const uint8_t* echo, size_t echo_len)
 {
 	coap_packet_t coap_msg; 
 	coap_udp_init_message(&coap_msg, type, (uint8_t)code, mid);
@@ -226,14 +204,12 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 	}
 }
 
-#ifdef OC_SECURITY
-static oc_event_callback_retval_t
-close_all_tls_sessions_callback(void* data)
-{
-	(void)data; // Unused in single-device mode
-	oc_close_all_tls_sessions();
-	oc_set_drop_commands(false);
-	return OC_EVENT_DONE;
+#ifdef KNX_TCP_TLS
+static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data) {
+  (void)data; // Unused in single-device mode
+  oc_close_all_tls_sessions();
+  oc_set_drop_commands(false);
+  return OC_EVENT_DONE;
 }
 #endif 
 
@@ -256,15 +232,14 @@ close_all_tls_sessions_callback(void* data)
 
 int coap_receive(oc_message_t* incoming_message)
 {
-	coap_status_code = COAP_NO_ERROR;
+  coap_status_code = COAP_NO_ERROR;
 
   #ifdef OC_DEBUG
-
-  if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
-   OC_DBG("CoAP Engine: receive (forwarded) data from OSCORE layer with len=%u ", (unsigned int)incoming_message->length);
-  else
-   OC_DBG("CoAP Engine: receive data from NETWORK layer with len=%u ", (unsigned int) incoming_message->length);
-
+  if (incoming_message->endpoint.flags & OSCORE_DECRYPTED) {
+    OC_DBG("CoAP Engine: receive (forwarded) data from OSCORE layer with len=%u ", (unsigned int)incoming_message->length);
+  } else {
+    OC_DBG("CoAP Engine: receive data from NETWORK layer with len=%u ", (unsigned int) incoming_message->length);
+  }
   #endif
 
 	/*
@@ -476,7 +451,7 @@ int coap_receive(oc_message_t* incoming_message)
 				}
 			}
 
-		  #ifdef OC_REPLAY_PROTECTION
+			#ifdef OC_REPLAY_PROTECTION
 
 			if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
 			{
@@ -1491,12 +1466,11 @@ send_message:
 		}
 	}
 
-	#ifdef OC_SECURITY
-	//#ifdef OC_OSCORE
+	#ifdef KNX_TCP_TLS
 	if (coap_status_code == CLOSE_ALL_TLS_SESSIONS)
 	{
-		oc_set_drop_commands(true);
-		oc_set_delayed_callback(NULL, &close_all_tls_sessions_callback, 2);
+	  oc_set_drop_commands(true);
+	  oc_set_delayed_callback(NULL, &close_all_tls_sessions_callback, 2);
 	}
 	#endif 
 

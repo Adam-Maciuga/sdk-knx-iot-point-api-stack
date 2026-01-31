@@ -1,18 +1,9 @@
-/*
-// Copyright (c) 2018 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2018 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "oc_session_events.h"
 #include "oc_config.h"
@@ -22,13 +13,12 @@
 #include "oc_buffer.h"
 #include "oc_signal_event_loop.h"
 #include "util/oc_list.h"
-//#ifdef OC_SECURITY
-#ifdef OC_OSCORE
+#ifdef KNX_TCP_TLS
 #include "security/oc_tls.h"
-#endif /* OC_SECURITY */
-#if defined(OC_SERVER)
+#endif
+#ifdef OC_SERVER
 #include "messaging/coap/observe.h"
-#endif /* OC_SERVER */
+#endif
 
 #ifdef OC_TCP
 OC_LIST(session_start_events);
@@ -56,20 +46,17 @@ free_session_state_delayed(void *data)
   return OC_EVENT_DONE;
 }
 
-bool
-oc_session_events_is_ongoing(void)
+bool oc_session_events_is_ongoing(void)
 {
   return session_end_ref;
 }
 
-void
-oc_session_events_set_event_delay(int secs)
+void oc_session_events_set_event_delay(int secs)
 {
   SESSION_STATE_FREE_DELAY_SECS = secs;
 }
 
-static void
-oc_process_session_event(void)
+static void oc_process_session_event(void)
 {
   oc_endpoint_t *session_event = NULL;
   do {
@@ -84,7 +71,7 @@ oc_process_session_event(void)
 
   if (oc_list_length(session_end_events) > 0) {
     oc_set_delayed_callback(NULL, &free_session_state_delayed,
-                            (uint16_t)SESSION_STATE_FREE_DELAY_SECS);
+            (uint16_t)SESSION_STATE_FREE_DELAY_SECS);
   }
 }
 
@@ -101,8 +88,7 @@ OC_PROCESS_THREAD(oc_session_events, ev, data)
   OC_PROCESS_END();
 }
 
-void
-oc_session_start_event(oc_endpoint_t *endpoint)
+void oc_session_start_event(oc_endpoint_t *endpoint)
 {
   if (!oc_process_is_running(&(oc_session_events))) {
     return;
@@ -120,8 +106,7 @@ oc_session_start_event(oc_endpoint_t *endpoint)
   _oc_signal_event_loop();
 }
 
-void
-oc_session_end_event(oc_endpoint_t *endpoint)
+void oc_session_end_event(oc_endpoint_t *endpoint)
 {
   if (!oc_process_is_running(&(oc_session_events))) {
     return;
@@ -138,26 +123,26 @@ oc_session_end_event(oc_endpoint_t *endpoint)
   oc_process_poll(&(oc_session_events));
   _oc_signal_event_loop();
 }
-#endif /* OC_TCP */
+#endif
 
-void
-oc_handle_session(oc_endpoint_t *endpoint, oc_session_state_t state)
+void oc_handle_session(oc_endpoint_t *endpoint, oc_session_state_t state)
 {
   (void)endpoint;
   (void)state;
   if (state == OC_SESSION_DISCONNECTED) {
-//#ifdef OC_SECURITY
-#ifdef OC_OSCORE
+#ifdef KNX_TCP_TLS
     if (endpoint->flags & SECURED && endpoint->flags & TCP) {
       oc_tls_remove_peer(endpoint);
     }
-#endif /* OC_SECURITY */
+#endif
+
 #ifdef OC_SERVER
-    /* remove all observations for the endpoint */
+    // Remove all observations for the endpoint.
     coap_remove_observer_by_client(endpoint);
-#endif /* OC_SERVER */
+#endif
   }
+
 #ifdef OC_SESSION_EVENTS
   handle_session_event_callback(endpoint, state);
-#endif /* OC_SESSION_EVENTS */
+#endif
 }

@@ -1,20 +1,8 @@
-/*
-// Copyright (c) 2016 Intel Corporation
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
-/*
+/* 
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2024-2025 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
  * All rights reserved.
@@ -57,34 +45,33 @@
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
-#endif 
+#endif
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
-#endif 
+#endif
+
+#ifdef KNX_TCP_TLS
+#include "security/oc_tls.h"
+#endif
 
 OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
 OC_LIST(transactions_list);
 
 static struct oc_process *transaction_handler_process = NULL;
 
-/*---------------------------------------------------------------------------*/
-/*- Internal API ------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
-void coap_register_as_transaction_handler(void)
-{
+/*** Internal API ***/
+
+void coap_register_as_transaction_handler(void) {
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t* endpoint)
-{
+coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t* endpoint) {
   coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
-  if (t) 
-  {
+  if (t) {
     // cleared buffers
     t->message = oc_internal_allocate_outgoing_message();
-    if (t->message) 
-    {
+    if (t->message) {
       OC_DBG("created new transaction %u: %p", mid, (void *)t);
       
       t->mid = mid;
@@ -94,30 +81,25 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t t
       t->token_len = token_len;
       memcpy(t->token, token, token_len);
 
-      // save client address 
+      // save client address
       memcpy(&t->message->endpoint, endpoint, sizeof(oc_endpoint_t));
 
-      oc_list_add(transactions_list,t); // list itself makes sure same element is not added twice
-    } 
-    else 
-    {
+      // List itself makes sure same element is not added twice>
+      oc_list_add( transactions_list, t);
+    } else {
       oc_memb_free(&transactions_memb, t);
       t = NULL;
     }
-  } 
-  else 
-  {
+  } else {
     OC_WRN("insufficient memory to create transaction");
   }
 
   return t;
 }
 
-coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
-{
+coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message) {
   coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
-  if (t)
-  {
+  if (t) {
     // copy the message as such, needed for possible 'unicast echo re-request' retransmits within the timeout 
     t->message->length = s_mode_message->length;
     // memcpy can handle '0' bytes, so no extra check
@@ -129,9 +111,7 @@ coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_
     OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
     oc_etimer_restart(&t->retransmit_timer); 
     OC_PROCESS_CONTEXT_END(transaction_handler_process);
-  }
-  else
-  {
+  } else {
     OC_WRN("insufficient memory to create transaction");
   }
 
@@ -141,25 +121,25 @@ coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_
 // sends a message by 'transaction'
 // - NON-confirmable : send + clear the transaction afterward (it is a one time fire and forget send out)
 // - CON-confirmable : send + MAY clear afterward the transaction if all reps are done (it is an n- time fire and forget send out)
-void coap_send_transaction(coap_transaction_t *t)
-{
-  if (!oc_main_initialized()) 
+void coap_send_transaction(coap_transaction_t *t) {
+  if (!oc_main_initialized()) {
     return;
+  }
 
   #ifdef OC_DEBUG
-
   OC_DBG("sending transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
 
   if (t == NULL) {
     OC_ERR("transaction == NULL");
   }
+
   if (t->message == NULL) {
     OC_ERR("message in transaction == NULL");
   }
+
   if (t->message->data == NULL) {
     OC_ERR("data in message in transaction == NULL");
   }
-
   #endif
 
   const bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION ? true : false;
@@ -209,7 +189,7 @@ void coap_send_transaction(coap_transaction_t *t)
       #ifdef OC_BLOCK_WISE
       oc_blockwise_scrub_buffers(false);
       #endif
-      #ifdef OC_SECURITY
+      #ifdef KNX_TCP_TLS
       if (t->message->endpoint.flags & SECURED) {
         oc_tls_close_connection(&t->message->endpoint);
       } else
@@ -222,11 +202,10 @@ void coap_send_transaction(coap_transaction_t *t)
   else 
   {
     // non-conformable messages, send ones and delete afterward the transaction
-
-      OC_DBG("send_transaction - NON message");
-      oc_message_add_ref(t->message);
-      coap_send_message(t->message);
-      coap_clear_transaction(t); 
+    OC_DBG("send_transaction - NON message");
+    oc_message_add_ref(t->message);
+    coap_send_message(t->message);
+    coap_clear_transaction(t); 
   }
 }
 
@@ -253,6 +232,7 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
       return t;
     }
   }
+
   return NULL;
 }
 
@@ -266,6 +246,7 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
       return t;
     }
   }
+
   return NULL;
 }
 
@@ -316,6 +297,7 @@ void coap_check_transactions(void)
         continue;
       }
     }
+
     // restore next
     t = next;
   }
@@ -341,7 +323,7 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
 
   while (t) 
   {
-    // save next
+    // Save next.
     coap_transaction_t* next = t->next;
     if (oc_endpoint_compare(&t->message->endpoint, endpoint) == 0) 
     {
@@ -349,24 +331,25 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
       const int before = oc_list_length(transactions_list);
 
       #ifdef OC_CLIENT
-
-      // remove the client callback tied to this transaction
+      // Remove the client callback tied to this transaction.
       oc_ri_free_client_cbs_by_mid(t->mid);
-
       #endif 
 
       const int after = oc_list_length(transactions_list);
 
       if (before - after > 0) 
       {
-        // list is not empty maybe there is another transaction for the same endpoint, restart the list 
+        // List is not empty maybe there is another transaction for the same endpoint. 
+        // Restart the list.
         t = (coap_transaction_t *)oc_list_head(transactions_list);
         continue;
       }
-      // clear found transaction 
+
+      // Clear found transaction.
       coap_clear_transaction(t);
     }
-    // restore next
+
+    // Restore next.
     t = next;
   }
 }

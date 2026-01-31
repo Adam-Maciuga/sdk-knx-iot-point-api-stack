@@ -1,18 +1,10 @@
-/*
-// Copyright (c) 2016 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
   @brief platform specific asserts
   @file
@@ -46,11 +38,10 @@ void exit_impl(int status);
  */
 static inline void oc_abort(const char *msg)
 {
-
-#if OC_LOG_TO_FILE
-  PRINTF("\n%s\nAbort.\n", msg);
-#else
+#if OC_LOG_TO_FILE // TODO FIXME is there a problem when we write to the file on abort?
   (void)msg;
+#else
+  PRINTF("\n%s\nAbort.\n", msg); // TODO FIXME shouldn't we always print a message on abort?
 #endif
   abort_impl();
 }

@@ -14,7 +14,7 @@
 // limitations under the License.
 */
 
-#if defined(OC_PRINT) && defined(OC_LOG_TO_FILE)
+#if defined(OC_PRINT) && defined(KNX_LOG_TO_FILE)
 
 #include <stdarg.h>
 #include <stdio.h>

@@ -1,24 +1,13 @@
-/*
-// Copyright (c) 2020 Intel Corporation
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2024-2025 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */   
 
 #include "oc_replay.h"
 #include "oc_storage.h"
 
-#ifdef OC_OSCORE
 #include <inttypes.h>
 #include "api/oc_events.h"
 #include "messaging/coap/engine.h"
@@ -79,10 +68,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
                                      storage_name + (OSCORE_STORAGE_PREFIX_LEN + ctx->sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN), 
                                      &storage_name_len);
 
-
-    #ifdef OC_USE_STORAGE
     oc_storage_write(storage_name, (uint8_t*)&ctx->ssn, sizeof(ctx->ssn));
-    #endif
   }
 }
 
@@ -1223,7 +1209,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         increment_ssn_in_context(oscore_ctx);
 
       #ifdef OC_CLIENT
-      
       // find client cb from the former request
       oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(coap_pkt->token, coap_pkt->token_len);
 
@@ -1234,7 +1219,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         memcpy(cb->piv, piv, piv_len);
         
       }
-      
       #endif
 
       // use 'Sender ID' as kid
@@ -1468,8 +1452,7 @@ oscore_send_dispatch:
   return 0;
   #endif
 
-#ifdef OC_CLIENT
-#ifdef OC_SECURITY
+#ifdef OC_CLIENT && KNX_TCP_TLS
   OC_DBG_OSCORE("Outbound network event: forwarding to TLS");
   if (!oc_tls_connected(&from_org_msg_cloned_outgoing_msg->endpoint))
   {
@@ -1478,9 +1461,8 @@ oscore_send_dispatch:
   }
   else
 #endif 
-#endif 
   {
-#ifdef OC_SECURITY
+#ifdef KNX_TCP_TLS
     OC_DBG_OSCORE("Posting RI_TO_TLS_EVENT");
     oc_process_post(&oc_tls_handler, oc_events[RI_TO_TLS_EVENT], from_org_msg_cloned_outgoing_msg);
 #endif
@@ -1521,6 +1503,3 @@ OC_PROCESS_THREAD(oc_oscore_handler, ev, data)
 
   OC_PROCESS_END()
 }
-#else 
-typedef int dummy_declaration;
-#endif 

@@ -1,18 +1,11 @@
-/*
-// Copyright (c) 2016, 2018, 2020 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+
+/* 
+ * Copyright (c) 2016, 2018, 2020 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
   @brief platform abstraction of networking
   @file
@@ -34,15 +27,16 @@ extern "C" {
 #endif
 
 #ifndef OC_DYNAMIC_ALLOCATION
+
 #ifndef OC_MAX_APP_DATA_SIZE
 #error "Set OC_MAX_APP_DATA_SIZE in oc_config.h"
-#endif /* !OC_MAX_APP_DATA_SIZE */
+#endif
 
 #ifdef OC_BLOCK_WISE_SET_MTU
 #define OC_BLOCK_WISE
 #if OC_BLOCK_WISE_SET_MTU < (COAP_MAX_HEADER_SIZE + 16)
 #error "OC_BLOCK_WISE_SET_MTU must be >= (COAP_MAX_HEADER_SIZE + 2^4)"
-#endif /* OC_BLOCK_WISE_SET_MTU is too small */
+#endif
 #define OC_MAX_BLOCK_SIZE (OC_BLOCK_WISE_SET_MTU - COAP_MAX_HEADER_SIZE)
 #define OC_BLOCK_SIZE                                                          \
   (OC_MAX_BLOCK_SIZE < 32                                                      \
@@ -58,48 +52,43 @@ extern "C" {
                          : (OC_MAX_BLOCK_SIZE < 1024                           \
                               ? 512                                            \
                               : (OC_MAX_BLOCK_SIZE < 2048 ? 1024 : 2048)))))))
-#else /* OC_BLOCK_WISE_SET_MTU */
+#else
 #define OC_BLOCK_SIZE (OC_MAX_APP_DATA_SIZE)
-#endif /* !OC_BLOCK_WISE_SET_MTU */
+#endif
 
 enum {
-#ifdef OC_TCP // TODO: need to check about tls packet.
-#ifdef OC_OSCORE
+#ifdef OC_TCP // TODO Need to check about TLS packet.
   OC_PDU_SIZE = (OC_MAX_APP_DATA_SIZE + 2 * COAP_MAX_HEADER_SIZE)
-#else  /* OC_OSCORE */
-  OC_PDU_SIZE = (OC_MAX_APP_DATA_SIZE + COAP_MAX_HEADER_SIZE)
-#endif /* !OC_OSCORE */
-#else  /* OC_TCP */
-#ifdef OC_SECURITY
-#ifdef OC_OSCORE
+#else
+#ifdef OC_SECURITY // TODO FIXME NOW this makes no sense OC_SECURITY is now OC_TCP_TLS, but here it is in the else path of if TCP!
   OC_PDU_SIZE = (OC_BLOCK_SIZE + 2 * COAP_MAX_HEADER_SIZE)
-#else  /* OC_OSCORE */
+#else
   OC_PDU_SIZE = (OC_BLOCK_SIZE + COAP_MAX_HEADER_SIZE)
-#endif /* !OC_OSCORE */
-#else  /* OC_SECURITY */
-  OC_PDU_SIZE = (OC_BLOCK_SIZE + COAP_MAX_HEADER_SIZE)
-#endif /* !OC_SECURITY */
-#endif /* !OC_TCP */
+#endif
+#endif
 };
+
 #else 
+
 #ifdef __cplusplus
 }
 #endif
+
 #include "oc_buffer_settings.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #ifdef OC_TCP
-#ifdef OC_OSCORE
 #define OC_PDU_SIZE (oc_get_max_app_data_size() + 2 * COAP_MAX_HEADER_SIZE)
-#else 
-#define OC_PDU_SIZE (oc_get_max_app_data_size() + COAP_MAX_HEADER_SIZE)
-#endif 
 #else  
 #define OC_PDU_SIZE (oc_get_mtu_size())
 #endif 
+
 #define OC_BLOCK_SIZE (oc_get_block_size())
 #define OC_MAX_APP_DATA_SIZE (oc_get_max_app_data_size())
+
 #endif 
 
 struct oc_message_s
@@ -196,8 +185,8 @@ int oc_dns_lookup(const char *domain, oc_string_t *addr,
  *
  */
 void oc_dns_clear_cache(void);
-#endif /* OC_DNS_CACHE */
-#endif /* OC_DNS_LOOKUP */
+#endif
+#endif
 
 /**
  * @brief retrieve list of endpoints for the device
@@ -268,7 +257,7 @@ tcp_csm_state_t oc_tcp_get_csm_state(oc_endpoint_t *endpoint);
  * @return int 0 = success
  */
 int oc_tcp_update_csm_state(oc_endpoint_t *endpoint, tcp_csm_state_t csm);
-#endif /* OC_TCP */
+#endif
 
 #ifdef __cplusplus
 }

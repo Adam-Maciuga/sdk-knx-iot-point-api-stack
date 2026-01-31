@@ -1,20 +1,10 @@
 /*
-// Copyright (c) 2016 Intel Corporation
-// Copyright (c) 2021-2023 Cascoda Ltd.
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2021-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "messaging/coap/coap.h"
 #ifdef OC_TCP
@@ -32,8 +22,6 @@ coap_packet_t udp_coap_request[1];
 #ifdef OC_BLOCK_WISE_REQUEST
 static oc_blockwise_state_t *request_buffer = NULL;
 #endif 
-
-#ifdef OC_OSCORE
 
 // a static pointer, used like a 2-state state machine, to allocate/release an outgoing
 // - uc/mc s-mode message
@@ -188,8 +176,6 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   return true;
 }
 
-#endif 
-
 void oc_free_server_endpoints(oc_endpoint_t *endpoint)
 {
   while (endpoint) 
@@ -202,8 +188,8 @@ void oc_free_server_endpoints(oc_endpoint_t *endpoint)
 }
 
 bool oc_get_response_payload_raw(oc_client_response_t *response,
-                            const uint8_t **payload, size_t *size,
-                            oc_content_format_t *content_format)
+        const uint8_t **payload, size_t *size, 
+        oc_content_format_t *content_format)
 {
   if (!response || !payload || !size || !content_format) {
     return false;
@@ -217,23 +203,6 @@ bool oc_get_response_payload_raw(oc_client_response_t *response,
   }
   return false;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #ifdef OC_TCP
 oc_event_callback_retval_t
@@ -250,9 +219,8 @@ oc_remove_ping_handler(void *data)
   return oc_ri_remove_client_cb(cb);
 }
 
-bool
-oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_seconds,
-             oc_response_handler_t handler, void *user_data)
+bool oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_seconds,
+        oc_response_handler_t handler, void *user_data)
 {
   oc_client_handler_t client_handler = {
     .response = handler,
@@ -276,15 +244,11 @@ oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_seconds,
 }
 #endif 
 
-// -----------------------------------------------------------------------------
-
-
-
 void oc_close_session(oc_endpoint_t *endpoint)
 {
   if (endpoint->flags & SECURED) 
   {
-    #ifdef OC_SECURITY
+    #ifdef KNX_TCP_TLS
     oc_tls_close_connection(endpoint);
     #endif 
   }
@@ -295,8 +259,6 @@ void oc_close_session(oc_endpoint_t *endpoint)
     #endif
   }
 }
-
-// -----------------------------------------------------------------------------
 
 int oc_lf_number_of_entries(const char *payload, int payload_len)
 {
@@ -331,9 +293,8 @@ int oc_lf_number_of_entries(const char *payload, int payload_len)
   return nr_entries;
 }
 
-static int
-oc_lf_get_line(const char *payload, int payload_len, int entry,
-               const char **line, int *line_len)
+static int oc_lf_get_line(const char *payload, int payload_len, int entry,
+        const char **line, int *line_len)
 {
   int nr_entries = 0;
   int i;
@@ -374,21 +335,21 @@ oc_lf_get_line(const char *payload, int payload_len, int entry,
   if (payload[begin_line_index] == '\n') {
     begin_line_index++;
   }
+
   // remove the trailing comma, if it exists.
   if (payload[end_line_index - 1] == ',') {
     end_line_index--;
   }
-  int line_tot = end_line_index - begin_line_index;
 
+  int line_tot = end_line_index - begin_line_index;
   *line = &payload[begin_line_index];
   *line_len = line_tot;
 
   return 1;
 }
 
-int
-oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
-                    const char **uri, int *uri_len)
+int oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
+        const char **uri, int *uri_len)
 {
   const char *line = NULL;
   int line_len = 0;
@@ -413,9 +374,8 @@ oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
   return 1;
 }
 
-int
-oc_lf_get_entry_param(const char *payload, int payload_len, int entry,
-                      const char *param, const char **p_out, int *p_len)
+int oc_lf_get_entry_param(const char *payload, int payload_len, int entry,
+        const char *param, const char **p_out, int *p_len)
 {
   const char *line = NULL;
   int line_len = 0;

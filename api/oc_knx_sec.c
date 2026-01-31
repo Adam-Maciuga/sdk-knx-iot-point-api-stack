@@ -1,19 +1,9 @@
-/*
- // Copyright (c) 2021-2023 Cascoda Ltd
- // Copyright (c) 2024-2025 KNX Association
- //
- // Licensed under the Apache License, Version 2.0 (the "License");
- // you may not use this file except in compliance with the License.
- // You may obtain a copy of the License at
- //
- //      http://www.apache.org/licenses/LICENSE-2.0
- //
- // Unless required by applicable law or agreed to in writing, software
- // distributed under the License is distributed on an "AS IS" BASIS,
- // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- // See the License for the specific language governing permissions and
- // limitations under the License.
- */
+/* 
+ * Copyright (c) 2021-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */   
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
@@ -64,7 +54,6 @@ static void oc_store_at_table_entry(int entry);
 static uint64_t oc_read_ssn_from_storage(const uint8_t* sender_id, size_t sender_id_len,
                                            const uint8_t* id_context, size_t id_context_len)
 {
-#ifdef OC_USE_STORAGE
   uint64_t ssn = 0;
   char storage_name[OSCORE_STORAGE_KEY_LEN] = {OSCORE_STORAGE_PREFIX};
   size_t storage_name_len;
@@ -101,7 +90,7 @@ static uint64_t oc_read_ssn_from_storage(const uint8_t* sender_id, size_t sender
   {
     PRINT("No SSN found in storage '%s', starting from 0", storage_name);
   }
-#endif
+
   return 0;
 }
 
@@ -1190,10 +1179,8 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
   PRINT("delete AT table index");
   oc_delete_at_table_entry(index);
 
-#ifdef OC_OSCORE
   // delete the related oscore contexts
   oc_oscore_free_contexts_at_id(index);
-#endif
 
   PRINT("oc_core_auth_at_x_delete_handler - done");
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
@@ -1423,11 +1410,6 @@ int oc_delete_at_table_entry(int entry)
 */
 static void oc_store_at_table_entry(int entry)
 {
-#ifndef OC_USE_STORAGE
-  (void)entry;
-  PRINT("no storage for the AT table enabled");
-#else
-
   if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
   {
     char filename[AT_SIZE];
@@ -1475,7 +1457,6 @@ static void oc_store_at_table_entry(int entry)
     }
     free(buf);
   }
-#endif
 }
 
 static void oc_load_at_table_entry(int entry)
@@ -1637,9 +1618,7 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
     if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
     {
       oc_delete_at_table_entry(i);      // delete entry from AT table
-      #ifdef OC_OSCORE
       oc_oscore_free_contexts_at_id(i); // removes possible references
-      #endif
       PRINT("PASE key found at id : %d, invalidated...", i);
     }
   }
@@ -1678,6 +1657,7 @@ static void oc_load_at_table(void)
     oc_load_at_table_entry(i);
     oc_print_auth_at_entry(i);
   }
+
   // create the oscore contexts
   oc_init_oscore_from_storage(true);
 }
@@ -1692,10 +1672,9 @@ void oc_delete_at_table(void)
     oc_print_auth_at_entry(i);
     oc_delete_at_table_entry(i);
   }
-  #ifdef OC_OSCORE
+
   oc_oscore_free_all_contexts();
   oc_oscore_free_all_replay_records();
-  #endif
 }
 
 void oc_delete_at_table_except_sec_scope_entries(void)
@@ -1713,10 +1692,9 @@ void oc_delete_at_table_except_sec_scope_entries(void)
       oc_delete_at_table_entry(i);
     }
   }
-  #ifdef OC_OSCORE
+
   // (re)create the oscore contexts in the table that still remains
   oc_init_oscore_from_storage(true);
-  #endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1798,8 +1776,6 @@ void oc_create_knx_sec_resources(void)
 
 void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
-#ifdef OC_OSCORE
-
   oc_oscore_free_sender_contexts();
   
   for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
@@ -1850,8 +1826,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       }
     }
   }
-
-#endif
 }
 
 // used for API test only
@@ -1885,10 +1859,6 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     // all resources with methods that do not have any scope uses in stack 'OC_ACL_NONE'
     return true;
   }
-
-  #ifndef OC_OSCORE
-  return true;
-  #endif
 
   // debugging
   PRINT("method allowed flags : ");
