@@ -604,8 +604,8 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 			OC_WRN("CoAP version must be 1");
 			return BAD_REQUEST_4_00;
 		}
-		coap_pkt->type = (COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >>	COAP_HEADER_TYPE_POSITION;
-		coap_pkt->mid = coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3];
+    coap_pkt->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >>	COAP_HEADER_TYPE_POSITION);
+    coap_pkt->mid = (uint16_t)(coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3]);
 		coap_pkt->code = coap_pkt->buffer[1];
 
 		current_option = msg->data + COAP_HEADER_LEN;
