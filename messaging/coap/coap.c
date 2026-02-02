@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2016, 2020 Intel Corporation
 // Copyright (c) 2021 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -631,7 +632,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 {
 	(void) oscore;
 
-  coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
 	// delete all CoAP options in coap packet
 	memset(coap_pkt->options, 0, sizeof(coap_pkt->options));
@@ -735,7 +736,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 		#endif 
 		switch (option_number)
 		{
-			#if defined(OC_OSCORE)
+			#ifdef OC_OSCORE
 
 		  case COAP_OPTION_OSCORE:
 
@@ -1001,10 +1002,7 @@ coap_oscore_parse_options(void* packet, uint8_t* data, uint32_t data_len,
 				
 				if (option_number & 1)
 				{
-					/*
-					  RFC Coap 5.4.6 critical options 
-					 */
-				  // check if critical option (odd) TODO check, some critical options are NOT odd (must be in check above) 
+				  // RFC Coap 5.4.6 critical options, check if critical option (odd)
 				  OC_WRN("unsupported critical option");
 					return BAD_OPTION_4_02;
 				}
@@ -1450,7 +1448,7 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 	// parse inner and outer, on present OSCORE option ... = 4.02 (here the OSCORE payload must be already extracted) 
 	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 
-	OC_INF("coap oscore parse options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+	OC_INF("coap parse options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
 }
 /*---------------------------------------------------------------------------*/

@@ -252,10 +252,9 @@ int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 	return 1;
 }
 
-int
-coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t option_length)
+int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t option_length)
 {
-	coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
 	/*
 		OSCORE Option structure From RFC 8613:
@@ -271,10 +270,10 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		+------------+----------------------+------------------+
 	*/
 
-	OC_DBG_OSCORE("OSCORE option");
+	OC_DBG("OSCORE option");
 	if (option_length == 0)
 	{
-		OC_DBG_OSCORE("\t... empty value");
+		OC_DBG("\t... empty value");
 		return 0;
 	}
 
@@ -283,7 +282,7 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 	current_option++;
 	option_length--;
 
-  OC_DBG_OSCORE("\t flags (000|h|k|nnn): %02x", coap_pkt->oscore_flags);
+  OC_DBG("\t flags (000|h|k|nnn): %02x", coap_pkt->oscore_flags);
 
 	// Partial IV length (n bytes)
 	coap_pkt->piv_len = coap_pkt->oscore_flags & OSCORE_FLAGS_PIVLEN_BITMASK;
@@ -295,8 +294,8 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		current_option += coap_pkt->piv_len;
 		option_length -= coap_pkt->piv_len;
 
-		OC_DBG_OSCORE("\t Partial IV:");
-		OC_LOGbytes_OSCORE(coap_pkt->piv, coap_pkt->piv_len);
+		OC_DBG("\t Partial IV\t: ");
+		OC_LOGbytes(coap_pkt->piv, coap_pkt->piv_len);
 	}
 
 	// kid context (if any), check if 'h' flag bit is set
@@ -312,8 +311,8 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		current_option += coap_pkt->kid_ctx_len;
 		option_length -= coap_pkt->kid_ctx_len;
 
-		OC_DBG_OSCORE("\t kid context:");
-		OC_LOGbytes_OSCORE(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
+		OC_DBG("\t kid_context\t: ");
+		OC_LOGbytes(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 	}
 
 	// kid (if any), check if 'k' flag bit is set
@@ -323,8 +322,8 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 		coap_pkt->kid_len = (uint8_t) option_length;
 		memcpy(coap_pkt->kid, current_option, option_length);
 
-		OC_DBG_OSCORE("\t kid:");
-		OC_LOGbytes_OSCORE(coap_pkt->kid, coap_pkt->kid_len);
+		OC_DBG("\t kid\t\t: ");
+		OC_LOGbytes(coap_pkt->kid, coap_pkt->kid_len);
 	}
 
 	return 0;
@@ -332,7 +331,7 @@ coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t opt
 
 size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, uint8_t* buffer)
 {
-	coap_packet_t* const coap_pkt = packet;
+  const coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
 	/*
 	 * calculate OSCORE option value length (piv, kid context + kid)
@@ -373,7 +372,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 				memcpy(buffer, coap_pkt->piv, coap_pkt->piv_len);
 				buffer += coap_pkt->piv_len;
 
-				OC_DBG_OSCORE("\tPartial IV : ");
+				OC_DBG_OSCORE("\t Partial IV\t: ");
 				OC_LOGbytes_OSCORE(coap_pkt->piv, coap_pkt->piv_len);
 			}
 
@@ -387,7 +386,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 				memcpy(buffer, coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 				buffer += coap_pkt->kid_ctx_len;
 
-				OC_DBG_OSCORE("\tkid_context : ");
+				OC_DBG_OSCORE("\t kid_context\t: ");
 				OC_LOGbytes_OSCORE(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
 			}
 
@@ -397,7 +396,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 				memcpy(buffer, coap_pkt->kid, coap_pkt->kid_len);
 				buffer += coap_pkt->kid_len;
 
-				OC_DBG_OSCORE("\tkid:");
+				OC_DBG_OSCORE("\t kid\t\t: ");
 				OC_LOGbytes_OSCORE(coap_pkt->kid, coap_pkt->kid_len);
 			}
 		}

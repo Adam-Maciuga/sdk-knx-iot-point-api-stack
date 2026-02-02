@@ -481,7 +481,7 @@ int coap_receive(oc_message_t* incoming_message)
           oc_string_t kid_ctx = {0};	// init default kid_context
           uint64_t ssn;								// piv -> ssn
 
-          // fill kid/kid context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
+          // get kid/kid_context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
           oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
           oc_new_byte_string(&kid_ctx, (char*)incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
           oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);

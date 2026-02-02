@@ -21,11 +21,9 @@
 #include <inttypes.h>
 #include "oc_oscore_context.h"
 #include "messaging/coap/transactions.h"
-#include "oc_api.h"
 #include "oc_client_state.h"
 #include "oc_oscore_crypto.h"
 #include "api/oc_knx_sec.h"
-#include "oc_rep.h"
 #include "port/oc_log.h"
 
 OC_LIST(contexts);
@@ -118,6 +116,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
 
     // search transactions by token
     coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
+    
     if (!t)
     {
       if (!tcp)
@@ -144,7 +143,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   }
   #endif
 
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t *) oc_list_head(contexts);
 
   if (oscore_id_len == 0)
   {
@@ -156,14 +155,14 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
   {
     if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0)
     {
-      PRINT("found context by_token/mid with auth/at index: %d", ctx->auth_at_index);
+      PRINT("found context by_token/mid with auth/at index : %d ", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
     }
     ctx = ctx->next;
   }
-  // is NULL
-  return ctx;
+
+  return NULL;
 }
 
 // scans Client Recipient Context 
@@ -280,7 +279,7 @@ void oc_oscore_free_all_contexts(void)
 void oc_oscore_free_sender_contexts(void)
 {
   
-  OC_DBG_OSCORE("removing all present OSCORE Sender Contexts");
+  OC_DBG_OSCORE("removing all - in a client present - 'Request Sender Contexts'");
   
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
@@ -290,7 +289,7 @@ void oc_oscore_free_sender_contexts(void)
     // tmp copy of next (if released its gone)
     oc_oscore_context_t* next = ctx->next;
 
-    // release any context if it is not used as a "Recipient Context"
+    // release any context if it is not used as a 'Request Recipient Context'
     if (ctx->recipient_id_len == 0)
       oc_oscore_free_context(ctx);
     
@@ -372,9 +371,7 @@ void oc_context_print_all(void)
 #endif
 }
 
-oc_oscore_context_t* oc_oscore_add_recipient_context(const char* sender_id, size_t sender_id_size, 
-                                                     const char* recipient_id, size_t recipient_id_size,
-                                                     uint64_t ssn, 
+oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size,
                                                      const char* mastersecret, size_t mastersecret_size, 
                                                      const char* salt, size_t salt_size,
                                                      const char* id_context, uint8_t id_context_size,
@@ -382,21 +379,79 @@ oc_oscore_context_t* oc_oscore_add_recipient_context(const char* sender_id, size
                                                      bool read_ssn_from_storage)
 {
   
+  #ifdef OC_DEBUG
+
+  OC_DBG("adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
+  oc_char_println_hex(recipient_id, recipient_id_size);
+
+  #endif
+  
+  oc_oscore_context_t* ctx = 
+    oc_oscore_add_context("", 0, recipient_id, recipient_id_size, 0, mastersecret, mastersecret_size,
+                          salt, salt_size, id_context, id_context_size, auth_at_index, read_ssn_from_storage);
+
+  if (!ctx)
+  {
+    // if context is null, free one & try adding again, on recipient context this may happen in case of new/ fresh inbound request
+    oc_oscore_free_lru_recipient_context();
+
+    ctx = oc_oscore_add_context("", 0,
+                                recipient_id, recipient_id_size,
+                                0, 
+                                mastersecret, mastersecret_size,
+                                salt, salt_size, 
+                                id_context, id_context_size, 
+                                auth_at_index, 
+                                read_ssn_from_storage);
+  }
+
+  #ifdef OC_DEBUG
+
+  oc_context_print_all();
+
+  #endif
+  
+  return ctx;
+}
+
+oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t sender_id_size, const char* recipient_id,
+                                                     size_t recipient_id_size, uint64_t ssn, const char* mastersecret,
+                                                     size_t mastersecret_size, const char* salt, size_t salt_size,
+                                                     const char* id_context, uint8_t id_context_size, int auth_at_index,
+                                                     bool read_ssn_from_storage)
+{
+
+  #ifdef OC_DEBUG
+
+  OC_DBG("adding OSCORE Request Sender Context (A1/8.1) with Sender ID : ");
+  oc_char_println_hex(recipient_id, recipient_id_size);
+
+  #endif
+
   oc_oscore_context_t* ctx =
     oc_oscore_add_context(sender_id, sender_id_size, recipient_id, recipient_id_size, ssn, mastersecret, mastersecret_size,
                           salt, salt_size, id_context, id_context_size, auth_at_index, read_ssn_from_storage);
 
   if (!ctx)
   {
-    // if context is null, free one & try adding again
+    /* 
+      if context is null, free one & try adding again, on sender context this may happen only in case
+      of creating a new sender context for an "out of the void" popping up 'unicast echo re-request'
+    */
     oc_oscore_free_lru_recipient_context();
 
-    ctx = oc_oscore_add_context(sender_id, sender_id_size, recipient_id, recipient_id_size, ssn, mastersecret, mastersecret_size,
+    ctx =
+      oc_oscore_add_context(sender_id, sender_id_size, recipient_id, recipient_id_size, ssn, mastersecret, mastersecret_size,
                             salt, salt_size, id_context, id_context_size, auth_at_index, read_ssn_from_storage);
   }
-  
+
+  #ifdef OC_DEBUG
+
+  oc_context_print_all();
+
+  #endif
+
   return ctx;
-  
 }
 
 
@@ -490,13 +545,13 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     memcpy(&ctx->master_secret, mastersecret, mastersecret_size);
   }
 
-  PRINT("AT Index      : (%2d)\t= ", auth_at_index);
-  PRINT("Sender ID     : (%2d)\t= ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
-  PRINT("Recipient ID  : (%2d)\t= ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
-  PRINT("ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
-  PRINT("Master Secret : (%zu)\t= ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("Salt          : (%zu)\t= ", salt_size);  oc_char_println_hex(salt, salt_size);
-  PRINT("SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
+  PRINT("### AT Index      : (%2d)\t= ", auth_at_index);
+  PRINT("### Sender ID     : (%2d)\t= ", ctx->sender_id_len); OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
+  PRINT("### Recipient ID  : (%2d)\t= ", ctx->recipient_id_len); OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
+  PRINT("### ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
+  PRINT("### Master Secret : (%zu)\t= ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
+  PRINT("### Salt          : (%zu)\t= ", salt_size);  oc_char_println_hex(salt, salt_size);
+  PRINT("### SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
 
   if (oc_oscore_context_derive_param(
     ctx->sender_id, ctx->sender_id_len,
@@ -504,7 +559,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     "Key",
     mastersecret, (uint8_t)mastersecret_size, 
     salt, (uint8_t)salt_size,
-    ctx->request_key, OSCORE_KEY_LEN) < 0)
+    ctx->sender_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Sender Key ...");
     goto add_oscore_context_error;
@@ -517,7 +572,7 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     "Key",
     mastersecret, (uint8_t)mastersecret_size, 
     salt, (uint8_t)salt_size,
-    ctx->response_key, OSCORE_KEY_LEN) < 0)
+    ctx->recipient_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Recipient Key ...");
     goto add_oscore_context_error;
@@ -535,8 +590,8 @@ oc_oscore_context_t* oc_oscore_add_context(const char* sender_id, size_t sender_
     goto add_oscore_context_error;
   }
 
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Request Key  : ", ctx->request_key));
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Response Key : ", ctx->response_key));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Request Key  : ", ctx->sender_key));
+  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Response Key : ", ctx->recipient_key));
   OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV    : ", ctx->common_iv));
 
   oc_list_add(contexts, ctx);

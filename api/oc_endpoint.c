@@ -57,14 +57,6 @@ oc_free_endpoint(oc_endpoint_t* endpoint)
 	}
 }
 
-void oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, 
-															 uint8_t* oscore_id,
-															 int oscore_id_len)
-{
-	memcpy(endpoint->oscore_id, oscore_id, oscore_id_len);
-	endpoint->oscore_id_len = oscore_id_len;
-}
-
 #ifdef OC_IPV4
 static void
 oc_ipv4_endpoint_to_string(oc_endpoint_t* endpoint, oc_string_t* endpoint_str)

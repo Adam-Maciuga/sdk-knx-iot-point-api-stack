@@ -58,8 +58,8 @@ typedef struct oc_oscore_context_t
   oc_clock_time_t last_used;                        // time of last use, for runtime caching of recipient contexts
 
   // derived parameters
-  uint8_t request_key[OSCORE_KEY_LEN];              // 128-bit Request Key 
-  uint8_t response_key[OSCORE_KEY_LEN];             // 128-bit Response Key
+  uint8_t sender_key[OSCORE_KEY_LEN];               // 128-bit Request Key 
+  uint8_t recipient_key[OSCORE_KEY_LEN];            // 128-bit Response Key
   uint8_t common_iv[OSCORE_COMMON_IV_LEN];          // Common IV
   
 } oc_oscore_context_t;
@@ -119,7 +119,7 @@ void oc_oscore_free_sender_contexts(void);
 void oc_oscore_free_contexts_at_id(int auth_at_index);
 
 /**
- * @brief creates an OSCORE context (e.g. the internal structure for encoding/decoding
+ * @brief creates an OSCORE context (e.g. the internal structure for encoding/decoding)
  *
  * Note: OSCORE context is also a field.
  *
@@ -151,18 +151,28 @@ oc_oscore_context_t* oc_oscore_add_context(
   int auth_at_index,
   bool read_ssn_from_storage);
 
-  // same as 'add_context' but tries to free also a lru context in case no context is available
-  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* sender_id, size_t sender_id_size, const char* recipient_id,
-                                                     size_t recipient_id_size, uint64_t ssn, const char* mastersecret,
-                                                     size_t mastersecret_size, const char* salt, size_t salt_size,
-                                                     const char* id_context, uint8_t id_context_size, int auth_at_index,
-                                                     bool read_ssn_from_storage);
+  /**
+  * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting sender id = "" (0) and ssn = 0
+  *
+  **/
+  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size,
+                                                     const char* mastersecret,
+                                size_t mastersecret_size, const char* salt, size_t salt_size, const char* id_context,
+                                uint8_t id_context_size, int auth_at_index, bool read_ssn_from_storage);
+
+  /**
+   * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting recipient id = "" (0)
+   *
+   **/
+  oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t sender_id_size, const char* recipient_id,
+                               size_t recipient_id_size, uint64_t ssn, const char* mastersecret, size_t mastersecret_size,
+                               const char* salt, size_t salt_size, const char* id_context, uint8_t id_context_size,
+                               int auth_at_index, bool read_ssn_from_storage);
 
 /**
  * @brief Free the least recently used recipient context
  *
- * The use times are updated when the contexts are created or found using the
- * find_context_by_* functions
+ * The use times are updated when the contexts are created or found using the find_context_by_* functions
  *
  */
 void oc_oscore_free_lru_recipient_context(void);

@@ -1814,8 +1814,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         /* 
           'Client' Side (details see method 'oc_oscore_receive_message' header)
            - create oscore REQUEST sender context = kid + kid_context + ms + salt from token  
-           - create oscore RESPONSE recipient context = kid (h '') + kid_context + ms + salt from token 
-           
            - SSN initialized = read from storage, context is already present
 
         */
@@ -1830,7 +1828,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         
         OC_DBG("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
-        oc_oscore_context_t* ctx = oc_oscore_add_context(
+        // Request Sender Context (used by access token = Request)
+        const oc_oscore_context_t* ctx = oc_oscore_add_sender_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
           "", 0, 
           stored_ssn, // use SSN loaded from storage
@@ -1842,10 +1841,8 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
         if (ctx == NULL)
         {
-          OC_ERR("failed to add a context entry for AT table entry = %d", i);
+          OC_ERR("failed to add a context entry for AT table entry (on device startup this is usually because of too less context buffers = %d", i);
         }
-
-        
       }
       else
       {
@@ -1853,12 +1850,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       }
     }
   }
-
-  #ifdef OC_PRINT
-
-  oc_context_print_all();
-
-  #endif
 
 #endif
 }

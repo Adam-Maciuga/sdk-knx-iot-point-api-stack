@@ -105,23 +105,23 @@ extern "C" {
       oc_ipv4_addr_t ipv4;                /**< ipv4 address */
     } addr, addr_local;
 
-    int interface_index;                  /**< interface index */
-    uint8_t priority;                     /**< priority */
+    int interface_index;                    /* interface index */
+    uint8_t priority;                       /* priority */
 
-    uint32_t group_address;               /**< sending group address, used to find later the OSCORE context '128-bit sender key'
+    uint32_t group_address;                 /* sending group address, used to find later the OSCORE context '128-bit sender key'
                                                that must be used for encryption of s-mode multicast/unicast request message
                                                (issued by an application) */
 
-    int32_t auth_at_index;                /**< auth at index
+    int32_t auth_at_index;                  /* auth at index
                                                - used for matching oscore context for an outbound response from a former inbound request
                                                - used for upper layers to check access scopes (on an inbound request) */
 
-    uint8_t request_piv[OSCORE_PIV_LEN];  /**< OSCORE Partial IV from request*/
-    uint8_t request_piv_len;              /**< OSCORE Partial IV length from request*/
+    uint8_t request_piv[OSCORE_PIV_LEN];    /* OSCORE Partial IV (not empty) from inbound request */
+    uint8_t request_piv_len;              
     uint8_t kid_len;
-    uint8_t kid[OSCORE_SENDER_ID_LEN];
+    uint8_t kid[OSCORE_SENDER_ID_LEN];      /* OSCORE 'kid' (not empty) from inbound request */
     uint8_t kid_ctx_len;
-    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN];
+    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; /* OSCORE 'kid_context' (not empty) from inbound request */
   } oc_endpoint_t;
 
 #define oc_make_ipv4_endpoint(__name__, __flags__, __port__, ...)              \
@@ -149,17 +149,6 @@ extern "C" {
    * @param endpoint the endpoint to be freed
    */
   void oc_free_endpoint(oc_endpoint_t* endpoint);
-
-  /**
-   * @brief set the OSCORE identifier (SID)
-   *
-   * @param endpoint the end point
-   * @param oscore_id the OSCORE id (SID) to use for
-   * encryption/decryption
-   * @param oscore_id_len the length of the oscore_id
-   * @return int 0 success
-   */
-void oc_endpoint_set_oscore_id(oc_endpoint_t* endpoint, uint8_t* oscore_id, int oscore_id_len);
 
   /**
    * @brief convert the endpoint to a human-readable  string (e.g."coaps://[fe::22]:/")
