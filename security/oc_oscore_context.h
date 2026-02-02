@@ -151,6 +151,13 @@ oc_oscore_context_t* oc_oscore_add_context(
   int auth_at_index,
   bool read_ssn_from_storage);
 
+  // same as 'add_context' but tries to free also a lru context in case no context is available
+  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* sender_id, size_t sender_id_size, const char* recipient_id,
+                                                     size_t recipient_id_size, uint64_t ssn, const char* mastersecret,
+                                                     size_t mastersecret_size, const char* salt, size_t salt_size,
+                                                     const char* id_context, uint8_t id_context_size, int auth_at_index,
+                                                     bool read_ssn_from_storage);
+
 /**
  * @brief Free the least recently used recipient context
  *
