@@ -3065,7 +3065,7 @@ void oc_init_datapoints_at_initialization(void)
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-            oc_send_s_mode_non_confirmable_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+            oc_send_s_mode_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
                                                              sending_ga, 'r', NULL, 0);
           }
           else

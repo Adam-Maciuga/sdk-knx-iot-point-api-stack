@@ -143,7 +143,7 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   return 0;
 }
 
-void oc_send_s_mode_non_confirmable_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address, char service_type, const uint8_t* value_data, int value_size)
+void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address, char service_type, const uint8_t* value_data, int value_size)
 {
   // get local device info (iid) -> always the same
   const uint64_t iid = oc_core_get_device_info()->iid;
@@ -333,7 +333,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           PRINT("grpid > 0, send mc via sending ga");
 
           // multicast read, NO value data needed
-          oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid, sending_ga, srv_type, NULL, 0);
+          oc_send_s_mode_multicast_message(scope, recipient->grpid, sending_ga, srv_type, NULL, 0);
         }
         else
         { // uc: request -> ia is used from RCP table (configured by MaC)
@@ -365,7 +365,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         { // mc: request -> grpid is used from RCP table (configured by MaC)
 
           // multicast write, value data needed
-          oc_send_s_mode_non_confirmable_multicast_message(scope, recipient->grpid,
+          oc_send_s_mode_multicast_message(scope, recipient->grpid,
                                                            sending_ga, srv_type, 
                                                            resource_value_buffer, 
                                                            resource_value_size);
