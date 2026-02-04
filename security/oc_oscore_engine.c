@@ -1275,10 +1275,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       coap_set_header_max_age(coap_pkt, 0);
     }
 
-
-    // set the OSCORE option, note that checks below uses the original CoAP code, not the OUTER (see above)
-    // TODO update according to changes above 
-    if (is_outbound_request || is_ack_with_empty_payload || is_separate_con_response || unicast_echo_response)
+    // Set OSCORE option according to RFC 8613 Section 8.3:
+    // - Requests, separate CON responses, and echo responses include PIV (and possibly kid/kid_context)
+    // - Normal piggybacked responses and empty ACKs use empty OSCORE option (flags = 0x00)
+    if (is_outbound_request || is_separate_con_response || unicast_echo_response)
     {
       if (unicast_echo_response)
       {
@@ -1295,21 +1295,21 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         oc_oscore_free_context(oscore_ctx);
       }
 
-      // set the OSCORE option TODO here also the uc echo response must end up 
+      // Set OSCORE option with PIV (and kid/kid_context for requests and echo responses)
       coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, kid_context, kid_context_len);
 
       // debugging
-      OC_DBG_OSCORE("sending response, using SSN as Partial IV (r/ack/s-con/echo)) : ");
+      OC_DBG_OSCORE("sending response, using SSN as Partial IV (r/s-con/echo)) : ");
       OC_LOGbytes_OSCORE(piv, piv_len);
     }
     else
     {
-      // other responses use the (cached) piv of the matching request, stored in the ep/client_cb
-      coap_set_header_oscore(coap_pkt, NULL, 0, kid, kid_len, kid_context, kid_context_len);
+      // Normal responses (piggybacked ACK, empty ACK, NON): empty OSCORE option per RFC 8613 Section 8.3
+      // Response is encrypted using REQUEST PIV (computed above in nonce), but OSCORE option is empty
+      coap_set_header_oscore(coap_pkt, NULL, 0, NULL, 0, NULL, 0);
 
       // debugging
-      OC_DBG_OSCORE("sending response, using SSN as Partial IV (others)) : ");
-      OC_LOGbytes_OSCORE(piv, piv_len);
+      OC_DBG_OSCORE("sending response with empty OSCORE option (ACK/NON, encrypted using request PIV)");
     }
 
     // reflects the 'observe' option (if present in the CoAP packet)
