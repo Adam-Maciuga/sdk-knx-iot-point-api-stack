@@ -58,8 +58,8 @@ static oc_device_swu_t swu_device = {
  * State Machine Flow:
  * 1. IDLE → DOWNLOADING: On first block received at /a/swu
  * 2. DOWNLOADING → DOWNLOADED: When all bytes received (pkg_bytes >= expected_package_size)
- * 3. DOWNLOADED → UPGRADING: On PUT to /swu/update
- * 4. UPGRADING → IDLE: After application completes upgrade (via callback)
+ * 3. DOWNLOADED → UPDATING: On PUT to /swu/update
+ * 4. UPDATING → IDLE: After application completes upgrade (via callback)
  * 
  * Download Process:
  * - Blocks arrive at /a/swu with query parameters: pkgs (total size), po (offset), ps (size)
@@ -69,7 +69,7 @@ static oc_device_swu_t swu_device = {
  * 
  * Upgrade Process:
  * - PUT to /swu/update triggers upgrade
- * - Stack transitions to UPGRADING state
+ * - Stack transitions to UPDATING state
  * - Stack notifies application via swu_upgrade_cb() callback
  * - Application performs upgrade, updates firmware version, sets result
  * - Application transitions back to IDLE when complete
@@ -508,10 +508,10 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
       // Device can delay upgrade to finish current operations
       swu_device.current_defer = (int)rep->value.integer;
       
-      // State transition: DOWNLOADED → UPGRADING
-      // Stack manages this transition, application manages UPGRADING → IDLE
-      swu_device.state = OC_SWU_STATE_UPGRADING;
-      OC_DBG("SWU state: DOWNLOADED -> UPGRADING");
+      // State transition: DOWNLOADED → UPDATING
+      // Stack manages this transition, application manages UPDATING → IDLE
+      swu_device.state = OC_SWU_STATE_UPDATING;
+      OC_DBG("SWU state: DOWNLOADED -> UPDATING");
       
       // Notify application to perform device-specific upgrade
       // Application responsibilities:

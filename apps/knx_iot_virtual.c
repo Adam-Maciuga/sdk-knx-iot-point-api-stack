@@ -111,7 +111,7 @@ static oc_event_callback_retval_t send_delayed_response(void* context)
  *    - Set result (success/failure)
  * 
  * Architecture:
- * - Stack manages protocol state machine (IDLE/DOWNLOADING/DOWNLOADED/UPGRADING)
+ * - Stack manages protocol state machine (IDLE/DOWNLOADING/DOWNLOADED/UPDATING)
  * - Application manages device-specific operations (storage, upgrade, verification)
  * - Clean separation allows stack reuse across different device types
  */
@@ -229,12 +229,12 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   oc_core_set_device_fwv(major, minor, patch);
   
   // ===== Complete State Machine Transition =====
-  // Application is responsible for UPGRADING → IDLE transition
+  // Application is responsible for UPDATING → IDLE transition
   // Stack manages other transitions (IDLE→DOWNLOADING→DOWNLOADED)
   oc_swu_set_state(OC_SWU_STATE_IDLE);
   oc_swu_set_result(OC_SWU_RESULT_SUCCESS);
   
-  OC_DBG("SWU state: UPGRADING -> IDLE (upgrade complete, new version: %d.%d.%d)", 
+  OC_DBG("SWU state: UPDATING -> IDLE (upgrade complete, new version: %d.%d.%d)", 
          major, minor, patch);
   
   return OC_EVENT_DONE;
