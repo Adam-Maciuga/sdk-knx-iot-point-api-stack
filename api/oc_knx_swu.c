@@ -789,8 +789,9 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   else
   {
     // No application callback registered
-    // Send immediate success response (blocks are discarded)
-    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+    OC_ERR("SWU callback not registered - cannot process firmware blocks");
+    // Send 5.01 Not Implemented if no handler is available
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_IMPLEMENTED);
   }
   
   // ===== State Machine: DOWNLOADING → DOWNLOADED =====
