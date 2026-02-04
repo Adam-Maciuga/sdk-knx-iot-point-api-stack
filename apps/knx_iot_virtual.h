@@ -368,6 +368,17 @@ extern "C"
   void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_offset, const uint8_t* block_data, size_t block_len, void* data);
 
   /**
+   * @brief software update upgrade trigger callback
+   * 
+   * Called when /swu/update receives a PUT request, indicating the device should
+   * start the firmware upgrade process
+   * 
+   * @param defer_time requested defer time in seconds before starting upgrade
+   * @param data user data
+   */
+  void swu_upgrade_cb(int defer_time, void* data);
+
+  /**
    * @brief add all short interface urn's to the 'root' object with string key 'if'
    *
    * @param resource the resource
