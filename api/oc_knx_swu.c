@@ -26,6 +26,7 @@
 #include "port/oc_storage.h"
 #include <errno.h>
 #include <limits.h>
+#include <string.h>
 
 // only static since values are changed at runtime
 static oc_device_swu_t swu_device = {
@@ -629,25 +630,44 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("block offset: %d", po_block_offset);
 
   // get application FWU handler
-  // - is usually device hardware and application specific and needs some processing time
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
   if (application_swu_cb && application_swu_cb->cb)
   {
-    // prepare it 
-    oc_prepare_separate_response(request, &delayed_separate_response_for_a_swu_request);
-
-    // call application handler including user data (can be NULL)
-    application_swu_cb->cb(&delayed_separate_response_for_a_swu_request, 
+    // Prepare separate response infrastructure (does NOT send ACK 0.00 yet)
+    // This allows callback to use delayed response if needed for long operations
+    oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
+    memset(sep_response, 0, sizeof(oc_separate_response_t));
+    
+    // Call application handler including user data (can be NULL)
+    // Callback can either:
+    // 1. Return immediately for fast operations (piggybacked response)
+    // 2. Call oc_set_delayed_callback() for delayed response (separate CON later)
+    application_swu_cb->cb(sep_response, 
                            pkgs_package_size, 
                            po_block_offset, 
                            request->_payload, // can also be NULL
                            request->_payload_len, // can also be '0'
                            application_swu_cb->data);
+    
+    // Check if callback initiated a separate response (by calling oc_set_delayed_callback or similar)
+    // If not, send immediate piggybacked response (spec compliant for fast operations)
+    if (!sep_response->active)
+    {
+      // Fast path: Send piggybacked ACK 2.04 Changed
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+      OC_DBG("oc_knx_swu_a_put_handler: sending piggybacked response");
+    }
+    else
+    {
+      // Slow path: Callback initiated delayed response (will send separate CON later)
+      OC_DBG("oc_knx_swu_a_put_handler: callback initiated delayed separate response");
+    }
   }
   else
   {
-    oc_prepare_cbor_response(request, OC_STATUS_OK);
+    // No callback registered: send immediate 2.04 Changed
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
   }
 
   OC_DBG("oc_knx_swu_a_put_handler - end");

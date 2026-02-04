@@ -101,8 +101,11 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   const size_t r = fclose(write_ptr);
   OC_DBG("written data: %zu, operation ok (=0): %zu", n, r);
 
-  // 
-  oc_set_delayed_callback(response, &send_delayed_response, 1);
+  // For fast operations (file write), return immediately without calling oc_set_delayed_callback()
+  // The handler will detect response->active == false and send piggybacked ACK 2.04
+  // For slow operations (hardware flash), call oc_set_delayed_callback() to send separate response later
+  OC_DBG("swu_cb: file write complete, returning for piggybacked response");
+  (void)response; // Not used for fast operations
 }
 
 void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
