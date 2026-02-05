@@ -1,0 +1,6 @@
+#!C:\temp\knxiotclient\.venv\Scripts\python.exe
+import sys
+from knxiotclient.cli import cli
+
+if __name__ == '__main__':
+    sys.exit(cli())
