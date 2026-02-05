@@ -26,6 +26,7 @@
 #include "port/oc_storage.h"
 #include <errno.h>
 #include <limits.h>
+#include <string.h>
 
 // only static since values are changed at runtime
 static oc_device_swu_t swu_device = {
@@ -44,6 +45,47 @@ static oc_device_swu_t swu_device = {
 #define KNX_STORAGE_SWU_METHOD "swu_knx_method"
 #define KNX_STORAGE_SWU_PROTOCOL "swu_knx_protocol"
 #define KNX_STORAGE_QUERY_URL "swu_knx_query_url"
+#define KNX_STORAGE_SWU_DOWNLOADED_ONCE "swu_knx_downloaded_once"
+#define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
+
+// Default manufacturing date fallback (application should set actual date)
+static const char* default_mfg_date = "0";
+
+/*
+ * Software Update (SWU) Implementation
+ * 
+ * This file implements the KNX IoT Point API software update protocol (Section 4.2).
+ * 
+ * Architecture:
+ * - Stack Layer (this file): Protocol state machine, download tracking, callback notification
+ * - Application Layer: Device-specific upgrade logic, package metadata, version management
+ * 
+ * State Machine Flow:
+ * 1. IDLE → DOWNLOADING: On first block received at /a/swu
+ * 2. DOWNLOADING → DOWNLOADED: When all bytes received (pkg_bytes >= expected_package_size)
+ * 3. DOWNLOADED → UPDATING: On PUT to /swu/update
+ * 4. UPDATING → IDLE: After application completes upgrade (via callback)
+ * 
+ * Download Process:
+ * - Blocks arrive at /a/swu with query parameters: pkgs (total size), po (offset), ps (size)
+ * - Stack tracks progress via expected_package_size and pkg_bytes counter
+ * - Application receives each block via swu_cb() callback
+ * - Application detects completion and sets package metadata
+ * 
+ * Upgrade Process:
+ * - PUT to /swu/update triggers upgrade
+ * - Stack transitions to UPDATING state
+ * - Stack notifies application via swu_upgrade_cb() callback
+ * - Application performs upgrade, updates firmware version, sets result
+ * - Application transitions back to IDLE when complete
+ */
+
+// Track expected total package size (set from first block's pkgs parameter)
+static int expected_package_size = 0;
+
+// Forward declarations
+typedef struct oc_swu_upgrade_t oc_swu_upgrade_t;
+static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void);
 
 static void oc_knx_swu_protocol_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -309,14 +351,23 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 
   oc_rep_begin_root_object();
 
-  if (swu_device.downloaded_once)
+  // Per KNX spec:
+  // - Initial value: date of manufacturing
+  // - If device HAS RTC: Shows actual timestamp of last update (RFC 3339)
+  // - If device has NO RTC: Shows "osv:true" after a software update
+  // 
+  // Logic: If downloaded_once is true AND last_update is still the manufacturing date,
+  //        assume device has no RTC → return "osv:true"
+  //        Otherwise return the stored timestamp (either mfg date or actual update time)
+  if (swu_device.downloaded_once && 
+      strcmp(oc_string(swu_device.last_update), default_mfg_date) == 0)
   {
-    // value = osv: true (no clock available after download)
+    // Device was updated but timestamp wasn't changed → no RTC available
     oc_rep_i_set_text_string(root, 1, "osv:true");
   }
   else
   {
-    // initial value = date of manufacturing
+    // Either never updated (mfg date) or updated with actual timestamp (RTC available)
     oc_rep_i_set_text_string(root, 1, oc_string(swu_device.last_update));
   }
   oc_rep_end_root_object();
@@ -425,7 +476,30 @@ const oc_resource_t core_resource_knx_swu_state = {(oc_resource_t*)&core_resourc
                                                    &core_resource_knx_swu_state_data};
 PRAGMA_OUT
 
-// trigger for upgrading the FWU package after a download
+// Callback infrastructure for upgrade trigger
+// Allows application to implement device-specific upgrade logic
+typedef struct oc_swu_upgrade_t {
+  oc_swu_upgrade_cb_t cb;   // Application callback for upgrade trigger
+  void* data;                // User context passed to callback
+} oc_swu_upgrade_t;
+
+static oc_swu_upgrade_t g_swu_upgrade_handler = {NULL, NULL};
+
+// Application registers upgrade callback before oc_main_init()
+void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data)
+{
+  g_swu_upgrade_handler.cb = cb;
+  g_swu_upgrade_handler.data = data;
+}
+
+// Internal getter for callback (used by PUT /swu/update handler)
+static const oc_swu_upgrade_t* oc_get_swu_upgrade_cb(void)
+{
+  return &g_swu_upgrade_handler;
+}
+
+// PUT handler for /swu/update - triggers the upgrade process
+// Called after package is fully downloaded (state == DOWNLOADED)
 static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
@@ -436,21 +510,45 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
     return;
   }
 
-  // only accessible in this state (see specification)
+  // Only accessible in DOWNLOADED state (per KNX IoT specification)
+  // Client must wait for download to complete before triggering upgrade
   if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_t* rep = request->request_payload;
 
     if (rep && rep->type == OC_REP_INT)
     {
-      // value of current defer time in sec
-      // TODO timer to start FWU not implemented
+      // Payload contains defer time in seconds
+      // Device can delay upgrade to finish current operations
       swu_device.current_defer = (int)rep->value.integer;
-      oc_prepare_cbor_response(request, OC_STATUS_OK);
+      
+      // State transition: DOWNLOADED → UPDATING
+      // Stack manages this transition, application manages UPDATING → IDLE
+      swu_device.state = OC_SWU_STATE_UPDATING;
+      OC_DBG("SWU state: DOWNLOADED -> UPDATING");
+      
+      // Notify application to perform device-specific upgrade
+      // Application responsibilities:
+      // 1. Respect defer_time (delay before starting upgrade)
+      // 2. Apply firmware from downloaded package
+      // 3. Verify firmware integrity
+      // 4. Update device firmware version: oc_core_set_device_fwv()
+      // 5. Set result: oc_swu_set_result(OC_SWU_RESULT_SUCCESS/failure)
+      // 6. Complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
+      const oc_swu_upgrade_t* swu_upgrade_cb = oc_get_swu_upgrade_cb();
+      if (swu_upgrade_cb && swu_upgrade_cb->cb) {
+        swu_upgrade_cb->cb(swu_device.current_defer, swu_upgrade_cb->data);
+      }
+      
+      // Send immediate response (upgrade happens asynchronously in application)
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
       return;
     }
   }
 
+  // Return BAD_REQUEST if:
+  // - Not in DOWNLOADED state
+  // - Missing or invalid defer time parameter
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
@@ -509,7 +607,10 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
     return;
   }
 
-  if (swu_device.downloaded_once)
+  // Per KNX spec: "The version of the newly available software package
+  // if the State resource is in state downloaded.
+  // Otherwise returns the response code '4.04 Not Found'."
+  if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
     const int64_t pkg_ver[3] = {swu_device.pkg_version.major, swu_device.pkg_version.minor, swu_device.pkg_version.patch};
@@ -628,26 +729,127 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   OC_DBG("block size: %d", ps_block_size);
   OC_DBG("block offset: %d", po_block_offset);
 
-  // get application FWU handler
-  // - is usually device hardware and application specific and needs some processing time
+  // ===== State Machine: IDLE → DOWNLOADING =====
+  // Transition occurs when first block with data arrives
+  // - Resets byte counter to 0
+  // - Resets result to INIT (clear any previous download status)
+  // - Resets expected package size (cleanup from previous download)
+  // - Clears package metadata (name, version) from previous download
+  if (swu_device.state == OC_SWU_STATE_IDLE && request->_payload_len > 0)
+  {
+    swu_device.state = OC_SWU_STATE_DOWNLOADING;
+    swu_device.pkg_bytes = 0;
+    swu_device.result = OC_SWU_RESULT_INIT;
+    expected_package_size = 0;  // Reset for new download (cleanup stale state)
+    
+    // Clear package metadata from previous download
+    oc_swu_set_package_name("");
+    oc_swu_set_package_version(0, 0, 0);
+    
+    OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared)");
+  }
+
+  // Store total package size from first block
+  // The 'pkgs' query parameter contains total size (appears only in first request)
+  // Used later to detect download completion
+  if (pkgs_package_size > 0 && expected_package_size == 0)
+  {
+    expected_package_size = pkgs_package_size;
+    OC_DBG("Expected package size set to: %d", expected_package_size);
+  }
+
+  // Update download progress counter
+  // Stack tracks total bytes received across all blocks
+  swu_device.pkg_bytes += request->_payload_len;
+  OC_DBG("Received bytes: %d / %d", swu_device.pkg_bytes, expected_package_size);
+
+  // ===== Application Callback for Block Processing =====
+  // Each block is forwarded to application for device-specific handling
+  // (e.g., write to flash, file system, or buffer)
   const oc_swu_t* application_swu_cb = oc_get_swu_cb();
 
   if (application_swu_cb && application_swu_cb->cb)
   {
-    // prepare it 
-    oc_prepare_separate_response(request, &delayed_separate_response_for_a_swu_request);
-
-    // call application handler including user data (can be NULL)
-    application_swu_cb->cb(&delayed_separate_response_for_a_swu_request, 
+    // Prepare separate response infrastructure
+    // Does NOT send ACK yet - allows application to choose response type
+    oc_separate_response_t* sep_response = &delayed_separate_response_for_a_swu_request;
+    memset(sep_response, 0, sizeof(oc_separate_response_t));
+    
+    // Forward block to application callback
+    // Application receives:
+    // - binary_size: Total package size (from pkgs, 0 for subsequent blocks)
+    // - block_offset: Offset in package (from po query parameter)
+    // - block_data: Actual data payload
+    // - block_len: Length of this block
+    // 
+    // Application can:
+    // 1. Fast path: Write to storage and return immediately
+    //    → Stack sends piggybacked ACK 2.04
+    // 2. Slow path: Call oc_set_delayed_callback() for async operation
+    //    → Stack defers response, application sends separate CON later
+    application_swu_cb->cb(sep_response, 
                            pkgs_package_size, 
                            po_block_offset, 
-                           request->_payload, // can also be NULL
-                           request->_payload_len, // can also be '0'
+                           request->_payload,
+                           request->_payload_len,
                            application_swu_cb->data);
+    
+    // ===== Response Handling =====
+    // Check if application initiated delayed/separate response
+    // (by calling oc_set_delayed_callback() or similar)
+    if (!sep_response->active)
+    {
+      // Fast path: Application returned immediately
+      // Send piggybacked ACK 2.04 Changed (CoAP spec compliant for fast operations)
+      oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+      OC_DBG("oc_knx_swu_a_put_handler: sending piggybacked response");
+    }
+    else
+    {
+      // Slow path: Application initiated delayed response
+      // Application is responsible for sending separate CON response later
+      OC_DBG("oc_knx_swu_a_put_handler: callback initiated delayed separate response");
+    }
   }
   else
   {
-    oc_prepare_cbor_response(request, OC_STATUS_OK);
+    // No application callback registered
+    OC_ERR("SWU callback not registered - cannot process firmware blocks");
+    // Send 5.01 Not Implemented if no handler is available
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_IMPLEMENTED);
+  }
+  
+  // ===== State Machine: DOWNLOADING → DOWNLOADED =====
+  // Transition occurs when all bytes have been received
+  // Stack detects completion by comparing pkg_bytes with expected_package_size
+  if (expected_package_size > 0 && swu_device.pkg_bytes >= expected_package_size && 
+      swu_device.state == OC_SWU_STATE_DOWNLOADING)
+  {
+    // Mark download as complete
+    swu_device.state = OC_SWU_STATE_DOWNLOADED;
+    swu_device.downloaded_once = true;  // Flag for /swu/lastupdate endpoint
+    
+    // Persist downloaded_once to storage so /swu/lastupdate remains "osv:true" after reset
+    oc_storage_write(KNX_STORAGE_SWU_DOWNLOADED_ONCE, (uint8_t*)&swu_device.downloaded_once, sizeof(swu_device.downloaded_once));
+    
+    OC_DBG("SWU state: DOWNLOADING -> DOWNLOADED (received %d bytes)", swu_device.pkg_bytes);
+    
+    // ===== Application Responsibility: Package Metadata =====
+    // Application should detect completion in parallel and set package metadata:
+    // 
+    // Detection in swu_cb():
+    //   static size_t total_received = 0;
+    //   total_received += block_len;
+    //   if (total_received >= binary_size) {
+    //     // Download complete!
+    //   }
+    // 
+    // Set metadata:
+    //   oc_swu_set_package_version(major, minor, patch);  // From package header or known version
+    //   oc_swu_set_package_name("firmware.bin");          // Package filename
+    // 
+    // Note: Version should ideally be extracted from package header
+    //       For testing, can use placeholder values
   }
 
   OC_DBG("oc_knx_swu_a_put_handler - end");
@@ -788,7 +990,10 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
     return;
   }
 
-  if (swu_device.downloaded_once)
+  // Per KNX spec: "The package name of the non-active software package.
+  // Returns response code '4.04 Not Found' if no non-active package is available."
+  // Non-active package is available only in DOWNLOADED state
+  if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
     oc_rep_i_set_text_string(root, 1, oc_string(swu_device.pkg_name));
@@ -924,13 +1129,31 @@ void oc_create_knx_swu_resources(void)
 {
   OC_DBG("oc_create_knx_swu_resources");
 
-  // create missing runtime variables for device 0
-  // - no SWU name for the package (never downloaded)
-  // - manufacturing date (artificial, value used from EITT KNX certification tests)
-  // - hw reference (artificial, value used from EITT KNX certification tests)
+  // Set default values
   oc_swu_set_package_name("");
-  oc_swu_set_last_update("2020-04-12T23:20:50.52Z");
   oc_swu_set_hwref("0102030405ABCDEF");
+  
+  // Set default manufacturing date (used if not in storage)
+  oc_new_string(&swu_device.last_update, default_mfg_date, strlen(default_mfg_date));
+  
+  // Try to load last_update from storage (persists across reboots)
+  char last_update_buf[64];
+  long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
+  if (ret > 0) {
+    last_update_buf[ret] = '\0';
+    oc_free_string(&swu_device.last_update);
+    oc_new_string(&swu_device.last_update, last_update_buf, ret);
+    OC_DBG("Loaded last_update='%s' from storage", last_update_buf);
+  } else {
+    OC_DBG("Using default manufacturing date for last_update");
+  }
+
+  // Load downloaded_once flag from persistent storage
+  // This ensures /swu/lastupdate returns "osv:true" persistently after first update
+  ret = oc_storage_read(KNX_STORAGE_SWU_DOWNLOADED_ONCE, (uint8_t*)&swu_device.downloaded_once, sizeof(swu_device.downloaded_once));
+  if (ret > 0) {
+    OC_DBG("Loaded downloaded_once=%d from storage", swu_device.downloaded_once);
+  }
 
 }
 
@@ -944,6 +1167,9 @@ void oc_swu_set_last_update(const char* time)
 {
   oc_free_string(&swu_device.last_update);
   oc_new_string(&swu_device.last_update, time, strlen(time));
+  
+  // Persist to storage so timestamp survives reboot
+  oc_storage_write(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update), oc_string_len(swu_device.last_update));
 }
 
 void oc_swu_set_hwref(const char* hwref)

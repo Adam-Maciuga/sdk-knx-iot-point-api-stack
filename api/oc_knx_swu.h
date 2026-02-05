@@ -52,7 +52,7 @@ extern "C" {
     OC_SWU_STATE_IDLE = 0,    // idle (no FWU package is on the way)
     OC_SWU_STATE_DOWNLOADING, // downloading (a FWU package is currently on the way)
     OC_SWU_STATE_DOWNLOADED,  // downloaded (the FWU package is fully available at server)
-    OC_SWU_STATE_UPGRADING    // upgrading (the FWU package is currently applied to the server)
+    OC_SWU_STATE_UPDATING    // UPDATING (the FWU package is currently applied to the server)
   } oc_swu_state_t;
 
   /**

@@ -444,6 +444,21 @@ extern "C"
                               const uint8_t* block_data, size_t block_len, void* data);
 
   /**
+   * Software update trigger callback,
+   * called by the stack when /swu/update is triggered
+   *
+   * Application should:
+   * - Perform the actual firmware upgrade
+   * - Call oc_swu_set_state(OC_SWU_STATE_IDLE) when done
+   * - Call oc_swu_set_result() with success/failure
+   * - Update device firmware version if successful
+   *
+   * @param[in] defer_time the requested defer time in seconds
+   * @param[in] data user supplied context data
+   */
+  typedef void (*oc_swu_upgrade_cb_t)(int defer_time, void* data);
+
+  /**
    * Sets the software update callback,
    * called by the stack when the software update is performed
    *
@@ -457,6 +472,19 @@ extern "C"
    *                 call completes.
    */
   void oc_set_swu_cb(oc_swu_cb_t cb, void* data);
+
+  /**
+   * Sets the software update upgrade trigger callback,
+   * called by the stack when /swu/update endpoint receives a PUT request
+   *
+   * @note
+   * - oc_set_swu_upgrade_cb() must be called before oc_main_init()
+   * - Application is responsible for performing upgrade and updating stack state
+   *
+   * @param[in] cb oc_swu_upgrade_cb_t function pointer to be called
+   * @param[in] data context pointer that is passed to the callback
+   */
+  void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data);
 
 /**
  * Set custom device property

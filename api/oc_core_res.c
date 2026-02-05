@@ -39,6 +39,12 @@ int oc_core_set_device_fwv(uint16_t major, uint16_t minor, uint16_t patch)
 	oc_device_info.fwv.major = major;
 	oc_device_info.fwv.minor = minor;
 	oc_device_info.fwv.patch = patch;
+	
+	// Persist to storage so firmware version survives reboot
+	oc_storage_write(KNX_STORAGE_FW_MAJOR, (uint8_t*)&major, sizeof(major));
+	oc_storage_write(KNX_STORAGE_FW_MINOR, (uint8_t*)&minor, sizeof(minor));
+	oc_storage_write(KNX_STORAGE_FW_PATCH, (uint8_t*)&patch, sizeof(patch));
+	
 	return 0;
 }
 

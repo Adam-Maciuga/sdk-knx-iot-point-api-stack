@@ -165,6 +165,15 @@ private:
  */
 bool MyApp::OnInit()
 {
+  // Force factory-fresh state for EITT testing
+  // Clear persistent storage for firmware version and SWU state
+  // so device always starts with default values from app_init()
+  oc_storage_erase("knx_fw_major");
+  oc_storage_erase("knx_fw_minor");
+  oc_storage_erase("knx_fw_patch");
+  oc_storage_erase("swu_knx_downloaded_once");
+  oc_storage_erase("swu_knx_last_update");
+
   // call in c-code
   app_initialize_stack("knx_iot_virtual_eitt");
 
