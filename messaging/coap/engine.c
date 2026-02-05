@@ -431,12 +431,16 @@ int coap_receive(oc_message_t* incoming_message)
 
 				  #ifdef OC_REQUEST_HISTORY
 
-					if (oc_coap_check_if_duplicate_and_if_not_add_to_history(
-						incoming_coap_message->mid,
-						incoming_message->endpoint.addr.ipv6.port,
-						incoming_message->endpoint.addr.ipv6.address))
+					// Skip duplicate check for messages already checked by OSCORE layer
+					if (!(incoming_message->endpoint.flags & OSCORE_DECRYPTED))
 					{
-						return 0;
+						if (oc_coap_check_if_duplicate_and_if_not_add_to_history(
+							incoming_coap_message->mid,
+							incoming_message->endpoint.addr.ipv6.port,
+							incoming_message->endpoint.addr.ipv6.address))
+						{
+							return 0;
+						}
 					}
 
 					#endif 
