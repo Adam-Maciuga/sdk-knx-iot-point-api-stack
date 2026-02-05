@@ -431,7 +431,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 				  #ifdef OC_REQUEST_HISTORY
 
-					// Skip duplicate check for messages already checked by OSCORE layer
+					// Skip duplicate check for messages already checked by OSCORE layer, check only plain CoAP messages
 					if (!(incoming_message->endpoint.flags & OSCORE_DECRYPTED))
 					{
 						if (oc_coap_check_if_duplicate_and_if_not_add_to_history(

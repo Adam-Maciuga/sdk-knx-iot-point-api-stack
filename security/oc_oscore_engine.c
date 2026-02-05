@@ -280,7 +280,10 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     OC_DBG("parse OUTER OSCORE message : ok");
 
-    // check duplication on incoming UDP requests (GET, ...)
+    /* 
+       check duplication on incoming UDP requests (GET, ...) in OSCORE layer
+       -> even that it is checked in coap (for non OSCORE messages) a check here removes unnecessary decryption + a throw later in coap 
+    */
     if (oscore_pkt->transport_type == COAP_TRANSPORT_UDP && is_inbound_request)
     {
       if (oc_coap_check_if_duplicate_and_if_not_add_to_history(oscore_pkt->mid, msg->endpoint.addr.ipv6.port, msg->endpoint.addr.ipv6.address))

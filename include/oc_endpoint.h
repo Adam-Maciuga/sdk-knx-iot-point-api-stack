@@ -66,7 +66,7 @@ extern "C" {
     OSCORE = 1 << 5,           // OSCORE communication, identifies that OSCORE is used  
     MULTICAST = 1 << 6,        // multicast message, if not set = unicast message
     ACCEPTED = 1 << 7,         // accepted (used on TCP)
-    OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message
+    OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message, identifies that the message was decrypted 'successfully' in the OSCORE layer 
     ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)
     ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
     S_MODE_REQUEST = 1 << 11,       // an (OSCORE secured ) s-mode 'request' message that is allowed to be challenged with echo response (mc:non; uc:non/con) 
