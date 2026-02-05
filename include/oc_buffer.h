@@ -70,7 +70,7 @@ oc_message_t *oc_internal_allocate_outgoing_message(void);
 void oc_message_add_ref(oc_message_t *message);
 
 /**
- * @brief remove (decrease) reference (for tracking in use), in case of reference count 
+ * @brief decrease reference count for tracking in use, in case of reference count 
  *        is '0' the data ptr + pool ptr are memory wise released 
  *        (but not the message as such) 
  *

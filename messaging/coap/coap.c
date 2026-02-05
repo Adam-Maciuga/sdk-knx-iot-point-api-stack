@@ -452,9 +452,10 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 {
 	(void) oscore;
 
-  coap_packet_t* const coap_pkt = packet;		// the alias name used in macros below 
-	uint8_t* option = option_array;						// the alias name used in macros below
-	unsigned int current_number = 0;					// the alias name used in macros below
+	// the alias names here are used in macros below 
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet; 
+	uint8_t* option = option_array;						
+	unsigned int current_number = 0;
 
   size_t option_length = 0;
 
@@ -1132,14 +1133,12 @@ coap_tcp_parse_message_length(const uint8_t* data, size_t* message_length,
 	OC_DBG("message_length : %zd, num_extended_length_bytes : %u",
 				 *message_length, *num_extended_length_bytes);
 }
-#endif /* OC_TCP */
-/*---------------------------------------------------------------------------*/
-/*- Internal API ------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
-void
-coap_init_connection(void)
+#endif
+
+
+void coap_init_connection(void)
 {
-	/* initialize transaction ID */
+	// initialize coap mid 
 	current_mid = (uint16_t) oc_random_value();
 }
 
@@ -1148,11 +1147,11 @@ uint16_t coap_get_next_mid(void)
 {
 	return ++current_mid;
 }
-/*---------------------------------------------------------------------------*/
-void
-coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,	uint16_t mid)
+
+
+void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,	uint16_t mid)
 {
-	coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
 	// wipe content, important thing
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
@@ -1161,6 +1160,7 @@ coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,	uint
 	coap_pkt->type = type;
 	coap_pkt->code = code;
 	coap_pkt->mid = mid;
+  coap_pkt->version = 1;
 }
 
 #ifdef OC_TCP
@@ -1181,8 +1181,9 @@ coap_tcp_init_message(void* packet, uint8_t code)
 /*---------------------------------------------------------------------------*/
 static void coap_udp_set_header_fields(void* packet)
 {
-	coap_packet_t* const coap_pkt = packet;
+  const coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
+	// ops precedence , first << then &
 	coap_pkt->buffer[0] = COAP_HEADER_VERSION_MASK & coap_pkt->version << COAP_HEADER_VERSION_POSITION;
 	coap_pkt->buffer[0] |= COAP_HEADER_TYPE_MASK & coap_pkt->type << COAP_HEADER_TYPE_POSITION;
 	coap_pkt->buffer[0] |= COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->token_len << COAP_HEADER_TOKEN_LEN_POSITION;

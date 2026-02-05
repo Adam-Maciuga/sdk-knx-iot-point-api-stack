@@ -350,6 +350,7 @@ oc_endpoint_compare(const oc_endpoint_t* ep1, const oc_endpoint_t* ep2)
 	if (!ep1 || !ep2)
 		return -1;
 
+	// compare only same types (unicast/multicast and accepted don't care in comparison, means treated as same message)
 	if ((ep1->flags & ~(MULTICAST | ACCEPTED)) !=
 			(ep2->flags & ~(MULTICAST | ACCEPTED)))
 	{

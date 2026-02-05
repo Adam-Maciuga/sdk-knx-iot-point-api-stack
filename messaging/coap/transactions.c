@@ -113,7 +113,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t t
   return t;
 }
 
-coap_transaction_t* coap_new_transaction_and_send_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
+coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
 {
   coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
   if (t)
@@ -129,9 +129,6 @@ coap_transaction_t* coap_new_transaction_and_send_s_mode_message(uint16_t mid, u
     OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
     oc_etimer_restart(&t->retransmit_timer); 
     OC_PROCESS_CONTEXT_END(transaction_handler_process);
-
-    oc_message_add_ref(t->message);
-    coap_send_message(t->message);
   }
   else
   {
@@ -261,7 +258,7 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 
 coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token_len)
 {
-  for (coap_transaction_t* t = oc_list_head(transactions_list); t; t = t->next) 
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next) 
   {
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
     {

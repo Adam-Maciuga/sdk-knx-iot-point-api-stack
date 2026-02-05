@@ -1739,8 +1739,8 @@ oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len
 
 bool oc_ri_is_client_cb_valid(oc_client_cb_t * client_cb)
 {
-  oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
-	while (cb != NULL)
+  const oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
+	while (cb)
 	{
 		if (cb == client_cb)
 		{

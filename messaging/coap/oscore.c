@@ -209,7 +209,7 @@ int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
 											 uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx,
 											 uint8_t kid_ctx_len)
 {
-	coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t *)packet;
 
 	// sets 'nnn' from 000|h|k|nnn flags (also kid length of 0!)
   coap_pkt->oscore_flags = piv_len & 0x07;
@@ -427,12 +427,13 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 {
 	coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-	/* initialize packet */
+	// wipe content, important thing
 	memset(coap_pkt, 0, sizeof(coap_packet_t));
-	/* pointer to packet bytes */
+	
+  // pointer to packet bytes
 	coap_pkt->buffer = data;
 
-	/* Code */
+	// code
 	coap_pkt->code = data[0];
 
 	OC_DBG_OSCORE("Inner CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
@@ -440,14 +441,10 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 	uint8_t* current_option = &data[1];
 
 	// parse inner, on present OSCORE option ... 4.02 bad option (DON'T take over secure content) 
-	coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, true);
-	if (COAP_NO_ERROR != ret)
-	{
-		OC_DBG_OSCORE("coap_oscore_parse_options failed! %d", ret);
-		return ret;
-	}
+	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, true);
 
-	return COAP_NO_ERROR;
+	OC_INF("coap parse oscore options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+	return ret;
 }
 
 // checks message header to find the CoAP OSCORE option header

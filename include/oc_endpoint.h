@@ -65,7 +65,7 @@ extern "C" {
     TCP = 1 << 4,              // tcp communication 
     OSCORE = 1 << 5,           // OSCORE communication, identifies that OSCORE is used  
     MULTICAST = 1 << 6,        // multicast message, if not set = unicast message
-    ACCEPTED = 1 << 7,         // accepted 
+    ACCEPTED = 1 << 7,         // accepted (used on TCP)
     OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message
     ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)
     ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
@@ -101,27 +101,44 @@ extern "C" {
 
     union dev_addr
     {
-      oc_ipv6_addr_t ipv6;                /**< ipv6 address */
-      oc_ipv4_addr_t ipv4;                /**< ipv4 address */
+      oc_ipv6_addr_t ipv6;                // ipv6 address
+      oc_ipv4_addr_t ipv4;                // ipv4 address 
     } addr, addr_local;
 
-    int interface_index;                    /* interface index */
-    uint8_t priority;                       /* priority */
+    int interface_index;                  // interface index 
+    uint8_t priority;                     // priority
 
-    uint32_t group_address;                 /* sending group address, used to find later the OSCORE context '128-bit sender key'
-                                               that must be used for encryption of s-mode multicast/unicast request message
-                                               (issued by an application) */
+    /* 
+      sending group address, used to find later the OSCORE context '128-bit sender key'
+      that must be used for encryption of s-mode multicast/unicast request message
+      (issued by an application)
+    */
+    uint32_t group_address;                
+    
+    /* auth at index (assigned only on an inbound OSCORE message)
+       - used for matching oscore context for an outbound response from a former inbound request
+       - used for upper layers to check access scopes (on an inbound request)
+    */
+    int32_t auth_at_index_from_former_inbound_request;                  
 
-    int32_t auth_at_index;                  /* auth at index
-                                               - used for matching oscore context for an outbound response from a former inbound request
-                                               - used for upper layers to check access scopes (on an inbound request) */
-
-    uint8_t request_piv[OSCORE_PIV_LEN];    /* OSCORE Partial IV (not empty) from inbound request */
+    /* 
+      OSCORE Partial IV (not empty) from inbound request
+    */
+    uint8_t request_piv[OSCORE_PIV_LEN];    
     uint8_t request_piv_len;              
+
+    /* 
+      OSCORE 'kid' (not empty) from inbound request
+    */
+    uint8_t kid[OSCORE_SENDER_ID_LEN]; 
     uint8_t kid_len;
-    uint8_t kid[OSCORE_SENDER_ID_LEN];      /* OSCORE 'kid' (not empty) from inbound request */
+
+    /* 
+      OSCORE 'kid_context' (not empty) from inbound request
+    */
+    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; 
     uint8_t kid_ctx_len;
-    uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; /* OSCORE 'kid_context' (not empty) from inbound request */
+
   } oc_endpoint_t;
 
 #define oc_make_ipv4_endpoint(__name__, __flags__, __port__, ...)              \

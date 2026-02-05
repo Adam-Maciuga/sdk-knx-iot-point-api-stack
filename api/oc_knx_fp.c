@@ -2866,11 +2866,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   const uint8_t ula_5 = (uint8_t)(iid >> 32);
 
   // flags, mc is always secure ...
-  #ifdef OC_OSCORE
   enum transport_flags my_transport_flags = IPV6 + MULTICAST + OSCORE;
-  #else
-  enum transport_flags my_transport_flags = IPV6 + MULTICAST;
-  #endif
 
   // creates IPV6 and set rest to '0'
   oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 
@@ -2893,11 +2889,7 @@ oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t 
 {
 
   // flags, uc is always secure ...
-  #ifdef OC_OSCORE
   enum transport_flags my_transport_flags = IPV6 + OSCORE;
-  #else
-  enum transport_flags my_transport_flags = IPV6;
-  #endif
 
   // creates ipv6 and set rest to '0'
   oc_make_ipv6_endpoint(group_ucast, my_transport_flags, recipient->ipv6_adr.port, 

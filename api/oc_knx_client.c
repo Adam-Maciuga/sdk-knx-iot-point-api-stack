@@ -128,12 +128,18 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
     return -1;
   }
 
-  // (0), create unicast endpoint from resolved IPv6 address + port
+  /*
+    create unicast endpoint from ipv6 address + port
+    - 'kid' + 'kid_context' = 0
+    - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
+    - 'ga' is set
+  */
   oc_endpoint_t group_ucast_endpoint = {0};
   group_ucast_endpoint = oc_create_unicast_group_address_with_port_interface(group_ucast_endpoint, recipient);
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
+  group_ucast_endpoint.auth_at_index_from_former_inbound_request = -1;
 
   PRINT("Sending s-mode unicast %c", service_type);
 
@@ -148,12 +154,18 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t gr
   // get local device info (iid) -> always the same
   const uint64_t iid = oc_core_get_device_info()->iid;
   
-  // create multicast endpoint from grpid/iid and coap default + port
+  /* 
+    create multicast endpoint from grpid/iid and coap default + port 
+    - 'kid' + 'kid_context' = 0
+    - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
+    - 'ga' is set 
+  */
   oc_endpoint_t group_mcast_endpoint = {0};
   group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, scope, COAP_DEFAULT_PORT);
 
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
+  group_mcast_endpoint.auth_at_index_from_former_inbound_request = -1;
 
   PRINT("Sending s-mode multicast %c", service_type);
 
@@ -641,10 +653,6 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
   // flags, well-known is never secure ...
   const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;
 
-  // get local device iid + recipient IA from table -> is valid was checked before
-  const uint64_t iid = oc_core_get_device_info()->iid;
-  const uint16_t ia = (uint16_t)recipient->ia;
-
   // create multicast endpoint - scope-dependent all CoAP nodes address, scope-dependent multicast address:
   // - scope 2: ff02::fd (link-local all CoAP nodes)
   // - scope 5: ff05::fd (site-local all CoAP nodes)
@@ -656,6 +664,10 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
 
   // all interfaces
   group_mcast_endpoint.interface_index = 0; 
+
+  // get local device iid + recipient IA from table -> is valid was checked before
+  const uint64_t iid = oc_core_get_device_info()->iid;
+  const uint16_t ia = (uint16_t)recipient->ia;
 
   #define EP_STR_LEN_DOT_IA (12)  // ep=knx://ia.
   #define IID_STR_LEN_MAX (10)    // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)

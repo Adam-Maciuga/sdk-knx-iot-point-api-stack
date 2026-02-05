@@ -129,7 +129,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
    1. after (re)configuration
       a: nothing
    2. at runtime
-      a: an unicast POST message is received by IP layer,
+      a: a unicast POST message is received by IP layer,
          -> forward to /p (provided security check was passed)
       b: method '/p' checks payload , if ok call PUT callback handler
 

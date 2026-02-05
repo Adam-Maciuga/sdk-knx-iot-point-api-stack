@@ -80,9 +80,9 @@ typedef struct coap_transaction
 {
   struct coap_transaction *next; 
 
-  uint16_t mid; // transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
+  uint16_t mid; // coap transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
   uint8_t token_len;
-  uint8_t token[COAP_TOKEN_LEN]; // application level: a client matches a request with a response 
+  uint8_t token[COAP_TOKEN_LEN]; // coap req/res level: a client matches a request with a response 
   struct oc_etimer retransmit_timer; 
   uint8_t retransmit_counter; // 0 = initial message, no retransmission started 
   oc_message_t *message;
@@ -95,7 +95,7 @@ void coap_register_as_transaction_handler(void);
 coap_transaction_t *coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t *endpoint);
 
 // starting a specific s-mode transaction that init a timeout without sending + copy message data (uses common CoAP transaction)
-coap_transaction_t* coap_new_transaction_and_send_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
+coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
 
 void coap_send_transaction(coap_transaction_t *t);
 void coap_clear_transaction(coap_transaction_t *t);
