@@ -45,6 +45,11 @@ static oc_device_swu_t swu_device = {
 #define KNX_STORAGE_SWU_METHOD "swu_knx_method"
 #define KNX_STORAGE_SWU_PROTOCOL "swu_knx_protocol"
 #define KNX_STORAGE_QUERY_URL "swu_knx_query_url"
+#define KNX_STORAGE_SWU_DOWNLOADED_ONCE "swu_knx_downloaded_once"
+#define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
+
+// Default manufacturing date fallback (application should set actual date)
+static const char* default_mfg_date = "0";
 
 /*
  * Software Update (SWU) Implementation
@@ -346,14 +351,23 @@ static void oc_knx_swu_last_update_get_handler(oc_request_t* request, oc_interfa
 
   oc_rep_begin_root_object();
 
-  if (swu_device.downloaded_once)
+  // Per KNX spec:
+  // - Initial value: date of manufacturing
+  // - If device HAS RTC: Shows actual timestamp of last update (RFC 3339)
+  // - If device has NO RTC: Shows "osv:true" after a software update
+  // 
+  // Logic: If downloaded_once is true AND last_update is still the manufacturing date,
+  //        assume device has no RTC → return "osv:true"
+  //        Otherwise return the stored timestamp (either mfg date or actual update time)
+  if (swu_device.downloaded_once && 
+      strcmp(oc_string(swu_device.last_update), default_mfg_date) == 0)
   {
-    // value = osv: true (no clock available after download)
+    // Device was updated but timestamp wasn't changed → no RTC available
     oc_rep_i_set_text_string(root, 1, "osv:true");
   }
   else
   {
-    // initial value = date of manufacturing
+    // Either never updated (mfg date) or updated with actual timestamp (RTC available)
     oc_rep_i_set_text_string(root, 1, oc_string(swu_device.last_update));
   }
   oc_rep_end_root_object();
@@ -593,7 +607,10 @@ static void oc_knx_swu_pkg_version_get_handler(oc_request_t* request, oc_interfa
     return;
   }
 
-  if (swu_device.downloaded_once)
+  // Per KNX spec: "The version of the newly available software package
+  // if the State resource is in state downloaded.
+  // Otherwise returns the response code '4.04 Not Found'."
+  if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
     const int64_t pkg_ver[3] = {swu_device.pkg_version.major, swu_device.pkg_version.minor, swu_device.pkg_version.patch};
@@ -716,12 +733,20 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   // Transition occurs when first block with data arrives
   // - Resets byte counter to 0
   // - Resets result to INIT (clear any previous download status)
+  // - Resets expected package size (cleanup from previous download)
+  // - Clears package metadata (name, version) from previous download
   if (swu_device.state == OC_SWU_STATE_IDLE && request->_payload_len > 0)
   {
     swu_device.state = OC_SWU_STATE_DOWNLOADING;
     swu_device.pkg_bytes = 0;
     swu_device.result = OC_SWU_RESULT_INIT;
-    OC_DBG("SWU state: IDLE -> DOWNLOADING");
+    expected_package_size = 0;  // Reset for new download (cleanup stale state)
+    
+    // Clear package metadata from previous download
+    oc_swu_set_package_name("");
+    oc_swu_set_package_version(0, 0, 0);
+    
+    OC_DBG("SWU state: IDLE -> DOWNLOADING (starting fresh download, metadata cleared)");
   }
 
   // Store total package size from first block
@@ -802,7 +827,10 @@ static void oc_knx_swu_a_put_handler(oc_request_t* request, oc_interface_mask_t 
   {
     // Mark download as complete
     swu_device.state = OC_SWU_STATE_DOWNLOADED;
-    swu_device.downloaded_once = true;  // Flag for /swu/pkgv and /swu/pkgname endpoints
+    swu_device.downloaded_once = true;  // Flag for /swu/lastupdate endpoint
+    
+    // Persist downloaded_once to storage so /swu/lastupdate remains "osv:true" after reset
+    oc_storage_write(KNX_STORAGE_SWU_DOWNLOADED_ONCE, (uint8_t*)&swu_device.downloaded_once, sizeof(swu_device.downloaded_once));
     
     OC_DBG("SWU state: DOWNLOADING -> DOWNLOADED (received %d bytes)", swu_device.pkg_bytes);
     
@@ -962,7 +990,10 @@ static void oc_knx_swu_pkg_name_get_handler(oc_request_t* request, oc_interface_
     return;
   }
 
-  if (swu_device.downloaded_once)
+  // Per KNX spec: "The package name of the non-active software package.
+  // Returns response code '4.04 Not Found' if no non-active package is available."
+  // Non-active package is available only in DOWNLOADED state
+  if (swu_device.state == OC_SWU_STATE_DOWNLOADED)
   {
     oc_rep_begin_root_object();
     oc_rep_i_set_text_string(root, 1, oc_string(swu_device.pkg_name));
@@ -1098,13 +1129,31 @@ void oc_create_knx_swu_resources(void)
 {
   OC_DBG("oc_create_knx_swu_resources");
 
-  // create missing runtime variables for device 0
-  // - no SWU name for the package (never downloaded)
-  // - manufacturing date (artificial, value used from EITT KNX certification tests)
-  // - hw reference (artificial, value used from EITT KNX certification tests)
+  // Set default values
   oc_swu_set_package_name("");
-  oc_swu_set_last_update("2020-04-12T23:20:50.52Z");
   oc_swu_set_hwref("0102030405ABCDEF");
+  
+  // Set default manufacturing date (used if not in storage)
+  oc_new_string(&swu_device.last_update, default_mfg_date, strlen(default_mfg_date));
+  
+  // Try to load last_update from storage (persists across reboots)
+  char last_update_buf[64];
+  long ret = oc_storage_read(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)last_update_buf, sizeof(last_update_buf) - 1);
+  if (ret > 0) {
+    last_update_buf[ret] = '\0';
+    oc_free_string(&swu_device.last_update);
+    oc_new_string(&swu_device.last_update, last_update_buf, ret);
+    OC_DBG("Loaded last_update='%s' from storage", last_update_buf);
+  } else {
+    OC_DBG("Using default manufacturing date for last_update");
+  }
+
+  // Load downloaded_once flag from persistent storage
+  // This ensures /swu/lastupdate returns "osv:true" persistently after first update
+  ret = oc_storage_read(KNX_STORAGE_SWU_DOWNLOADED_ONCE, (uint8_t*)&swu_device.downloaded_once, sizeof(swu_device.downloaded_once));
+  if (ret > 0) {
+    OC_DBG("Loaded downloaded_once=%d from storage", swu_device.downloaded_once);
+  }
 
 }
 
@@ -1118,6 +1167,9 @@ void oc_swu_set_last_update(const char* time)
 {
   oc_free_string(&swu_device.last_update);
   oc_new_string(&swu_device.last_update, time, strlen(time));
+  
+  // Persist to storage so timestamp survives reboot
+  oc_storage_write(KNX_STORAGE_SWU_LAST_UPDATE, (uint8_t*)oc_string(swu_device.last_update), oc_string_len(swu_device.last_update));
 }
 
 void oc_swu_set_hwref(const char* hwref)

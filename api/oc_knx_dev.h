@@ -34,6 +34,9 @@ extern "C" {
 #define KNX_STORAGE_AP_MAJOR  "knx_ap_major"
 #define KNX_STORAGE_AP_MINOR  "knx_ap_minor"
 #define KNX_STORAGE_AP_PATCH  "knx_ap_patch"
+#define KNX_STORAGE_FW_MAJOR  "knx_fw_major"
+#define KNX_STORAGE_FW_MINOR  "knx_fw_minor"
+#define KNX_STORAGE_FW_PATCH  "knx_fw_patch"
 
 #define OSC_STORAGE_OSN_DELAY "oscore_osn_delay"
 

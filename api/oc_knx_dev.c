@@ -1213,12 +1213,18 @@ void oc_knx_load_device(void)
   oc_core_set_device_hostname(hname);
   PRINT("hostname (storage) %s", oc_string(device->iot_hostname));
 
-  // read major/minor/patch version from storage (on error = '0.0.0')
+  // read application version from storage (on error = '0.0.0')
   uint16_t value;
   device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   PRINT("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch);
+
+  // read firmware version from storage (on error = '0.0.0')
+  device->fwv.major = oc_storage_read(KNX_STORAGE_FW_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->fwv.minor = oc_storage_read(KNX_STORAGE_FW_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->fwv.patch = oc_storage_read(KNX_STORAGE_FW_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  PRINT("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
 
   // read lsm mode from storage (on error = unloaded)
   oc_lsm_state_t lsm;

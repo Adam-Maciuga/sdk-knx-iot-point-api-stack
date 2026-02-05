@@ -135,6 +135,13 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   if (binary_size > 0 && total_download_size == 0) {
     total_download_size = binary_size;
     total_received_bytes = 0;
+    
+    // Delete any existing firmware file from previous download/upgrade
+    // This ensures we start with a clean slate
+    if (remove("downloaded_bin") == 0) {
+      OC_DBG("Removed stale firmware package file");
+    }
+    
     OC_DBG("Starting new download, total size: %zu bytes", total_download_size);
   }
 
@@ -145,8 +152,23 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   // Note: Using append mode ('ab') - all blocks write to same file
   //       First block should probably truncate (use 'wb' on first block)
   FILE* write_ptr = fopen("downloaded_bin", "ab");
+  if (!write_ptr) {
+    OC_ERR("Failed to open firmware file for writing");
+    oc_swu_set_result(OC_SWU_RESULT_ERR_FLASH);
+    oc_swu_set_state(OC_SWU_STATE_IDLE);
+    return;
+  }
+  
   const size_t n = fwrite(block_data, sizeof(*block_data), block_len, write_ptr);
   const size_t r = fclose(write_ptr);
+  
+  if (n != block_len || r != 0) {
+    OC_ERR("File write error: wrote %zu of %zu bytes, close result: %zu", n, block_len, r);
+    oc_swu_set_result(OC_SWU_RESULT_ERR_FLASH);
+    oc_swu_set_state(OC_SWU_STATE_IDLE);
+    return;
+  }
+  
   OC_DBG("written data: %zu, operation ok (=0): %zu", n, r);
 
   // ===== Track Download Progress =====
@@ -214,8 +236,28 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   // 2. Verify firmware integrity
   //    - Check CRC/checksum
   //    - Verify signature (if cryptographically signed)
+  //    - On failure: set OC_SWU_RESULT_ERR_ICF and return
   // 3. Update running firmware version
   // 4. Optionally schedule reboot to activate new firmware
+  
+  // ===== Firmware Integrity Check =====
+  // In production: Verify downloaded firmware before applying
+  // Example checks:
+  // - CRC/checksum validation
+  // - Digital signature verification
+  // - Magic number / header validation
+  // - Size verification
+  // 
+  // For demo: Simulate integrity check by verifying file exists
+  FILE* verify_ptr = fopen("downloaded_bin", "rb");
+  if (!verify_ptr) {
+    OC_ERR("Firmware integrity check failed: file not found");
+    oc_swu_set_state(OC_SWU_STATE_IDLE);
+    oc_swu_set_result(OC_SWU_RESULT_ERR_ICF);
+    return OC_EVENT_DONE;
+  }
+  fclose(verify_ptr);
+  OC_DBG("Firmware integrity check passed");
   
   // ===== EITT Test Implementation =====
   // For certification testing, simulate successful upgrade
@@ -228,11 +270,40 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   // This makes new version visible via /dev/fwv endpoint
   oc_core_set_device_fwv(major, minor, patch);
   
+  // ===== Update Last Software Update Timestamp =====
+  // If device has RTC: Set actual timestamp per RFC 3339
+  //   oc_swu_set_last_update("2026-02-05T14:30:00Z");
+  // 
+  // If device has NO RTC: Don't set timestamp, keep manufacturing date
+  //   Stack will automatically return "osv:true" based on downloaded_once flag
+  // 
+  // For this demo (no RTC): We don't set timestamp, so stack returns "osv:true"
+  
+  // ===== Cleanup Firmware Package =====
+  // After successful upgrade, delete the downloaded firmware file
+  // This frees storage space and prevents confusion with future downloads
+  if (remove("downloaded_bin") == 0) {
+    OC_DBG("Firmware package file deleted successfully");
+  } else {
+    OC_WRN("Failed to delete firmware package file (may not exist)");
+  }
+  
+  // Clear package metadata (name, version, bytes)
+  // This ensures clean state for next download
+  oc_swu_set_package_name("");
+  oc_swu_set_package_version(0, 0, 0);
+  oc_swu_set_package_bytes(0);
+  // Note: downloaded_once remains true and is persisted to storage
+  //       This ensures /swu/lastupdate returns "osv:true" even after reset
+  OC_DBG("Package metadata cleared");
+  
   // ===== Complete State Machine Transition =====
   // Application is responsible for UPDATING → IDLE transition
   // Stack manages other transitions (IDLE→DOWNLOADING→DOWNLOADED)
   oc_swu_set_state(OC_SWU_STATE_IDLE);
   oc_swu_set_result(OC_SWU_RESULT_SUCCESS);
+  // Back to initial result state for next update, might be delayed in real devices
+  oc_swu_set_result(OC_SWU_RESULT_INIT);
   
   OC_DBG("SWU state: UPDATING -> IDLE (upgrade complete, new version: %d.%d.%d)", 
          major, minor, patch);
@@ -369,6 +440,11 @@ int app_init(void)
 
   // set device model, -> permanent
   oc_core_set_device_model(dev_model);
+
+  // set manufacturing date for /swu/lastupdate (RFC 3339 timestamp)
+  // This should be the actual device manufacturing date
+  // For demo purposes, using placeholder date - replace with actual manufacturing date
+  oc_swu_set_last_update("2020-04-12T23:20:50.52Z");
 
   /*
       set default host name to device serial number and leading
