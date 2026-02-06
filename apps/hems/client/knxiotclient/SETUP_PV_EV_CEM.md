@@ -34,12 +34,18 @@ Configure Poetry to keep the virtual environment inside the repo (required by th
 poetry config virtualenvs.in-project true
 ```
 
+If `poetry install` fails with a permission error on the Poetry cache folder, set a project-local cache:
+
+```cmd
+poetry config cache-dir "C:\dev\SBT\knxiotclient\.poetry-cache"
+```
+
 ## 4) Install runtime dependencies only
 
 From the repo root:
 
 ```cmd
-cd C:\dev\SBT\knxiotclient
+cd C:\dev\knxiotclient
 poetry install --only main
 ```
 
