@@ -37,7 +37,7 @@ poetry config virtualenvs.in-project true
 If `poetry install` fails with a permission error on the Poetry cache folder, set a project-local cache:
 
 ```cmd
-poetry config cache-dir "C:\dev\SBT\knxiotclient\.poetry-cache"
+poetry config cache-dir "C:\dev\knxiotclient\.poetry-cache"
 ```
 
 ## 4) Install runtime dependencies only
