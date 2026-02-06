@@ -495,7 +495,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
 	// not used...
 	// COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
-	#if defined(OC_OSCORE)
+	#ifdef OC_OSCORE
 
 	if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE))
 	{ // add OSCORE option
@@ -1214,7 +1214,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 	// init 
 	coap_pkt->buffer = buffer;	// is a ptr copy from org endpoint data
-	coap_pkt->version = 1;
 
 	// CoAP header option serialize first to know total length about options 
 	size_t header_length_calculation = coap_serialize_options(coap_pkt, NULL, inner, outer, oscore);
@@ -1312,6 +1311,12 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       break;
     case DELETED_2_02:
       PRINT("SRV\t: 2.02 - DELETED");
+      break;
+    case BAD_REQUEST_4_00:
+      PRINT("SRV\t: 4.00 - BAD_REQUEST");
+      break;
+      case UNAUTHORIZED_4_01:
+      PRINT("SRV\t: 4.01 - UNAUTHORIZED");
       break;
     default:
       break;
@@ -1449,7 +1454,7 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 	// parse inner and outer, on present OSCORE option ... = 4.02 (here the OSCORE payload must be already extracted) 
 	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 
-	OC_INF("coap parse options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+	OC_INF("coap parse udp options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
 }
 /*---------------------------------------------------------------------------*/
@@ -2064,7 +2069,7 @@ int coap_get_header_echo(void* packet, uint8_t* echo)
 int coap_set_header_echo(void* packet, const uint8_t* echo, size_t len)
 {
   // copy needed since name is used in macro
-  coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
 	memcpy(coap_pkt->echo, echo, len);
 	coap_pkt->echo_len = len;

@@ -83,7 +83,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   }
 
   // here ctx is NULL
-  return ctx;
+  return NULL;
 }
 
 oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token,
@@ -381,7 +381,7 @@ oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, s
   
   #ifdef OC_DEBUG
 
-  OC_DBG("adding OSCORE Response Recipient Context (A2/8.2) with Recipient ID : ");
+  OC_DBG("adding OSCORE Request Recipient Context (A2/8.2) with Recipient ID : ");
   oc_char_println_hex(recipient_id, recipient_id_size);
 
   #endif

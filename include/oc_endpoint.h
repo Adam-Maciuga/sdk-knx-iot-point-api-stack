@@ -58,6 +58,7 @@ extern "C" {
    */
   enum transport_flags
   {
+    NONE = 0,                  // undefined
     DISCOVERY = 1 << 0,        // used for (plain) discovery requests
     SECURED = 1 << 1,          // secure communication, used only in case of TCP  
     IPV4 = 1 << 2,             // ipv4 communication 
@@ -69,7 +70,7 @@ extern "C" {
     OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message, identifies that the message was decrypted 'successfully' in the OSCORE layer 
     ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)
     ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
-    S_MODE_REQUEST = 1 << 11,       // an (OSCORE secured ) s-mode 'request' message that is allowed to be challenged with echo response (mc:non; uc:non/con) 
+    S_MODE_REQUEST = 1 << 11,       // an own initiated (OSCORE secured ) s-mode 'request' message that is allowed to be challenged with echo response (mc:non; uc:non/con) 
   };
 
 
@@ -146,10 +147,12 @@ extern "C" {
                              .addr.ipv4 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
 
-// creates endpoint and assign IPv6, other structure members are set to '0'
+// creates endpoint and assign IPv6, other structure members are set to '0' except auth at token index (-1)
 #define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)              \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .group_address = 0,                               \
+                             .interface_index = 0,                             \
+                             .auth_at_index_from_former_inbound_request = -1,  \
                              .addr.ipv6 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
 

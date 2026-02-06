@@ -2868,19 +2868,21 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   // flags, mc is always secure ...
   enum transport_flags my_transport_flags = IPV6 + MULTICAST + OSCORE;
 
-  // creates IPV6 and set rest to '0'
-  oc_make_ipv6_endpoint(group_mcast, my_transport_flags, port, 
+  // creates IPV6 and set rest to '0' or '-1'
+  oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, port, 
                         0xFF, 0x30 + scope, 0, 0x30,              // FF35::30: -> FF3X [RFC3306]
                         0xFD, ula_5, ula_4, ula_3, ula_2, ula_1,  // FD + IID 
                         0, 0,                                     // ::
                         byte_4, byte_3, byte_2, byte_1);          // Group Identifier
 
+  // uses all interfaces --> cleared above to '0'
+  
   // debug
   PRINT("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
-  PRINTipaddr(group_mcast);
+  PRINTipaddr(group_mcast_endpoint);
 
   // copy all from local data to (return) pointer
-  in = group_mcast;
+  in = group_mcast_endpoint;
 
   return in;
 }
@@ -2891,21 +2893,21 @@ oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t 
   // flags, uc is always secure ...
   enum transport_flags my_transport_flags = IPV6 + OSCORE;
 
-  // creates ipv6 and set rest to '0'
-  oc_make_ipv6_endpoint(group_ucast, my_transport_flags, recipient->ipv6_adr.port, 
+  // creates ipv6 and set rest to '0' or '-1'
+  oc_make_ipv6_endpoint(group_ucast_endpoint, my_transport_flags, recipient->ipv6_adr.port, 
                         recipient->ipv6_adr.ipv6[0], recipient->ipv6_adr.ipv6[1], recipient->ipv6_adr.ipv6[2], recipient->ipv6_adr.ipv6[3], 
                         recipient->ipv6_adr.ipv6[4], recipient->ipv6_adr.ipv6[5], recipient->ipv6_adr.ipv6[6], recipient->ipv6_adr.ipv6[7], 
                         recipient->ipv6_adr.ipv6[8], recipient->ipv6_adr.ipv6[9], recipient->ipv6_adr.ipv6[10], recipient->ipv6_adr.ipv6[11], 
                         recipient->ipv6_adr.ipv6[12], recipient->ipv6_adr.ipv6[13], recipient->ipv6_adr.ipv6[14], recipient->ipv6_adr.ipv6[15]); 
 
   // add interface
-  group_ucast.interface_index = recipient->ipv6_adr.interface_index;
+  group_ucast_endpoint.interface_index = recipient->ipv6_adr.interface_index;
   
   // debug
-  PRINTipaddr(group_ucast);
+  PRINTipaddr(group_ucast_endpoint);
 
   // copy all from local data to (return) pointer
-  in = group_ucast;
+  in = group_ucast_endpoint;
 
   return in;
 }

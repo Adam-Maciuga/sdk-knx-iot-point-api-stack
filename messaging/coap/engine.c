@@ -115,14 +115,14 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t
     uint16_t port;
     uint8_t address[16];
   } history[OC_REQUEST_HISTORY_SIZE];
-  
+
   for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
 	{
 		if (history[i].mid == mid && 
 				history[i].port == port && 
 				memcmp(history[i].address, address, 16) == 0)
 		{
-      OC_DBG("checking messages on duplicates (mid/port/ipv6) -> dropping message, is duplicate with message ID: %d, history[%d]", mid, (int)i);
+      OC_DBG("checking messages on duplicates (mid/port/ipv6) -> dropping duplicate message with message ID: %d, history[%d]", mid, (int)i);
 			return true;
 		}
 	}
@@ -173,9 +173,6 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
     // copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...) 
 	  memcpy(&outgoing_msg->endpoint, endpoint, sizeof(*endpoint));
 
-		// convert outgoing dst EP to unicast (for the response)
-    UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST);
-
 	  // token will be included if not NULL 
 		if (token && token_len > 0)
 		{
@@ -204,14 +201,15 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 			// clear both marker
       UNSET_BIT(outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC + ECHO_CAUSED_BY_UC_SRC);
 
-			// check endpoint (not converted message)
-			if (endpoint->flags & MULTICAST)
+			// check endpoint
+      if (outgoing_msg->endpoint.flags & MULTICAST)
 			  outgoing_msg->endpoint.flags |= ECHO_CAUSED_BY_MC_SRC; // echo was caused by inbound s-mode mc message
       else
         outgoing_msg->endpoint.flags |= ECHO_CAUSED_BY_UC_SRC; // echo was caused by inbound s-mode uc message
-
-
     }
+
+		// convert outgoing dst EP to unicast (for the response)
+    UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST);
 
 		// serialize data, add all options and include/exclude OSCORE options
     outgoing_msg->length = coap_oscore_serialize_message(&coap_msg, outgoing_msg->data, true, true, echo_included);
@@ -220,12 +218,11 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 		{
 			coap_send_message(outgoing_msg);
 		}
-
-		// if message is not referenced anymore 
-		if (outgoing_msg->ref_count == 0)
-		{
-			oc_message_unref(outgoing_msg);
-		}
+    else
+    {
+      // on error release it 
+      oc_message_unref(outgoing_msg);
+    }
 	}
 }
 

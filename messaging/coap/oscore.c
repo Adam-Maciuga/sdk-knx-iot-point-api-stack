@@ -69,12 +69,10 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 		coap_set_header_max_age(outgoing_coap_plain_msg, 0);
 
 		// copies coap msg to message
-		const size_t len = coap_serialize_message(outgoing_coap_plain_msg, message->data);
-		if (len > 0)
+    message->length = coap_serialize_message(outgoing_coap_plain_msg, message->data);
+    if (message->length > 0)
 		{
-			message->length = len;
 			coap_send_message(message);
-
 			OC_DBG("send OSCORE error message in CoAP plain format with code (%u)", code);
 		}
 	}
@@ -443,7 +441,7 @@ oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet)
 	// parse inner, on present OSCORE option ... 4.02 bad option (DON'T take over secure content) 
 	const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, true);
 
-	OC_INF("coap parse oscore options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+	OC_INF("coap parse oscore inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
 	return ret;
 }
 
@@ -626,13 +624,9 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 
 	// parse outer, on present OSCORE option ... take over secure content
 	const coap_status_t ret = coap_oscore_parse_options(packet, msg->data, (uint32_t) msg->length, current_option, false, true, true);
-	if (COAP_NO_ERROR != ret)
-	{
-		OC_DBG_OSCORE("coap_oscore_parse_options failed! %d", ret);
-		return ret;
-	}
 
-  return COAP_NO_ERROR;
+  OC_INF("coap parse oscore outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+  return ret;
 }
 #else 
 typedef int dummy_declaration;

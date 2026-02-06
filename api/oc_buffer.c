@@ -63,16 +63,11 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
 		}
 
 		#endif 
-
+		// allocated memory is wiped with '0' on allocation, hence do only other init
 	  message->pool = pool;
-		message->length = 0;
-		message->next = 0;
 		message->ref_count = 1;
 		message->endpoint.interface_index = -1;
     message->endpoint.auth_at_index_from_former_inbound_request = -1;
-		message->endpoint.group_address = 0;
-		message->soft_ref_cb = NULL;
-		message->encrypted = 0;
 
 		#if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
 		OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));

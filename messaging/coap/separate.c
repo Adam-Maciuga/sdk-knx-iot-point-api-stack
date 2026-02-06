@@ -149,7 +149,7 @@ coap_separate_accept(void *request, oc_separate_response_t *separate_response,
         coap_send_message(message);
         success = true;
       }
-      if (message->ref_count == 0) {
+      if (message->ref_count == 0) { // TODO AH not logical how this can work (look in method below)?
         oc_message_unref(message);
       }
       if (!success) {

@@ -139,7 +139,6 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
-  group_ucast_endpoint.auth_at_index_from_former_inbound_request = -1;
 
   PRINT("Sending s-mode unicast %c", service_type);
 
@@ -165,7 +164,6 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t gr
 
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
-  group_mcast_endpoint.auth_at_index_from_former_inbound_request = -1;
 
   PRINT("Sending s-mode multicast %c", service_type);
 
@@ -662,8 +660,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
                         0,0,0,0, 
                         0,0,0,0xFD); 
 
-  // all interfaces
-  group_mcast_endpoint.interface_index = 0; 
+  // uses all interfaces --> cleared to '0' 
 
   // get local device iid + recipient IA from table -> is valid was checked before
   const uint64_t iid = oc_core_get_device_info()->iid;
