@@ -511,11 +511,11 @@ int coap_receive(oc_message_t* incoming_message)
 						{ // (a)
 							if (sync_state == ECHO)
 							{
-								OC_DBG("Regular (uc/mc) request from unsycned client, sending 4.01 Echo Response");
+								OC_DBG("regular (uc/mc) request from unsycned client, sending 4.01 Echo Response");
 
 							  // send 'unicast echo response' -> NO PAYLOAD
                 // -> multicast : unicast 4.01 with response sender context (there can be many responses from many receivers)
-                // -> unicast   : unicast 4.01 with response sender context 
+                // -> unicast   : unicast 4.01 with response sender context  with echo
 								coap_send_response_with_empty_payload(
 									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
 									incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
@@ -528,7 +528,6 @@ int coap_receive(oc_message_t* incoming_message)
                 // can handle NULL pointer ...
                 coap_clear_transaction(transaction);
                 transaction = NULL;
-
 								return UNAUTHORIZED_4_01;
 							}
 
@@ -538,7 +537,7 @@ int coap_receive(oc_message_t* incoming_message)
 
 							  // send response -> NO PAYLOAD 
                 // -> multicast : MUST be suppressed (message already received)
-                // -> unicast   : unicast 4.01 with response sender context 
+                // -> unicast   : unicast 4.01 with response sender context without echo
 								coap_send_response_with_empty_payload(
 									incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
 									incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(), 
@@ -560,7 +559,7 @@ int coap_receive(oc_message_t* incoming_message)
 							// check received len is the same as from send out echo response
 							if (echo_len != sizeof(oc_clock_time_t))
 							{
-								OC_DBG("Request from unsycned client with bad 'Echo' size %d, sending 4.02", (int) echo_len);
+								OC_DBG("request from unsycned client with bad 'echo' size %d, sending 4.02", (int) echo_len);
 
 								// send response -> NO PAYLOAD 
                 // -> unicast*  : unicast 4.01 with response sender context
@@ -590,12 +589,12 @@ int coap_receive(oc_message_t* incoming_message)
 							// check of time difference, RFC 9175 clause 2.3
 							oc_clock_time_t received_timestamp = *(oc_clock_time_t*) echo_value;
 
-							OC_DBG("received unicast echo re-request - included Echo timestamp difference %" PRIu64 ", threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
+							OC_DBG("received unicast echo re-request - included 'echo' timestamp difference %" PRIu64 ", threshold %d", current_time - received_timestamp, OC_ECHO_FRESHNESS_TIME);
 
 							if (current_time - received_timestamp > OC_ECHO_FRESHNESS_TIME)
 							{
 								// redo echoing returns the same ret code as the first echoing
-								OC_ERR("Current time %" PRIu64 ", received time %" PRIu64, current_time, received_timestamp);
+								OC_ERR("current time %" PRIu64 ", received time %" PRIu64, current_time, received_timestamp);
 
 								// send echo response -> NO PAYLOAD 
                 // -> unicast* : unicast 4.01 with response sender context
@@ -663,10 +662,6 @@ int coap_receive(oc_message_t* incoming_message)
           re_request_coap_packet->mid = coap_get_next_mid();
 
           // TODO refreshed payload to be included
-
-          // re-request has no OSCORE payload, 10 byte echo challenge
-          UNSET_OPTION(re_request_coap_packet, COAP_OPTION_OSCORE);
-
           if (client_cb)
           {
             // a little bit naughty, modify the old client callback to refer to the new 'unicast echo re-request' packet
