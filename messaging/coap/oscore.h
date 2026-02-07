@@ -26,14 +26,14 @@ extern "C"
 {
 #endif
 
-  // send an oscore error with a CoAP return code as a PLAIN CoAP message
-  void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint);
+  // send an oscore error as CoAP with a CoAP return code (in plain/secure)
+  void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured);
 
   int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn);
 
   int oscore_store_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
 
-uint8_t oscore_get_outer_code(void* packet);
+  uint8_t oscore_get_outer_code(void* packet);
 
   bool oscore_is_oscore_message(oc_message_t* msg);
 

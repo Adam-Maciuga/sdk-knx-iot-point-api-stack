@@ -221,7 +221,7 @@ void coap_send_transaction(coap_transaction_t *t)
   }
   else 
   {
-    // non-conformable messages, send ones and delete afterward transaction
+    // non-conformable messages, send ones and delete afterward the transaction
 
       OC_DBG("send_transaction - NON message");
       oc_message_add_ref(t->message);

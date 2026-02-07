@@ -264,7 +264,14 @@ extern "C" {
 	size_t coap_serialize_message(void* packet, uint8_t* buffer);
 	size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner,
 																			 bool outer, bool oscore);
-	void coap_send_message(oc_message_t* message);
+
+  /*
+   @brief  forwards a CoAP message to lower (OSCORE) layers,
+   *       defined as extra message wrapper that allows for TCP = enabled extra code -> one code place,
+   *       after finally sending the (plain/encrypted) message the message will be "released" - if not tracked
+   */
+  void coap_send_message(oc_message_t* message);
+
 	coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 																					uint32_t data_len,
 																					uint8_t* current_option, bool inner,

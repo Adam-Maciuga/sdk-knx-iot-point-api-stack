@@ -1387,7 +1387,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 }
 
-// forwards a CoAP message to lower (OSCORE) layers, defined as extra message wrapper that allows for TCP = enabled extra code -> one code place   
+
 void coap_send_message(oc_message_t* message)
 {
 	#ifdef OC_TCP

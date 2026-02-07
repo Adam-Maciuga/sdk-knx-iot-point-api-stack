@@ -63,7 +63,7 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
 		}
 
 		#endif 
-		// allocated memory is wiped with '0' on allocation, hence do only other init
+		// allocated memory is wiped with '0' on allocation, hence do only others on init
 	  message->pool = pool;
 		message->ref_count = 1;
 		message->endpoint.interface_index = -1;
@@ -76,20 +76,19 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
 	else
 	{
 		/*
-	     No unused buffers, so go through buffers with soft references and
-		   free one (with the lowest ref count 1). Said buffer can no longer be
+	     No unused buffers, so go through buffers with soft references and free one (with the lowest ref count 1). Said buffer can no longer be
 		   used for e.g. retransmitting requests when challenged with an Echo option.
-		   However, freeing up one of these means that it can no longer be used for
-		   its original purpose.
+		   - however, freeing up one of these means that it can no longer be used for its original purpose
+			 - additionally an auto release method must be defined for the message itself
     */
-		for (int i = 0; i < pool->num; ++i)
+		for (int i = 0; i < pool->num; i++)
 		{
-			int offset = pool->size * i;
+			const int offset = pool->size * i;
 			message = (oc_message_t*) ((uint8_t*) pool->mem + offset);
 
 			if (message->ref_count == 1 && message->soft_ref_cb)
 			{
-				// release message
+				// call auto 'release' method to release a message
 			  message->soft_ref_cb(message);
 
 			  // was the last reference (=1), so now we can allocate a new message successfully
@@ -168,6 +167,7 @@ void oc_receive_message(oc_message_t* message)
 		oc_message_unref(message);
 	}
 }
+
 
 void oc_send_message(oc_message_t* message)
 {

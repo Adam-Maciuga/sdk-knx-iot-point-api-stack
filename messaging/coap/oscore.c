@@ -22,19 +22,24 @@
 #include "coap_signal.h"
 #include "oc_ri.h"
 
-void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
+void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured)
 {
 	// retype pointer
-	coap_packet_t const* oscore_pkt = (coap_packet_t*) packet;
-
+	coap_packet_t* coap_pkt = (coap_packet_t*) packet;
   uint16_t mid;
   coap_message_type_t type;
 
-	if (oscore_pkt->type == COAP_TYPE_CON)
+	if (!secured)
+	{
+    UNSET_BIT(endpoint->flags, OSCORE);
+    UNSET_OPTION(coap_pkt, COAP_OPTION_OSCORE);
+	}
+
+	if (coap_pkt->type == COAP_TYPE_CON)
 	{
 		// in case of confirmable send ack with mid from request as ACK
 	  type = COAP_TYPE_ACK;
-    mid = oscore_pkt->mid;
+    mid = coap_pkt->mid;
 	}
 	else
 	{
@@ -44,13 +49,13 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	}
 
 	// one static CoAP packet
-	coap_packet_t outgoing_coap_plain_msg[1];
+	coap_packet_t outgoing_coap_msg[1];
 
 	// init and set all in coap msg to zero 
-  coap_udp_init_message(outgoing_coap_plain_msg, type, code, mid);
+  coap_udp_init_message(outgoing_coap_msg, type, code, mid);
 
 	// UDP/ TCP
-	outgoing_coap_plain_msg->transport_type = oscore_pkt->transport_type;
+	outgoing_coap_msg->transport_type = coap_pkt->transport_type;
 
 	// note, this message is not the same as a coap packet from above
 	oc_message_t* message = oc_internal_allocate_outgoing_message();
@@ -60,20 +65,20 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint)
 	  memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 
 		// copy token
-		if (oscore_pkt->token_len > 0)
+		if (coap_pkt->token_len > 0)
 		{
-			coap_set_token(outgoing_coap_plain_msg, oscore_pkt->token, oscore_pkt->token_len);
+			coap_set_token(outgoing_coap_msg, coap_pkt->token, coap_pkt->token_len);
 		}
 
 		// no max age = no caching 
-		coap_set_header_max_age(outgoing_coap_plain_msg, 0);
+		coap_set_header_max_age(outgoing_coap_msg, 0);
 
 		// copies coap msg to message
-    message->length = coap_serialize_message(outgoing_coap_plain_msg, message->data);
+    message->length = coap_serialize_message(outgoing_coap_msg, message->data);
     if (message->length > 0)
 		{
 			coap_send_message(message);
-			OC_DBG("send OSCORE error message in CoAP plain format with code (%u)", code);
+      OC_DBG("send OSCORE error %s message in CoAP format with code (%u)", message->endpoint.flags & OSCORE ? "'secured'" : "'plain'", code);
 		}
 	}
 }
