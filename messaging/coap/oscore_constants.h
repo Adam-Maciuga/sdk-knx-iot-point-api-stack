@@ -19,7 +19,7 @@
 
 #define OSCORE_AEAD_NONCE_LEN (13)      // AEAD Nonce length for AES-CCM-16-64-128, 1=len(Sender ID), 7=padded Sender ID, 5=padded Partial IV
 #define OSCORE_PIV_LEN (5)              // Partial IV max length, see AEAD Nonce 
-#define OSCORE_SENDER_ID_LEN (7)        // Sender ID maxlength, see AEAD Nonce 
+#define OSCORE_SENDER_ID_LEN (7)        // Sender/Recipient ID maxlength, see AEAD Nonce 
 #define OSCORE_OPTION_LEN (2 + 21 + 43) // Option header + Option length + Proxy-uri 
 #define OSCORE_MASTER_SECRET_LEN (32)
 #define OSCORE_ID_CONTEXT_LEN (16)      // Arbitrarily chosen upper-bound on OSCORE Context ID length

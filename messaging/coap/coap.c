@@ -1284,7 +1284,9 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 	if (outer)
 	{
 
-		#ifdef OC_DEBUG
+	  #ifdef OC_DEBUG
+
+		OC_DBG("Outer CoAP code");
 
     switch (coap_pkt->code)
     {
@@ -1339,7 +1341,47 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 	{
 		// TODO outer = false, but inner may be also false => not tested here! 
 
-		OC_DBG("Inner CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
+		#ifdef OC_DEBUG
+
+    OC_DBG("Inner CoAP code");
+
+    switch (coap_pkt->code)
+    {
+    case COAP_GET:
+      PRINT("SRV\t: GET");
+      break;
+    case COAP_PUT:
+      PRINT("SRV\t: PUT");
+      break;
+    case COAP_POST:
+      PRINT("SRV\t: POST");
+      break;
+    case COAP_DELETE:
+      PRINT("SRV\t: DELETE");
+      break;
+    case CREATED_2_01:
+      PRINT("SRV\t: 2.01 - CREATED ");
+      break;
+    case CHANGED_2_04:
+      PRINT("SRV\t: 2.04 - CHANGED ");
+      break;
+    case CONTENT_2_05:
+      PRINT("SRV\t: 2.05 - OK");
+      break;
+    case DELETED_2_02:
+      PRINT("SRV\t: 2.02 - DELETED");
+      break;
+    case BAD_REQUEST_4_00:
+      PRINT("SRV\t: 4.00 - BAD_REQUEST");
+      break;
+    case UNAUTHORIZED_4_01:
+      PRINT("SRV\t: 4.01 - UNAUTHORIZED");
+      break;
+    default:
+      break;
+    }
+
+    #endif
 
 		coap_pkt->buffer[0] = coap_pkt->code;
 		option = coap_pkt->buffer + 1;
@@ -1387,7 +1429,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
 }
 
-
 void coap_send_message(oc_message_t* message)
 {
 	#ifdef OC_TCP
@@ -1405,8 +1446,6 @@ void coap_send_message(oc_message_t* message)
 
 	oc_send_message(message);
 }
-
-
 
 coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_len)
 {

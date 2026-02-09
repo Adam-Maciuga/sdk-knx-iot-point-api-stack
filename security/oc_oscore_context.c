@@ -77,6 +77,8 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
 
       // update time for a possible release of "last used" - if table is full
       ctx->last_used = oc_clock_time();
+
+      // check on correct rid/sid/ctx length is done on create context
       return ctx;
     }
     ctx = ctx->next;
