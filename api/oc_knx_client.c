@@ -697,7 +697,8 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
     cb->mid = coap_get_next_mid();
     const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
     const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
-    
+
+    OC_INF("CoAP discovery: Timeout, Resending Discovery Request");
   }
 
   if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED)
@@ -720,6 +721,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
   if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb))
   {
     oc_do_well_known_message_update();
+    OC_INF("CoAP discovery: Sending Discovery Request");
     return OC_IP_STATUS_RESOLVING;
   }
 

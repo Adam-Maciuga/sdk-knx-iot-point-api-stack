@@ -1126,7 +1126,7 @@ int coap_receive(oc_message_t* incoming_message)
 			  // find client callback by token
 			  client_cb =	oc_ri_find_client_cb_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
 
-				PRINT("Scanning for client callback -> %s", client_cb ? "... found" : "... not found");
+				PRINT("scanning for client callback -> %s", client_cb ? "... found" : "... not found");
 				
 			  #ifdef OC_BLOCK_WISE
 				if (incoming_coap_message->code >= BAD_REQUEST_4_00 &&

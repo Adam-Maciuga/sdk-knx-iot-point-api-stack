@@ -330,7 +330,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     uint8_t request_piv_len = 0;
 
     if (is_inbound_request)
-    {
+    {// 8.2
       if (oscore_pkt->kid_len > 0)
       { // kid > 0
         
@@ -340,7 +340,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
         if (!oscore_ctx)
-        { // no beforehand cached context available, make one (usually on a1/a2)
+        { // no beforehand cached context available, make one (usually on a fresh req[in])
 
           // find auth/at entry with corresponding 'kid' from inbound message
           const int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
@@ -351,13 +351,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
             if (idx == -1)
             {
               /*
-                 'kid' from 'unicast echo response' not found as part of my onw access token table,
-                  the sender is not known to the server (we never did send out an echo request with this kid)
-                 - KNX IoT Point API (8.4 step 2) = stop processing
+                 'kid' from 'unicast echo re-request' not found as part of my onw access token table,
+                  the inbound sender is not known to the server 
+                 - we never did send out a 'unicast echo response' with this kid
                  - inform AL on failed echo challenge would be needed
               */
 
-              OC_ERR("could not find an access token for 'kid' from inbound 'unicast echo response', stop processing");
+              OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound 'unicast echo re-request' request message, stop processing");
               oc_message_unref(msg);
               return -1;
             }
@@ -401,7 +401,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
             // received a 'unicast echo response' -> need to send an s-mode 'unicast echo re-request'
             s_mode_echo_re_request = true;
 
-            // save ssn for 'unicast echo re-request', must be the same
+            // save piv (ssn) for 'unicast echo re-request', must be the same
             request_piv = oscore_pkt->piv;
             request_piv_len = oscore_pkt->piv_len;
           }
@@ -409,16 +409,15 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           { // kid context != 10
             if (idx == -1)
             {
-
               /*
-                 'kid' from 'request' not found as part of my onw contexts, the inbound sender is not known to the server
-                 - KNX IoT Point API (8.2 step 2) = unsecured 4.01
+                 'kid' from 'request' not found as part of my onw contexts, 
+                 the inbound sender is not known to the server
                  - an inbound GA as 'kid' that does not match to the server's PUB table but using a (by server) registered multicast address,
                    mc later ignored, standard case (a group value MULTICAST write where the GA is not used in THIS device)
                  - uc 4.01, MaC misconfiguration (a group value UNICAST write where the GA is not used in THIS device)
               */
 
-              OC_ERR("could not find an access token for 'kid' from inbound 'normal' message, return unsecured 4.01");
+              OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound 's-mode' request message, return unsecured 4.01");
               oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
               oc_message_unref(msg);
               return -1;
@@ -465,7 +464,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, oscore_pkt->piv, oscore_pkt->piv_len, aad, &aad_len);
           oc_oscore_AEAD_nonce(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, oscore_pkt->piv, oscore_pkt->piv_len, oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-          OC_DBG("---> computed AEAD + AEAD nonce using Partial IV from 'inbound' request message and Recipient ID, nonce =\t: "); OC_LOGbytes(nonce, OSCORE_AEAD_NONCE_LEN);
+          OC_DBG("8.2: ---> computed AEAD + AEAD nonce using Partial IV from 'inbound' request message and Recipient ID, nonce =\t: "); OC_LOGbytes(nonce, OSCORE_AEAD_NONCE_LEN);
         }
         else
         { // kid > 0, piv = 0
@@ -478,14 +477,14 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       }
       else
       { // kid = 0
-        OC_ERR("request lacks kid param (8.2 step 2) kid = 0, return unsecured 4.02");
+        OC_ERR("request lacks kid param (8.2 step 2) - kid = 0, return unsecured 4.02");
         oscore_send_error(oscore_pkt, BAD_OPTION_4_02, &msg->endpoint, false);
         oc_message_unref(msg);
         return -1;
       }
     }
     else if (is_inbound_response)
-    {
+    {// 8.4
       if (oscore_pkt->kid_len > 0)
       { // kid > 0
         
@@ -507,7 +506,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
             {
               /*
                  'kid' from 'unicast echo response' not found as part of my onw access token table,
-                  the sender is not known to the server (we never did send out an echo request with this kid)
+                  the inbound sender is not known to the server 
+                 - we never did send out an echo request with this kid
                  - KNX IoT Point API (8.4 step 2) = stop processing
                  - inform AL on failed echo challenge would be needed
               */
@@ -623,7 +623,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, request_piv, request_piv_len, aad, &aad_len);
           oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, request_piv, request_piv_len, oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-          OC_DBG("---> computed AEAD + AEAD nonce using Partial IV from 'former' Request Sender Context (SID), nonce =\t: "); OC_LOGbytes(nonce, OSCORE_AEAD_NONCE_LEN);
+          OC_DBG("8.4: ---> computed AEAD + AEAD nonce using Partial IV from 'former' Request Sender Context (SID), nonce =\t: "); OC_LOGbytes(nonce, OSCORE_AEAD_NONCE_LEN);
         }
         else
         { // kid > 0, piv = 0
