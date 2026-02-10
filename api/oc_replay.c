@@ -175,12 +175,12 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_st
     const int64_t ssn_diff = (int64_t)(rec->rx_ssn - rx_ssn);
     const uint32_t replay_window_size = get_oscore_replay_window_size();
 
-	PRINT("new ssn\t= %" PRIx64, rx_ssn);							// 64 bit uint
-	PRINT("old ssn\t= %" PRIx64, rec->rx_ssn);				// 64 bit uint
-	PRINT("ssn_diff\t= %" PRIi64, ssn_diff);					// 64 bit int
-  PRINT("kid (%llu)\t= %s", oc_string_len(rx_kid), oc_string(rx_kid)); 
-  PRINT("kid ctx (%llu)\t= %s", oc_string_len(rx_kid_ctx) , oc_string(rx_kid_ctx)); 
-  PRINT("wnd old\t= %" PRIx32, rec->window);				// 32 bit field
+    PRINT("new ssn\t= %" PRIx64, rx_ssn);					// 64 bit uint
+    PRINT("old ssn\t= %" PRIx64, rec->rx_ssn);				// 64 bit uint
+    PRINT("ssn_diff\t= %" PRIi64, ssn_diff);				// 64 bit int
+    PRINT("kid (%zu)\t= %s", oc_string_len(rx_kid), oc_string(rx_kid)); 
+    PRINT("kid ctx (%zu)\t= %s", oc_string_len(rx_kid_ctx) , oc_string(rx_kid_ctx)); 
+    PRINT("wnd old\t= %" PRIx32, rec->window);				// 32 bit field
 
 	if (ssn_diff >= 0)
 	{

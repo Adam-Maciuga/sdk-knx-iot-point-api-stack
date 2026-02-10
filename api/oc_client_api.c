@@ -28,19 +28,15 @@ static oc_blockwise_state_t *request_buffer = NULL;
 // - well-known message
 oc_message_t* udp_message_update = NULL;
 
-bool oc_do_s_mode_message_update(void)
-{
+bool oc_do_s_mode_message_update(void) {
   const int payload_size = oc_rep_get_encoded_payload_size();
   bool ret = false;
 
-  if (payload_size == 0) 
-  {
+  if (payload_size == 0) {
     OC_WRN("sent (uc/mc) s-mode message - ERROR (payload len = 0)");
     // udp message is initialized, it may jump into with a NULL ptr but this is checked there
     oc_message_unref(udp_message_update);
-  }
-  else 
-  {
+  } else {
     // udp message is initialized, coap payload gets ptr from message data
     coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, payload_size);
 
@@ -49,37 +45,30 @@ bool oc_do_s_mode_message_update(void)
 
     udp_message_update->length = coap_serialize_message(udp_coap_request, udp_message_update->data);
 
-    if (udp_message_update->length > 0)
-    {
-      /*
-        We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
-        with an Echo option. Use coap transaction framework to handle this.
-        1. create a specific s-mode transaction for NON/CON s-mode messages
-          - transaction init with a fixed timeout
-          - send message 1:1 as 'send transaction' but without clearing transaction afterward
-            (hence transaction lasts until the timeout after sending the s-mode message, see use of S_MODE_REQUEST)
-
-      */
+    if (udp_message_update->length > 0) {
+      // We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
+      // with an Echo option. Use coap transaction framework to handle this.
+      // 1. create a specific s-mode transaction for NON/CON s-mode messages
+      //   - transaction init with a fixed timeout
+      //   - send message 1:1 as 'send transaction' but without clearing transaction afterward
+      //     (hence transaction lasts until the timeout after sending the s-mode message, see use of S_MODE_REQUEST)
 
       // make it to an s-mode message (mc:non, uc:non/con)
       udp_message_update->endpoint.flags |= S_MODE_REQUEST;
 
       // create a new (specific) s-mode transaction
-      const coap_transaction_t* s_mode_transaction = coap_new_transaction_for_s_mode_message(udp_coap_request->mid, udp_coap_request->token, 8, udp_message_update);
-      if (s_mode_transaction)
-      {
+      const coap_transaction_t* s_mode_transaction = 
+              coap_new_transaction_for_s_mode_message(udp_coap_request->mid, 
+                      udp_coap_request->token, 8, udp_message_update);
+      if (s_mode_transaction) {
         OC_INF("sent (uc/mc) s-mode message - OK");
         oc_send_message(udp_message_update);
         ret = true; // don't remove reference on sending message
-      }
-      else
-      {
+      } else {
         OC_WRN("sent (uc/mc) s-mode message - ERROR (no transaction free)");
         oc_message_unref(udp_message_update);
       }
-    }
-    else
-    {
+    } else {
       OC_WRN("sent (uc/mc) s-mode message - ERROR (message len = 0)");
       oc_message_unref(udp_message_update);
     }
@@ -89,8 +78,7 @@ bool oc_do_s_mode_message_update(void)
   return ret;
 }
 
-bool oc_do_well_known_message_update(void)
-{
+bool oc_do_well_known_message_update(void) {
   bool ret = false;
   
   // is still the inner header ...
@@ -98,14 +86,11 @@ bool oc_do_well_known_message_update(void)
 
   udp_message_update->length = coap_serialize_message(udp_coap_request, udp_message_update->data);
 
-  if (udp_message_update->length > 0)
-  {
+  if (udp_message_update->length > 0) {
     OC_INF("sent well-known message - OK");
     oc_send_message(udp_message_update);
     ret = true; // don't remove reference on sending message
-  }
-  else
-  {
+  } else {
     OC_WRN("sent well-known message - ERROR (message len = 0)");
     oc_message_unref(udp_message_update);
   }
@@ -114,13 +99,11 @@ bool oc_do_well_known_message_update(void)
   return ret;
 }
 
-bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable)
-{
+bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable) {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_s_mode_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
 
-  if (!udp_message_update) 
-  {
+  if (!udp_message_update) {
     return false;
   }
 
@@ -153,8 +136,7 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   // at this point the handler is empty since it will be released in the same cycle (oc_do_well_known_message_update)
   udp_message_update = oc_internal_allocate_outgoing_message();
 
-  if (!udp_message_update)
-  {
+  if (!udp_message_update) {
     return false;
   }
 
@@ -178,8 +160,7 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
 
 void oc_free_server_endpoints(oc_endpoint_t *endpoint)
 {
-  while (endpoint) 
-  {
+  while (endpoint) {
     // tmp copy, will be released next ...
     oc_endpoint_t* next = endpoint->next;
     oc_free_endpoint(endpoint);
@@ -189,25 +170,23 @@ void oc_free_server_endpoints(oc_endpoint_t *endpoint)
 
 bool oc_get_response_payload_raw(oc_client_response_t *response,
         const uint8_t **payload, size_t *size, 
-        oc_content_format_t *content_format)
-{
+        oc_content_format_t *content_format) {
   if (!response || !payload || !size || !content_format) {
     return false;
   }
-  if (response->_payload && response->_payload_len > 0) 
-  {
+
+  if (response->_payload && response->_payload_len > 0) {
     *content_format = response->content_format;
     *payload = response->_payload;
     *size = response->_payload_len;
     return true;
   }
+
   return false;
 }
 
 #ifdef OC_TCP
-oc_event_callback_retval_t
-oc_remove_ping_handler(void *data)
-{
+oc_event_callback_retval_t oc_remove_ping_handler(void *data) {
   oc_client_cb_t *cb = (oc_client_cb_t *)data;
 
   oc_client_response_t timeout_response;
@@ -219,9 +198,9 @@ oc_remove_ping_handler(void *data)
   return oc_ri_remove_client_cb(cb);
 }
 
-bool oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_seconds,
-        oc_response_handler_t handler, void *user_data)
-{
+bool oc_send_ping(bool custody, oc_endpoint_t *endpoint, 
+        uint16_t timeout_seconds, oc_response_handler_t handler, 
+        void *user_data) {
   oc_client_handler_t client_handler = {
     .response = handler,
     .discovery = NULL,
@@ -230,11 +209,12 @@ bool oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_second
 
   oc_client_cb_t *cb = oc_ri_alloc_client_cb(
     "/ping", endpoint, 0, NULL, client_handler, LOW_QOS, user_data);
-  if (!cb)
+  if (!cb) {
     return false;
+  }
 
   if (!coap_send_ping_message(endpoint, custody ? 1 : 0, cb->token,
-                              cb->token_len)) {
+          cb->token_len)) {
     oc_ri_remove_client_cb(cb);
     return false;
   }
@@ -244,40 +224,35 @@ bool oc_send_ping(bool custody, oc_endpoint_t *endpoint, uint16_t timeout_second
 }
 #endif 
 
-void oc_close_session(oc_endpoint_t *endpoint)
-{
-  if (endpoint->flags & SECURED) 
-  {
+void oc_close_session(oc_endpoint_t *endpoint) {
+  if (endpoint->flags & SECURED) {
     #ifdef KNX_TCP_TLS
     oc_tls_close_connection(endpoint);
     #endif 
-  }
-  else if (endpoint->flags & TCP) 
-  {
+  } else if (endpoint->flags & TCP) {
     #ifdef OC_TCP
     oc_connectivity_end_session(endpoint);
     #endif
   }
 }
 
-int oc_lf_number_of_entries(const char *payload, int payload_len)
-{
+int oc_lf_number_of_entries(const char *payload, int payload_len) {
   int nr_entries = 0;
   if (payload == NULL) {
     return nr_entries;
   }
+
   if (payload_len < 5) {
     return nr_entries;
   }
 
   // multiple lines
-  for (int i = 0; i < payload_len; i++) 
-  {
-    if (payload[i] == ',')
-    {
+  for (int i = 0; i < payload_len; i++) {
+    if (payload[i] == ',') {
       nr_entries++;
     }
   }
+
   if (nr_entries > 0) {
     // add the last entry, that does not have the continuation character.
     nr_entries++;
@@ -294,13 +269,13 @@ int oc_lf_number_of_entries(const char *payload, int payload_len)
 }
 
 static int oc_lf_get_line(const char *payload, int payload_len, int entry,
-        const char **line, int *line_len)
-{
+        const char **line, int *line_len) {
   int nr_entries = 0;
   int i;
   if (payload == NULL) {
     return nr_entries;
   }
+
   if (payload_len < 5) {
     return nr_entries;
   }
@@ -318,16 +293,19 @@ static int oc_lf_get_line(const char *payload, int payload_len, int entry,
         begin_set = true;
       }
     }
+
     if (entry + 1 == nr_entries) {
       if (end_set == false) {
         end_line_index = i;
         end_set = true;
       }
     }
+
     if (payload[i] == ',') {
       nr_entries++;
     }
   }
+
   if (end_line_index == 0) {
     end_line_index = payload_len;
   }
@@ -349,8 +327,7 @@ static int oc_lf_get_line(const char *payload, int payload_len, int entry,
 }
 
 int oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
-        const char **uri, int *uri_len)
-{
+        const char **uri, int *uri_len) {
   const char *line = NULL;
   int line_len = 0;
   int begin_uri = 0;
@@ -362,6 +339,7 @@ int oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
     if (line[i] == '<') {
       begin_uri = i + 1;
     }
+
     if (line[i] == '>') {
       end_uri = i;
       break;
@@ -375,8 +353,7 @@ int oc_lf_get_entry_uri(const char *payload, int payload_len, int entry,
 }
 
 int oc_lf_get_entry_param(const char *payload, int payload_len, int entry,
-        const char *param, const char **p_out, int *p_len)
-{
+        const char *param, const char **p_out, int *p_len) {
   const char *line = NULL;
   int line_len = 0;
   int i;
@@ -397,6 +374,7 @@ int oc_lf_get_entry_param(const char *payload, int payload_len, int entry,
       }
     }
   }
+
   if (found == 1) {
     for (i = begin_param + 1; i < line_len - 1; i++) {
       if (line[i] == ';') {
@@ -404,6 +382,7 @@ int oc_lf_get_entry_param(const char *payload, int payload_len, int entry,
         break;
       }
     }
+
     if (end_param == 0) {
       end_param = line_len;
     }

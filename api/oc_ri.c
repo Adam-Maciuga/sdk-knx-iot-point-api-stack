@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2021 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
@@ -36,10 +36,10 @@
 #include "security/oc_oscore.h"
 
 #ifdef OC_SERVER
-OC_LIST(app_resources);				// list root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
-OC_LIST(observe_callbacks);   // list root node for callback handlers 
-OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);						// a tmp memory container to story a resource 
-OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES);	// a tmp memory container to story a resource runtime modifiable data 
+OC_LIST(app_resources);                // list root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
+OC_LIST(observe_callbacks);            // list root node for callback handlers 
+OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource 
+OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource runtime modifiable data 
 #endif 
 
 #ifdef OC_CLIENT
@@ -57,59 +57,57 @@ OC_PROCESS(timed_callback_events, "OC timed callbacks");
 oc_event_callback_retval_t oc_remove_ping_handler(void* data);
 #endif 
 
-static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
-{
-  CONTENT_2_05,                     // mapped from OC_STATUS_OK
-  CREATED_2_01,                     // mapped from OC_STATUS_CREATED
-  CHANGED_2_04,                     // mapped from OC_STATUS_CHANGED
-  DELETED_2_02,                     // mapped from OC_STATUS_DELETED
-  VALID_2_03,                       // mapped from OC_STATUS_NOT_MODIFIED
-  BAD_REQUEST_4_00,                 // mapped from OC_STATUS_BAD_REQUEST
-  UNAUTHORIZED_4_01,                // mapped from OC_STATUS_UNAUTHORIZED
-  BAD_OPTION_4_02,                  // mapped from OC_STATUS_BAD_OPTION
-  FORBIDDEN_4_03,                   // mapped from OC_STATUS_FORBIDDEN
-  NOT_FOUND_4_04,                   // mapped from OC_STATUS_NOT_FOUND
-  METHOD_NOT_ALLOWED_4_05,          // mapped from OC_STATUS_METHOD_NOT_ALLOWED
-  NOT_ACCEPTABLE_4_06,              // mapped from OC_STATUS_NOT_ACCEPTABLE
-  REQUEST_ENTITY_TOO_LARGE_4_13,    // mapped from OC_STATUS_REQUEST_ENTITY_TOO_LARGE
-  UNSUPPORTED_MEDIA_TYPE_4_15,      // mapped from OC_STATUS_UNSUPPORTED_MEDIA_TYPE
-  INTERNAL_SERVER_ERROR_5_00,       // mapped from OC_STATUS_INTERNAL_SERVER_ERROR
-  NOT_IMPLEMENTED_5_01,             // mapped from OC_STATUS_NOT_IMPLEMENTED
-  BAD_GATEWAY_5_02,                 // mapped from OC_STATUS_BAD_GATEWAY
-  SERVICE_UNAVAILABLE_5_03,         // mapped from OC_STATUS_SERVICE_UNAVAILABLE
-  GATEWAY_TIMEOUT_5_04,             // mapped from OC_STATUS_GATEWAY_TIMEOUT
-  PROXYING_NOT_SUPPORTED_5_05       // mapped from OC_STATUS_PROXYING_NOT_SUPPORTED
+static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] = {
+  CONTENT_2_05,                        // mapped from OC_STATUS_OK
+  CREATED_2_01,                        // mapped from OC_STATUS_CREATED
+  CHANGED_2_04,                        // mapped from OC_STATUS_CHANGED
+  DELETED_2_02,                        // mapped from OC_STATUS_DELETED
+  VALID_2_03,                          // mapped from OC_STATUS_NOT_MODIFIED
+  BAD_REQUEST_4_00,                    // mapped from OC_STATUS_BAD_REQUEST
+  UNAUTHORIZED_4_01,                   // mapped from OC_STATUS_UNAUTHORIZED
+  BAD_OPTION_4_02,                     // mapped from OC_STATUS_BAD_OPTION
+  FORBIDDEN_4_03,                      // mapped from OC_STATUS_FORBIDDEN
+  NOT_FOUND_4_04,                      // mapped from OC_STATUS_NOT_FOUND
+  METHOD_NOT_ALLOWED_4_05,             // mapped from OC_STATUS_METHOD_NOT_ALLOWED
+  NOT_ACCEPTABLE_4_06,                 // mapped from OC_STATUS_NOT_ACCEPTABLE
+  REQUEST_ENTITY_TOO_LARGE_4_13,       // mapped from OC_STATUS_REQUEST_ENTITY_TOO_LARGE
+  UNSUPPORTED_MEDIA_TYPE_4_15,         // mapped from OC_STATUS_UNSUPPORTED_MEDIA_TYPE
+  INTERNAL_SERVER_ERROR_5_00,          // mapped from OC_STATUS_INTERNAL_SERVER_ERROR
+  NOT_IMPLEMENTED_5_01,                // mapped from OC_STATUS_NOT_IMPLEMENTED
+  BAD_GATEWAY_5_02,                    // mapped from OC_STATUS_BAD_GATEWAY
+  SERVICE_UNAVAILABLE_5_03,            // mapped from OC_STATUS_SERVICE_UNAVAILABLE
+  GATEWAY_TIMEOUT_5_04,                // mapped from OC_STATUS_GATEWAY_TIMEOUT
+  PROXYING_NOT_SUPPORTED_5_05          // mapped from OC_STATUS_PROXYING_NOT_SUPPORTED
 };
 
 oc_process_event_t oc_events[NUM_OC_EVENT_TYPES];
 
-static const char* scope_string_name[NUM_ACL_SCOPES] =
-  { // starts with OC_ACL_NONE,
-    // names are shared between scopes and interfaces AND MUST be in the same order
-    "",     "if.i",   "if.o",  "if.g.s", "if.c",
-    "if.p", "if.d",   "if.a",  "if.s",    "",
-    "",	    "if.sec", "if.swu", "",       "",
-    "<ga>"
-  };
+static const char* scope_string_name[NUM_ACL_SCOPES] = {
+  // starts with OC_ACL_NONE,
+  // names are shared between scopes and interfaces AND MUST be in the same order
+  "",     "if.i",   "if.o",  "if.g.s", "if.c",
+  "if.p", "if.d",   "if.a",  "if.s",    "",
+  "",	    "if.sec", "if.swu", "",       "",
+  "<ga>"
+};
 
-static const char* interface_string_short_urn[NUM_INTERFACES] =
-  { // starts with OC_IF_NONE,
-    // urns are shared between scopes and interfaces AND MUST be in the same order
-    "",      ":if.i",   ":if.o",   ":if.g.s", ":if.c",
-    ":if.p", ":if.d",   ":if.a",   ":if.s",   ":if.ll",
-    ":if.b", ":if.sec",	":if.swu", ":if.pm",  ":if.m.x"
-  };
+static const char* interface_string_short_urn[NUM_INTERFACES] = {
+  // starts with OC_IF_NONE,
+  // urns are shared between scopes and interfaces AND MUST be in the same order
+  "",      ":if.i",   ":if.o",   ":if.g.s", ":if.c",
+  ":if.p", ":if.d",   ":if.a",   ":if.s",   ":if.ll",
+  ":if.b", ":if.sec",	":if.swu", ":if.pm",  ":if.m.x"
+};
 
-static const char* interface_string_full_urn[NUM_INTERFACES] =
-  { // starts with OC_IF_NONE,
-    // urns are shared between scopes and interfaces AND MUST be in the same order
-    "",              "urn:knx:if.i",   "urn:knx:if.o",   "urn:knx:if.g.s", "urn:knx:if.c",
-    "urn:knx:if.p",  "urn:knx:if.d",   "urn:knx:if.a",   "urn:knx:if.s",   "urn:knx:if.ll",
-    "urn:knx:if.b",  "urn:knx:if.sec", "urn:knx:if.swu", "urn:knx:if.pm",  "urn:knx:if.m.x"
-  };
+static const char* interface_string_full_urn[NUM_INTERFACES] = {
+  // starts with OC_IF_NONE,
+  // urns are shared between scopes and interfaces AND MUST be in the same order
+  "",              "urn:knx:if.i",   "urn:knx:if.o",   "urn:knx:if.g.s", "urn:knx:if.c",
+  "urn:knx:if.p",  "urn:knx:if.d",   "urn:knx:if.a",   "urn:knx:if.s",   "urn:knx:if.ll",
+  "urn:knx:if.b",  "urn:knx:if.sec", "urn:knx:if.swu", "urn:knx:if.pm",  "urn:knx:if.m.x"
+};
 
-const char* get_interface_string_full_urn(int index)
-{
+const char* get_interface_string_full_urn(int index) {
   // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
@@ -117,8 +115,7 @@ const char* get_interface_string_full_urn(int index)
   return interface_string_full_urn[index];
 }
 
-oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
-{
+oc_status_t get_oc_status_code_from_coap_code(const int coap_code) {
   for (oc_status_t i = OC_STATUS_OK; i < NUMBER_OF_OC_STATUS_CODES; i++) {
     // number 0...n (19) of array is needed, not the actual coap code 
     if (oc_coap_status_codes[i] == coap_code) { 
@@ -130,32 +127,34 @@ oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
   return OC_IGNORE;
 }
 
-unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes)
-{
+unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes) {
   unsigned int total_masks = 0;
 
   while (scopes) {
-    total_masks += scopes & 1; // add the LSB (=0/1)
-    scopes >>= 1; // right shift
+    // add the LSB (=0/1)
+    total_masks += scopes & 1;
+    // right shift
+    scopes >>= 1;
   }
 
   return total_masks;
 }
 
-unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t interfaces)
-{
+unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t interfaces) {
   unsigned int total_masks = 0;
 
   while (interfaces) {
-    total_masks += interfaces & 1; // add the LSB (=0/1)
-    interfaces >>= 1; // right shift
+    // add the LSB (=0/1)
+    total_masks += interfaces & 1;
+    // right shift
+    interfaces >>= 1;
   }
 
   return total_masks;
 }
 
-void oc_put_all_access_scope_names_from_a_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array)
-{
+void oc_put_all_access_scope_names_from_a_mask_in_string_array(
+        oc_acl_mask_t scopes, oc_string_array_t scopes_array) {
   // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
@@ -168,8 +167,8 @@ void oc_put_all_access_scope_names_from_a_mask_in_string_array(oc_acl_mask_t sco
   }
 }
 
-void oc_put_all_interface_short_urns_from_a_mask_in_string_array(oc_interface_mask_t interfaces, oc_string_array_t scopes_array)
-{
+void oc_put_all_interface_short_urns_from_a_mask_in_string_array(
+        oc_interface_mask_t interfaces, oc_string_array_t scopes_array) {
   // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
@@ -182,8 +181,7 @@ void oc_put_all_interface_short_urns_from_a_mask_in_string_array(oc_interface_ma
   }
 }
 
-int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool truncate)
-{
+int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool truncate) {
   // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
@@ -217,8 +215,8 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
   return total_size;
 }
 
-oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
-{
+oc_interface_mask_t oc_ri_get_interface_mask(
+        const char* interface_name, size_t interface_name_len) {
   oc_interface_mask_t interface = OC_IF_NONE;
 
   // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
@@ -242,8 +240,8 @@ oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t 
   return interface;
 }
 
-oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
-{
+oc_acl_mask_t oc_ri_get_scope_mask(
+        const char* acl_scope_name, size_t acl_scope_name_len) {
   // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
   // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
   // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
@@ -255,7 +253,8 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
 
     const char* n = scope_string_name[i];
 
-    if (acl_scope_name_len == strlen(n) && strncmp(acl_scope_name, n, acl_scope_name_len) == 0) {
+    if (acl_scope_name_len == strlen(n) && 
+            strncmp(acl_scope_name, n, acl_scope_name_len) == 0) {
       // on a hit return immediately
       return (oc_acl_mask_t)(1 << i);
     }
@@ -264,8 +263,7 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
   return OC_ACL_NONE;
 }
 
-void oc_print_acl_scopes(oc_acl_mask_t scope)
-{
+void oc_print_acl_scopes(oc_acl_mask_t scope) {
 #ifdef OC_PRINT
   for (unsigned int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, scope >>= 1) {
     if (scope & 1) {
@@ -278,8 +276,7 @@ void oc_print_acl_scopes(oc_acl_mask_t scope)
 void oc_ri_new_request_from_inbound_request(oc_request_t* new_request, 
         const oc_request_t* inbound_request,
         oc_response_buffer_t* response_buffer,
-        oc_response_t* response_obj)
-{
+        oc_response_t* response_obj) {
   // copy inbound request content to new request content
   memcpy(new_request, inbound_request, sizeof(oc_request_t));
 
@@ -296,13 +293,12 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
 }
 
 #ifdef OC_SERVER
-const oc_resource_t* oc_ri_get_app_resources(void)
-{
+const oc_resource_t* oc_ri_get_app_resources(void) {
   return (oc_resource_t * )oc_list_head(app_resources);
 }
 
-const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len)
-{
+const oc_resource_t* oc_ri_get_app_resource_by_resource_path(
+        const char* resource_path, size_t resource_path_len) {
   if (!resource_path || resource_path_len == 0) {
     return NULL;
   }
@@ -325,8 +321,7 @@ const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resourc
   return NULL;
 }
 
-static void oc_ri_delete_all_app_resources(void)
-{
+static void oc_ri_delete_all_app_resources(void) {
   const oc_resource_t* res = oc_ri_get_app_resources();
   while (res) {
     if (oc_ri_delete_resource(res) == true) {
@@ -342,11 +337,9 @@ static void oc_ri_delete_all_app_resources(void)
     res = oc_ri_get_app_resources();
   }
 }
-
 #endif
 
-bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
-{
+bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept) {
   // hope request is not null 
   if (request->accept == accept || request->accept == CONTENT_NONE) {
     return true;
@@ -357,14 +350,12 @@ bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
   return false;
 }
 
-int oc_status_code(oc_status_t key)
-{
+int oc_status_code(oc_status_t key) {
   return oc_coap_status_codes[key];
 }
 
 int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key,
-        size_t* key_len, char** value, size_t* value_len, size_t n)
-{
+        size_t* key_len, char** value, size_t* value_len, size_t n) {
   int next_pos = -1;
 
   // number of scanned independent query fragments with '&' 
@@ -381,8 +372,10 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
       return -1;
     }
 
-    i++; // next fragment
-    start = current + 1; // first char after '&'
+    // next fragment
+    i++;
+    // first char after '&'
+    start = current + 1;
   }
 
   // find '=' after the '&'
@@ -426,8 +419,7 @@ int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** ke
   return next_pos;
 }
 
-int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value)
-{
+int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, char** value) {
   int next_pos = 0, found = -1;
   size_t kl, vl, pos = 0;
   char* k;
@@ -449,8 +441,7 @@ int oc_ri_get_query_value(const char* query, size_t query_len, const char* key, 
   return found;
 }
 
-int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n)
-{
+int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n) {
   int next_pos = -1;
   size_t i = 0;
 
@@ -512,8 +503,7 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, 
   return next_pos;
 }
 
-int oc_ri_query_exists(const char* query, size_t query_len, const char* key)
-{
+int oc_ri_query_exists(const char* query, size_t query_len, const char* key) {
   int next_pos = 0, found = -1;
   size_t kl, pos = 0;
   char* k;
@@ -539,15 +529,13 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key)
   return found;
 }
 
-void allocate_events(void)
-{
+void allocate_events(void) {
   for (int i = 0; i < NUM_OC_EVENT_TYPES; i++) {
     oc_events[i] = oc_process_alloc_event();
   }
 }
 
-static void start_processes(void)
-{
+static void start_processes(void) {
   allocate_events();
   oc_process_start(&oc_etimer_process, NULL);
   oc_process_start(&timed_callback_events, NULL);
@@ -566,8 +554,7 @@ static void start_processes(void)
   #endif
 }
 
-static void stop_processes(void)
-{
+static void stop_processes(void) {
   #ifdef OC_TCP
   oc_process_exit(&oc_session_events);
   #endif
@@ -588,8 +575,7 @@ static void stop_processes(void)
   oc_process_exit(&message_buffer_handler);
 }
 
-void oc_ri_init(void)
-{
+void oc_ri_init(void) {
   oc_random_init();
   oc_clock_init();
   
@@ -609,13 +595,11 @@ void oc_ri_init(void)
 }
 
 #ifdef OC_SERVER
-oc_resource_t* oc_ri_alloc_resource(void)
-{
+oc_resource_t* oc_ri_alloc_resource(void) {
   return oc_memb_alloc(&app_resources_s);
 }
 
-oc_resource_data_t* oc_ri_alloc_resource_data(void)
-{
+oc_resource_data_t* oc_ri_alloc_resource_data(void) {
   return oc_memb_alloc(&app_resource_datas_s);
 }
 
@@ -632,8 +616,7 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void)
  *  - true: when the resource has been deleted and memory freed.
  *  - false: there was an issue deleting the resource.
  */
-bool oc_ri_delete_resource(const oc_resource_t* _resource)
-{
+bool oc_ri_delete_resource(const oc_resource_t* _resource) {
   if (!_resource) {
     return false;
   }
@@ -666,8 +649,7 @@ bool oc_ri_delete_resource(const oc_resource_t* _resource)
   return true;
 }
 
-bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
-{
+bool oc_ri_delete_resource_block(const oc_resource_t* _resource) {
   if (!_resource) {
     return false;
   }
@@ -710,8 +692,7 @@ bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
   return true;
 }
 
-bool oc_ri_add_resource(oc_resource_t* resource)
-{
+bool oc_ri_add_resource(oc_resource_t* resource) {
   if (!resource) {
     return false;
   }
@@ -740,8 +721,7 @@ bool oc_ri_add_resource(oc_resource_t* resource)
   return valid;
 }
 
-bool oc_ri_add_resource_block(const oc_resource_t* resource)
-{
+bool oc_ri_add_resource_block(const oc_resource_t* resource) {
   const oc_resource_t* it = resource;
   if (!resource) {
     return false;
@@ -751,7 +731,7 @@ bool oc_ri_add_resource_block(const oc_resource_t* resource)
 
   do {
     if (!resource->get_handler.cb && !resource->put_handler.cb &&
-            !resource->post_handler.cb && !resource->delete_handler.cb) } {
+            !resource->post_handler.cb && !resource->delete_handler.cb) {
       valid = false;
     }
 
@@ -759,11 +739,7 @@ bool oc_ri_add_resource_block(const oc_resource_t* resource)
             resource->observe_period_seconds == 0) {
       valid = false;
     }
-  }
-
-  while (it = oc_ri_resource_next(it)) {
-    ;
-  }
+  } while (it = oc_ri_resource_next(it));
 
   if (valid) {
     oc_list_add_block(app_resources, (void*) resource);
@@ -773,8 +749,7 @@ bool oc_ri_add_resource_block(const oc_resource_t* resource)
 }
 #endif 
 
-void oc_ri_free_resource_properties(oc_resource_t* resource)
-{
+void oc_ri_free_resource_properties(oc_resource_t* resource) {
   if (resource == NULL) {
     return;
   }
@@ -809,26 +784,21 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
   }
 }
 
-const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource)
-{
+const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource) {
   if (resource == NULL) {
     return NULL;
   }
 
   do {
     resource = resource->next;
-    // next = NULL means dummy resource (MUST BE IN RAM)
-  }
-
-  while (resource && resource->next == NULL) {
-    ; 
-  }
+    // Note:
+    // next == NULL means dummy resource (MUST BE IN RAM)
+  } while (resource && resource->next == NULL);
 
   return resource;
 }
 
-void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
-{
+void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback) {
   oc_event_callback_t* event_cb = oc_list_head(timed_callbacks);
 
   while (event_cb) {
@@ -846,8 +816,7 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
 }
 
 void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_callback,
-        oc_clock_time_t ticks)
-{
+        oc_clock_time_t ticks) {
   oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_memb_alloc(&event_callbacks_s);
 
   if (event_cb) {
@@ -862,8 +831,7 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
   }
 }
 
-static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
-{
+static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool) {
   oc_event_callback_t* event_cb = (oc_event_callback_t*) oc_list_head(list);
 
   while (event_cb) {
@@ -888,8 +856,7 @@ static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
   }
 }
 
-static void check_event_callbacks(void)
-{
+static void check_event_callbacks(void) {
 #ifdef OC_SERVER
   poll_event_callback_timers(observe_callbacks, &event_callbacks_s);
 #endif
@@ -898,15 +865,13 @@ static void check_event_callbacks(void)
 
 #ifdef OC_SERVER
 static oc_event_callback_retval_t
-oc_observe_notification_delayed(void* data)
-{
+oc_observe_notification_delayed(void* data) {
   (void) data;
   coap_notify_observers((oc_resource_t*) data, NULL, NULL);
   return OC_EVENT_DONE;
 }
 
-static oc_event_callback_retval_t periodic_observe_handler(void* data)
-{
+static oc_event_callback_retval_t periodic_observe_handler(void* data) {
   oc_resource_t* resource = (oc_resource_t*) data;
 
   if (coap_notify_observers(resource, NULL, NULL)) {
@@ -916,8 +881,7 @@ static oc_event_callback_retval_t periodic_observe_handler(void* data)
   return OC_EVENT_DONE;
 }
 
-static oc_event_callback_t* get_periodic_observe_callback(const oc_resource_t* resource)
-{
+static oc_event_callback_t* get_periodic_observe_callback(const oc_resource_t* resource) {
   oc_event_callback_t* event_cb;
   	bool found = false;
 
@@ -936,8 +900,7 @@ static oc_event_callback_t* get_periodic_observe_callback(const oc_resource_t* r
   return NULL;
 }
 
-static void remove_periodic_observe_callback(const oc_resource_t* resource)
-{
+static void remove_periodic_observe_callback(const oc_resource_t* resource) {
   oc_event_callback_t* event_cb = get_periodic_observe_callback(resource);
 
   if (event_cb) {
@@ -947,8 +910,7 @@ static void remove_periodic_observe_callback(const oc_resource_t* resource)
   }
 }
 
-static bool add_periodic_observe_callback(const oc_resource_t* resource)
-{
+static bool add_periodic_observe_callback(const oc_resource_t* resource) {
   oc_event_callback_t* event_cb = get_periodic_observe_callback(resource);
 
   if (!event_cb) {
@@ -972,8 +934,7 @@ static bool add_periodic_observe_callback(const oc_resource_t* resource)
 }
 #endif
 
-static void free_all_event_timers(void)
-{
+static void free_all_event_timers(void) {
 #ifdef OC_SERVER
   oc_event_callback_t* obs_cb =
           (oc_event_callback_t*) oc_list_pop(observe_callbacks);
@@ -999,13 +960,12 @@ static void free_all_event_timers(void)
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         oc_blockwise_state_t** request_state,
         oc_blockwise_state_t** response_state,
-        uint16_t block2_size, oc_endpoint_t* endpoint)
+        uint16_t block2_size, oc_endpoint_t* endpoint) {
 #else  
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         uint8_t* buffer,
-        oc_endpoint_t* endpoint)
+        oc_endpoint_t* endpoint) {
 #endif 
-{
   // flags that capture status along various stages of processing the request.
   bool method_impl = true, bad_request = false, success = false, forbidden = false, entity_too_large = false;
 
@@ -1455,8 +1415,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 }
 
 #ifdef OC_CLIENT
-static void free_client_cb(oc_client_cb_t * cb)
-{
+static void free_client_cb(oc_client_cb_t * cb) {
   oc_list_remove(client_cbs, cb);
   #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers_for_client_cb(cb);
@@ -1466,15 +1425,13 @@ static void free_client_cb(oc_client_cb_t * cb)
   oc_memb_free(&client_cbs_s, cb);
 }
 
-oc_event_callback_retval_t oc_ri_remove_client_cb(void* data)
-{
+oc_event_callback_retval_t oc_ri_remove_client_cb(void* data) {
   OC_DBG("removing client %p", data);
   free_client_cb(data);
   return OC_EVENT_DONE;
 }
 
-static void notify_client_cb_503(oc_client_cb_t * cb)
-{
+static void notify_client_cb_503(oc_client_cb_t * cb) {
   oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
 
   oc_client_response_t client_response = {0};
@@ -1499,8 +1456,7 @@ static void notify_client_cb_503(oc_client_cb_t * cb)
   free_client_cb(cb);
 }
 
-void oc_ri_free_client_cbs_by_mid(uint16_t mid)
-{
+void oc_ri_free_client_cbs_by_mid(uint16_t mid) {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
   while (cb) {
     oc_client_cb_t* next = cb->next;
@@ -1516,8 +1472,7 @@ void oc_ri_free_client_cbs_by_mid(uint16_t mid)
   }
 }
 
-void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t * endpoint)
-{
+void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t * endpoint) {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
   while (cb != NULL) {
     oc_client_cb_t* next = cb->next;
@@ -1533,8 +1488,7 @@ void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t * endpoint)
   }
 }
 
-oc_client_cb_t* oc_ri_find_client_cb_by_mid(uint16_t mid)
-{
+oc_client_cb_t* oc_ri_find_client_cb_by_mid(uint16_t mid) {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
   while (cb) {
     if (cb->mid == mid) {
@@ -1547,8 +1501,7 @@ oc_client_cb_t* oc_ri_find_client_cb_by_mid(uint16_t mid)
   return cb;
 }
 
-oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len)
-{
+oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t * token, uint8_t token_len) {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
   while (cb) {
     if (cb->token_len == token_len && memcmp(cb->token, token, token_len) == 0) {
@@ -1576,11 +1529,10 @@ bool oc_ri_is_client_cb_valid(oc_client_cb_t * client_cb) {
 
 #ifdef OC_BLOCK_WISE
 bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t * *response_state,
-        oc_client_cb_t * cb, oc_endpoint_t * endpoint)
+        oc_client_cb_t * cb, oc_endpoint_t * endpoint) {
 #else  
-bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb, oc_endpoint_t * endpoint)
+bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb, oc_endpoint_t * endpoint) {
 #endif 
-{
   // to be checked, default is CBOR
   oc_content_format_t cf = APPLICATION_CBOR;
   coap_get_header_content_format(response, &cf);
@@ -1747,8 +1699,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb, oc_endpoint_t *
   return true;
 }
 
-oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t * endpoint, oc_method_t method)
-{
+oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t * endpoint, oc_method_t method) {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
 
   while (cb) {
@@ -1765,8 +1716,7 @@ oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t * endpoint, o
   return cb;
 }
 
-static void free_all_client_cbs(void)
-{
+static void free_all_client_cbs(void) {
   oc_client_cb_t* cb = oc_list_pop(client_cbs);
   while (cb != NULL) {
     free_client_cb(cb);
@@ -1776,8 +1726,7 @@ static void free_all_client_cbs(void)
 
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
         oc_method_t method, const char* query, oc_client_handler_t handler, oc_qos_t qos,
-        void* user_data)
-{
+        void* user_data) {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
   if (!cb) {
     OC_WRN("insufficient memory to add client callback");
@@ -1809,8 +1758,7 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 }
 #endif 
 
-void oc_ri_shutdown(void)
-{
+void oc_ri_shutdown(void) {
 #ifdef OC_SERVER
   coap_free_all_observers();
 #endif 
@@ -1838,8 +1786,7 @@ void oc_ri_shutdown(void)
   oc_random_destroy();
 }
 
-OC_PROCESS_THREAD(timed_callback_events, ev, data)
-{
+OC_PROCESS_THREAD(timed_callback_events, ev, data) {
   (void) data;
   OC_PROCESS_BEGIN();
   while (1) {

@@ -15,7 +15,9 @@
 #include "oc_client_state.h"
 #include "oc_oscore_context.h"
 #include "oc_oscore_crypto.h"
+#ifdef KNX_TCP_TLS
 #include "oc_tls.h"
+#endif
 #include "util/oc_process.h"
 #include "api/oc_knx_sec.h"
 
@@ -1452,7 +1454,7 @@ oscore_send_dispatch:
   return 0;
   #endif
 
-#ifdef OC_CLIENT && KNX_TCP_TLS
+#if defined(OC_CLIENT) && defined(KNX_TCP_TLS)
   OC_DBG_OSCORE("Outbound network event: forwarding to TLS");
   if (!oc_tls_connected(&from_org_msg_cloned_outgoing_msg->endpoint))
   {

@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (c) 2021-2023 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
  *            

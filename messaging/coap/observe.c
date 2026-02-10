@@ -30,8 +30,6 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
  */
 
 #include "oc_config.h"
@@ -92,11 +90,11 @@ static int coap_remove_observer_handle_by_uri(oc_endpoint_t *endpoint, const cha
 /*---------------------------------------------------------------------------*/
 
 #ifdef OC_BLOCK_WISE
-static intadd_observer(const oc_resource_t *resource, uint16_t block2_size,
+static int add_observer(const oc_resource_t *resource, uint16_t block2_size,
              oc_endpoint_t *endpoint, const uint8_t *token, size_t token_len,
              const char *uri, size_t uri_len, oc_interface_mask_t iface_mask)
 #else
-static intadd_observer(const oc_resource_t *resource, oc_endpoint_t *endpoint,
+static int add_observer(const oc_resource_t *resource, oc_endpoint_t *endpoint,
              const uint8_t *token, size_t token_len, const char *uri,
              size_t uri_len, oc_interface_mask_t iface_mask)
 #endif

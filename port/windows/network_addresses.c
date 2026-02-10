@@ -2,11 +2,14 @@
  * Copyright (c) 2017 Lynx Technology
  * Copyright (c) 2018 Intel Corporation
  * Copyright (c) 2019 Kistler Instrumente AG
+ * Copyright (c) 2026 KNX Association
  *            
  * SPDX-License-Identifier: Apache-2.0
  */   
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 // clang-format off
 #include <windows.h>
 #include <winsock2.h>
@@ -16,21 +19,11 @@
 #include <malloc.h>
 #include <oc_log.h>
 #include <ws2tcpip.h>
+#include "network_addresses.h"
 // clang-format on
 #undef interface
 
-/**
- * Structure to manage interface list.
- */
-typedef struct ifaddr_t
-{
-  struct ifaddr_t *next;
-  struct sockaddr_storage addr;
-  DWORD if_index;
-} ifaddr_t;
-
-ifaddr_t * get_network_addresses()
-{
+ifaddr_t * get_network_addresses() {
   ifaddr_t *ifaddr_list = NULL;
   ULONG family = AF_INET6;
   int i, max_retries = 5;
@@ -107,8 +100,7 @@ cleanup:
   return ifaddr_list;
 }
 
-void free_network_addresses(ifaddr_t *ifaddr)
-{
+void free_network_addresses(ifaddr_t *ifaddr) {
   while (ifaddr) {
     ifaddr_t *tmp = ifaddr;
     ifaddr = ifaddr->next;

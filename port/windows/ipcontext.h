@@ -13,10 +13,10 @@
 // clang-format off
 #include <windows.h>
 #include <winsock2.h>
-#include "oc_endpoint.h"
 #include <mswsock.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
+#include "oc_endpoint.h"
 // clang-format on
 
 #ifdef __cplusplus
@@ -76,4 +76,4 @@ typedef struct ip_context_t
 }
 #endif
 
-#endif /* IPCONTEXT_H */
+#endif

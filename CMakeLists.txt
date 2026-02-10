@@ -162,7 +162,7 @@ add_library(kis-common INTERFACE)
 # OSCORE
 # TODO FIXME Remove OS_CORE everywhere then remove here.
 # TODO OC_SPAKE always on?
-target_compile_definitions(kis-common INTERFACE OC_OSCORE OC_SPAKE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
+target_compile_definitions(kis-common INTERFACE OC_SPAKE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
