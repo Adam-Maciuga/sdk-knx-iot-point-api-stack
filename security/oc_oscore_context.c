@@ -17,6 +17,8 @@
 OC_LIST(contexts);
 OC_MEMB(ctx_s, oc_oscore_context_t, 20);
 
+static void oc_context_print_all(void);
+
 void oc_oscore_free_lru_recipient_context(void) {
   oc_oscore_context_t* lru_ctx;
 
@@ -320,122 +322,7 @@ void oc_context_print_all(void) {
     oc_conv_byte_array_to_hex_string(ctx->sender_id, ctx->sender_id_len, sid, &sid_len);
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
-    
-    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %"PRIu64,
-            ctx->auth_at_index, 
-            ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
-            ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
-            ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
-            ctx->ssn);
 
-    ctx = ctx->next;
-  }
-#endif
-}
-
-oc_oscore_context_t* oc_oscore_add_recipient_context(
-        const char* recipient_id, size_t recipient_id_size,
-        const char* mastersecret, size_t mastersecret_size, 
-        const char* salt, size_t salt_size,
-        const char* id_context, uint8_t id_context_size,
-        int auth_at_index, 
-        bool read_ssn_from_storage) {
-  
-#ifdef OC_DEBUG
-  OC_DBG("adding OSCORE Request Recipient Context (A2/8.2) with Recipient ID : ");
-  oc_char_println_hex(recipient_id, recipient_id_size);
-#endif
-  
-  oc_oscore_context_t* ctx = oc_oscore_add_context("", 0, 
-          recipient_id, recipient_id_size, 0, mastersecret, mastersecret_size,
-          salt, salt_size, id_context, id_context_size, auth_at_index, 
-          read_ssn_from_storage);
-
-  if (!ctx) {
-    // if context is null, free one & try adding again, on recipient context this may happen in case of new/ fresh inbound request
-    oc_oscore_free_lru_recipient_context();
-
-    ctx = oc_oscore_add_context("", 0,
-            recipient_id, recipient_id_size,
-            0, 
-            mastersecret, mastersecret_size,
-            salt, salt_size, 
-            id_context, id_context_size, 
-            auth_at_index, 
-            read_ssn_from_storage);
-  }
-
-#ifdef OC_DEBUG
-  oc_context_print_all();
-#endif
-  
-  return ctx;
-}
-
-oc_oscore_context_t* oc_oscore_add_sender_context(
-        const char* sender_id, size_t sender_id_size, const char* recipient_id,
-        size_t recipient_id_size, uint64_t ssn, const char* mastersecret,
-        size_t mastersecret_size, const char* salt, size_t salt_size,
-        const char* id_context, uint8_t id_context_size, int auth_at_index,
-        bool read_ssn_from_storage) {
-
-#ifdef OC_DEBUG
-  OC_DBG("adding OSCORE Request Sender Context (A1/8.1) with Sender ID : ");
-  oc_char_println_hex(recipient_id, recipient_id_size);
-#endif
-
-  oc_oscore_context_t* ctx = oc_oscore_add_context(
-          sender_id, sender_id_size, recipient_id, recipient_id_size, ssn, 
-          mastersecret, mastersecret_size, salt, salt_size, 
-          id_context, id_context_size, auth_at_index, read_ssn_from_storage);
-
-  if (!ctx) {
-    // if context is null, free one & try adding again, on sender context this may happen only in case
-    // of creating a new sender context for an "out of the void" popping up 'unicast echo re-request'
-    oc_oscore_free_lru_recipient_context();
-
-    ctx = oc_oscore_add_context(
-            sender_id, sender_id_size, recipient_id, recipient_id_size, ssn, 
-            mastersecret, mastersecret_size, salt, salt_size, 
-            id_context, id_context_size, auth_at_index, read_ssn_from_storage);
-  }
-
-#ifdef OC_DEBUG
-  oc_context_print_all();
-#endif
-
-  return ctx;
-}
-
-void oc_context_print_all(void) {
-#ifdef OC_PRINT
-
-  // get list start
-  const oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
-
-  // extra + 1 to prevent MSVC running crash on debug build
-  char sid[OSCORE_SENDER_ID_LEN * 2 + 1 + 1]; 
-  char rid[OSCORE_SENDER_ID_LEN * 2 + 1 + 1];
-  char cid[OSCORE_ID_CONTEXT_LEN * 2 + 1 +1];
-
-  size_t sid_len;
-  size_t rid_len;
-  size_t cid_len;
-
-  //     10        | 21                  | 21                  | 40                                     | 
-  PRINT("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
-        
-  // print all present context entries
-  while (ctx) {
-    sid_len = sizeof(sid);
-    rid_len = sizeof(rid);
-    cid_len = sizeof(cid);
-
-    oc_conv_byte_array_to_hex_string(ctx->sender_id, ctx->sender_id_len, sid, &sid_len);
-    oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
-    oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
-
-    
     PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %"PRIu64,
             ctx->auth_at_index, 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
@@ -474,7 +361,7 @@ oc_oscore_context_t* oc_oscore_add_recipient_context(
     ctx = oc_oscore_add_context("", 0,
             recipient_id, recipient_id_size,
             0, 
-                                mastersecret, mastersecret_size,
+            mastersecret, mastersecret_size,
             salt, salt_size, 
             id_context, id_context_size, 
             auth_at_index, 
@@ -506,15 +393,15 @@ oc_oscore_context_t* oc_oscore_add_sender_context(
           id_context, id_context_size, auth_at_index, read_ssn_from_storage);
 
   if (!ctx) {
-    // if context is null, free one & try adding again, on sender context this may happen only in case
-    // of creating a new sender context for an "out of the void" popping up 'unicast echo re-request'
+    // if context is null, free one & try adding again, on sender context this 
+    // may happen only in case of creating a new sender context for an "out of 
+    //the void" popping up 'unicast echo re-request'
     oc_oscore_free_lru_recipient_context();
 
     ctx = oc_oscore_add_context(
             sender_id, sender_id_size, recipient_id, recipient_id_size, ssn, 
             mastersecret, mastersecret_size, salt, salt_size, 
-            id_context, id_context_size, auth_at_index, 
-            read_ssn_from_storage);
+            id_context, id_context_size, auth_at_index, read_ssn_from_storage);
   }
 
 #ifdef OC_DEBUG

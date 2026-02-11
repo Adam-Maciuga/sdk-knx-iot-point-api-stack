@@ -224,23 +224,6 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data) {
  * 	
  */
 
-/*
-  Client																		 Server
-            -> CoAP CON Request (POST/GET)    
-				    <- ACK + Payload (piggybacked)   : a piggybacked ACK can always be called "Response"   
-				    OR
-            <- ACK + Empty
-            <- CoAP CON Response (2.04/2.05) : a confirmable RESPONSE can always be called "Separate Response"
-						:
-						-> ACK + Empty (never a response to a response)
- 
- MID relates CON to ACK = Transport 
- Token relates Request to Response = Application
-
- https://datatracker.ietf.org/doc/html/rfc7252#section-2.2
-	
-*/
-
 int coap_receive(oc_message_t* incoming_message) {
   coap_status_code = COAP_NO_ERROR;
 
@@ -354,9 +337,10 @@ int coap_receive(oc_message_t* incoming_message) {
       transaction = coap_get_transaction_by_mid(incoming_coap_message->mid);
 
       // ** above
-      if (!transaction)
+      if (!transaction) {
         transaction = coap_get_transaction_by_token(
                 incoming_coap_message->token, incoming_coap_message->token_len);
+      }
     }
 
     if (incoming_coap_message->code >= COAP_GET && incoming_coap_message->code <= COAP_DELETE) {
@@ -420,7 +404,6 @@ int coap_receive(oc_message_t* incoming_message) {
 
       bool is_myself = false;
 
-			/*
       // check if incoming message is 1:1 o mirrored message by myself 
       // by checking the endpoint IPv6 address and port,
       // - yes : do not check replay protection // TODO check security impact 
@@ -447,8 +430,9 @@ int coap_receive(oc_message_t* incoming_message) {
 
 #ifdef OC_REPLAY_PROTECTION
       if (incoming_message->endpoint.flags & OSCORE_DECRYPTED) {
-        if (!is_myself) // message is not an own loopback response {
+        if (!is_myself) {
           // S1
+          // message is not an own loopback response
 
           oc_string_t kid = {0};       // init default kid
           oc_string_t kid_ctx = {0};   // init default kid_context

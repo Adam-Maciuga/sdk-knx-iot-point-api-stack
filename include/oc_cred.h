@@ -76,8 +76,7 @@ typedef struct oc_cred_data_t
 typedef struct oc_sec_cred_t
 {
   struct oc_sec_cred_t *next;          /**< pointer to the next credential */
-  struct
-  {
+  struct {
     oc_string_t role;                  /**< role */
     oc_string_t authority;             /**< authority */
   } role;

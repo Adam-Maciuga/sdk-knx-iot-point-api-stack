@@ -637,7 +637,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) {
   const char uri[] = "/.well-known/core";
   char query[EP_STR_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1];
 
-  (void)snprintf(query, sizeof(query), "ep=knx://ia.%llx.%x", iid, ia);
+  (void)snprintf(query, sizeof(query), "ep=knx://ia.%"PRIx64".%x", iid, ia);
 
   // set as default, is NULL in case of the first discovery 
   oc_client_cb_t* cb = recipient->ipv6_res.callback;

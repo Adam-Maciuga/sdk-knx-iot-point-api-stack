@@ -101,7 +101,7 @@ typedef enum {
 } coap_transport_type_t;
 
 /** parsed message struct */
-ypedef struct {
+typedef struct {
   uint8_t* buffer;                      // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
   coap_transport_type_t transport_type; // UDP or TCP
   uint8_t version;                     // current version is '1'
