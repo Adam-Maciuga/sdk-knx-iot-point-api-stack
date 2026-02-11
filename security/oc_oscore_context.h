@@ -156,16 +156,17 @@ oc_oscore_context_t* oc_oscore_add_context(
   *
   **/
   oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size,
-                                                     const char* mastersecret,
-                                size_t mastersecret_size, const char* salt, size_t salt_size, const char* id_context,
-                                uint8_t id_context_size, int auth_at_index, bool read_ssn_from_storage);
+                                                       const char* mastersecret, size_t mastersecret_size, 
+                                                       const char* salt, size_t salt_size,
+                                                       const char* id_context, uint8_t id_context_size,
+                                                       int auth_at_index, bool read_ssn_from_storage);
 
   /**
    * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting recipient id = "" (0)
    *
    **/
-  oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t sender_id_size, const char* recipient_id,
-                               size_t recipient_id_size, uint64_t ssn, const char* mastersecret, size_t mastersecret_size,
+  oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t sender_id_size, uint64_t ssn, 
+                                                    const char* mastersecret, size_t mastersecret_size,
                                const char* salt, size_t salt_size, const char* id_context, uint8_t id_context_size,
                                int auth_at_index, bool read_ssn_from_storage);
 
@@ -179,13 +180,11 @@ void oc_oscore_free_lru_recipient_context(void);
 
 oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_address);
 
-oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(
-  uint8_t *kid, uint8_t kid_len,
-  uint8_t *kid_ctx, uint8_t kid_ctx_len);
+// inputs are checked against the own Recipient Contexts (RID)
+oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
-oc_oscore_context_t *oc_oscore_find_context_by_token_mid(
-  uint8_t *token, uint8_t token_len, uint16_t mid,
-  uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
+// inputs are checked against the own Sender Contexts (SID)
+oc_oscore_context_t *oc_oscore_find_context_by_token_mid(uint8_t *token, uint8_t token_len, uint16_t mid, uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
 oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id, size_t oscore_id_len);
 

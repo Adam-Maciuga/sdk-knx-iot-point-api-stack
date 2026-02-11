@@ -185,7 +185,6 @@ static void coap_send_response_with_empty_payload(coap_message_type_t type,
 
 		OC_DBG("CoAP send empty payload message: mid=%u, code=%i, echo=%s", mid, code, echo_included ? "yes" : "no");
 
-		// echo will be included if not NULL
 		if (echo_included)
     { // we want an echo option to be included
 
@@ -306,6 +305,15 @@ int coap_receive(oc_message_t* incoming_message)
 	  bool block2 = false;
 		bool block1 = false;
 
+		// msg was filled before from an inbound request or self issued request message, consider also COAP_TYPE_RST or COAP_TYPE_ACK
+    bool is_reset = incoming_coap_message->type == COAP_TYPE_RST;
+    bool is_confirmable = incoming_coap_message->type == COAP_TYPE_CON;
+    bool is_ack = incoming_coap_message->type == COAP_TYPE_ACK;
+    bool is_ack_with_empty_payload = is_ack && incoming_coap_message->code == EMPTY_0_00;
+
+    bool is_inbound_request =  !is_reset && !is_ack && incoming_coap_message->code >= OC_GET && incoming_coap_message->code <= OC_FETCH;
+    bool is_inbound_response = !is_reset && !is_ack_with_empty_payload && incoming_coap_message->code > OC_FETCH;
+
     #ifdef OC_DEBUG
 
 		OC_DBG("parsed: CoAP version: %u, token: 0x%02X%02X%02X%02X%02X%02X%02X%02X , mid: %u",
@@ -376,9 +384,16 @@ int coap_receive(oc_message_t* incoming_message)
       // ** above
       if (!transaction)
         transaction = coap_get_transaction_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
+    
+      if (transaction && transaction->message->endpoint.flags & S_MODE_REQUEST)
+      {
+        OC_WRN("Caught a 's-mode' NON message");
+        transaction = NULL;
+      }
+    
     }
 
-		if (incoming_coap_message->code >= COAP_GET && incoming_coap_message->code <= COAP_DELETE)
+		if (is_inbound_request)
 		{ // handle inbound requests (SERVER SIDE)
 
 			#ifdef OC_DEBUG
@@ -417,7 +432,7 @@ int coap_receive(oc_message_t* incoming_message)
 			else
 			#endif 
 			{
-				if (incoming_coap_message->type == COAP_TYPE_CON)
+        if (is_confirmable)
 				{
           // CON -> PREPARE (not send) a possible response with type ACK + same mid 
 				  coap_udp_init_message(outgoing_coap_response, COAP_TYPE_ACK, CONTENT_2_05, incoming_coap_message->mid);
@@ -511,8 +526,6 @@ int coap_receive(oc_message_t* incoming_message)
 						{ // (a)
 							if (sync_state == ECHO)
 							{
-								OC_DBG("regular (uc/mc) request from unsycned client, sending 4.01 Echo Response");
-
 							  // send 'unicast echo response' -> NO PAYLOAD
                 // -> multicast : unicast 4.01 with response sender context (there can be many responses from many receivers)
                 // -> unicast   : unicast 4.01 with response sender context  with echo
@@ -524,16 +537,17 @@ int coap_receive(oc_message_t* incoming_message)
                   &incoming_message->endpoint, 
 									(uint8_t*)&current_time, sizeof(current_time));
 
-								// server sends out a response, no own transaction is needed
-                // can handle NULL pointer ...
+								// no own transaction is needed, can handle NULL pointer ...
                 coap_clear_transaction(transaction);
                 transaction = NULL;
+
+								OC_DBG("regular (uc/mc) request from unsycned client, sending 4.01 Echo Response");
 								return UNAUTHORIZED_4_01;
 							}
 
 							if (sync_state == REPLAY)
 							{
-                OC_DBG("replayed (uc/mc) request from unsycned client, sending 4.01 Echo Response");
+               
 
 							  // send response -> NO PAYLOAD 
                 // -> multicast : MUST be suppressed (message already received)
@@ -546,9 +560,11 @@ int coap_receive(oc_message_t* incoming_message)
 									&incoming_message->endpoint,
 									NULL,0);
 
-								// can handle NULL pointer ...
+								// no own transaction is needed, can handle NULL pointer ...
 								coap_clear_transaction(transaction);
                 transaction = NULL;
+
+								 OC_DBG("replayed (uc/mc) request from unsycned client, sending 4.01 Echo Response");
 								return UNAUTHORIZED_4_01;
 
 							}
@@ -559,7 +575,7 @@ int coap_receive(oc_message_t* incoming_message)
 							// check received len is the same as from send out echo response
 							if (echo_len != sizeof(oc_clock_time_t))
 							{
-								OC_DBG("request from unsycned client with bad 'echo' size %d, sending 4.02", (int) echo_len);
+								
 
 								// send response -> NO PAYLOAD 
                 // -> unicast*  : unicast 4.01 with response sender context
@@ -572,10 +588,11 @@ int coap_receive(oc_message_t* incoming_message)
 									&incoming_message->endpoint,
 									NULL,0);
 
-								// server sends out a response, no own transaction is needed
-								// can handle NULL pointer ...
+								// no own transaction is needed, can handle NULL pointer ...
                 coap_clear_transaction(transaction);
                 transaction = NULL;
+
+                OC_DBG("request from unsycned client with bad 'echo' size %d, sending 4.02", (int)echo_len);
 								return BAD_OPTION_4_02;
 							}
 
@@ -607,7 +624,7 @@ int coap_receive(oc_message_t* incoming_message)
 									&incoming_message->endpoint, 
 									(uint8_t*)&current_time, sizeof(current_time));
 
-								// server sends out a response, no own transaction is needed, can handle NULL pointer ...
+								// no own transaction is needed, can handle NULL pointer ...
                 coap_clear_transaction(transaction);
                 transaction = NULL;
 
@@ -615,7 +632,7 @@ int coap_receive(oc_message_t* incoming_message)
 								return UNAUTHORIZED_4_01;
 							}
 
-							// incoming_message from extern received from a new/unknown sender
+							// inbound message fom a new/unknown sender now accepted
 							// - MUST init a new replay window
 							// - ignore sync state ECHO/REPLAY -> catch it by time based test above    
 							OC_DBG("received unicast echo re-request - fresh request from unsycned client, updating record's SSN/window");
@@ -788,7 +805,7 @@ int coap_receive(oc_message_t* incoming_message)
 							else
 							{
 								OC_DBG("received all blocks for payload");
-								if (incoming_coap_message->type == COAP_TYPE_CON)
+                if (is_confirmable)
 								{
 									// coap empty ack
 								  coap_send_response_with_empty_payload(COAP_TYPE_ACK, 
@@ -849,7 +866,7 @@ int coap_receive(oc_message_t* incoming_message)
 								: 0;
 							if (more == 0)
 							{
-								if (incoming_coap_message->type == COAP_TYPE_CON)
+                if (is_confirmable)
 								{
 									// coap empty ack 
 								  coap_send_response_with_empty_payload(COAP_TYPE_ACK, 
@@ -1106,6 +1123,12 @@ int coap_receive(oc_message_t* incoming_message)
       case DELETED_2_02:
         PRINT("SRV\t: 2.02 - DELETED");
         break;
+      case BAD_REQUEST_4_00:
+        PRINT("SRV\t: 4.00 - BAD REQUEST");
+        break;
+      case UNAUTHORIZED_4_01:
+        PRINT("SRV\t: 4.01 - UNAUTHORIZED");
+        break;
       default:
         break;
       }
@@ -1121,7 +1144,7 @@ int coap_receive(oc_message_t* incoming_message)
 			uint16_t response_mid = coap_get_next_mid();
 			bool error_response = false;
 			#endif 
-			if (incoming_coap_message->type != COAP_TYPE_RST)
+			if (!is_reset)
 			{
 			  // find client callback by token
 			  client_cb =	oc_ri_find_client_cb_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
@@ -1138,7 +1161,7 @@ int coap_receive(oc_message_t* incoming_message)
 			}
 			#endif 
 
-			if (incoming_coap_message->type == COAP_TYPE_CON)
+			if (is_confirmable)
 			{
         // return coap empty ack  
 			  coap_send_response_with_empty_payload(COAP_TYPE_ACK, 
@@ -1148,13 +1171,13 @@ int coap_receive(oc_message_t* incoming_message)
 																 &incoming_message->endpoint,
 																 NULL,0);
 			}
-			else if (incoming_coap_message->type == COAP_TYPE_ACK)  
+			else if (is_ack)  
 			{
         // simply accept the ack (empty ack or piggybacked ack) and proceed 
 				OC_ERR("Here always the transaction is cleared after empty ack or piggybacked ack");
         coap_status_code = CLEAR_TRANSACTION;
 			}
-			else if (incoming_coap_message->type == COAP_TYPE_RST)
+			else if (is_reset)
 			{
 				#ifdef OC_SERVER
 				// cancel possible subscriptions
@@ -1526,7 +1549,6 @@ OC_PROCESS_THREAD(coap_engine, ev, data)
 		if (ev == oc_events[INBOUND_RI_EVENT])
 		{
 			coap_receive(data);
-
 			oc_message_unref(data);
 		}
 		else if (ev == OC_PROCESS_EVENT_TIMER)

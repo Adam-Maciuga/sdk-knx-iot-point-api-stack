@@ -1831,7 +1831,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         // Request Sender Context (used by access token = Request)
         const oc_oscore_context_t* ctx = oc_oscore_add_sender_context(
           oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
-          "", 0, 
           stored_ssn, // use SSN loaded from storage
           oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
           oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
