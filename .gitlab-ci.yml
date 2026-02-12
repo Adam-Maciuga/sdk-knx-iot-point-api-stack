@@ -5,6 +5,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
 before_script:
+  - git config --global protocol.file.allow always
   - git submodule update --init --recursive
 # ----------------------------------------------------------
 # Linux Native Build
@@ -13,7 +14,6 @@ linux-build:
   stage: build
   image: luftd/knx-ci:latest
   script:
-    - git submodule update --recursive
     - cmake --preset=linux-debug-gcc
     - cmake --build --preset=linux-debug-gcc
   artifacts:
@@ -34,7 +34,6 @@ windows-cross-build:
       - out/build/windows-cross-release/_deps/wxwidgets-src
       - out/build/windows-cross-release/_deps/wxwidgets-build
   script:
-    - git submodule update --recursive
     - cmake --preset=windows-cross-release
     - cmake --build --preset=windows-cross-release
   artifacts:
