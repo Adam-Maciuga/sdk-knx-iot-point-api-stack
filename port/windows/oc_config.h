@@ -1,7 +1,14 @@
+/* 
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2021 Cascoda Ltd
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef OC_CONFIG_H
 #define OC_CONFIG_H
 
-/* Time resolution */
+// Time resolution
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -10,26 +17,26 @@ extern "C" {
 
 typedef uint64_t oc_clock_time_t;
 #define strncasecmp _strnicmp
-/* Sets one clock tick to 1 ms */
+// Sets one clock tick to 1 ms.
 #define OC_CLOCK_CONF_TICKS_PER_SECOND (1000)
 
 /* Security Layer */
-/* Max inactivity timeout before tearing down DTLS connection */
+// Max inactivity timeout before tearing down DTLS connection.
 #define OC_DTLS_INACTIVITY_TIMEOUT (300)
 
-/* Maximum number of concurrent requests */
+// Maximum number of concurrent requests
 #define OC_MAX_NUM_CONCURRENT_REQUESTS (20)
 
-/* Add support for passing network up/down events to the app */
+// Add support for passing network up/down events to the app.
 #define OC_NETWORK_MONITOR
-/* Add support for passing TCP/TLS/DTLS session connection events to the app */
+// Add support for passing TCP/TLS/DTLS session connection events to the app.
 #define OC_SESSION_EVENTS
 
-/* Add support for dns lookup to the endpoint */
+// Add support for dns lookup to the endpoint.
 #define OC_DNS_LOOKUP
 //#define OC_DNS_LOOKUP_IPV6
 
-/* Add request history for deduplicate UDP/DTLS messages */
+// Add request history for deduplicate UDP/DTLS messages.
 #define OC_REQUEST_HISTORY
 
 // The maximum size of a response to an OBSERVE request, in bytes.
@@ -43,18 +50,11 @@ typedef uint64_t oc_clock_time_t;
 #define OC_BLOCK_WISE
 #endif 
 
-/* Maximum number of callbacks for Network interface event monitoring */
+// Maximum number of callbacks for Network interface event monitoring.
 #define OC_MAX_NETWORK_INTERFACE_CBS (2)
 
-/* Maximum number of callbacks for connection of session */
+// Maximum number of callbacks for connection of session.
 #define OC_MAX_SESSION_EVENT_CBS (2)
-
-/* library features that require persistent storage */
-#ifdef OC_SECURITY
-#define OC_STORAGE
-#endif
-
-#define OC_STORAGE
 
 #ifdef __cplusplus
 }

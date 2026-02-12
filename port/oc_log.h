@@ -39,7 +39,7 @@
   - OC_NO_LOG_BYTES
     disables output of OC_LOGbytes logging function
     if OC_DEBUG is enabled.
-  - OC_LOG_TO_FILE
+  - KNX_LOG_TO_FILE
     logs the PRINT statements to file
 */
 #ifndef OC_LOG_H
@@ -64,7 +64,7 @@ extern "C" {
 #endif
 
 #ifdef OC_PRINT
-  #ifdef OC_LOG_TO_FILE
+  #ifdef KNX_LOG_TO_FILE
     // print to file
     void oc_file_print(char* format, ...);
 

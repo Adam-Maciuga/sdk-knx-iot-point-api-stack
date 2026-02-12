@@ -1,22 +1,15 @@
-/*
-// Copyright (c) 2017 Lynx Technology
-// Copyright (c) 2018 Intel Corporation
-// Copyright (c) 2019 Kistler Instrumente AG
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2017 Lynx Technology
+ * Copyright (c) 2018 Intel Corporation
+ * Copyright (c) 2019 Kistler Instrumente AG
+ * Copyright (c) 2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */   
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 // clang-format off
 #include <windows.h>
 #include <winsock2.h>
@@ -26,32 +19,17 @@
 #include <malloc.h>
 #include <oc_log.h>
 #include <ws2tcpip.h>
+#include "network_addresses.h"
 // clang-format on
 #undef interface
 
-/**
- * Structure to manage interface list.
- */
-typedef struct ifaddr_t
-{
-  struct ifaddr_t *next;
-  struct sockaddr_storage addr;
-  DWORD if_index;
-} ifaddr_t;
-
-ifaddr_t *
-get_network_addresses()
-{
+ifaddr_t * get_network_addresses() {
   ifaddr_t *ifaddr_list = NULL;
   ULONG family = AF_INET6;
   int i, max_retries = 5;
   IP_ADAPTER_ADDRESSES *interface_list = NULL;
   IP_ADAPTER_ADDRESSES *interface = NULL;
   ULONG out_buf_len = 8000;
-
-#ifdef OC_IPV4
-  family = AF_UNSPEC;
-#endif /* OC_IPV4 */
 
   for (i = 0; i < max_retries; i++) {
     DWORD dwRetVal = 0;
@@ -60,17 +38,18 @@ get_network_addresses()
       OC_ERR("not enough memory to run GetAdaptersAddresses");
       return NULL;
     }
-    dwRetVal =
-      GetAdaptersAddresses(family,
-                           GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_SKIP_ANYCAST |
-                             GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
-                           NULL, interface_list, &out_buf_len);
+
+    dwRetVal = GetAdaptersAddresses(family, GAA_FLAG_INCLUDE_PREFIX | 
+            GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | 
+            GAA_FLAG_SKIP_DNS_SERVER, NULL, interface_list, &out_buf_len);
+
     if (dwRetVal == ERROR_BUFFER_OVERFLOW) {
       OC_WRN("retry GetAdaptersAddresses with out_buf_len=%d", out_buf_len);
       free(interface_list);
       interface_list = NULL;
       continue;
     }
+
     break;
   }
 
@@ -91,28 +70,8 @@ get_network_addresses()
     if (interface->FriendlyName) {
       OC_DBG("processing interface %ws:", interface->FriendlyName);
     }
-#endif /* OC_DEBUG */
-/* Process all IPv4 addresses on this interface. */
-#ifdef OC_IPV4
-    for (address = interface->FirstUnicastAddress; address;
-         address = address->Next) {
-      ifaddr_t *ifaddr = NULL;
-      if (address->Address.lpSockaddr->sa_family == AF_INET) {
-        struct sockaddr_in *addr =
-          (struct sockaddr_in *)address->Address.lpSockaddr;
-        ifaddr = calloc(1, sizeof(ifaddr_t));
-        if (ifaddr == NULL) {
-          OC_ERR("no memory for ifaddr");
-          goto cleanup;
-        }
-        memcpy(&ifaddr->addr, addr, sizeof(struct sockaddr_in));
-        ifaddr->if_index = interface->IfIndex;
-        ifaddr->next = ifaddr_list;
-        ifaddr_list = ifaddr;
-      }
-    }
-#endif /* OC_IPV4 */
-    /* Process all IPv6 addresses on this interface. */
+#endif
+    // Process all IPv6 addresses on this interface.
     struct sockaddr_in6 *v6addr = NULL;
     for (address = interface->FirstUnicastAddress; address;
          address = address->Next) {
@@ -126,6 +85,7 @@ get_network_addresses()
           OC_ERR("no memory for ifaddr");
           goto cleanup;
         }
+
         memcpy(&ifaddr->addr, v6addr, sizeof(struct sockaddr_in6));
         ifaddr->if_index = interface->Ipv6IfIndex;
         ifaddr->next = ifaddr_list;
@@ -140,9 +100,7 @@ cleanup:
   return ifaddr_list;
 }
 
-void
-free_network_addresses(ifaddr_t *ifaddr)
-{
+void free_network_addresses(ifaddr_t *ifaddr) {
   while (ifaddr) {
     ifaddr_t *tmp = ifaddr;
     ifaddr = ifaddr->next;

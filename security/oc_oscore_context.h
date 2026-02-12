@@ -1,20 +1,10 @@
 /*
-// Copyright (c) 2020 Intel Corporation
-// Copyright (c) 2022-2023 Cascoda Ltd
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2022-2023 Cascoda Ltd.
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef OC_OSCORE_CONTEXT_H
 #define OC_OSCORE_CONTEXT_H
@@ -31,36 +21,56 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Replay window type definition
+ *
+ */
+typedef struct oc_rwin_t
+{
+  /**
+   * @brief Sender Sequence Number
+   */
+  uint64_t ssn;
+  /**
+   * @brief Sender Address, usually the IPv6 source address of the sending
+   * device
+   */
+  uint8_t sender_address[16];
+  /**
+   * @brief  Destination Address, usually an S-mode multicast address
+   */
+  uint8_t destination_address[16];
+} oc_rwin_t;
 
 /**
-
-  @brief Oscore context information as data for the encryption/decryption,
-         created from an auth/at entry. The structure has a dual use for sender
-         context and recipient context, details see oscore engine - SECURITY DETAILS. 
-
+ *
+ * @brief Oscore context information as data for the encryption/decryption,
+ *        created from an auth/at entry. The structure has a dual use for sender
+ *        context and recipient context, details see oscore engine - SECURITY DETAILS. 
+ *
  */
 typedef struct oc_oscore_context_t
 {
-  struct oc_oscore_context_t *next;                 // pointer to the next, NULL if there is not any
-  int auth_at_index;                                // access token index from AT table, that was used to decrypt a received message 
-  uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  // OSCORE master secret
+  struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any */
+  int auth_at_index;                                /**< access token index from AT table, that was used to decrypt a received message */
+  uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  /**< OSCORE master secret */
   
-  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          // 'Sender ID' (in OSCORE) / 'kid' (in msg) / osc:id (OSC Profile)
-  uint8_t sender_id_len;                            // length
+  uint8_t sender_id[OSCORE_SENDER_ID_LEN];          /**< 'Sender ID' (in OSCORE) */
+  uint8_t sender_id_len;                            /**< 'Sender ID' (in OSCORE) length */
 
-  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       // 'Recipient ID' (in OSCORE) / 'kid' (in msg) / osc:id (OSC Profile)
-  uint8_t recipient_id_len;                         // length
+  uint8_t recipient_id[OSCORE_SENDER_ID_LEN];       /**< 'Recipient ID' (in OSCORE) */
+  uint8_t recipient_id_len;                         /**< 'Recipient ID' (in OSCORE) length */
 
-  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        // 'ID Context' (in OSCORE) / 'kid_context' (in msg) / osc:contextid (OSC Profile)
-  uint8_t id_context_len;                           // length
+  uint8_t id_context[OSCORE_ID_CONTEXT_LEN];        /**< 'ID Context' (in OSCORE) */
+  uint8_t id_context_len;                           /**< 'ID Context' (in OSCORE) length */
 
-  uint64_t ssn;                                     // sender sequence number
-  oc_clock_time_t last_used;                        // time of last use, for runtime caching of recipient contexts
+  uint64_t ssn;                                     /**< sender sequence number */
+  oc_clock_time_t last_used;                        /**< time of last use, for runtime caching of recipient contexts */
 
   // derived parameters
-  uint8_t sender_key[OSCORE_KEY_LEN];               // 128-bit Request Key 
-  uint8_t recipient_key[OSCORE_KEY_LEN];            // 128-bit Response Key
-  uint8_t common_iv[OSCORE_COMMON_IV_LEN];          // Common IV
+  uint8_t sender_key[OSCORE_KEY_LEN];               /**< 128-bit sender key */
+  uint8_t recipient_key[OSCORE_KEY_LEN];            /**< 128-bit recipient key */
+  uint8_t common_iv[OSCORE_COMMON_IV_LEN];          /**< Common IV */
   
 } oc_oscore_context_t;
 
@@ -84,12 +94,13 @@ typedef struct oc_oscore_context_t
  * encryption/decryption)
  * @return false parameters NOT derived (NOT installed)
  */
-int oc_oscore_context_derive_param(const uint8_t *id, uint8_t id_len,
-                                   const uint8_t *id_ctx, uint8_t id_ctx_len,
-                                   const char *type, 
-                                   const uint8_t *secret, uint8_t secret_len, 
-                                   const uint8_t *salt, uint8_t salt_len, 
-                                   const uint8_t *param, uint8_t param_len);
+int oc_oscore_context_derive_param(
+        const uint8_t *id, uint8_t id_len,
+        const uint8_t *id_ctx, uint8_t id_ctx_len, 
+        const char *type, 
+        const uint8_t *secret, uint8_t secret_len, 
+        const uint8_t *salt, uint8_t salt_len, 
+        const uint8_t *param, uint8_t param_len);
 
 void oc_oscore_free_context(oc_oscore_context_t *ctx);
 
@@ -123,13 +134,12 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  *
  * Note: OSCORE context is also a field.
  *
- *
  * @param sender_id the Sender ID (SID)
  * @param sender_id_size the length of Sender ID
  * @param recipient_id the Recipient ID (RID)
  * @param recipient_id_size the length of Recipient ID
  * @param ssn  the sender sequence number
-
+ *
  * @param mastersecret the OSCORE master secret
  * @param mastersecret_size the length of the OSCORE master secret
  * @param salt the salt
@@ -142,32 +152,39 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t* oc_oscore_add_context(
-  const char* sender_id, size_t sender_id_size,
-  const char* recipient_id, size_t recipient_id_size,
-  uint64_t ssn,
-  const char* mastersecret, size_t mastersecret_size,
-  const char* salt, size_t salt_size,
-  const char* id_context, uint8_t id_context_size,
-  int auth_at_index,
-  bool read_ssn_from_storage);
+        const char* sender_id, size_t sender_id_size,
+        const char* recipient_id, size_t recipient_id_size,
+        uint64_t ssn,
+        const char* mastersecret, size_t mastersecret_size,
+        const char* salt, size_t salt_size,
+        const char* id_context, uint8_t id_context_size,
+        int auth_at_index,
+        bool read_ssn_from_storage);
 
-  /**
-  * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting sender id = "" (0) and ssn = 0
-  *
-  **/
-  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size,
-                                                     const char* mastersecret,
-                                size_t mastersecret_size, const char* salt, size_t salt_size, const char* id_context,
-                                uint8_t id_context_size, int auth_at_index, bool read_ssn_from_storage);
+/**
+ * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' 
+ *        by setting sender id = "" (0) and ssn = 0
+ *
+ */
+oc_oscore_context_t* oc_oscore_add_recipient_context(
+        const char* recipient_id, size_t recipient_id_size,
+        const char* mastersecret, size_t mastersecret_size, 
+        const char* salt, size_t salt_size, 
+        const char* id_context, uint8_t id_context_size, 
+        int auth_at_index, bool read_ssn_from_storage);
 
-  /**
-   * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting recipient id = "" (0)
-   *
-   **/
-  oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t sender_id_size, const char* recipient_id,
-                               size_t recipient_id_size, uint64_t ssn, const char* mastersecret, size_t mastersecret_size,
-                               const char* salt, size_t salt_size, const char* id_context, uint8_t id_context_size,
-                               int auth_at_index, bool read_ssn_from_storage);
+/**
+ * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' 
+ *        by setting recipient id = "" (0)
+ *
+ **/
+oc_oscore_context_t* oc_oscore_add_sender_context(
+        const char* sender_id, size_t sender_id_size, 
+        const char* recipient_id, size_t recipient_id_size, uint64_t ssn, 
+        const char* mastersecret, size_t mastersecret_size,
+        const char* salt, size_t salt_size, 
+        const char* id_context, uint8_t id_context_size,
+        int auth_at_index, bool read_ssn_from_storage);
 
 /**
  * @brief Free the least recently used recipient context
@@ -179,22 +196,18 @@ void oc_oscore_free_lru_recipient_context(void);
 
 oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_address);
 
+oc_oscore_context_t *oc_oscore_find_context_by_kid(
+        uint8_t *kid, uint8_t kid_len);
+
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(
-  uint8_t *kid, uint8_t kid_len,
-  uint8_t *kid_ctx, uint8_t kid_ctx_len);
+        uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
 oc_oscore_context_t *oc_oscore_find_context_by_token_mid(
-  uint8_t *token, uint8_t token_len, uint16_t mid,
-  uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
+        uint8_t *token, uint8_t token_len, uint16_t mid,
+        uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
-oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id, size_t oscore_id_len);
-
-/**
- * @brief Print out all present contexts
- *
- */
-void oc_context_print_all(void);
-
+oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(
+        char *oscore_id, size_t oscore_id_len);
 
 #ifdef __cplusplus
 }

@@ -36,6 +36,8 @@ endif()
 ### Demo Applications ###
 ## MinWG (Windows) ##
 if(WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+
     # Add manifest for windows GUI applications when using MinGW
     if(MINGW)
         set(MANIFEST_RC ${CMAKE_CURRENT_SOURCE_DIR}/manifest.rc)

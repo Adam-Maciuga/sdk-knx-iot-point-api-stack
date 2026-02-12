@@ -1,20 +1,10 @@
-/*
-// Copyright (c) 2017, 2020 Intel Corporation
-// Copyright (c) 2023 Cascoda Ltd
-// Copyright (c) 2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2017, 2020 Intel Corporation
+ * Copyright (c) 2023 Cascoda Ltd
+ * Copyright (c) 2025 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 /**
   @brief end point implementation, e.g. IP(v6) addressing for sending &
   receiving data
@@ -73,14 +63,13 @@ extern "C" {
     S_MODE_REQUEST = 1 << 11,       // an own initiated (OSCORE secured ) s-mode 'request' message that is allowed to be challenged with echo response (mc:non; uc:non/con) 
   };
 
-
   #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
 
   /*
     default host name size  = device serial number and leading
     'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
     header defined by specification
- */
+  */
   #define HNAME_SIZE (4 + SERIAL_NUM_SIZE + 1)
   #define HNAME_TYPE ("knx-%s")
   
@@ -91,7 +80,6 @@ extern "C" {
   /**
    * @brief endpoint information,
    *        an endpoint combines uc/mc IP addresses, transport flags and some security keying material
-   *
    */
   typedef struct oc_endpoint_t
   {
@@ -100,7 +88,7 @@ extern "C" {
     char oscore_id[OSCORE_SENDER_ID_LEN]; // cnf:osc:id, max 7 bytes
     size_t oscore_id_len;                 // len 
 
-    union dev_addr
+    union dev_addr // TODO FIXME remove IPv4 stuff
     {
       oc_ipv6_addr_t ipv6;                // ipv6 address
       oc_ipv4_addr_t ipv4;                // ipv4 address 

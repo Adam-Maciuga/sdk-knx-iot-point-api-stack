@@ -1,18 +1,8 @@
-/*
-// Copyright (c) 2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2025 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */   
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -34,7 +24,7 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     return 0;
   }
 
-  // Initialize Winsock if not already initialized (required for GetAdaptersAddresses with MSVC)
+  // Initialize Winsock if not already initialized (required for GetAdaptersAddresses with MSVC).
   static int winsock_initialized = 0;
   if (!winsock_initialized) {
     WSADATA wsadata;
@@ -43,6 +33,7 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
       OC_ERR("WSAStartup failed with error: %d", wsa_result);
       return 0;
     }
+
     winsock_initialized = 1;
   }
 
@@ -52,20 +43,16 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
   ULONG out_buf_len = 15000;
   int count = 0;
 
-#ifdef OC_IPV4
-  family = AF_UNSPEC;
-#endif
-
-  // Use HeapAlloc instead of malloc for better MSVC compatibility
+  // Use HeapAlloc instead of malloc for better MSVC compatibility.
   HANDLE heap = GetProcessHeap();
   if (!heap) {
-    OC_ERR("Failed to get process heap");
+    OC_ERR("Failed to get process heap!");
     return 0;
   }
 
   adapter_list = (IP_ADAPTER_ADDRESSES *)HeapAlloc(heap, HEAP_ZERO_MEMORY, out_buf_len);
   if (!adapter_list) {
-    OC_ERR("Failed to allocate memory for adapter list");
+    OC_ERR("Failed to allocate memory for adapter list!");
     return 0;
   }
 
@@ -82,9 +69,10 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     HeapFree(heap, 0, adapter_list);
     adapter_list = (IP_ADAPTER_ADDRESSES *)HeapAlloc(heap, HEAP_ZERO_MEMORY, out_buf_len);
     if (!adapter_list) {
-      OC_ERR("Failed to allocate memory for adapter list");
+      OC_ERR("Failed to allocate memory for adapter list!");
       return 0;
     }
+
     ret = GetAdaptersAddresses(
       family,
       GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_SKIP_ANYCAST | 
@@ -101,9 +89,9 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     return 0;
   }
 
-  // Iterate through adapters
+  // Iterate through adapters.
   for (adapter = adapter_list; adapter && count < max_interfaces; adapter = adapter->Next) {
-    // Skip loopback
+    // Skip loopback.
     if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK) {
       continue;
     }
@@ -111,13 +99,13 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     oc_network_interface_info_t *info = &interfaces[count];
     memset(info, 0, sizeof(oc_network_interface_info_t));
 
-    // Copy friendly name (convert from wide char to narrow char)
+    // Copy friendly name (convert from wide char to narrow char).
     if (adapter->FriendlyName) {
-      WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, -1, 
-                          info->name, OC_NETWORK_IF_NAME_MAX - 1, NULL, NULL);
+      WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, -1, info->name, 
+              OC_NETWORK_IF_NAME_MAX - 1, NULL, NULL);
     } else if (adapter->Description) {
-      WideCharToMultiByte(CP_UTF8, 0, adapter->Description, -1, 
-                          info->name, OC_NETWORK_IF_NAME_MAX - 1, NULL, NULL);
+      WideCharToMultiByte(CP_UTF8, 0, adapter->Description, -1, info->name, 
+              OC_NETWORK_IF_NAME_MAX - 1, NULL, NULL);
     } else {
       snprintf(info->name, OC_NETWORK_IF_NAME_MAX, "Interface %lu", adapter->IfIndex);
     }
@@ -125,17 +113,12 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
     info->if_index = adapter->IfIndex;
     info->is_up = (adapter->OperStatus == IfOperStatusUp);
 
-    // Check for IPv6/IPv4 addresses
+    // Check for IPv6 address.
     IP_ADAPTER_UNICAST_ADDRESS *addr;
     for (addr = adapter->FirstUnicastAddress; addr; addr = addr->Next) {
       if (addr->Address.lpSockaddr->sa_family == AF_INET6) {
         info->has_ipv6 = true;
       }
-#ifdef OC_IPV4
-      else if (addr->Address.lpSockaddr->sa_family == AF_INET) {
-        info->has_ipv4 = true;
-      }
-#endif
     }
 
     count++;
@@ -145,16 +128,14 @@ oc_network_enumerate_interfaces(oc_network_interface_info_t *interfaces, int max
   return count;
 }
 
-bool 
-oc_network_set_interface_filter(uint32_t if_index)
+bool oc_network_set_interface_filter(uint32_t if_index)
 {
   g_interface_filter = if_index;
   OC_INF("Network interface filter set to: %u (0=all)", if_index);
   return true;
 }
 
-uint32_t 
-oc_network_get_interface_filter(void)
+uint32_t oc_network_get_interface_filter(void)
 {
   return g_interface_filter;
 }

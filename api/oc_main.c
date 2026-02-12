@@ -1,20 +1,10 @@
-/*
-// Copyright (c) 2016 Intel Corporation
-// Copyright (c) 2022 Cascoda Ltd
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+/* 
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2022 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include <stdint.h>
 #include <stdio.h>
@@ -54,8 +44,6 @@ static oc_programming_mode_t app_programming_mode = { NULL, NULL };
 static oc_loadstate_t app_loadstate = { NULL, NULL };
 static oc_swu_t app_swu = { NULL, NULL };
 
-// -----------------------------------------------------------------------------
-
 void oc_set_swu_cb(const oc_swu_cb_t cb, void* data)
 {
   app_swu.cb = cb;
@@ -66,8 +54,6 @@ oc_swu_t* oc_get_swu_cb(void)
 {
   return &app_swu;
 }
-
-// -----------------------------------------------------------------------------
 
 void oc_set_factory_presets_cb(oc_factory_presets_cb_t cb, void* data)
 {
@@ -80,8 +66,6 @@ oc_factory_presets_t* oc_get_factory_presets_cb(void)
   return &app_factory_presets;
 }
 
-// -----------------------------------------------------------------------------
-
 void oc_set_reset_cb(oc_reset_cb_t cb, void* data)
 {
   app_reset.cb = cb;
@@ -92,8 +76,6 @@ oc_reset_t* oc_get_reset_cb(void)
 {
   return &app_reset;
 }
-
-// -----------------------------------------------------------------------------
 
 void oc_set_restart_cb(oc_restart_cb_t cb, void* data)
 {
@@ -106,8 +88,6 @@ oc_restart_t* oc_get_restart_cb(void)
   return &app_restart;
 }
 
-// -----------------------------------------------------------------------------
-
 void oc_set_hostname_cb(const oc_hostname_cb_t cb, void* data)
 {
   app_hostname.cb = cb;
@@ -118,8 +98,6 @@ oc_hostname_t* oc_get_hostname_cb(void)
 {
   return &app_hostname;
 }
-
-// -----------------------------------------------------------------------------
 
 void oc_set_programming_mode_cb(oc_programming_mode_cb_t cb, void* data)
 {
@@ -132,8 +110,6 @@ oc_programming_mode_t* oc_get_programming_mode_cb(void)
   return &app_programming_mode;
 }
 
-// -----------------------------------------------------------------------------
-
 void oc_set_lsm_change_cb(oc_lsm_change_cb_t cb, void* data)
 {
   app_loadstate.cb = cb;
@@ -145,8 +121,6 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
   return &app_loadstate;
 }
 
-// -----------------------------------------------------------------------------
-
 #ifdef OC_DYNAMIC_ALLOCATION
 #include "oc_buffer_settings.h"
 #ifdef OC_INOUT_BUFFER_SIZE
@@ -155,7 +129,7 @@ static size_t _OC_MTU_SIZE = OC_INOUT_BUFFER_SIZE;
 static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
 #endif 
 #ifdef OC_APP_DATA_BUFFER_SIZE
-static size_t _OC_MAX_APP_DATA_SIZE = 7168;
+static size_t _OC_MAX_APP_DATA_SIZE = 7168; // TODO FIXME replace of of those with parameters in the CMake file
 #else                                
 static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define
 #endif                               
@@ -170,11 +144,7 @@ int oc_set_mtu_size(size_t mtu_size)
 #ifdef OC_BLOCK_WISE
   if (mtu_size < (COAP_MAX_HEADER_SIZE + 16))
     return -1;
-#ifdef OC_OSCORE
   _OC_MTU_SIZE = mtu_size + COAP_MAX_HEADER_SIZE;
-#else  
-  _OC_MTU_SIZE = mtu_size;
-#endif 
   mtu_size -= COAP_MAX_HEADER_SIZE;
   size_t i;
   for (i = 10; i >= 4 && (mtu_size >> i) == 0; i--)
@@ -212,37 +182,32 @@ long oc_get_block_size(void)
 }
 
 #else
-int
-oc_set_mtu_size(size_t mtu_size)
+int oc_set_mtu_size(size_t mtu_size)
 {
   (void) mtu_size;
   OC_WRN("Dynamic memory not available");
   return -1;
 }
 
-long
-oc_get_mtu_size(void)
+long oc_get_mtu_size(void)
 {
   OC_WRN("Dynamic memory not available");
   return -1;
 }
 
-void
-oc_set_max_app_data_size(size_t size)
+void oc_set_max_app_data_size(size_t size)
 {
   (void) size;
   OC_WRN("Dynamic memory not available");
 }
 
-long
-oc_get_max_app_data_size(void)
+long oc_get_max_app_data_size(void)
 {
   OC_WRN("Dynamic memory not available");
   return -1;
 }
 
-long
-oc_get_block_size(void)
+long oc_get_block_size(void)
 {
   OC_WRN("Dynamic memory not available");
   return -1;
@@ -257,7 +222,6 @@ static void oc_shutdown_device(void)
 
 int oc_main_init(const oc_handler_t* handler)
 {
-
   // prevent multiple init calls --> already done ...
   if (initialized)
   { 
@@ -275,7 +239,6 @@ int oc_main_init(const oc_handler_t* handler)
   oc_network_event_handler_mutex_init();
 
   #ifdef OC_SPAKE
-
   // call one time on startup (must be successful)
   if (oc_initialise_spake_data() < 0)
   {
@@ -285,7 +248,6 @@ int oc_main_init(const oc_handler_t* handler)
     oc_shutdown_device();
     return -1;
   }
-
   #endif
 
   // call one time on startup (must be successful)
@@ -298,6 +260,7 @@ int oc_main_init(const oc_handler_t* handler)
     return -1;
     
   }
+
   #ifdef OC_DYNAMIC_ALLOCATION
   drop_commands = (bool*) calloc(1, sizeof(bool));
   if (!drop_commands)
@@ -306,8 +269,7 @@ int oc_main_init(const oc_handler_t* handler)
   }
   #endif
 
-  #ifdef OC_SECURITY
-
+  #ifdef KNX_TCP_TLS
   ret = oc_tls_init_context();
   if (ret < 0)
   {
@@ -320,24 +282,20 @@ int oc_main_init(const oc_handler_t* handler)
   oc_knx_load_device();
   oc_knx_load_fingerprint();
 
-  #ifdef OC_SECURITY
-
+  #ifdef KNX_TCP_TLS
   oc_sec_load_unique_ids(0);
   #ifdef OC_PKI
     OC_DBG("oc_main_init(): loading ECDSA keypair");
     oc_sec_load_ecdsa_keypair(0);
-  #endif /* OC_PKI */
-
+  #endif
   #endif
 
   #ifdef OC_SERVER
-
   // called one time on startup
   if (app_callbacks->register_resources)
   {
     app_callbacks->register_resources();
   }
-
   #endif 
 
   OC_DBG("stack initialized ...");
@@ -350,7 +308,6 @@ int oc_main_init(const oc_handler_t* handler)
   #endif
 
   #ifdef OC_CLIENT
-
   // called one time on startup
   if (app_callbacks->requests_entry)
   {
@@ -359,7 +316,6 @@ int oc_main_init(const oc_handler_t* handler)
   
   // check and send on i-flags
   oc_init_datapoints_at_initialization();
-
   #endif
 
   PRINT("Re-register mDNS after a stack initialization)");
@@ -389,7 +345,7 @@ void oc_main_shutdown(void)
 
   oc_ri_shutdown();
 
-  #ifdef OC_SECURITY
+  #ifdef KNX_TCP_TLS
   oc_tls_shutdown();
   #endif 
 

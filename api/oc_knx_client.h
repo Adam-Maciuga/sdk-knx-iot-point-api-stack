@@ -1,19 +1,10 @@
 /*
-// Copyright (c) 2022-2023 Cascoda Ltd
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2022-2023 Cascoda Ltd.
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
   @brief client code for the device (s-mode)
   @file
@@ -29,19 +20,22 @@
 extern "C" {
 #endif
 
+// TODO add documentation?
+oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
+
 /**
-  @defgroup doc_module_tag_s_mode_server s-mode server
-  S-mode server side support functions.
-
-  This module contains the receiving side of the s-mode functionality.
-  The received s-mode messages are routed to the appropriate POST methods of the
-  data point. However, since not all data is in the s-mode message the POST
-  method needs to retrieve the data from the s-mode message differently than
-  for a normal CoAP post message (the message payload is constructed
-  differently).
-
+ * @defgroup doc_module_tag_s_mode_server s-mode server
+ * S-mode server side support functions.
+ *
+ * This module contains the receiving side of the s-mode functionality.
+ * The received s-mode messages are routed to the appropriate POST methods of the
+ * data point. However, since not all data is in the s-mode message the POST
+ * method needs to retrieve the data from the s-mode message differently than
+ * for a normal CoAP post message (the message payload is constructed
+ * differently).
+ *
   @{
-*/
+ */
 
 /**
  * @brief  checks if the request is a redirected request from /k, /p or /p/{point-path},
@@ -62,17 +56,17 @@ extern "C" {
 int oc_is_redirected_request_from(const oc_request_t *request);
 
 /**
-  @defgroup doc_module_tag_s_mode_client s-mode client
-  S-mode Client side support functions.
-
-  This module contains the sending side of the s-mode functionality.
-  The s-mode messages are send from the device that implements a resource with
-  the CoAP GET functionality. The s-mode functions will retrieve the data values
-  and place it in the s-mode message. The s-mode message will only be send to
-  the groups that are listed in the Group Object Table with the appropriate
-  flags.
-
-  @{
+  * @defgroup doc_module_tag_s_mode_client s-mode client
+  * S-mode Client side support functions.
+  *
+  * This module contains the sending side of the s-mode functionality.
+  * The s-mode messages are send from the device that implements a resource with
+  * the CoAP GET functionality. The s-mode functions will retrieve the data values
+  * and place it in the s-mode message. The s-mode message will only be send to
+  * the groups that are listed in the Group Object Table with the appropriate
+  * flags.
+  *
+  * @{
 */
 
 /** @} */ // end of doc_module_tag_s_mode_server
@@ -98,9 +92,9 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  */
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type);
 
-void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address,
-                                                      char service_type, const uint8_t* value_data, int value_size);
-
+void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, 
+        uint32_t group_address, char service_type, 
+        const uint8_t* value_data, int value_size);
 
 /**
  * @brief Send unicast s-mode message (confirmable or non-confirmable)
@@ -123,10 +117,11 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t gr
  *       - recipient->non = false (default) -> sends Confirmable (CON)
  *       - recipient->non = true -> sends Non-Confirmable (NON)
  */
-int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
-                                   const uint8_t* value_data, int value_size,
-                                   oc_group_table_t* recipient, 
-                                   oc_group_object_table_t* group_object);
+int oc_send_s_mode_unicast_message(
+        uint32_t group_address, char service_type, 
+        const uint8_t* value_data, int value_size,
+        oc_group_table_t* recipient, 
+        oc_group_object_table_t* group_object);
 
 /** @} */ // end of doc_module_tag_s_mode_client
 

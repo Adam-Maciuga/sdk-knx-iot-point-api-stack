@@ -43,15 +43,18 @@ set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this 
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 
 ## External Libraries
+# TinyCBOR
+# Set to ON if the TinyCBOR library provided by the KNX-IoT stack should be used, 
+# set to OFF if the TinyCBOR  library is provided in other ways (e.g. the OS).
+set(CONFIG_KNXIOT_TINYCBOR_BUILTIN ON CACHE BOOL "Use the TinyCBOR library provided by the KNX-IoT stack.")
+
 # Mbed TLS
 # Set to ON if the Mbed TLS library provided by the KNX-IoT stack should be used, 
 # set to OFF if the Mbed TLS library is provided in other ways (e.g. the OS).
-set(OC_USE_KNX_MBEDTLS ON CACHE BOOL "Use the Mbed TLS library provided by the KNX-IoT stack.")
+set(CONFIG_KNXIOT_MBEDTLS_BUILTIN ON CACHE BOOL "Use the Mbed TLS library provided by the KNX-IoT stack.")
 
 ## Debug 
-set(OC_LOG_TO_FILE_ENABLED OFF CACHE BOOL "Enables that all logging messages are redirected to a file, to use it the 'PRINT' option must be also enabled.")
-set(OC_USE_STORAGE ON CACHE BOOL "Enables that the configuration data are persisted in a (file-based) storage.")
-set(OC_OSCORE_ENABLED ON CACHE BOOL "Enables oscore, OFF may be used for debugging reasons")
+set(CONFIG_KNXIOT_KNX_LOG_TO_FILE OFF CACHE BOOL "Enables that all logging messages are redirected to a file, to use it the 'PRINT' option must be also enabled.")
 set(OC_PRINT_ENABLED OFF CACHE BOOL "Enables print messages for the stack (and application; if used). OFF will disable all logging.")
 set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enables common debug messages for the stack (and application; if used).")
 set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enables security debug messages for the stack.")
@@ -156,11 +159,10 @@ set(COAP_SOURCES
 add_library(kis-common INTERFACE)
 
 ## Security 
-if(OC_OSCORE_ENABLED)
-   target_compile_definitions(kis-common INTERFACE OC_OSCORE)
-   target_compile_definitions(kis-common INTERFACE OC_SPAKE)
-   target_compile_definitions(kis-common INTERFACE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
-endif()
+# OSCORE
+# TODO FIXME Remove OS_CORE everywhere then remove here.
+# TODO OC_SPAKE always on?
+target_compile_definitions(kis-common INTERFACE OC_SPAKE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
@@ -204,15 +206,14 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 
 ## KNX-IoT Stack Options (2) ##
-if(OC_USE_KNX_MBEDTLS)
-    target_link_libraries(kisClientServer PUBLIC kis-common mbedtls tinycbor-master kis-port)
-else()
-    target_link_libraries(kisClientServer PUBLIC kis-common tinycbor-master kis-port)
+target_link_libraries(kisClientServer PUBLIC kis-common)
+if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
+    target_link_libraries(kisClientServer PUBLIC mbedtls)
 endif()
-
-if (OC_USE_STORAGE)
-    target_compile_definitions(kisClientServer PUBLIC OC_USE_STORAGE)
+if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
+    target_link_libraries(kisClientServer PUBLIC tinycbor-master)
 endif()
+target_link_libraries(kisClientServer PUBLIC kis-port)
 
 ### TBD FIXME refactor this section  ###
 # Process individual stack/ (demo)application behavior 
@@ -221,7 +222,7 @@ endif()
 add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
 add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
 add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
-add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size (independent from OS_OSCORE, hence not added to target compile definitions)
+add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size
 add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
 
 # KNX reset Process Time (seconds)
