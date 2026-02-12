@@ -942,14 +942,13 @@ int oc_send_buffer(oc_message_t *message) {
   }
 #endif
 
-  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", 
-      (int)send_sock, (int)dev->server_sock, 
+  
 #ifdef KNX_UDP_DTLS
-      (int)dev->secure_sock,
+  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, (int)dev->secure_sock, message->endpoint.flags);
 #else
-      -1,
+  OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, -1, message->endpoint.flags);
 #endif
-      message->endpoint.flags);
+  
   return send_msg(send_sock, &receiver, message);
 }
 
