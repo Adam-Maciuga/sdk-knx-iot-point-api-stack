@@ -242,8 +242,10 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
     //
     // - (x) response + outer option problem = 8.4, step NA  = stop processing (also on empty ack or reset message)
     // - (y) request + outer option problem  = 8.2, step 6   = unsecured 4.02
-    
-    is_inbound_request = oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH;
+
+    is_reset = oscore_pkt->type == COAP_TYPE_RST;
+    is_ack = oscore_pkt->type == COAP_TYPE_ACK;
+    is_inbound_request = !is_reset && !is_ack && oscore_pkt->code >= OC_GET && oscore_pkt->code <= OC_FETCH;
 
     if (is_inbound_request) {
       // (y)
@@ -277,17 +279,20 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
     }
   }
 
-  //           kid > 0, piv > 0                                    kid > 0, piv = 0     kid = 0, piv = ? 
-  //  req[in]  8.2: AAD(RID/piv(msg)) + AEAD(RID/piv(msg))         4.02                 4.02
-  //  res[in]  8:4: AAD(SID/piv(req)) + AEAD(SID/piv(req))         4.02                 AAD(SID/piv(req)) + AEAD(SID/piv(req))
+  //          kid > 0, piv > 0                                    kid > 0, piv = 0     kid = 0, piv = ? 
+  // req[in]  8.2: AAD(RID/piv(msg)) + AEAD(RID/piv(msg))         4.02                 4.02
+  // res[in]  8:4: AAD(SID/piv(req)) + AEAD(SID/piv(req))         4.02                 AAD(SID/piv(req)) + AEAD(SID/piv(req))
   //
-  //  req[in] 
-  //  - new/ fresh inbound request message -> usually no context is available
-  //  -  an s-mode inbound request 'unicast echo response' message (see specification, figure 26, (2)) -> no context is available
-  //  
-  //  res[in]
-  //  - a CHANGED_2_04 (68) = OK
-  //  - a RESET with any code = ERROR
+  //
+  // req[in] 
+  // (a) a first inbound 's-mode' req. msg (spec., figure 26, (1))-> no context available, create one
+  // (b) a 'unicast echo re-request' req. msg (spec., figure 26, (3)) -> context available, from (a)
+  //
+  // res[in]
+  // (c) an ACK (2.04 CHANGED = 68) 
+  // (d) an OK (2.05)
+  // (e) an RESET with any code 
+  // (f) a 'unicast echo response' message (spec, figure 26, (2)) -> no context available, create one
 
   uint8_t* request_piv = NULL;
   uint8_t request_piv_len = 0;
@@ -435,8 +440,8 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
       // find context from response 
       oscore_ctx = oc_oscore_find_context_by_kid_and_kid_context(oscore_pkt->kid, oscore_pkt->kid_len, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len);
 
-      if (!oscore_ctx) {
-        // no beforehand cached context available, make one (usually on a1/a2)
+        if (!oscore_ctx) {
+        // no beforehand cached context available, make one (usually on fresh res[in],(f))
 
         // find auth/at entry with corresponding 'kid' from inbound message
         const int idx = oc_core_find_at_entry_with_osc_id(oscore_pkt->kid, oscore_pkt->kid_len);
@@ -456,7 +461,7 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
 
           // 'Server' Side (details see method 'oc_oscore_receive_message' header), create:
           //  Request Recipient Context (normal context for the inbound 'unicast echo response' message)
-          //  Response Sender Context (extra context for the answer 'unicast echo re-request' after the inbound 'unicast  echo response')
+          //  Response Sender Context (extra context for the outbound 'unicast echo re-request' after the inbound 'unicast  echo response')
           // - kid
           // - kid_context (taken from the inbound message = rnd)
           // - ms + salt from token
@@ -466,7 +471,8 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
           const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
           oscore_ctx = oc_oscore_add_context(
                   oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-                  oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 0,
+                  oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
+                  0,
                   oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
                   oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
                   (char*)oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len, idx, false);
@@ -486,7 +492,7 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
           // -> need to send an s-mode 'unicast echo re-request'
           s_mode_echo_re_request = true;
 
-          // save piv (ssn) for 'unicast echo re-request', must be the same
+          // copy piv (ssn) for 'unicast echo re-request', must be the same as for 'unicast echo response'
           request_piv = oscore_pkt->piv;
           request_piv_len = oscore_pkt->piv_len;
         } else {
@@ -528,7 +534,7 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
             return -1;
           }
 
-           // copy piv (ssn) for 'response' from context
+          // copy piv (ssn) for 'response' from fresh context (piv/ssn is empty/0)
           request_piv = NULL;
           request_piv_len = 0;
         }
@@ -559,7 +565,7 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
       uint8_t* local_piv = NULL;
       uint8_t local_piv_len = 0;
 
-      // find context from 'former' request
+      // find context from 'former' own request
       oscore_ctx = oc_oscore_find_context_by_token_mid(
               oscore_pkt->token, oscore_pkt->token_len, 
               oscore_pkt->mid, &local_piv, &local_piv_len, false);
@@ -591,8 +597,17 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
   // verify and decrypt OSCORE payload in coap packet
   uint8_t* output = (uint8_t*)malloc(oscore_pkt->payload_len);
 
-  int ret = oc_oscore_decrypt(oscore_pkt->payload, oscore_pkt->payload_len, 
-          OSCORE_AEAD_TAG_LEN, decryption_key, OSCORE_KEY_LEN, nonce, 
+  if (!output)
+  {
+    // request
+    OC_ERR("could not allocate payload memory, return unsecured 5.00");
+    oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint, false);
+    oc_message_unref(msg);
+    return -1;
+  }
+
+  int ret = oc_oscore_decrypt(oscore_pkt->payload, oscore_pkt->payload_len,
+          OSCORE_AEAD_TAG_LEN, decryption_key, OSCORE_KEY_LEN, nonce,
           OSCORE_AEAD_NONCE_LEN, aad, aad_len, output);
 
   // restore payload to packet(overwrites encrypted original payload), 
@@ -634,19 +649,19 @@ static int oc_oscore_receive_message(oc_message_t* msg) {
   msg->endpoint.auth_at_index_from_former_inbound_request = oscore_ctx->auth_at_index;  
 
   // save 'kid'/ 'Sender ID' from inbound message, that was used to decrypt, see send_unicast, uc-b
-  msg->endpoint.oscore_id_len = oscore_ctx->sender_id_len;
-  memcpy(msg->endpoint.oscore_id, oscore_ctx->sender_id, oscore_ctx->sender_id_len); 
-  
-  msg->endpoint.kid_len = oscore_pkt->kid_len;
-  memcpy(msg->endpoint.kid, oscore_pkt->kid, oscore_pkt->kid_len);
+  msg->endpoint.oscore_id_len = oscore_ctx->sender_id_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : oscore_ctx->sender_id_len;
+  memcpy(msg->endpoint.oscore_id, oscore_ctx->sender_id, msg->endpoint.oscore_id_len); 
+
+  msg->endpoint.kid_len = oscore_pkt->kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : oscore_pkt->kid_len;
+  memcpy(msg->endpoint.kid, oscore_pkt->kid, msg->endpoint.kid_len);
 
   // see send_unicast, uc-a
-  msg->endpoint.kid_ctx_len = oscore_pkt->kid_ctx_len;
-  memcpy(msg->endpoint.kid_ctx, oscore_pkt->kid_ctx, oscore_pkt->kid_ctx_len); 
+  msg->endpoint.kid_ctx_len = oscore_pkt->kid_ctx_len > OSCORE_ID_CONTEXT_LEN ? OSCORE_ID_CONTEXT_LEN : oscore_pkt->kid_ctx_len;
+  memcpy(msg->endpoint.kid_ctx, oscore_pkt->kid_ctx, msg->endpoint.kid_ctx_len); 
 
   // see send_unicast, uc-e
-  msg->endpoint.request_piv_len = oscore_pkt->piv_len;
-  memcpy(msg->endpoint.request_piv, oscore_pkt->piv, oscore_pkt->piv_len); 
+  msg->endpoint.request_piv_len = oscore_pkt->piv_len > OSCORE_PIV_LEN ? OSCORE_PIV_LEN : oscore_pkt->piv_len;
+  memcpy(msg->endpoint.request_piv, oscore_pkt->piv, msg->endpoint.request_piv_len); 
 
   if (oscore_parse_inner_message(oscore_pkt->payload, oscore_pkt->payload_len, &coap_pkt) != COAP_NO_ERROR) {
     // response + inner options problem = ignore
@@ -976,7 +991,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg) {
   // we haven't found any context (uc-a) ... (uc-d), 
   // so we free the message we just created
   if (oscore_ctx == NULL) {
-    oc_message_unref(from_org_msg_cloned_outgoing_msg);
     OC_ERR("no OSCORE context found, error");
     oc_message_unref(from_org_msg_cloned_outgoing_msg);
     return -1;
@@ -1064,7 +1078,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg) {
       UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
 
       OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s message", 
-              from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_REQUEST ? "s-mode" : "common unicast");
+              from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_REQUEST ? "s-mode unicast" : "common unicast");
     }
 
     // x2, x3, x4, x5 
@@ -1109,10 +1123,10 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg) {
       // - CON retransmissions lower than max retransmits (4) use the same SSN
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
 
-      bool is_initial_response = transaction && transaction->retransmit_counter == 0;
+      bool is_initial_request = transaction && transaction->retransmit_counter == 0;
       bool is_any_request = !transaction;
 
-      if (is_initial_response || is_any_request) {
+      if (is_initial_request || is_any_request) {
         increment_ssn_in_context(oscore_ctx);
       }
 
@@ -1175,17 +1189,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg) {
 
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
 
-      bool is_initial_response = transaction && transaction->retransmit_counter == 0;
-      bool is_any_response = !transaction;
+      bool keep_ssn_on_retransmits = transaction && transaction->retransmit_counter < 4;
 
       // increment SSN
-      // - an initial CON/NON response (transaction present) -> a read response
-      // - any response (transaction not present) -> a read response 
-      // - any CON response (CON type present) 
-
-      // keep SSN
-      // - CON retransmissions lower than max retransmits (4) use the same SSN
-      if (is_initial_response || is_any_response || is_confirmable) {
+      //   - initial CON responses -> the first non-repeated read response (transaction present) 
+      //   - regular NON responses -> a read response (transaction NOT present) 
+      // 
+      //   keep SSN
+      //   - CON retransmissions lower than max retransmits (4) use the same SSN
+      if (!keep_ssn_on_retransmits) {
         increment_ssn_in_context(oscore_ctx);
       }
 
