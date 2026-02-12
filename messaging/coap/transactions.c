@@ -240,7 +240,7 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   {
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
     {
-      OC_DBG("found transaction by token %p", (void *)t);
+      OC_DBG("found transaction by token %p and flags %i", (void *)t, t->message->endpoint.flags);
       return t;
     }
   }
