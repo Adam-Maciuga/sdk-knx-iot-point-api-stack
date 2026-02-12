@@ -2,10 +2,11 @@ stages:
   - build
 
 variables:
-  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_STRATEGY: none
 
 before_script:
   - git config --global protocol.file.allow always
+  - git submodule sync --recursive
   - git submodule update --init --recursive
 # ----------------------------------------------------------
 # Linux Native Build
