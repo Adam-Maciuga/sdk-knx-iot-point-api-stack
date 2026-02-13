@@ -53,7 +53,7 @@
 #include "security/oc_tls.h"
 #endif
 
-// coap transactions
+// coap transactions 
 OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
 OC_LIST(transactions_list);
 
@@ -65,17 +65,21 @@ void coap_register_as_transaction_handler(void) {
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t* endpoint) {
+coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
+{
   coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
-  if (t) {
+  if (t)
+  {
     // cleared buffers
     t->message = oc_internal_allocate_outgoing_message();
-    if (t->message) {
+    if (t->message)
+    {
       OC_DBG("created new transaction %u: %p", mid, (void *)t);
-      
+
       t->mid = mid;
       t->retransmit_counter = 0;
-      
+      t->is_non_confirmable_smode_msg = false;
+
       // memcpy can handle '0' bytes, so no extra check
       t->token_len = token_len;
       memcpy(t->token, token, token_len);
@@ -84,34 +88,57 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t t
       memcpy(&t->message->endpoint, endpoint, sizeof(oc_endpoint_t));
 
       // list itself makes sure same element is not added twice
-      oc_list_add( transactions_list, t);
-    } else {
+      oc_list_add(transactions_list, t);
+    }
+    else
+    {
       oc_memb_free(&transactions_memb, t);
       t = NULL;
     }
-  } else {
+  }
+  else
+  {
     OC_WRN("insufficient memory to create transaction");
   }
 
   return t;
 }
 
-coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message) {
+coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
+{
+  // We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
+  // with an Echo option. Use coap transaction framework to handle this.
+  // 0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap
+  // 1. for NON s-mode messages (uc + mc) use the specific s-mode transaction framework
+  // - transaction init with a fixed timeout
+  // - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
+  //   (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_NON_REQUEST)
+
+  const bool is_non_confirmable_s_mode_message = s_mode_message->endpoint.flags & S_MODE_NON_REQUEST;
   coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
-  if (t) {
-    // copy the message as such, needed for possible 'unicast echo re-request' retransmits within the timeout 
-    t->message->length = s_mode_message->length;
-    // memcpy can handle '0' bytes, so no extra check
-    memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
 
-    // init ~ 5s timeout
-    t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
+  if (t)
+  {
+    if (is_non_confirmable_s_mode_message)
+    {
+      t->is_non_confirmable_smode_msg = true;
 
-    OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
-    oc_etimer_restart(&t->retransmit_timer); 
-    OC_PROCESS_CONTEXT_END(transaction_handler_process);
-  } else {
-    OC_WRN("insufficient memory to create transaction");
+      // copy the message as such, needed for possible 'unicast echo re-request' retransmits within the timeout
+      t->message->length = s_mode_message->length;
+      // memcpy can handle '0' bytes, so no extra check
+      memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
+
+      // init ~ 5s timeout
+      t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
+
+      OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
+      oc_etimer_restart(&t->retransmit_timer);
+      OC_PROCESS_CONTEXT_END(transaction_handler_process);
+    }
+  }
+  else
+  {
+    OC_WRN("insufficient memory to create s-mode transaction");
   }
 
   return t;
@@ -119,6 +146,7 @@ coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_
 
 // sends a message by 'transaction'
 // - NON-confirmable : send + clear the transaction afterward (it is a one time fire and forget send out)
+// - NON-confirmable : s-mode send + NOT clear the transaction afterward (runs into timeout)
 // - CON-confirmable : send + MAY clear afterward the transaction if all reps are done (it is an n- time fire and forget send out)
 void coap_send_transaction(coap_transaction_t *t) {
   if (!oc_main_initialized()) {
@@ -205,7 +233,9 @@ void coap_send_transaction(coap_transaction_t *t) {
     OC_DBG("send_transaction - NON message");
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
     coap_send_message(t->message);  
-    coap_clear_transaction(t);      // msg will be de-allocated
+    
+    if (!t->is_non_confirmable_smode_msg)
+    coap_clear_transaction(t);      // non-confirmable s-mode msg will NOT be de-allocated (it runs into timeout)
   }
 }
 
@@ -224,7 +254,8 @@ void coap_clear_transaction(coap_transaction_t *t)
 
 coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 {
-  for (coap_transaction_t* t = oc_list_head(transactions_list); t; t = t->next)
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); 
+       t && !t->is_non_confirmable_smode_msg; t = t->next)
   {
     if (t->mid == mid) 
     {
@@ -238,11 +269,32 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 
 coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token_len)
 {
-  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next) 
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list);
+       t && !t->is_non_confirmable_smode_msg; t = t->next) 
   {
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
     {
-      OC_DBG("found transaction by token %p and flags %i", (void *)t, t->message->endpoint.flags);
+      OC_DBG("found transaction for token %p and flags %i", (void *)t, t->message->endpoint.flags);
+      return t;
+    }
+  }
+
+  return NULL;
+}
+
+coap_transaction_t* coap_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+{
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list);
+       t && !t->is_non_confirmable_smode_msg; t = t->next)
+  {
+    if (t->mid == mid)
+    {
+      OC_DBG("found transaction by mid, flags %i", t->message->endpoint.flags);
+      return t;
+    }
+    if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0)
+    {
+      OC_DBG("found transaction by token, flags %i", t->message->endpoint.flags);
       return t;
     }
   }
@@ -267,11 +319,10 @@ void coap_check_transactions(void)
 
       const int before = oc_list_length(transactions_list);
 
-      if (t->message->endpoint.flags & S_MODE_REQUEST)
+      if (t->is_non_confirmable_smode_msg)
       {
-        OC_DBG("removing timed out s-mode message with MID %u : %p", t->mid, (void*)t);
+        OC_DBG("removing timed out NON s-mode message with MID %u : %p", t->mid, (void*)t);
         coap_clear_transaction(t);
-        
       }
       else
       {
@@ -323,7 +374,7 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
 
   while (t) 
   {
-    // Save next.
+    // save next
     coap_transaction_t* next = t->next;
     if (oc_endpoint_compare(&t->message->endpoint, endpoint) == 0) 
     {
@@ -331,7 +382,7 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
       const int before = oc_list_length(transactions_list);
 
       #ifdef OC_CLIENT
-      // Remove the client callback tied to this transaction.
+      // remove the client callback tied to this transaction
       oc_ri_free_client_cbs_by_mid(t->mid);
       #endif 
 
@@ -345,11 +396,11 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
         continue;
       }
 
-      // Clear found transaction.
+      // clear found transaction
       coap_clear_transaction(t);
     }
 
-    // Restore next.
+    // restore next
     t = next;
   }
 }

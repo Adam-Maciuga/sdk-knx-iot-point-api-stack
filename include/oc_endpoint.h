@@ -46,7 +46,7 @@ extern "C" {
    * @brief transport flags (bit map)
    * these flags are used to determine what to do on communication level
    */
-  enum transport_flags
+  typedef enum transport_flags
   {
     NONE = 0,                  // undefined
     DISCOVERY = 1 << 0,        // used for (plain) discovery requests
@@ -60,8 +60,10 @@ extern "C" {
     OSCORE_DECRYPTED = 1 << 8, // OSCORE decrypted message, identifies that the message was decrypted 'successfully' in the OSCORE layer 
     ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)
     ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
-    S_MODE_REQUEST = 1 << 11,       // an own initiated (OSCORE secured ) s-mode 'request' message that is allowed to be challenged with echo response (mc:non; uc:non/con) 
-  };
+    S_MODE_NON_REQUEST = 1 << 11,   // an own initiated (OSCORE) s-mode 'request' (non:uc/mc) message, allowed to be challenged with echo response
+    S_MODE_CON_REQUEST = 1 << 12,   // an own initiated (OSCORE) s-mode 'request' (con:mc) message, allowed to be challenged with echo response
+  } transport_flags_t;
+
 
   #define SERIAL_NUM_SIZE (12) // binary 6 bytes, in hex 12 bytes
 

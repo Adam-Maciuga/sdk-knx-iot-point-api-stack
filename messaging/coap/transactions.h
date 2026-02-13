@@ -79,11 +79,12 @@ extern "C" {
 typedef struct coap_transaction
 {
   struct coap_transaction *next; 
-  uint16_t mid;                   // coap transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
-  uint8_t token[COAP_TOKEN_LEN];  // coap req/res level: a client matches a request with a response 
+  uint16_t mid;                       // coap transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
+  uint8_t token[COAP_TOKEN_LEN];      // coap req/res level: a client matches a request with a response 
   struct oc_etimer retransmit_timer; 
   uint8_t token_len;
-  uint8_t retransmit_counter;     // 0 = initial message, no retransmission started 
+  uint8_t retransmit_counter;         // 0 = initial message, no retransmission started 
+  bool is_non_confirmable_smode_msg;  // identifies if the transaction hosts an NON s-mode message 
   oc_message_t *message;
 
 } coap_transaction_t;
@@ -94,13 +95,18 @@ void coap_register_as_transaction_handler(void);
 coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t token_len, oc_endpoint_t *endpoint);
 
 // starting a specific s-mode transaction that init a timeout without sending + copy message data (uses common CoAP transaction)
-coap_transaction_t* coap_new_transaction_for_s_mode_message(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
+coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
 
 void coap_send_transaction(coap_transaction_t *t);
 void coap_clear_transaction(coap_transaction_t *t);
 coap_transaction_t *coap_get_transaction_by_mid(uint16_t mid);
-coap_transaction_t *coap_get_transaction_by_token(uint8_t *token,
-                                                  uint8_t token_len);
+  
+// note, returns also a non-null transaction if both token len's are '0';
+coap_transaction_t *coap_get_transaction_by_token(uint8_t *token, uint8_t token_len);
+
+// checks first mid then token, note, returns also a non-null transaction if both token len's are '0';
+coap_transaction_t* coap_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len);
+  
 void coap_check_transactions(void);
 void coap_free_all_transactions(void);
 void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint);

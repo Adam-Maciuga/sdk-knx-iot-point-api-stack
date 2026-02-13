@@ -335,25 +335,17 @@ int coap_receive(oc_message_t* incoming_message) {
       // cleared), it searches by matching mid* or token** 
       // 
       // *assume inbound request of a former outbound request, check by INBOUND mid ...
-      //  - messages without token, an empty ACK on a former CON request message DOES NOT carry a token, see CoAP RFC
+      //  - messages without token, an empty ACK response on a former CON request message DOES NOT carry a token, see CoAP RFC
       //
       // **assume inbound request of a former outbound request, check by INBOUND token ...
       //  - messages with token, a CON response on a former CON request message, check match with former request
       //    (token matches in piggybacked responses and separate responses)
 
-      // * above (ask first for mid since token len may be 0 and in transaction also, refractor it that token len 0 works)
-      transaction = coap_get_transaction_by_mid(incoming_coap_message->mid);
-
-      // ** above
-      if (!transaction)
-        transaction = coap_get_transaction_by_token(incoming_coap_message->token, incoming_coap_message->token_len);
-    
-      if (transaction && transaction->message->endpoint.flags & S_MODE_REQUEST)
-      {
-        OC_WRN("Caught a 's-mode' NON message");
-        transaction = NULL;
-      }
-    
+      // **/* above
+      transaction = coap_get_transaction_by_token_or_mid(
+        incoming_coap_message->mid,
+        incoming_coap_message->token,
+        incoming_coap_message->token_len);
     }
 
 		if (is_inbound_request)
@@ -384,7 +376,7 @@ int coap_receive(oc_message_t* incoming_message) {
       PRINT("QUERY\t: %.*s", (int)incoming_coap_message->uri_query_len, 
               incoming_coap_message->uri_query_len > 0 ? incoming_coap_message->uri_query : "-");
       // no payload printing ... to long ...
-#endif
+      #endif
 
 			const char* href;
 			size_t href_len = coap_get_header_uri_path(incoming_coap_message, &href);

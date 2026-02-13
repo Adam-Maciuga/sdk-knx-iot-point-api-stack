@@ -45,30 +45,28 @@ bool oc_do_s_mode_message_update(void) {
 
     udp_message_update->length = coap_serialize_message(udp_coap_request, udp_message_update->data);
 
-    if (udp_message_update->length > 0) {
-      // We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
-      // with an Echo option. Use coap transaction framework to handle this.
-      // 1. create a specific s-mode transaction for NON/CON s-mode messages
-      //   - transaction init with a fixed timeout
-      //   - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
-      //     (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_REQUEST)
-
-      // make it to an s-mode message (mc:non, uc:non/con)
-      udp_message_update->endpoint.flags |= S_MODE_REQUEST;
-
+    if (udp_message_update->length > 0)
+    {
       // create a new (specific) s-mode transaction
-      const coap_transaction_t* s_mode_transaction = coap_new_transaction_for_s_mode_message(
-        udp_coap_request->mid, udp_coap_request->token,
-        8, udp_message_update);
-      if (s_mode_transaction) {
+      coap_transaction_t* s_mode_transaction = smode_new_transaction(
+        udp_coap_request->mid, 
+        udp_coap_request->token,
+        udp_coap_request->token_len, 
+        udp_message_update);
+      if (s_mode_transaction)
+      {
         OC_INF("sent (uc/mc) s-mode message - OK");
-        oc_send_message(udp_message_update);
+        coap_send_transaction(s_mode_transaction);
         ret = true; // don't 'unref' the sending message
-      } else {
+      }
+      else
+      {
         OC_WRN("sent (uc/mc) s-mode message - ERROR (no transaction free)");
         oc_message_unref(udp_message_update);
       }
-    } else {
+    }
+    else
+    {
       OC_WRN("sent (uc/mc) s-mode message - ERROR (message len = 0)");
       oc_message_unref(udp_message_update);
     }
@@ -113,8 +111,21 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
   
   // s-mode message MAY carry a payload, this step is needed
   oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
-  
-  coap_udp_init_message(udp_coap_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_POST, coap_get_next_mid());
+
+  // default it to an CON s-mode message
+  coap_message_type_t type = COAP_TYPE_CON;
+  transport_flags_t flags = S_MODE_CON_REQUEST;
+
+  // make it to an NON s-mode message
+  if (non_confirmable)
+  {
+    type = COAP_TYPE_NON;
+    flags = S_MODE_NON_REQUEST;
+  }
+
+  // apply
+  udp_message_update->endpoint.flags |= flags;
+  coap_udp_init_message(udp_coap_request, type, OC_POST, coap_get_next_mid());
   coap_set_header_accept(udp_coap_request, APPLICATION_CBOR);
 
   uint32_t a = oc_random_value();
