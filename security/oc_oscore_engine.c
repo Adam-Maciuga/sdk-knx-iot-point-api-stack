@@ -4,10 +4,7 @@
  *            
  * SPDX-License-Identifier: Apache-2.0
  */
-
-#include "oc_replay.h"
 #include "oc_storage.h"
-
 #include <inttypes.h>
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"
