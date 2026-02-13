@@ -427,12 +427,12 @@ int coap_receive(oc_message_t* incoming_message) {
       for (oc_endpoint_t* ep_i = oc_connectivity_get_endpoints(); ep_i; ep_i = ep_i->next) {
         if (oc_endpoint_compare_address(&incoming_message->endpoint, ep_i) == 0) {
           if (incoming_message->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port) {
-            OC_DBG("checking messages on duplicate endpoints (ipv6/port) -> dropping message, same endpoint (loopback)");
+            OC_DBG("checking messages on duplicates (ipv6/port) -> duplicate message (loopback), don't check for security replay");
             is_myself = true;
           }
 #ifdef OC_DEBUG
           else {
-            OC_DBG("checking messages on duplicates (endpoint/port) -> accepting message for endpoint ");
+            OC_DBG("checking messages on duplicates (ipv6/port) -> fresh message, check for security replay");
             PRINTipaddr(*ep_i);
           }
 #endif

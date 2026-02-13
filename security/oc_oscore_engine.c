@@ -954,7 +954,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   */
 
   if (is_outbound_response)
-  { // normal 2.04/5 response or  4.01 echo response 
+  { // normal 2.04/5 response or 4.01 echo response 
 
     // any context using an access token with ga len > 0 is an s-mode message
     bool is_s_mode = oc_get_auth_at_entry(oscore_ctx->auth_at_index)->ga_len > 0;
