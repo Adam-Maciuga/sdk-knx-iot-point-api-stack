@@ -615,7 +615,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         //  true  : true  = parse
         //
         // -> OSCORE option is only valid if present in outer CoAP options.
-        //    Hence allow this option only on outer & oscore = called by 'oscore_parse_outer_message'.
+        //    Hence, allow this option only on outer & oscore = called by 'oscore_parse_outer_message'.
         if (!outer || !oscore) {
           return BAD_OPTION_4_02;
         }
@@ -1209,7 +1209,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   // add options (not count ...)
   option += coap_serialize_options(packet, option, inner, outer, oscore);
 
-  // TODO doc
   if (option - coap_pkt->buffer <= COAP_MAX_HEADER_SIZE) {
     if (coap_pkt->payload_len > 0) {
       // end of option marker

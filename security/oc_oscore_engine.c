@@ -708,12 +708,14 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     OC_INF("coap parse packet : ok (multicast)");
 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, kid[OSCORE_SENDER_ID_LEN], kid_len = 0, nonce[OSCORE_AEAD_NONCE_LEN],
-                                 aad[OSCORE_AAD_MAX_LEN], aad_len = 0;
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, 
+    kid[OSCORE_SENDER_ID_LEN], kid_len = 0, 
+    nonce[OSCORE_AEAD_NONCE_LEN],
+    aad[OSCORE_AAD_MAX_LEN], aad_len = 0;
 
     OC_DBG_OSCORE("### protecting multicast request ###");
 
-    // store SSN as Partial IV
+    // store ssn as PIV
     oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
     /*
@@ -870,7 +872,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     (uc-c) context retried by group address
      - uc outbound request -> server application initial r/w request via '/k'
 
-    (uc-d) context retried by token/mid
+    (uc-d) context retried by token/mid (CON message)
      - uc outbound ACK 2.04 Changed with payload -> inbound request
      - TODO why needed, at token is always present( for a response this makes no sense, only when receiving a 2.04 )
 
@@ -914,7 +916,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (oscore_ctx == NULL)
   { // (uc-d)
 
-    // search for context using token/mid
+    // find context from 'former' own request
     oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len, coap_pkt->mid, NULL, 0, false);
   }
 
@@ -940,10 +942,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   /*
    s-mode = only if ga len is > '0'
 
-   - (x0) inbound s-mode mc to /k : return 'uc echo response', id_context 10 byte rnd, allocate temporarily 'Response Sender
-     Context'
-   - (x1) inbound s-mode uc to /k : return 'uc echo response', id_context from inbound s-mode message, use
-     existing/beforehand created 'Response Sender Context'
+   - (x0) inbound s-mode mc to /k : return 'uc echo response', use temp id_context 10 byte rnd 'Response Sender Context'
+   - (x1) inbound s-mode uc to /k : return 'uc echo response', use id_context from inbound s-mode message 'Response Sender Context'
 
    - (x2) inbound s-mode mc to /k : return NO 'uc echo response', n/a in outbound unicast
    - (x3) inbound s-mode uc to /k : return NO 'uc echo response', pass through = normal response
@@ -954,7 +954,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   */
 
   if (is_outbound_response)
-  { // is an origin unicast response
+  { // normal 2.04/5 response or  4.01 echo response 
 
     // any context using an access token with ga len > 0 is an s-mode message
     bool is_s_mode = oc_get_auth_at_entry(oscore_ctx->auth_at_index)->ga_len > 0;
@@ -1010,8 +1010,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       unicast_echo_response = true;
       UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
 
-      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s message",
-                    from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_REQUEST ? "s-mode" : "common unicast");
+      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s unicast message",
+                    from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode"
+                                                                                                               : "common");
     }
     // x2, x3, x4, x5
   }
@@ -1038,8 +1039,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 #endif
     )
     { // CoAP request
-
-      OC_DBG_OSCORE("### protecting outgoing unicast request ###");
 
       // request - use context SSN as Partial IV
       oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);

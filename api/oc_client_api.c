@@ -50,20 +50,20 @@ bool oc_do_s_mode_message_update(void) {
       // with an Echo option. Use coap transaction framework to handle this.
       // 1. create a specific s-mode transaction for NON/CON s-mode messages
       //   - transaction init with a fixed timeout
-      //   - send message 1:1 as 'send transaction' but without clearing transaction afterward
-      //     (hence transaction lasts until the timeout after sending the s-mode message, see use of S_MODE_REQUEST)
+      //   - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
+      //     (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_REQUEST)
 
       // make it to an s-mode message (mc:non, uc:non/con)
       udp_message_update->endpoint.flags |= S_MODE_REQUEST;
 
       // create a new (specific) s-mode transaction
-      const coap_transaction_t* s_mode_transaction = 
-              coap_new_transaction_for_s_mode_message(udp_coap_request->mid, 
-                      udp_coap_request->token, 8, udp_message_update);
+      const coap_transaction_t* s_mode_transaction = coap_new_transaction_for_s_mode_message(
+        udp_coap_request->mid, udp_coap_request->token,
+        8, udp_message_update);
       if (s_mode_transaction) {
         OC_INF("sent (uc/mc) s-mode message - OK");
         oc_send_message(udp_message_update);
-        ret = true; // don't remove reference on sending message
+        ret = true; // don't 'unref' the sending message
       } else {
         OC_WRN("sent (uc/mc) s-mode message - ERROR (no transaction free)");
         oc_message_unref(udp_message_update);

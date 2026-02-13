@@ -609,7 +609,7 @@ int coap_receive(oc_message_t* incoming_message) {
           // a regular request 
           OC_DBG("received 4.01 echo response FROM TRANSACTION, sending echo re-request ...");
 
-          // parse the stored transaction message + data and copy to 'unicast echo re-request'
+          // parse data and copy to 'unicast echo re-request'
           coap_packet_t re_request_coap_packet[1];
           coap_udp_parse_message(re_request_coap_packet, transaction->message->data, transaction->message->length);
 

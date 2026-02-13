@@ -53,6 +53,7 @@
 #include "security/oc_tls.h"
 #endif
 
+// coap transactions
 OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
 OC_LIST(transactions_list);
 
@@ -82,7 +83,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t *token, uint8_t t
       // save client address
       memcpy(&t->message->endpoint, endpoint, sizeof(oc_endpoint_t));
 
-      // List itself makes sure same element is not added twice>
+      // list itself makes sure same element is not added twice
       oc_list_add( transactions_list, t);
     } else {
       oc_memb_free(&transactions_memb, t);
@@ -198,12 +199,13 @@ void coap_send_transaction(coap_transaction_t *t) {
     }
   }
   else 
-  {
-    // non-conformable messages, send ones and delete afterward the transaction
+  { // non-conformable messages
+    
+    // send ones and delete afterward the transaction
     OC_DBG("send_transaction - NON message");
-    oc_message_add_ref(t->message);
-    coap_send_message(t->message);
-    coap_clear_transaction(t); 
+    oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
+    coap_send_message(t->message);  
+    coap_clear_transaction(t);      // msg will be de-allocated
   }
 }
 
