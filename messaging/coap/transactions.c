@@ -74,7 +74,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t t
     t->message = oc_internal_allocate_outgoing_message();
     if (t->message)
     {
-      OC_DBG("created new transaction %u: %p", mid, (void *)t);
+      OC_DBG("created new transaction with mid %u", mid);
 
       t->mid = mid;
       t->retransmit_counter = 0;
@@ -108,8 +108,8 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
 {
   // We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
   // with an Echo option. Use coap transaction framework to handle this.
-  // 0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap
-  // 1. for NON s-mode messages (uc + mc) use the specific s-mode transaction framework
+  // 0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
+  // 1. for NON s-mode messages (uc + mc) use a specific s-mode transaction framework
   // - transaction init with a fixed timeout
   // - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
   //   (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_NON_REQUEST)
@@ -154,7 +154,6 @@ void coap_send_transaction(coap_transaction_t *t) {
   }
 
   #ifdef OC_DEBUG
-  OC_DBG("sending transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
 
   if (t == NULL) {
     OC_ERR("transaction == NULL");
@@ -178,7 +177,7 @@ void coap_send_transaction(coap_transaction_t *t) {
   {
   #endif
 
-    OC_DBG("send_transaction - CON message");
+    OC_DBG("sending CON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
 
     if (t->retransmit_counter < COAP_MAX_RETRANSMIT) 
     {
@@ -230,7 +229,7 @@ void coap_send_transaction(coap_transaction_t *t) {
   { // non-conformable messages
     
     // send ones and delete afterward the transaction
-    OC_DBG("send_transaction - NON message");
+    OC_DBG("sending NON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
     coap_send_message(t->message);  
     
@@ -282,10 +281,9 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   return NULL;
 }
 
-coap_transaction_t* coap_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+coap_transaction_t* coap_and_smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
 {
-  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list);
-       t && !t->is_non_confirmable_smode_msg; t = t->next)
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t ; t = t->next)
   {
     if (t->mid == mid)
     {

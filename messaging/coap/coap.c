@@ -1156,7 +1156,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
     // TODO outer = false, but inner may be also false => not tested here! 
 
 #ifdef OC_DEBUG
-    OC_DBG("Inner CoAP code");
 
     switch (coap_pkt->code) {
       case COAP_GET:
@@ -1260,10 +1259,10 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
 
   // parse header fields
   coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
-  coap_pkt->type = (COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION;
+  coap_pkt->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
   coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  coap_pkt->mid = (uint16_t)(coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3]);
   coap_pkt->code = coap_pkt->buffer[1];
-  coap_pkt->mid = coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3];
 
   if (coap_pkt->version != 1) {
     OC_ERR("CoAP version must be 1");
@@ -1293,7 +1292,7 @@ coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_le
   const coap_status_t ret = coap_oscore_parse_options(packet, data, 
           (uint32_t) data_len, current_option, true, true, false);
 
-  OC_INF("coap parse udp options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
+  OC_INF("coap parse inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
 }
 

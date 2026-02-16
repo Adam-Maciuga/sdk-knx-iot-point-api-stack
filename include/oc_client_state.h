@@ -116,7 +116,7 @@ typedef struct oc_client_cb_t {
   bool multicast;                      /**< multicast */
   bool stop_multicast_receive;         /**< stop receiving multi cast */
   uint8_t ref_count;                   /**< reference counting on this data block */
-  uint8_t separate;                    /**< separate responses */
+  uint8_t separate;                    /**< separate responses, 1 = is separate response, 0 is not */
   // OSCORE
   uint8_t piv[OSCORE_PIV_LEN];         /**< partial IV */
   uint8_t piv_len;                     /**< length of the partial IV */
