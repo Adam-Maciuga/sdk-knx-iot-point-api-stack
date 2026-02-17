@@ -43,28 +43,32 @@ void oc_oscore_free_lru_recipient_context(void) {
 oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(
         uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) {
 
-  if (kid_len == 0) {
+  if (kid_len == 0) 
+  {
     return NULL;
   }
 
-#ifdef OC_PRINT
+  #ifdef OC_PRINT
   oc_context_print_all();
-#endif
+  #endif
 
   // get list start
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  if (kid_len == 0) {
+  if (kid_len == 0) 
+  {
     return NULL;
   }
 
-  while (ctx) {
+  while (ctx) 
+  {
     // received frame kid (Sender ID) and kid_context (ID Context) 
     // must both match in size and value to an oscore context 
     if (kid_len == ctx->recipient_id_len && 
             memcmp(kid, ctx->recipient_id, kid_len) == 0 && 
             kid_ctx_len == ctx->id_context_len && 
-            memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0) {
+            memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0) 
+    {
 
       PRINT("found OSCORE Recipient ID context, with auth/at index: %d",ctx->auth_at_index);
 
@@ -84,49 +88,60 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(
 
 oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
         uint8_t* token, uint8_t token_len, uint16_t mid,
-        uint8_t** request_piv, uint8_t* request_piv_len, bool tcp) {
+        uint8_t** request_piv, uint8_t* request_piv_len, bool tcp) 
+{
+  
   char* oscore_id;
   size_t oscore_id_len;
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
   // search for client cb by token
   oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(token, token_len);
 
-  if (cb) {
-    if (request_piv && request_piv_len) {
+  if (cb) 
+  {
+    if (request_piv && request_piv_len) 
+    {
       *request_piv = cb->piv;
       *request_piv_len = cb->piv_len;
     }
 
     oscore_id = cb->endpoint.oscore_id;
     oscore_id_len = cb->endpoint.oscore_id_len;
-  } else {
-#endif 
+  } 
+  else 
+  {
+  #endif 
     // search transactions by token
     coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
 
-    if (!t) {
-      if (!tcp) {
+    if (!t)
+    {
+      if (!tcp) 
+      {
         // on no TCP search by mid (TCP : mid NOT relevant)
         t = coap_get_transaction_by_mid(mid);
       }
 
-      if (!t) {
+      if (!t) 
+      {
         // nothing found by token or mid 
         return NULL;
       }
     }
 
-    if (request_piv && request_piv_len) {
+    if (request_piv && request_piv_len) 
+    {
       *request_piv = t->message->endpoint.request_piv;
       *request_piv_len = t->message->endpoint.request_piv_len;
     }
     
     oscore_id = t->message->endpoint.oscore_id;
     oscore_id_len = t->message->endpoint.oscore_id_len;
-#ifdef OC_CLIENT
+
+  #ifdef OC_CLIENT
   }
-#endif
+  #endif
 
   oc_oscore_context_t* ctx = (oc_oscore_context_t *) oc_list_head(contexts);
 
@@ -135,8 +150,10 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
     return NULL;
   }
 
-  while (ctx) {
-    if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0) {
+  while (ctx) 
+  {
+    if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0) 
+    {
       PRINT("found context by_token/mid with auth/at index : %d ", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
       return ctx;
@@ -149,38 +166,36 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
 }
 
 // scans Client Recipient Context 
-oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(
-        char* oscore_id, size_t oscore_id_len) {
-  int cmp_len = 16;
-
-  if (oscore_id_len > 16) {
-    OC_ERR("oscore_id longer than 16: %d", (int) oscore_id_len);
+oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t oscore_id_len) 
+{
+  if (oscore_id_len > OSCORE_SENDER_ID_LEN) 
+  {
+    OC_ERR("oscore_id too long: %d", (int) oscore_id_len);
     return NULL;
   }
 
-  if (oscore_id_len == 0) {
+  if (oscore_id_len == 0) 
+  {
     OC_ERR("oscore_id_len == 0");
     return NULL;
   }
 
-  if (oscore_id == NULL) {
+  if (oscore_id == NULL) 
+  {
     OC_ERR("oscore_id NULL");
     return NULL;
   }
 
-  if (oscore_id_len < 16) {
-    cmp_len = oscore_id_len;
-  }
-
-  PRINT("oc_oscore_find_context_by_oscore_id:"); // TODO LOG make this depending on log level
+  OC_DBG("scan contexts by oscore_id : "); 
   oc_char_println_hex(oscore_id, oscore_id_len);
 
-  oc_oscore_context_t* ctx = oc_list_head(contexts);
-  while (ctx != NULL) {
-    if (memcmp(oscore_id, ctx->sender_id, cmp_len) == 0) {
-      PRINT("oc_oscore_find_context_by_oscore_id FOUND auth/at index : %d",  ctx->auth_at_index); // TODO LOG make this depending on log level, debug?
-      OC_DBG_OSCORE("    Common IV :");
-      OC_LOGbytes_OSCORE(ctx->common_iv, OSCORE_COMMON_IV_LEN);
+  oc_oscore_context_t* ctx = (oc_oscore_context_t *)oc_list_head(contexts);
+  while (ctx) 
+  {
+    if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0) 
+    {
+      OC_DBG("found context by oscore_id at auth/at index : %d",  ctx->auth_at_index);
+      
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -188,16 +203,18 @@ oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(
     ctx = ctx->next;
   }
 
-  PRINT("NOT FOUND"); // TODO LOG make this depending on log level + better wording
+  OC_DBG("found NO context by oscore_id");
   return ctx;
 }
 
 // scans all contexts auth at token if the ga is in the ga list of the AT token
-oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address) {
+oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_address)
+{
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  while (ctx) {
+  while (ctx) 
+  {
     // find AT for context that MAY host the GA
     const oc_auth_at_t* my_at_entry = oc_get_auth_at_entry(ctx->auth_at_index);
     if (my_at_entry) {
@@ -208,18 +225,19 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
         // scan all GA's
         const uint32_t group_value = my_at_entry->ga[i];
         
-        if (group_address == group_value) {
+        if (group_address == group_value) 
+        {
           // Ensure we return a sender context (with sender_id populated) for sending messages
           // Recipient contexts have empty sender_id and should not be used for sending
-          if (ctx->sender_id_len > 0) {
-            PRINT("found access token for given GA %04X", group_address); // TODO LOG make this depending on log level
+          if (ctx->sender_id_len > 0) 
+          {
+            OC_DBG("found access token for given GA %04X", group_address); 
 
             // refresh time of last use
             ctx->last_used = oc_clock_time();
             return ctx;
-          } else {
-            PRINT("found GA %04X but context has empty sender_id (recipient context), continuing search", group_address); // TODO LOG make this depending on log level
-          }
+          } 
+          OC_DBG("found GA %04X but context has empty sender_id (recipient context), continuing search", group_address);
         }
       }
     }
@@ -338,20 +356,20 @@ void oc_context_print_all(void) {
 }
 
 oc_oscore_context_t* oc_oscore_add_recipient_context(
-        const char* recipient_id, size_t recipient_id_size,
+        const char* recipient_id, size_t recipient_id_size, uint64_t ssn,
         const char* mastersecret, size_t mastersecret_size, 
         const char* salt, size_t salt_size,
         const char* id_context, uint8_t id_context_size,
         int auth_at_index, 
         bool read_ssn_from_storage) {
   
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
   OC_DBG("adding OSCORE Request Recipient Context (A2/8.2) with Recipient ID : ");
   oc_char_println_hex(recipient_id, recipient_id_size);
-#endif
+  #endif
   
   oc_oscore_context_t* ctx = oc_oscore_add_context("", 0, 
-          recipient_id, recipient_id_size, 0, mastersecret, mastersecret_size,
+          recipient_id, recipient_id_size, ssn, mastersecret, mastersecret_size,
           salt, salt_size, id_context, id_context_size, auth_at_index, 
           read_ssn_from_storage);
 
@@ -370,9 +388,9 @@ oc_oscore_context_t* oc_oscore_add_recipient_context(
             read_ssn_from_storage);
   }
 
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
   oc_context_print_all();
-#endif
+  #endif
   
   return ctx;
 }

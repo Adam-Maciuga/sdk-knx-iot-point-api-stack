@@ -184,13 +184,14 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path,
 
     oc_rep_end_root_object();
 
-#ifdef OC_DEBUG
-    // debugging
+    #ifdef OC_DEBUG
+    
     OC_INF("send s-mode to ipv6 address : ");
     PRINTipaddr(*endpoint);
     OC_INF("send s-mode (%d) with CBOR payload : ", oc_rep_get_encoded_payload_size());
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
-#endif
+    
+    #endif
 
     // called only in case the static buffer was allocated 
     oc_do_s_mode_message_update();

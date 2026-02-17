@@ -65,7 +65,8 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
 }
 
 // read piv (converts little/big endian) and stores it to 64-bit ssn (ssn is cleared first) 
-int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn) {
+int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn) 
+{
   *ssn = 0;
 
   uint8_t j = sizeof(uint64_t) - piv_len;
@@ -246,7 +247,8 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   // Partial IV length (n bytes)
   coap_pkt->piv_len = coap_pkt->oscore_flags & OSCORE_FLAGS_PIVLEN_BITMASK;
 
-  if (coap_pkt->piv_len > 0) {
+  if (coap_pkt->piv_len > 0) 
+  {
     // copy PIV
     memcpy(coap_pkt->piv, current_option, coap_pkt->piv_len);
     current_option += coap_pkt->piv_len;
@@ -257,7 +259,8 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   }
 
   // kid context (if any), check if 'h' flag bit is set
-  if (coap_pkt->oscore_flags & OSCORE_FLAGS_KIDCTX_BITMASK) {
+  if (coap_pkt->oscore_flags & OSCORE_FLAGS_KIDCTX_BITMASK)
+  {
     // (s) 1 byte
     coap_pkt->kid_ctx_len = *current_option;
     current_option++;
@@ -273,7 +276,8 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   }
 
   // kid (if any), check if 'k' flag bit is set
-  if (coap_pkt->oscore_flags & OSCORE_FLAGS_KID_BITMASK) {
+  if (coap_pkt->oscore_flags & OSCORE_FLAGS_KID_BITMASK) 
+  {
     // copy kid (remaining bytes in option)
     coap_pkt->kid_len = (uint8_t) option_length;
     memcpy(coap_pkt->kid, current_option, option_length);
@@ -364,19 +368,24 @@ size_t coap_serialize_message(void* packet, uint8_t* buffer) {
   return coap_oscore_serialize_message(packet, buffer, true, true, false);
 }
 
-coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet) {
+coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  // wipe content, important thing
+  // init with '0'
   memset(coap_pkt, 0, sizeof(coap_packet_t));
 	
-  // pointer to packet bytes
+  // set coap pointer to message data pointer 
   coap_pkt->buffer = data;
 
   // code
   coap_pkt->code = data[0];
 
-  OC_DBG_OSCORE("Inner CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE)) : %d", coap_pkt->code);
+  #ifdef OC_DEBUG
+
+  print_coap_service(coap_pkt->code, "inner coap code");
+
+  #endif
 
   uint8_t* current_option = &data[1];
 
@@ -393,7 +402,7 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
   const uint8_t* current_option = NULL;
 
   // determine exact location of the CoAP options in the packet buffer
-#ifdef OC_TCP
+  #ifdef OC_TCP
   if (msg->endpoint.flags & TCP) {
     // Calculate CoAP_TCP header length
     size_t message_length = 0;
@@ -402,7 +411,7 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
 
     current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
   } else
-#endif 
+  #endif 
   {
     // header position for UDP 
     current_option = msg->data + COAP_HEADER_LEN;
@@ -415,8 +424,10 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
   // parse outer options, first option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
   unsigned int option_number = 0;
 
-  while (current_option < msg->data + msg->length) {
-    if ((current_option[0] & 0xF0) == 0xF0) {
+  while (current_option < msg->data + msg->length) 
+  {
+    if ((current_option[0] & 0xF0) == 0xF0)
+    {
       // payload marker 0xFF, currently only checking for 0xF* because rest is reserved
       break;
     }
@@ -476,7 +487,8 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
 
     option_number += option_delta;
 
-    if (option_number == COAP_OPTION_OSCORE) {
+    if (option_number == COAP_OPTION_OSCORE) 
+    {
       // found the OSCORE option, return success
       return true; 
     }
@@ -489,7 +501,8 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
   return false;
 }
 
-coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet) {
+coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 	
   // init with '0'
@@ -499,7 +512,7 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet) {
   coap_pkt->buffer = msg->data;
   uint8_t* current_option = NULL;
 
-#ifdef OC_TCP
+  #ifdef OC_TCP
   if (msg->endpoint.flags & TCP) {
     coap_pkt->transport_type = COAP_TRANSPORT_TCP;
     // parse header fields
@@ -514,32 +527,46 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet) {
 
     current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
   } else
-#endif 
+  #endif 
   {
     coap_pkt->transport_type = COAP_TRANSPORT_UDP;
     coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
     coap_pkt->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
     coap_pkt->mid = (uint16_t)(coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3]);
     coap_pkt->code = coap_pkt->buffer[1];
+    coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
 
     current_option = msg->data + COAP_HEADER_LEN;
-    
-    if (coap_pkt->version != 1)
-    {
-      OC_WRN("CoAP version must be 1");
-      return BAD_REQUEST_4_00;
-    }
   }
 
-  // token
-  coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  #ifdef OC_DEBUG
 
-  if (coap_pkt->token_len > COAP_TOKEN_LEN) {
-    OC_DBG_OSCORE("Token Length must not be more than 8");
+  print_coap_service(coap_pkt->code, "outer coap code");
+
+  #endif
+
+  const bool is_ack = coap_pkt->type == COAP_TYPE_ACK;
+  const bool is_ack_with_empty_payload = is_ack && coap_pkt->code == EMPTY_0_00;
+
+
+  if (is_ack_with_empty_payload)
+  {
+    OC_WRN("CoAP EMPTY ACK with 'zero' payload can't be a valid OSCORE message");
+    return BAD_REQUEST_4_00;
+  }
+  
+  if (coap_pkt->version != 1)
+  {
+    OC_WRN("CoAP version must be 1");
     return BAD_REQUEST_4_00;
   }
 
-  OC_DBG_OSCORE("Outer CoAP code (1=GET, 2=POST, 3=PUT, 4=DELETE) : %d", coap_pkt->code);
+  // token
+  if (coap_pkt->token_len > COAP_TOKEN_LEN) 
+  {
+    OC_WRN("Token Length must not be more than 8");
+    return BAD_REQUEST_4_00;
+  }
 
   memcpy(coap_pkt->token, current_option, coap_pkt->token_len);
   OC_DBG_OSCORE("Token len %u : ", coap_pkt->token_len);
@@ -548,8 +575,9 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet) {
   current_option += coap_pkt->token_len;
 
   // parse outer, on present OSCORE option ... take over secure content
-  const coap_status_t ret = coap_oscore_parse_options(packet, msg->data, 
-          (uint32_t) msg->length, current_option, false, true, true);
+  const coap_status_t ret = coap_oscore_parse_options(
+    packet, msg->data, (uint32_t) msg->length, 
+    current_option, false, true, true);
 
   OC_INF("coap parse oscore outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;

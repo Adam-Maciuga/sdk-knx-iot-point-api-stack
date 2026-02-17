@@ -28,7 +28,8 @@ static oc_blockwise_state_t *request_buffer = NULL;
 // - well-known message
 oc_message_t* udp_message_update = NULL;
 
-bool oc_do_s_mode_message_update(void) {
+bool oc_do_s_mode_message_update(void) 
+{
   const int payload_size = oc_rep_get_encoded_payload_size();
   bool ret = false;
 

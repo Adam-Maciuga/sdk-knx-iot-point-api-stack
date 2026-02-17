@@ -102,8 +102,8 @@ typedef enum {
 
 /** parsed message struct */
 typedef struct {
-  uint8_t* buffer;                      // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
-  coap_transport_type_t transport_type; // UDP or TCP
+  uint8_t* buffer;                     // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
+  coap_transport_type_t transport_type;// UDP or TCP
   uint8_t version;                     // current version is '1'
   coap_message_type_t type;            // CON, NON, ACK, ...
   uint8_t code;                        // CoAP code such as GET = 1, CHANGED_2_04 = 68
@@ -150,7 +150,7 @@ typedef struct {
   const char* uri_query;
   uint8_t if_none_match;
   
-#ifdef OC_TCP
+  #ifdef OC_TCP
   // TCP
   uint32_t max_msg_size;
   uint8_t blockwise_transfer;
@@ -159,23 +159,21 @@ typedef struct {
   size_t alt_addr_len;
   uint32_t hold_off;
   uint16_t bad_csm_opt;
-#endif 
+  #endif 
   
   // OSCORE
-  uint8_t oscore_flags;                // flags 000|h|k|nnn, as described  in RFC 8613
-  uint8_t piv[OSCORE_PIV_LEN];         // 'Partial IV' in OSCORE
+  uint8_t oscore_flags;                   // flags 000|h|k|nnn, as described  in RFC 8613
+  uint8_t piv[OSCORE_PIV_LEN];            // 'Partial IV' in OSCORE
   uint8_t piv_len;
   uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile 
   uint8_t kid_ctx_len;
-  uint8_t kid[OSCORE_SENDER_ID_LEN];   // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
+  uint8_t kid[OSCORE_SENDER_ID_LEN];      // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
   uint8_t kid_len;
-  
-  // TODO
-  uint8_t echo[COAP_ECHO_LEN];         // echo challenge random data (in stack time is used)
+  uint8_t echo[COAP_ECHO_LEN];            // echo challenge random data (is part of inner options, RFC 9175)
   size_t echo_len;
   
-  uint32_t payload_len;
-  uint8_t* payload;
+  uint32_t payload_len;                   // payload len of application + OSCORE option (on no app. payload it cant be '0' for a correct OSCORE message)
+  uint8_t* payload;                       // coap payload byte stream 
 } coap_packet_t;
 
 /** option format serialization */
@@ -248,6 +246,9 @@ void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner,
         bool outer, bool oscore);
+  
+  
+void print_coap_service(uint8_t code, char* text);
 
 /*
  @brief  forwards a CoAP message to lower (OSCORE) layers,
@@ -256,6 +257,32 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner,
  */
 void coap_send_message(oc_message_t* message);
 
+/*
+* @brief  parses *data pointer and assigns it to the coap packet (read the notes)
+*
+* @param  outer parses from *data Class U options, if found 
+*          : TRUE = store them in coap *packet 
+*          : FALSE = return 4.02
+* @param  inner parses from *data Class E options, if found 
+*          : TRUE = store them in coap *packet 
+*          : FALSE = return 4.02
+* @param  oscore parses from *data OSCORE options, if found 
+*          : TRUE = store them in coap *packet 
+*          : FALSE = return 4.02
+*
+* @note   used combinations: 
+*         inner | outer | oscore | used by method        |comment
+*         true  | true  | false  | parse udp
+*         true  | false | true   | parse inner           | 
+*         false | true  | true   | parse outer
+*
+*   - outer  = RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
+*   - inner  = RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object  
+*	  - oscore = OSCORE option data (kid, kid_context, piv)
+*
+*
+*       
+*/
 coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         uint32_t data_len, uint8_t* current_option, bool inner,
         bool outer, bool oscore);
@@ -268,7 +295,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
  * @note  does not copy OSCORE option security content
  *
  */
-coap_status_t coap_udp_parse_message(void* packet, uint8_t* data, size_t data_len);
+coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_len);
 
 int coap_get_query_variable(void* packet, const char* name, const char** output);
 int coap_get_post_variable(void* packet, const char* name, const char** output);

@@ -114,14 +114,15 @@ void oc_message_add_ref(oc_message_t* message) {
 }
 
 void oc_message_unref(oc_message_t* message) {
-  if (message) {
+  if (message) 
+  {
     message->ref_count--;
     if (message->ref_count == 0) {
-#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+    #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
       if (message->data) {
         free(message->data);
       }
-#endif 
+    #endif 
 
       struct oc_memb* pool = message->pool;
       if (pool) {
@@ -157,55 +158,73 @@ void oc_close_all_tls_sessions(void)
 }
 #endif 
 
-OC_PROCESS_THREAD(message_buffer_handler, ev, data) {
+OC_PROCESS_THREAD(message_buffer_handler, ev, data)
+{
   OC_PROCESS_BEGIN();
-  while (1) {
-    OC_PROCESS_YIELD();
+    while (1)
+    {
+      OC_PROCESS_YIELD();
 
-    if (ev == oc_events[INBOUND_NETWORK_EVENT]) {
-      // inbound
-      if (oscore_is_oscore_message(data)) {
-        // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE layer
-        OC_DBG_OSCORE("Inbound network event: OSCORE message (request or response)");
-        oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
-      } else {
-        OC_DBG_OSCORE("Inbound network event: original plain - or beforehand decrypted - message (request or response)");
-        oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
-      }
-    } else if (ev == oc_events[OUTBOUND_NETWORK_EVENT]) {
-      // outbound
-      oc_message_t* message = (oc_message_t*)data;
-
-      // 1. handle OSCORE (mc/uc) s-mode messages first, encrypt the outgoing message before sending it (pass to OSCORE)
-      // 2. handle PLAIN (multicast) discovery messages as a second step
-      if (message->endpoint.flags & OSCORE) {
-        if (message->endpoint.flags & MULTICAST) {
-          // multicast
-          OC_DBG_OSCORE("Outbound network event: secure multicast message (request), forwarding to OSCORE layer");
-          oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], data);
-        } else {
-          // unicast
-          OC_DBG_OSCORE("Outbound network event: secure unicast message (request or response), forwarding to OSCORE layer");
-          oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], data);
+      if (ev == oc_events[INBOUND_NETWORK_EVENT])
+      {
+        // inbound
+        if (oscore_is_oscore_message(data))
+        {
+          // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE layer
+          OC_DBG_OSCORE("Inbound network event: OSCORE message (request or response)");
+          oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
         }
-      } else if (message->endpoint.flags & DISCOVERY) {
-        OC_DBG("Outbound network event: plain discovery request");
-        oc_endpoint_print(&message->endpoint);
-        oc_send_discovery_request(message);
-        oc_message_unref(message);
-      } else {
-        OC_DBG("Outbound network event: plain unicast message");
+        else
+        {
+          OC_DBG_OSCORE("Inbound network event: original plain - or beforehand decrypted - message (request or response)");
+          oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
+        }
+      }
+      else if (ev == oc_events[OUTBOUND_NETWORK_EVENT])
+      {
+        // outbound
+        oc_message_t* message = (oc_message_t*)data;
+
+        // 1. handle OSCORE (mc/uc) s-mode messages first, encrypt the outgoing message before sending it (pass to OSCORE)
+        // 2. handle PLAIN (multicast) discovery messages as a second step
+        if (message->endpoint.flags & OSCORE)
+        {
+          if (message->endpoint.flags & MULTICAST)
+          {
+            // multicast
+            OC_DBG_OSCORE("Outbound network event: secure multicast message (request), forwarding to OSCORE layer");
+            oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], data);
+          }
+          else
+          {
+            // unicast
+            OC_DBG_OSCORE("Outbound network event: secure unicast message (request or response), forwarding to OSCORE layer");
+            oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], data);
+          }
+        }
+        else if (message->endpoint.flags & DISCOVERY)
+        {
+          OC_DBG("Outbound network event: plain discovery request");
+          oc_endpoint_print(&message->endpoint);
+          oc_send_discovery_request(message);
+          oc_message_unref(message);
+        }
+        else
+        {
+          OC_DBG("Outbound network event: plain unicast message");
+          oc_message_t* type_cast_message = (oc_message_t*)data;
+          oc_send_buffer(type_cast_message);
+          oc_message_unref(type_cast_message);
+        }
+      }
+      else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED])
+      {
+        OC_DBG("Outbound network event: secure unicast message (request or response), received from OSCORE layer");
         oc_message_t* type_cast_message = (oc_message_t*)data;
         oc_send_buffer(type_cast_message);
         oc_message_unref(type_cast_message);
       }
-    } else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED]) {
-      OC_DBG("Outbound network event: secure unicast message (request or response), received from OSCORE layer");
-      oc_message_t* type_cast_message = (oc_message_t*)data;
-      oc_send_buffer(type_cast_message);
-      oc_message_unref(type_cast_message);
     }
-  }
 
   OC_PROCESS_END()
 }

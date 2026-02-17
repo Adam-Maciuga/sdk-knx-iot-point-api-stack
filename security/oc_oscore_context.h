@@ -162,10 +162,10 @@ oc_oscore_context_t* oc_oscore_add_context(
         bool read_ssn_from_storage);
 
   /**
-  * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting sender id = "" (0) and ssn = 0
+  * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting sender id = "" (0) and ssn to inbound snn
   *
   **/
-  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size,
+  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size, uint64_t ssn,
                                                        const char* mastersecret, size_t mastersecret_size, 
                                                        const char* salt, size_t salt_size,
                                                        const char* id_context, uint8_t id_context_size,
@@ -196,8 +196,7 @@ oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid,
 // inputs are checked against the own Sender Contexts (SID)
 oc_oscore_context_t *oc_oscore_find_context_by_token_mid(uint8_t *token, uint8_t token_len, uint16_t mid, uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
-oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(
-        char *oscore_id, size_t oscore_id_len);
+oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id, size_t oscore_id_len);
 
 #ifdef __cplusplus
 }

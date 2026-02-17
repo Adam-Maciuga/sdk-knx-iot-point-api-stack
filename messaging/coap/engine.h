@@ -62,14 +62,21 @@ OC_PROCESS_NAME(coap_engine);
 void coap_init_engine(void);
 
 /**
- * @brief Check if a replay message is pending, if not the inbound message is registered
- *        as a new message in the history buffer.
+ * @brief Check if a coap inbound replayed message is pending, if not the inbound message is registered
+ *        as a new message in the history buffer and passed through to the 'upper' layers. 
+ *        More details read the 'note'
  *
- * @note A replay is a telegram addressing the same endpoint (same IPv6 address,
- *       port and message id (mid))
+ * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 address,
+ *       port and MID). A server receiving the same message again with this MID does not accept it. 
+ *       CON
+ *       (client -> CON ->  x server = CON message repeated by client with SAME MID)
+ *       (server -> ACK ->  x client = ACK message repeated by server with SAME MID)
+ *       NON 
+ *       (client -> NON -> server = accepted)
+ *       (network duplication -> NON -> server = rejected)
  *
 */
-bool oc_coap_check_if_duplicate_and_if_not_add_to_history(uint16_t mid, uint16_t port, uint8_t address[16]);
+bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint);
 
 #ifdef __cplusplus
 }
