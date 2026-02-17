@@ -33,12 +33,15 @@ bool oc_do_s_mode_message_update(void)
   const int payload_size = oc_rep_get_encoded_payload_size();
   bool ret = false;
 
-  if (payload_size == 0) {
+  if (payload_size == 0) 
+  {
     OC_WRN("sent (uc/mc) s-mode message - ERROR (payload len = 0)");
     // udp message is initialized, it may jump into with a NULL ptr but this is checked there
     oc_message_unref(udp_message_update);
-  } else {
-    // udp message is initialized, coap payload gets ptr from message data
+  } 
+  else 
+  {
+    // udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
     coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, payload_size);
 
     // is still the inner header ...
@@ -77,7 +80,8 @@ bool oc_do_s_mode_message_update(void)
   return ret;
 }
 
-bool oc_do_well_known_message_update(void) {
+bool oc_do_well_known_message_update(void) 
+{
   bool ret = false;
   
   // is still the inner header ...

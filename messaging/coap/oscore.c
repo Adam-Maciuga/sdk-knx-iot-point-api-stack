@@ -289,10 +289,11 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
   return 0;
 }
 
-size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, uint8_t* buffer) {
+size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, uint8_t* buffer) 
+{
   const coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
-  // Calculate OSCORE option value length (piv, kid context + kid).
+  // calculate OSCORE option value length (piv, kid_context + kid)
   size_t option_length = coap_pkt->piv_len + coap_pkt->kid_len + coap_pkt->kid_ctx_len;
 
   if (coap_pkt->kid_ctx_len > 0) { 
@@ -305,7 +306,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
     ++option_length;
   }
 
-  // Serialize OSCORE option header.
+  // serialize OSCORE option header
   size_t header_length = coap_set_option_header(
           COAP_OPTION_OSCORE - *current_number, option_length, buffer);
 
@@ -314,13 +315,15 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 
     OC_DBG_OSCORE("OSCORE option");
     OC_DBG_OSCORE("\t oscore flags (000|h|k|nnn) : %02x", coap_pkt->oscore_flags);
-    if (coap_pkt->oscore_flags != 0) {
-      // Serialize OSCORE option flags
+    if (coap_pkt->oscore_flags != 0) 
+    {
+      // serialize OSCORE option flags
       *buffer = coap_pkt->oscore_flags;
       ++buffer;
 
-      // Serialize Partial IV
-      if (coap_pkt->piv_len > 0) {
+      // serialize Partial IV
+      if (coap_pkt->piv_len > 0) 
+      {
         memcpy(buffer, coap_pkt->piv, coap_pkt->piv_len);
         buffer += coap_pkt->piv_len;
 
@@ -328,8 +331,9 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
         OC_LOGbytes_OSCORE(coap_pkt->piv, coap_pkt->piv_len);
       }
 
-      // Serialize kid context
-      if (coap_pkt->kid_ctx_len > 0) {
+      // serialize kid context
+      if (coap_pkt->kid_ctx_len > 0) 
+      {
         // kid context length
         *buffer = coap_pkt->kid_ctx_len;
         ++buffer;
@@ -341,7 +345,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
         OC_LOGbytes_OSCORE(coap_pkt->kid_ctx, coap_pkt->kid_ctx_len);
       }
 
-      // Remaining bytes, if any, represent the kid
+      // remaining bytes, if any, represent the kid
       if (coap_pkt->kid_len > 0) {
         memcpy(buffer, coap_pkt->kid, coap_pkt->kid_len);
         buffer += coap_pkt->kid_len;
@@ -380,6 +384,7 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
 
   // code
   coap_pkt->code = data[0];
+  uint8_t* current_option = &data[1];
 
   #ifdef OC_DEBUG
 
@@ -387,11 +392,8 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
 
   #endif
 
-  uint8_t* current_option = &data[1];
-
-  // parse inner, on present OSCORE option ... 4.02 bad option (DON'T take over secure content) 
-  const coap_status_t ret = coap_oscore_parse_options(packet, data, 
-          (uint32_t) data_len, current_option, true, false, true);
+  // parse inner options by scanning the 'encrypted' message, any present/found option not allowed to be in inner options causes a 4.02
+  const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, true);
 
   OC_INF("coap parse oscore inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
@@ -574,10 +576,8 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 
   current_option += coap_pkt->token_len;
 
-  // parse outer, on present OSCORE option ... take over secure content
-  const coap_status_t ret = coap_oscore_parse_options(
-    packet, msg->data, (uint32_t) msg->length, 
-    current_option, false, true, true);
+  // parse outer options by scanning the 'decrypted' message, any present/found option not allowed to be in outer options causes a 4.02
+  const coap_status_t ret = coap_oscore_parse_options(packet, msg->data, (uint32_t) msg->length, current_option, false, true, true);
 
   OC_INF("coap parse oscore outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
