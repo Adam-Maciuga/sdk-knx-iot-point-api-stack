@@ -40,10 +40,10 @@ extern "C"
   {
     OC_CFLAG_NONE = 0,                // uninitialized communication flags (used on init)
     OC_CFLAG_COMMUNICATION = 1 << 2,  // if true communication enabled (not used in KNX iot as an explicit flag)
-    OC_CFLAG_READ = 1 << 3,           // if true readable (transmission flag don't care)
-    OC_CFLAG_WRITE = 1 << 4,          // if true writable (transmission flag don't care)
-    OC_CFLAG_INIT = 1 << 5,           // if true read on init (transmission flag don't care)
-    OC_CFLAG_TRANSMISSION = 1 << 6,   // if true can transmit (checked on self triggered app. actions)
+    OC_CFLAG_READ = 1 << 3,           // if true readable from extern (transmission flag don't care)
+    OC_CFLAG_WRITE = 1 << 4,          // if true writable from extern(transmission flag don't care)
+    OC_CFLAG_INIT = 1 << 5,           // if true read on init on self triggered read action, used on startup (transmission flag don't care)
+    OC_CFLAG_TRANSMISSION = 1 << 6,   // if true can transmit on self triggered read/write actions, used at runtime
     OC_CFLAG_UPDATE = 1 << 7,         // if true update value on a response (transmission flag don't care)
   } oc_cflag_mask_t;
 

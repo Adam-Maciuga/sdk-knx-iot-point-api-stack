@@ -78,6 +78,21 @@ void coap_init_engine(void);
 */
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint);
 
+/**
+ * @brief Check if the inbound message is a 1:1 mirrored (loopback) message by myself, by checking the endpoint 
+ *        IPv6 address and port (yes : return true, no : return false). More details read the 'note'.
+ *
+ * @note 
+ *       - Many 'message payload' identical requests may pop up here on a used loopback/localhost adapter. 
+ *         The amount depends also on how many endpoints (IP addresses) are registered by the device.
+ *
+ *       - When sending an uc/mc 'write' request, the internal update of other linked GO's is NOT done with
+ *         the 1:1 replayed IPv6 message. The updates are performed internally on the write method, see 
+ *         'oc_send_s_mode_mc_or_uc_message'
+ *
+ */
+bool oc_coap_check_if_loopback_message(const oc_message_t* msg);
+
 #ifdef __cplusplus
 }
 #endif

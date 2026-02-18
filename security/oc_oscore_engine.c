@@ -195,7 +195,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 */
 
 /**
-  @brief
+  @brief receive a OSCORE message
 
   @param msg the message, pushed to queue INBOUND_OSCORE_EVENT since the previous
              oscore header check was ok
@@ -205,7 +205,8 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 */
 static int oc_oscore_receive_message(oc_message_t* msg)
 {
-  OC_DBG_OSCORE("### process inbound OSCORE message ###");
+  OC_DBG("####### OSCORE BEGIN #######");
+  OC_DBG_OSCORE("process inbound OSCORE message");
 
   /*
     here we know (and set as default) it is an OSCORE message (it host the OSCORE option header)
@@ -236,6 +237,14 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   bool is_inbound_response; // a coap CHANGED_2_04 (68) ... --> in OSCORE only a 2.04
   bool is_reset;
   bool is_ack;
+
+  // check loop back first before process any message, removes also unnecessary decryption and a throw later in coap layer
+  if (oc_coap_check_if_loopback_message(msg))
+  {
+    // ignore duplicate request
+    oc_message_unref(msg);
+    return -1;
+  }
 
   if (oscore_parse_outer_message(msg, oscore_pkt) != COAP_NO_ERROR)
   {
@@ -274,7 +283,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   /*
              kid > 0, piv > 0                                    kid > 0, piv = 0     kid = 0, piv = ?
     req[in]  8.2: AAD(RID/piv(msg)) + AEAD(RID/piv(msg))         4.02                 4.02
-    res[in]  8:4: AAD(SID/piv(req)) + AEAD(SID/piv(req))         4.02                 AAD(SID/piv(req)) + AEAD(SID/piv(req))
+    res[in]  8:4: AAD(SID/piv(req)) + AEAD(RID/piv(msg))         4.02                 AAD(SID/piv(req)) + AEAD(SID/piv(req))
 
 
     req[in]
@@ -297,20 +306,19 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   uint8_t nonce_piv_len = 0;
   uint8_t* nonce_kid = NULL;
   uint8_t nonce_kid_len = 0;
-  
+
+  #ifdef OC_REQUEST_HISTORY
+  // a check here removes unnecessary decryption and a throw later in coap layer
+  if (oc_coap_check_if_duplicate_and_if_not_add_to_history(oscore_pkt, &msg->endpoint))
+  {
+    // ignore duplicate request
+    oc_message_unref(msg);
+    return -1;
+  }
+  #endif
+
   if (is_inbound_request)
   { // 8.2
-    
-    /*
-     check duplication on incoming UDP messages in OSCORE layer, even that it is checked later in coap, 
-     (for non OSCORE messages) a check here removes unnecessary decryption + a throw later in coap
-    */
-    if (oc_coap_check_if_duplicate_and_if_not_add_to_history(oscore_pkt, &msg->endpoint))
-    {
-      // ignore duplicate request
-      oc_message_unref(msg);
-      return -1;
-    }
 
     if (oscore_pkt->kid_len > 0)
     { // kid > 0
@@ -377,17 +385,12 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       }
 
       // use as kid (new or existing context) 
-      request_kid = oscore_ctx->recipient_id;
-      request_kid_len = oscore_ctx->recipient_id_len;
+      request_kid = nonce_kid = oscore_ctx->recipient_id;
+      request_kid_len = nonce_kid_len = oscore_ctx->recipient_id_len;
       
       // use piv from 'inbound' request
-      request_piv = oscore_pkt->piv;
-      request_piv_len = oscore_pkt->piv_len;
-
-      nonce_piv = request_piv;
-      nonce_piv_len = request_piv_len;
-      nonce_kid = request_kid;
-      nonce_kid_len = request_kid_len;
+      request_piv = nonce_piv = oscore_pkt->piv;
+      request_piv_len = nonce_piv_len = oscore_pkt->piv_len;
 
       if (oscore_pkt->piv_len > 0)
       { // // 8.2, step 4/5 : kid > 0, piv > 0 -> use kid/piv from response message
@@ -491,8 +494,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     { // kid_ctx != 10
 
       // find context from 'former' own request
-      oscore_ctx = oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len, oscore_pkt->mid,
-                                                       &request_piv, &request_piv_len, false);
+      oscore_ctx = 
+        oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len, oscore_pkt->mid, &request_piv, &request_piv_len, false);
       if (!oscore_ctx)
       {
         OC_ERR("response error (8.4 step 2), ignore silently, cannot find a matching oscore Request Sender Context from inbound response");
@@ -636,7 +639,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   {
     /*
        response + inner options problem = ignore
-       request +  problem with inner options  = return 4.02 secured (EITT test 5.10.5.3)
+       request + inner options problem = return 4.02 secured (EITT test 5.10.5.3)
     */
 
     if (is_inbound_request)
@@ -668,9 +671,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   // from here on the message is decrypted
   msg->endpoint.flags |= OSCORE_DECRYPTED;
 
-  OC_DBG("### serialized decrypted CoAP message to dispatch to the CoAP layer ### :");
+  OC_DBG("serialized decrypted CoAP message to dispatch to the CoAP layer : ");
   PRINTipaddr_flags(msg->endpoint);
-  OC_DBG("#################################");
+  OC_DBG("####### OSCORE END #######");
 
   // dispatch the (received and decrypted) message to the CoAP layer
   if (oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], msg) == OC_PROCESS_ERR_FULL)
@@ -873,15 +876,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // create local CoAP packet
   coap_packet_t coap_pkt[1];
 
-// parse outgoing message and copy to CoAP packet ... ('msg' may just be released, -> data may be NULL)
-#ifdef OC_TCP
+  // parse outgoing message and copy to CoAP packet ... ('msg' may just be released, -> data may be NULL)
+  #ifdef OC_TCP
   if (from_org_msg_cloned_outgoing_msg->endpoint.flags & TCP)
     coap_status_t code = coap_tcp_parse_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data,
                                                 (uint32_t)from_org_msg_cloned_outgoing_msg->length);
   else
-#endif
-    coap_status_t code =
-      coap_parse_udp_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, from_org_msg_cloned_outgoing_msg->length);
+  #endif
+  coap_status_t code = coap_parse_udp_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data, from_org_msg_cloned_outgoing_msg->length);
 
   if (code != COAP_NO_ERROR)
   {

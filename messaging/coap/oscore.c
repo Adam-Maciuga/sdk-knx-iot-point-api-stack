@@ -400,20 +400,23 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
 }
 
 // checks message header to find the CoAP OSCORE option header
-bool oscore_is_oscore_message(oc_message_t* msg) {
+bool oscore_is_oscore_message(oc_message_t* msg)
+{
   const uint8_t* current_option = NULL;
 
   // determine exact location of the CoAP options in the packet buffer
   #ifdef OC_TCP
-  if (msg->endpoint.flags & TCP) {
+  if (msg->endpoint.flags & TCP)
+  {
     // Calculate CoAP_TCP header length
     size_t message_length = 0;
     uint8_t num_extended_length_bytes = 0;
     coap_tcp_parse_message_length(msg->data, &message_length, &num_extended_length_bytes);
 
     current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
-  } else
-  #endif 
+  }
+  else
+  #endif
   {
     // header position for UDP 
     current_option = msg->data + COAP_HEADER_LEN;
@@ -426,7 +429,7 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
   // parse outer options, first option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
   unsigned int option_number = 0;
 
-  while (current_option < msg->data + msg->length) 
+  while (current_option < msg->data + msg->length)
   {
     if ((current_option[0] & 0xF0) == 0xF0)
     {
@@ -434,9 +437,8 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
       break;
     }
 
-    // option = previous option number + delta (number is not used directly)
+    // option = previous option number + delta (number is not used directly), examples:
     //
-    // Examples:
     // (13): option = 0, option += delta (13); option += option[next 1 byte] (7)
     // -> option = 20
     // Note: The delta 7 is 20 - 13, see RFC
@@ -447,18 +449,21 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
 
     // first option fields
     unsigned int option_delta = current_option[0] >> 4; // 0..14
-    size_t option_length = current_option[0] & 0x0F;    // 0..14
+    size_t option_length = current_option[0] & 0x0F; // 0..14
 
     // skip the current option field as such
     current_option++;
 
-    if (option_delta == 13) {
+    if (option_delta == 13)
+    {
       // extended options, add 8-bit number from next option byte
       option_delta += current_option[0];
 
       // jump to next byte
       current_option++;
-    } else if (option_delta == 14) {
+    }
+    else if (option_delta == 14)
+    {
       // extended options, 
       option_delta += 255; // add always 255 = 269 - 14
 
@@ -472,11 +477,14 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
       current_option++;
     }
 
-    if (option_length == 13) {
+    if (option_length == 13)
+    {
       // see above
       option_length += current_option[0];
       current_option++;
-    } else if (option_length == 14) {
+    }
+    else if (option_length == 14)
+    {
       // see above
       option_length += 255;
       option_length += current_option[0] << 8;
@@ -489,10 +497,10 @@ bool oscore_is_oscore_message(oc_message_t* msg) {
 
     option_number += option_delta;
 
-    if (option_number == COAP_OPTION_OSCORE) 
+    if (option_number == COAP_OPTION_OSCORE)
     {
       // found the OSCORE option, return success
-      return true; 
+      return true;
     }
 
     // jump to next byte after option 

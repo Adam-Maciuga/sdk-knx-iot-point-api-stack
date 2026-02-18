@@ -258,24 +258,33 @@ void print_coap_service(uint8_t code, char* text);
 void coap_send_message(oc_message_t* message);
 
 /*
-* @brief  parses *data pointer and assigns it to the coap packet (read the notes)
+* @brief parses *data pointer and assigns it to the coap packet (read the notes)
 *
-* @param  outer parses from *data Class U options, if found 
+* @param accept_outer_options parses from *data Class U options, if found 
 *          : TRUE = store them in coap *packet 
 *          : FALSE = return 4.02
-* @param  inner parses from *data Class E options, if found 
+* @param accept_inner_options parses from *data Class E options, if found 
 *          : TRUE = store them in coap *packet 
 *          : FALSE = return 4.02
-* @param  oscore parses from *data OSCORE options, if found 
+* @param accept_oscore_option parses from *data OSCORE options, if found 
 *          : TRUE = store them in coap *packet 
 *          : FALSE = return 4.02
 *
 * @note   used combinations: 
-*         inner | outer | oscore | used by method        |comment
-*         true  | true  | false  | parse udp
-*         true  | false | true   | parse inner           | 
-*         false | true  | true   | parse outer
+*         inner | outer | oscore | used by method    | comment
+*         true  | true  | false  | parse udp         | *
+*         true  | false | false  | parse inner       | **
+*         false | true  | true   | parse outer       | ***
 *
+*   *** parse outer options by scanning the still 'decrypted' message, any present/found option not allowed to be 
+*       in outer options causes a 4.02
+*
+*   **  parse inner options by scanning the 'encrypted' message, any present/found option not allowed to be in 
+*       inner options causes a 4.02
+*
+*   *   parse inner + outer options by scanning the fully extracted 'decrypted' message, OSCORE option must be 
+*       already removed (otherwise 4.02)    
+*  
 *   - outer  = RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
 *   - inner  = RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object  
 *	  - oscore = OSCORE option data (kid, kid_context, piv)
@@ -284,8 +293,8 @@ void coap_send_message(oc_message_t* message);
 *       
 */
 coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
-        uint32_t data_len, uint8_t* current_option, bool inner,
-        bool outer, bool oscore);
+                                        uint32_t data_len, uint8_t* current_options, bool accept_inner_options,
+                                        bool accept_outer_options, bool accept_oscore_option);
 
 /**
  *

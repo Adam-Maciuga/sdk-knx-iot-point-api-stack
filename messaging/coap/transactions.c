@@ -119,14 +119,20 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
 
   if (t)
   {
+    /* 
+      copy ALWAYS the message for possible 'unicast echo re-request' retransmits within 
+      the timeout for s-mode messages of:
+      CON: uc 
+      NON: uc / mc (default) 
+    */
+
+    t->message->length = s_mode_message->length;
+    // memcpy can handle '0' bytes, so no extra check
+    memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
+    
     if (is_non_confirmable_s_mode_message)
     {
       t->is_non_confirmable_smode_msg = true;
-
-      // copy the message as such, needed for possible 'unicast echo re-request' retransmits within the timeout
-      t->message->length = s_mode_message->length;
-      // memcpy can handle '0' bytes, so no extra check
-      memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
 
       // init ~ 5s timeout
       t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;

@@ -3004,11 +3004,11 @@ void oc_init_datapoints_at_initialization(void)
           
         (b)
           it must be checked for the sending ga, it may be that the current GO entry is not that one that has the ga in position '0'
-          1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href
+          1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href (note MaC ETS does not split entries)
           2. test again the INIT flag, it may be that the (other) found GO entry does not have it -> would be MaC configuration error
       */
-      // TODO on b.1 : in case of 2...n GO entries with same href its send 2...n-time
-      // TODO spread the init over a time period of x seconds 
+      // TODO Low Priority -> b.1, in case of 2...n GO entries with same href its send 2...n-time the read   
+      // TODO Hi Priority -> spread the init over a time period of x seconds 
       
       oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
       if (go_entry && go_entry->cflags & OC_CFLAG_INIT)
@@ -3031,8 +3031,7 @@ void oc_init_datapoints_at_initialization(void)
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-            oc_send_s_mode_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
-                                                             sending_ga, 'r', NULL, 0);
+            oc_send_s_mode_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid, sending_ga, 'r', NULL, 0);
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)

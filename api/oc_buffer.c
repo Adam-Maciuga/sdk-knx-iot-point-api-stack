@@ -58,13 +58,20 @@ static oc_message_t* allocate_message(struct oc_memb* pool) {
 #if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
     OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));
 #endif 
-  } else {
-    // No unused buffers, so go through buffers with soft references and
-    // free one (with the lowest ref count 1). Said buffer can no longer be
-    // used for e.g. retransmitting requests when challenged with an Echo option.
-    // - However, freeing up one of these means that it can no longer be used for
-    //   its original purpose.
-    // - Additionally an auto release method must be defined for the message itself.
+  } 
+  else 
+  {
+    
+    /*
+     No unused buffers, so go through buffers with soft references and
+     free one (with the lowest ref count 1). Said buffer can no longer be
+     used for e.g. retransmitting requests when challenged with an Echo option.
+
+     - However, freeing up one of these means that it can no longer be used for
+       its original purpose.
+     - Additionally an auto release method must be defined for the message itself.
+    
+    */
 
     for (int i = 0; i < pool->num; i++) {
       const int offset = pool->size * i;
@@ -139,10 +146,11 @@ void oc_receive_message(oc_message_t* message) {
   }
 }
 
-void oc_send_message(oc_message_t* message) {
+void oc_send_message(oc_message_t* message) 
+{
   // forward message (any type such as plain/ secured, CON/NON request, ... )
-	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT],	
-          message) == OC_PROCESS_ERR_FULL) {
+	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
+  {
 		OC_ERR("oc_send_message ref_count decrease due to FULL");
 		message->ref_count--;
 	}
