@@ -383,7 +383,7 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
   coap_pkt->buffer = data;
 
   // code
-  coap_pkt->code = data[0];
+  coap_pkt->code = data[0]; // TODO AH why [0]
   uint8_t* current_option = &data[1];
 
   #ifdef OC_DEBUG

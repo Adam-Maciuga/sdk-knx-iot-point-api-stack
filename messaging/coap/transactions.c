@@ -154,8 +154,10 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
 // - NON-confirmable : send + clear the transaction afterward (it is a one time fire and forget send out)
 // - NON-confirmable : s-mode send + NOT clear the transaction afterward (runs into timeout)
 // - CON-confirmable : send + MAY clear afterward the transaction if all reps are done (it is an n- time fire and forget send out)
-void coap_send_transaction(coap_transaction_t *t) {
-  if (!oc_main_initialized()) {
+void coap_send_transaction(coap_transaction_t *t) 
+{
+  if (!oc_main_initialized()) 
+  {
     return;
   }
 

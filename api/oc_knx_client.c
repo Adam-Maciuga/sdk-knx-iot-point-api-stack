@@ -88,7 +88,9 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   // (b) - not resolved, next (re)tries
   //       (1) timed out : simply use the existing callback + refresh coap token/mid, resend discovery
   //       (2) not timed out : wait for timeout before sending a next discovery, 
-  //           also a permanent try to send inside the timeout will not send a next discovery (debouncing)  
+  //           also a permanent try to send inside the timeout will not send a next discovery (debouncing) 
+
+  // TODO AH how to re-resolve when not getting any answer later with a resolved IP 
 
   if (recipient->ipv6_res.resolve_status != OC_IP_STATUS_RESOLVED) 
   {

@@ -1028,8 +1028,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                       2. KNX device with ia 1234 -> IoT Router with ia 5678 -> IoT device with ia 2345 AND RCP table entry with 
                          sia 5678 (from IoT Router) = IPV6 NOT 'resolved' (the IoT device sees the KNX device ia 1234, 
                          not the 5678 from the IoT Router) 
-                    */
 
+                      TODO // also the recipient iid is compared the device iid (= same project)
+                    */
                     
                     if (received_notification.sia == (uint32_t)recipient->ia)
                     {// 1
