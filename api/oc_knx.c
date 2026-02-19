@@ -1024,12 +1024,13 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                      
                       A unicast read request usually results in a unicast read response, the unicast sender IPv6 is known at this point.
                       For the inbound 'sia' check the RCP table entry if it is the same 'sia' as from inbound request, 
-                         1. IoT device with ia 1234 -> IoT device with ia 2345 AND RCP table entry with sia 1234 = IPV6 'resolved'
-                         2. KNX device with ia 1234 -> IoT Router with ia 5678 -> IoT device with ia 2345 AND RCP table entry with sia 5678 = NOT IPV6 'resolved' 
-                            (the receiving IoT device sees the KNX device ia 1234, not that from IoT Router) 
+                      1. IoT device with ia 1234 -> IoT device with ia 2345 AND RCP table entry with sia 1234 = IPV6 'resolved'
+                      2. KNX device with ia 1234 -> IoT Router with ia 5678 -> IoT device with ia 2345 AND RCP table entry with 
+                         sia 5678 (from IoT Router) = IPV6 NOT 'resolved' (the IoT device sees the KNX device ia 1234, 
+                         not the 5678 from the IoT Router) 
                     */
 
-                    /*
+                    
                     if (received_notification.sia == (uint32_t)recipient->ia)
                     {// 1
 
@@ -1041,7 +1042,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                       recipient->ipv6_adr.port = new_request.origin->addr.ipv6.port;
                       recipient->ipv6_adr.interface_index = new_request.origin->interface_index;
                     }
-                    */
+                    
                     
                     oc_send_s_mode_unicast_message(sending_ga, 'a', 
                                                    new_request.response->response_buffer->buffer,
