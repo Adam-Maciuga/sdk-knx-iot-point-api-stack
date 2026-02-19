@@ -264,7 +264,7 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
   {
     if (t->mid == mid) 
     {
-      OC_DBG("found transaction for MID %u", t->mid);
+      OC_DBG("found coap transaction for MID %u", t->mid);
       return t;
     }
   }
@@ -279,7 +279,7 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   {
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
     {
-      OC_DBG("found transaction for token %p and flags %i", (void *)t, t->message->endpoint.flags);
+      OC_DBG("found coap transaction for token %p and flags %i", (void *)t, t->message->endpoint.flags);
       return t;
     }
   }
@@ -287,18 +287,39 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   return NULL;
 }
 
-coap_transaction_t* coap_and_smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+coap_transaction_t* coap_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
 {
-  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t ; t = t->next)
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); 
+       t && !t->is_non_confirmable_smode_msg; t = t->next)
   {
     if (t->mid == mid)
     {
-      OC_DBG("found transaction by mid, flags %i", t->message->endpoint.flags);
+      OC_DBG("found coap transaction for mid, flags %i", t->message->endpoint.flags);
       return t;
     }
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0)
     {
-      OC_DBG("found transaction by token, flags %i", t->message->endpoint.flags);
+      OC_DBG("found coap transaction for token, flags %i", t->message->endpoint.flags);
+      return t;
+    }
+  }
+
+  return NULL;
+}
+
+coap_transaction_t* smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+{
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); 
+       t && t->is_non_confirmable_smode_msg; t = t->next)
+  {
+    if (t->mid == mid)
+    {
+      OC_DBG("found s-mode transaction for mid, flags %i", t->message->endpoint.flags);
+      return t;
+    }
+    if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0)
+    {
+      OC_DBG("found s-mode transaction for token, flags %i", t->message->endpoint.flags);
       return t;
     }
   }

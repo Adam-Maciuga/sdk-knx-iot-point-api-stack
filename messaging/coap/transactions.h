@@ -99,13 +99,20 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
 
 void coap_send_transaction(coap_transaction_t *t);
 void coap_clear_transaction(coap_transaction_t *t);
+
+// returns coap transactions
 coap_transaction_t *coap_get_transaction_by_mid(uint16_t mid);
   
-// note, returns also a non-null transaction if both token len's are '0';
+// returns coap transactions, note, returns also a non-null transaction if both token len's are '0';
 coap_transaction_t *coap_get_transaction_by_token(uint8_t *token, uint8_t token_len);
 
-// returns ALL transactions (coap + NON s-mode), checks first mid then token, note, returns also a non-null transaction if both token len's are '0';
-coap_transaction_t* coap_and_smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len);
+// returns coap transactions, checks first mid then token, note, returns also a non-null transaction if both token len's are '0';
+coap_transaction_t* coap_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len);
+
+// returns s-mode transactions, checks first mid then token, note, returns also a non-null transaction if both token len's are '0';
+coap_transaction_t* smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len);
+
+
   
 void coap_check_transactions(void);
 void coap_free_all_transactions(void);
