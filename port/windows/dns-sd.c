@@ -76,10 +76,18 @@ int knx_publish_service(char* serial_no, uint64_t iid, uint16_t ia, bool pm)
   
   // build command line: dns-sd -R <Name> <Type> <Domain> <Port> [<TXT>...]
   char cmdline[512];
-  (void)snprintf(cmdline, sizeof(cmdline), 
-                 "dns-sd -R \"%s\" \"%s\" \"local\" \"%s\" \"%s\"", 
-                 serial_no, subtypes, port_str, sp_text_record);
-  
+  #ifdef USE_INCLUDED_DNS_SD
+    (void)snprintf(cmdline, sizeof(cmdline),
+            "\"%s\" -R \"%s\" \"%s\" \"local\" \"%s\" \"%s\"",
+            DNSSD_SHARP_EXE,
+            serial_no, subtypes, port_str, sp_text_record);
+  #else
+
+    (void)snprintf(cmdline, sizeof(cmdline), 
+                  "dns-sd -R \"%s\" \"%s\" \"local\" \"%s\" \"%s\"", 
+                  serial_no, subtypes, port_str, sp_text_record);
+  #endif
+
   // set creation flags based on console preference
   #ifndef USE_CONSOLE
     DWORD creation_flags = CREATE_NO_WINDOW;    // Hide console window
