@@ -43,7 +43,7 @@ set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this 
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 
 ##Use included DNS-SD library (dns_sd_sharp) for the virtual DEMO applications, set to OFF to use the system provided one (e.g. on Linux).
-set(USE_INCLUDED_DNS_SD ON CACHE BOOL "Use included DNS-SD library (dns_sd_sharp) for the virtual DEMO applications, set to OFF to use the system provided one (e.g. on Linux).")
+set(USE_INCLUDED_DNS_SD OFF CACHE BOOL "Use included DNS-SD library (dns_sd_sharp) for the virtual DEMO applications, set to OFF to use the system provided one (e.g. on Linux).")
 
 ## External Libraries
 # TinyCBOR
