@@ -10,6 +10,11 @@ out.*
 # VS setting files
 .vs
 
+# Demo Apps
+apps/hems/client/knxiotclient/venv
+apps/dns-sd/bin
+apps/dns-sd/obj
+
 # CMake
 CMakeUserPresets.json
 
@@ -31,14 +36,9 @@ __pycache__/
 deps/**
 !deps/CMakeLists.txt
 
-#Included dns-sd build artifacts
-apps/dns-sd/obj/
-
-
 # EITT test configuration files 
-/tests/eitt/**
+tests/eitt/**
 
 # GitHub files
 .github
-docs/IPv6_Resolution_Implementation_Summary.md
-/apps/hems/client/knxiotclient/venv
+
