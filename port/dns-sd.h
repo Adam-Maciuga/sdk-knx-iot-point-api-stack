@@ -69,6 +69,13 @@ void knx_service_sleep_period(int sp);
  */
 uint16_t knx_get_used_port(void);
 
+/**
+ * @brief Stop the mDNS service: send goodbye, stop listener thread, close sockets.
+ *
+ * Call this during application shutdown (e.g. from oc_main_shutdown).
+ */
+void knx_stop_mdns(void);
+
 
 #ifdef __cplusplus
 }

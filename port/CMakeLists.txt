@@ -25,7 +25,7 @@ endif()
 target_sources(kis-port PUBLIC
     ${PORT_DIR}/abort.c
     ${PORT_DIR}/clock.c
-    ${PORT_DIR}/dns-sd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/dns-sd.c
     ${PORT_DIR}/ipadapter.c
     ${PORT_DIR}/oc_network_interface.c
     ${PORT_DIR}/random.c
@@ -34,6 +34,11 @@ target_sources(kis-port PUBLIC
 )
 
 target_include_directories(kis-port PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd.c)
+target_include_directories(kis-port PRIVATE ${PORT_DIR})
+# mDNS header-only library (deps/mdns/mdns.h) — PUBLIC because dns-sd.c is a PUBLIC source
+# that gets compiled by targets linking to kis-port
+target_include_directories(kis-port PUBLIC ${PROJECT_SOURCE_DIR}/deps/mdns)
 
 ## KNX-IoT Stack - Platform Port Options ##
 target_link_libraries(kis-port PUBLIC kis-common)
