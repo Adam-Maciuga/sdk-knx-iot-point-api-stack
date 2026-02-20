@@ -11,6 +11,7 @@
 #include "oc_config.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
+#include "port/oc_network_interface.h"
 #include "port/dns-sd.h"
 #include "util/oc_etimer.h"
 #include "util/oc_process.h"
@@ -318,6 +319,11 @@ int oc_main_init(const oc_handler_t* handler)
   oc_init_datapoints_at_initialization();
   #endif
 
+  /* Synchronously populate the endpoint list so the mDNS announcement
+     can include AAAA records.  oc_connectivity_init() only starts the
+     network thread; the endpoints are not yet enumerated at this point. */
+  oc_network_refresh_endpoints();
+
   PRINT("Re-register mDNS after a stack initialization)");
   const oc_device_info_t* const  device = oc_core_get_device_info();
   knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
@@ -342,6 +348,9 @@ void oc_main_shutdown(void)
     return;
 
   initialized = false;
+
+  /* Stop mDNS (goodbye + listener thread) before tearing down networking */
+  knx_stop_mdns();
 
   oc_ri_shutdown();
 
