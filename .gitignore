@@ -31,9 +31,6 @@ __pycache__/
 deps/**
 !deps/CMakeLists.txt
 
-#Included dns-sd build artifacts
-apps/dns-sd/obj/
-
 
 # EITT test configuration files 
 /tests/eitt/**
