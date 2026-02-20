@@ -719,9 +719,11 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
    * Dispatch oc_message_t to IP layer
    */
 
+  
+  OC_DBG_OSCORE("process outbound multicast OSCORE message");
+  
   // get sending ga
   const uint32_t group_address = msg->endpoint.group_address;
-  OC_DBG_OSCORE("### process outbound multicast OSCORE message with ga : %04X ###", group_address);
 
   /*
     find Sender Context (SID) for sending ga, in case
@@ -854,10 +856,9 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 */
 static int oc_oscore_send_unicast_message(oc_message_t* msg)
 {
-  OC_DBG_OSCORE("### process outbound unicast OSCORE message ###");
+  OC_DBG_OSCORE("process outbound unicast OSCORE message");
 
-  // get new msg since after sending it will be released, the original message may be still needed for reps (if tracked or
-  // CON)
+  // new msg, send and release after sending -> the original message may be still needed for reps (tracked or CON messages)
   oc_message_t* from_org_msg_cloned_outgoing_msg = oc_internal_allocate_outgoing_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {
@@ -1220,7 +1221,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     // here requests and responses end up
 
-    // move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE to accommodate for Outer+Inner CoAP options in the OSCORE packet
+    // make room for inner options and payload by moving CoAP payload to offset 2*COAP_MAX_HEADER_SIZE 
+    // to accommodate for Outer+Inner CoAP options in the OSCORE packet
     if (coap_pkt->payload_len > 0)
     {
       memmove(from_org_msg_cloned_outgoing_msg->data + 2 * COAP_MAX_HEADER_SIZE, coap_pkt->payload, coap_pkt->payload_len);

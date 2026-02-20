@@ -360,15 +360,20 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
   return option_length + header_length;
 }
 
-size_t oscore_serialize_plaintext(void* packet, uint8_t* buffer) {
+size_t oscore_serialize_plaintext(void* packet, uint8_t* buffer) 
+{
   return coap_oscore_serialize_message(packet, buffer, true, false, true);
 }
 
-size_t oscore_serialize_message(void* packet, uint8_t* buffer) {
+// a message is serialized by adding outer options AND the OSCORE option
+size_t oscore_serialize_message(void* packet, uint8_t* buffer) 
+{
   return coap_oscore_serialize_message(packet, buffer, false, true, true);
 }
 
-size_t coap_serialize_message(void* packet, uint8_t* buffer) {
+// a message is serialized by adding inner and outer options BUT not adding the OSCORE option
+size_t coap_serialize_message(void* packet, uint8_t* buffer) 
+{
   return coap_oscore_serialize_message(packet, buffer, true, true, false);
 }
 
