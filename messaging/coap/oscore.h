@@ -51,6 +51,7 @@ extern "C"
 
   coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet);
 
+  // a message is serialized by adding outer options AND the OSCORE option
   size_t oscore_serialize_message(void* packet, uint8_t* buffer);
 
   size_t oscore_serialize_plaintext(void* packet, uint8_t* buffer);

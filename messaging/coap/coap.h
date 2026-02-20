@@ -235,19 +235,25 @@ typedef struct {
 /** stores error code */
 extern coap_status_t coap_status_code;
 
-/** stores human-readable payload */
-extern char* coap_error_message;
-
 void coap_init_connection(void);
 uint16_t coap_get_next_mid(void);
 
-void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
-        uint16_t mid);
+void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code, uint16_t mid);
+
+// a message is serialized by adding inner and outer options BUT not adding the OSCORE option
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
-size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner,
-        bool outer, bool oscore);
-  
-  
+
+/**
+* @brief serializes a message to a OSCORE message
+*
+*  @note
+*  - inner  = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
+*  - outer  = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
+*	- oscore = true: add OSCORE option data (kid, kid_context, piv)
+*
+*/
+size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore);
+
 void print_coap_service(uint8_t code, char* text);
 
 /*

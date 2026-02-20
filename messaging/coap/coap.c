@@ -1100,15 +1100,6 @@ static void coap_udp_set_header_fields(void* packet)
   coap_pkt->buffer[3] = (uint8_t) coap_pkt->mid;
 }
 
-/**
- * @brief serializes a message to a OSCORE message
- *
- *  @note 
- *  - inner  = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
- *  - outer  = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
- *	- oscore = true: add OSCORE option data (kid, kid_context, piv)
- *
- */
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore) 
 {
   if (!packet || !buffer) 

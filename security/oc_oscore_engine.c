@@ -775,8 +775,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     
 
     // compute nonce using PIV and 'kid'
-    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
-                         OSCORE_AEAD_NONCE_LEN);
+    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
     OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID :\t ");
     OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
@@ -798,7 +797,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // serialize OSCORE plain text at offset COAP_MAX_HEADER_SIZE (code, inner options, payload)
     const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, msg->data + COAP_MAX_HEADER_SIZE);
 
-    OC_DBG_OSCORE("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
+    OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
 
     // set the OSCORE packet payload to point to location of the serialized inner message
     coap_pkt->payload = msg->data + COAP_MAX_HEADER_SIZE;
@@ -814,7 +813,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
       return -1;
     }
 
-    OC_DBG_OSCORE("decrypting OSCORE payload : success (0)");
+    OC_DBG("decrypting OSCORE payload : success (0)");
 
     // adjust payload length to include the size of the authentication tag
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
@@ -831,7 +830,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     // serialize OSCORE message
     msg->length = oscore_serialize_message(coap_pkt, msg->data);
-    OC_DBG_OSCORE("serialized OSCORE message");
+    OC_DBG("serialized OSCORE message");
   }
   else
   {
@@ -839,6 +838,9 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     oc_message_unref(msg);
     return -1;
   }
+
+  // from here on any message is encrypted ...
+  UNSET_BIT(msg->endpoint.flags, OSCORE_DECRYPTED);
 
   // dispatch DIRECTLY to IP layer (no message queue anymore, in contrast to unicast messages)
   oc_send_discovery_request(msg);
@@ -1134,14 +1136,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
                            OSCORE_AEAD_NONCE_LEN);
 
-      OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID : ");
+      OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID :\t ");
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 
 
       // compose AAD using partial IV and 'Sender ID'
       oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, aad, &aad_len);
 
-      OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID : ");
+      OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID :\t ");
       OC_LOGbytes_OSCORE(aad, aad_len);
 
 
@@ -1245,27 +1247,26 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     }
 
     // serialize OSCORE plaintext at offset COAP_MAX_HEADER_SIZE (code, inner options, payload)
-    size_t plaintext_size =
-      oscore_serialize_plaintext(coap_pkt, from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE);
+    size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE);
 
-    OC_DBG_OSCORE("### serializing OSCORE plaintext with %" PRIu64 " bytes ###", plaintext_size);
+    OC_DBG("### serializing OSCORE plaintext with %" PRIu64 " bytes ###", plaintext_size);
 
     // set the OSCORE packet payload to point to location of the serialized inner message
     coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
-    OC_DBG_OSCORE("### encrypting OSCORE plaintext ###");
+    OC_DBG("### encrypting OSCORE plaintext ###");
 
     int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN, nonce,
                                 OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
     if (ret != 0)
     {
-      OC_ERR("***error encrypting OSCORE plaintext***");
+      OC_ERR("decrypting OSCORE payload : error (%d), ignore message", ret);
       goto oscore_send_error;
     }
 
-    OC_DBG_OSCORE("### encrypted successfully OSCORE plaintext ###");
+    OC_DBG("decrypting OSCORE payload : success (0)");
 
     // adjust payload length to include the size of the authentication tag
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
@@ -1278,7 +1279,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     {
       coap_set_header_max_age(coap_pkt, 0);
     }
-
 
     // set the OSCORE option, note that checks below uses the original CoAP code, not the OUTER (see above)
     // TODO update according to changes above
@@ -1329,15 +1329,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     // serialize OSCORE message
     from_org_msg_cloned_outgoing_msg->length = oscore_serialize_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data);
-    OC_DBG_OSCORE("### OSCORE message serialized ###");
+    OC_DBG("serialized OSCORE message");
   }
 
   // from here on any message is encrypted ...
   UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
 
-oscore_send_dispatch:
+  oscore_send_dispatch:
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
   if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED],
                       from_org_msg_cloned_outgoing_msg) == OC_PROCESS_ERR_FULL)
   {
@@ -1345,7 +1345,7 @@ oscore_send_dispatch:
   }
 
   return 0;
-#endif
+  #endif
 
 #if defined(OC_CLIENT) && defined(KNX_TCP_TLS)
   OC_DBG_OSCORE("Outbound network event: forwarding to TLS");
