@@ -68,7 +68,41 @@ if(WIN32)
         endif()
     endif()
 endif()
-         
+
+
+if(WIN32 AND USE_INCLUDED_DNS_SD)
+    add_compile_definitions(USE_INCLUDED_DNS_SD)
+    ### Build dns-sd_sharp (.NET app) ###
+
+    # Source project directory (where dns-sd.csproj really is)
+    set(DNSSD_SHARP_SRC_DIR "${CMAKE_SOURCE_DIR}/apps/dns-sd")
+
+    # Publish output directory (inside build folder)
+    set(DNSSD_SHARP_DIR "${CMAKE_BINARY_DIR}/dns-sd")
+
+    # Full path to exe after publish
+    set(DNSSD_SHARP_EXE "${DNSSD_SHARP_DIR}/dns-sd_sharp.exe")
+
+    # Source project file
+    set(DOTNET_PROJECT "${DNSSD_SHARP_SRC_DIR}/dns-sd.csproj")
+
+    # Publish directory
+    set(DOTNET_PUBLISH_DIR "${DNSSD_SHARP_DIR}")
+
+    add_custom_target(dns_sd_sharp ALL
+        COMMAND dotnet publish "${DOTNET_PROJECT}"
+                -c Release
+                -r win-x64
+                --self-contained true
+                -p:PublishSingleFile=true
+                -p:IntermediateOutputPath=\"$ENV{TEMP}/dotnet_obj/\"
+                -p:BaseOutputPath=\"$ENV{TEMP}/dotnet_bin/\"
+                -o "${DOTNET_PUBLISH_DIR}"
+        WORKING_DIRECTORY "${DNSSD_SHARP_SRC_DIR}"
+        COMMENT "Publishing dns-sd .NET application"
+    )
+endif()
+
 ## GUI Executable Targets ##
 if(WIN32 OR UNIX)
     # EITT (GUI) (for certification)
@@ -150,4 +184,25 @@ if(WIN32 OR UNIX)
     target_link_libraries(charger_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
     target_link_libraries(cem_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
     target_link_libraries(inverter_virtual_gui ${wxWidgets_LIBRARIES} kisClientServer)
+
+    if(WIN32 AND USE_INCLUDED_DNS_SD)
+        # List all GUI apps
+        set(GUI_APPS
+            lssb_virtual_gui
+            lsab_virtual_gui
+            eitt_virtual_gui
+            charger_virtual_gui
+            cem_virtual_gui
+            inverter_virtual_gui
+        )
+
+        # Add dependency for all apps in this list
+        foreach(app ${GUI_APPS})
+            add_dependencies(${app} dns_sd_sharp)
+            target_compile_definitions(${app}
+                PRIVATE DNSSD_SHARP_EXE="${DNSSD_SHARP_DIR}/dns-sd.exe"
+            )
+        endforeach()
+    endif()
+
 endif()
