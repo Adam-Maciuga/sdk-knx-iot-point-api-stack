@@ -177,35 +177,39 @@ int coap_get_header_oscore(void* packet, uint8_t** piv, uint8_t* piv_len,
   return 1;
 }
 
-int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len,
-        uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) {
+int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len, uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t *)packet;
 
   // sets 'nnn' from 000|h|k|nnn flags (also kid length of 0!)
   coap_pkt->oscore_flags = piv_len & 0x07;
 
   // PIV
-  if (piv_len > 0) {
+  if (piv_len > 0) 
+  {
     memcpy(coap_pkt->piv, piv, piv_len);
     coap_pkt->piv_len = piv_len;
   }
 
-  // TODO even for a kid length of 0 it might need to be the case that the flag is set, so do always
+  // TODO AH even for a kid length of 0 it might need to be the case that the flag is set, so do always
   // set on a request (always)
   // set on a response (4.01) witch echo challenge included and kid included 
-  if (coap_pkt->code <= OC_FETCH || (coap_pkt->code > OC_FETCH && coap_pkt->echo_len > 0 && kid_len > 0)) {
+  if (coap_pkt->code <= OC_FETCH || (coap_pkt->code > OC_FETCH && coap_pkt->echo_len > 0 && kid_len > 0))
+  {
     // sets 'k' from 000|h|k|nnn flags 
     coap_pkt->oscore_flags |= 1 << OSCORE_FLAGS_BIT_KID_POSITION;
   }
 
   // kid 
-  if (kid_len > 0) {
+  if (kid_len > 0) 
+  {
     memcpy(coap_pkt->kid, kid, kid_len);
     coap_pkt->kid_len = kid_len;
   }
 
   // kid context
-  if (kid_ctx_len > 0) {
+  if (kid_ctx_len > 0) 
+  {
     memcpy(coap_pkt->kid_ctx, kid_ctx, kid_ctx_len);
     coap_pkt->kid_ctx_len = kid_ctx_len;
 

@@ -739,6 +739,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // use sender key for encryption
     uint8_t* key = oscore_ctx->sender_key;
 
+    // create local CoAP packet
     coap_packet_t coap_pkt[1];
     const coap_status_t code = coap_parse_udp_message(coap_pkt, msg->data, msg->length);
 
@@ -758,7 +759,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     OC_DBG_OSCORE("### protecting multicast request ###");
 
-    // store ssn as PIV
+    // request - use context SSN as Partial IV
     oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
     /*
@@ -768,9 +769,10 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     increment_ssn_in_context(oscore_ctx);
 
-    // add 'kid'
-    memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    // use 'Sender ID' as kid
     kid_len = oscore_ctx->sender_id_len;
+    memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    
 
     // compute nonce using PIV and 'kid'
     oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
