@@ -20,11 +20,12 @@
 #include <inttypes.h>
 #include <errno.h>
 
-// Deferred callback to send CoAP discovery after the piggybacked ACK
-// This ensures the ACK is sent before the discovery request
-static oc_event_callback_retval_t deferred_coap_discovery_callback(void* data) {
+// deferred callback to send CoAP discovery after the piggybacked ACK, this ensures the ACK is sent before the discovery request
+static oc_event_callback_retval_t deferred_coap_discovery_callback(void* data) 
+{
   oc_group_table_t* recipient = (oc_group_table_t*)data;
-  if (recipient) {
+  if (recipient) 
+  {
     knx_resolve_via_coap_discovery(recipient);
   }
   return OC_EVENT_DONE;
@@ -110,10 +111,10 @@ int oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
     recipient->ipv6_res.group_object = group_object;
     recipient->ipv6_res.service_type = service_type;
     
-    // Defer discovery to ensure piggybacked ACK is sent BEFORE the discovery request
+    // defer discovery to ensure piggybacked ACK is sent BEFORE the discovery request
     oc_set_delayed_callback_ms(recipient, deferred_coap_discovery_callback, 10);
 
-    OC_INF("Cannot send unicast: resolver is (still) pending for GA %u", group_address);
+    OC_INF("cannot send unicast: resolver is (still) pending for GA %u", group_address);
     return -1;
   }
 

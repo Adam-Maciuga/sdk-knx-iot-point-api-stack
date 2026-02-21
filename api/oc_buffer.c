@@ -139,9 +139,11 @@ void oc_message_unref(oc_message_t* message) {
   }
 }
 
-void oc_receive_message(oc_message_t* message) {
+void oc_receive_message(oc_message_t* message) 
+{
   if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT],
-          message) == OC_PROCESS_ERR_FULL) {
+          message) == OC_PROCESS_ERR_FULL) 
+  {
     oc_message_unref(message);
   }
 }
@@ -173,64 +175,75 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
     {
       OC_PROCESS_YIELD();
 
+      oc_message_t* message = (oc_message_t*)data;
+
       if (ev == oc_events[INBOUND_NETWORK_EVENT])
       {
         // inbound
-        if (oscore_is_oscore_message(data))
+        if (oscore_is_oscore_message(message))
         {
           // here a plain message is checked for OSCORE header and in case of it is sent to the OSCORE layer
-          OC_DBG_OSCORE("Inbound network event: OSCORE message (request or response)");
+          OC_DBG("Inbound OSCORE message, forwarding to OSCORE layer");
           oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT], data);
         }
         else
         {
-          OC_DBG_OSCORE("Inbound network event: original plain - or beforehand decrypted - message (request or response)");
+          OC_DBG("Inbound plain message, forwarding to CoAP layer");
           oc_process_post(&coap_engine, oc_events[INBOUND_RI_EVENT], data);
         }
       }
       else if (ev == oc_events[OUTBOUND_NETWORK_EVENT])
       {
-        // outbound
-        oc_message_t* message = (oc_message_t*)data;
-
-        // 1. handle OSCORE (mc/uc) s-mode messages first, encrypt the outgoing message before sending it (pass to OSCORE)
+        // 1. handle OSCORE (mc/uc) s-mode messages first, encrypt the outgoing message before sending it (pass to OSCORE layer)
         // 2. handle PLAIN (multicast) discovery messages as a second step
         if (message->endpoint.flags & OSCORE)
         {
           if (message->endpoint.flags & MULTICAST)
           {
             // multicast
-            OC_DBG_OSCORE("Outbound network event: secure multicast message (request), forwarding to OSCORE layer");
+            OC_DBG("Outbound plain multicast message, forwarding to OSCORE layer");
             oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_MC_OSCORE_EVENT], data);
           }
           else
           {
             // unicast
-            OC_DBG_OSCORE("Outbound network event: secure unicast message (request or response), forwarding to OSCORE layer");
+            OC_DBG("Outbound plain unicast message, forwarding to OSCORE layer");
             oc_process_post(&oc_oscore_handler, oc_events[OUTBOUND_UC_OSCORE_EVENT], data);
           }
         }
         else if (message->endpoint.flags & DISCOVERY)
         {
-          OC_DBG("Outbound network event: plain discovery request");
+          OC_DBG("Outbound plain discovery request, forwarding to IP layer");
           oc_endpoint_print(&message->endpoint);
           oc_send_discovery_request(message);
           oc_message_unref(message);
         }
         else
         {
-          OC_DBG("Outbound network event: plain unicast message");
-          oc_message_t* type_cast_message = (oc_message_t*)data;
-          oc_send_buffer(type_cast_message);
-          oc_message_unref(type_cast_message);
+          OC_DBG("Outbound plain unicast message, forwarding to IP layer");
+          oc_send_buffer(message);
+          oc_message_unref(message);
         }
       }
       else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED])
       {
-        OC_DBG("Outbound network event: secure unicast message (request or response), received from OSCORE layer");
-        oc_message_t* type_cast_message = (oc_message_t*)data;
-        oc_send_buffer(type_cast_message);
-        oc_message_unref(type_cast_message);
+        // 1. handle OSCORE (mc/uc) s-mode messages first, outgoing message are encrypted (received from OSCORE layer)
+       
+        if (message->endpoint.flags & OSCORE)
+        {
+          if (message->endpoint.flags & MULTICAST)
+          {
+            OC_DBG("Outbound OSCORE multicast message, forwarding to IP layer");
+            oc_send_discovery_request(message);
+            oc_message_unref(message);
+          }
+          else
+          {
+            OC_DBG("Outbound OSCORE unicast message, forwarding to IP layer");
+            oc_send_buffer(message);
+            oc_message_unref(message);
+          }
+        }
       }
     }
 
