@@ -124,15 +124,6 @@ struct oc_message_s
 int oc_send_buffer(oc_message_t *message);
 
 /**
- * @brief get buffer of a received message
- *
- * @param data pointer to data within a received message
- * @return oc_message_t* the buffer containing the data, or NULL if such a
- * buffer could not be found
- */
-oc_message_t *oc_get_incoming_message_with_ptr(uint8_t *data);
-
-/**
  * @brief set the default (unicast) CoAp port to another value
  *
  * Note: must be called before oc_connectivity_init

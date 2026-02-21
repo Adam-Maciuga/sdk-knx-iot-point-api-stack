@@ -94,45 +94,45 @@ static oc_message_t* allocate_message(struct oc_memb* pool) {
   return message;
 }
 
-oc_message_t* oc_allocate_message_from_pool(struct oc_memb* pool) {
-  if (pool) {
-    return allocate_message(pool);
-  }
-
-  return NULL;
-}
-
-void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb) {
+void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb) 
+{
   oc_memb_set_buffers_avail_cb(&oc_incoming_buffers, cb);
 }
 
-oc_message_t* oc_allocate_message(void) {
+oc_message_t* oc_allocate_message(void) 
+{
   return allocate_message(&oc_incoming_buffers);
 }
 
-oc_message_t* oc_internal_allocate_outgoing_message(void) {
+oc_message_t* oc_internal_allocate_outgoing_message(void) 
+{
   return allocate_message(&oc_outgoing_buffers);
 }
 
-void oc_message_add_ref(oc_message_t* message) {
-  if (message) {
+void oc_message_add_ref(oc_message_t* message) 
+{
+  if (message) 
+  {
     message->ref_count++;
   }
 }
 
-void oc_message_unref(oc_message_t* message) {
+void oc_message_unref(oc_message_t* message) 
+{
   if (message) 
   {
     message->ref_count--;
     if (message->ref_count == 0) {
-    #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
-      if (message->data) {
+      #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+      if (message->data) 
+      {
         free(message->data);
       }
-    #endif 
+      #endif 
 
       struct oc_memb* pool = message->pool;
-      if (pool) {
+      if (pool) 
+      {
         oc_memb_free(pool, message);
       }
     }
@@ -248,35 +248,4 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
     }
 
   OC_PROCESS_END()
-}
-
-oc_message_t* oc_get_incoming_message_with_ptr(uint8_t* data)
-{
-  struct oc_memb* pool = &oc_incoming_buffers;
-  for (int i = 0; i < pool->num; ++i) {
-    // unused block, should not contain data of a valid message
-    if (pool->count[i] <= 0) {
-      continue;
-    }
-
-    int offset = i * pool->size;
-    oc_message_t* msg = (oc_message_t*) ((char*) pool->mem + offset);
-
-    if (msg->data <= data && data < msg->data + msg->length) {
-      // data lies within msg, so we return it
-      return msg;
-    }
-  }
-
-  return NULL;
-}
-
-int oc_buffer_num_free_incoming(void)
-{
-  return oc_memb_numfree(&oc_incoming_buffers);
-}
-
-int oc_buffer_num_free_outgoing(void)
-{
-  return oc_memb_numfree(&oc_outgoing_buffers);
 }

@@ -1,5 +1,6 @@
 /*
 // Copyright (c) 2016 Intel Corporation
+// Copyright (c) 2024-2026 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +15,7 @@
 // limitations under the License.
 */
 /**
-  @brief CoAP message buffer implementation, e.g. for the payloads being
-  transferred
+  @brief CoAP message buffer implementation, e.g. for the payloads being transferred
   @file
 */
 #ifndef OC_BUFFER_H
@@ -45,14 +45,6 @@ oc_message_t *oc_allocate_message(void);
  * @param cb the callback
  */
 void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb);
-
-/**
- * @brief allocate message from specific memory pool
- *
- * @param pool the memory pool to use for allocation
- * @return oc_message_t* the message
- */
-oc_message_t *oc_allocate_message_from_pool(struct oc_memb *pool);
 
 /**
  * @brief allocate a message from message pool, allocate message 'data' 
@@ -94,22 +86,6 @@ void oc_receive_message(oc_message_t *message);
 void oc_send_message(oc_message_t *message);
 
 /**
- * @brief Get the number of incoming buffers. If this reaches zero, the KNX-IoT
- * stack will drop further received UDP messages
- *
- * @return int the number of buffers
- */
-int oc_buffer_num_free_incoming(void);
-
-/**
- * @brief Get the number of outgoing buffers. If this is zero and you attempt
- * to send out a message, it will be silently dropped
- *
- * @return int the number of buffers
- */
-int oc_buffer_num_free_outgoing(void);
-
-/**
  * @brief close all tls sessions
  *
  */
@@ -119,4 +95,4 @@ void oc_close_all_tls_sessions(void);
 }
 #endif
 
-#endif /* OC_BUFFER_H */
+#endif
