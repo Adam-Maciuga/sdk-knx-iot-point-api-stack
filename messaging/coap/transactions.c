@@ -165,13 +165,13 @@ void coap_send_transaction(coap_transaction_t *t)
   #endif
 
   const uint8_t type = (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION;
-  const bool confirmable = type == COAP_TYPE_CON;
-  const bool non_confirmable = type == COAP_TYPE_NON;
+  const bool confirmable_all_types = type == COAP_TYPE_CON;
+  const bool non_confirmable_smode = t->is_non_confirmable_smode_msg;
 
   #ifdef OC_TCP
   if (!(t->message->endpoint.flags & TCP) && confirmable) {
   #else 
-  if (confirmable) 
+  if (confirmable_all_types) 
   {
   #endif
 
@@ -223,7 +223,7 @@ void coap_send_transaction(coap_transaction_t *t)
       }
     }
   }
-  else if (t->is_non_confirmable_smode_msg)
+  else if (non_confirmable_smode)
   {
     if (t->retransmit_counter < 1)
     { // keep transaction + init timeout
