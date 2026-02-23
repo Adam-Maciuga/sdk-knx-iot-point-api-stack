@@ -61,7 +61,7 @@ extern "C" {
     ECHO_CAUSED_BY_MC_SRC = 1 << 9, // an echo request will be sent out, caused by inbound mc message (s-mode)
     ECHO_CAUSED_BY_UC_SRC = 1 << 10,// an echo request will be sent out, caused by inbound uc message (s-mode, others) 
     S_MODE_NON_REQUEST = 1 << 11,   // an own initiated (OSCORE) s-mode 'request' (non:uc/mc) message, allowed to be challenged with echo response
-    S_MODE_CON_REQUEST = 1 << 12,   // an own initiated (OSCORE) s-mode 'request' (con:mc) message, allowed to be challenged with echo response
+    S_MODE_CON_REQUEST = 1 << 12,   // an own initiated (OSCORE) s-mode 'request' (con:uc) message, allowed to be challenged with echo response
   } transport_flags_t;
 
 

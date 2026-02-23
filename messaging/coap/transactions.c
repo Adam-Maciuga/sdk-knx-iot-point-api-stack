@@ -53,13 +53,11 @@
 #include "security/oc_tls.h"
 #endif
 
-// coap transactions 
+// coap + smode transactions 
 OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
 OC_LIST(transactions_list);
 
 static struct oc_process *transaction_handler_process = NULL;
-
-/*** Internal API ***/
 
 void coap_register_as_transaction_handler(void) {
   transaction_handler_process = OC_PROCESS_CURRENT();
@@ -106,41 +104,31 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t t
 
 coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
 {
-  // We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
-  // with an Echo option. Use coap transaction framework to handle this.
-  // 0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
-  // 1. for NON s-mode messages (uc + mc) use a specific s-mode transaction framework
-  // - transaction init with a fixed timeout
-  // - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
-  //   (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_NON_REQUEST)
+  /* 
+    We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
+    with an Echo option. Use coap transaction framework to handle this.
+    0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
+    1. for NON s-mode messages (uc + mc) use a specific s-mode transaction framework
+    - transaction init with a fixed timeout
+    - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
+      (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_NON_REQUEST)
+  */
 
-  const bool is_non_confirmable_s_mode_message = s_mode_message->endpoint.flags & S_MODE_NON_REQUEST;
   coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
 
   if (t)
   {
     /* 
-      copy ALWAYS the message for possible 'unicast echo re-request' retransmits within 
-      the timeout for s-mode messages of:
-      CON: uc 
-      NON: uc / mc (default) 
+      copy ALWAYS the s-mode message for possible 'unicast echo re-request' retransmits within the timeout
+      - uc: NON/CON 
+      - mc: NON (only) 
     */
 
     t->message->length = s_mode_message->length;
     // memcpy can handle '0' bytes, so no extra check
     memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
-    
-    if (is_non_confirmable_s_mode_message)
-    {
-      t->is_non_confirmable_smode_msg = true;
 
-      // init ~ 5s timeout
-      t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
-
-      OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
-      oc_etimer_restart(&t->retransmit_timer);
-      OC_PROCESS_CONTEXT_END(transaction_handler_process);
-    }
+    t->is_non_confirmable_smode_msg = s_mode_message->endpoint.flags & S_MODE_NON_REQUEST;
   }
   else
   {
@@ -151,9 +139,9 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
 }
 
 // sends a message by 'transaction'
-// - NON-confirmable : send + clear the transaction afterward (it is a one time fire and forget send out)
-// - NON-confirmable : s-mode send + NOT clear the transaction afterward (runs into timeout)
-// - CON-confirmable : send + MAY clear afterward the transaction if all reps are done (it is an n- time fire and forget send out)
+// - NON-confirmable : send + clear the transaction afterward (fire one time)
+// - NON-confirmable s-mode : send + NOT clear the transaction afterward (transaction runs into timeout)
+// - CON-confirmable : send + MAY clear the transaction afterward (fire n- time with poss. reps)
 void coap_send_transaction(coap_transaction_t *t) 
 {
   if (!oc_main_initialized()) 
@@ -176,7 +164,9 @@ void coap_send_transaction(coap_transaction_t *t)
   }
   #endif
 
-  const bool confirmable = COAP_TYPE_CON == (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION ? true : false;
+  const uint8_t type = (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION;
+  const bool confirmable = type == COAP_TYPE_CON;
+  const bool non_confirmable = type == COAP_TYPE_NON;
 
   #ifdef OC_TCP
   if (!(t->message->endpoint.flags & TCP) && confirmable) {
@@ -233,16 +223,38 @@ void coap_send_transaction(coap_transaction_t *t)
       }
     }
   }
-  else 
-  { // non-conformable messages
-    
-    // send ones and delete afterward the transaction
-    OC_DBG("sending NON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+  else if (t->is_non_confirmable_smode_msg)
+  {
+    if (t->retransmit_counter < 1)
+    { // keep transaction + init timeout
+
+      OC_DBG("interval initialized %d", (int)t->retransmit_timer.timer.interval);
+
+      // init ~ 5s timeout
+      t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
+
+      OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
+      oc_etimer_restart(&t->retransmit_timer);
+      OC_PROCESS_CONTEXT_END(transaction_handler_process);
+
+      // send message and keep transaction
+      OC_DBG("sending NON s-mode message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
+      coap_send_message(t->message);
+    }
+    else
+    { // delete transaction (after timeout)
+      OC_DBG("removing NON s-mode message transaction - timed out (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      coap_clear_transaction(t);
+    }
+  } 
+  else
+  {// ACK, RST
+    // send message and delete transaction
+    OC_DBG("sending NON coap message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
-    coap_send_message(t->message);  
-    
-    if (!t->is_non_confirmable_smode_msg)
-    coap_clear_transaction(t);      // non-confirmable s-mode msg will NOT be de-allocated (it runs into timeout)
+    coap_send_message(t->message);
+    coap_clear_transaction(t);
   }
 }
 
@@ -309,9 +321,9 @@ coap_transaction_t* coap_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* 
   return NULL;
 }
 
-coap_transaction_t* smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+smode_transaction_t* smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
 {
-  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); 
+  for (smode_transaction_t* t = (smode_transaction_t*)oc_list_head(transactions_list); 
        t && t->is_non_confirmable_smode_msg; t = t->next)
   {
     if (t->mid == mid)
@@ -329,7 +341,7 @@ coap_transaction_t* smode_get_transaction_by_token_or_mid(uint16_t mid, uint8_t*
   return NULL;
 }
 
-// (re)sends a message if the transaction timer is expired (NON -> one time and release transaction, CON -> n-time with increased delay) 
+// (re)sends a message if the transaction timer is expired 
 void coap_check_transactions(void)
 {
   coap_transaction_t* t = (coap_transaction_t*) oc_list_head(transactions_list);
@@ -346,16 +358,8 @@ void coap_check_transactions(void)
 
       const int before = oc_list_length(transactions_list);
 
-      if (t->is_non_confirmable_smode_msg)
-      {
-        OC_DBG("removing timed out NON s-mode message with MID %u : %p", t->mid, (void*)t);
-        coap_clear_transaction(t);
-      }
-      else
-      {
-        OC_DBG("retransmitting MID %u with attempt (%u)", t->mid, t->retransmit_counter);
-        coap_send_transaction(t);
-      }
+      OC_DBG("retransmitting MID %u with attempt (%u)", t->mid, t->retransmit_counter);
+      coap_send_transaction(t);
 
       const int after  = oc_list_length(transactions_list);
 

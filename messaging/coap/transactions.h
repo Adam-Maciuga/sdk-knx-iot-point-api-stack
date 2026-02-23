@@ -73,21 +73,22 @@ extern "C" {
 
    @note
    - a transaction is an individual CON/NON request/response cycle (example read/response cycle)
-   - messages without token uses the MID such as an empty ACK response of CON message type MAY not carry a token, see CoAP RFC, Figure 20
+   - messages without token uses the MID,  such as an empty ACK response on a CON message, see CoAP RFC, Figure 20
    - messages with token
  */
 typedef struct coap_transaction
 {
   struct coap_transaction *next; 
-  uint16_t mid;                       // coap transport level: a client relates a send out CON message with a received ACK message AND a receiver is using it to ignore an already received messages
-  uint8_t token[COAP_TOKEN_LEN];      // coap req/res level: a client matches a request with a response 
+  
+  oc_message_t* message;
+  uint8_t token[COAP_TOKEN_LEN];      // coap AL level: a client matches a request with a response 
   struct oc_etimer retransmit_timer; 
   uint8_t token_len;
   uint8_t retransmit_counter;         // 0 = initial message, no retransmission started 
-  bool is_non_confirmable_smode_msg;  // identifies if the transaction hosts an NON s-mode message 
-  oc_message_t *message;
+  uint16_t mid;                       // coap TL level: a client relates an out CON msg with an in ACK msg, a receiver ignores already received msg
+  bool is_non_confirmable_smode_msg;  // identifies if the transaction hosts an NON-confirmable (uc/mc) s-mode message 
 
-} coap_transaction_t;
+} coap_transaction_t, smode_transaction_t;
 
 void coap_register_as_transaction_handler(void);
 

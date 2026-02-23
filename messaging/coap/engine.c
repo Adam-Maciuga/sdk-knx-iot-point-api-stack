@@ -294,26 +294,26 @@ int coap_receive(oc_message_t* incoming_message)
   static coap_packet_t incoming_coap_message[1];  
   static coap_packet_t outgoing_coap_response[1];
   static coap_transaction_t* coap_transaction = NULL;
-  static coap_transaction_t* smode_transaction = NULL;
+  static smode_transaction_t* smode_transaction = NULL;
 
   // block options
   uint32_t block1_num = 0, block1_offset = 0, block2_num = 0, block2_offset = 0;
   uint16_t block1_size = OC_BLOCK_SIZE, block2_size = OC_BLOCK_SIZE;
   uint8_t  block1_more = 0, block2_more = 0;
 
-#ifdef OC_BLOCK_WISE
+  #ifdef OC_BLOCK_WISE
   oc_blockwise_state_t* request_buffer = NULL, * response_buffer = NULL;
-#endif 
+  #endif 
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
 	oc_client_cb_t* client_cb = NULL;
-#endif 
+  #endif 
 
-#ifdef OC_TCP
+  #ifdef OC_TCP
   if (incoming_message->endpoint.flags & TCP) 
     coap_status_code = coap_tcp_parse_message(message, incoming_message->data, (uint32_t) incoming_message->length);
   else
-#endif 
+  #endif 
     coap_status_code = coap_parse_udp_message(incoming_coap_message, incoming_message->data, incoming_message->length);
   
   // msg was filled before from an inbound request or self issued request message, consider also COAP_TYPE_RST or COAP_TYPE_ACK
@@ -393,35 +393,33 @@ int coap_receive(oc_message_t* incoming_message)
     if (!(incoming_message->endpoint.flags & TCP))
     #endif
     {
-      // Transaction CHECK must be on this code position to set a value, since 
-      // it lasts "beyond" the call (on reenter the method, the content is not 
-      // cleared), it searches by matching mid* or token** 
-      // 
-      // *assume inbound request of a former outbound request, check by INBOUND mid ...
-      //  - messages without token, an empty ACK response on a former CON request message DOES NOT carry a token, see CoAP RFC
-      //
-      // **assume inbound request of a former outbound request, check by INBOUND token ...
-      //  - messages with token, a CON response on a former CON request message, check match with former request
-      //    (token matches in piggybacked responses and separate responses)
-      //
-      // ***assume inbound request of a former outbound s-mode request, check by INBOUND token ...
-      //  - messages with token, a NON echo response on a former NON s-mode request message, check match with former request
-      //    (token matches in separate responses)
+      /* 
+         Transaction CHECK must be on this code position to set a value, since 
+         it lasts "beyond" the call (on reenter the method, the content is not 
+         cleared), it searches by matching mid or token 
+       
+         *assume inbound request of a former outbound request, check by INBOUND mid + token ...
+         - messages without token, an empty ACK response on a former CON request message DOES NOT carry a token, see CoAP RFC
+         - messages with token, a CON response on a former CON request message, check match with former request
+           (token matches in piggybacked responses and separate responses)
+         
+         **assume inbound request of a former outbound s-mode request, check by INBOUND token ...
+           - messages with token, a NON echo response on a former NON s-mode request message, check match with former request
+             (token matches in triggered extra NON responses)
+      */
 
-      // **/* above
+      // * above
       coap_transaction = coap_get_transaction_by_token_or_mid(
         incoming_coap_message->mid,
         incoming_coap_message->token,
         incoming_coap_message->token_len);
 
-      // *** above
+      // ** above
       smode_transaction = smode_get_transaction_by_token_or_mid(
         incoming_coap_message->mid, 
         incoming_coap_message->token, 
         incoming_coap_message->token_len);
     }
-
-   
 
 		if (is_inbound_request)
 		{ // handle inbound requests (SERVER SIDE)
@@ -605,7 +603,6 @@ int coap_receive(oc_message_t* incoming_message)
         coap_transaction = NULL;
       }
 
-      // TODO block wise transfer has also token ... why it is not set here 
       // create new transaction for the response 
       coap_transaction = coap_new_transaction(outgoing_coap_response->mid, NULL, 0, &incoming_message->endpoint);
       
@@ -961,7 +958,7 @@ int coap_receive(oc_message_t* incoming_message)
       }
     }
     else 
-    { // handle inbound responses al la 2.05, 2.04, ACK, ...(SERVER SIDE)
+    { // handle inbound responses al la ACK + 2.05/2.04 or empty ACK, ...(SERVER SIDE)
 
       #ifdef OC_DEBUG
 
@@ -1031,7 +1028,6 @@ int coap_receive(oc_message_t* incoming_message)
             // get next mid
             re_request_coap_packet->mid = coap_get_next_mid();
 
-            // TODO AH better refreshed payload to be included
             if (client_cb)
             {
               // a little bit naughty, modify the old client callback to refer to the new 'unicast echo re-request' packet
@@ -1449,11 +1445,13 @@ int coap_receive(oc_message_t* incoming_message)
   return coap_status_code;
 }
 
-void coap_init_engine(void) {
+void coap_init_engine(void) 
+{
   coap_register_as_transaction_handler();
 }
 
-OC_PROCESS_THREAD(coap_engine, ev, data) {
+OC_PROCESS_THREAD(coap_engine, ev, data) 
+{
   OC_PROCESS_BEGIN();
 
   coap_register_as_transaction_handler();
@@ -1462,10 +1460,12 @@ OC_PROCESS_THREAD(coap_engine, ev, data) {
   while (1) {
     OC_PROCESS_YIELD();
 
+    oc_message_t* message = (oc_message_t*)data;
+
 		if (ev == oc_events[INBOUND_RI_EVENT])
 		{
-			coap_receive(data);
-			oc_message_unref(data);
+      coap_receive(message);
+      oc_message_unref(message);
 		}
 		else if (ev == OC_PROCESS_EVENT_TIMER)
 		{

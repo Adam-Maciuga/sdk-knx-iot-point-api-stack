@@ -1758,30 +1758,35 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
 }
 #endif 
 
-void oc_ri_shutdown(void) {
-#ifdef OC_SERVER
+void oc_ri_shutdown(void) 
+{
+  #ifdef OC_SERVER
   coap_free_all_observers();
-#endif 
+  #endif 
+  
   coap_free_all_transactions();
   free_all_event_timers();
-#ifdef OC_CLIENT
+
+  #ifdef OC_CLIENT
   free_all_client_cbs();
-#endif 
-#ifdef OC_BLOCK_WISE
+  #endif 
+
+  #ifdef OC_BLOCK_WISE
   oc_blockwise_scrub_buffers(true);
-#endif 
+  #endif 
 
   // wait until no event is pending anymore
-  while (oc_main_poll()) {
+  while (oc_main_poll()) 
+  {
     ;
   }
 
   stop_processes();
   oc_process_shutdown();
 
-#ifdef OC_SERVER
+  #ifdef OC_SERVER
   oc_ri_delete_all_app_resources();
-#endif 
+  #endif 
 
   oc_random_destroy();
 }

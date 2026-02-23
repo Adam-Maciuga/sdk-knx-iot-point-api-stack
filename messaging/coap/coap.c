@@ -1050,7 +1050,8 @@ void coap_tcp_parse_message_length(const uint8_t* data, size_t* message_length,
 }
 #endif
 
-void coap_init_connection(void) {
+void coap_init_connection(void) 
+{
 	// initialize coap mid 
 	current_mid = (uint16_t) oc_random_value();
 }

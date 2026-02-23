@@ -59,11 +59,10 @@ extern "C" {
 #define COAP_LINK_FORMAT_FILTERING 0
 #define COAP_PROXY_OPTION_PROCESSING 0
 
-/* The number of concurrent messages that can be stored for retransmission in
- * the transaction layer. */
+// the number of concurrent messages that can be stored for retransmission in the transaction layer
 #ifndef COAP_MAX_OPEN_TRANSACTIONS
 #define COAP_MAX_OPEN_TRANSACTIONS (OC_MAX_NUM_CONCURRENT_REQUESTS)
-#endif /* COAP_MAX_OPEN_TRANSACTIONS */
+#endif 
 
 /* Conservative size limit, as not all options have to be set at the same time.
  * Check when Proxy-Uri option is used */
