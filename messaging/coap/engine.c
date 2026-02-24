@@ -292,7 +292,7 @@ int coap_receive(oc_message_t* incoming_message)
   // static declaration reduces stack peaks and program code size, this way the packet can be treated as pointer as usual
   static coap_packet_t incoming_coap_message[1];  
   static coap_packet_t outgoing_coap_response[1];
-  static transaction* transaction = NULL; // hosts either a standard (CON uc) coap transaction or an s-mode (NON uc/mc) transaction
+  static transaction_t* transaction = NULL; // hosts either a standard (CON uc) coap transaction or an s-mode (NON uc/mc) transaction
 
   // block options
   uint32_t block1_num = 0, block1_offset = 0, block2_num = 0, block2_offset = 0;
@@ -392,29 +392,21 @@ int coap_receive(oc_message_t* incoming_message)
     #endif
     {
       /* 
-         Transaction CHECK must be on this code position to set a value, since 
-         it lasts "beyond" the call (on reenter the method, the content is not 
-         cleared), it searches by matching mid or token 
+         Transaction CHECK must be on this code position to set a value, since it lasts "beyond" the call 
+         (on reenter the method, the content is not cleared), it searches by matching mid or token 
        
-         *assume inbound request of a former outbound request, check by INBOUND mid + token ...
-         - messages without token, an empty ACK response on a former CON request message DOES NOT carry a token, see CoAP RFC
-         - messages with token, a CON response on a former CON (s-mode) request message, check match with former request
-           (token matches in piggybacked responses and separate responses)
-         
-         **assume inbound request of a former outbound NON s-mode request, check by INBOUND mid + token ...
-           - messages with token, a NON echo response on a former NON s-mode request message, check match with former request
-             (token matches in triggered extra NON responses)
+         Here we want to catch all kind of transactions, standard CON coap transactions and s-mode transactions.
+         For s-mode messages we have two types:
+         - CON s-mode transactions, uc 
+           -> runs via standard coap transaction
+           -> messages without token, an empty ACK response on a former CON request message DOES NOT carry a token
+           -> messages with token, an ACK response on a former CON request message, check with former request
+         - NON s-mode transactions, uc + mc 
+           -> runs extra via s-mode transaction
+           -> messages with token, a NON echo uc response on a former NON s-mode (uc/mc) request message, check with former request
       */
-
-      // * above
-      transaction = coap_get_transaction_by_token_or_mid(
-        incoming_coap_message->mid,
-        incoming_coap_message->token,
-        incoming_coap_message->token_len);
-
-      // ** above
-      if (!transaction)
-        transaction = smode_get_transaction_by_token_or_mid(
+      
+        transaction = get_any_transaction_by_token_or_mid(
         incoming_coap_message->mid, 
         incoming_coap_message->token, 
         incoming_coap_message->token_len);
@@ -999,7 +991,6 @@ int coap_receive(oc_message_t* incoming_message)
       */
       if (incoming_coap_message->code == UNAUTHORIZED_4_01 && echo_len != 0)
       { 
-
         if (transaction)
         { // c
           
