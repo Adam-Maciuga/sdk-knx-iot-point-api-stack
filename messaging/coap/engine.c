@@ -1090,7 +1090,7 @@ int coap_receive(oc_message_t* incoming_message)
 			}
       else if (is_ack || is_inbound_non_response)  
 			{ 				
-			  OC_DBG("empty ack or piggybacked ack, non response received - transaction is cleared (non = echo transaction ...)");
+			  OC_DBG("empty ack, piggybacked ack or non response received - transaction is cleared (non = the 'wait for echo' transaction ...)");
         coap_status_code = CLEAR_TRANSACTION;
 			}
 			else if (is_reset)
