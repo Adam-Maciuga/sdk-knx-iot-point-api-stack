@@ -1151,7 +1151,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID :\t ");
       OC_LOGbytes_OSCORE(aad, aad_len);
 
-
+      // TODO AH , for a request not needed ?
       // copy PIV to CoAP - handed over - unicast message (not the outgoing message)
       if (original_msg_is_currently_tracked)
       {
