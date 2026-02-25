@@ -553,30 +553,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     return -1;
   }
 
-  // verify and decrypt OSCORE payload in coap packet
-  uint8_t* output = (uint8_t*)malloc(oscore_pkt->payload_len); 
-  
   // use recipient key for decryption
   uint8_t* decryption_key = oscore_ctx->recipient_key;
 
-  if (!output)
-  {
-    // request
-    OC_ERR("could not allocate payload memory, return unsecured 5.00");
-    oscore_send_error(oscore_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint, false);
-    oc_message_unref(msg);
-    return -1;
-  }
-
-  // TODO AH why here an extra buffer is used (live overwriting of payload)? 
+  // verify and decrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
   int ret = oc_oscore_decrypt(oscore_pkt->payload, oscore_pkt->payload_len, 
-                              OSCORE_AEAD_TAG_LEN, decryption_key,
-                              OSCORE_KEY_LEN, nonce, OSCORE_AEAD_NONCE_LEN, aad, aad_len, output);
-
-  // restore payload to packet(overwrites encrypted original payload), do it also on error (otherwise buffer is not
-  // released)
-  memcpy(oscore_pkt->payload, output, oscore_pkt->payload_len);
-  free(output);
+                              OSCORE_AEAD_TAG_LEN, decryption_key, OSCORE_KEY_LEN, nonce,
+                              OSCORE_AEAD_NONCE_LEN, aad, aad_len, oscore_pkt->payload);
 
   if (ret != 0)
   {
@@ -826,6 +809,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
+    // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
     const int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
                                       nonce, OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
@@ -1277,6 +1261,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
+    // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
     int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN, nonce,
                                 OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
