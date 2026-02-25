@@ -256,9 +256,13 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data) {
  *          <- ACK + Payload (piggybacked)   : a piggybacked ACK can always be called "Response"   
  *          OR
  *          <- ACK + Empty
- *          <- CoAP CON Response (2.04/2.05) : a confirmable RESPONSE can always be called "Separate Response"
+ *          <- CoAP CON Response (2.0x/4.05) : a confirmable RESPONSE can always be called "Separate Response"
  *          :
- *          -> ACK + Empty (never a response to a response)
+ *          -> ACK + Empty 
+ *          -> STOP (never a response to a response)
+ *
+ *          -> CoAP NON Request (POST/GET) 
+ *          <- CoAP NON Response (2.0x/4.05)
  *
  * MID relates CON to ACK = Transport 
  * Token relates Request to Response = Application
@@ -316,13 +320,13 @@ int coap_receive(oc_message_t* incoming_message)
   
   // msg was filled before from an inbound request or self issued request message, consider also COAP_TYPE_RST or COAP_TYPE_ACK
   bool is_reset = incoming_coap_message->type == COAP_TYPE_RST;
-  bool is_confirmable = incoming_coap_message->type == COAP_TYPE_CON;
-  bool is_non_confirmable = incoming_coap_message->type == COAP_TYPE_NON;
+  bool is_con = incoming_coap_message->type == COAP_TYPE_CON;
+  bool is_non = incoming_coap_message->type == COAP_TYPE_NON;
   bool is_ack = incoming_coap_message->type == COAP_TYPE_ACK;
-  bool is_ack_with_empty_payload = is_ack && incoming_coap_message->code == EMPTY_0_00;
 
-  bool is_inbound_request = !is_reset && !is_ack && incoming_coap_message->code >= OC_GET && incoming_coap_message->code <= OC_FETCH;
-  bool is_inbound_response = !is_reset && incoming_coap_message->code > OC_FETCH;
+  bool is_inbound_request = (is_con || is_non) && incoming_coap_message->code >= OC_GET && incoming_coap_message->code <= OC_FETCH;
+  bool is_inbound_separate_response = is_con && incoming_coap_message->code > OC_FETCH; // separate response (CON)
+  bool is_inbound_non_response = is_non && incoming_coap_message->code > OC_FETCH;      // non-confirmable response (NON)
 
   if (coap_status_code == COAP_NO_ERROR) 
   {
@@ -435,12 +439,12 @@ int coap_receive(oc_message_t* incoming_message)
 			else
 			#endif 
 			{
-        if (is_confirmable)
+        if (is_con)
         {
           // CON -> PREPARE (not send) a possible response with type ACK + same mid 
           coap_udp_init_message(outgoing_coap_response, COAP_TYPE_ACK, CONTENT_2_05, incoming_coap_message->mid);
         }
-        else if (is_non_confirmable)
+        else if (is_non)
         {
           // NON -> PREPARE (not send) a possible response with type NON + increases mid
           coap_udp_init_message(outgoing_coap_response, COAP_TYPE_NON, CONTENT_2_05, coap_get_next_mid());
@@ -658,7 +662,7 @@ int coap_receive(oc_message_t* incoming_message)
 							else
 							{
 								OC_DBG("received all blocks for payload");
-                if (is_confirmable)
+                if (is_con)
 								{
 									// 4 byte ACK + EMPTY_0_00
 								  coap_send_response_with_empty_application_payload(COAP_TYPE_ACK, 
@@ -717,7 +721,7 @@ int coap_receive(oc_message_t* incoming_message)
 								: 0;
 							if (more == 0)
 							{
-                if (is_confirmable)
+                if (is_con)
 								{
 									// 4 byte ACK + EMPTY_0_00 
 								  coap_send_response_with_empty_application_payload(COAP_TYPE_ACK, 
@@ -1072,12 +1076,11 @@ int coap_receive(oc_message_t* incoming_message)
 
       #endif
 
-			if (is_confirmable)
-			{ // answer received, send empty ACK
+			if (is_inbound_separate_response)
+			{ // separate response received, send empty ACK
         
-         OC_DBG("CON answer received - send empty ack");
-			  
-			  // 4 byte ACK + EMPTY_0_00  
+        OC_DBG("CON answer received - send empty ack");
+
 			  coap_send_response_with_empty_application_payload(COAP_TYPE_ACK, 
 																 incoming_coap_message->mid, 
 																 NULL, 0, 
@@ -1085,10 +1088,9 @@ int coap_receive(oc_message_t* incoming_message)
 																 &incoming_message->endpoint,
 																 NULL,0);
 			}
-			else if (is_ack)  
-			{ // ACK received (empty ack or piggybacked ack), clear former transaction and proceed 
-				
-			  OC_DBG("empty ack or piggybacked ack received - transaction is cleared");
+      else if (is_ack || is_inbound_non_response)  
+			{ 				
+			  OC_DBG("empty ack or piggybacked ack, non response received - transaction is cleared (non = echo transaction ...)");
         coap_status_code = CLEAR_TRANSACTION;
 			}
 			else if (is_reset)
