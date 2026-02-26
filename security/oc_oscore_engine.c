@@ -339,16 +339,25 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         if (idx == -1)
         {
           /*
-            'kid' from 'request' not found as part of my onw contexts,
+            'kid' from 'request' not found as part of my own contexts,
              the inbound sender is not known to the server
-             - an inbound GA as 'kid' that does not match to the server's PUB table but using a (by server) registered
+             - an inbound GA as 'kid' that does not match to the server's AT table but using a (by server) registered
                multicast address, mc later ignored, standard case (a MULTICAST group value write where the GA is 
                not used in THIS device)
              - uc 4.01, MaC misconfiguration (a UNICAST group value write where the GA is not used in THIS device)
           */
 
-          OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound 's-mode' request message, return unsecured 4.01");
-          oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
+          if (msg->endpoint.flags & MULTICAST)
+          {
+            // multicast: silently discard — do not reply
+            OC_DBG("could not find an access token (8.2 step 2) for 'kid' from inbound multicast 's-mode' request message, silently discarding");
+          }
+          else
+          {
+            // unicast: respond with unsecured 4.01 (RFC 8613 § 8.2 step 2 / KNX IoT § 3.6.5)
+            OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound unicast 's-mode' request message, return unsecured 4.01");
+            oscore_send_error(oscore_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
+          }
           oc_message_unref(msg);
           return -1;
         }
