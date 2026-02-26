@@ -228,11 +228,11 @@ void coap_send_transaction(coap_transaction_t *t)
     if (t->retransmit_counter < 1)
     { // keep transaction + init timeout
 
-      OC_DBG("interval initialized %d", (int)t->retransmit_timer.timer.interval);
-
       // init ~ 5s timeout
       t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
 
+      OC_DBG("interval initialized %d", (int)t->retransmit_timer.timer.interval);
+      
       OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
       oc_etimer_restart(&t->retransmit_timer);
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
