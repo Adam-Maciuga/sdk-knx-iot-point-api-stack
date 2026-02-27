@@ -125,6 +125,8 @@ The picture below demonstrate this.
 
 ## Commissioning
 
+Energy Management System (EMS) specific [sample scripts](apps/hems/client/knxiotclient/Readme.md) have been foreseen, they can be seen as an alternative to ETS (commissioning by).	
+
 For both patterns from above the commission procedures are described as part of the KNX IoT 
 specification 03/10/05. 
 
