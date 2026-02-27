@@ -2,7 +2,6 @@
 
 This guide is the minimum required setup to run the three commissioning scripts on another Windows machine:
 
-<script> <serial number>
 
 ## 1) Prerequisites
 
