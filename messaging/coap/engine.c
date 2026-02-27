@@ -1061,6 +1061,8 @@ int coap_receive(oc_message_t* incoming_message)
 
             // in case of not send out 'unicast echo re-request' message, drop new and old transactions
             // in case of send out 'unicast echo re-request' message, drop old transaction (new is taking care)
+            // TODO DL on figure 26 step  4/5  does NOT work (org transaction is released here under) - don't delete transaction BUT retrigger timer to new 5 seconds 
+            // TODO and wait until this is auto timed out 
             coap_clear_transaction(transaction);
             transaction = NULL;
 
