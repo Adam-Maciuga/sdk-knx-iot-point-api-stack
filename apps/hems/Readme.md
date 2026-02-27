@@ -125,10 +125,10 @@ The picture below demonstrate this.
 
 ## Commissioning
 
-Energy Management System (EMS) specific [sample scripts](hems/client/knxiotclient/Readme.md) have been foreseen, they can be seen as an alternative to ETS (commissioning by).	
-
 For both patterns from above the commission procedures are described as part of the KNX IoT 
 specification 03/10/05. 
+
+Energy Management System (EMS) specific [sample scripts](client/knxiotclient/Readme.md) have been foreseen, they can be seen as an alternative to ETS (commissioning by).
 
 Some device commissioning steps are not needed in case of **ONLY** having a 'Vertical Integration' of devices,
 this is marked with 'optional'. The overall procedure contains of the following main steps. 
