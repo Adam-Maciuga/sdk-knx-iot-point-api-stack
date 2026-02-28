@@ -1,29 +1,20 @@
-/*
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2024-2025 KNX Association
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-*/
+/* 
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /*
-  Note that the file 'knx_iot_virtual.c/h' is NOT a part of the stack or not intended to be an
-  'application' library. It hosts only for the application demos commonly used functionality in one place.
-*/
+ * The file provides common functions for the demo applications.
+ * 
+ * Note:
+ * The files 'knx_iot_app.c/h' are NOT a part of the stack or not intended to be an
+ * 'application' library.
+ */
 
 #include "ctype.h"
 #include "oc_api.h"
-#include "knx_iot_virtual.h"
+#include "knx_iot_app.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
 #include "oc_knx_client.h"
@@ -36,8 +27,334 @@ extern const uint32_t mid;
 extern const char hw_type[];
 extern const char dev_model[];
 
-// actions within must be defied individually for each corresponding LSAB/LSSB/EITT/HEMS/... application
-void app_restart_handler(void* data);
+void knx_iot_get_handler(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data, 
+        const oc_rep_value_type_t value_type, volatile void* value, 
+        volatile app_datapoint_handler_flags_t* flags, char* description)
+{
+  (void)interfaces;
+  bool error_state = true;
+
+  PRINT("-- Begin GET at %s ", oc_string(request->resource->uri));
+
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
+  {
+    return;
+  }
+
+  // TODO FIXME that section was missing for the 'test_parameter', but that is not a problem, right!?
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k')
+  if (oc_is_redirected_request_from(request) == 1)
+  {
+    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
+  }
+
+  const oc_device_info_t* const device = oc_core_get_device_info();
+
+  // open CBOR
+  oc_rep_begin_root_object();
+
+  if (oc_query_value_exists(request, "m") != -1)
+  {
+    // ... query parameter 'm' is present, check the various values
+    char* m_value;
+    char* m_key;
+    size_t m_value_len = oc_get_query_value(request, "m", &m_value);
+    size_t m_key_len;
+
+    const bool wildcard = strncmp(m_value, "*", m_value_len) == 0;
+
+    PRINT("Query Parameter: %.*s", (int)m_value_len, m_value);
+
+    oc_init_query_iterator();
+
+    // check (0..n) query parameter
+    while (oc_iterate_query(request, &m_key, &m_key_len, &m_value, &m_value_len) != -1)
+    {
+      // id
+      if (strncmp(m_value, "id", m_value_len) == 0 || wildcard)
+      {
+        // knx://sn: + max len SN + uri path + \0 = ~ 65
+        char serial_number[65];
+        (void)snprintf(serial_number, 65, "knx://sn:%s%s", 
+                       oc_string(device->serialnumber),
+                       oc_string(request->resource->uri));
+        oc_rep_i_set_text_string(root, 0, serial_number);
+        error_state = false;
+      }
+
+      // value
+      if (strncmp(m_value, "value", m_value_len) == 0 || wildcard)
+      {
+        switch (value_type)
+        {
+          case OC_REP_BOOL:
+            //oc_rep_i_set_boolean(root, 1, *((bool*)value));	
+            oc_rep_text_set_boolean(root, value, *((bool*)value));  // TODO FIXME why was only the bool type encoded with key as  text? This should be consistent over all types.
+            error_state = false;
+            PRINT("get %s as %d", description ? description : "unknown", *((bool*)value));
+            break;
+
+          case OC_REP_INT:
+            // see 'Callback Notes'
+            oc_rep_i_set_int(root, 1, *((int*)value));
+            error_state = false;
+            PRINT("get %s as %d", description ? description : "unknown", *((int*)value));
+            break;
+
+          case OC_REP_FLOAT:
+            oc_rep_i_set_float(root, 1, *((float*)value));
+            error_state = false;
+            PRINT("get %s as %f", description ? description : "unknown", *((float*)value));
+            break;
+         
+/* TODO implement this
+          case OC_REP_STRING:
+            // Note:
+            // Caller needs to provided a char* pointer with enough space.
+            if (rep->value.string)
+            {
+              strcpy((char*)value, rep->value.string);
+              error_state = false;
+              PRINT("get %s as \"%s\"", description ? description : "unknown", (char*)value);
+            }
+            break;
+*/
+          default:
+            /* unknown type, error_state remains true */
+            // TODO add missing valid types
+            break;
+        }
+      }
+
+      // resource types (rt)
+      if (strncmp(m_value, "rt", m_value_len) == 0 || wildcard)
+      {
+        // use the first type, skip urn:knx (=7), if more types are used
+        // - add a next in the data structure
+        // - add an extra line
+        const char* first_type = oc_string_array_get_item(request->resource->types, 0);
+        oc_rep_text_set_text_string(root, rt, first_type + 7);
+        error_state = false;
+      }
+
+      // interface (if)
+      // Note:
+      // Array of text strings.
+      if (strncmp(m_value, "if", m_value_len) == 0 || wildcard)
+      {
+        add_all_interface_short_urns_for_a_resource(request->resource);
+        error_state = false;
+      }
+
+      // datapoint type (dpt)
+      if (strncmp(m_value, "dpt", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, dpt, oc_string(request->resource->dpt));
+        error_state = false;
+      }
+
+      // group address (ga)
+      if (strncmp(m_value, "ga", m_value_len) == 0 || wildcard)
+      {
+        const int index = oc_core_find_first_group_object_table_index_from_href(oc_string(request->resource->uri));
+        if (index > -1)
+        {
+          oc_group_object_table_t* got_table_entry = oc_core_get_group_object_table_entry(index);
+          if (got_table_entry)
+          {
+            oc_rep_set_int_array(root, ga, got_table_entry->ga, got_table_entry->ga_len);
+          }
+        }
+
+        error_state = false;
+      }
+
+      // href (MAY omit in the response, here not for a '*')
+      if (strncmp(m_value, "href", m_value_len) == 0 || wildcard)
+      {
+        oc_rep_text_set_text_string(root, href, oc_string(request->resource->uri));
+        error_state = false;
+      }
+    }
+  }
+  else
+  { 
+    // ... no query parameter 'm' present at all, set value for the GET
+
+    // see 'Callback Notes'
+    switch (value_type)
+    {
+      case OC_REP_BOOL:
+        oc_rep_i_set_boolean(root, 1, *((bool*)value));
+        error_state = false;
+        PRINT("get %s as %d", description ? description : "unknown", *((bool*)value));
+        break;
+
+      case OC_REP_INT:
+        // see 'Callback Notes'
+        oc_rep_i_set_int(root, 1, *((int*)value));
+        error_state = false;
+        PRINT("get %s as %d", description ? description : "unknown", *((int*)value));
+        break;
+
+      case OC_REP_FLOAT:
+        oc_rep_i_set_float(root, 1, *((float*)value));
+        error_state = false;
+        PRINT("get %s as %f", description ? description : "unknown", *((float*)value));
+        break;
+     
+/* TODO implement this
+      case OC_REP_STRING:
+        // Note:
+        // Caller needs to provided a char* pointer with enough space.
+        if (rep->value.string)
+        {
+          strcpy((char*)value, rep->value.string);
+          error_state = false;
+          PRINT("get %s as \"%s\"", description ? description : "unknown", (char*)value);
+        }
+        break;
+*/
+      default:
+        /* unknown type, error_state remains true */
+        // TODO add missing valid types
+        break;
+    }
+  }
+
+  // close CBOR
+  oc_rep_end_root_object();
+
+  // check CBOR encoding errors
+  if (g_err != CborNoError)
+  {
+    error_state = true;
+  }
+
+  PRINT("CBOR encoder size %d", oc_rep_get_encoded_payload_size());
+
+  // set datapoint flags
+  if (flags)
+  {
+    *flags = (error_state ? DPH_ERROR : DPH_NO_ERROR) + DPH_GET + DPH_NEW_EVENT;
+  }
+
+  if (error_state)
+  {
+    // wrong device, CBOR error or unknown 'm' query parameter key values
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
+  }
+  else
+  {
+    oc_prepare_cbor_response(request, OC_STATUS_OK);
+  }
+
+  PRINT("-- End GET at %s ", oc_string(request->resource->uri));
+}
+
+void knx_iot_put_handler(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data, 
+        const oc_rep_value_type_t value_type, volatile void* value, knx_iot_put_callback_t callback, 
+        volatile app_datapoint_handler_flags_t* flags, const char* description)
+{
+  bool error_state = true;
+
+  // get interfaces for the resource PUT method ...
+  bool is_input_datapoint = interfaces & OC_IF_I;
+
+  // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
+  const oc_rep_t* rep = request->request_payload;
+
+  PRINT("-- Begin PUT at %s ", oc_string(request->resource->uri));
+
+  // TODO that section was missing for the 'test_parameter', but that is not a problem, right!?
+  // handle different caller sources, here included as an example to distinguish
+  // the caller source (e.g.; called by '/p' or '/k' s-mode message EP)
+  if (oc_is_redirected_request_from(request) == 1)
+  {
+    // caller /p --> always allow to write (see 'Callback Notes' above)
+    is_input_datapoint = true;
+    PRINT("redirected_request %.*s", (int)request->uri_path_len, request->uri_path);
+  }
+
+  // loop over object
+  while (rep)
+  {
+    // Note:
+    // A faulty construct will not be handled.
+    // e.g.:
+    // '{..., 1: true, 1: false}' or
+    // '{..., 1: 2, 1: 5}'
+    if (rep->iname == 1 && rep->type == value_type)
+    {
+      if (!is_input_datapoint)  // TODO FIXME this check was missing for the 'test_parameter', but we want this, do we? hmm test_parameter PUT is defined with OC_IF_P
+      {
+        // see 'Callback Notes'
+        oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);
+        return;
+      }
+
+      switch (value_type)
+      {
+        case OC_REP_BOOL:
+          *((bool*)value) = rep->value.boolean;
+          error_state = false;
+          PRINT("set %s to %d", description ? description : "unknown", *((bool*)value));
+          break;
+
+        case OC_REP_INT:
+          // see 'Callback Notes'
+          *((int*)value) = (int)rep->value.integer;
+          error_state = false;
+          PRINT("set %s to %d", description ? description : "unknown", *((int*)value));
+          break;
+
+        case OC_REP_FLOAT:
+          *((float*)value) = rep->value.float_p;
+          error_state = false;
+          PRINT("set %s to %f", description ? description : "unknown", *((float*)value));
+          break;
+/* TODO FIXME
+       case OC_REP_STRING:
+          // Note:
+          // Caller needs to provided a char* pointer with enough space.
+          if (rep->value.string)
+          {
+            strcpy((char*)value, rep->value.string);
+            error_state = false;
+            PRINT("set %s to \"%s\"", description ? description : "unknown", (char*)value);
+          }
+          break;
+*/      
+        default:
+          /* unknown type, error_state remains true */
+          // TODO add missing valid types
+          break;
+      }
+
+      break;
+    }
+
+    rep = rep->next;
+  }
+
+  // set datapoint flags
+  if (flags)
+  {
+    *flags = (error_state ? DPH_ERROR : DPH_NO_ERROR) + DPH_PUT + DPH_NEW_EVENT;
+  }
+
+  // call the application defined callback if set and no error
+  if (!error_state && callback)
+  { 
+    callback(user_data, value_type, value, description);
+  }
+
+  // inform the stack on status
+  oc_prepare_no_format_response_no_payload(request, error_state ? OC_STATUS_BAD_REQUEST : OC_STATUS_CHANGED);
+
+  PRINT("-- End PUT at %s ", oc_string(request->resource->uri));
+}
 
 void app_str_to_upper(char* str)
 {
@@ -49,10 +366,12 @@ void app_str_to_upper(char* str)
 }
 
 // IMPORTANT consider the notes for the PASE Resource Object (oc_pase_t)
-char* app_get_password(void) { return PASSWORD; }
+char* app_get_password(void)
+{
+  return PASSWORD;
+}
 
-#ifdef OC_DEBUG
-#ifndef _MSC_VER
+#if defined(OC_DEBUG) && !defined(_MSC_VER)
 // Periodic stdout flush callback for debug builds
 static oc_event_callback_retval_t flush_stdout_callback(void* context)
 {
@@ -62,7 +381,6 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
   oc_set_delayed_callback(NULL, flush_stdout_callback, 2);
   return OC_EVENT_DONE;
 }
-#endif
 #endif
 
 // the delayed swu callback handler 
@@ -126,7 +444,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
 {
   (void)data;
 
-  char filename[] = "./downloaded.bin";
+  char filename[] = "./downloaded.bin";	 // TODO Zephyr
   OC_DBG("swu_cb %s block offset=%d block size=%d ", filename, (int)block_offset, (int)block_len);
 
   // ===== Initialize Download on First Block =====
@@ -138,7 +456,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
     
     // Delete any existing firmware file from previous download/upgrade
     // This ensures we start with a clean slate
-    if (remove("downloaded_bin") == 0) {
+    if (remove("downloaded_bin") == 0) {	 // TODO Zephyr remove()
       OC_DBG("Removed stale firmware package file");
     }
     
@@ -151,7 +469,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
   // 
   // Note: Using append mode ('ab') - all blocks write to same file
   //       First block should probably truncate (use 'wb' on first block)
-  FILE* write_ptr = fopen("downloaded_bin", "ab");
+  FILE* write_ptr = fopen("downloaded_bin", "ab");	// TODO Zephyr do it the correct OTA way
   if (!write_ptr) {
     OC_ERR("Failed to open firmware file for writing");
     oc_swu_set_result(OC_SWU_RESULT_ERR_FLASH);
@@ -197,7 +515,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
     //   uint8_t header[8];
     //   memcpy(header, first_block_data, 8);
     //   major = header[0]; minor = header[1]; patch = header[2];
-    oc_swu_set_package_version(0, 0, 2);
+    oc_swu_set_package_version(0, 0, 2);  // TODO Zephyr implement this
     oc_swu_set_package_name("firmware.bin");
     
     // Reset tracking for next download
@@ -348,7 +666,6 @@ void swu_upgrade_cb(int defer_time, void* data)
   oc_set_delayed_callback(NULL, swu_upgrade_complete_cb, actual_delay);
 }
 
-
 void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
 {
   // get all if's
@@ -370,67 +687,63 @@ void add_all_interface_short_urns_for_a_resource(const oc_resource_t* resource)
   oc_free_string_array(&interface_list);
 }
 
-void factory_presets_cb(void* data)
+KNX_TOOL_WEAK void knx_iot_factory_presets_cb(void* data)
 {
   (void)data;
 }
 
-// the actual restart handler is called per application individually, hence it is forwarded here 
-static void restart_presets_cb(void* data) { app_restart_handler(data); }
+KNX_TOOL_WEAK void knx_iot_restart_cb(void* data)
+{
+  (void)data;
+}
 
-void hostname_cb(const oc_string_t host_name, void* data)
+KNX_TOOL_WEAK void knx_iot_set_hostname_cb(const oc_string_t hostname, void* data)
 {
   (void)data;
 
-  PRINT("host name callback called with host name: %s", oc_string(host_name));
+  PRINT("KNX-IoT set hostname callback called with hostname: %s", oc_string(hostname));
 
   /*
-   * The application callback needs to handle a changed host name such as to
+   * The application callback needs to handle a changed hostname such as to
    * announce it to a border router or local daemon.
    */
 }
 
-void initialize_variables(void)
+KNX_TOOL_WEAK void knx_iot_initialize_variables(void)
 {
   /* initialize global variables for resources */
   /* if wanted to be read them from persistent storage */
 }
 
-int app_init(void)
+KNX_TOOL_WEAK int knx_iot_initialize_app(void)
 {
   /*
-    define 4kb Stdout write buffer
-    - needed for faster console output on gcc debug builds
-    - can be skipped (see below) when using a msvc (windows) debug build
-
-    Note that on using the buffering, shorter console output logs may be
-    delayed until the buffer is full. We add periodic flushing to ensure
-    timely output while maintaining performance.
-   
-  */
-
+   * define 4kB stdout write buffer
+   * - needed for faster console output on gcc debug builds
+   * - can be skipped (see below) when using a msvc (windows) debug build
+   *
+   * Note that on using the buffering, shorter console output logs may be
+   * delayed until the buffer is full. We add periodic flushing to ensure
+   * timely output while maintaining performance.
+   */
+#if defined(OC_DEBUG) && !defined(_MSC_VER)
   // set up periodic stdout flushing for debug builds
-  #ifdef OC_DEBUG
-  #ifndef _MSC_VER
-
   (void)setvbuf(stdout, NULL, _IOFBF, 4096);
   // flush stdout every 2 seconds to prevent delayed output
   oc_set_delayed_callback(NULL, flush_stdout_callback, 2);
-
-  #endif
-  #endif
+#endif
 
   // set the device sn, application name -> permanent
   oc_core_set_device(sn_lower_case, application_name);
 
   // set the hardware version 0.0.1 -> permanent
-  oc_core_set_device_hwv(0, 0, 1);
+  oc_core_set_device_hwv(0, 0, 1);	// TODO FIXME AB config parameter
 
   // set the firmware version 0.0.1 -> volatile, value may be overwritten at runtime by MaC
-  oc_core_set_device_fwv(0, 0, 1);
+  oc_core_set_device_fwv(0, 0, 1);	// TODO FIXME AB config parameter
 
-  // set the application version 1.0.0, -> volatile, value may be overwritten at runtime by MaC
-  oc_core_set_device_apv(1, 0, 0);
+  // set the application version 1.0.0, > volatile,  value may be overwritten at runtime by MaC
+  oc_core_set_device_apv(1, 0, 0)	 // TODO FIXME AB config parameter;
 
   // set manufacturer id, -> permanent
   oc_core_set_device_mid(mid);
@@ -444,28 +757,26 @@ int app_init(void)
   // set manufacturing date for /swu/lastupdate (RFC 3339 timestamp)
   // This should be the actual device manufacturing date
   // For demo purposes, using placeholder date - replace with actual manufacturing date
-  oc_swu_set_last_update("2020-04-12T23:20:50.52Z");
+  oc_swu_set_last_update("2020-04-12T23:20:50.52Z");	// TODO FIXME AB config parameter, or better find a correct way to handle this
 
   /*
-      set default host name to device serial number and leading
-      'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
-      header defined by specification
+   * set default hostname to device serial number and leading
+   * 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
+   * header defined by specification
    */
   char hname[HNAME_SIZE];
   (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, sn_lower_case);
 
-  // set default host name, reset uses this default, -> volatile
-  oc_core_set_device_hostname(hname);
+  // set default hostname, reset uses this default, -> volatile
+  oc_core_set_device_hostname(hname);	// TODO FIXME hostname should be retrieved from storage and setting to default should only happen if there is nothing in storage.
 
 #if defined (OC_SPAKE) && defined (OC_DEBUG) 
-
   // convert in upper case (12 x char + /0)
   char sn_upper_case[SERIAL_NUM_SIZE + 1];
   memcpy(sn_upper_case, sn_lower_case, SERIAL_NUM_SIZE +1);
   app_str_to_upper(sn_upper_case);
 
   OC_DBG_SPAKE("=== QR Code: KNX:S:%s;P:%s ===", sn_upper_case, app_get_password());
-
 #endif
 
   return 0;
@@ -475,35 +786,33 @@ int app_init(void)
  * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
  * so we don't need to wake up a blocking loop.
  */
-KNX_TOOL_WEAK void signal_event_loop(void)
+KNX_TOOL_WEAK void knx_iot_signal_event_loop(void)
 {
   // DO NOTHING, wxTimer drives oc_main_poll()
 }
 
-int app_initialize_stack(const char* storage_folder_name)
+int knx_iot_initialize_stack(const char* storage_name)
 {
   /*
-    The final storage folder depends on the build system/ current directory on Linux/ Windows,
-    the folder name is defined by the file name + serial number. The data are stored in the current directory
-
-    Code below should work both on Linux/Windows.
-
-    For a specific embedded OS usually this functionality needs to be adapted.
-  */
+   * The final storage folder depends on the build system/ current directory on Linux/ Windows,
+   * the folder name is defined by the file name + serial number. The data are stored in the current directory
+   *
+   * Code below should work on Linux, Windows and Zephyr.
+   *
+   * For a specific embedded OS usually this functionality needs to be adapted.
+   */
 
   // current directory, storage = './' + folder name + '_' + serial number + '\0'
   char storage[2 + 64 + 1 + SERIAL_NUM_SIZE + 1];
 
   #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
 
-  (void)snprintf(storage, sizeof(storage), "./%s_%s", storage_folder_name, sn_lower_case);
+  (void)snprintf(storage, sizeof(storage), "./%s_%s", storage_name, sn_lower_case);
 
   #ifdef OC_DEBUG
-
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
   OC_INF("Current path is: '%s'", dir);
-
   #endif
 
   #endif
@@ -511,18 +820,20 @@ int app_initialize_stack(const char* storage_folder_name)
   oc_storage_config(storage);
 
   // initialize the 'application' runtime variables
-  initialize_variables();
+  knx_iot_initialize_variables();
 
   // set the stack handler callbacks, details for each handler see oc_handler_t
-  static oc_handler_t handler = {.init = app_init,
-                                 .signal_event_loop = signal_event_loop,
-                                 .register_resources = register_resources,
-                                 .requests_entry = NULL};
+  static oc_handler_t handler = {
+          .init = knx_iot_initialize_app,
+          .signal_event_loop = knx_iot_signal_event_loop,
+          .register_resources = knx_iot_register_resources,
+          .requests_entry = NULL
+  };
 
   // set the application handler callbacks
-  oc_set_hostname_cb(hostname_cb, NULL);
-  oc_set_factory_presets_cb(factory_presets_cb, NULL);
-  oc_set_restart_cb(restart_presets_cb, NULL);
+  oc_set_hostname_cb(knx_iot_set_hostname_cb, NULL);
+  oc_set_factory_presets_cb(knx_iot_factory_presets_cb, NULL);
+  oc_set_restart_cb(knx_iot_restart_cb, NULL);
   oc_set_swu_cb(swu_cb, NULL);
   oc_set_swu_upgrade_cb(swu_upgrade_cb, NULL);
 

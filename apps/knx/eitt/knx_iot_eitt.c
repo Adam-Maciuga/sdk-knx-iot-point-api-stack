@@ -1,31 +1,19 @@
-/*
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2022-2023 Cascoda Ltd
- Copyright (c) 2024-2025 KNX Association
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-*/
+/* 
+ * Copyright (c) 2022-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /**
  * @file
  *
- * KNX virtual EITT, for more details see 'knx_iot_application_template' c-file.
+ * KNX-IoT demo EITT certification application, for more details see 'knx_iot_application_template' c-file.
  *
  */
 
 #include "oc_api.h"
-#include "apps/knx/knx_iot_virtual_knx.h" 
+#include "apps/knx/knx_iot_knx.h" 
 
 /*
  * EITT definitions
@@ -34,7 +22,7 @@
  * device lifetime or are predefined in the KNX IoT specification.
  *
  */
-const char application_name[] KNX_TOOL_WEAK = "KNX virtual EITT certification application";
+const char application_name[] KNX_TOOL_WEAK = "KNX-IoT demo EITT certification application";
 const char sn_lower_case[] KNX_TOOL_WEAK = "00fa10020800";  // same as eitt test template, deliberated incorrect serial number
 const char hw_type[] KNX_TOOL_WEAK = "Windows";             // 12 string chars, same as eitt test template
 const char dev_model[] KNX_TOOL_WEAK = "KNX Certification"; // same as eitt test template
@@ -64,9 +52,12 @@ lsxb_channel_t lsxb[NUM_CHANNELS] = {
 };
 
 // additional parameters
-int_datapoint_t test_parameter = {0, "/p/p1", "urn:knx:dpa.65500.201", ":dpt.propDataType", "Global Test Parameter"};
+int_datapoint_t test_parameter = {
+  0, "/p/p1", "urn:knx:dpa.65500.201", ":dpt.propDataType", "Global Test Parameter"
+};
 
-void register_resources(void)
+/* KNX-IoT datapoint functions */
+void knx_iot_register_resources(void)
 {
   PRINT("Register LSAB/LSSB 0...1 channel control/status resource");
   {
@@ -96,7 +87,6 @@ void register_resources(void)
     oc_resource_set_functional_block_data(soo_resource_lssb, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance, lsxb[LSSB].fb_number_of_datapoints);
     oc_resource_set_functional_block_data(ioo_resource_lssb, lsxb[LSSB].fb_number, lsxb[LSSB].fb_instance, lsxb[LSSB].fb_number_of_datapoints);
 
-
     oc_resource_set_properties(soo_resource_lsab, OC_DISCOVERABLE + OC_OBSERVABLE);
     oc_resource_set_properties(ioo_resource_lsab, OC_DISCOVERABLE + OC_OBSERVABLE);
     oc_resource_set_properties(soo_resource_lssb, OC_DISCOVERABLE + OC_OBSERVABLE);
@@ -115,9 +105,9 @@ void register_resources(void)
 
        **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
     */
-    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, get_lsxb, soo_user_data_lsab, OC_ACL_I , OC_IF_I);
-    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, put_lsab, soo_user_data_lsab, OC_ACL_I , OC_IF_I);
-    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, get_lsxb, ioo_user_data_lsab, OC_ACL_O , OC_IF_O);
+    oc_resource_set_request_handler(soo_resource_lsab, OC_GET, knx_iot_get_lsxb, soo_user_data_lsab, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(soo_resource_lsab, OC_PUT, knx_iot_put_lsab, soo_user_data_lsab, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource_lsab, OC_GET, knx_iot_get_lsxb, ioo_user_data_lsab, OC_ACL_O , OC_IF_O);
 
     /* LSSB defines
        soo, GET**
@@ -126,9 +116,9 @@ void register_resources(void)
 
        **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
     */
-    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, get_lsxb, soo_user_data_lssb, OC_ACL_O , OC_IF_O);
-    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, get_lsxb, ioo_user_data_lssb, OC_ACL_I , OC_IF_I);
-    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, put_lssb, ioo_user_data_lssb, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(soo_resource_lssb, OC_GET, knx_iot_get_lsxb, soo_user_data_lssb, OC_ACL_O , OC_IF_O);
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_GET, knx_iot_get_lsxb, ioo_user_data_lssb, OC_ACL_I , OC_IF_I);
+    oc_resource_set_request_handler(ioo_resource_lssb, OC_PUT, knx_iot_put_lssb, ioo_user_data_lssb, OC_ACL_I , OC_IF_I);
 
     oc_add_resource(soo_resource_lsab);
     oc_add_resource(ioo_resource_lsab);
@@ -149,8 +139,8 @@ void register_resources(void)
     oc_resource_set_properties(tp0, OC_DISCOVERABLE + OC_OBSERVABLE + OC_WRITE_AFFECTS_FP);
 
     // parameter defines GET and PUT 
-    oc_resource_set_request_handler(tp0, OC_GET, get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler
+    oc_resource_set_request_handler(tp0, OC_GET, knx_iot_get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
+    oc_resource_set_request_handler(tp0, OC_PUT, knx_iot_put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler
 
     oc_add_resource(tp0);
   }

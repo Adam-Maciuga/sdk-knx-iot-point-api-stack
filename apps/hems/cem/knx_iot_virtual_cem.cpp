@@ -1,22 +1,9 @@
-﻿/*
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2022-2023 Cascoda Ltd
- Copyright (c) 2024-2025 KNX Association
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-*/
+﻿/* 
+ * Copyright (c) 2022-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
@@ -27,13 +14,16 @@
 #include "wx/timer.h"
 #include <wx/mstream.h>
 #include <wx/image.h>
+#include <wx/clipbrd.h>
+#include <wx/display.h>
 #include "api/oc_knx_dev.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "apps/hems/knx_iot_virtual_ems.h"
+#include "apps/knx_iot_app.h"
+#include "apps/knx_iot_util.h"
+#include "apps/knx_iot_virtual.h"
+#include "apps/hems/knx_iot_ems.h"
 #include "apps/hems/icons/cem_ico.h"
-#include <wx/clipbrd.h>
-#include <wx/display.h>
 #include <algorithm>
 
 class CustomDialog : public wxDialog
@@ -142,7 +132,7 @@ wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
 {
   // call in c-code
-  app_initialize_stack("knx_iot_virtual_cem");
+  knx_iot_initialize_stack("knx_iot_virtual_cem");
 
   wxInitAllImageHandlers();
 
@@ -311,7 +301,7 @@ void MyFrame::ProcessModeUpdate(wxCommandEvent& event)
   (void)sprintf(text, "charger out: %.02f kW (%.02f kW from grid)", current_charger_power / 1000, grid / 1000);
   m_charger_text->SetValue(text);
 
-  const char* url = app_retrieve_href_from_cem_charger();
+  const char* url = get_cem_charger_href();
   set_cem_charger_value(current_charger_power);
 
   // send message
@@ -374,10 +364,10 @@ void MyFrame::OnTimer(wxTimerEvent& event)
 
 void MyFrame::OnProcessInverterUpdate()
 {
-  if (cem_inverter_flags() & new_event)
+  if (get_cem_inverter_flags() & DPH_NEW_EVENT)
   {
     // clear event
-    clear_cem_inverter_flags(new_event);
+    clear_cem_inverter_flags(DPH_NEW_EVENT);
 
     char text[200];
 
@@ -414,7 +404,7 @@ void MyFrame::OnProcessInverterUpdate()
     (void)sprintf(text, "charger out: %.02f kW (%.02f kW from grid)", current_charger_power / 1000, grid / 1000);
     m_charger_text->SetValue(text);
 
-    const char* url = app_retrieve_href_from_cem_charger();
+    const char* url = get_cem_charger_href();
     set_cem_charger_value(current_charger_power);
 
     //TODO: optimize by only sending on value change and not on every update
