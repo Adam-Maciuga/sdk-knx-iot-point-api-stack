@@ -90,7 +90,7 @@ void knx_iot_get_handler(oc_request_t* request, oc_interface_mask_t interfaces, 
         {
           case OC_REP_BOOL:
             //oc_rep_i_set_boolean(root, 1, *((bool*)value));	
-            oc_rep_text_set_boolean(root, value, *((bool*)value));  // TODO FIXME why was only the bool type encoded with key as  text? This should be consistent over all types.
+            oc_rep_text_set_boolean(root, value, *((bool*)value));  // TODO FIXME why was only the bool type encoded with key as text? This should be consistent over all types.
             error_state = false;
             PRINT("get %s as %d", description ? description : "unknown", *((bool*)value));
             break;
@@ -259,8 +259,9 @@ void knx_iot_put_handler(oc_request_t* request, oc_interface_mask_t interfaces, 
 {
   bool error_state = true;
 
-  // get interfaces for the resource PUT method ...
+  // get interfaces of the resource PUT method ...
   bool is_input_datapoint = interfaces & OC_IF_I;
+  bool is_parameter = interfaces & OC_IF_P;
 
   // sets the pointer to the (/k or /p) handed over 'value' object, note it may be also NULL
   const oc_rep_t* rep = request->request_payload;
@@ -287,7 +288,7 @@ void knx_iot_put_handler(oc_request_t* request, oc_interface_mask_t interfaces, 
     // '{..., 1: 2, 1: 5}'
     if (rep->iname == 1 && rep->type == value_type)
     {
-      if (!is_input_datapoint)  // TODO FIXME this check was missing for the 'test_parameter', but we want this, do we? hmm test_parameter PUT is defined with OC_IF_P
+      if (! (is_input_datapoint || is_parameter))
       {
         // see 'Callback Notes'
         oc_prepare_no_format_response_no_payload(request, OC_STATUS_METHOD_NOT_ALLOWED);

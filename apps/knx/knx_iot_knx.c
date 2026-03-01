@@ -104,5 +104,5 @@ void set_channel_value(uint8_t channel, uint8_t point, bool value) { lsxb[channe
 char* get_channel_href(uint8_t channel, uint8_t point) { return lsxb[channel].point[point].resource_path; }
 
 // PARAMETER code - needs to be defined in case of specific parameter handling
-char* app_get_parameter_url(int index) { return NULL; }
-char* app_get_parameter_name(int index) { return NULL; }
+char* app_get_parameter_url(int index) { return index == 0 ?  test_parameter.resource_path: NULL; }	// TODO FIXME href vs. url
+char* app_get_parameter_name(int index) { return index == 0 ? test_parameter.name : NULL; }

@@ -137,7 +137,7 @@ wxString util_dumpLsmState()
  * @brief Dump the Group Object Table into a string
  *
  * Iterates through all group object table entries and prints:
- * - Index
+ * - index
  * - id
  * - url (resource path)
  * - cflags (communication flags, both numeric and textual)
@@ -155,7 +155,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
   for (int i = 0; i < total; i++) {
     oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(i);
     if (entry && entry->ga_len > 0) {
-      sprintf(line, "Index %d ", i);
+      sprintf(line, "index: %d ", i);
       out += line;
 
       sprintf(line, "  id: '%d'  ", entry->id);
@@ -170,7 +170,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
       out += line;
 
       // ga list
-      strcpy(line, "  ga : [");
+      strcpy(line, "  ga: [");
       for (int j = 0; j < entry->ga_len; j++) {
         util_int2ga_text(entry->ga[j], line, ga_conversion);
       }
@@ -187,7 +187,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
  * @brief Dump the Publisher Table into a string
  *
  * Iterates through all publisher table entries and prints:
- * - Index
+ * - index
  * - id, ia, iid, fid
  * - grpid (converted if enabled)
  * - at string
@@ -207,7 +207,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
   for (int i = 0; i < total; i++) {
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(i);
     if (entry && entry->id >= 0) {
-      sprintf(line, "Index %d ", i); out += line;
+      sprintf(line, "index: %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: %d ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
@@ -215,7 +215,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: %s ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
-        strcpy(line, "  ga : [");
+        strcpy(line, "  ga: [");
         for (int j = 0; j < entry->ga_len; j++) {
           util_int2ga_text(entry->ga[j], line, ga_conversion);
         }
@@ -232,7 +232,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
  * @brief Dump the Recipient Table into a string
  *
  * Iterates through all recipient table entries and prints:
- * - Index
+ * - index
  * - id, ia, iid, fid
  * - grpid (converted if enabled)
  * - at string
@@ -252,7 +252,7 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
   for (int i = 0; i < total; i++) {
     oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
     if (entry && entry->id >= 0) {
-      sprintf(line, "Index %d ", i); out += line;
+      sprintf(line, "index: %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: %d ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
@@ -260,7 +260,7 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: %s ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
-        strcpy(line, "  ga : [");
+        strcpy(line, "  ga: [");
         for (int j = 0; j < entry->ga_len; j++) {
           util_int2ga_text(entry->ga[j], line, ga_conversion);
         }
@@ -309,11 +309,11 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
  * @brief Dump the Parameter List into a string
  *
  * Iterates through all application parameters and prints:
- * - Index
- * - URL
+ * - index
+ * - url 
  * - name
  *
- * If no parameters exist, prints "no parameters in this device".
+ * If no parameters exist, prints "no parameters in this device".	// TODO FIXME, no it does not. Do we want an empty list or a message?
  *
  * @return wxString containing formatted Parameter List
  */
@@ -325,8 +325,9 @@ wxString util_dumpParameterList()
   int index = 0;
   char* url = app_get_parameter_url(index);
   while (url) {
-    sprintf(line, "index %02d ", index); out += line;
+    sprintf(line, "index: %d ", index); out += line;
     sprintf(line, "\turl: '%s' ", url); out += line;
+    // TODO add parameter value here?
     char* name = app_get_parameter_name(index);
     if (name) { sprintf(line, "  name: '%s'  ", name); out += line; }
     index++;
@@ -339,7 +340,7 @@ wxString util_dumpParameterList()
  * @brief Dump the Auth/AT Table into a string
  *
  * Iterates through all authentication/authorization entries and prints:
- * - Index
+ * - index
  * - id
  * - profile
  * - For DTLS: sub, kid
@@ -358,7 +359,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
   for (int i = 0; i < max_entries; i++) {
     oc_auth_at_t* entry = oc_get_auth_at_entry(i);
     if (entry && oc_string_len(entry->id)) {
-      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
+      sprintf(line, "index: %d \tid = '%s' ", i, oc_string(entry->id));
       out += line;
       sprintf(line, "  profile : %d (%s)", entry->profile,
               oc_at_profile_to_string(entry->profile));
@@ -400,7 +401,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
         }
         // scope / osc_ga
         if (entry->scope == OC_ACL_GA) {
-          strcpy(line, "  osc_ga : [");
+          strcpy(line, "  osc_ga: [");
           out += line;
           for (int j = 0; j < entry->ga_len; j++) {
             util_int2ga_text(entry->ga[j], line, ga_conversion);
@@ -408,7 +409,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
           strcat(line, " ]");
           out += line;
         } else {
-          sprintf(line, "  scope : ");
+          sprintf(line, "  scope: ");
           util_int2scope_text(entry->scope, line);
           out += line;
         }
