@@ -384,8 +384,8 @@ KNX_TOOL_WEAK int knx_iot_initialize_app(void)
   // set the firmware version 0.0.1 -> volatile, value may be overwritten at runtime by MaC
   oc_core_set_device_fwv(0, 0, 1);	// TODO FIXME AB config parameter
 
-  // set the application version 1.0.0, > volatile,  value may be overwritten at runtime by MaC
-  oc_core_set_device_apv(1, 0, 0)	 // TODO FIXME AB config parameter;
+  // set the application version 1.0.0 -> volatile,  value may be overwritten at runtime by MaC
+  oc_core_set_device_apv(1, 0, 0);	// TODO FIXME AB config parameter
 
   // set manufacturer id, -> permanent
   oc_core_set_device_mid(mid);

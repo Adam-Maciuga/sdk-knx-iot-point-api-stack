@@ -13,4 +13,4 @@
 int set_nonblock_socket(int sockfd);
 ip_context_t *get_ip_context_for_device(void);
 
-#endif /* IPADAPTER_H */
+#endif
