@@ -6,11 +6,11 @@
 
 #include "ctype.h"
 #include "oc_api.h"
-#include "knx_iot_knx.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
-#include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
+#include "api/oc_knx_fp.h"
+#include "knx_iot_knx.h"
 
 // defied individually in the corresponding LSAB/LSSB/EITT application code
 extern lsxb_channel_t lsxb[];
@@ -89,7 +89,7 @@ void knx_iot_restart_cb(void *data)
 {
   (void)data;
 
-  for (int i = 0; i < NUM_CHANNELS; i++)
+  for (int i = 0; i < LSXB_NUM_CHANNELS; i++)
   {
     // set default runtime values after restart, note
     lsxb[i].point[0].value = false;

@@ -6,11 +6,12 @@
  */
  
 #include "oc_api.h"
-#include "apps/hems/knx_iot_ems.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
-#include "api/oc_knx_fp.h"
 #include "oc_knx_client.h"
+#include "api/oc_knx_fp.h"
+#include "apps/knx_iot_datapoint.h"
+#include "apps/hems/knx_iot_ems.h"
 
 /*
  * CEM definitions
@@ -32,26 +33,33 @@ bool cem_inverter_get_called = false; // binary (toggle) marker to tell parent c
 bool cem_charger_put_called = false; // binary (toggle) marker to tell parent c++ code an action
 
 float_array_functional_block_t cem = {
-  427,
-  1,
-  1,
+  427, 1, 1,	// TODO FIXME shouldn't the number of datapoints be 2!?
   {
-    {0, /* IEEE 754 single float, KNX DPT: 14.056 */
+    {
+      0.0, /* IEEE 754 single float, KNX DPT: 14.056 */
       "/p/inverter",
       "urn:knx:dpa.427.60",
       ":dpt.value_power",
       "CEM Input from Inverter",
-      DPH_NO_ERROR},
-    {0, /* IEEE 754 single float, KNX DPT: 14.056 */
-     "/p/charger",
-     "urn:knx:dpa.427.52",
-     ":dpt.value_power",
-     "CEM Output to Charger",
-     DPH_NO_ERROR}
+      DPH_NO_ERROR
+    },
+    {
+      0.0, /* IEEE 754 single float, KNX DPT: 14.056 */
+      "/p/charger",
+      "urn:knx:dpa.427.52",
+      ":dpt.value_power",
+      "CEM Output to Charger",
+      DPH_NO_ERROR
+    }
   }
 };
 
 /* KNX-IoT datapoint functions */
+/*
+ * Note:
+ * GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes.
+ */
+
 // CEM inverter has GET + PUT (is input)
 static void knx_iot_put_cem_inverter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -71,37 +79,30 @@ static void knx_iot_get_cem_charger(oc_request_t* request, oc_interface_mask_t i
 
 void knx_iot_register_resources(void)
 {
-  oc_resource_t* power_dc_resource_inverter_in = oc_new_resource(cem.point[CEM_INVERTER].resource_path, 1);
-  oc_resource_t* power_dc_resource_charger_out = oc_new_resource(cem.point[CEM_CHARGER].resource_path, 1);
+  // CEM - Inverter input
+  knx_iot_register_functional_block_datapoint(
+          cem.fb_number, cem.fb_instance, cem.fb_number_of_datapoints,
+          cem.point[CEM_INVERTER].resource_path, cem.point[CEM_INVERTER].dpa, cem.point[CEM_INVERTER].dpt,
+          OC_DISCOVERABLE + OC_OBSERVABLE,
+          NULL,
+          knx_iot_get_cem_inverter, OC_ACL_I, OC_IF_I,
+          // Note:
+          // Interface type if.p/if.d is set in addition, the point can also be used as parameter point (in add. to s-mode).
+          knx_iot_put_cem_inverter, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P
+  );
 
-  oc_resource_bind_resource_type(power_dc_resource_inverter_in, cem.point[CEM_INVERTER].dpa);
-  oc_resource_bind_resource_type(power_dc_resource_charger_out, cem.point[CEM_CHARGER].dpa);
-
-  oc_resource_bind_dpt(power_dc_resource_inverter_in, cem.point[CEM_INVERTER].dpt);
-  oc_resource_bind_dpt(power_dc_resource_charger_out, cem.point[CEM_CHARGER].dpt);
-
-  oc_resource_bind_content_type(power_dc_resource_inverter_in, APPLICATION_CBOR, CONTENT_NONE);
-  oc_resource_bind_content_type(power_dc_resource_charger_out, APPLICATION_CBOR, CONTENT_NONE);
-
-  oc_resource_set_functional_block_data(power_dc_resource_inverter_in, cem.fb_number, cem.fb_instance, cem.fb_number_of_datapoints);
-  oc_resource_set_functional_block_data(power_dc_resource_charger_out, cem.fb_number, cem.fb_instance, cem.fb_number_of_datapoints);
-
-  oc_resource_set_properties(power_dc_resource_inverter_in, OC_OBSERVABLE + OC_DISCOVERABLE);
-  oc_resource_set_properties(power_dc_resource_charger_out, OC_OBSERVABLE + OC_DISCOVERABLE);
-
-  /* CEM defines
-       GET**, PUT
-       GET**
-       Interface type if.p/if.d is set in addition, the point can also be used as parameter point (in add. to s-mode).
-
-       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
-    */
-  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_GET, knx_iot_get_cem_inverter, NULL, OC_ACL_I , OC_IF_I);
-  oc_resource_set_request_handler(power_dc_resource_inverter_in, OC_PUT, knx_iot_put_cem_inverter, NULL, OC_ACL_I | OC_ACL_P, OC_IF_I | OC_IF_P);
-  oc_resource_set_request_handler(power_dc_resource_charger_out, OC_GET, knx_iot_get_cem_charger, NULL, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D);
-
-  oc_add_resource(power_dc_resource_inverter_in);
-  oc_add_resource(power_dc_resource_charger_out);
+  // CEM - Charger output
+  knx_iot_register_functional_block_datapoint(
+          cem.fb_number, cem.fb_instance, cem.fb_number_of_datapoints,
+          cem.point[CEM_CHARGER].resource_path, cem.point[CEM_CHARGER].dpa, cem.point[CEM_CHARGER].dpt,
+          OC_DISCOVERABLE + OC_OBSERVABLE,
+          NULL,
+          // Note:
+          // Interface type if.p/if.d is set in addition, the point can also be used as parameter point (in add. to s-mode).
+          knx_iot_get_cem_charger, OC_ACL_O | OC_ACL_D, OC_IF_O | OC_IF_D,
+          // CEM charger is an output and has no PUT handler.
+          NULL, OC_ACL_NONE, OC_IF_NONE
+  );
 }
 
 /* KNX-IoT app interface functions */

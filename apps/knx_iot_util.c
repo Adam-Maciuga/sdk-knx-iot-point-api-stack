@@ -13,7 +13,9 @@
  *
  */
 
+#include <ctype.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include "knx_iot_util.h"
@@ -43,6 +45,15 @@ void util_double2text(double value, char* text)
   (void)sprintf(new_text, " %f", value);
   strcat(text, new_text);
 }
+
+void util_str2upper(char* str)
+{
+  while (*str != '\0')
+  {
+    *str = (char)toupper(*str);
+    str++;
+  }
+} 
 
 /**
  * @brief Convert integer GA value to text representation

@@ -43,6 +43,17 @@ extern "C"
   void util_double2text(double value, char* text);
 
   /**
+   * @brief function to convert the input string to upper case
+   *
+   * @note extra function defined, since '_strupr' from <string.h> is Microsoft (Windows) 
+   *       specific and not available in Linux in <string.h>
+   *
+   * @param str the string to convert to upper case
+   *
+   */
+  void util_str2upper(char* str);
+
+  /**
    * @brief convert the group address to text for display
    *
    * @param value the integer

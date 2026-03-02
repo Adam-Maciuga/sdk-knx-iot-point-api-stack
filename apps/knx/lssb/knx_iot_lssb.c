@@ -13,6 +13,7 @@
  */
 
 #include "oc_api.h"
+#include "apps/knx_iot_datapoint.h"
 #include "apps/knx/knx_iot_knx.h"
 
 /*
@@ -36,14 +37,21 @@ const uint32_t mid KNX_TOOL_WEAK = 0x00fa;                  // manufacturer id, 
  */
 
 // define LSSB channel 0..1 + included EPs switch control/status
-lsxb_channel_t lsxb[NUM_CHANNELS] = 
-{
-  {421, 1, NUM_POINTS,{
-   {false, "/p/lssb/0/soo", "urn:knx:dpa.421.61", ":dpt.switch", (0 << 8) + 0},
-   {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (0 << 8) + 1}}},
-  {421, 2, NUM_POINTS,{
-   {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},
-   {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (1 << 8) + 1}}}
+lsxb_channel_t lsxb[LSXB_NUM_CHANNELS] = {
+  {
+    421, 1, NUM_POINTS,
+    {
+      {false, "/p/lssb/0/soo", "urn:knx:dpa.421.61", ":dpt.switch", (0 << 8) + 0},
+      {false, "/p/lssb/0/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (0 << 8) + 1}	// TODO FIXME .53 vs. .62 in EITT example
+    }
+  },
+  {
+    421, 2, NUM_POINTS,
+    {
+      {false, "/p/lssb/1/soo", "urn:knx:dpa.421.61", ":dpt.switch", (1 << 8) + 0},
+      {false, "/p/lssb/1/ioo", "urn:knx:dpa.421.53", ":dpt.switch", (1 << 8) + 1}
+    }
+  }
 };
 
 // additional parameters
@@ -52,65 +60,53 @@ int_datapoint_t test_parameter = {
 };
 
 /* KNX-IoT datapoint functions */
+/*  
+ * Note:
+ * GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes.
+ */
 void knx_iot_register_resources(void)
 {
   PRINT("Register LSSB 0...1 channel control/status resource");
 
-  for (int i = 0; i < NUM_CHANNELS; i++)
+  for (int i = 0; i < LSXB_NUM_CHANNELS; i++)
   {
-    oc_resource_t* soo_resource = oc_new_resource(lsxb[i].point[SOO].resource_path, 1);
-    oc_resource_t* ioo_resource = oc_new_resource(lsxb[i].point[IOO].resource_path, 1);
+    // Note:
+    // We have 2 x an FB with the same id
 
-    oc_resource_bind_resource_type(soo_resource, lsxb[i].point[SOO].dpa);
-    oc_resource_bind_resource_type(ioo_resource, lsxb[i].point[IOO].dpa);
+    // LSSB - SOO
+    knx_iot_register_functional_block_datapoint(
+            lsxb[i].fb_number, lsxb[i].fb_instance, lsxb[i].fb_number_of_datapoints,
+            lsxb[i].point[SOO].resource_path, lsxb[i].point[SOO].dpa, lsxb[i].point[SOO].dpt,
+            OC_DISCOVERABLE + OC_OBSERVABLE,
+            // Define user data for GET/PUT, needed to distinguish the call source
+            (void*)(uintptr_t)lsxb[i].point[SOO].id,
+            // Note:
+            // No interface type if.p/if.d is set in addition, the points are only used for s-mode runtime communication.
+            knx_iot_get_lsxb, OC_ACL_O, OC_IF_O,
+            // LSSB - SOO is an output and has no PUT handler.
+            NULL, OC_ACL_NONE, OC_IF_NONE
+    );
 
-    oc_resource_bind_dpt(soo_resource, lsxb[i].point[SOO].dpt);
-    oc_resource_bind_dpt(ioo_resource, lsxb[i].point[IOO].dpt);
-
-    oc_resource_bind_content_type(soo_resource, APPLICATION_CBOR, CONTENT_NONE);
-    oc_resource_bind_content_type(ioo_resource, APPLICATION_CBOR, CONTENT_NONE);
-
-    // we have 2 x an FB with the same id
-    oc_resource_set_functional_block_data(soo_resource, lsxb[i].fb_number, lsxb[i].fb_instance, lsxb[i].fb_number_of_datapoints);
-    oc_resource_set_functional_block_data(ioo_resource, lsxb[i].fb_number, lsxb[i].fb_instance, lsxb[i].fb_number_of_datapoints);
-
-    oc_resource_set_properties(soo_resource, OC_DISCOVERABLE + OC_OBSERVABLE);
-    oc_resource_set_properties(ioo_resource, OC_DISCOVERABLE + OC_OBSERVABLE);
-
-    // define user data for PUT/GET, needed to distinguish the call source
-    void* soo_user_data = (void*)(uintptr_t)lsxb[i].point[SOO].id;
-    void* ioo_user_data = (void*)(uintptr_t)lsxb[i].point[IOO].id;
-
-    /* LSSB defines
-       soo, GET**
-       ioo, GET**, PUT
-       No interface type if.p/if.d is set in addition, the points are only used for s-mode runtime communication. 
-
-       **note that a GET also handles the query metadata request, regardless if it may be an 'input', see Callback Notes
-    */
-    oc_resource_set_request_handler(soo_resource, OC_GET, knx_iot_get_lsxb, soo_user_data, OC_ACL_O , OC_IF_O);
-    oc_resource_set_request_handler(ioo_resource, OC_GET, knx_iot_get_lsxb, ioo_user_data, OC_ACL_I , OC_IF_I);
-    oc_resource_set_request_handler(ioo_resource, OC_PUT, knx_iot_put_lssb, ioo_user_data, OC_ACL_I , OC_IF_I);
-
-    oc_add_resource(soo_resource);
-    oc_add_resource(ioo_resource);
+    // LSSB - IOO
+    knx_iot_register_functional_block_datapoint(
+            lsxb[i].fb_number, lsxb[i].fb_instance, lsxb[i].fb_number_of_datapoints,
+            lsxb[i].point[IOO].resource_path, lsxb[i].point[IOO].dpa, lsxb[i].point[IOO].dpt,
+            OC_DISCOVERABLE + OC_OBSERVABLE,
+            // Define user data for GET/PUT, needed to distinguish the call source
+            (void*)(uintptr_t)lsxb[i].point[IOO].id,
+            // Note:
+            // No interface type if.p/if.d is set in addition, the points are only used for s-mode runtime communication.
+            knx_iot_get_lsxb, OC_ACL_I, OC_IF_I,
+            knx_iot_put_lssb, OC_ACL_I, OC_IF_I
+    );
   }
 
   PRINT("Register test parameter");
-  {
-    oc_resource_t* tp0 = oc_new_resource(test_parameter.resource_path, 1);
-
-    oc_resource_bind_resource_type(tp0, test_parameter.dpa);
-
-    oc_resource_bind_dpt(tp0, test_parameter.dpt);
-
-    oc_resource_bind_content_type(tp0, APPLICATION_CBOR, CONTENT_NONE);
-
-    oc_resource_set_properties(tp0, OC_DISCOVERABLE + OC_OBSERVABLE + OC_WRITE_AFFECTS_FP);
-
-    oc_resource_set_request_handler(tp0, OC_GET, knx_iot_get_test_parameter, NULL, OC_ACL_D, OC_IF_D); // r/w, see EP handler
-    oc_resource_set_request_handler(tp0, OC_PUT, knx_iot_put_test_parameter, NULL, OC_ACL_P, OC_IF_P); // r/w, see EP handler 
-
-    oc_add_resource(tp0);
-  }
+  knx_iot_register_datapoint(
+          test_parameter.resource_path, test_parameter.dpa, test_parameter.dpt,
+          OC_DISCOVERABLE + OC_OBSERVABLE + OC_WRITE_AFFECTS_FP,
+          NULL,
+          knx_iot_get_test_parameter, OC_ACL_D, OC_IF_D,  // r/w, see EP handler
+          knx_iot_put_test_parameter, OC_ACL_P, OC_IF_P   // r/w, see EP handler
+  );
 }

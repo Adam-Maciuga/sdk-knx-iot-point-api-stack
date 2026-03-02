@@ -23,7 +23,7 @@
 #include "port/oc_network_interface.h"
 #include "port/oc_storage.h"
 
-extern lsxb_channel_t lsab[NUM_CHANNELS];
+extern lsxb_channel_t lsab[LSXB_NUM_CHANNELS];
 
 class CustomDialog : public wxDialog
 {
@@ -281,7 +281,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
        with the separator characters colon and semicolon and are in the alphanumeric range.
   */
   (void)sprintf(text, "QR:\tKNX:S:%s;P:%s", oc_string(device->serialnumber), app_get_password());
-  app_str_to_upper(text);
+  util_str2upper(text);
 
   wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 3) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);

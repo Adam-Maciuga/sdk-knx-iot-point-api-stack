@@ -51,7 +51,7 @@ wxString util_dumpQRCode()
 
   // QR code
   (void)sprintf(line, "KNX:S:%s;P:%s\n", oc_string(device->serialnumber), app_get_password());
-  app_str_to_upper(line);
+  util_str2upper(line);
   out += line;
 
   return out;
