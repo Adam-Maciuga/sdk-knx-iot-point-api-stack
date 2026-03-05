@@ -929,22 +929,25 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     Cases for a unicast (outbound) message:
 
     (uc-a) context will be retrieved by kid
-     - uc outbound response -> former inbound request (response after read request, 2.04 changed after write request)
+     - do uc outbound (server) response -> after former inbound CON/NON request
+     - example: do "Piggybacked Response"
 
     (uc-b) context will be retrieved by 'Sender ID'
-     - uc outbound request -> server application initial r/w request via e.g.; 'dev/pm'
-     - TODO why needed, at token is always present
+     - do uc outbound (client) request -> on client application initial r/w request via e.g.; 'dev/pm'
+     - TODO DL not needed since (ETS) client functionality not present anymore?
 
     (uc-c) context retried by group address
-     - uc outbound request -> server application initial r/w request via '/k'
+     - do uc outbound (client) s-mode request
+     - example: do client application initial CON/NON r/w request via '/k'
 
-    (uc-d) context retried by token/mid (CON message)
-     - uc outbound ACK 2.04 Changed with payload -> inbound request
-     - TODO why needed, at token is always present( for a response this makes no sense, only when receiving a 2.04 )
+    (uc-d) context retried by token/mid
+     - do ??? -> after inbound "Empty ACK" (only mid is included)
+     - example: ???
+     - TODO DL action unclear, to be investigated if this is only a second uc-a if token is in
 
-    (uc-e) context retried by NEW context after (uc-a)
-     - uc outbound echo response -> former inbound mc/uc r/w request to '/k' OR inbound uc r/w request to '*' (e.g.; /dev/pm)
-
+    (uc-e) context retried by NEW context
+     - do uc outbound (server) response -> after former UNSYNCED inbound (ext) CON/NON request
+     - example: do "Echo Response"
    */
 
   oc_auth_at_t* at_entry = oc_get_auth_at_entry(from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_from_former_inbound_request);
