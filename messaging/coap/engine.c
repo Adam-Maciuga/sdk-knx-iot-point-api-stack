@@ -251,18 +251,17 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data) {
 #endif 
 
 /*
- * Client																		 Server
- *          -> CoAP CON Request (POST/GET)    
- *          <- ACK + Payload (piggybacked)   : a piggybacked ACK can always be called "Response"   
- *          OR
- *          <- ACK + Empty
- *          <- CoAP CON Response (2.0x/4.05) : a confirmable RESPONSE can always be called "Separate Response"
- *          :
- *          -> ACK + Empty 
- *          -> STOP (never a response to a response)
+ * Client																		           Server
+ *         -> CoAP CON Request (POST/GET)                
+ *         <- CoAP ACK Response (2.0x/4.05) + Payload  : = "Piggybacked Response"   
+ *         OR
+ *         <- CoAP ACK + Empty                         : = "Empty ACK" (ACK with code 0.00 + MID)
+ *         <- CoAP CON Response (2.0x/4.05) + Payload  : = "Separate Response"
+ *         -> CoAP ACK + Empty 
+ * STOP                                                : no response to a response
  *
- *          -> CoAP NON Request (POST/GET) 
- *          <- CoAP NON Response (2.0x/4.05)
+ *         -> CoAP NON Request (POST/GET) 
+ *         <- CoAP NON Response (2.0x/4.05)
  *
  * MID relates CON to ACK = Transport 
  * Token relates Request to Response = Application
