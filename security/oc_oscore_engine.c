@@ -1178,14 +1178,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     else
     { // CoAP response
 
-      // TODO AH , all unsecured error messages (step 2,3,6) from 8.2 does not end up here ... 
-      if (from_org_msg_cloned_outgoing_msg->endpoint.request_piv_len == 0)
-      { // original request was not protected by OSCORE
-
-        OC_DBG("not protecting outgoing unicast response, original request was not protected by OSCORE");
-        goto oscore_send_dispatch;
-      }
-
       // response - use SSN from inbound request as Partial IV
       oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
@@ -1354,9 +1346,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // from here on any message is encrypted ...
   UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
 
-  oscore_send_dispatch:
-
-  #ifdef OC_CLIENT
+#ifdef OC_CLIENT
   if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED],
                       from_org_msg_cloned_outgoing_msg) == OC_PROCESS_ERR_FULL)
   {
