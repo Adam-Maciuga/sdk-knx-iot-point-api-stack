@@ -251,23 +251,46 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data) {
 #endif 
 
 /*
- * Client																		           Server
- *         -> CoAP CON Request (POST/GET)                
- *         <- CoAP ACK Response (2.0x/4.05) + Payload  : = "Piggybacked Response"   
- *         OR
- *         <- CoAP ACK + Empty                         : = "Empty ACK" (ACK with code 0.00 + MID)
- *         <- CoAP CON Response (2.0x/4.05) + Payload  : = "Separate Response"
- *         -> CoAP ACK + Empty 
- * STOP                                                : no response to a response
- *
- *         -> CoAP NON Request (POST/GET) 
- *         <- CoAP NON Response (2.0x/4.05)
- *
- * MID relates CON to ACK = Transport 
- * Token relates Request to Response = Application
- * 
- * https://datatracker.ietf.org/doc/html/rfc7252#section-2.2
- * 	
+  CoAP + S-MODE handling 
+  
+  CoAP 
+  ====
+  Client																		           Server
+          -> CoAP CON Request (POST/GET)                
+          <- CoAP ACK Response (2.0x/4.05) + Payload  : = "Piggybacked Response"   
+          OR
+          <- CoAP ACK + Empty                         : = "Empty ACK" (ACK with code 0.00 + MID)
+          <- CoAP CON Response (2.0x/4.05) + Payload  : = "Separate Response"
+          -> CoAP ACK + Empty 
+  STOP                                                : no response to a response
+ 
+          -> CoAP NON Request (POST/GET) 
+          <- CoAP NON Response (2.0x/4.05)
+ 
+  MID relates CON to ACK = Transport 
+  Token relates Request to Response = Application
+ 
+  S-MODE
+  ======
+  clause 2.6.9.1 (read example)
+
+         -> CoAP NON s-mode multicast request         : STOP  
+         <- CoAP NON s-mode multicast request         : NEW server request (new token)
+
+         -> CoAP NON s-mode unicast request           : STOP
+         <- CoAP NON s-mode unicast request           : NEW server request (new token) - 'non' flag must be set
+ 
+  clause 2.6.9.2 (read example) 
+
+          -> CoAP CON s-mode unicast request       
+          <- 2.04 response w/o payload (shall)        : same token 
+          <- CoAP CON s-mode unicast request          : NEW server request (new token)  
+
+          
+      
+  
+  https://datatracker.ietf.org/doc/html/rfc7252#section-2.2
+  	
  */
 
 int coap_receive(oc_message_t* incoming_message) 

@@ -508,9 +508,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     else
     { // kid_ctx != 10
 
-      // find context from 'former' own request
-      oscore_ctx = 
-        oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len, oscore_pkt->mid, &request_piv, &request_piv_len, false);
+      //  find context from 'former' own request, but not for s-mode, see "S-MODE" details (engine.c)
+      oscore_ctx = oc_oscore_find_context_by_token_mid(oscore_pkt->token, oscore_pkt->token_len, oscore_pkt->mid, &request_piv, &request_piv_len, false);
       if (!oscore_ctx)
       {
         OC_ERR("response error (8.4 step 2), ignore silently, cannot find a matching oscore Request Sender Context from inbound response");
