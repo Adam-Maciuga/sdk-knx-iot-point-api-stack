@@ -44,15 +44,15 @@ extern "C" {
 typedef enum {
   INBOUND_NETWORK_EVENT, // inbound network event, ANY message
   UDP_TO_TLS_EVENT,
-  INIT_TLS_CONN_EVENT,
-  RI_TO_TLS_EVENT,
+  INIT_TLS_CONN_EVENT,              // TLS init
+  RI_TO_TLS_EVENT,                  // TLS send message 
   INBOUND_RI_EVENT,                 // inbound network event, payload IS NOT encrypted (was already plain or was decrypted by OSCORE layer)
   OUTBOUND_NETWORK_EVENT,           // outbound network event, payload IS NOT (yet) encrypted
   OUTBOUND_NETWORK_EVENT_ENCRYPTED, // outbound network event, payload IS encrypted, received from OSCORE layer
   TLS_READ_DECRYPTED_DATA,
   TLS_WRITE_APPLICATION_DATA,
-  INTERFACE_DOWN, /**< network interface down*/
-  INTERFACE_UP,   /**< network interface up */
+  INTERFACE_DOWN,           // network interface down
+  INTERFACE_UP,             // network interface up
   TLS_CLOSE_ALL_SESSIONS,
   INBOUND_OSCORE_EVENT,     // inbound network event, payload IS encrypted with OSCORE
   OUTBOUND_UC_OSCORE_EVENT, // outbound unicast network event, payload WILL BE encrypted with OSCORE
