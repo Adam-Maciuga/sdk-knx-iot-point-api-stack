@@ -196,6 +196,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
       {
         // 1. handle OSCORE (mc/uc) s-mode messages first, encrypt the outgoing message before sending it (pass to OSCORE layer)
         // 2. handle PLAIN (multicast) discovery messages as a second step
+        // 3. handle PLAIN unicast messages as a third step, outgoing message are not encrypted (such as an 4-byte CoAP empty ACK)
         if (message->endpoint.flags & OSCORE)
         {
           if (message->endpoint.flags & MULTICAST)
@@ -213,7 +214,7 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         }
         else if (message->endpoint.flags & DISCOVERY)
         {
-          OC_DBG("Outbound plain discovery request, forwarding to IP layer");
+          OC_DBG("Outbound plain discovery (multicast) request, forwarding to IP layer");
           oc_endpoint_print(&message->endpoint);
           oc_send_discovery_request(message);
           oc_message_unref(message);

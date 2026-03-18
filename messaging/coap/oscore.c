@@ -10,22 +10,27 @@
 #include "coap_signal.h"
 #include "oc_ri.h"
 
-void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured) {
-	// retype pointer
-  coap_packet_t* coap_pkt = (coap_packet_t*) packet;
+void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured)
+{
+  // retype pointer
+  coap_packet_t* coap_pkt = (coap_packet_t*)packet;
   uint16_t mid;
   coap_message_type_t type;
 
-  if (!secured) {
+  if (!secured)
+  {
     UNSET_BIT(endpoint->flags, OSCORE);
     UNSET_OPTION(coap_pkt, COAP_OPTION_OSCORE);
   }
 
-  if (coap_pkt->type == COAP_TYPE_CON) {
+  if (coap_pkt->type == COAP_TYPE_CON)
+  {
     // in case of confirmable send ack with mid from request as ACK
     type = COAP_TYPE_ACK;
     mid = coap_pkt->mid;
-  } else {
+  }
+  else
+  {
     // send any message other than ack with OWN (next) mid as NON
     type = COAP_TYPE_NON;
     mid = coap_get_next_mid();
@@ -42,12 +47,14 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
 
   // note, this message is not the same as a coap packet from above
   oc_message_t* message = oc_internal_allocate_outgoing_message();
-  if (message) {
+  if (message)
+  {
     // copy original endpoint to local message
     memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 
     // copy token
-    if (coap_pkt->token_len > 0) {
+    if (coap_pkt->token_len > 0)
+    {
       coap_set_token(outgoing_coap_msg, coap_pkt->token, coap_pkt->token_len);
     }
 
@@ -56,10 +63,11 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
 
     // copies coap msg to message
     message->length = coap_serialize_message(outgoing_coap_msg, message->data);
-    if (message->length > 0) {
+    if (message->length > 0)
+    {
       coap_send_message(message);
-      OC_DBG("send OSCORE error %s message in CoAP format with code (%u)", 
-              message->endpoint.flags & OSCORE ? "'secured'" : "'plain'", code);
+      OC_DBG("send OSCORE error %s message in CoAP format with code (%u)",
+             message->endpoint.flags & OSCORE ? "'secured'" : "'plain'", code);
     }
   }
 }

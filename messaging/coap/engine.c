@@ -196,13 +196,6 @@ static void coap_send_response_with_empty_application_payload(coap_message_type_
     // echo will be included if not NULL
     if (echo_included)
     {
-      // we want an echo option to be included
-
-      // According to RFC8613 the PIV is not included, in KNX IoT it is included 
-      // (specification, clause 3.6.5):
-      // - from second observe response onwards
-      // - on all 'unicast echo responses' 
-
       // set echo option (uses a time stamp)
       coap_set_header_echo(&coap_msg, echo, echo_len);
 
@@ -225,8 +218,10 @@ static void coap_send_response_with_empty_application_payload(coap_message_type_
     // convert outgoing dst EP to unicast (for the response)
     UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST);
 
-		// serialize data, add all options and include/exclude echo option 
-		// (if included also include OSCORE option, since it is part of inner options, RFC 9175)
+		/* 
+		  serialize OSCORE message, add all inner/outer options, (inner) payload and included/excluded echo option
+		  (if included also include OSCORE option, since echo option is an inner option, RFC 9175)
+    */
     outgoing_msg->length = coap_oscore_serialize_message(&coap_msg, outgoing_msg->data, true, true, echo_included);
 
     if (outgoing_msg->length > 0) 
@@ -1067,7 +1062,10 @@ int coap_receive(oc_message_t* incoming_message)
             // copy original s-mode message, this copies also the former type, NON (uc/mc)/ CON (uc)
             memcpy(new_transaction->message->data, transaction->message->data, transaction->message->length);
 
-            // fill new transaction with prepared coap data and payload data from former transaction
+            /*
+             fill new transaction with prepared coap data and payload data from former transaction
+             serialize OSCORE message, add all inner/outer options and (inner) payload 
+            */
             new_transaction->message->length =
               coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
 
