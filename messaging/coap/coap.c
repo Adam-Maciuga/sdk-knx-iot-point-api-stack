@@ -1193,7 +1193,13 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   } 
   else 
   {
-    // see https://datatracker.ietf.org/doc/html/rfc8613#section-5.3
+    /* 
+      if outer is false serialize only the plaintext as specified https://datatracker.ietf.org/doc/html/rfc8613#section-5.3, 
+      - inner code
+      - Class E options 
+      - Payload (if exists, then + prefixed '0xFF')
+
+    */
 
     coap_pkt->buffer[0] = coap_pkt->code;
     option = coap_pkt->buffer + 1;

@@ -240,7 +240,7 @@ uint16_t coap_get_next_mid(void);
 
 void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code, uint16_t mid);
 
-// a message is serialized by adding inner and outer options BUT not adding the OSCORE option
+// a message is serialized by adding plaintext (inner code, inner options, payload) and outer options BUT not adding the outer OSCORE option
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 
 /**
@@ -249,7 +249,7 @@ size_t coap_serialize_message(void* packet, uint8_t* buffer);
 *  @note
 *  - inner  = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
 *  - outer  = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
-*	- oscore = true: add OSCORE option data (kid, kid_context, piv)
+*	 - oscore = true: add OSCORE option data (kid, kid_context, piv)
 *
 */
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore);
