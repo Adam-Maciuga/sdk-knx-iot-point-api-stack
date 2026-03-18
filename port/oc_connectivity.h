@@ -262,4 +262,4 @@ int oc_tcp_update_csm_state(oc_endpoint_t *endpoint, tcp_csm_state_t csm);
 }
 #endif
 
-#endif 
+#endif

@@ -1,22 +1,9 @@
-/*
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2022-2023 Cascoda Ltd
- Copyright (c) 2024-2025 KNX Association
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-*/
+/* 
+ * Copyright (c) 2022-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 //needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
@@ -26,15 +13,17 @@
 #include <wx/display.h>
 #include "api/oc_knx_dev.h"
 #include "oc_knx.h"
-#include "apps/knx/knx_iot_virtual_knx.h"
 #include "oc_knx_client.h"
+#include "apps/knx_iot_app.h"
+#include "apps/knx_iot_util.h"
+#include "apps/knx_iot_virtual.h"
+#include "apps/knx/knx_iot_knx.h"
 #include "port/dns-sd.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_network_interface.h"
 #include "port/oc_storage.h"
 
-
-extern lsxb_channel_t lsab[NUM_CHANNELS];
+extern lsxb_channel_t lsab[LSXB_NUM_CHANNELS];
 
 class CustomDialog : public wxDialog
 {
@@ -146,7 +135,7 @@ private:
   wxTextCtrl* m_iid_text; // text control for installation id
   wxTextCtrl* m_pm_text; // text control for programming mode
   wxTextCtrl* m_ls_text; // text control for load state
-  wxTextCtrl* m_hn_text; // text control for host name
+  wxTextCtrl* m_hn_text; // text control for hostname
 
   // eitt
   wxButton *m_EITT_SOO;
@@ -177,7 +166,7 @@ bool MyApp::OnInit()
   oc_storage_erase("swu_knx_last_update");
 
   // call in c-code
-  app_initialize_stack("knx_iot_virtual_eitt");
+  knx_iot_initialize_stack("knx_iot_virtual_eitt");
 
   // reset the device (for EITT tests)
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
@@ -292,7 +281,7 @@ MyFrame::MyFrame() : wxFrame(nullptr, wxID_ANY, "KNX EITT test application")
        with the separator characters colon and semicolon and are in the alphanumeric range.
   */
   (void)sprintf(text, "QR:\tKNX:S:%s;P:%s", oc_string(device->serialnumber), app_get_password());
-  app_str_to_upper(text);
+  util_str2upper(text);
 
   wxTextCtrl* static_text1 = new wxTextCtrl(this, wxID_ANY, text, wxPoint(10, 10 + ((max_instances + 3) * x_height)),
                                             wxSize(width_size * 2, x_height), 0);
@@ -379,14 +368,11 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 {
   SetStatusText("Changing programming mode");
 
-  bool my_val = m_menuFile->IsChecked(CHECK_PM);
-  oc_device_info_t* const device = oc_core_get_device_info();
-  device->pm = my_val;
+  // set the programming mode
+  knx_set_programming_mode(m_menuFile->IsChecked(CHECK_PM));
 
   // update the UI
   this->updateDeviceData();
-  // update mdns
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
 
 /**
@@ -462,8 +448,10 @@ void MyFrame::updateDeviceData()
 void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+
   // update the UI
   this->updateDeviceData();
 }
@@ -476,8 +464,10 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+
   // update the UI
   this->updateDeviceData();
 }
@@ -645,14 +635,14 @@ void MyFrame::updateCheckBoxesFromLiveIOOData()
 void MyFrame::OnPressed_LSAB_SOO(wxCommandEvent& event)
 {
   // get url from SOO (channel 1 out of 2) as defined in EITT template
-  char* url = app_retrieve_href_from_channel(1, SOO);
-  bool p = app_retrieve_bool_variable_from_channel(1, SOO);
+  char* url = get_channel_href(1, SOO);
+  bool p = get_channel_value(1, SOO);
 
   // toggle value
   p = !p;
 
   // set value
-  app_set_bool_variable_from_channel(1, SOO, p);
+  set_channel_value(1, SOO, p);
 
   // send out, multicast
   oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, url, 'w');

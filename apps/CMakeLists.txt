@@ -14,8 +14,9 @@ if(WIN32)
     # Fetch wxWidgets GUI framework.
     FetchContent_Declare(
       wxWidgets
-      URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.8/wxWidgets-3.2.8.7z
-      DOWNLOAD_EXTRACT_TIMESTAMP true
+      URL https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.10/wxWidgets-3.2.10.tar.bz2
+      URL_HASH SHA256=d66e929569947a4a5920699539089a9bda83a93e5f4917fb313a61f0c344b896
+      DOWNLOAD_EXTRACT_TIMESTAMP ON
     )
 
     # Prefer to use extraction timestamp rather than archive timepstamp.
@@ -34,8 +35,9 @@ elseif(UNIX)
 endif()
 
 ### Demo Applications ###
-## MinWG (Windows) ##
+## MinGW (Windows) ##
 if(WIN32)
+    #set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")	# TODO IIRC -static-libgcc -static-libstdc++ was prefered over -static, verify
     set(CMAKE_EXE_LINKER_FLAGS "-static")
 
     # Add manifest for windows GUI applications when using MinGW
@@ -69,69 +71,63 @@ if(WIN32)
     endif()
 endif()
 
-
-
 ## GUI Executable Targets ##
 if(WIN32 OR UNIX)
-    # EITT (GUI) (for certification)
-    add_executable(eitt_virtual_gui WIN32
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/eitt/knx_iot_virtual_eitt.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/eitt/knx_iot_virtual_eitt.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_virtual_knx.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
+    set(COMMON_VIRTUAL_SOURCE_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_app.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_datapoint.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_util.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
         ${MANIFEST_RC} 
+    )
+
+    # EITT (GUI) (for certification)
+    add_executable(eitt_virtual_gui WIN32
+        ${COMMON_VIRTUAL_SOURCE_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_knx.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/eitt/knx_iot_eitt.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/eitt/knx_iot_virtual_eitt.cpp
     )
 
     # LSSB (GUI) - Demo Application
     add_executable(lssb_virtual_gui WIN32
+        ${COMMON_VIRTUAL_SOURCE_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_knx.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/lssb/knx_iot_lssb.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/lssb/knx_iot_virtual_lssb.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/lssb/knx_iot_virtual_lssb.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_virtual_knx.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
-        ${MANIFEST_RC} 
     )
 
     # LSAB (GUI) - Demo Application
     add_executable(lsab_virtual_gui WIN32
+        ${COMMON_VIRTUAL_SOURCE_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_knx.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/knx/lsab/knx_iot_lsab.c
         ${CMAKE_CURRENT_SOURCE_DIR}/knx/lsab/knx_iot_virtual_lsab.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/lsab/knx_iot_virtual_lsab.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx/knx_iot_virtual_knx.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
-        ${MANIFEST_RC} 
     )
 
     # Inverter (GUI) - Demo Application
     add_executable(inverter_virtual_gui WIN32
+        ${COMMON_VIRTUAL_SOURCE_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_ems.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/hems/inverter/knx_iot_inverter.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/inverter/knx_iot_virtual_inverter.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/hems/inverter/knx_iot_virtual_inverter.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_virtual_ems.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
-        ${MANIFEST_RC} 
     )
 
     # CEM (GUI) - Demo Application
     add_executable(cem_virtual_gui WIN32
+        ${COMMON_VIRTUAL_SOURCE_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_ems.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/hems/cem/knx_iot_cem.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/cem/knx_iot_virtual_cem.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/hems/cem/knx_iot_virtual_cem.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_virtual_ems.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
-        ${MANIFEST_RC} 
     )
 
     # Charger (GUI) - Demo Application
     add_executable(charger_virtual_gui WIN32
+        ${COMMON_VIRTUAL_SOURCE_FILES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_ems.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/hems/charger/knx_iot_charger.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hems/charger/knx_iot_virtual_charger.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/hems/charger/knx_iot_virtual_charger.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/hems/knx_iot_virtual_ems.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/knx_iot_virtual.cpp
-        ${MANIFEST_RC} 
-    ) 
+    )
 
     # LSSB/LSAB Demo (GUI)
     set_target_properties(eitt_virtual_gui PROPERTIES LINK_FLAGS ${GUI_FLAG})

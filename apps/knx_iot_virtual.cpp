@@ -1,21 +1,8 @@
-/*
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2024-2025 KNX Association
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-*/
+/* 
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /**
  * @file knx_iot_virtual.cpp
@@ -37,6 +24,8 @@
 #include <wx/button.h>
 #include <wx/textctrl.h>
 #include <wx/settings.h>
+#include "knx_iot_app.h"
+#include "knx_iot_util.h"
 #include "knx_iot_virtual.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
@@ -44,6 +33,42 @@
 #include "oc_knx.h"
 #include "port/oc_network_interface.h"
 #include "port/oc_storage.h"
+
+// Note:
+// Workaround for MSVC not supporting __attribute__((weak))
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+void knx_iot_factory_presets_cb(void* data)
+{
+  (void)data;
+}
+
+void knx_iot_set_hostname_cb(const oc_string_t hostname, void* data)
+{ 
+  (void)data;
+  
+  PRINT("KNX-IoT set hostname callback called with hostname: %s", oc_string(hostname));
+  
+  /*
+   * The application callback needs to handle a changed hostname such as to
+   * announce it to a border router or local daemon.
+   */
+}   
+
+void knx_iot_initialize_variables(void)
+{ 
+  /* initialize global variables for resources */
+  /* if wanted to be read them from persistent storage */
+}   
+#endif
+
+/**
+ * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
+ * so we don't need to wake up a blocking loop.
+ */
+void knx_iot_signal_event_loop(void)
+{
+  // DO NOTHING, wxTimer drives oc_main_poll()
+}
 
 /**
  * @brief Dump QR Code
@@ -62,12 +87,11 @@ wxString util_dumpQRCode()
 
   // QR code
   (void)sprintf(line, "KNX:S:%s;P:%s\n", oc_string(device->serialnumber), app_get_password());
-  app_str_to_upper(line);
+  util_str2upper(line);
   out += line;
 
   return out;
 }
-
 
 /**
  * @brief Dump device identification information
@@ -149,7 +173,7 @@ wxString util_dumpLsmState()
  * @brief Dump the Group Object Table into a string
  *
  * Iterates through all group object table entries and prints:
- * - Index
+ * - index
  * - id
  * - url (resource path)
  * - cflags (communication flags, both numeric and textual)
@@ -167,7 +191,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
   for (int i = 0; i < total; i++) {
     oc_group_object_table_t* entry = oc_core_get_group_object_table_entry(i);
     if (entry && entry->ga_len > 0) {
-      sprintf(line, "Index %d ", i);
+      sprintf(line, "index: %d ", i);
       out += line;
 
       sprintf(line, "  id: '%d'  ", entry->id);
@@ -182,7 +206,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
       out += line;
 
       // ga list
-      strcpy(line, "  ga : [");
+      strcpy(line, "  ga: [");
       for (int j = 0; j < entry->ga_len; j++) {
         util_int2ga_text(entry->ga[j], line, ga_conversion);
       }
@@ -199,7 +223,7 @@ wxString util_dumpGroupObjectTable(bool ga_conversion)
  * @brief Dump the Publisher Table into a string
  *
  * Iterates through all publisher table entries and prints:
- * - Index
+ * - index
  * - id, ia, iid, fid
  * - grpid (converted if enabled)
  * - at string
@@ -219,7 +243,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
   for (int i = 0; i < total; i++) {
     oc_group_table_t* entry = oc_core_get_publisher_table_entry(i);
     if (entry && entry->id >= 0) {
-      sprintf(line, "Index %d ", i); out += line;
+      sprintf(line, "index: %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: %d ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
@@ -227,7 +251,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: %s ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
-        strcpy(line, "  ga : [");
+        strcpy(line, "  ga: [");
         for (int j = 0; j < entry->ga_len; j++) {
           util_int2ga_text(entry->ga[j], line, ga_conversion);
         }
@@ -244,7 +268,7 @@ wxString util_dumpPublisherTable(bool ga_conversion, bool grpid_conversion, bool
  * @brief Dump the Recipient Table into a string
  *
  * Iterates through all recipient table entries and prints:
- * - Index
+ * - index
  * - id, ia, iid, fid
  * - grpid (converted if enabled)
  * - at string
@@ -264,7 +288,7 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
   for (int i = 0; i < total; i++) {
     oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
     if (entry && entry->id >= 0) {
-      sprintf(line, "Index %d ", i); out += line;
+      sprintf(line, "index: %d ", i); out += line;
       sprintf(line, "  id: '%d'  ", entry->id); out += line;
       if (entry->ia >= 0) { sprintf(line, "  ia: %d ", entry->ia); out += line; }
       if (entry->iid >= 0) { strcpy(line, "  iid: "); util_int2grpid_text(entry->iid, line, iid_conversion); out += line; }
@@ -272,7 +296,7 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
       if (entry->grpid > 0) { strcpy(line, "  grpid: "); util_int2grpid_text(entry->grpid, line, grpid_conversion); out += line; }
       if (oc_string_len(entry->at) > 0) { sprintf(line, "  at: %s ", oc_string(entry->at)); out += line; }
       if (entry->ga_len > 0) {
-        strcpy(line, "  ga : [");
+        strcpy(line, "  ga: [");
         for (int j = 0; j < entry->ga_len; j++) {
           util_int2ga_text(entry->ga[j], line, ga_conversion);
         }
@@ -321,11 +345,11 @@ wxString util_dumpRecipientTable(bool ga_conversion, bool grpid_conversion, bool
  * @brief Dump the Parameter List into a string
  *
  * Iterates through all application parameters and prints:
- * - Index
- * - URL
+ * - index
+ * - url 
  * - name
  *
- * If no parameters exist, prints "no parameters in this device".
+ * If no parameters exist, prints "no parameters in this device".	// TODO FIXME, no it does not. Do we want an empty list or a message?
  *
  * @return wxString containing formatted Parameter List
  */
@@ -337,8 +361,9 @@ wxString util_dumpParameterList()
   int index = 0;
   char* url = app_get_parameter_url(index);
   while (url) {
-    sprintf(line, "index %02d ", index); out += line;
+    sprintf(line, "index: %d ", index); out += line;
     sprintf(line, "\turl: '%s' ", url); out += line;
+    // TODO add parameter value here?
     char* name = app_get_parameter_name(index);
     if (name) { sprintf(line, "  name: '%s'  ", name); out += line; }
     index++;
@@ -351,7 +376,7 @@ wxString util_dumpParameterList()
  * @brief Dump the Auth/AT Table into a string
  *
  * Iterates through all authentication/authorization entries and prints:
- * - Index
+ * - index
  * - id
  * - profile
  * - For DTLS: sub, kid
@@ -370,7 +395,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
   for (int i = 0; i < max_entries; i++) {
     oc_auth_at_t* entry = oc_get_auth_at_entry(i);
     if (entry && oc_string_len(entry->id)) {
-      sprintf(line, "index : '%d' id = '%s' ", i, oc_string(entry->id));
+      sprintf(line, "index: %d \tid = '%s' ", i, oc_string(entry->id));
       out += line;
       sprintf(line, "  profile : %d (%s)", entry->profile,
               oc_at_profile_to_string(entry->profile));
@@ -412,7 +437,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
         }
         // scope / osc_ga
         if (entry->scope == OC_ACL_GA) {
-          strcpy(line, "  osc_ga : [");
+          strcpy(line, "  osc_ga: [");
           out += line;
           for (int j = 0; j < entry->ga_len; j++) {
             util_int2ga_text(entry->ga[j], line, ga_conversion);
@@ -420,7 +445,7 @@ wxString util_dumpAuthTable(bool ga_conversion)
           strcat(line, " ]");
           out += line;
         } else {
-          sprintf(line, "  scope : ");
+          sprintf(line, "  scope: ");
           util_int2scope_text(entry->scope, line);
           out += line;
         }
@@ -429,163 +454,6 @@ wxString util_dumpAuthTable(bool ga_conversion)
     }
   }
   return out;
-}
-
-// ===== Utility Functions =====
-
-void util_bool2text(bool on_off, char* text)
-{
-  if (on_off)
-  {
-    strcat(text, " On");
-  }
-  else
-  {
-    strcat(text, " Off");
-  }
-}
-
-void util_int2text(int value, char* text)
-{
-  char value_text[50];
-  (void)sprintf(value_text, " %d", value);
-  strcat(text, value_text);
-}
-
-void util_double2text(double value, char* text)
-{
-  char new_text[200];
-  (void)sprintf(new_text, " %f", value);
-  strcat(text, new_text);
-}
-
-/**
- * @brief Convert integer GA value to text representation
- *
- * The Group Address structure correlates with its representation style in ETS.
- * The information about the ETS Group Address representation style itself is NOT
- * included in the Group Address.
- *
- * '3-level' = main/middle/sub
- * - main = D7+D6+D5+D4+D3 of the first octet (high address)
- * - middle = D2+D1+D0 of the first octet (high address)
- * - sub = the entire second octet (low address)
- * - ranges: main = 0..31, middle = 0..7, sub = 0..255
- *
- * @param value The GA value
- * @param text Buffer to append the formatted text to
- * @param as_ets If true, format as ETS 3-level (main/middle/sub), otherwise as integer
- */
-void util_int2ga_text(uint32_t value, char* text, bool as_ets)
-{
-  char value_text[50];
-
-  if (as_ets)
-  {
-    uint32_t ga = value;
-    uint32_t ga_main = (ga >> 11);
-    uint32_t ga_middle = (ga >> 8) & 0x7;
-    uint32_t ga_sub = (ga & 0x000000FF);
-    (void)sprintf(value_text, " %u/%u/%u", ga_main, ga_middle, ga_sub);
-    strcat(text, value_text);
-  }
-  else
-  {
-    (void)sprintf(value_text, " %u", value);
-    strcat(text, value_text);
-  }
-}
-
-/**
- * @brief Convert the scope to text for display
- *
- * @param value The scope value
- * @param text Buffer to append the formatted text to
- */
-void util_int2scope_text(uint32_t value, char* text)
-{
-  char value_text[150];
-
-  (void)sprintf(value_text, " [%u]", value);
-
-  strcat(text, value_text);
-  // should be the same as
-  if (value & (1 << 1))
-    strcat(text, " if.i");
-  if (value & (1 << 2))
-    strcat(text, " if.o");
-  if (value & (1 << 3))
-    strcat(text, " if.g.s");
-  if (value & (1 << 4))
-    strcat(text, " if.c");
-  if (value & (1 << 5))
-    strcat(text, " if.p");
-  if (value & (1 << 6))
-    strcat(text, " if.d");
-  if (value & (1 << 7))
-    strcat(text, " if.a");
-  if (value & (1 << 8))
-    strcat(text, " if.s");
-  if (value & (1 << 9))
-    strcat(text, " if.ll");
-  if (value & (1 << 10))
-    strcat(text, " if.b");
-  if (value & (1 << 11))
-    strcat(text, " if.sec");
-  if (value & (1 << 12))
-    strcat(text, " if.swu");
-  if (value & (1 << 13))
-    strcat(text, " if.pm");
-  if (value & (1 << 14))
-    strcat(text, " if.m");
-}
-
-/**
- * @brief Convert the group ID to text for display
- *
- * Creates the multicast address from group and scope:
- * FF3_:FD__:____:____:(8-f)___:____
- * FF35:30:<ULA-routing-prefix>::<group id>
- *    | 5 == scope
- *    | 3 == scope
- *
- * Multicast prefix: FF35:0030:  [4 bytes]
- * ULA routing prefix: FD11:2222:3333::  [6 bytes + 2 empty bytes]
- * Group Identifier: 8000 : 0068 [4 bytes ]
- *
- * @param value The group ID value
- * @param text Buffer to append the formatted text to
- * @param as_ets If true, format as partial IPv6 address, otherwise as integer
- */
-void util_int2grpid_text(uint64_t value, char* text, bool as_ets)
-{
-  char value_text[50];
-
-  if (as_ets)
-  {
-    // group number to the various bytes
-    uint8_t byte_1 = static_cast<uint8_t>(value >> 0);
-    uint8_t byte_2 = static_cast<uint8_t>(value >> 8);
-    uint8_t byte_3 = static_cast<uint8_t>(value >> 16);
-    uint8_t byte_4 = static_cast<uint8_t>(value >> 24);
-    uint8_t byte_5 = static_cast<uint8_t>(value >> 32);
-
-    if (byte_5 == 0)
-    {
-      (void)sprintf(value_text, " %02x%02x:%02x%02x", byte_4, byte_3, byte_2, byte_1);
-    }
-    else
-    {
-      (void)sprintf(value_text, " %02x:%02x%02x:%02x%02x", byte_5, byte_4, byte_3, byte_2, byte_1);
-    }
-
-    strcat(text, value_text);
-  }
-  else
-  {
-    (void)sprintf(value_text, " %" PRIu64, value);
-    strcat(text, value_text);
-  }
 }
 
 // Network Interface Dialog Implementation
