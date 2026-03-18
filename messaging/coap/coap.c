@@ -441,7 +441,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   // not used...
   // COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
-  // OSCORE option must be in outer options
+  // OSCORE option must be in outer options, set only if outer and oscore are true
   if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) {
     // add OSCORE option
 
@@ -1125,6 +1125,8 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
   if (outer) 
   {
+    // if outer is true serialize only outer options and possibly OSCORE options (if true)
+    
     // add size of token
     header_length_calculation += coap_pkt->token_len;
 

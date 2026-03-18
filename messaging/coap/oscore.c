@@ -362,7 +362,7 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
 
 size_t oscore_serialize_plaintext(void* packet, uint8_t* buffer) 
 {
-  return coap_oscore_serialize_message(packet, buffer, true, false, true);
+  return coap_oscore_serialize_message(packet, buffer, true, false, false);
 }
 
 size_t oscore_serialize_message(void* packet, uint8_t* buffer) 
