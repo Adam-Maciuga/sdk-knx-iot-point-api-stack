@@ -297,12 +297,12 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
   size_t option_length = coap_pkt->piv_len + coap_pkt->kid_len + coap_pkt->kid_ctx_len;
 
   if (coap_pkt->kid_ctx_len > 0) { 
-    // context is present so increase option number
+    // context is present so increase option length (s = 1 byte, https://www.rfc-editor.org/rfc/rfc8613.html#section-6.1)
     ++option_length;
   }
 
   if (coap_pkt->oscore_flags > 0) { 
-    // flags are present so increase option number
+    // flags are present so increase option length (flags = 1 byte, see above)
     ++option_length;
   }
 
