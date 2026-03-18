@@ -107,6 +107,10 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
 endif()
 
 ### mDNS/DNS-SD library ###
+# Note:
+# Use git apply instead of patch for cross-platform compatibility (patch not available on Windows).
+find_package(Git REQUIRED)
+
 FetchContent_Declare(
     mdns
     GIT_REPOSITORY https://github.com/mjansson/mdns.git
@@ -115,7 +119,7 @@ FetchContent_Declare(
     GIT_TAG main
     # Note:
     # Issues #96 and #97 have not been fixed yet.
-    PATCH_COMMAND patch -p1 -i "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
+    PATCH_COMMAND ${GIT_EXECUTABLE} apply -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
 )
 
 FetchContent_MakeAvailable(mdns)
