@@ -695,29 +695,6 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 */
 static int oc_oscore_send_multicast_message(oc_message_t* msg)
 {
-  /* OSCORE layer secure multicast pseudocode
-   * ----------------------------------------
-   * Search for group OSCORE context
-   * If found OSCORE context:
-   *   Set context->sender_key as the encryption key
-   *   Parse CoAP message
-   *   If parse unsuccessful, return error
-   *   Use context->SSN as partial IV
-   *   Use context-sender_id as kid
-   *   Compute nonce using partial IV and context->sender_id
-   *   Compute AAD using partial IV and context->sender_id
-   *   Make room for inner options and payload by moving CoAP payload to offset
-   *    2 * COAP_MAX_HEADER_SIZE
-   *   Serialize OSCORE plain text at offset COAP_MAX_HEADER_SIZE
-   *   Encrypt OSCORE plain text at offset COAP_MAX_HEADER_SIZE
-   *   Set OSCORE packet payload to location COAP_MAX_HEADER_SIZE
-   *   Set OSCORE packet payload length to the plain text size + tag length (8)
-   *   Set OSCORE option in OSCORE packet
-   *   Serialize OSCORE message to oc_message_t
-   * Dispatch oc_message_t to IP layer
-   */
-
-  
   OC_DBG_OSCORE("process outbound multicast OSCORE message");
 
   // new msg, send and release after sending -> the original message may be still needed for echos (NON messages)
@@ -732,8 +709,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   memcpy(from_org_msg_cloned_outgoing_msg->data, msg->data, msg->length);
   memcpy(&from_org_msg_cloned_outgoing_msg->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
   
-  // save if original msg is 'tracked' AND remove one reference (either 'msg' is just released or still present)
-  bool original_msg_is_currently_tracked = msg->ref_count > 1;
+  // release original message
   oc_message_unref(msg);
 
   // create local CoAP packet
@@ -755,8 +731,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
   /*
     find Sender Context (SID) for sending ga, in case
-    - ga = '0' = NOT initialized this call fails since no context will be available
-    - ga = '0' = i want to send ga 0 this call succeeds since context will be available
+    - ga = '0' = NOT initialized, this call fails since no context will be available
+    - ga = '0' = i want to send ga 0, this call succeeds since context will be available
   */
   oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(group_address);
 
@@ -767,62 +743,61 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // use sender key for encryption
     uint8_t* key = oscore_ctx->sender_key;
 
-    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0, 
-    kid[OSCORE_SENDER_ID_LEN], kid_len = 0, 
-    nonce[OSCORE_AEAD_NONCE_LEN],
-    aad[OSCORE_AAD_MAX_LEN], aad_len = 0;
+    uint8_t piv[OSCORE_PIV_LEN], piv_len = 0; 
+    uint8_t nonce[OSCORE_AEAD_NONCE_LEN];
+    uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0;
 
-    OC_DBG_OSCORE("### protecting multicast request ###");
-
-    // request - use context SSN as Partial IV
+    // request - use context SSN as Partial IV (before increment)
     oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
+
+    // debugging
+    OC_DBG_OSCORE("protecting outgoing multicast request, using SSN as Partial IV : %" PRIu64, oscore_ctx->ssn);
 
     /*
         increment SSN
         - an initial NON request (transaction not present) -> a read request
+        - an initial NON request (transaction not present) -> a read response
     */
-
     increment_ssn_in_context(oscore_ctx);
 
-    // use 'Sender ID' as kid
-    kid_len = oscore_ctx->sender_id_len;
-    memcpy(kid, oscore_ctx->sender_id, oscore_ctx->sender_id_len);
-    
-
-    // compute nonce using PIV and 'kid'
-    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, 
+    // compute nonce using 'kid' and PIV
+    oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len,
                          piv, piv_len, 
                          oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-    OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID :\t ");
+    OC_DBG("---composed AEAD nonce using Partial IV and Sender ID :\t ");
     OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 
-    // compose AAD using PIV and 'kid'
+    // compose AAD using 'kid' and PIV
     oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, aad, &aad_len);
-    OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID :\t");
+    
+    OC_DBG("---composed AAD using Partial IV and Sender ID :\t");
     OC_LOGbytes_OSCORE(aad, aad_len);
 
-    // make room for inner options and payload by moving CoAP payload to offset 2*COAP_MAX_HEADER_SIZE
-    // to accommodate for Outer+Inner CoAP options in the OSCORE packet
+    uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
+
     if (coap_pkt->payload_len > 0)
     {
-      memmove(from_org_msg_cloned_outgoing_msg->data + 2 * COAP_MAX_HEADER_SIZE, coap_pkt->payload, coap_pkt->payload_len);
+      // make room for outer/inner CoAP options + payload in OSCORE packet, move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE
+      uint8_t* dst2 = dst1 + COAP_MAX_HEADER_SIZE;
 
-      // store the new payload location in the CoAP packet
-      coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + 2 * COAP_MAX_HEADER_SIZE;
+      // move payload and store/remind the new (moved) payload location in the CoAP packet
+      memmove(dst2, coap_pkt->payload, coap_pkt->payload_len);
+      coap_pkt->payload = dst2;
     }
 
-    // serialize OSCORE plain text at offset COAP_MAX_HEADER_SIZE (code, inner options, payload)
-    const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE);
+    // serialize OSCORE plain text 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
+    const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
     OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
 
-    // set the OSCORE packet payload to point to location of the serialized inner message
-    coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
+    // set the OSCORE packet pointer to location of the serialized inner message (inner code, inner options, payload)
+    coap_pkt->payload = dst1;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
     // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
-    const int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
+    const int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len,
+                                      OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
                                       nonce, OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
     if (ret != 0)
@@ -844,8 +819,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
       Wireshark fix - include the 'kid_context' (in msg) = 'ID Context' (OSCORE)
       on the wire as well, otherwise cannot decode OSCORE messages that use implicit ID contexts.
     */
-    // set the OSCORE option
-    coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, oscore_ctx->id_context, oscore_ctx->id_context_len);
+    // set the OSCORE option (kid, kid_context, piv) in the OUTER message
+    coap_set_header_oscore(coap_pkt, piv, piv_len, oscore_ctx->sender_id, oscore_ctx->sender_id_len, oscore_ctx->id_context, oscore_ctx->id_context_len);
 
     // serialize OSCORE message
     from_org_msg_cloned_outgoing_msg->length = oscore_serialize_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data);
@@ -1109,7 +1084,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     )
     { // CoAP request
 
-      // request - use context SSN as Partial IV
+      // request - use context SSN as Partial IV (before increment)
       oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
       // debugging
@@ -1152,18 +1127,20 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       kid_context_len = oscore_ctx->id_context_len;
       memcpy(kid_context, oscore_ctx->id_context, oscore_ctx->id_context_len);
 
-      // compute AEAD nonce using partial IV and 'Sender ID'
-      oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, oscore_ctx->common_iv, nonce,
-                           OSCORE_AEAD_NONCE_LEN);
+      // compute AEAD nonce using 'kid' and PIV
+      oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len, 
+                           piv, piv_len,
+                           oscore_ctx->common_iv,
+                           nonce,OSCORE_AEAD_NONCE_LEN);
 
-      OC_DBG_OSCORE("---computed AEAD nonce using Partial IV and Sender ID :\t ");
+      OC_DBG("---composed AEAD nonce using Partial IV and Sender ID :\t ");
       OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
 
 
-      // compose AAD using partial IV and 'Sender ID'
+      // compose AAD using 'kid' and PIV
       oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, piv, piv_len, aad, &aad_len);
 
-      OC_DBG_OSCORE("---composed AAD using Partial IV and Sender ID :\t ");
+      OC_DBG("---composed AAD using Partial IV and Sender ID :\t ");
       OC_LOGbytes_OSCORE(aad, aad_len);
 
       // TODO AH , for a request not needed ?
@@ -1173,7 +1150,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         memcpy(msg->endpoint.request_piv, piv, piv_len);
         msg->endpoint.request_piv_len = piv_len;
 
-        OC_DBG_OSCORE("sending request is still tracked, caching PIV for later use ...");
+        OC_DBG("sending request is still tracked, caching PIV for later use ...");
         OC_LOGbytes_OSCORE(msg->endpoint.request_piv, msg->endpoint.request_piv_len);
       }
     }
@@ -1184,7 +1161,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       oscore_store_piv(piv, &piv_len, oscore_ctx->ssn);
 
       // debugging
-      OC_DBG_OSCORE("protecting outgoing unicast response, using SSN as Partial IV : %04x", (uint32_t)oscore_ctx->ssn);
+      OC_DBG("protecting outgoing unicast response, using SSN as Partial IV : %04x", (uint32_t)oscore_ctx->ssn);
 
       coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
       bool is_a_con_repetition = transaction && transaction->retransmit_counter > 0;
@@ -1223,7 +1200,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                              from_org_msg_cloned_outgoing_msg->endpoint.request_piv, from_org_msg_cloned_outgoing_msg->endpoint.request_piv_len,
                              oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-        OC_DBG_OSCORE("computed AEAD nonce by using PIV + Request Sender ID (no echo response) : ");
+        OC_DBG("computed AEAD nonce by using PIV + Request Sender ID (no echo response) : ");
         OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
       }
 
@@ -1232,20 +1209,23 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                             from_org_msg_cloned_outgoing_msg->endpoint.request_piv,
                             from_org_msg_cloned_outgoing_msg->endpoint.request_piv_len, aad, &aad_len);
 
-      OC_DBG_OSCORE("composed AAD by using request PIV and Recipient ID : ");
+      OC_DBG("composed AAD by using request PIV and Recipient ID : ");
       OC_LOGbytes_OSCORE(aad, aad_len);
     }
 
     // here requests and responses end up
 
-    // make room for inner options and payload by moving CoAP payload to offset 2*COAP_MAX_HEADER_SIZE 
-    // to accommodate for Outer+Inner CoAP options in the OSCORE packet
+    
+    uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
+
     if (coap_pkt->payload_len > 0)
     {
-      memmove(from_org_msg_cloned_outgoing_msg->data + 2 * COAP_MAX_HEADER_SIZE, coap_pkt->payload, coap_pkt->payload_len);
+      // make room for outer/inner CoAP options + payload in OSCORE packet, move CoAP payload to offset 2*COAP_MAX_HEADER_SIZE
+      uint8_t* dst2 = dst1 + COAP_MAX_HEADER_SIZE;
 
-      // store the new payload location in the CoAP packet
-      coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + 2 * COAP_MAX_HEADER_SIZE;
+      // move payload and store/remind the new (moved) payload location in the CoAP packet
+      memmove(dst2, coap_pkt->payload, coap_pkt->payload_len);
+      coap_pkt->payload = dst2;
     }
 
     /* Store the observe option. Retain the inner observe option value
@@ -1259,17 +1239,18 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       OC_DBG(" response is a notification; making inner Observe option empty");
     }
 
-    // serialize OSCORE plaintext at offset COAP_MAX_HEADER_SIZE (code, inner options, payload)
-    size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE);
+    // serialize OSCORE plaintext 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
+    size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
-    OC_DBG("### serializing OSCORE plaintext with %" PRIu64 " bytes ###", plaintext_size);
+    OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
 
-    // set the OSCORE packet payload to point to location of the serialized inner message
-    coap_pkt->payload = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
+    // set the OSCORE packet pointer to location of the serialized inner message (inner code, inner options, payload)
+    coap_pkt->payload = dst1;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
     // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
-    int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len, OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN, nonce,
+    int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len,
+                                OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN, nonce,
                                 OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
     if (ret != 0)
@@ -1290,6 +1271,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     // If outer code is 2.05 (OBSERVE option was set), then set the Max-Age option
     if (coap_pkt->code == CONTENT_2_05)
     {
+      // no max age = no caching by client
       coap_set_header_max_age(coap_pkt, 0);
     }
 
@@ -1307,7 +1289,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         memcpy(kid_context, oscore_ctx->id_context, oscore_ctx->id_context_len);
         kid_context_len = oscore_ctx->id_context_len;
 
-        OC_DBG_OSCORE("### copy kid/kid_context for unicast echo response  ###");
+        OC_DBG("### copy kid/kid_context for unicast echo response  ###");
 
         oc_oscore_free_context(oscore_ctx);
       }
