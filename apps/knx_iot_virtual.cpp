@@ -34,6 +34,42 @@
 #include "port/oc_network_interface.h"
 #include "port/oc_storage.h"
 
+// Note:
+// Workaround for MSVC not supporting __attribute__((weak))
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+void knx_iot_factory_presets_cb(void* data)
+{
+  (void)data;
+}
+
+void knx_iot_set_hostname_cb(const oc_string_t hostname, void* data)
+{ 
+  (void)data;
+  
+  PRINT("KNX-IoT set hostname callback called with hostname: %s", oc_string(hostname));
+  
+  /*
+   * The application callback needs to handle a changed hostname such as to
+   * announce it to a border router or local daemon.
+   */
+}   
+
+void knx_iot_initialize_variables(void)
+{ 
+  /* initialize global variables for resources */
+  /* if wanted to be read them from persistent storage */
+}   
+#endif
+
+/**
+ * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
+ * so we don't need to wake up a blocking loop.
+ */
+void knx_iot_signal_event_loop(void)
+{
+  // DO NOTHING, wxTimer drives oc_main_poll()
+}
+
 /**
  * @brief Dump QR Code
  *

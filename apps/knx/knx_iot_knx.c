@@ -18,29 +18,6 @@ extern int_datapoint_no_flags_t test_parameter;
 
 /* KNX-IoT datapoint functions */
 
-// user data is the pointer to a 16 bit encoded channel/datapoint
-// Note:
-// skip compiler warning by cast from 64 bit	// TODO shouldn't we fix this?
-#define USER_DATA_TO_CHANNEL_AND_POINT(user_data) \
-  const size_t channel_and_datapoint = (uintptr_t)user_data; \
-  const uint8_t channel = channel_and_datapoint >> 8 & 0xFF; \
-  const uint8_t point = channel_and_datapoint & 0xFF;
-
-// application callback for LSAB PUT handler
-static void knx_iot_put_lsab_callback(void* user_data, const oc_rep_value_type_t value_type, volatile void* value, const char* description)
-{
-  USER_DATA_TO_CHANNEL_AND_POINT(user_data)
-
-  // correct data retrieved
-  // set LSAB status (note, for a real hw device the status usually needs to be determined from the actual hw relay)
-  PRINT("received no error, update %s status to %d", description, lsxb[channel].point[SOO].value);
-  lsxb[channel].point[IOO].value = lsxb[channel].point[SOO].value;
-
-  // trigger the LSAB status on a specific resource path (ioo)
-  PRINT("send status to %s with flag: 'w'", lsxb[channel].point[IOO].resource_path);
-  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, lsxb[channel].point[IOO].resource_path, 'w');
-}
-
 // generic GET for LSSB/LSAB/EITT applications for SOO and IOO
 void knx_iot_get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
 {
@@ -49,6 +26,31 @@ void knx_iot_get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, voi
   // Note:
   // For the example bool_datapoint_no_name_no_flags_t is used so description "LSxB" is hardcoded.
   knx_iot_get_handler(request, interfaces, user_data, OC_REP_BOOL, &lsxb[channel].point[point].value, NULL, "LSxB");
+}
+
+// specific PUT for LSSB/EITT applications for IOO (IOO write - nothing will be updated ... )
+void knx_iot_put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+{
+  USER_DATA_TO_CHANNEL_AND_POINT(user_data)
+
+  // Note:
+  // For the example bool_datapoint_no_name_no_flags_t is used so description "LSSB" is hardcoded.
+  knx_iot_put_handler(request, interfaces, user_data, OC_REP_BOOL, &lsxb[channel].point[point].value, knx_iot_put_lssb_callback, NULL, "LSSB");
+}
+
+// application callback for LSSB PUT handler
+// Note:
+// This will be declared weak for embedded platform (which usually use GCC) depending function.
+// So the function can be overwritten there to take actions depending on the paramters and hardware.
+KNX_TOOL_WEAK void knx_iot_put_lssb_callback(void* user_data, const oc_rep_value_type_t value_type, volatile void* value, const char* description)
+{
+  USER_DATA_TO_CHANNEL_AND_POINT(user_data)
+
+  // TODO FIXME add check if point == IOO
+
+  // correct data retrieved
+  // set LSSB status indicator	// TODO FIXME wording
+  OC_INF("received no error, update %s status to %d", description, lsxb[channel].point[IOO].value);
 }
 
 // specific PUT for LSAB/EITT applications for SOO (SOO write - IOO will be updated ... )
@@ -62,14 +64,24 @@ void knx_iot_put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, voi
   knx_iot_put_handler(request, interfaces, user_data, OC_REP_BOOL, &lsxb[channel].point[point].value, knx_iot_put_lsab_callback, NULL, "LSAB");
 }
 
-// specific PUT for LSSB/EITT applications for IOO (IOO write - nothing will be updated ... )
-void knx_iot_put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data)
+// application callback for LSAB PUT handler
+// Note:
+// This will be declared weak for embedded platform (which usually use GCC) depending function.
+// So the function can be overwritten there to take actions depending on the paramters and hardware.
+KNX_TOOL_WEAK void knx_iot_put_lsab_callback(void* user_data, const oc_rep_value_type_t value_type, volatile void* value, const char* description)
 {
   USER_DATA_TO_CHANNEL_AND_POINT(user_data)
 
-  // Note:
-  // For the example bool_datapoint_no_name_no_flags_t is used so description "LSSB" is hardcoded.
-  knx_iot_put_handler(request, interfaces, user_data, OC_REP_BOOL, &lsxb[channel].point[point].value, NULL, NULL, "LSSB");
+  // TODO FIXME add check if point == SOO
+
+  // correct data retrieved
+  // set LSAB status (note, for a real hw device the status usually needs to be determined from the actual hw relay)
+  OC_INF("received no error, update %s status to %d", description, lsxb[channel].point[SOO].value);
+  lsxb[channel].point[IOO].value = lsxb[channel].point[SOO].value;
+
+  // trigger the LSAB status on a specific resource path (ioo)
+  OC_INF("send status to %s with flag: 'w'", lsxb[channel].point[IOO].resource_path);
+  oc_send_s_mode_mc_or_uc_message(OC_SENDER_MULTICAST_SCOPE, lsxb[channel].point[IOO].resource_path, 'w');
 }
 
 // generic GET for LSSB/LSAB/EITT applications 

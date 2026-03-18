@@ -16,9 +16,11 @@
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_helpers.h"
-#include "oc_knx_client.h"
-#include "oc_knx_swu.h"
+#include "api/oc_knx_client.h"
+#include "api/oc_knx_dev.h"
+#include "api/oc_knx_swu.h"
 #include "apps/knx_iot_util.h"
+#include "port/dns-sd.h"
 #include "port/oc_storage.h"
 #include "knx_iot_app.h"
 
@@ -46,6 +48,43 @@ static oc_event_callback_retval_t flush_stdout_callback(void* context)
 }
 #endif
 
+/*** Device Commissioning ***/
+bool knx_get_programming_mode(void) 
+{
+    // get programming mode for ETS discovery
+    oc_device_info_t* const device = oc_core_get_device_info();
+    return device->pm;
+}
+
+bool knx_set_programming_mode(const bool programming_mode) 
+{
+    // set programming mode for ETS discovery
+    oc_device_info_t* const device = oc_core_get_device_info();
+    device->pm = programming_mode;
+
+    // persist programming mode to storage
+    oc_storage_write(KNX_STORAGE_PM, (uint8_t *)&(device->pm), sizeof(device->pm));
+  
+    // update mDNS service advertisement with new programming mode
+    knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+
+    OC_INF("KNX programming mode set to: %s.", device->pm ? "on": "off");
+
+    return device->pm;
+} 
+  
+bool knx_toggle_programming_mode(void)
+{
+    // toggle programming mode state
+    return knx_set_programming_mode(!knx_get_programming_mode());
+}   
+
+bool knx_device_is_commissioned(void)
+{ 
+    return (oc_is_device_in_runtime() == true); // TODO verify this one
+} 
+
+/*** Firmware Update ***/
 // the delayed swu callback handler 
 static oc_event_callback_retval_t send_delayed_response(void* context)
 {
@@ -107,6 +146,7 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
 {
   (void)data;
 
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__) // Windows/Linux/Apple
   char filename[] = "./downloaded.bin";	 // TODO Zephyr
   OC_DBG("swu_cb %s block offset=%d block size=%d ", filename, (int)block_offset, (int)block_len);
 
@@ -185,6 +225,9 @@ void swu_cb(oc_separate_response_t* response, size_t binary_size, size_t block_o
     total_download_size = 0;
     total_received_bytes = 0;
   }
+#else
+  // TODO add handling for Zephyr
+#endif
 
   // ===== Response Handling =====
   // Fast operations (file write): Return immediately
@@ -208,7 +251,6 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   (void)data;
   
   OC_DBG("swu_upgrade_complete_cb: simulated upgrade finished");
-  
   // ===== Real Device Implementation =====
   // Production devices should:
   // 1. Apply firmware from downloaded_bin to active partition
@@ -230,6 +272,7 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   // - Size verification
   // 
   // For demo: Simulate integrity check by verifying file exists
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__) // Windows/Linux/Apple
   FILE* verify_ptr = fopen("downloaded_bin", "rb");
   if (!verify_ptr) {
     OC_ERR("Firmware integrity check failed: file not found");
@@ -288,6 +331,9 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   
   OC_DBG("SWU state: UPDATING -> IDLE (upgrade complete, new version: %d.%d.%d)", 
          major, minor, patch);
+#else
+  // TODO add handling for Zephyr
+#endif
   
   return OC_EVENT_DONE;
 }
@@ -300,7 +346,6 @@ void swu_upgrade_cb(int defer_time, void* data)
   (void)data;
   
   OC_DBG("swu_upgrade_cb: upgrade triggered with defer_time=%d seconds", defer_time);
-  
   // ===== Defer Time Handling =====
   // defer_time parameter allows device to delay upgrade
   // Use cases:
@@ -329,6 +374,9 @@ void swu_upgrade_cb(int defer_time, void* data)
   oc_set_delayed_callback(NULL, swu_upgrade_complete_cb, actual_delay);
 }
 
+// Note:
+// Workaround for MSVC not supporting __attribute__((weak))
+#if ! (defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__))
 KNX_TOOL_WEAK void knx_iot_factory_presets_cb(void* data)
 {
   (void)data;
@@ -356,7 +404,11 @@ KNX_TOOL_WEAK void knx_iot_initialize_variables(void)
   /* initialize global variables for resources */
   /* if wanted to be read them from persistent storage */
 }
+#endif
 
+// Note:
+// Workaround for MSVC not supporting __attribute__((weak))
+// Windows apps use this knx_iot_initialize_app() version for now.
 KNX_TOOL_WEAK int knx_iot_initialize_app(void)
 {
   /*
@@ -424,42 +476,37 @@ KNX_TOOL_WEAK int knx_iot_initialize_app(void)
   return 0;
 }
 
-/**
- * @brief signal the event loop, GUI build: wxTimer drives oc_main_poll(),
- * so we don't need to wake up a blocking loop.
- */
-KNX_TOOL_WEAK void knx_iot_signal_event_loop(void)
-{
-  // DO NOTHING, wxTimer drives oc_main_poll()
-}
-
-int knx_iot_initialize_stack(const char* storage_name)
+static void initialize_fs_storage(const char* storage_base)
 {
   /*
-   * The final storage folder depends on the build system/ current directory on Linux/ Windows,
-   * the folder name is defined by the file name + serial number. The data are stored in the current directory
+   * On Linux/Windows/Apple the current directory "./" is used as the starting point and is used as a prefix.
+   * On Linux/Windows/Apple the serial number also appended to the storage name.
+   * On other platforms the storage base is used directly (e.g. Zephyr uses a key/value based storage).
    *
-   * Code below should work on Linux, Windows and Zephyr.
-   *
-   * For a specific embedded OS usually this functionality needs to be adapted.
+   * For a specific embedded platform this functionality can be adapted.
    */
 
   // current directory, storage = './' + folder name + '_' + serial number + '\0'
   char storage[2 + 64 + 1 + SERIAL_NUM_SIZE + 1];
-
-  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
-
-  (void)snprintf(storage, sizeof(storage), "./%s_%s", storage_name, sn_lower_case);
-
+  (void)snprintf(storage, sizeof(storage), "./%s_%s", storage_base, sn_lower_case);
   #ifdef OC_DEBUG
   char dir[FILENAME_MAX] = "";
   GetCurrentDir(dir, FILENAME_MAX);
   OC_INF("Current path is: '%s'", dir);
   #endif
-
-  #endif
-
   oc_storage_config(storage);
+}
+
+int knx_iot_initialize_stack(const char* storage_base)
+{
+  /* initialize and start the KNX-IoT Stack */
+
+  // initialize the KNX-IoT Stack storage
+  #if defined(_WIN32) || defined(__unix__) || defined(__APPLE__) // Windows/Linux/Apple
+  initialize_fs_storage(storage_base);
+  #else // e.g. Zephyr
+  oc_storage_config(storage);
+  #endif
 
   // initialize the 'application' runtime variables
   knx_iot_initialize_variables();

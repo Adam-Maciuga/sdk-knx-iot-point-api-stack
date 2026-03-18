@@ -17,6 +17,8 @@
 
 #ifdef OC_SPAKE
 
+#include <stdlib.h>
+
 #include "mbedtls/md.h"
 #include "mbedtls/ecp.h"
 #include "mbedtls/entropy.h"

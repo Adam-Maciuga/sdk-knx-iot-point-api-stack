@@ -177,7 +177,44 @@ extern "C"
    * @param data the supplied data.
    */
   void knx_iot_set_hostname_cb(const oc_string_t hostname, void* data);
+
+  /*** Device Commissioning ***/
+  /**
+   * @brief Get the programming mode of the KNX device
+   *
+   * @return true if device is in programming mode
+   * @return false if device is not in programming mode
+   */
+  bool knx_get_programming_mode(void);
   
+  /**
+   * @brief Set the programming mode of the KNX device
+   *
+   * @return true if device is in programming mode
+   * @return false if device is not in programming mode
+   */
+  bool knx_set_programming_mode(const bool programming_mode);
+  
+  /**
+   * @brief Toggle the programming mode of the KNX device
+   *
+   * @return true if device is in programming mode
+   * @return false if device is not in programming mode
+   */
+  bool knx_toggle_programming_mode(void);
+  
+  /**
+   * @brief Check if the KNX device is commissioned
+   *
+   * A device is considered commissioned when it's in runtime mode, meaning it has
+   * been configured by a KNX management tool (e.g., ETS) and is ready for operation.
+   *
+   * @return true if device is commissioned and in runtime mode
+   * @return false if device is not yet commissioned
+   */
+  bool knx_device_is_commissioned(void);
+
+  /*** Firmware Update ***/
   /**
    * @brief software update callback
    *

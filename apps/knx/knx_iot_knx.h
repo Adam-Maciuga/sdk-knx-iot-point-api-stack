@@ -17,13 +17,21 @@
 #include "apps/knx_iot_app.h"
 
 // common data for LSAB/LSSB 
+#define NUM_POINTS (2)
 #define SOO (0)
 #define IOO (1)
-#define NUM_POINTS (2)
 
 // common data for EITT, for the mixture of EITT (test template) channel definitions
 #define LSSB (1)
 #define LSAB (0)
+
+// user data is the pointer to a 16 bit encoded channel/datapoint
+// Note:
+// skip compiler warning by cast from 64 bit    // TODO shouldn't we fix this?
+#define USER_DATA_TO_CHANNEL_AND_POINT(user_data) \
+  const size_t channel_and_datapoint = (uintptr_t)user_data; \
+  const uint8_t channel = channel_and_datapoint >> 8 & 0xFF; \
+  const uint8_t point = channel_and_datapoint & 0xFF;
 
 #ifdef __cplusplus
 extern "C"
@@ -37,16 +45,24 @@ extern "C"
    *  For handler details see Callback Notes in 'knx_iot_app.h'
    */
 
-  // LSAB/LSSB
+  // LSSB/LSAB
   void knx_iot_get_lsxb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
-  void knx_iot_put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void knx_iot_put_lssb(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  // Note:
+  // knx_iot_put_lssb_callback() will be declared weak for embedded platform (which usually use GCC) depending function.
+  // So the function can be overwritten there to take actions depending on the paramters and hardware.
+  void knx_iot_put_lssb_callback(void* user_data, const oc_rep_value_type_t value_type, volatile void* value, const char* description);
+  void knx_iot_put_lsab(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
+  // Note:
+  // knx_iot_put_lsab_callback() will be declared weak for embedded platform (which usually use GCC) depending function.
+  // So the function can be overwritten there to take actions depending on the paramters and hardware.
+  void knx_iot_put_lsab_callback(void* user_data, const oc_rep_value_type_t value_type, volatile void* value, const char* description);
 
   // Testpoint
   void knx_iot_get_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
   void knx_iot_put_test_parameter(oc_request_t* request, oc_interface_mask_t interfaces, void* user_data);
 
-  /* LSAB/LSSB KNX-IoT app interface functions */
+  /* LSSB/LSAB KNX-IoT app interface functions */
 
   /**
    * @brief Get the value of a channel point

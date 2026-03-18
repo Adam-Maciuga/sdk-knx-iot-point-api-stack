@@ -20,7 +20,6 @@
 #include "apps/knx/knx_iot_knx.h"
 #include "port/dns-sd.h"
 #include "port/oc_network_interface.h"
-#include "port/oc_storage.h"
 
 extern lsxb_channel_t lsab[LSXB_NUM_CHANNELS];
 
@@ -401,16 +400,12 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 {
   SetStatusText("Changing programming mode");
 
-  bool my_val = m_menuFile->IsChecked(CHECK_PM);
-  oc_device_info_t* const device = oc_core_get_device_info();
-  device->pm = my_val;
-
+  // set the programming mode
+  knx_set_programming_mode(m_menuFile->IsChecked(CHECK_PM));
+ 
   // update the UI
   this->updateDeviceData();
-  // update mdns
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
-
 
 /**
  * @brief checks/unchecks the sleepy mode
@@ -485,8 +480,10 @@ void MyFrame::updateDeviceData()
 void MyFrame::OnClearTables(wxCommandEvent& event)
 {
   SetStatusText("Clear Tables");
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_WO_IA);
+
   // update the UI
   this->updateDeviceData();
 }
@@ -499,8 +496,10 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
+
   // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+
   // update the UI
   this->updateDeviceData();
 }
@@ -551,7 +550,7 @@ void MyFrame::OnListAll(wxCommandEvent& event)
  */
 void MyFrame::OnAbout(wxCommandEvent& event)
 {
-  constexpr char text[] = "(c) KNX Association, 2025-05-13";
+  constexpr char text[] = "(c) KNX Association, 2026-03-03";
   CustomDialog("About", text);
 }
 
@@ -600,7 +599,6 @@ void MyFrame::OnTimer(wxTimerEvent& event)
   this->updateCheckBoxesFromLiveIOOData();
   this->updateDeviceData();
 }
-
 
 /**
  * @brief update the UI e.g. check boxes in the UI

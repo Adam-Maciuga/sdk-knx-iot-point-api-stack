@@ -37,6 +37,8 @@ void knx_iot_register_functional_block_datapoint(
         oc_request_callback_t get_handler, oc_acl_mask_t get_handler_acl, oc_interface_mask_t get_handler_interface_mask, 
         oc_request_callback_t put_handler, oc_acl_mask_t put_handler_acl, oc_interface_mask_t put_handler_interface_mask)
 {
+  OC_INF("Register resource with path \"%s\", resource type \"%s\" and DPT \"%s\".", resource_path, resource_type, dpt);             
+
   oc_resource_t* resource = oc_new_resource(resource_path, 1);
   oc_resource_bind_resource_type(resource, resource_type);
   oc_resource_bind_dpt(resource, dpt);
@@ -100,7 +102,7 @@ void knx_iot_get_handler(oc_request_t* request, oc_interface_mask_t interfaces, 
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
-    return;
+    return; // TODO send response?
   }
 
   // TODO FIXME that section was missing for the 'test_parameter', but that is not a problem, right!?

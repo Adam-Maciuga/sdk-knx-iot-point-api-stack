@@ -66,7 +66,7 @@ int_datapoint_t test_parameter = {
  */
 void knx_iot_register_resources(void)
 {
-  PRINT("Register LSSB 0...1 channel control/status resource");
+  PRINT("Register LSSB Channels 0..%d channel control/status resources", LSXB_NUM_CHANNELS);
 
   for (int i = 0; i < LSXB_NUM_CHANNELS; i++)
   {
