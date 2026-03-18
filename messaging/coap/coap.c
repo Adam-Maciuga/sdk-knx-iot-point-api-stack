@@ -391,14 +391,12 @@ size_t coap_serialize_signal_options(void* packet, uint8_t* option_array) {
  *
  * @param packet destination to serialize the data
  * @param option_array array to add the serialized options, if NULL it only calculates the options size
- * @param inner if true possible options are added to the options as part of the COSE Object (encrypted)
- * @param outer if true possible options are added to the standard CoAP options (not encrypted)
- * @param oscore if true possible OSCORE options are considered (calculated or added)
+ * @param inner if true possible options are calculated or added to the options as part of the COSE Object (encrypted)
+ * @param outer if true possible options are calculated or added to the standard CoAP options (not encrypted)
+ * @param oscore if true possible OSCORE options are calculated or added
  *
- * @note - the options must be serialized in the order of their numbers (CoAP RFC, clause 3.1), hence the code
- *         is defined according to this
- *       - the OSCORE RFC , cause 4.1 defines E = Encrypt and Integrity Protect (Inner) and U = Unprotected (Outer)
- *         options
+ * @note - the options must be serialized in the order of their numbers (CoAP RFC, clause 3.1), hence the order of code below is defined according to this
+ *       - the OSCORE RFC , cause 4.1 defines E = Encrypt and Integrity Protect (Inner) and U = Unprotected (Outer) options
  *
  * @return options size
  * 
@@ -443,7 +441,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   // not used...
   // COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
-  // OSCORE
+  // OSCORE option must be in outer options
   if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) {
     // add OSCORE option
 
@@ -1125,7 +1123,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
     header_length_calculation += COAP_PAYLOAD_MARKER_LEN;
   }
 
-  // add token
   if (outer) 
   {
     // add size of token
@@ -1169,17 +1166,14 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       // set the first 4 bytes of coap header
       coap_udp_set_header_fields(coap_pkt);
     }
-  }
 
-  // empty coap packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
-  if (outer && !coap_pkt->code && coap_pkt->token_len == 0) 
-  {
-    OC_DBG("done serializing coap empty ack message");
-    return token_location;
-  }
+    // empty coap packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
+    if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0) 
+    {
+      OC_DBG("done serializing coap empty ack message");
+      return token_location;
+    }
 
-  if (outer) 
-  {
     #ifdef OC_DEBUG
 
     print_coap_service(coap_pkt->code, "outer coap code");
