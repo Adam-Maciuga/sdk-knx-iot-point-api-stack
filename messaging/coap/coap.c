@@ -662,10 +662,10 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       case COAP_OPTION_OSCORE:
         //  false : x     = 4.02
         //  x     : false = 4.02
-        //  true  : true  = parse OSCORE option
+        //  true  : true  = parse (outer) OSCORE option
         //
         // -> the OSCORE option is only valid if present in outer CoAP options, 
-        //    hence it must go along with 'outer option' = true,  
+        //    hence scanning it must go along with 'outer option' = true,  
         if (!accept_outer_options || !accept_oscore_option) 
         {
           return BAD_OPTION_4_02;
@@ -1308,7 +1308,7 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
    // real ptr to option 
   current_option += coap_pkt->token_len;
 
-  // parse inner + outer options by scanning the fully extracted 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)
+  // parse inner + outer options by scanning 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)
   const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 
   OC_INF("coap parse inner + outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");

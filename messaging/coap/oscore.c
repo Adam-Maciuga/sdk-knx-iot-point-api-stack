@@ -385,8 +385,8 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
   // set coap pointer to message data pointer 
   coap_pkt->buffer = data;
 
-  // code
-  coap_pkt->code = data[0]; // TODO AH why [0]
+  // code + option from inner plaintext message, see https://www.rfc-editor.org/rfc/rfc8613#section-5.3
+  coap_pkt->code = data[0]; 
   uint8_t* current_option = &data[1];
 
   #ifdef OC_DEBUG
@@ -396,7 +396,7 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
   #endif
 
   // parse inner options by scanning the 'encrypted' message, any present/found option not allowed to be in inner options causes a 4.02
-  const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, true);
+  const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, false);
 
   OC_INF("coap parse oscore inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
