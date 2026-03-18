@@ -22,8 +22,7 @@ extern "C" {
 /**
  * @brief Open the storage.
  *
- * @note  For embedded devices, this function doesn't do anything. However, it
- * needs to be called for hosted/virtual devices.
+ * @note intializes the storage depending on the platform requirements.
  *
  * @param store the storage (path)
  * @return int
@@ -65,4 +64,4 @@ int oc_storage_erase(const char *store);
 }
 #endif
 
-#endif /* OC_STORAGE_H */
+#endif

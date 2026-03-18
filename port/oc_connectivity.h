@@ -100,7 +100,7 @@ struct oc_message_s
   #ifdef OC_INOUT_BUFFER_SIZE
   uint8_t data[OC_INOUT_BUFFER_SIZE];
   #else  
-  uint8_t *data; // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)  
+  uint8_t *data; // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)
   #endif 
   #else  
   uint8_t data[OC_PDU_SIZE];
@@ -262,4 +262,4 @@ int oc_tcp_update_csm_state(oc_endpoint_t *endpoint, tcp_csm_state_t csm);
 }
 #endif
 
-#endif 
+#endif

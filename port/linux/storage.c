@@ -50,7 +50,7 @@ int oc_storage_config(const char* store)
     int ret_val = mkdir(temp_dir, 0777);	// TODO FIXME 0664!?
     PRINT("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
 
-    return 0;
+    return 0;	// TODO we should ret_val, shouldn't we?
 }
 
 long oc_storage_read(const char* store, uint8_t* buf, size_t size)

@@ -1,9 +1,6 @@
 cmake_minimum_required (VERSION 3.21)
 project(knx-iot-stack) 
 
-# Load module to fetch external content.
-include(FetchContent)
-
 ### Compiler ###
 # Compiler options (please do not forget to add own options such as to reduce enum sizes, such as for gcc -fshort-enums).
 if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
@@ -43,15 +40,15 @@ set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this 
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 
 ## External Libraries
-# TinyCBOR
-# Set to ON if the TinyCBOR library provided by the KNX-IoT stack should be used, 
-# set to OFF if the TinyCBOR  library is provided in other ways (e.g. the OS).
-set(CONFIG_KNXIOT_TINYCBOR_BUILTIN ON CACHE BOOL "Use the TinyCBOR library provided by the KNX-IoT stack.")
-
 # Mbed TLS
 # Set to ON if the Mbed TLS library provided by the KNX-IoT stack should be used, 
 # set to OFF if the Mbed TLS library is provided in other ways (e.g. the OS).
 set(CONFIG_KNXIOT_MBEDTLS_BUILTIN ON CACHE BOOL "Use the Mbed TLS library provided by the KNX-IoT stack.")
+
+# TinyCBOR
+# Set to ON if the TinyCBOR library provided by the KNX-IoT stack should be used, 
+# set to OFF if the TinyCBOR  library is provided in other ways (e.g. the OS).
+set(CONFIG_KNXIOT_TINYCBOR_BUILTIN ON CACHE BOOL "Use the TinyCBOR library provided by the KNX-IoT stack.")
 
 ## Debug 
 set(CONFIG_KNXIOT_KNX_LOG_TO_FILE OFF CACHE BOOL "Enables that all logging messages are redirected to a file, to use it the 'PRINT' option must be also enabled.")
@@ -204,6 +201,7 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
+target_include_directories(kisClientServer PUBLIC "${tinycbor_SOURCE_DIR}/src")
 
 ## KNX-IoT Stack Options (2) ##
 target_link_libraries(kisClientServer PUBLIC kis-common)
@@ -211,7 +209,7 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     target_link_libraries(kisClientServer PUBLIC mbedtls)
 endif()
 if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
-    target_link_libraries(kisClientServer PUBLIC tinycbor-master)
+    target_link_libraries(kisClientServer PUBLIC tinycbor)
 endif()
 target_link_libraries(kisClientServer PUBLIC kis-port)
 
@@ -230,9 +228,6 @@ add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
 # IPv6 multicast scope
 add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
-
-### External Libraries ###
-add_subdirectory(deps)
 
 ### Demo Applications ###
 add_subdirectory(apps)

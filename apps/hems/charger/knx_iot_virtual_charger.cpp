@@ -1,22 +1,9 @@
-﻿/*
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Copyright (c) 2022-2023 Cascoda Ltd
- Copyright (c) 2024-2025 KNX Association
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-*/
+﻿/* 
+ * Copyright (c) 2022-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *            
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 // needs to be undefined so wx widgets will not use precompiled headers when compiling with msvc
 #undef WX_PRECOMP
@@ -27,14 +14,23 @@
 #include "wx/timer.h"
 #include <wx/mstream.h>
 #include <wx/image.h>
+#include <wx/clipbrd.h>
+#include <wx/display.h>
 #include "api/oc_knx_dev.h"
 #include "oc_knx_client.h"
 #include "port/dns-sd.h"
-#include "apps/hems/knx_iot_virtual_ems.h"
+#include "apps/knx_iot_app.h"
+#include "apps/knx_iot_util.h"
+#include "apps/knx_iot_virtual.h"
+#include "apps/hems/knx_iot_ems.h"
 #include "apps/hems/icons/charger_ico.h"
-#include <wx/clipbrd.h>
-#include <wx/display.h>
 #include <algorithm>
+
+/* General KNX-IoT Stack Callbacks */
+void knx_iot_restart_cb(void *data)
+{ 
+  (void)data;
+}
 
 class FlowAnimation : public wxPanel
 {
@@ -206,7 +202,7 @@ private:
 bool MyApp::OnInit()
 {
   // call in c-code
-  app_initialize_stack("knx_iot_virtual_charger");
+  knx_iot_initialize_stack("knx_iot_virtual_charger");
 
   wxInitAllImageHandlers();
 
@@ -295,14 +291,11 @@ void MyFrame::OnProgrammingMode(wxCommandEvent& event)
 {
   SetStatusText("Changing programming mode");
 
-  bool my_val = m_menuFile->IsChecked(CHECK_PM);
-  oc_device_info_t* device = oc_core_get_device_info();
-  device->pm = my_val;
-
+  // set the programming mode
+  knx_set_programming_mode(m_menuFile->IsChecked(CHECK_PM));
+  
   // update the UI
   this->updateDeviceData();
-  // update mdns
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
 
 void MyFrame::updateDeviceData()
@@ -340,14 +333,14 @@ void MyFrame::OnClearTables(wxCommandEvent& event)
 void MyFrame::OnReset(wxCommandEvent& event)
 {
   SetStatusText("Device Reset");
-  // reset the device
 
   // stop animation
   m_flow->Stop();
   
+  // reset the device
   oc_knx_device_storage_reset(RESET_TO_DEFAULT_STATE);
+
   // update the UI
-  
   this->updateDeviceData();
 }
 
@@ -417,10 +410,10 @@ void MyFrame::OnTimer(wxTimerEvent& event)
 
 void MyFrame::OnProcessCemUpdate()
 {
-  if (charger_flags() & new_event)
+  if (get_charger_flags() & DPH_NEW_EVENT)
   { 
     // clear event
-    clear_charger_flags(new_event);
+    clear_charger_flags(DPH_NEW_EVENT);
 
     // get charger value in watt
     m_chargeRate = get_charger_value();
