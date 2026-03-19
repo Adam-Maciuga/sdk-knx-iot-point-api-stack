@@ -28,7 +28,7 @@ endif()
 # Add preprocessor definitions for the current CMakeLists file.
 add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
 
-### Stack compilation variables ###
+### KNX-IoT Stack compilation variables ###
 # - each build configuration (Debug, Release,...) needs to set the values as part of 'CmakePresets.json'
 # - in dependence of a variables value a specific compile flag is set (see cmake 'target_compile_definitions')
 
@@ -69,7 +69,8 @@ set(KNX_SPAKE_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used 
 # KNX reset "Process Time" in seconds
 set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
 
-# IPV6 multicast scope, scope 2 MAY be needed for the virtual DEMO applications when:
+# IPv6 multicast scope
+# Scope 2 MAY be needed for the virtual DEMO applications when:
 # - the devices are running on the same PC (e.g. for testing with EITT)
 # - a network router does not allow to send multicast messages with scope 5 (site local)
 set(OC_SENDER_MULTICAST_SCOPE "2" CACHE STRING "IPv6 multicast scope, used on sending all (multicast) s-mode messages")
@@ -83,10 +84,10 @@ mark_as_advanced(KNX_SPAKE_ITERATIONS)
 set(KNX_INCLUDE_DIRS 
     ${PROJECT_SOURCE_DIR}/
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/security
-    ${PROJECT_SOURCE_DIR}/messaging/coap/
-    ${PROJECT_SOURCE_DIR}/api
-    ${PROJECT_SOURCE_DIR}/api/c-timestamp
+    ${PROJECT_SOURCE_DIR}/security		# TODO this should not be PUBLIC
+    ${PROJECT_SOURCE_DIR}/messaging/coap/	# TODO this should not be PUBLIC
+    ${PROJECT_SOURCE_DIR}/api			# TODO this should not be PUBLIC
+    ${PROJECT_SOURCE_DIR}/api/c-timestamp	# TODO this should not be PUBLIC
 )
 
 set(API_SOURCES
@@ -228,6 +229,3 @@ add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
 # IPv6 multicast scope
 add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
-
-### Demo Applications ###
-add_subdirectory(apps)

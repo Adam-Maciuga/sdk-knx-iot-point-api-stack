@@ -127,7 +127,4 @@ Contains adaptations per supported OS platform.
 
 - **Linux** 
 - **Windows**  
-- **Zephyr/RTOS (soon)**
-
-__apps/*__  
-Contains the sample [application](apps/Readme.md) describing how to use the stack.
+- **Zephyr/RTOS**
