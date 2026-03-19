@@ -149,8 +149,8 @@ bool oc_coap_check_if_loopback_message(const oc_message_t* msg)
 
 /**
  * @brief Send a coap response with an empty application (usually s-mode) payload,
- *        but with or without payload for the OSCORE options. In the latter case it is
- *        a 4 byte ACK + EMPTY_0_00 message. 
+ *        with or without OSCORE option data (flags, kid, kid cotext, piv). 
+ *        It may also be an 4 byte ACK + EMPTY_0_00 message (without token/ any options). 
  *
  * @note
  * - incoming CON msg -> outgoing ACK msg with code 'EMPTY_0_00' , incoming mid, and optionally incoming token
@@ -166,38 +166,39 @@ bool oc_coap_check_if_loopback_message(const oc_message_t* msg)
  * @param echo_len echo len (if needed)
  * 
  */
-static void coap_send_response_with_empty_application_payload(coap_message_type_t type, 
-        uint16_t mid, const uint8_t* token, size_t token_len, 
-        coap_status_t code, const oc_endpoint_t* endpoint,
-        const uint8_t* echo, size_t echo_len) 
+static void coap_send_response_with_empty_application_payload(coap_message_type_t type,
+                                                              uint16_t mid, const uint8_t* token, size_t token_len,
+                                                              coap_status_t code, const oc_endpoint_t* endpoint,
+                                                              const uint8_t* echo, size_t echo_len)
 {
-  
-  coap_packet_t coap_msg; 
-  coap_udp_init_message(&coap_msg, type, (uint8_t)code, mid);
+  // local CoAP packet
+  coap_packet_t coap_pkt[1];
+
+  coap_udp_init_message(coap_pkt, type, (uint8_t)code, mid);
   oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
 
-  if (outgoing_msg) 
+  if (outgoing_msg)
   {
     // copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...) 
     memcpy(&outgoing_msg->endpoint, endpoint, sizeof(*endpoint));
 
     // token will be included if not NULL 
-    if (token && token_len > 0) {
+    if (token && token_len > 0)
+    {
       // set token 
-      coap_set_token(&coap_msg, token, token_len);
+      coap_set_token(coap_pkt, token, token_len);
     }
 
     // when echo is included then it will be sent with OSCORE, see below 
     const bool echo_included = echo && echo_len > 0;
 
-    OC_DBG("CoAP send empty payload message: mid=%u, code=%i, echo=%s", 
-            mid, code, echo_included ? "yes" : "no");
+    OC_DBG("CoAP send empty payload message: mid=%u, code=%i, echo=%s", mid, code, echo_included ? "yes" : "no");
 
     // echo will be included if not NULL
     if (echo_included)
     {
       // set echo option (uses a time stamp)
-      coap_set_header_echo(&coap_msg, echo, echo_len);
+      coap_set_header_echo(coap_pkt, echo, echo_len);
 
       // clear both marker
       UNSET_BIT(outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC + ECHO_CAUSED_BY_UC_SRC);
@@ -218,22 +219,32 @@ static void coap_send_response_with_empty_application_payload(coap_message_type_
     // convert outgoing dst EP to unicast (for the response)
     UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST);
 
-		/* 
-		  serialize OSCORE message, add all inner/outer options, (inner) payload and included/excluded echo option
-		  (if included also include OSCORE option, since echo option is an inner option, RFC 9175)
+    /* 
+      serialize OSCORE message, add all inner/outer options, (inner) payload and included/excluded echo option
+      (if included also include OSCORE option, since echo option is an inner option, RFC 9175)
     */
-    outgoing_msg->length = coap_oscore_serialize_message(&coap_msg, outgoing_msg->data, true, true, echo_included);
+    outgoing_msg->length = coap_oscore_serialize_message(coap_pkt, outgoing_msg->data, true, true, echo_included);
 
-    if (outgoing_msg->length > 0) 
+    if (outgoing_msg->length > 0)
     {
+      const bool is_ack = type == COAP_TYPE_ACK;
+      const bool is_ack_with_empty_payload = is_ack && code == EMPTY_0_00;
+      
+      if (is_ack_with_empty_payload)
+      { // don't pass to OSCORE layer for an ACK with empty payload (see coap_send_message, OUTBOUND_NETWORK_EVENT)
+        
+        UNSET_BIT(outgoing_msg->endpoint.flags, OSCORE);
+        UNSET_OPTION(coap_pkt, COAP_OPTION_OSCORE);
+      }
+
       coap_send_message(outgoing_msg);
-    } 
-    else 
+    }
+    else
     {
       // on error release it 
       oc_message_unref(outgoing_msg);
     }
-	}
+  }
 }
 
 #ifdef KNX_TCP_TLS
@@ -273,17 +284,16 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data) {
          <- CoAP NON s-mode multicast request         : NEW server request (new token)
 
          -> CoAP NON s-mode unicast request           : STOP
-         <- CoAP NON s-mode unicast request           : NEW server request (new token) - 'non' flag must be set
+         <- CoAP NON s-mode unicast request           : NEW server request (new token) - 'non' flag must be set in RCP table
  
   clause 2.6.9.2 (read example) 
 
-          -> CoAP CON s-mode unicast request       
-          <- 2.04 response w/o payload (shall)        : same token 
-          <- CoAP CON s-mode unicast request          : NEW server request (new token)  
+          -> CoAP CON s-mode unicast request          : token a
+          <- 2.04 response w/o payload (shall)        : token a
+          <- CoAP CON s-mode unicast request          : NEW server request (new token b)  
+          -> 2.04 response w/o payload (shall)        : token b
 
           
-      
-  
   https://datatracker.ietf.org/doc/html/rfc7252#section-2.2
   	
  */
@@ -496,9 +506,9 @@ int coap_receive(oc_message_t* incoming_message)
           { // (a)
             if (sync_state == ECHO)
             {
-              // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload 
-              // -> multicast : unicast 4.01 with response sender context (there can be many responses from many receivers)
-              // -> unicast   : unicast 4.01 with response sender context  with echo
+              // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload, echo option 
+              // -> multicast : send, there can be many responses from many receivers
+              // -> unicast   : send
               coap_send_response_with_empty_application_payload(
                 incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
                 incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
@@ -517,9 +527,9 @@ int coap_receive(oc_message_t* incoming_message)
 
             if (sync_state == REPLAY)
             {
-              // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload 
+              // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload, NO echo option 
               // -> multicast : MUST be suppressed (message already received)
-              // -> unicast   : unicast 4.01 with response sender context without echo
+              // -> unicast   : send
               coap_send_response_with_empty_application_payload(
                 incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
                 incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
@@ -543,7 +553,7 @@ int coap_receive(oc_message_t* incoming_message)
             if (echo_len != sizeof(oc_clock_time_t))
             { // redo 'unicast echo response' 
               
-              // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload 
+              // send 4.02 'unicast echo response' with OSCORE options but no s-mode app. payload 
               coap_send_response_with_empty_application_payload(
                 incoming_coap_message->type == COAP_TYPE_CON ? COAP_TYPE_ACK : COAP_TYPE_NON,
                 incoming_coap_message->type == COAP_TYPE_CON ? incoming_coap_message->mid : coap_get_next_mid(),
