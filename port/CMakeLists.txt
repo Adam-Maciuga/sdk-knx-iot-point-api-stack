@@ -64,11 +64,15 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
 
     # Additional include directories for "knx_mbedtls_config.h".
     # TBD FIXME #include "port/oc_assert.h" why is that one needed?
-    target_include_directories(mbedtls
-        PUBLIC "${PROJECT_SOURCE_DIR}"
-        PUBLIC "${PROJECT_SOURCE_DIR}/include"
-        PUBLIC "${PORT_DIR}"
-    )
+    set(MBEDTLS_INCLUDE_DIRS
+        PRIVATE "${PROJECT_SOURCE_DIR}"
+        PRIVATE "${PROJECT_SOURCE_DIR}/include"
+        PRIVATE "${PORT_DIR}"
+    ) 
+
+    target_include_directories(mbedtls ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedcrypto ${MBEDTLS_INCLUDE_DIRS}) 
+    target_include_directories(mbedx509 ${MBEDTLS_INCLUDE_DIRS})
 
     if(WIN32)
         # Note:
@@ -143,9 +147,12 @@ target_sources(kis-port PUBLIC
     ${PORT_DIR}/tcpadapter.c
 )
 
-target_include_directories(kis-port PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd.c)
-target_include_directories(kis-port PRIVATE ${PORT_DIR})
+target_include_directories(kis-port 
+    PRIVATE "${PROJECT_SOURCE_DIR}"
+    PRIVATE "${PROJECT_SOURCE_DIR}/include"
+    # Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd.c)
+    PUBLIC "${PORT_DIR}"
+)
 target_include_directories(kis-port PRIVATE "${tinycbor_SOURCE_DIR}/src" PRIVATE "${tinycbor_BINARY_DIR}")
 # mDNS header-only library (mdns/mdns.h)
 # Note:

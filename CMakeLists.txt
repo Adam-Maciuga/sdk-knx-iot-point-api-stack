@@ -202,7 +202,6 @@ target_compile_definitions(kisClientServer PUBLIC OC_CLIENT OC_SERVER)
 
 # Specifies include directories to use when compiling a given target
 target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
-target_include_directories(kisClientServer PUBLIC "${tinycbor_SOURCE_DIR}/src")
 
 ## KNX-IoT Stack Options (2) ##
 target_link_libraries(kisClientServer PUBLIC kis-common)

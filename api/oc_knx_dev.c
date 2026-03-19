@@ -6,21 +6,20 @@
  */
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
+#include <stdio.h>
 #include <inttypes.h>
 #include "oc_api.h"
 #include "oc_knx_dev.h"
-#include <oc_storage.h>
 #include "include/oc_helpers.h"
 #include "oc_knx_fp.h"
 #include "oc_knx_helpers.h"
 #include "oc_knx_sec.h"
 #include "oc_main.h"
 #include "port/dns-sd.h"
-#include <stdio.h>
+#include "port/oc_storage.h"
 #include "oc_core_res.h"
 #include "oc_replay.h"
 #include "oc_discovery.h"
-#include <inttypes.h>
 
 static void oc_core_dev_sn_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {

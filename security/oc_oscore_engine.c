@@ -4,12 +4,12 @@
  *            
  * SPDX-License-Identifier: Apache-2.0
  */
-#include "oc_storage.h"
 #include <inttypes.h>
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/transactions.h"
+#include "port/oc_storage.h"
 #include "oc_client_state.h"
 #include "oc_oscore_context.h"
 #include "oc_oscore_crypto.h"

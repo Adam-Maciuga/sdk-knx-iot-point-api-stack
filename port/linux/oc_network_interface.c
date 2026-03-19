@@ -10,8 +10,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "port/oc_log.h"
 #include "port/oc_network_interface.h"
-#include "oc_log.h"
 
 static uint32_t g_interface_filter = 0; // 0 = all interfaces
 
