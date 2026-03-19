@@ -19,7 +19,7 @@
 #include <malloc.h>
 #include <oc_log.h>
 #include <ws2tcpip.h>
-#include "network_addresses.h"
+#include "port/network_addresses.h"
 // clang-format on
 #undef interface
 
