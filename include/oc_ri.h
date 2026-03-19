@@ -83,7 +83,7 @@ typedef enum {
   OC_STATUS_GATEWAY_TIMEOUT,           /**< Gateway Timeout 5.04*/
   OC_STATUS_PROXYING_NOT_SUPPORTED,    /**< Proxying not supported 5.05 */
   NUMBER_OF_OC_STATUS_CODES,           // artificial code to count above codes 
-  OC_IGNORE,                           /**< Ignore: do not respond to request */
+  OC_IGNORE,                           /**< Ignore, do not respond to a request */
   OC_PING_TIMEOUT                      /**< Ping Time out */
 } oc_status_t;
 
