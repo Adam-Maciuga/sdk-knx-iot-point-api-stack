@@ -240,6 +240,17 @@ extern coap_status_t coap_status_code;
 void coap_init_connection(void);
 uint16_t coap_get_next_mid(void);
 
+  /**
+ * @brief Init a UDP packet with major data (type, code, mid, fixed transport type UDP) 
+ *
+ * @param packet pointer to a coap packet struct, that will be filled with the given data
+ * @param type CoAP message type, such as CON, NON, ACK, ...
+ * @param code CoAP code such as GET = 1, CHANGED_2_04 = 68
+ * @param mid message id (mid) for UDP
+ *
+ * @note sets as transport type UDP, other fields such as options, payload, etc. are not set and need to be set separately
+ *
+ */
 void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code, uint16_t mid);
 
 // a message is serialized by adding plaintext (inner code, inner options, payload) and outer options BUT not adding the outer OSCORE option
