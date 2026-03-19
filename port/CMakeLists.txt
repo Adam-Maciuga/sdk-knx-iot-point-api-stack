@@ -111,6 +111,12 @@ endif()
 # Use git apply instead of patch for cross-platform compatibility (patch not available on Windows).
 find_package(Git REQUIRED)
 
+if(WIN32)
+    set(NULL_DEVICE NUL)
+else()
+    set(NULL_DEVICE /dev/null)
+endif()
+
 FetchContent_Declare(
     mdns
     GIT_REPOSITORY https://github.com/mjansson/mdns.git
@@ -121,8 +127,7 @@ FetchContent_Declare(
     # Issues #96 and #97 have not been fixed yet.
     # Note:
     # Make sure the patch command is idempotent by checking first if the patch has already been applied.
-    PATCH_COMMAND ${GIT_EXECUTABLE} apply --check -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch" > ${NULL_DEVICE} 2>&1 || \
-            ${GIT_EXECUTABLE} apply -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
+    PATCH_COMMAND ${GIT_EXECUTABLE} apply --check -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch" > ${NULL_DEVICE} 2>&1 || ${GIT_EXECUTABLE} apply -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
 )
 
 FetchContent_MakeAvailable(mdns)
