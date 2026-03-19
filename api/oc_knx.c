@@ -249,8 +249,9 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     // restart callback with 75 ms (see (1) below)
     oc_set_delayed_callback_ms(NULL, restart, 75);
 
-    // send NO response
+    // send NO response back
     PRINT("oc_core_knx_post_handler - end, restart");
+    oc_ignore_request(request);
     return;
   }
   if (cmd == RESET_DEVICE)
@@ -706,7 +707,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   if (!oc_is_device_in_runtime())
   {
     PRINT("device not in runtime state:%d - ignore message", device->lsm_s);
-    oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
+    oc_ignore_request(request);
     return;
   }
 
@@ -1076,15 +1077,13 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   if (request->origin && request->origin->flags & MULTICAST)
-  { // multicast request: don't send anything back (no uc, no mc response)
-    // if configured in PUB table a read was answered beforehand
+  { // multicast request: don't send anything back (no uc, no mc response), if configured in PUB table a read was answered beforehand
 
     PRINT("multicast - not sending response");
-    oc_prepare_no_format_response_no_payload(request, OC_IGNORE);
+    oc_ignore_request(request);
   }
   else
-  { // unicast request: send status back as unicast
-    // if configured in PUB table a read was answered beforehand
+  { // unicast request: send status back as unicast, if configured in PUB table a read was answered beforehand
 
     PRINT("unicast - sending response");
     oc_prepare_no_format_response_no_payload(request, summary_handler_status);
