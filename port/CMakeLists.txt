@@ -70,10 +70,10 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
         PUBLIC "${PORT_DIR}"
     )
 
-    if(WIN32)
+    if(WIN32 AND NOT MSVC)
         # Note:
-        # Mbed TLS v3.6.5 throws -Werror=format= errors when using MinWG
-        # Remove the error flag from Mbed TLS targets
+        # Mbed TLS v3.6.5 throws -Werror=format= errors when using MinGW
+        # Remove the error flag from Mbed TLS targets (not needed/supported on MSVC)
         target_compile_options(mbedtls PRIVATE -Wno-error=format)
         target_compile_options(mbedcrypto PRIVATE -Wno-error=format)
         target_compile_options(mbedx509 PRIVATE -Wno-error=format)
