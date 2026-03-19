@@ -42,9 +42,6 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
   // init and set all in coap msg to zero 
   coap_udp_init_message(outgoing_coap_msg, type, code, mid);
 
-  // UDP/TCP
-  outgoing_coap_msg->transport_type = coap_pkt->transport_type;
-
   // note, this message is not the same as a coap packet from above
   oc_message_t* message = oc_internal_allocate_outgoing_message();
   if (message)
