@@ -12,7 +12,7 @@
 
 void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured)
 {
-  // retype pointer
+ 
   coap_packet_t* coap_pkt = (coap_packet_t*)packet;
   uint16_t mid;
   coap_message_type_t type;
@@ -403,7 +403,7 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
 
   #endif
 
-  // parse inner options by scanning the 'encrypted' message, any present/found option not allowed to be in inner options causes a 4.02
+  // parse inner options of 'decrypted' message, any present - not allowed - inner option causes a 4.02
   const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, false);
 
   OC_INF("coap parse oscore inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
@@ -595,7 +595,7 @@ coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet)
 
   current_option += coap_pkt->token_len;
 
-  // parse outer options by scanning the 'decrypted' message, any present/found option not allowed to be in outer options causes a 4.02
+  // parse outer options of 'decrypted' message, any present - not allowed - outer option causes a 4.02
   const coap_status_t ret = coap_oscore_parse_options(packet, msg->data, (uint32_t) msg->length, current_option, false, true, true);
 
   OC_INF("coap parse oscore outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");

@@ -35,14 +35,15 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include "coap.h"
 #include "transactions.h"
+
 #ifdef OC_TCP
 #include "coap_signal.h"
-#endif
-#include "oc_ri.h"
 #include "security/oc_tls.h"
+#endif
+
+#include "oc_ri.h"
 
 // variables 
 static uint16_t current_mid = 0;
@@ -1169,7 +1170,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       coap_udp_set_header_fields(coap_pkt);
     }
 
-    // empty coap packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
+    // empty coap packet, don't need to do more stuff (code = 0, token len = 0 , means not set)
     if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0) 
     {
       OC_DBG("done serializing coap empty ack message");
@@ -1308,7 +1309,7 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
    // real ptr to option 
   current_option += coap_pkt->token_len;
 
-  // parse inner + outer options by scanning 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)
+  // parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)  
   const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 
   OC_INF("coap parse inner + outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");

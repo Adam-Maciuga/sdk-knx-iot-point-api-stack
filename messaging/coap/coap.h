@@ -72,8 +72,8 @@ enum {
  * @brief set an option in the packet MUST-HAVE 'options' member (that is an array)
  *
  * @note the numerical option value sets the bit at the corresponding array position,
- *         example array with 32 byte (0...256 bit positions), 
- *         COAP_OPTION_ECHO (252) = [252/8] = [31] |= (1 << 4) = 'bbb1bbbb'	         
+ *           example array with 32 byte (0...256 bit positions), 
+ *           COAP_OPTION_ECHO (252) = [252/8] = [31] |= (1 << 4) = 'bbb1bbbb'	         
  */
 #define SET_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] |= (1 << ((opt) % OPTION_MAP_SIZE)))
 
@@ -81,8 +81,8 @@ enum {
  * @brief reset an option in the packet MUST-HAVE 'options' member (that is an array)
  *
  * @note the numerical option value sets the bit at the corresponding array position,
- *        example array with 32 byte (0...256 bit positions), 
- *        COAP_OPTION_ECHO (252) = [252/8] = [31] &= ~(1 << 4) = 'bbb0bbbb'
+ *       example array with 32 byte (0...256 bit positions), 
+ *       COAP_OPTION_ECHO (252) = [252/8] = [31] &= ~(1 << 4) = 'bbb0bbbb'
  */
 #define UNSET_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] &= ~(1 << ((opt) % OPTION_MAP_SIZE)))
 
@@ -90,18 +90,20 @@ enum {
  * @brief checks if an option is set in the packet MUST-HAVE 'options' member (that is an array)
  *
  * @note the numerical option value gets the bit at the corresponding array position,
- *         example array with 32 byte (0...256 bit positions), 
- *         COAP_OPTION_ECHO (252) = [252/8] = [31] & (1 << 4) -> 'bbb1bbbb' = true
+ *       example array with 32 byte (0...256 bit positions), 
+ *       COAP_OPTION_ECHO (252) = [252/8] = [31] & (1 << 4) -> 'bbb1bbbb' = true
  */
 #define IS_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] & (1 << ((opt) % OPTION_MAP_SIZE)))
 
 /** enum value for coap transport type  */
-typedef enum {
+typedef enum 
+{
   COAP_TRANSPORT_UDP, COAP_TRANSPORT_TCP
 } coap_transport_type_t;
 
 /** parsed message struct */
-typedef struct {
+typedef struct coap_packet_t
+{
   uint8_t* buffer;                     // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
   coap_transport_type_t transport_type;// UDP or TCP
   uint8_t version;                     // current version is '1'
@@ -282,18 +284,15 @@ void coap_send_message(oc_message_t* message);
 *         true  | false | false  | parse inner       | **
 *         false | true  | true   | parse outer       | ***
 *
-*   *** parse outer options by scanning the still 'decrypted' message, any present/found option not allowed to be 
-*       in outer options causes a 4.02
+*   *** parse outer options of 'decrypted' message, any present - not allowed - outer option causes a 4.02
 *
-*   **  parse inner options by scanning the 'encrypted' message, any present/found option not allowed to be in 
-*       inner options causes a 4.02
+*   **  parse inner options of 'decrypted' message, any present - not allowed - inner option causes a 4.02
 *
-*   *   parse inner + outer options by scanning the fully extracted 'decrypted' message, OSCORE option must be 
-*       already removed (otherwise 4.02)    
+*   *   parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)    
 *  
 *   - outer  = RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
 *   - inner  = RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object  
-*	  - oscore = OSCORE option data (kid, kid_context, piv)
+*	  - oscore = OSCORE option data (flags, kid, kid_context, piv)
 *
 *
 *       

@@ -1,6 +1,7 @@
 /*
 // Copyright (c) 2020 Intel Corporation
 // Copyright (c) 2022 Cascoda Ltd
+// Copyright (c) 2024-2026 KNX Association
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +19,6 @@
 #ifndef OSCORE_H
 #define OSCORE_H
 #include "constants.h"
-#include "oc_ri.h"
 #include "port/oc_connectivity.h"
 
 #ifdef __cplusplus
@@ -26,7 +26,7 @@ extern "C"
 {
 #endif
 
-  // send an oscore error as CoAP with a CoAP return code (in plain/secure)
+  // send an oscore error as CoAP with a CoAP return code (as plain CoAP error or as secured OSCORE error)
   void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured);
 
   int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn);
