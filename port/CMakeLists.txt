@@ -119,7 +119,10 @@ FetchContent_Declare(
     GIT_TAG main
     # Note:
     # Issues #96 and #97 have not been fixed yet.
-    PATCH_COMMAND ${GIT_EXECUTABLE} apply -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
+    # Note:
+    # Make sure the patch command is idempotent by checking first if the patch has already been applied.
+    PATCH_COMMAND ${GIT_EXECUTABLE} apply --check -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch" > ${NULL_DEVICE} 2>&1 || \
+            ${GIT_EXECUTABLE} apply -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
 )
 
 FetchContent_MakeAvailable(mdns)
