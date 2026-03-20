@@ -126,7 +126,7 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(mdns)
 
-target_sources(kis-port PUBLIC
+target_sources(kis-port PRIVATE
     ${PORT_DIR}/abort.c
     ${PORT_DIR}/clock.c
     ${CMAKE_CURRENT_SOURCE_DIR}/dns-sd.c
