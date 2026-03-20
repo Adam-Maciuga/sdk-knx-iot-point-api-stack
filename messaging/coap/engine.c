@@ -33,22 +33,19 @@
  * SUCH DAMAGE.
  */
 
-#include "engine.h"
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
-#include <inttypes.h>
 
+#include <string.h>
 #include "api/oc_events.h"
 #include "api/oc_main.h"
 #include "api/oc_replay.h"
-#include "oc_api.h"
 #include "oc_buffer.h"
+#include "observe.h"
+#include "engine.h"
 
-#include "security/oc_tls.h"
-#include "security/oc_oscore.h"
+#ifdef KNX_TCP_TLS
+#include "oc_tls.h"
+#endif
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
