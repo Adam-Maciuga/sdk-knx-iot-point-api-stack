@@ -10,6 +10,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+
 // clang-format off
 #include <windows.h>
 #include <winsock2.h>
@@ -17,9 +18,9 @@
 #include <inttypes.h>
 #include <iphlpapi.h>
 #include <malloc.h>
-#include <oc_log.h>
 #include <ws2tcpip.h>
-#include "port/network_addresses.h"
+#include <port/oc_log.h>
+#include "network_addresses.h"
 // clang-format on
 #undef interface
 

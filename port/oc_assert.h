@@ -38,7 +38,8 @@ void exit_impl(int status);
  */
 static inline void oc_abort(const char *msg)
 {
-#if OC_LOG_TO_FILE // TODO FIXME is there a problem when we write to the file on abort?
+// TODO FIXME KNX_LOG_TO_FILE is not set correctly when building mbedtls, fix this!
+#ifdef KNX_LOG_TO_FILE // TODO FIXME is there a problem when we write to the file on abort?
   (void)msg;
 #else
   PRINTF("\n%s\nAbort.\n", msg); // TODO FIXME shouldn't we always print a message on abort?
@@ -62,8 +63,7 @@ static inline void oc_abort(const char *msg)
  *
  * @param status the exist status
  */
-static inline void
-oc_exit(int status)
+static inline void oc_exit(int status)
 {
   exit_impl(status);
 }
@@ -72,4 +72,4 @@ oc_exit(int status)
 }
 #endif
 
-#endif /* OC_ASSERT_H */
+#endif

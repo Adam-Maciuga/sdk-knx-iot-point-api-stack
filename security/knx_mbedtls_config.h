@@ -25,8 +25,8 @@
 #define MBEDTLS_CONFIG_H
 
 #include <oc_config.h>
-#include "port/oc_connectivity.h"
 #include "port/oc_assert.h"
+#include "port/oc_connectivity.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION			// TODO looks like this needs to be undefined for Zephyr
 #include <stdlib.h>
