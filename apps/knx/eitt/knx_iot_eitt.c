@@ -26,8 +26,14 @@
 const char application_name[] KNX_TOOL_WEAK = "KNX-IoT demo EITT certification application";
 const char sn_lower_case[] KNX_TOOL_WEAK = "00fa10020800";  // same as eitt test template, deliberated incorrect serial number
 const char hw_type[] KNX_TOOL_WEAK = "Windows";             // 12 string chars, same as eitt test template
-const char dev_model[] KNX_TOOL_WEAK = "KNX Certification"; // same as eitt test template
+const char dev_model[] KNX_TOOL_WEAK = "KNX Certification"; // same as eitt test template, see notes (a)
 const uint32_t mid KNX_TOOL_WEAK = 667;                     // same as eitt test template
+
+/*
+  (a) according to the specification it can be a device model or order number, a vendor has to device what to return.
+    - for the EITT we use eitt test template value
+    - for a real application this can be adapted to a more meaningful value, e.g. a specific product name or order number
+*/
 
 /*
  *

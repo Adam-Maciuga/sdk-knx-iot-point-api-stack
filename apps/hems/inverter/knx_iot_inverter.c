@@ -23,8 +23,14 @@
 const char application_name[] KNX_TOOL_WEAK = "Inverter";
 const char sn_lower_case[] KNX_TOOL_WEAK = "00fa10020b00";  // deliberated incorrect serial numbers
 const char hw_type[] KNX_TOOL_WEAK = "000102030405";        // 12 string chars, MSB = 00
-const char dev_model[] KNX_TOOL_WEAK = "6800";              // reuse mask version from iot device
+const char dev_model[] KNX_TOOL_WEAK = "6800";              // see notes (a)
 const uint32_t mid KNX_TOOL_WEAK = 0x00fa;                  // manufacturer id, here KNXA
+
+/*
+  (a) according to the specification it can be a device model or order number, a vendor has to device what to return.
+    - for the demo we reuse the mask version from the iot device
+    - for a real application this can be adapted to a more meaningful value, e.g. a specific product name or order number
+*/
 
 float_functional_block_t inverter = {
   1250, 1, 1,
