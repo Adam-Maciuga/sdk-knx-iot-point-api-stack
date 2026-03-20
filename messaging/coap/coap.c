@@ -1263,7 +1263,7 @@ void coap_send_message(oc_message_t* message)
   }
   #endif 
 
-  OC_DBG("sending CoAP message by forwarding it to the OSCORE layer (%u)", (unsigned int) message->length);
+  OC_DBG("sending CoAP message by forwarding it to the outbound NETWORK layer (secured OSCORE layer or plain uc/mc layer) (%u)", (unsigned int) message->length);
   oc_send_message(message);
 }
 
