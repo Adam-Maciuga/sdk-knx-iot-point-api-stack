@@ -18,8 +18,7 @@
 // OC Flags:
 // OC_DYNAMIC_ALLOCATION
 // OC_PDU_SIZE			// TODO what is it? often used, looks like message size?
-// OC_PKI			// TODO => KNXIOT_SECURITY_PKI
-// OC_CLOUD			// TODO remove!?, only in header file, but looks like dead code
+// OC_PKI			// TODO => KNX_TLS_PKI, OC_PKI is only used with TLS.
 
 #ifndef MBEDTLS_CONFIG_H
 #define MBEDTLS_CONFIG_H
@@ -39,13 +38,17 @@
 #ifdef OC_PKI
 #if defined(_WIN64) || defined(_WIN32) || defined(__APPLE__) ||                \
   defined(__linux) || defined(__ANDROID__)
+// Note:
+// The hardware platform can provide a correct date and time. 
+// This is used to verify the valididty period of X.509 certificates.
+//
 // Kconfig: CONFIG_MBEDTLS_HAVE_TIME_DATE
 // CONFIG_MBEDTLS_HAVE_TIME_DATE also defines MBEDTLS_HAVE_TIME
 #define MBEDTLS_HAVE_TIME
 #define MBEDTLS_HAVE_TIME_DATE
 //#define MBEDTLS_PLATFORM_MS_TIME_ALT		// TODO shouldn't this be set?
-#endif /* One of the major OSs */
-#endif /* OC_PKI */
+#endif
+#endif
 
 #define MBEDTLS_PLATFORM_STD_EXIT oc_exit	// TODO FIXME not in Zephyr config
 #define MBEDTLS_PLATFORM_STD_SNPRINTF snprintf	// TODO, no need to be set, this is the default (also for Zephyr)
@@ -138,7 +141,10 @@
 
 /* Supported hash algorithms */
 // Kconfig: CONFIG_MBEDTLS_SHA256
-#define MBEDTLS_SHA256_C
+// TODO Zephyr checkout CONFIG_MBEDTLS_HARDWARE_SHA which enables MBEDTLS_SHA256_ALT (harware with sofware fallback)
+#define MBEDTLS_SHA256_C	// TODO replace with MBEDTLS_256_ALT? see: Zephyr hal/espressif/components/mbedtls/port/include/mbedtls/esp_config.h 
+// Kconfig: CONFIG_MBEDTLS_SHA512
+//#define MBEDTLS_SHA512_C	// TODO Should we favour SHA512 over SHA256 in general? e.g. ESP32-C6 SHA256 HW, SHA512 SW
 
 /* mbedTLS modules */
 // Kconfig: CONFIG_MBEDTLS_CTR_DRBG_C
@@ -177,11 +183,6 @@
 #define MBEDTLS_ECDSA_C
 #define MBEDTLS_ECP_C
 
-#ifdef OC_CLOUD
-// Kconfig: CONFIG_MBEDTLS_SHA512
-#define MBEDTLS_SHA512_C
-#endif /* OC_CLOUD */
-
 // Kconfig: CONFIG_MBEDTLS_PK_WRITE_C		// TODO Zephyr: hmm, this is in Automatic depnendencies
 #define MBEDTLS_PK_WRITE_C // extract public key
 
@@ -195,7 +196,7 @@
 #define MBEDTLS_X509_CSR_PARSE_C
 #define MBEDTLS_X509_CRT_WRITE_C
 
-#endif /* OC_PKI */
+#endif
 
 /* Automatic dependencies */
 #if defined(MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED) || \
