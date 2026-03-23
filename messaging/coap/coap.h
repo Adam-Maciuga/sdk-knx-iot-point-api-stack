@@ -109,8 +109,8 @@ typedef struct coap_packet_t
   uint8_t version;                     // current version is '1'
   coap_message_type_t type;            // CON, NON, ACK, ...
   uint8_t code;                        // CoAP code such as GET = 1, CHANGED_2_04 = 68
-  uint16_t mid;                        // transport level: a client relates a send out CON message with a received ACK message 
-                                       // AND a receiver is using it to ignore an already received messages
+  uint16_t mid;                        // transport level: client relates outbound CON message with inbound ACK, 
+                                       // receiver uses it to ignore an already received messages
   
   uint8_t token_len;
   uint8_t token[COAP_TOKEN_LEN];       // application level: a client matches a request with a response

@@ -445,7 +445,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   // not used...
   // COAP_SERIALIZE_INT_OPTION(COAP_OPTION_IF_NONE_MATCH,	content_format - coap_pkt->content_format /* hack to get a zero field */,	"If-None-Match");
 
-  // is an E and U option 
+  // is an E (inner) and U (outer) option 
   COAP_SERIALIZE_INT_OPTION(COAP_OPTION_OBSERVE, observe, "Observe");
 
   if (outer) {
