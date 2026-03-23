@@ -591,7 +591,7 @@ next_separate_request:
     current = next;
   }
 
-  handle->active = 0;
+  handle->active = false;
   oc_blockwise_free_response_buffer(handle->response_state);
 }
 

@@ -31,6 +31,17 @@ typedef enum {
 } oc_method_t;
 
 /**
+ * @brief CoAP observe codes, see https://www.rfc-editor.org/rfc/rfc7641#section-2
+ *
+*/
+typedef enum
+{
+  OC_OBSERVE_REGISTER = 0, 
+  OC_OBSERVE_DEREGISTER = 1, 
+  OC_OBSERVE_ERROR = 2,
+} oc_observe_t;
+
+/**
  * @brief resource properties (bit mask)
  * 
  * OC_WRITE_AFFECTS_FP

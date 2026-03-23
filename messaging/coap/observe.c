@@ -407,7 +407,7 @@ int coap_notify_observers(const oc_resource_t *resource,
         if (coap_separate_accept(req, response.separate_response,
                 &obs->endpoint, obs->obs_counter) == 1) {
 #endif
-          response.separate_response->active = 1;
+          response.separate_response->active = true;
         }
       } // separate response
       else {
@@ -631,7 +631,7 @@ void notify_resource_defaults_observer(const oc_resource_t *resource,
       if (coap_separate_accept(req, response.separate_response, &obs->endpoint,
                                obs->obs_counter) == 1)
       #endif 
-        response.separate_response->active = 1;
+        response.separate_response->active = true;
     } 
     else
     {

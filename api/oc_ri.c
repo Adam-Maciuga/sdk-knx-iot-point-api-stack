@@ -1269,15 +1269,15 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   // If a GET request was successfully processed, then check its observe option.
 
   // init with error
-  uint32_t observe = 2; 
-  if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&
-          coap_get_header_observe(request, &observe)) {
+  uint32_t observe = OC_OBSERVE_ERROR; 
+  if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&  coap_get_header_observe(request, &observe)) 
+  {
     // process all < 4.00, check if the resource is OBSERVABLE
-    if (matching_resource->properties & OC_OBSERVABLE) {
-      if (observe == 0) {
-        // register
-        // If the observe option is set to 0, make an attempt to add the 
-        // requesting client as an observer.
+    if (matching_resource->properties & OC_OBSERVABLE) 
+    {
+      if (observe == OC_OBSERVE_REGISTER) 
+      {
+        // register, if the observe option is set to 0, make an attempt to add the requesting client as an observer.
         bool set_observe_option = true;
 #ifdef OC_BLOCK_WISE
         if (coap_observe_handler(request, response, matching_resource, 
@@ -1303,7 +1303,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
           coap_remove_observer_by_token(endpoint, packet->token,
           packet->token_len);
         }
-      } else if (observe == 1) {
+      } else if (observe == OC_OBSERVE_DEREGISTER) {
         // de-register
         // If the observe option is set to 1, make an attempt to remove
         // the requesting client from the list of observers. In addition,
@@ -1350,7 +1350,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 #else
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe) == 1) {
 #endif
-      response_obj.separate_response->active = 1;
+      response_obj.separate_response->active = true;
     }
   } else
 #endif
