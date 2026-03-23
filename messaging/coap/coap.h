@@ -134,7 +134,7 @@ typedef struct coap_packet_t
   const char* location_query;
   size_t uri_path_len;
   const char* uri_path;
-  int32_t observe;
+  uint32_t observe;
   uint16_t accept;
   uint8_t if_match_len;
   uint8_t if_match[COAP_ETAG_LEN];
@@ -379,8 +379,8 @@ int coap_set_header_location_path(void* packet, const char* path); // Also split
 int coap_get_header_location_query( void* packet, const char** query); // In-place string might not be 0-terminated.
 size_t coap_set_header_location_query(void* packet, const char* query);
 
-int coap_get_header_observe(void* packet, uint32_t* observe);
-int coap_set_header_observe(void* packet, uint32_t observe);
+bool coap_get_header_observe(void* packet, uint32_t* observe);
+void coap_set_header_observe(void* packet, uint32_t observe);
 
 int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset);
 int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size);

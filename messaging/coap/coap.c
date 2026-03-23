@@ -104,7 +104,17 @@ void print_coap_service(uint8_t code, char* text)
   #endif
 }
 
-static uint32_t coap_parse_int_option(uint8_t* bytes, size_t length) 
+/* 
+ scans 0..3 byte and returns the parsed int value, used for option values that are encoded in 0..3 byte,
+ such as content format, observe, max age, block options, ...
+
+ l = 0, var = 0;
+ l = 1, var = byte[0];
+ l = 2, var = (byte[0] << 8) | byte[1];
+ l = 3, var = (byte[0] << 16) | (byte[1] << 8) | byte[2];
+
+*/
+static uint32_t coap_parse_int_option(const uint8_t* bytes, size_t length) 
 {
   uint32_t var = 0;
   size_t i = 0;
@@ -828,8 +838,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         // coap_merge_multi_option() operates in-place on the IPBUF, but final
 				// packet field should be const string -> cast to string.
-        coap_merge_multi_option((char**) &(coap_pkt->uri_path),
-                &(coap_pkt->uri_path_len), current_options, option_length, '/');
+        coap_merge_multi_option((char**) &coap_pkt->uri_path, &coap_pkt->uri_path_len, current_options, option_length, '/');
         OC_DBG("  Uri-Path [%.*s]", (int) coap_pkt->uri_path_len, coap_pkt->uri_path);
         break;
       
@@ -841,38 +850,13 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         // coap_merge_multi_option() operates in-place on the IPBUF, but final
 				// packet field should be const string -> cast to string.
-        coap_merge_multi_option((char**) &(coap_pkt->uri_query),
-                &(coap_pkt->uri_query_len), current_options, option_length, '&');
+        coap_merge_multi_option((char**) &coap_pkt->uri_query, &coap_pkt->uri_query_len, current_options, option_length, '&');
         OC_DBG("  Uri-Query [%.*s]", (int) coap_pkt->uri_query_len, coap_pkt->uri_query);
         break;
-#if 0
-      case COAP_OPTION_LOCATION_PATH:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
 
-        // coap_merge_multi_option() operates in-place on the IPBUF, but final 
-        // packet field should be const string -> cast to string.
-				coap_merge_multi_option((char**) &(coap_pkt->location_path),
-                &(coap_pkt->location_path_len), current_options, option_length, '/');
-        OC_DBG("Location-Path [%.*s]", (int) coap_pkt->location_path_len, coap_pkt->location_path);
-        break;
-      case COAP_OPTION_LOCATION_QUERY:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
-
-        // coap_merge_multi_option() operates in-place on the IPBUF, but final 
-        // packet field should be const string -> cast to string.
-        coap_merge_multi_option((char**) &(coap_pkt->location_query),
-                &(coap_pkt->location_query_len), current_options, option_length, '&');
-        OC_DBG("Location-Query [%.*s]", (int) coap_pkt->location_query_len,
-                coap_pkt->location_query);
-        break;
-#endif
       case COAP_OPTION_OBSERVE:
         coap_pkt->observe = coap_parse_int_option(current_options, option_length);
-        OC_DBG("  Observe [%lu]", (unsigned long) coap_pkt->observe);
+        OC_DBG("  Observe [%u]", coap_pkt->observe);
         break;
       
       case COAP_OPTION_BLOCK2:
@@ -1690,24 +1674,27 @@ size_t coap_set_header_location_query(void* packet, const char* query) {
   return coap_pkt->location_query_len;
 }
 
-int coap_get_header_observe(void* packet, uint32_t* observe) {
+// true if observe option is set and observe value is stored in observe ptr, false otherwise
+bool coap_get_header_observe(void* packet, uint32_t* observe) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE)) {
-    return 0;
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE))
+  {
+    return false;
   }
 
   *observe = coap_pkt->observe;
-  return 1;
+  return true;
 }
 
-int coap_set_header_observe(void* packet, uint32_t observe) 
+// sets the observe option and value in the packet
+void coap_set_header_observe(void* packet, uint32_t observe) 
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   coap_pkt->observe = observe;
   SET_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
-  return 1;
 }
 
 int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
@@ -1898,4 +1885,3 @@ uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length) {
 
   return coap_pkt->payload_len;
 }
-

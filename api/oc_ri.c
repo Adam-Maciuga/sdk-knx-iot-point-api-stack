@@ -1265,11 +1265,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     success = true;
   }
 
-#ifdef OC_SERVER
-  // If a GET request was successfully processed, then check its observe option.
+  #ifdef OC_SERVER
+  // if a GET request was successfully processed, then check its observe option
 
   // init with error
   uint32_t observe = OC_OBSERVE_ERROR; 
+
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) &&  coap_get_header_observe(request, &observe)) 
   {
     // process all < 4.00, check if the resource is OBSERVABLE
@@ -1277,56 +1278,59 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     {
       if (observe == OC_OBSERVE_REGISTER) 
       {
-        // register, if the observe option is set to 0, make an attempt to add the requesting client as an observer.
-        bool set_observe_option = true;
-#ifdef OC_BLOCK_WISE
-        if (coap_observe_handler(request, response, matching_resource, 
-                block2_size, endpoint, if_mask_from_query) >= 0) {
-#else  
+        // register, if the observe option is set to register (OC_OBSERVE_REGISTER), make an attempt to add the requesting client as an observer
+
+        #ifdef OC_BLOCK_WISE
+        if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint, if_mask_from_query) >= 0) 
+        {
+        #else  
         if (coap_observe_handler(request, response, cur_resource, endpoint) >= 0) {
-#endif 
-          // If the resource is marked as periodic observable it means
-          // it must be polled internally for updates (which would lead to
-          // notifications being sent). If so, add the resource to a list of
-          // periodic GET callbacks to utilize the framework's internal
-          // polling mechanism.
-          if (matching_resource->properties & OC_PERIODIC) {
-            if (!add_periodic_observe_callback(matching_resource)) {
-              set_observe_option = false;
+        #endif 
+          
+          /*
+            If the resource is marked as periodic observable it means it must be polled internally for updates 
+            (which would lead to notifications being sent). If so, add the resource to a list of periodic GET callbacks to utilize the framework's 
+            internal polling mechanism.
+          */
+          if (matching_resource->properties & OC_PERIODIC) 
+          {
+            if (!add_periodic_observe_callback(matching_resource))
+            { // error adding periodic observe callback, so remove observer
+              coap_remove_observer_by_token(endpoint, packet->token, packet->token_len);
             }
+            else
+            {
+              coap_set_header_observe(response, 0);
+            }
+
           }
         }
-
-        if (set_observe_option) {
-          coap_set_header_observe(response, 0);
-        } else {
-          coap_remove_observer_by_token(endpoint, packet->token,
-          packet->token_len);
-        }
-      } else if (observe == OC_OBSERVE_DEREGISTER) {
-        // de-register
-        // If the observe option is set to 1, make an attempt to remove
-        // the requesting client from the list of observers. In addition,
-        // remove the resource from the list periodic GET callbacks if it
-        // is periodic observable.
-#ifdef OC_BLOCK_WISE
-        if (coap_observe_handler(request, response, matching_resource, 
-                block2_size, endpoint, if_mask_from_query) > 0) {
-#else
-        if (coap_observe_handler(request, response, matching_resource, 
-                endpoint, if_mask_from_query) > 0) {
-#endif 
-          if (matching_resource->properties & OC_PERIODIC) {
+      } else if (observe == OC_OBSERVE_DEREGISTER) 
+      {
+        /* 
+          If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the requesting client from the list of observers. 
+          In addition, remove the resource from the list periodic GET callbacks if it is periodic observable.
+        */
+        
+        #ifdef OC_BLOCK_WISE
+        if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint, if_mask_from_query) > 0)
+        {
+        #else
+        if (coap_observe_handler(request, response, matching_resource, endpoint, if_mask_from_query) > 0)
+        {
+        #endif 
+          if (matching_resource->properties & OC_PERIODIC) 
+          {
             remove_periodic_observe_callback(matching_resource);
-	  }
+          }
         }
       }
     }
   }
-#endif 
+  #endif 
 
-  if (new_request.origin && new_request.origin->flags & MULTICAST &&
-          response_buffer.code >= oc_status_code(OC_STATUS_BAD_REQUEST)) {
+  if (new_request.origin && new_request.origin->flags & MULTICAST && response_buffer.code >= oc_status_code(OC_STATUS_BAD_REQUEST))
+  {
     // on multicast ignore all > 4.00
     response_buffer.code = OC_IGNORE;
   }
@@ -1399,15 +1403,17 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       }
     }
 
-    if (response_buffer.max_age > 0) {
+    if (response_buffer.max_age > 0) 
+    {
       coap_set_header_max_age(response, response_buffer.max_age);
     }
 
-    if (response_buffer.code == oc_status_code(OC_STATUS_REQUEST_ENTITY_TOO_LARGE)) {
+    if (response_buffer.code == oc_status_code(OC_STATUS_REQUEST_ENTITY_TOO_LARGE))
+    {
       coap_set_header_size1(response, OC_BLOCK_SIZE);
     }
 
-    // Response_buffer.code at this point contains a valid CoAP status code.
+    // response_buffer.code at this point contains a valid CoAP status code
     coap_set_status_code(response, response_buffer.code);
   }
 
