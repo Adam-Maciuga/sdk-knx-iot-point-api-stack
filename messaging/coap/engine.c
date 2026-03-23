@@ -233,22 +233,8 @@ static void coap_send_response_with_empty_application_payload(coap_message_type_
   }
 }
 
-/**
- * @brief Send a coap 4 byte ACK + EMPTY_0_00 response.
- *
- * @note
- * - incoming CON msg -> outgoing ACK msg with code 'EMPTY_0_00' , incoming mid
- *
- * @param mid message id (mid)
- * @param endpoint addressed inbound endpoint
- *
- */
-static void coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint)
+bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint)
 {
-  // local CoAP packet
-  coap_packet_t coap_pkt[1];
-
-  coap_udp_init_message(coap_pkt, COAP_TYPE_ACK, EMPTY_0_00, mid);
   oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
 
   if (outgoing_msg)
@@ -259,14 +245,34 @@ static void coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t*
     // convert outgoing dst EP to unicast (for the response)
     // don't pass to OSCORE layer for an ACK with empty payload (see coap_send_message, OUTBOUND_NETWORK_EVENT)
     UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST + OSCORE);
-    UNSET_OPTION(coap_pkt, COAP_OPTION_OSCORE);
 
-    // plain message , fixed size
+    /*
+      create a raw CoAP empty ack message by NOT using the coap_serialize_message (too much overhead ...), but directly 
+      set the header fields and size of the message, since it is a fixed 4 byte message with no token, options and payload
+      - set header fields , e.g. type/code/mid, but no token, no options, no payload
+      - set size of the message to 4 bytes (header size) since no token, options and payload are included
+    */
+
+    // ops precedence , first << then &, see 
+    #define EMPTY_ACK_HEADER_0 ((COAP_HEADER_VERSION_MASK & (1 << COAP_HEADER_VERSION_POSITION)) +       \
+                                (COAP_HEADER_TYPE_MASK & (COAP_TYPE_ACK << COAP_HEADER_TYPE_POSITION)) + \
+                                (COAP_HEADER_TOKEN_LEN_MASK & (0 << COAP_HEADER_TOKEN_LEN_POSITION)))
+
+    outgoing_msg->data[0] = EMPTY_ACK_HEADER_0;
+    outgoing_msg->data[1] = EMPTY_0_00;
+    outgoing_msg->data[2] = (uint8_t)(mid >> 8);
+    outgoing_msg->data[3] = (uint8_t)mid;
+
+    // fixed len
     outgoing_msg->length = 4;
+
+    // send it out
     coap_send_message(outgoing_msg);
 
     OC_DBG("CoAP send empty ack message: mid=%u, code=%i", mid, EMPTY_0_00);
+    return true;
   }
+  return false;
 }
 
 #ifdef KNX_TCP_TLS
