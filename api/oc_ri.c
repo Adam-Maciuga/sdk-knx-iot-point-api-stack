@@ -1570,7 +1570,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb, oc_endpoint_t *
 
   if (client_response.observe_option > 1) {
     uint64_t notification_num;
-    oscore_read_piv(endpoint->request_piv, endpoint->request_piv_len, &notification_num);
+    oscore_store_piv_to_ssn(endpoint->request_piv, endpoint->request_piv_len, &notification_num);
     if (notification_num < cb->notification_num) {
       return true;
     }

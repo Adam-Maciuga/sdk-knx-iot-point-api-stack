@@ -29,9 +29,11 @@ extern "C"
   // send an oscore error as CoAP with a CoAP return code (as plain CoAP error or as secured OSCORE error)
   void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured);
 
-  int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn);
+  // read piv (src) and stores it to 64-bit ssn (dst), ssn is cleared first and result is converted by little/big endian 
+  int oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint64_t* ssn);
 
-  int oscore_store_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
+  // store 64-bit ssn (src) to piv (dst), piv is cleared first and result is converted by little/big endian
+  int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
 
   uint8_t oscore_get_outer_code(void* packet);
 

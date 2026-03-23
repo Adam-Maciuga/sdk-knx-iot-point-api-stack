@@ -69,18 +69,19 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
   }
 }
 
-// read piv (converts little/big endian) and stores it to 64-bit ssn (ssn is cleared first) 
-int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn) 
+int oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint64_t* ssn) 
 {
   *ssn = 0;
 
   uint8_t j = sizeof(uint64_t) - piv_len;
-  for (uint8_t i = 0; i < piv_len; i++, j++) {
+  for (uint8_t i = 0; i < piv_len; i++, j++) 
+  {
     memcpy((char*) ssn + j, &piv[i], 1);
   }
 
   int _botest = 1;
-  if (*(char*) &_botest == 1) {
+  if (*(char*) &_botest == 1) 
+  {
     // If byte order is Little-endian, convert to Big-endian.
     *ssn = (*ssn & 0x00ff00ff00ff00ff) << 8  | (*ssn & 0xff00ff00ff00ff00) >> 8;
     *ssn = (*ssn & 0x0000ffff0000ffff) << 16 | (*ssn & 0xffff0000ffff0000) >> 16;
@@ -90,19 +91,22 @@ int oscore_read_piv(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
   return 0;
 }
 
-// store 64-bit ssn (converts little/big endian) to piv and set also piv len
-int oscore_store_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn) {
+
+int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn) 
+{
   int _botest = 1;
 
   memset(piv, 0, OSCORE_PIV_LEN);
 
-  if (ssn == 0) {
+  if (ssn == 0) 
+  {
     piv[0] = 0;
     *piv_len = 1;
     return 0;
   }
 
-  if (*(char*) &_botest == 1) {
+  if (*(char*) &_botest == 1) 
+  {
     // If byte order is Little-endian, convert to Big-endian.
     ssn = (ssn & 0x00ff00ff00ff00ff) << 8  | (ssn & 0xff00ff00ff00ff00) >> 8;
     ssn = (ssn & 0x0000ffff0000ffff) << 16 | (ssn & 0xffff0000ffff0000) >> 16;
@@ -112,12 +116,15 @@ int oscore_store_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn) {
   *piv_len = 0;
   char* p = (char*) &ssn + 8 - OSCORE_PIV_LEN; // ptr to first digit of ssn 
   char* end = p + OSCORE_PIV_LEN; // ptr to last digit of ssn 
-  while (p != end && *p == 0) {
+  
+  while (p != end && *p == 0) 
+  {
     // from first digit to last digit skip all leading '0' in ssn
     p++;
   }
 
-  while (p != end) {
+  while (p != end) 
+  {
     piv[(*piv_len)++] = *p; // copy piv bytes and adjust piv len 
     p++;
   }

@@ -516,7 +516,7 @@ int coap_receive(oc_message_t* incoming_message)
         // get kid/kid_context/ssn -> kid : multicast = GA / unicast = '0c' + SN -> in case of MaC ETS
         oc_new_byte_string(&kid, (char*)incoming_message->endpoint.kid, incoming_message->endpoint.kid_len);
         oc_new_byte_string(&kid_ctx,(char*)incoming_message->endpoint.kid_ctx, incoming_message->endpoint.kid_ctx_len);
-        oscore_read_piv(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
+        oscore_store_piv_to_ssn(incoming_message->endpoint.request_piv, incoming_message->endpoint.request_piv_len, &ssn);
 
         replay_state_t sync_state = oc_replay_check_client(ssn, kid, kid_ctx);
 
