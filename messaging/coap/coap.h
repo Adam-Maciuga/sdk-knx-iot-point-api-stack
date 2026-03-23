@@ -104,7 +104,7 @@ typedef enum
 /** parsed message struct */
 typedef struct coap_packet_t
 {
-  uint8_t* buffer;                     // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
+  uint8_t* buffer;                     // pointer to memory that will host the real, serialized (to be sent out) CoAP packet with header/type/token/...
   coap_transport_type_t transport_type;// UDP or TCP
   uint8_t version;                     // current version is '1'
   coap_message_type_t type;            // CON, NON, ACK, ...
@@ -241,19 +241,30 @@ void coap_init_connection(void);
 uint16_t coap_get_next_mid(void);
 
   /**
- * @brief Init a UDP packet with major data (type, code, mid, fixed transport type UDP) 
+ * @brief Init a UDP packet with major data (type, code, mid, fixed transport type UDP) and clears all the rest with '0' (options, payload, etc.)
  *
  * @param packet pointer to a coap packet struct, that will be filled with the given data
  * @param type CoAP message type, such as CON, NON, ACK, ...
  * @param code CoAP code such as GET = 1, CHANGED_2_04 = 68
  * @param mid message id (mid) for UDP
  *
- * @note sets as transport type UDP, other fields such as options, payload, etc. are not set and need to be set separately
+ * @note sets as transport type UDP
  *
  */
 void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code, uint16_t mid);
 
-// a message is serialized by adding plaintext (inner code, inner options, payload) and outer options BUT not adding the outer OSCORE option
+// 
+/**
+ * @brief a message is serialized by adding plaintext (inner code, inner options, payload) and outer options,
+ *        BUT not adding the outer OSCORE option
+ *
+ * @param packet the coap packet struct that will be serialized, it MUST have the inner code, inner options and payload already set
+ * @param buffer the buffer where the serialized message will be stored, it MUST have enough space for the serialized message
+ *
+ * @note used also for empty ACK messages, in this case the packet MUST have the type and mid set, but code = 0 and no options or payload, the
+ *       serialized message will be just the header with type and mid, but no code, options or payload
+ *	
+ */
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 
 /**
@@ -371,15 +382,11 @@ size_t coap_set_header_location_query(void* packet, const char* query);
 int coap_get_header_observe(void* packet, uint32_t* observe);
 int coap_set_header_observe(void* packet, uint32_t observe);
 
-int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, 
-        uint16_t* size, uint32_t* offset);
-int coap_set_header_block2(void* packet, uint32_t num, uint8_t more,
-        uint16_t size);
+int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset);
+int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size);
 
-int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, 
-        uint16_t* size, uint32_t* offset);
-int coap_set_header_block1(void* packet, uint32_t num, uint8_t more,
-        uint16_t size);
+int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset);
+int coap_set_header_block1(void* packet, uint32_t num, uint8_t more, uint16_t size);
 
 int coap_get_header_size2(void* packet, uint32_t* size);
 int coap_set_header_size2(void* packet, uint32_t size);

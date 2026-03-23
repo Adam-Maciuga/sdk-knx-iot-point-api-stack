@@ -104,13 +104,16 @@ void print_coap_service(uint8_t code, char* text)
   #endif
 }
 
-static uint32_t coap_parse_int_option(uint8_t* bytes, size_t length) {
+static uint32_t coap_parse_int_option(uint8_t* bytes, size_t length) 
+{
   uint32_t var = 0;
   size_t i = 0;
-  while (i < length) {
+  while (i < length) 
+  {
     var <<= 8;
     var |= bytes[i++];
-  } return var;
+  } 
+  return var;
 }
 
 static uint8_t coap_option_nibble(size_t value) {
@@ -881,12 +884,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->block2_num = coap_parse_int_option(current_options, option_length);
         coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;
-        coap_pkt->block2_size = 16 << (coap_pkt->block2_num & 0x07);
+        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
         coap_pkt->block2_offset = (coap_pkt->block2_num & ~0x0000000F) << (coap_pkt->block2_num & 0x07);
         coap_pkt->block2_num >>= 4;
-        OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num,
-                coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
+        OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num, coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
         break;
+
       case COAP_OPTION_BLOCK1:
         // class E option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options)
@@ -896,12 +899,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->block1_num = coap_parse_int_option(current_options, option_length);
         coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;
-        coap_pkt->block1_size = 16 << (coap_pkt->block1_num & 0x07);
-        coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F)
-                << (coap_pkt->block1_num & 0x07);
+        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
+        coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << (coap_pkt->block1_num & 0x07);
         coap_pkt->block1_num >>= 4;
         OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num, coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
         break; 
+      
       case COAP_OPTION_SIZE2:
         // class E option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options) 
@@ -912,6 +915,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         coap_pkt->size2 = coap_parse_int_option(current_options, option_length);
         OC_DBG("  Size2 [%lu]", (unsigned long) coap_pkt->size2);
         break;
+      
       case COAP_OPTION_SIZE1:
         // class U option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options) 
@@ -1060,7 +1064,8 @@ uint16_t coap_get_next_mid(void) {
   return ++current_mid;
 }
 
-void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,uint16_t mid) {
+void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,uint16_t mid) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   // wipe content, important thing
@@ -1091,7 +1096,7 @@ static void coap_udp_set_header_fields(void* packet)
 {
   const coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
-    // ops precedence , first << then &
+  // ops precedence , first << then &
   coap_pkt->buffer[0] = COAP_HEADER_VERSION_MASK & coap_pkt->version << COAP_HEADER_VERSION_POSITION;
   coap_pkt->buffer[0] |= COAP_HEADER_TYPE_MASK & coap_pkt->type << COAP_HEADER_TYPE_POSITION;
   coap_pkt->buffer[0] |= COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->token_len << COAP_HEADER_TOKEN_LEN_POSITION;
@@ -1113,7 +1118,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   uint8_t token_location = 0;	// location in coap telegram
 
   // init 
-  coap_pkt->buffer = buffer; // is a ptr copy from org endpoint data
+  coap_pkt->buffer = buffer;  // is a ptr copy from org endpoint data
 
   // CoAP header option serialize first to know total length about options 
   size_t header_length_calculation = coap_serialize_options(coap_pkt, NULL, inner, outer, oscore);
@@ -1170,7 +1175,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       coap_udp_set_header_fields(coap_pkt);
     }
 
-    // empty coap packet, don't need to do more stuff (code = 0, token len = 0 , means not set)
+    // coap ACK EMPTY packet, don't need to do more stuff (code = 0, token len = 0 , means not set)
     if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0) 
     {
       OC_DBG("done serializing coap empty ack message");
@@ -1255,7 +1260,8 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 void coap_send_message(oc_message_t* message) 
 {
   #ifdef OC_TCP
-  if (message->endpoint.flags & TCP) {
+  if (message->endpoint.flags & TCP) 
+  {
     tcp_csm_state_t state = oc_tcp_get_csm_state(&message->endpoint);
     if (state == CSM_NONE) {
       coap_send_csm_message(&message->endpoint, OC_PDU_SIZE, 0);
@@ -1695,7 +1701,8 @@ int coap_get_header_observe(void* packet, uint32_t* observe) {
   return 1;
 }
 
-int coap_set_header_observe(void* packet, uint32_t observe) {
+int coap_set_header_observe(void* packet, uint32_t observe) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   coap_pkt->observe = observe;
@@ -1703,8 +1710,7 @@ int coap_set_header_observe(void* packet, uint32_t observe) {
   return 1;
 }
 
-int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more,
-        uint16_t* size, uint32_t* offset) {
+int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK2)) {
@@ -1754,8 +1760,7 @@ int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t si
   return 1;
 }
 
-int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more,
-        uint16_t* size, uint32_t* offset) {
+int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK1)) {

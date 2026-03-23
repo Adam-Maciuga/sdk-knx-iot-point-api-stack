@@ -93,6 +93,20 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
  */
 bool oc_coap_check_if_loopback_message(const oc_message_t* msg);
 
+/**
+ * @brief Send a coap 4 byte ACK + EMPTY_0_00 response.
+ *
+ * @note
+ * - incoming CON msg -> outgoing ACK msg with code 'EMPTY_0_00' , incoming mid
+ *
+ * @param mid message id (mid)
+ * @param endpoint addressed inbound endpoint
+ *
+ * @return true if the ACK was sent, false if not (e.g. because of a no memory)
+ *
+ */
+bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint);
+
 #ifdef __cplusplus
 }
 #endif
