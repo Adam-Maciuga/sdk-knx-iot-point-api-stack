@@ -94,7 +94,7 @@ struct oc_message_s
   struct oc_memb *pool;     // used to alloc/free the message as such
   oc_endpoint_t endpoint;
   oc_ipv6_addr_t mcast_dest;
-  size_t length;            // total message length (includes header and payload from -> data stream)
+  size_t length;            // total message length (includes header, options and payload from message->data 'stream')
   uint8_t ref_count;        // check how message is used (allocated = 1 , tracked > 1)
   #ifdef OC_DYNAMIC_ALLOCATION
   #ifdef OC_INOUT_BUFFER_SIZE

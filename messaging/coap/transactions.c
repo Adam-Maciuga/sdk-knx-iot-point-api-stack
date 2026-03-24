@@ -175,8 +175,6 @@ void coap_send_transaction(coap_transaction_t *t)
   {
   #endif
 
-    OC_DBG("sending CON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
-
     if (t->retransmit_counter < COAP_MAX_RETRANSMIT) 
     {
       OC_DBG("not timed out, keeping CON transaction %u: %p", t->mid, (void *)t);
@@ -196,7 +194,9 @@ void coap_send_transaction(coap_transaction_t *t)
       oc_etimer_restart(&t->retransmit_timer); // interval updated above
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
-      oc_message_add_ref(t->message);
+      // send message and keep transaction
+      OC_DBG("sending CON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
       coap_send_message(t->message);
     }
     else 
@@ -249,8 +249,9 @@ void coap_send_transaction(coap_transaction_t *t)
     }
   } 
   else
-  {// ACK, RST, application messages, ...
-    // send message and delete transaction
+  { // empty ACK/RST, other application messages, ...
+    
+    // send message and keep transaction
     OC_DBG("sending NON coap message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
     coap_send_message(t->message);
