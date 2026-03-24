@@ -1116,7 +1116,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   // init 
   coap_pkt->buffer = buffer;  // is a ptr copy from org endpoint data
 
-  // CoAP header option serialize first to know total length about options 
+  // CoAP header option serialize first to know total length about all options 
   size_t header_length_calculation = coap_serialize_options(coap_pkt, NULL, inner, outer, oscore);
 
   // according to CoAP RFC (clause 3) end of option marker = 1 byte (must be included if an application payload exists)
@@ -1171,7 +1171,12 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       coap_udp_set_header_fields(coap_pkt);
     }
 
-    // note, a coap ACK EMPTY packet is not passed through this method
+    // coap ACK/RST EMPTY packet don't need to do more stuff (code = 0, token len = 0 , means not set)
+    if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0)
+    {
+      OC_DBG("done serializing coap empty ack/rst message");
+      return token_location;
+    }
 
     #ifdef OC_DEBUG
 

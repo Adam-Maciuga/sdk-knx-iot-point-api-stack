@@ -267,7 +267,7 @@ void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 
 /**
-* @brief serializes a non-empty message to an OSCORE message (non-empty, hence no coap ACK EMPTY packet)
+* @brief serializes an OSCORE message (may also be an empty ack/rst message)
 *  
 * @param inner  = true: add RFC 8613 4.1.1 Class E (inner) options (encrypt and integrity protect) in plaintext of COSE object
 * @param outer  = true: add RFC 8613 4.1.2 Class U (outer) options (unprotected) in option part of OSCORE message

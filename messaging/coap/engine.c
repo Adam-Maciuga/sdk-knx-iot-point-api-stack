@@ -242,28 +242,16 @@ bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoi
     // copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...)
     memcpy(&outgoing_msg->endpoint, endpoint, sizeof(*endpoint));
 
+    // local CoAP packet
+    coap_packet_t coap_pkt[1];
+    coap_udp_init_message(coap_pkt, COAP_TYPE_ACK, EMPTY_0_00, mid);
+
     // convert outgoing dst EP to unicast (for the response)
     // don't pass to OSCORE layer for an ACK with empty payload (see coap_send_message, OUTBOUND_NETWORK_EVENT)
     UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST + OSCORE);
 
-    /*
-      create a raw CoAP empty ack message by NOT using the 'coap_serialize_message' method (too much overhead ...), directly 
-      set the header fields and size of the message, since it is a fixed 4 byte message with no token, options and payload
-      - set header fields , e.g. type/code/mid, but no token, no options, no payload
-      - set size of the message to 4 bytes (header size)
-    */
-
-    #define EMPTY_ACK_HEADER_0 ((COAP_HEADER_VERSION_MASK & (COAP_VERSION << COAP_HEADER_VERSION_POSITION)) + \
-                                (COAP_HEADER_TYPE_MASK & (COAP_TYPE_ACK << COAP_HEADER_TYPE_POSITION)) +      \
-                                (COAP_HEADER_TOKEN_LEN_MASK & (0 << COAP_HEADER_TOKEN_LEN_POSITION)))
-
-    outgoing_msg->data[0] = EMPTY_ACK_HEADER_0;
-    outgoing_msg->data[1] = EMPTY_0_00;
-    outgoing_msg->data[2] = (uint8_t)(mid >> 8);
-    outgoing_msg->data[3] = (uint8_t)mid;
-
-    // fixed len
-    outgoing_msg->length = 4;
+    // serialize OSCORE message (e.g.; empty ack)
+    outgoing_msg->length = oscore_serialize_message(coap_pkt, outgoing_msg->data);
 
     // send it out
     coap_send_message(outgoing_msg);
@@ -1381,7 +1369,7 @@ int coap_receive(oc_message_t* incoming_message)
   #ifdef OC_TCP
   if (incoming_message->endpoint.flags & TCP)
   {
-    coap_tcp_init_message(response, INTERNAL_SERVER_ERROR_5_00);
+    coap_tcp_init_message(outgoing_coap_response, INTERNAL_SERVER_ERROR_5_00);
   }
   else
   #endif
@@ -1453,7 +1441,7 @@ int coap_receive(oc_message_t* incoming_message)
     }
 
     if (outgoing_coap_response->token_len > 0)
-    {// copy token to transaction (either from inbound request (above) or  
+    {// copy token to transaction (either from inbound request/response above)  
       
       memcpy(transaction->token, outgoing_coap_response->token, outgoing_coap_response->token_len);
       transaction->token_len = outgoing_coap_response->token_len;
