@@ -169,32 +169,42 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
   {
     // { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
 
-    oc_rep_begin_root_object();
+    oc_rep_begin_root_object();                       // BF (1st level)
     oc_rep_i_set_int(root, 4, sia);                   // 4: <sia> 
 
     oc_rep_i_set_key(&root_map, 5);                   // 5:  
 
-    CborEncoder value_map;
+    CborEncoder value_map;                            // BF (a)
     cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
 
     oc_rep_i_set_int(value, 7, group_address);        // ga
 
     oc_rep_i_set_text_string(value, 6, service);      // 'r/w/a'
 
-    // - on value data && value size > 2 it is a write request / read response with data
-    // - otherwise a read request without data
-    // - other combinations = error (no value data and size > 2, ...)
+    /* 
+       - on value data && value size > 2 it is a write request / read response with data
+       - otherwise a read request without data
+       - other combinations = error (no value data and size > 2, ...)
+    */
     if (value_data && value_size > 2) 
     { 
-      // copies raw data
-      // [0] = open object = BF ; [1...size - 1] = data (1: xxx) ; [size] = close object = FF
-      // the data are prepared by the callback handler with the leading '1' such as with GET 
-      // to a bool = oc_rep_i_set_boolean (root, 1, true)
+      /* 
+         copies raw data, the data are prepared by the callback handler with the leading '1' such as with GET to a bool = oc_rep_i_set_boolean (root, 1, true)
+
+         (a) [0] = open object = BF (not extra copied, see above 'value_map')
+         (b) [1...size - 1] = payload data (1: xxx)  -> size - 2 , exclude BF/FF
+         (c) [size] = close object = FF
+         
+      */
+
+      // (b)
       oc_rep_encode_raw_encoder(&value_map, &value_data[1], value_size - 2);
     }
 
+    // (c)
     cbor_encoder_close_container_checked(&root_map, &value_map);
 
+    // FF (1st level)
     oc_rep_end_root_object();
 
     #ifdef OC_DEBUG
@@ -226,8 +236,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
     return 0;
   }
 
-  const oc_resource_t* app_resource_with_href_match = 
-    oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
+  const oc_resource_t* app_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
   if (!app_resource_with_href_match) 
   {
     PRINT("error, application resource path not found %s", resource_path);

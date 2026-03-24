@@ -174,8 +174,8 @@ typedef struct coap_packet_t
   uint8_t echo[COAP_ECHO_LEN];            // echo challenge random data (is part of inner options, RFC 9175)
   size_t echo_len;
   
-  uint32_t payload_len;                   // application payload len, not including any CoAP or OSCORE option
-  uint8_t* payload;                       // coap payload byte stream 
+  uint32_t payload_len;                   // application payload len, not including any CoAP header, token or (OSCORE) options
+  uint8_t* payload;                       // coap application payload byte stream 
 } coap_packet_t;
 
 /** option format serialization */
@@ -267,7 +267,7 @@ void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 
 /**
-* @brief serializes a non-empty message to a OSCORE message (hence this not a coap ACK EMPTY packet)
+* @brief serializes a non-empty message to an OSCORE message (non-empty, hence no coap ACK EMPTY packet)
 *  
 * @param inner  = true: add RFC 8613 4.1.1 Class E (inner) options (encrypt and integrity protect) in plaintext of COSE object
 * @param outer  = true: add RFC 8613 4.1.2 Class U (outer) options (unprotected) in option part of OSCORE message
@@ -286,7 +286,7 @@ void print_coap_service(uint8_t code, char* text);
 void coap_send_message(oc_message_t* message);
 
 /*
-* @brief parses *data pointer and assigns it to the coap packet (read the notes)
+* @brief parses *data pointer and assigns it to the coap packet, also calculates the application payload size (read the notes)
 *
 * @param accept_outer_options parses from *data Class U options, if found 
 *          : TRUE = store them in coap *packet 
@@ -313,9 +313,7 @@ void coap_send_message(oc_message_t* message);
 *   - outer  = RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
 *   - inner  = RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object  
 *	  - oscore = OSCORE option data (flags, kid, kid_context, piv)
-*
-*
-*       
+*  
 */
 coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
                                         uint32_t data_len, uint8_t* current_options, bool accept_inner_options,
