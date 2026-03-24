@@ -1107,7 +1107,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   // CoAP header option serialize first to know total length about options 
   size_t header_length_calculation = coap_serialize_options(coap_pkt, NULL, inner, outer, oscore);
 
-  // according to CoAP (clause 3) end of option marker = 1 byte (should be included if payload  exists)
+  // according to CoAP RFC (clause 3) end of option marker = 1 byte (must be included if an application payload exists)
   if (coap_pkt->payload_len > 0) 
   {
     header_length_calculation += COAP_PAYLOAD_MARKER_LEN;
@@ -1159,12 +1159,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       coap_udp_set_header_fields(coap_pkt);
     }
 
-    // coap ACK EMPTY packet, don't need to do more stuff (code = 0, token len = 0 , means not set)
-    if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0) 
-    {
-      OC_DBG("done serializing coap empty ack message");
-      return token_location;
-    }
+    // note, a coap ACK EMPTY packet is not passed through this method
 
     #ifdef OC_DEBUG
 
