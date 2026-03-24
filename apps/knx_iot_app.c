@@ -79,34 +79,6 @@ bool knx_toggle_programming_mode(void)
     return knx_set_programming_mode(!knx_get_programming_mode());
 }   
 
-bool knx_device_is_commissioned(void)
-{ 
-    return (oc_is_device_in_runtime() == true); // TODO verify this one
-} 
-
-/*** Firmware Update ***/
-// the delayed swu callback handler 
-static oc_event_callback_retval_t send_delayed_response(void* context)
-{
-  oc_separate_response_t* response = (oc_separate_response_t*)context;
-
-  if (response->active)
-  {
-    // alloc buffer for response
-    oc_set_separate_response_buffer(response);
-
-    // no payload data for a swu response, only 2.04 changed status
-    oc_send_separate_response(response, OC_STATUS_CHANGED);
-
-    OC_DBG("delayed response (still) active -> sent it out");
-  }
-  else
-  {
-    OC_DBG("delayed response NOT active (anymore) -> ignored");
-  }
-
-  return OC_EVENT_DONE;
-}
 
 /*
  * Application-Side Software Update (SWU) Implementation

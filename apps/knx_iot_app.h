@@ -203,18 +203,7 @@ extern "C"
    */
   bool knx_toggle_programming_mode(void);
   
-  /**
-   * @brief Check if the KNX device is commissioned
-   *
-   * A device is considered commissioned when it's in runtime mode, meaning it has
-   * been configured by a KNX management tool (e.g., ETS) and is ready for operation.
-   *
-   * @return true if device is commissioned and in runtime mode
-   * @return false if device is not yet commissioned
-   */
-  bool knx_device_is_commissioned(void);
-
-  /*** Firmware Update ***/
+    /*** Firmware Update ***/
   /**
    * @brief software update callback
    *
