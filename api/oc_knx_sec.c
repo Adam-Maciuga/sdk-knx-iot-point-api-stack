@@ -7,18 +7,18 @@
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
-#include "api/oc_knx_sec.h"
+#include <inttypes.h>
 #include <stdio.h>
+#include "api/oc_knx_sec.h"
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"
-#include <inttypes.h>
 #include "security/oc_oscore_context.h"
 #include "oc_helpers.h"
 #include "oc_knx_helpers.h"
 #include "oc_replay.h"
-#include "oc_storage.h"
 #include "messaging/coap/oscore_constants.h"
+#include "port/oc_storage.h"
 
 // AT storage data
 #define AT_STORE "at_store"

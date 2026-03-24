@@ -64,11 +64,15 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
 
     # Additional include directories for "knx_mbedtls_config.h".
     # TBD FIXME #include "port/oc_assert.h" why is that one needed?
-    target_include_directories(mbedtls
-        PUBLIC "${PROJECT_SOURCE_DIR}"
-        PUBLIC "${PROJECT_SOURCE_DIR}/include"
-        PUBLIC "${PORT_DIR}"
-    )
+    set(MBEDTLS_INCLUDE_DIRS
+        PRIVATE "${PROJECT_SOURCE_DIR}"
+        PRIVATE "${PROJECT_SOURCE_DIR}/include"
+        PRIVATE "${PORT_DIR}"
+    ) 
+
+    target_include_directories(mbedtls ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedcrypto ${MBEDTLS_INCLUDE_DIRS}) 
+    target_include_directories(mbedx509 ${MBEDTLS_INCLUDE_DIRS})
 
 if(WIN32 AND NOT MSVC)
         # Note:# Mbed TLS v3.6.5 throws -Werror=format= errors when using MinGW
@@ -108,8 +112,6 @@ endif()
 ### mDNS/DNS-SD library ###
 # Note:
 # Use git apply instead of patch for cross-platform compatibility (patch not available on Windows).
-find_package(Git REQUIRED)
-
 FetchContent_Declare(
     mdns
     GIT_REPOSITORY https://github.com/mjansson/mdns.git
@@ -118,12 +120,12 @@ FetchContent_Declare(
     GIT_TAG main
     # Note:
     # Issues #96 and #97 have not been fixed yet.
-    PATCH_COMMAND ${GIT_EXECUTABLE} apply -p1 --ignore-whitespace "${CMAKE_CURRENT_SOURCE_DIR}/mdns.patch"
+    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${PROJECT_SOURCE_DIR}/port/mdns.patch -P "${PROJECT_SOURCE_DIR}/cmake/patch.cmake"
 )
 
 FetchContent_MakeAvailable(mdns)
 
-target_sources(kis-port PUBLIC
+target_sources(kis-port PRIVATE
     ${PORT_DIR}/abort.c
     ${PORT_DIR}/clock.c
     ${CMAKE_CURRENT_SOURCE_DIR}/dns-sd.c
@@ -134,9 +136,12 @@ target_sources(kis-port PUBLIC
     ${PORT_DIR}/tcpadapter.c
 )
 
-target_include_directories(kis-port PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd.c)
-target_include_directories(kis-port PRIVATE ${PORT_DIR})
+target_include_directories(kis-port 
+    PRIVATE "${PROJECT_SOURCE_DIR}"
+    PRIVATE "${PROJECT_SOURCE_DIR}/include"
+    # Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd.c)
+    PUBLIC "${PORT_DIR}"
+)
 target_include_directories(kis-port PRIVATE "${tinycbor_SOURCE_DIR}/src" PRIVATE "${tinycbor_BINARY_DIR}")
 # mDNS header-only library (mdns/mdns.h)
 # Note:
@@ -149,6 +154,6 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     target_link_libraries(kis-port PUBLIC mbedtls)
 endif()
 
-if(CONFIG_KNXIOT_KNX_LOG_TO_FILE)
+if(CONFIG_KNX_LOG_TO_FILE)
     target_compile_definitions(kis-port INTERFACE KNX_LOG_TO_FILE)
 endif()
