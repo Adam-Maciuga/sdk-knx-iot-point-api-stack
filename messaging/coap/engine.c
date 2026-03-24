@@ -247,13 +247,12 @@ bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoi
     UNSET_BIT(outgoing_msg->endpoint.flags, MULTICAST + OSCORE);
 
     /*
-      create a raw CoAP empty ack message by NOT using the coap_serialize_message (too much overhead ...), but directly 
+      create a raw CoAP empty ack message by NOT using the 'coap_serialize_message' method (too much overhead ...), directly 
       set the header fields and size of the message, since it is a fixed 4 byte message with no token, options and payload
       - set header fields , e.g. type/code/mid, but no token, no options, no payload
-      - set size of the message to 4 bytes (header size) since no token, options and payload are included
+      - set size of the message to 4 bytes (header size)
     */
 
-    // ops precedence , first << then &, see 
     #define EMPTY_ACK_HEADER_0 ((COAP_HEADER_VERSION_MASK & (1 << COAP_HEADER_VERSION_POSITION)) +       \
                                 (COAP_HEADER_TYPE_MASK & (COAP_TYPE_ACK << COAP_HEADER_TYPE_POSITION)) + \
                                 (COAP_HEADER_TOKEN_LEN_MASK & (0 << COAP_HEADER_TOKEN_LEN_POSITION)))

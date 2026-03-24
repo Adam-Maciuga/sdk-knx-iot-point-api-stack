@@ -174,7 +174,7 @@ typedef struct coap_packet_t
   uint8_t echo[COAP_ECHO_LEN];            // echo challenge random data (is part of inner options, RFC 9175)
   size_t echo_len;
   
-  uint32_t payload_len;                   // payload len of application + OSCORE option (on no app. payload it cant be '0' for a correct OSCORE message)
+  uint32_t payload_len;                   // application payload len, not including any CoAP or OSCORE option
   uint8_t* payload;                       // coap payload byte stream 
 } coap_packet_t;
 
@@ -261,15 +261,13 @@ void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,
  * @param packet the coap packet struct that will be serialized, it MUST have the inner code, inner options and payload already set
  * @param buffer the buffer where the serialized message will be stored, it MUST have enough space for the serialized message
  *
- * @note used also for empty ACK messages, in this case the packet MUST have the type and mid set, but code = 0 and no options or payload, the
- *       serialized message will be just the header with type and mid, but no code, options or payload
+ * @note method is NOT used for empty ACK messages, see send 'coap_send_response_with_empty_ack'
  *	
  */
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 
 /**
-* @brief serializes a message to a OSCORE message
-*
+* @brief serializes a non-empty message to a OSCORE message (hence this not a coap ACK EMPTY packet)
 *  
 * @param inner  = true: add RFC 8613 4.1.1 Class E (inner) options (encrypt and integrity protect) in plaintext of COSE object
 * @param outer  = true: add RFC 8613 4.1.2 Class U (outer) options (unprotected) in option part of OSCORE message

@@ -53,10 +53,10 @@ extern "C"
 
   coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet);
 
-  // a message is serialized by adding outer options AND the OSCORE option
+  // a message is serialized by adding outer options AND the OSCORE option (application payload and inner options don't touched)
   size_t oscore_serialize_message(void* packet, uint8_t* buffer);
 
-  // a message is serialized by adding inner code, Class E options, payload (if present), see https://datatracker.ietf.org/doc/html/rfc8613#section-5.3
+  // a message is serialized by adding inner code, Class E options, application payload (if present), see https://datatracker.ietf.org/doc/html/rfc8613#section-5.3
   size_t oscore_serialize_plaintext(void* packet, uint8_t* buffer);
 
 #ifdef __cplusplus
