@@ -253,8 +253,8 @@ bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoi
       - set size of the message to 4 bytes (header size)
     */
 
-    #define EMPTY_ACK_HEADER_0 ((COAP_HEADER_VERSION_MASK & (1 << COAP_HEADER_VERSION_POSITION)) +       \
-                                (COAP_HEADER_TYPE_MASK & (COAP_TYPE_ACK << COAP_HEADER_TYPE_POSITION)) + \
+    #define EMPTY_ACK_HEADER_0 ((COAP_HEADER_VERSION_MASK & (COAP_VERSION << COAP_HEADER_VERSION_POSITION)) + \
+                                (COAP_HEADER_TYPE_MASK & (COAP_TYPE_ACK << COAP_HEADER_TYPE_POSITION)) +      \
                                 (COAP_HEADER_TOKEN_LEN_MASK & (0 << COAP_HEADER_TOKEN_LEN_POSITION)))
 
     outgoing_msg->data[0] = EMPTY_ACK_HEADER_0;
