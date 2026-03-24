@@ -126,7 +126,8 @@ static uint32_t coap_parse_int_option(const uint8_t* bytes, size_t length)
   return var;
 }
 
-static uint8_t coap_option_nibble(size_t value) {
+static uint8_t coap_option_nibble(size_t value) 
+{
   if (value < 13) {
     return (uint8_t) value;
   }
@@ -139,7 +140,8 @@ static uint8_t coap_option_nibble(size_t value) {
 }
 
 // set header bytes(buffer != NULL) or count header bytes (buffer = NULL)
-size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer) {
+size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer) 
+{
   size_t written = 0;
   if (buffer) {
     buffer[0] = coap_option_nibble(delta) << 4 | coap_option_nibble(length);
@@ -583,19 +585,29 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
   unsigned int option_number = 0;
   while (current_options < data + data_len) 
   {
-    // payload marker 0xFF, currently only checking for 0xF* because rest is reserved
+    // application payload marker 0xFF found, currently only checking for 0xF* because rest is reserved
     if ((current_options[0] & 0xF0) == 0xF0) 
     {
+      // jump to payload marker + 1
       coap_pkt->payload = ++current_options;
-      coap_pkt->payload_len = data_len - (uint32_t) (coap_pkt->payload - data);
+      
+      // calculate application payload size = total packet len - (coap header + token + options + payload marker)
+      coap_pkt->payload_len = data_len - (uint32_t)(coap_pkt->payload - data);
 
-      if (coap_pkt->transport_type == COAP_TRANSPORT_UDP &&
-          coap_pkt->payload_len > (uint32_t)OC_MAX_APP_DATA_SIZE)
+      if (coap_pkt->transport_type == COAP_TRANSPORT_UDP)
       {
-        coap_pkt->payload_len = (uint32_t) OC_MAX_APP_DATA_SIZE;
-        // null-terminate payload 
+        if (coap_pkt->payload_len >= (uint32_t)OC_MAX_APP_DATA_SIZE)
+        {
+          /* 
+            if application payload is too big
+            - cut payload at max size - 1, this allows to include the null-terminator 
+            - don't care if the payload values then are NOT correct
+          */
+          coap_pkt->payload_len = (uint32_t)OC_MAX_APP_DATA_SIZE - 1;
+        }
       }
 
+      // add behind application payload a null-terminator
       coap_pkt->payload[coap_pkt->payload_len] = '\0';
       break;
     }
@@ -1081,7 +1093,7 @@ static void coap_udp_set_header_fields(void* packet)
   const coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
   // ops precedence , first << then &
-  coap_pkt->buffer[0] = COAP_HEADER_VERSION_MASK & coap_pkt->version << COAP_HEADER_VERSION_POSITION;
+  coap_pkt->buffer[0] = COAP_HEADER_VERSION_MASK & COAP_VERSION << COAP_HEADER_VERSION_POSITION;
   coap_pkt->buffer[0] |= COAP_HEADER_TYPE_MASK & coap_pkt->type << COAP_HEADER_TYPE_POSITION;
   coap_pkt->buffer[0] |= COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->token_len << COAP_HEADER_TOKEN_LEN_POSITION;
   coap_pkt->buffer[1] = coap_pkt->code;
