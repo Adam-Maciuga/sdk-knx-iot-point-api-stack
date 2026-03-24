@@ -231,17 +231,20 @@ int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  // OSCORE Option structure From RFC 8613:
-  //
-  // 0 1 2 3 4 5 6 7 <------------- n bytes -------------->
-  // +-+-+-+-+-+-+-+-+--------------------------------------
-  // |0 0 0|h|k|  n  |       Partial IV (if any) ...
-  // +-+-+-+-+-+-+-+-+--------------------------------------
-  //
-  // <- 1 byte -> <----- s bytes ------>
-  // +------------+----------------------+------------------+
-  // | s (if any) | kid context (if any) | kid (if any) ... |
-  // +------------+----------------------+------------------+
+  /* 
+    OSCORE Option structure From RFC 8613:
+
+    0 1 2 3 4 5 6 7 <------------- n bytes -------------->
+    +-+-+-+-+-+-+-+-+--------------------------------------
+    |0 0 0|h|k|  n  |       Partial IV (if any) ...
+    +-+-+-+-+-+-+-+-+--------------------------------------
+
+    <- 1 byte -> <----- s bytes ------>
+    +------------+----------------------+------------------+
+    | s (if any) | kid context (if any) | kid (if any) ... |
+    +------------+----------------------+------------------+
+
+  */
   OC_DBG("OSCORE option");
   if (option_length == 0) 
   {
@@ -394,12 +397,12 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
   // init with '0'
   memset(coap_pkt, 0, sizeof(coap_packet_t));
 	
-  // set coap pointer to message data pointer 
+  // set coap pointer to message payload data (inner options, payload) 
   coap_pkt->buffer = data;
 
-  // code + option from inner plaintext message, see https://www.rfc-editor.org/rfc/rfc8613#section-5.3
+  // inner coap code + inner option from (inner) plaintext message, see https://www.rfc-editor.org/rfc/rfc8613#section-5.3
   coap_pkt->code = data[0]; 
-  uint8_t* current_option = &data[1];
+  uint8_t* inner_options = &data[1];
 
   #ifdef OC_DEBUG
 
@@ -408,7 +411,7 @@ coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* p
   #endif
 
   // parse inner options of 'decrypted' message, any present - not allowed - inner option causes a 4.02
-  const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, false, false);
+  const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, inner_options, true, false, false);
 
   OC_INF("coap parse oscore inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
   return ret;
@@ -452,15 +455,16 @@ bool oscore_is_oscore_message(oc_message_t* msg)
       break;
     }
 
-    // option = previous option number + delta (number is not used directly), examples:
-    //
-    // (13): option = 0, option += delta (13); option += option[next 1 byte] (7)
-    // -> option = 20
-    // Note: The delta 7 is 20 - 13, see RFC
-    // 
-    // (14): option = 0, option += delta (14); option += option[next 2 byte] (431)
-    // -> option = 445
-    // Note: The delta 431 is 700 - 269, see RFC
+    /* option = previous option number + delta (number is not used directly), examples:
+
+     (13): option = 0, option += delta (13); option += option[next 1 byte] (7)
+     -> option = 20
+     Note: The delta 7 is 20 - 13, see RFC
+
+     (14): option = 0, option += delta (14); option += option[next 2 byte] (431)
+     -> option = 445
+     Note: The delta 431 is 700 - 269, see RFC
+    */
 
     // first option fields
     unsigned int option_delta = current_option[0] >> 4; // 0..14

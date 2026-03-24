@@ -612,12 +612,15 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       break;
     }
 
-    // option = previous option number + delta (number is not used directly), examples:
-    // 
-    // (13): option = 0,  option += delta (13) ; option += option[next 1 byte] (7) -> option = 20
-    // Note: The delta 7 is 20 - 13, see RFC.
-    // (14): option = 0,  option += delta (14) ; option += option[next 2 byte] (431) -> option = 445
-    // Note: The delta 431 is 700 - 269, see RFC.
+    /* 
+      option = previous option number + delta (number is not used directly), examples:
+      
+      (13): option = 0,  option += delta (13) ; option += option[next 1 byte] (7) -> option = 20
+      Note: The delta 7 is 20 - 13, see RFC.
+      (14): option = 0,  option += delta (14) ; option += option[next 2 byte] (431) -> option = 445
+      Note: The delta 431 is 700 - 269, see RFC.
+
+     */
 
     // first option fields
     unsigned int option_delta = current_options[0] >> 4; // 0..14

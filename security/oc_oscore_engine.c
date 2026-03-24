@@ -787,7 +787,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
       coap_pkt->payload = dst2;
     }
 
-    // serialize OSCORE plain text 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
+    // serialize OSCORE plain text 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, application payload) by using the 'moved' payload location ptr
     const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
     OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
@@ -1001,62 +1001,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (is_outbound_response)
   { // normal 2.0x/4.0x response (incl. 4.01 echo response)
 
-    if (from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC)
-    { // s-mode (x0)
-
-      // any context using an access token with ga len > 0 is an s-mode message
-      bool is_smode = oc_get_auth_at_entry(oscore_ctx->auth_at_index)->ga_len > 0;
-      if (is_smode)
-      { 
-        // (uc-e) - overwrites context retrieved by (uc-a) ... (uc-d)
-
-        // mc echo data = random
-        unsigned char rnd[10];
-
-        mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
-        mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
-
-        // echo response - use s-mode (former) request SSN as Partial IV
-        uint64_t inbound_ssn; 
-        oscore_store_piv_to_ssn(from_org_msg_cloned_outgoing_msg->endpoint.request_piv, 
-                                from_org_msg_cloned_outgoing_msg->endpoint.request_piv_len, &inbound_ssn);
-
-        /*
-               'Server' Side (details see method 'oc_oscore_receive_message' header), create:
-                Response Sender Context
-               - kid
-               - kid_context (rnd)
-               - ms + salt from token
-               - ssn = from s-mode request message, used for 'unicast echo responses'
-        */
-
-        oscore_ctx =
-          oc_oscore_add_context(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-                                oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-                                inbound_ssn, // use SSN loaded from inbound request (mirror it)
-                                oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
-                                oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt), (char*)rnd, 10,
-                                from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_from_former_inbound_request, false);
-      }
-
-      unicast_echo_response = true;
-      UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC);
-      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode multicast message");
-    }
-
-    if (from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC)
-    { // s-mode (x1) | non s-mode (x6)
-
-      // context retrieved by (uc-a) ... (uc-d)
-
-      unicast_echo_response = true;
-      UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
-
-      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s unicast message",
-                    from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode"
-                                                                                                               : "common");
-    }
-    // x2, x3, x4, x5
+    
   }
 
   // (uc-a) ... (uc-e) - the context is a new in case (e) otherwise an existing one
@@ -1065,9 +1010,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     OC_DBG_OSCORE("Use OSCORE context with 'Sender ID' : ");
     oc_char_println_hex((char*)oscore_ctx->sender_id, oscore_ctx->sender_id_len);
-
-    // use sender key for encryption
-    uint8_t* key = oscore_ctx->sender_key;
 
     // names are from RFC OSCORE option
     uint8_t piv[OSCORE_PIV_LEN], piv_len = 0;
@@ -1102,7 +1044,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         || coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01
     #endif
     )
-    { // CoAP request
+    { // 8.1
 
       // debugging
       OC_DBG_OSCORE("protecting outgoing unicast request, using SSN as Partial IV : %" PRIu64, oscore_ctx->ssn);
@@ -1156,9 +1098,71 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         OC_LOGbytes_OSCORE(msg->endpoint.request_piv, msg->endpoint.request_piv_len);
       }
     }
-    else 
-    { // normal 2.0x/4.0x response (incl. 4.01 echo response)
+    else if (is_outbound_response)
+    { // 8.3, 2.0x/4.0x response (incl. 4.01 echo response)
 
+      if (from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC)
+      { // s-mode (x0)
+
+        // any context using an access token with ga len > 0 is an s-mode message
+        bool is_smode = oc_get_auth_at_entry(oscore_ctx->auth_at_index)->ga_len > 0;
+        if (is_smode)
+        {
+          // (uc-e) - overwrites context retrieved by (uc-a) ... (uc-d)
+
+          // mc echo data = random
+          unsigned char rnd[10];
+
+          mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
+          mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
+
+          // echo response - use s-mode (former) request SSN as Partial IV
+          uint64_t inbound_ssn;
+          oscore_store_piv_to_ssn(from_org_msg_cloned_outgoing_msg->endpoint.request_piv, from_org_msg_cloned_outgoing_msg->endpoint.request_piv_len, &inbound_ssn);
+
+          /*
+                 'Server' Side (details see method 'oc_oscore_receive_message' header), create:
+                  Response Sender Context
+                 - kid
+                 - kid_context (rnd)
+                 - ms + salt from token
+                 - ssn = from s-mode request message, used for 'unicast echo responses'
+          */
+
+          oscore_ctx = oc_oscore_add_context(
+            oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
+            inbound_ssn, // use SSN loaded from inbound request (mirror it)
+            oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms), oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
+            (char*)rnd, 10, from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_from_former_inbound_request, false);
+
+          if (!oscore_ctx)
+          {
+            // this should not happen, because there was with LRU a context released
+            OC_ERR("could not create oscore sender context, return unsecured 5.00");
+            oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint, false);
+            oc_message_unref(msg);
+            return -1;
+          }
+        }
+
+        unicast_echo_response = true;
+        UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC);
+        OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode multicast message");
+      }
+
+      if (from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC)
+      { // s-mode (x1) | non s-mode (x6)
+
+        // context retrieved by (uc-a) ... (uc-d)
+
+        unicast_echo_response = true;
+        UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
+
+        OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s unicast message",
+                      from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode" : "common");
+      }
+      // x2, x3, x4, x5
+      
       // debugging
       OC_DBG("protecting outgoing unicast response, using SSN as Partial IV : %04x", (uint32_t)oscore_ctx->ssn);
 
@@ -1196,8 +1200,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       OC_LOGbytes_OSCORE(aad, aad_len);
     }
 
-    // here requests and responses end up
-
+    // here requests and responses end up 
     
     uint8_t* dst1 = from_org_msg_cloned_outgoing_msg->data + COAP_MAX_HEADER_SIZE;
 
@@ -1232,9 +1235,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     coap_pkt->payload = dst1;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
+    // use sender key for encryption
+    uint8_t* encryption_key = oscore_ctx->sender_key;
+
     // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
     int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len,
-                                OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN, nonce,
+                                OSCORE_AEAD_TAG_LEN, encryption_key, OSCORE_KEY_LEN, nonce,
                                 OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
     if (ret != 0)

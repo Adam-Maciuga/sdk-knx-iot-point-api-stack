@@ -47,8 +47,10 @@ extern "C"
 
   int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len, uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len);
 
+  // parses (and assign if found) the oscore message inner options and inner coap code 
   coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet);
 
+  // parses (and assign if found) the oscore message outer options and checks if the message is an OSCORE message
   coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet);
 
   // a message is serialized by adding outer options AND the OSCORE option (application payload and inner options don't touched)

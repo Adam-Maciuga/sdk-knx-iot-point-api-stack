@@ -104,7 +104,7 @@ typedef enum
 /** parsed message struct */
 typedef struct coap_packet_t
 {
-  uint8_t* buffer;                     // pointer to memory that will host the real, serialized (to be sent out) CoAP packet with header/type/token/...
+  uint8_t* buffer;                     // host the serialized (to be sent out) CoAP packet byte stream with header/type/token/...
   coap_transport_type_t transport_type;// UDP or TCP
   uint8_t version;                     // current version is '1'
   coap_message_type_t type;            // CON, NON, ACK, ...
@@ -175,7 +175,7 @@ typedef struct coap_packet_t
   size_t echo_len;
   
   uint32_t payload_len;                   // application payload len, not including any CoAP header, token or (OSCORE) options
-  uint8_t* payload;                       // coap application payload byte stream 
+  uint8_t* payload;                       // hosts the coap application payload byte stream (usually in CBOR or LINK format)
 } coap_packet_t;
 
 /** option format serialization */
@@ -286,7 +286,9 @@ void print_coap_service(uint8_t code, char* text);
 void coap_send_message(oc_message_t* message);
 
 /*
-* @brief parses *data pointer and assigns it to the coap packet, also calculates the application payload size (read the notes)
+* @brief parses *data pointer for coap options and (if found) assigns it to the coap packet 
+*        (coap structure elements, such as token, etag, piv, ...), 
+*        also calculates the application payload size (read the notes)
 *
 * @param accept_outer_options parses from *data Class U options, if found 
 *          : TRUE = store them in coap *packet 
@@ -304,9 +306,11 @@ void coap_send_message(oc_message_t* message);
 *         true  | false | false  | parse inner       | **
 *         false | true  | true   | parse outer       | ***
 *
-*   *** parse outer options of 'decrypted' message, any present - not allowed - outer option causes a 4.02
+*   *** parse outer options of 'decrypted' message and if found assign to coap structure element such as the token,
+*       any present - not allowed - outer option causes a 4.02
 *
-*   **  parse inner options of 'decrypted' message, any present - not allowed - inner option causes a 4.02
+*   **  parse inner options of 'decrypted' message, 
+*       any present - not allowed - inner option causes a 4.02
 *
 *   *   parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)    
 *  
