@@ -36,16 +36,17 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
     mid = coap_get_next_mid();
   }
 
-  // one static CoAP packet
-  coap_packet_t outgoing_coap_msg[1];
-
-  // init and set all in coap msg to zero 
-  coap_udp_init_message(outgoing_coap_msg, type, code, mid);
-
   // note, this message is not the same as a coap packet from above
   oc_message_t* message = oc_internal_allocate_outgoing_message();
   if (message)
   {
+    
+    // one static CoAP packet
+    coap_packet_t outgoing_coap_msg[1];
+
+    // init and set all in coap msg to zero
+    coap_udp_init_message(outgoing_coap_msg, type, code, mid);
+    
     // copy original endpoint to local message
     memcpy(&message->endpoint, endpoint, sizeof(*endpoint));
 
@@ -63,8 +64,7 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
     if (message->length > 0)
     {
       coap_send_message(message);
-      OC_DBG("send OSCORE error %s message in CoAP format with code (%u)",
-             message->endpoint.flags & OSCORE ? "'secured'" : "'plain'", code);
+      OC_DBG("send OSCORE error %s message in CoAP format with code (%u)", secured ? "'secured'" : "'plain'", code);
     }
   }
 }
