@@ -168,16 +168,15 @@ static void coap_send_response_with_empty_application_payload(coap_message_type_
                                                               coap_status_t code, const oc_endpoint_t* endpoint,
                                                               const uint8_t* echo, size_t echo_len)
 {
-  // local CoAP packet
-  coap_packet_t coap_pkt[1];
-
-  coap_udp_init_message(coap_pkt, type, (uint8_t)code, mid);
   oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
-
   if (outgoing_msg)
   {
     // copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...) 
     memcpy(&outgoing_msg->endpoint, endpoint, sizeof(*endpoint));
+
+    // local CoAP packet
+    coap_packet_t coap_pkt[1];
+    coap_udp_init_message(coap_pkt, type, (uint8_t)code, mid);
 
     // token will be included if not NULL 
     if (token && token_len > 0)
@@ -236,7 +235,6 @@ static void coap_send_response_with_empty_application_payload(coap_message_type_
 bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint)
 {
   oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
-
   if (outgoing_msg)
   {
     // copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...)
