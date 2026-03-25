@@ -594,6 +594,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       // calculate application payload size = total packet len - (coap header + token + options + payload marker)
       coap_pkt->payload_len = data_len - (uint32_t)(coap_pkt->payload - data);
 
+      OC_DBG("calculated payload len from coap options = %u", coap_pkt->payload_len);
+
       if (coap_pkt->transport_type == COAP_TRANSPORT_UDP)
       {
         if (coap_pkt->payload_len >= (uint32_t)OC_MAX_APP_DATA_SIZE)
@@ -726,6 +728,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         break;
+
       case COAP_OPTION_MAX_AGE:
         // class U+E option: OSCORE RFC 8613, clause 4.1.1
         coap_pkt->max_age = coap_parse_int_option(current_options, option_length);
@@ -828,8 +831,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->uri_host = (char*) current_options;
         coap_pkt->uri_host_len = option_length;
-        OC_DBG("Uri-Host [%.*s]", (int) coap_pkt->uri_host_len,
-                coap_pkt->uri_host);
+        OC_DBG("Uri-Host [%.*s]", (int) coap_pkt->uri_host_len, coap_pkt->uri_host);
         break;
       
       case COAP_OPTION_URI_PORT:
@@ -839,8 +841,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
           return BAD_OPTION_4_02;
         }
 
-        coap_pkt->uri_port =
-        (uint16_t) coap_parse_int_option(current_options, option_length);
+        coap_pkt->uri_port = (uint16_t) coap_parse_int_option(current_options, option_length);
         OC_DBG("  Uri-Port [%u]", coap_pkt->uri_port);
         break;
       
@@ -1311,7 +1312,7 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
   OC_DBG("Token (len %u) : ", coap_pkt->token_len);
   OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
-   // real ptr to option 
+  // real ptr to option 
   current_option += coap_pkt->token_len;
 
   // parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)  

@@ -12,7 +12,6 @@
 
 void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool secured)
 {
- 
   coap_packet_t* coap_pkt = (coap_packet_t*)packet;
   uint16_t mid;
   coap_message_type_t type;
@@ -390,32 +389,7 @@ size_t coap_serialize_message(void* packet, uint8_t* buffer)
   return coap_oscore_serialize_message(packet, buffer, true, true, false);
 }
 
-coap_status_t oscore_parse_inner_message(uint8_t* data, size_t data_len, void* packet) 
-{
-  coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  // init with '0'
-  memset(coap_pkt, 0, sizeof(coap_packet_t));
-	
-  // set coap pointer to message payload data (inner options, payload) 
-  coap_pkt->buffer = data;
-
-  // inner coap code + inner option from (inner) plaintext message, see https://www.rfc-editor.org/rfc/rfc8613#section-5.3
-  coap_pkt->code = data[0]; 
-  uint8_t* inner_options = &data[1];
-
-  #ifdef OC_DEBUG
-
-  print_coap_service(coap_pkt->code, "inner coap code");
-
-  #endif
-
-  // parse inner options of 'decrypted' message, any present - not allowed - inner option causes a 4.02
-  const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, inner_options, true, false, false);
-
-  OC_INF("coap parse oscore inner options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
-  return ret;
-}
 
 // checks message header to find the CoAP OSCORE option header
 bool oscore_is_oscore_message(oc_message_t* msg)
@@ -528,84 +502,4 @@ bool oscore_is_oscore_message(oc_message_t* msg)
 
   // found NO OSCORE option, return NO success
   return false;
-}
-
-coap_status_t oscore_parse_outer_message(oc_message_t* msg, void* packet) 
-{
-  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
-	
-  // init with '0'
-  memset(coap_pkt, 0, sizeof(coap_packet_t));
-
-  // set coap pointer to message data pointer 
-  coap_pkt->buffer = msg->data;
-  uint8_t* current_option = NULL;
-
-  #ifdef OC_TCP
-  if (msg->endpoint.flags & TCP) {
-    coap_pkt->transport_type = COAP_TRANSPORT_TCP;
-    // parse header fields
-    size_t message_length = 0;
-    uint8_t num_extended_length_bytes = 0;
-    coap_tcp_parse_message_length(msg->data, &message_length, 
-            &num_extended_length_bytes);
-
-    coap_pkt->type = COAP_TYPE_NON;
-    coap_pkt->mid = 0;
-    coap_pkt->code = coap_pkt->buffer[1 + num_extended_length_bytes];
-
-    current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
-  } else
-  #endif 
-  {
-    coap_pkt->transport_type = COAP_TRANSPORT_UDP;
-    coap_pkt->version = (COAP_HEADER_VERSION_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
-    coap_pkt->type = (coap_message_type_t)((COAP_HEADER_TYPE_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TYPE_POSITION);
-    coap_pkt->mid = (uint16_t)(coap_pkt->buffer[2] << 8 | coap_pkt->buffer[3]);
-    coap_pkt->code = coap_pkt->buffer[1];
-    coap_pkt->token_len = (COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->buffer[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
-
-    current_option = msg->data + COAP_HEADER_LEN;
-  }
-
-  #ifdef OC_DEBUG
-
-  print_coap_service(coap_pkt->code, "outer coap code");
-
-  #endif
-
-  const bool is_ack = coap_pkt->type == COAP_TYPE_ACK;
-  const bool is_ack_with_empty_payload = is_ack && coap_pkt->code == EMPTY_0_00;
-
-
-  if (is_ack_with_empty_payload)
-  {
-    OC_WRN("CoAP EMPTY ACK with 'zero' payload can't be a valid OSCORE message");
-    return BAD_REQUEST_4_00;
-  }
-  
-  if (coap_pkt->version != 1)
-  {
-    OC_WRN("CoAP version must be 1");
-    return BAD_REQUEST_4_00;
-  }
-
-  // token
-  if (coap_pkt->token_len > COAP_TOKEN_LEN) 
-  {
-    OC_WRN("Token Length must not be more than 8");
-    return BAD_REQUEST_4_00;
-  }
-
-  memcpy(coap_pkt->token, current_option, coap_pkt->token_len);
-  OC_DBG_OSCORE("Token len %u : ", coap_pkt->token_len);
-  OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
-
-  current_option += coap_pkt->token_len;
-
-  // parse outer options of 'decrypted' message, any present - not allowed - outer option causes a 4.02
-  const coap_status_t ret = coap_oscore_parse_options(packet, msg->data, (uint32_t) msg->length, current_option, false, true, true);
-
-  OC_INF("coap parse oscore outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
-  return ret;
 }
