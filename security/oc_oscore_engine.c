@@ -1366,9 +1366,19 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       kid_len = oscore_ctx->sender_id_len;
       kid_context = oscore_ctx->id_context;
       kid_context_len = oscore_ctx->id_context_len;
+
+      outbound_piv = inbound_piv;
+      outbound_piv_len = inbound_piv_len;
+
+    } 
+    else if (unicast_echo_response_by_uc)
+    {
+      // update context data for echo responses caused by s-mode unicast requests
+      outbound_piv = inbound_piv;
+      outbound_piv_len = inbound_piv_len;
     }
 
-    coap_set_header_oscore(coap_pkt, piv, piv_len, kid, kid_len, kid_context, kid_context_len);
+    coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
 
     // debugging
     OC_DBG("sending response, using SSN as Partial IV (request/echo response) with len = %u : ", piv_len);
