@@ -72,8 +72,8 @@ enum {
  * @brief set an option in the packet MUST-HAVE 'options' member (that is an array)
  *
  * @note the numerical option value sets the bit at the corresponding array position,
- *         example array with 32 byte (0...256 bit positions), 
- *         COAP_OPTION_ECHO (252) = [252/8] = [31] |= (1 << 4) = 'bbb1bbbb'	         
+ *           example array with 32 byte (0...256 bit positions), 
+ *           COAP_OPTION_ECHO (252) = [252/8] = [31] |= (1 << 4) = 'bbb1bbbb'	         
  */
 #define SET_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] |= (1 << ((opt) % OPTION_MAP_SIZE)))
 
@@ -81,8 +81,8 @@ enum {
  * @brief reset an option in the packet MUST-HAVE 'options' member (that is an array)
  *
  * @note the numerical option value sets the bit at the corresponding array position,
- *        example array with 32 byte (0...256 bit positions), 
- *        COAP_OPTION_ECHO (252) = [252/8] = [31] &= ~(1 << 4) = 'bbb0bbbb'
+ *       example array with 32 byte (0...256 bit positions), 
+ *       COAP_OPTION_ECHO (252) = [252/8] = [31] &= ~(1 << 4) = 'bbb0bbbb'
  */
 #define UNSET_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] &= ~(1 << ((opt) % OPTION_MAP_SIZE)))
 
@@ -90,25 +90,27 @@ enum {
  * @brief checks if an option is set in the packet MUST-HAVE 'options' member (that is an array)
  *
  * @note the numerical option value gets the bit at the corresponding array position,
- *         example array with 32 byte (0...256 bit positions), 
- *         COAP_OPTION_ECHO (252) = [252/8] = [31] & (1 << 4) -> 'bbb1bbbb' = true
+ *       example array with 32 byte (0...256 bit positions), 
+ *       COAP_OPTION_ECHO (252) = [252/8] = [31] & (1 << 4) -> 'bbb1bbbb' = true
  */
 #define IS_OPTION(packet, opt) ((packet)->options[(opt) / OPTION_MAP_SIZE] & (1 << ((opt) % OPTION_MAP_SIZE)))
 
 /** enum value for coap transport type  */
-typedef enum {
+typedef enum 
+{
   COAP_TRANSPORT_UDP, COAP_TRANSPORT_TCP
 } coap_transport_type_t;
 
 /** parsed message struct */
-typedef struct {
-  uint8_t* buffer;                     // pointer to memory that will host CoAP header/type/token/...  -> later used to serialize the real CoAP packet
+typedef struct coap_packet_t
+{
+  uint8_t* buffer;                     // host the serialized (to be sent out) CoAP packet byte stream with header/type/token/...
   coap_transport_type_t transport_type;// UDP or TCP
   uint8_t version;                     // current version is '1'
   coap_message_type_t type;            // CON, NON, ACK, ...
   uint8_t code;                        // CoAP code such as GET = 1, CHANGED_2_04 = 68
-  uint16_t mid;                        // transport level: a client relates a send out CON message with a received ACK message 
-                                       // AND a receiver is using it to ignore an already received messages
+  uint16_t mid;                        // transport level: client relates outbound CON message with inbound ACK, 
+                                       // receiver uses it to ignore an already received messages
   
   uint8_t token_len;
   uint8_t token[COAP_TOKEN_LEN];       // application level: a client matches a request with a response
@@ -132,7 +134,7 @@ typedef struct {
   const char* location_query;
   size_t uri_path_len;
   const char* uri_path;
-  int32_t observe;
+  uint32_t observe;
   uint16_t accept;
   uint8_t if_match_len;
   uint8_t if_match[COAP_ETAG_LEN];
@@ -172,8 +174,8 @@ typedef struct {
   uint8_t echo[COAP_ECHO_LEN];            // echo challenge random data (is part of inner options, RFC 9175)
   size_t echo_len;
   
-  uint32_t payload_len;                   // payload len of application + OSCORE option (on no app. payload it cant be '0' for a correct OSCORE message)
-  uint8_t* payload;                       // coap payload byte stream 
+  uint32_t payload_len;                   // application payload len, not including any CoAP header, token or (OSCORE) options
+  uint8_t* payload;                       // hosts the coap application payload byte stream (usually in CBOR or LINK format)
 } coap_packet_t;
 
 /** option format serialization */
@@ -238,18 +240,38 @@ extern coap_status_t coap_status_code;
 void coap_init_connection(void);
 uint16_t coap_get_next_mid(void);
 
+  /**
+ * @brief Init a UDP packet with major data (type, code, mid, fixed transport type UDP) and clears all the rest with '0' (options, payload, etc.)
+ *
+ * @param packet pointer to a coap packet struct, that will be filled with the given data
+ * @param type CoAP message type, such as CON, NON, ACK, ...
+ * @param code CoAP code such as GET = 1, CHANGED_2_04 = 68
+ * @param mid message id (mid) for UDP
+ *
+ * @note sets as transport type UDP
+ *
+ */
 void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code, uint16_t mid);
 
-// a message is serialized by adding inner and outer options BUT not adding the OSCORE option
+// 
+/**
+ * @brief a message is serialized by adding plaintext (inner code, inner options, payload) and outer options,
+ *        BUT not adding the outer OSCORE option
+ *
+ * @param packet the coap packet struct that will be serialized, it MUST have the inner code, inner options and payload already set
+ * @param buffer the buffer where the serialized message will be stored, it MUST have enough space for the serialized message
+ *
+ * @note method is NOT used for empty ACK messages, see send 'coap_send_response_with_empty_ack'
+ *	
+ */
 size_t coap_serialize_message(void* packet, uint8_t* buffer);
 
 /**
-* @brief serializes a message to a OSCORE message
-*
-*  @note
-*  - inner  = true: add RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object
-*  - outer  = true: add RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
-*	- oscore = true: add OSCORE option data (kid, kid_context, piv)
+* @brief serializes an OSCORE message (may also be an empty ack/rst message)
+*  
+* @param inner  = true: add RFC 8613 4.1.1 Class E (inner) options (encrypt and integrity protect) in plaintext of COSE object
+* @param outer  = true: add RFC 8613 4.1.2 Class U (outer) options (unprotected) in option part of OSCORE message
+*	@param oscore = true: add OSCORE option (flags, kid, kid_context, piv)
 *
 */
 size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, bool outer, bool oscore);
@@ -264,7 +286,9 @@ void print_coap_service(uint8_t code, char* text);
 void coap_send_message(oc_message_t* message);
 
 /*
-* @brief parses *data pointer and assigns it to the coap packet (read the notes)
+* @brief parses *data pointer for coap options and (if found) assigns it to the coap packet 
+*        (coap structure elements, such as token, etag, piv, ...), 
+*        also calculates the application payload size (read the notes)
 *
 * @param accept_outer_options parses from *data Class U options, if found 
 *          : TRUE = store them in coap *packet 
@@ -282,21 +306,18 @@ void coap_send_message(oc_message_t* message);
 *         true  | false | false  | parse inner       | **
 *         false | true  | true   | parse outer       | ***
 *
-*   *** parse outer options by scanning the still 'decrypted' message, any present/found option not allowed to be 
-*       in outer options causes a 4.02
+*   *** parse outer options of 'decrypted' message and if found assign to coap structure element such as the token,
+*       any present - not allowed - outer option causes a 4.02
 *
-*   **  parse inner options by scanning the 'encrypted' message, any present/found option not allowed to be in 
-*       inner options causes a 4.02
+*   **  parse inner options of 'decrypted' message, 
+*       any present - not allowed - inner option causes a 4.02
 *
-*   *   parse inner + outer options by scanning the fully extracted 'decrypted' message, OSCORE option must be 
-*       already removed (otherwise 4.02)    
+*   *   parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)    
 *  
 *   - outer  = RFC 8613 4.1.2 Class U options (unprotected), in option part of OSCORE message
 *   - inner  = RFC 8613 4.1.1 Class E options (encrypt and integrity protect), in plaintext of COSE object  
-*	  - oscore = OSCORE option data (kid, kid_context, piv)
-*
-*
-*       
+*	  - oscore = OSCORE option data (flags, kid, kid_context, piv)
+*  
 */
 coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
                                         uint32_t data_len, uint8_t* current_options, bool accept_inner_options,
@@ -358,18 +379,14 @@ int coap_set_header_location_path(void* packet, const char* path); // Also split
 int coap_get_header_location_query( void* packet, const char** query); // In-place string might not be 0-terminated.
 size_t coap_set_header_location_query(void* packet, const char* query);
 
-int coap_get_header_observe(void* packet, uint32_t* observe);
-int coap_set_header_observe(void* packet, uint32_t observe);
+bool coap_get_header_observe(void* packet, uint32_t* observe);
+void coap_set_header_observe(void* packet, uint32_t observe);
 
-int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, 
-        uint16_t* size, uint32_t* offset);
-int coap_set_header_block2(void* packet, uint32_t num, uint8_t more,
-        uint16_t size);
+int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset);
+int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size);
 
-int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, 
-        uint16_t* size, uint32_t* offset);
-int coap_set_header_block1(void* packet, uint32_t num, uint8_t more,
-        uint16_t size);
+int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset);
+int coap_set_header_block1(void* packet, uint32_t num, uint8_t more, uint16_t size);
 
 int coap_get_header_size2(void* packet, uint32_t* size);
 int coap_set_header_size2(void* packet, uint32_t size);

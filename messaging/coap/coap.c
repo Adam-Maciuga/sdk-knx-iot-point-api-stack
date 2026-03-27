@@ -35,14 +35,15 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include "coap.h"
 #include "transactions.h"
+
 #ifdef OC_TCP
 #include "coap_signal.h"
-#endif
-#include "oc_ri.h"
 #include "security/oc_tls.h"
+#endif
+
+#include "oc_ri.h"
 
 // variables 
 static uint16_t current_mid = 0;
@@ -103,16 +104,30 @@ void print_coap_service(uint8_t code, char* text)
   #endif
 }
 
-static uint32_t coap_parse_int_option(uint8_t* bytes, size_t length) {
+/* 
+ scans 0..3 byte and returns the parsed int value, used for option values that are encoded in 0..3 byte,
+ such as content format, observe, max age, block options, ...
+
+ l = 0, var = 0;
+ l = 1, var = byte[0];
+ l = 2, var = (byte[0] << 8) | byte[1];
+ l = 3, var = (byte[0] << 16) | (byte[1] << 8) | byte[2];
+
+*/
+static uint32_t coap_parse_int_option(const uint8_t* bytes, size_t length) 
+{
   uint32_t var = 0;
   size_t i = 0;
-  while (i < length) {
+  while (i < length) 
+  {
     var <<= 8;
     var |= bytes[i++];
-  } return var;
+  } 
+  return var;
 }
 
-static uint8_t coap_option_nibble(size_t value) {
+static uint8_t coap_option_nibble(size_t value) 
+{
   if (value < 13) {
     return (uint8_t) value;
   }
@@ -125,7 +140,8 @@ static uint8_t coap_option_nibble(size_t value) {
 }
 
 // set header bytes(buffer != NULL) or count header bytes (buffer = NULL)
-size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer) {
+size_t coap_set_option_header(unsigned int delta, size_t length, uint8_t* buffer) 
+{
   size_t written = 0;
   if (buffer) {
     buffer[0] = coap_option_nibble(delta) << 4 | coap_option_nibble(length);
@@ -391,14 +407,12 @@ size_t coap_serialize_signal_options(void* packet, uint8_t* option_array) {
  *
  * @param packet destination to serialize the data
  * @param option_array array to add the serialized options, if NULL it only calculates the options size
- * @param inner if true possible options are added to the options as part of the COSE Object (encrypted)
- * @param outer if true possible options are added to the standard CoAP options (not encrypted)
- * @param oscore if true possible OSCORE options are considered (calculated or added)
+ * @param inner if true possible options are calculated or added to the options as part of the COSE Object (encrypted)
+ * @param outer if true possible options are calculated or added to the standard CoAP options (not encrypted)
+ * @param oscore if true possible OSCORE options are calculated or added
  *
- * @note - the options must be serialized in the order of their numbers (CoAP RFC, clause 3.1), hence the code
- *         is defined according to this
- *       - the OSCORE RFC , cause 4.1 defines E = Encrypt and Integrity Protect (Inner) and U = Unprotected (Outer)
- *         options
+ * @note - the options must be serialized in the order of their numbers (CoAP RFC, clause 3.1), hence the order of code below is defined according to this
+ *       - the OSCORE RFC , cause 4.1 defines E = Encrypt and Integrity Protect (Inner) and U = Unprotected (Outer) options
  *
  * @return options size
  * 
@@ -433,7 +447,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   // not used...
   // COAP_SERIALIZE_INT_OPTION(COAP_OPTION_IF_NONE_MATCH,	content_format - coap_pkt->content_format /* hack to get a zero field */,	"If-None-Match");
 
-  // is an E and U option 
+  // is an E (inner) and U (outer) option 
   COAP_SERIALIZE_INT_OPTION(COAP_OPTION_OBSERVE, observe, "Observe");
 
   if (outer) {
@@ -443,7 +457,7 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   // not used...
   // COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
-  // OSCORE
+  // OSCORE option must be in outer options, set only if outer and oscore are true
   if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) {
     // add OSCORE option
 
@@ -571,29 +585,44 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
   unsigned int option_number = 0;
   while (current_options < data + data_len) 
   {
-    // payload marker 0xFF, currently only checking for 0xF* because rest is reserved
+    // application payload marker 0xFF found, currently only checking for 0xF* because rest is reserved
     if ((current_options[0] & 0xF0) == 0xF0) 
     {
+      // jump to payload marker + 1
       coap_pkt->payload = ++current_options;
-      coap_pkt->payload_len = data_len - (uint32_t) (coap_pkt->payload - data);
+      
+      // calculate application payload size = total packet len - (coap header + token + options + payload marker)
+      coap_pkt->payload_len = data_len - (uint32_t)(coap_pkt->payload - data);
 
-      if (coap_pkt->transport_type == COAP_TRANSPORT_UDP &&
-          coap_pkt->payload_len > (uint32_t)OC_MAX_APP_DATA_SIZE)
+      OC_DBG("calculated payload len from coap options = %u", coap_pkt->payload_len);
+
+      if (coap_pkt->transport_type == COAP_TRANSPORT_UDP)
       {
-        coap_pkt->payload_len = (uint32_t) OC_MAX_APP_DATA_SIZE;
-        // null-terminate payload 
+        if (coap_pkt->payload_len >= (uint32_t)OC_MAX_APP_DATA_SIZE)
+        {
+          /* 
+            if application payload is too big
+            - cut payload at max size - 1, this allows to include the null-terminator 
+            - don't care if the payload values then are NOT correct
+          */
+          coap_pkt->payload_len = (uint32_t)OC_MAX_APP_DATA_SIZE - 1;
+        }
       }
 
+      // add behind application payload a null-terminator
       coap_pkt->payload[coap_pkt->payload_len] = '\0';
       break;
     }
 
-    // option = previous option number + delta (number is not used directly), examples:
-    // 
-    // (13): option = 0,  option += delta (13) ; option += option[next 1 byte] (7) -> option = 20
-    // Note: The delta 7 is 20 - 13, see RFC.
-    // (14): option = 0,  option += delta (14) ; option += option[next 2 byte] (431) -> option = 445
-    // Note: The delta 431 is 700 - 269, see RFC.
+    /* 
+      option = previous option number + delta (number is not used directly), examples:
+      
+      (13): option = 0,  option += delta (13) ; option += option[next 1 byte] (7) -> option = 20
+      Note: The delta 7 is 20 - 13, see RFC.
+      (14): option = 0,  option += delta (14) ; option += option[next 2 byte] (431) -> option = 445
+      Note: The delta 431 is 700 - 269, see RFC.
+
+     */
 
     // first option fields
     unsigned int option_delta = current_options[0] >> 4; // 0..14
@@ -664,10 +693,10 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
       case COAP_OPTION_OSCORE:
         //  false : x     = 4.02
         //  x     : false = 4.02
-        //  true  : true  = parse OSCORE option
+        //  true  : true  = parse (outer) OSCORE option
         //
         // -> the OSCORE option is only valid if present in outer CoAP options, 
-        //    hence it must go along with 'outer option' = true,  
+        //    hence scanning it must go along with 'outer option' = true,  
         if (!accept_outer_options || !accept_oscore_option) 
         {
           return BAD_OPTION_4_02;
@@ -699,6 +728,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         break;
+
       case COAP_OPTION_MAX_AGE:
         // class U+E option: OSCORE RFC 8613, clause 4.1.1
         coap_pkt->max_age = coap_parse_int_option(current_options, option_length);
@@ -801,8 +831,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->uri_host = (char*) current_options;
         coap_pkt->uri_host_len = option_length;
-        OC_DBG("Uri-Host [%.*s]", (int) coap_pkt->uri_host_len,
-                coap_pkt->uri_host);
+        OC_DBG("Uri-Host [%.*s]", (int) coap_pkt->uri_host_len, coap_pkt->uri_host);
         break;
       
       case COAP_OPTION_URI_PORT:
@@ -812,8 +841,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
           return BAD_OPTION_4_02;
         }
 
-        coap_pkt->uri_port =
-        (uint16_t) coap_parse_int_option(current_options, option_length);
+        coap_pkt->uri_port = (uint16_t) coap_parse_int_option(current_options, option_length);
         OC_DBG("  Uri-Port [%u]", coap_pkt->uri_port);
         break;
       
@@ -826,8 +854,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         // coap_merge_multi_option() operates in-place on the IPBUF, but final
 				// packet field should be const string -> cast to string.
-        coap_merge_multi_option((char**) &(coap_pkt->uri_path),
-                &(coap_pkt->uri_path_len), current_options, option_length, '/');
+        coap_merge_multi_option((char**) &coap_pkt->uri_path, &coap_pkt->uri_path_len, current_options, option_length, '/');
         OC_DBG("  Uri-Path [%.*s]", (int) coap_pkt->uri_path_len, coap_pkt->uri_path);
         break;
       
@@ -839,38 +866,13 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         // coap_merge_multi_option() operates in-place on the IPBUF, but final
 				// packet field should be const string -> cast to string.
-        coap_merge_multi_option((char**) &(coap_pkt->uri_query),
-                &(coap_pkt->uri_query_len), current_options, option_length, '&');
+        coap_merge_multi_option((char**) &coap_pkt->uri_query, &coap_pkt->uri_query_len, current_options, option_length, '&');
         OC_DBG("  Uri-Query [%.*s]", (int) coap_pkt->uri_query_len, coap_pkt->uri_query);
         break;
-#if 0
-      case COAP_OPTION_LOCATION_PATH:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
 
-        // coap_merge_multi_option() operates in-place on the IPBUF, but final 
-        // packet field should be const string -> cast to string.
-				coap_merge_multi_option((char**) &(coap_pkt->location_path),
-                &(coap_pkt->location_path_len), current_options, option_length, '/');
-        OC_DBG("Location-Path [%.*s]", (int) coap_pkt->location_path_len, coap_pkt->location_path);
-        break;
-      case COAP_OPTION_LOCATION_QUERY:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
-
-        // coap_merge_multi_option() operates in-place on the IPBUF, but final 
-        // packet field should be const string -> cast to string.
-        coap_merge_multi_option((char**) &(coap_pkt->location_query),
-                &(coap_pkt->location_query_len), current_options, option_length, '&');
-        OC_DBG("Location-Query [%.*s]", (int) coap_pkt->location_query_len,
-                coap_pkt->location_query);
-        break;
-#endif
       case COAP_OPTION_OBSERVE:
         coap_pkt->observe = coap_parse_int_option(current_options, option_length);
-        OC_DBG("  Observe [%lu]", (unsigned long) coap_pkt->observe);
+        OC_DBG("  Observe [%u]", coap_pkt->observe);
         break;
       
       case COAP_OPTION_BLOCK2:
@@ -882,12 +884,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->block2_num = coap_parse_int_option(current_options, option_length);
         coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;
-        coap_pkt->block2_size = 16 << (coap_pkt->block2_num & 0x07);
+        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
         coap_pkt->block2_offset = (coap_pkt->block2_num & ~0x0000000F) << (coap_pkt->block2_num & 0x07);
         coap_pkt->block2_num >>= 4;
-        OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num,
-                coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
+        OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num, coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
         break;
+
       case COAP_OPTION_BLOCK1:
         // class E option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options)
@@ -897,12 +899,12 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->block1_num = coap_parse_int_option(current_options, option_length);
         coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;
-        coap_pkt->block1_size = 16 << (coap_pkt->block1_num & 0x07);
-        coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F)
-                << (coap_pkt->block1_num & 0x07);
+        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
+        coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << (coap_pkt->block1_num & 0x07);
         coap_pkt->block1_num >>= 4;
         OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num, coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
         break; 
+      
       case COAP_OPTION_SIZE2:
         // class E option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options) 
@@ -913,6 +915,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         coap_pkt->size2 = coap_parse_int_option(current_options, option_length);
         OC_DBG("  Size2 [%lu]", (unsigned long) coap_pkt->size2);
         break;
+      
       case COAP_OPTION_SIZE1:
         // class U option: OSCORE RFC 8613, clause 4.1.1
         if (!accept_inner_options) 
@@ -1061,7 +1064,8 @@ uint16_t coap_get_next_mid(void) {
   return ++current_mid;
 }
 
-void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,uint16_t mid) {
+void coap_udp_init_message(void* packet, coap_message_type_t type, uint8_t code,uint16_t mid) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   // wipe content, important thing
@@ -1092,8 +1096,8 @@ static void coap_udp_set_header_fields(void* packet)
 {
   const coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
-    // ops precedence , first << then &
-  coap_pkt->buffer[0] = COAP_HEADER_VERSION_MASK & coap_pkt->version << COAP_HEADER_VERSION_POSITION;
+  // ops precedence , first << then &
+  coap_pkt->buffer[0] = COAP_HEADER_VERSION_MASK & COAP_VERSION << COAP_HEADER_VERSION_POSITION;
   coap_pkt->buffer[0] |= COAP_HEADER_TYPE_MASK & coap_pkt->type << COAP_HEADER_TYPE_POSITION;
   coap_pkt->buffer[0] |= COAP_HEADER_TOKEN_LEN_MASK & coap_pkt->token_len << COAP_HEADER_TOKEN_LEN_POSITION;
   coap_pkt->buffer[1] = coap_pkt->code;
@@ -1114,20 +1118,21 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   uint8_t token_location = 0;	// location in coap telegram
 
   // init 
-  coap_pkt->buffer = buffer; // is a ptr copy from org endpoint data
+  coap_pkt->buffer = buffer;  // is a ptr copy from org endpoint data
 
-  // CoAP header option serialize first to know total length about options 
+  // CoAP header option serialize first to know total length about all options 
   size_t header_length_calculation = coap_serialize_options(coap_pkt, NULL, inner, outer, oscore);
 
-  // according to CoAP (clause 3) end of option marker = 1 byte (should be included if payload  exists)
+  // according to CoAP RFC (clause 3) end of option marker = 1 byte (must be included if an application payload exists)
   if (coap_pkt->payload_len > 0) 
   {
     header_length_calculation += COAP_PAYLOAD_MARKER_LEN;
   }
 
-  // add token
   if (outer) 
   {
+    // if outer is true serialize only outer options and possibly OSCORE options (if true)
+    
     // add size of token
     header_length_calculation += coap_pkt->token_len;
 
@@ -1169,17 +1174,14 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
       // set the first 4 bytes of coap header
       coap_udp_set_header_fields(coap_pkt);
     }
-  }
 
-  // empty coap packet, don't need to do more stuff (code = ACK (0), token len = 0 , means not set)
-  if (outer && !coap_pkt->code && coap_pkt->token_len == 0) 
-  {
-    OC_DBG("done serializing coap empty ack message");
-    return token_location;
-  }
+    // coap ACK/RST EMPTY packet don't need to do more stuff (code = 0, token len = 0 , means not set)
+    if (coap_pkt->code == EMPTY_0_00 && coap_pkt->token_len == 0)
+    {
+      OC_DBG("done serializing coap empty ack/rst message");
+      return token_location;
+    }
 
-  if (outer) 
-  {
     #ifdef OC_DEBUG
 
     print_coap_service(coap_pkt->code, "outer coap code");
@@ -1199,7 +1201,13 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
   } 
   else 
   {
-    // see https://datatracker.ietf.org/doc/html/rfc8613#section-5.3
+    /* 
+      if outer is false serialize only the plaintext as specified https://datatracker.ietf.org/doc/html/rfc8613#section-5.3, 
+      - inner code
+      - Class E options 
+      - Payload (if exists, then + prefixed '0xFF')
+
+    */
 
     coap_pkt->buffer[0] = coap_pkt->code;
     option = coap_pkt->buffer + 1;
@@ -1252,7 +1260,8 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 void coap_send_message(oc_message_t* message) 
 {
   #ifdef OC_TCP
-  if (message->endpoint.flags & TCP) {
+  if (message->endpoint.flags & TCP) 
+  {
     tcp_csm_state_t state = oc_tcp_get_csm_state(&message->endpoint);
     if (state == CSM_NONE) {
       coap_send_csm_message(&message->endpoint, OC_PDU_SIZE, 0);
@@ -1260,7 +1269,7 @@ void coap_send_message(oc_message_t* message)
   }
   #endif 
 
-  OC_DBG("sending CoAP message by forwarding it to the OSCORE layer (%u)", (unsigned int) message->length);
+  OC_DBG("sending CoAP message by forwarding it to the outbound NETWORK layer (secured OSCORE layer or plain uc/mc layer) (%u)", (unsigned int) message->length);
   oc_send_message(message);
 }
 
@@ -1303,10 +1312,10 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
   OC_DBG("Token (len %u) : ", coap_pkt->token_len);
   OC_LOGbytes(coap_pkt->token, coap_pkt->token_len);
 
-   // real ptr to option 
+  // real ptr to option 
   current_option += coap_pkt->token_len;
 
-  // parse inner + outer options by scanning the fully extracted 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)
+  // parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)  
   const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 
   OC_INF("coap parse inner + outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");
@@ -1681,27 +1690,30 @@ size_t coap_set_header_location_query(void* packet, const char* query) {
   return coap_pkt->location_query_len;
 }
 
-int coap_get_header_observe(void* packet, uint32_t* observe) {
+// true if observe option is set and observe value is stored in observe ptr, false otherwise
+bool coap_get_header_observe(void* packet, uint32_t* observe) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE)) {
-    return 0;
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE))
+  {
+    return false;
   }
 
   *observe = coap_pkt->observe;
-  return 1;
+  return true;
 }
 
-int coap_set_header_observe(void* packet, uint32_t observe) {
+// sets the observe option and value in the packet
+void coap_set_header_observe(void* packet, uint32_t observe) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   coap_pkt->observe = observe;
   SET_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
-  return 1;
 }
 
-int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more,
-        uint16_t* size, uint32_t* offset) {
+int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK2)) {
@@ -1751,8 +1763,7 @@ int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t si
   return 1;
 }
 
-int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more,
-        uint16_t* size, uint32_t* offset) {
+int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK1)) {
@@ -1890,4 +1901,3 @@ uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length) {
 
   return coap_pkt->payload_len;
 }
-

@@ -130,7 +130,7 @@ static size_t _OC_MTU_SIZE = OC_INOUT_BUFFER_SIZE;
 static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
 #endif 
 #ifdef OC_APP_DATA_BUFFER_SIZE
-static size_t _OC_MAX_APP_DATA_SIZE = 7168; // TODO FIXME replace of of those with parameters in the CMake file
+static size_t _OC_MAX_APP_DATA_SIZE = 7168; // TODO FIXME replace of those with parameters in the CMake file
 #else                                
 static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define
 #endif                               

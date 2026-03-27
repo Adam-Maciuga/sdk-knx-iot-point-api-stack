@@ -91,24 +91,6 @@
       "description": "Build with MinGW-w64 GCC in Release mode"
     },
     {
-      "name": "windows-debug-msvc-no-replay",
-      "inherits": ["windows-common-config", "msvc-common-config", "debug-common-config"],
-      "displayName": "Windows Debug (MSVC) - no replay protection",
-      "description": "Target Windows with the Visual Studio (Code) development environment.",
-      "cacheVariables": {
-        "OC_REPLAY_PROTECTION_ENABLED": false
-      }
-    },
-    {
-      "name": "windows-release-msvc-no-replay",
-      "inherits": ["windows-common-config", "msvc-common-config", "release-common-config"],
-      "displayName": "Windows Release (MSVC) - no replay protection",
-      "description": "Target Windows with the Visual Studio (Code) development environment.",
-      "cacheVariables": {
-        "OC_REPLAY_PROTECTION_ENABLED": false
-      }
-    },
-    {
       "name": "linux-debug-gcc",
       "inherits": ["linux-common-config", "gcc-common-config", "debug-common-config"],
       "displayName": "Linux Debug (GCC)",
@@ -175,18 +157,6 @@
       "inherits": "windows-common-config",
       "displayName": "Windows Release (GCC)",
       "configurePreset": "windows-release-gcc"
-    },
-    {
-      "name": "windows-debug-msvc-no-replay",
-      "inherits": "windows-common-config",
-      "displayName": "Windows Debug (MSVC) - no replay protection",
-      "configurePreset": "windows-debug-msvc-no-replay"
-    },
-    {
-      "name": "windows-release-msvc-no-replay",
-      "inherits": "windows-common-config",
-      "displayName": "Windows Release (MSVC) - no replay protection",
-      "configurePreset": "windows-release-msvc-no-replay"
     },
     {
       "name": "linux-debug-gcc",

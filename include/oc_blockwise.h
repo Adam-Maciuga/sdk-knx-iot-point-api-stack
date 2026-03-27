@@ -48,8 +48,7 @@ typedef struct oc_blockwise_state_s
   oc_blockwise_role_t role;   /**< role of the buffer, e.g. client or server */
   uint32_t payload_size;      /**< the payload size in bytes */
   uint32_t next_block_offset; /**< offset in buffer to the next block */
-  uint8_t ref_count; /**< reference counter, e.g. indicator if the block is
-                        still in use */
+  uint8_t ref_count;          /**< reference counter, e.g. indicator if the block is still in use */
 #ifdef OC_DYNAMIC_ALLOCATION
 #ifdef OC_APP_DATA_BUFFER_POOL
   void *block;
@@ -88,7 +87,7 @@ typedef struct oc_blockwise_response_state_s
 
 #ifdef OC_CLIENT
   int32_t observe_seq; /**< the observe sequence number */
-#endif                 /* OC_CLIENT */
+#endif                
 } oc_blockwise_response_state_t;
 
 /**

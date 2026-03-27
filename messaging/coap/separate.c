@@ -1,48 +1,8 @@
 /*
-// Copyright (c) 2016 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
-/*
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
  *
- * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the Institute nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "oc_config.h"
@@ -51,112 +11,95 @@
 
 #include "oc_buffer.h"
 #include "separate.h"
-#include "transactions.h"
+#include "engine.h"
 #include "util/oc_memb.h"
 #include <stdio.h>
 #include <string.h>
 
 OC_MEMB(separate_requests, coap_separate_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 
-/*---------------------------------------------------------------------------*/
-/*- Separate Response API ---------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
+
 /**
- * \brief Initiate a separate response with an empty ACK
- * \param request The request to accept
- * \param separate_store A pointer to the data structure that will store the
- *   relevant information for the response
- *
- * When the server does not have enough resources left to store the information
- * for a separate response or otherwise cannot execute the resource handler,
- * this function will respond with 5.03 Service Unavailable. The client can
- * then retry later.
+  @brief Initiate a separate response with an empty ACK
+  
+  @param request The request to accept.
+  @param separate_store A pointer to the data structure that will store the relevant information for the response.
+  @param endpoint The endpoint information for the request.
+  @param observe The observe option value for the request.
+  @param block2_size The block2 size for block-wise transfers (only used if OC_BLOCK_WISE is defined).
+ 
+  @return 1 if the separate response was successfully initiated, 0 otherwise.
+  When the server does not have enough resources left to store the information for a separate response or otherwise cannot execute the 
+  resource handler, this function will respond with 5.03 Service Unavailable. The client can then retry later.
+
  */
 #ifdef OC_BLOCK_WISE
-int coap_separate_accept(void *request, oc_separate_response_t* handle,
-                     oc_endpoint_t *endpoint, int observe, uint16_t block2_size)
-#else  
+int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc_endpoint_t* endpoint, uint32_t observe, uint16_t block2_size)
+#else
 int
-coap_separate_accept(void *request, oc_separate_response_t *separate_response,
-                     oc_endpoint_t *endpoint, int observe)
-#endif 
+coap_separate_accept(void* request, oc_separate_response_t* separate_response, oc_endpoint_t* endpoint, uint32_t observe)
+#endif
 {
   coap_status_code = CLEAR_TRANSACTION;
 
-  if (handle->active == 0) 
+  if (handle->active == false)
   {
     OC_LIST_STRUCT_INIT(handle, requests);
   }
 
-  coap_packet_t *const coap_req = request;
-  coap_separate_t *separate_store = NULL;
-  for (separate_store = oc_list_head(handle->requests);
-       separate_store != NULL; separate_store = separate_store->next) {
+  const coap_packet_t* const coap_req = (coap_packet_t*)request;
+  coap_separate_t* separate_store;
+ 
+  for (separate_store = (coap_separate_t*)oc_list_head(handle->requests); separate_store; separate_store = separate_store->next)
+  {
     if (separate_store->token_len == coap_req->token_len &&
-        memcmp(separate_store->token, coap_req->token,
-               separate_store->token_len) == 0 &&
-        separate_store->observe == observe) {
+        memcmp(separate_store->token, coap_req->token, separate_store->token_len) == 0 &&
+        separate_store->observe == observe)
+    {
       break;
     }
   }
 
-  if (!separate_store) {
-    separate_store = oc_memb_alloc(&separate_requests);
+  if (!separate_store)
+  { // nothing found, allocate new separate response store for this request
 
-    if (!separate_store) {
+    separate_store = (coap_separate_t*)oc_memb_alloc(&separate_requests);
+
+    if (!separate_store)
+    {
       OC_WRN("insufficient memory to store new request for separate response");
       return 0;
     }
 
+    // add to list of separate responses for later use in the response phase, e.g. to find the correct token, uri and method for the response
     oc_list_add(handle->requests, separate_store);
 
-    /* store correct response type */
+    // store correct response type, token, uri and method for later use in the separate response
     separate_store->type = COAP_TYPE_CON;
-
+    
     memcpy(separate_store->token, coap_req->token, coap_req->token_len);
     separate_store->token_len = coap_req->token_len;
 
     oc_new_string(&separate_store->uri, coap_req->uri_path, coap_req->uri_path_len);
 
-    separate_store->method = coap_req->code;
+    separate_store->method = (oc_method_t)coap_req->code;
 
-#ifdef OC_BLOCK_WISE
+    #ifdef OC_BLOCK_WISE
     separate_store->block2_size = block2_size;
-#endif 
+    #endif
   }
 
+  // save endpoint and observe option for later use in the separate response
   memcpy(&separate_store->endpoint, endpoint, sizeof(oc_endpoint_t));
-
   separate_store->observe = observe;
 
-  /* send separate ACK for CON */
-  if (coap_req->type == COAP_TYPE_CON) {
-    OC_DBG("Sending ACK for separate response");
-    coap_packet_t ack[1];
-    // ACK with empty code (0)
-    // only include token for secured responses
-    coap_udp_init_message(ack, COAP_TYPE_ACK, 0, coap_req->mid);
-    if (endpoint->flags & OSCORE) {
-      ack->token_len = separate_store->token_len;
-      memcpy(ack->token, separate_store->token, ack->token_len);
-    }
-    oc_message_t *message = oc_internal_allocate_outgoing_message();
-    if (message != NULL) {
-      memcpy(&message->endpoint, endpoint, sizeof(oc_endpoint_t));
-      message->length = coap_serialize_message(ack, message->data);
-      bool success = false;
-      if (message->length > 0) {
-        coap_send_message(message);
-        success = true;
-      }
-      if (message->ref_count == 0) { // TODO AH not logical how this can work (look in method below)?
-        oc_message_unref(message);
-      }
-      if (!success) {
-        coap_separate_clear(handle, separate_store);
-        return 0;
-      }
-    } else {
+  if (coap_req->type == COAP_TYPE_CON)
+  { // send separate EMPTY ACK for a CON request 
+    
+    const bool success = coap_send_response_with_empty_ack(coap_req->mid, &separate_store->endpoint);
+
+    if (!success)
+    { // if sending the ACK fails, clear the separate response store and return 0 to indicate failure
       coap_separate_clear(handle, separate_store);
       return 0;
     }
@@ -164,35 +107,36 @@ coap_separate_accept(void *request, oc_separate_response_t *separate_response,
 
   return 1;
 }
-/*----------------------------------------------------------------------------*/
-void
-coap_separate_resume(void *response, coap_separate_t *separate_store,
-                     uint8_t code, uint16_t mid)
+
+void coap_separate_resume(void* response, coap_separate_t* separate_store, uint8_t code, uint16_t mid)
 {
-#ifdef OC_TCP
-  if (separate_store->endpoint.flags & TCP) {
+  #ifdef OC_TCP
+  if (separate_store->endpoint.flags & TCP)
+  {
     coap_tcp_init_message(response, code);
-  } else
-#endif 
+  }
+  else
+  #endif
   {
     coap_udp_init_message(response, separate_store->type, code, mid);
   }
-  if (separate_store->token_len) {
+  if (separate_store->token_len)
+  {
     coap_set_token(response, separate_store->token, separate_store->token_len);
   }
-  if (separate_store->observe == 0) {
+  if (separate_store->observe == 0)
+  {
     coap_set_header_observe(response, 0);
   }
 }
-/*---------------------------------------------------------------------------*/
-void coap_separate_clear(oc_separate_response_t* handle,
-                    coap_separate_t* separate_store)
+
+void coap_separate_clear(oc_separate_response_t* handle, coap_separate_t* separate_store)
 {
-#ifdef OC_BLOCK_WISE
+  #ifdef OC_BLOCK_WISE
   oc_free_string(&separate_store->uri);
-#endif 
+  #endif
   oc_list_remove(handle->requests, separate_store);
   oc_memb_free(&separate_requests, separate_store);
 }
 
-#endif 
+#endif

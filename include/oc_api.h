@@ -936,15 +936,13 @@ extern "C"
   bool oc_get_response_payload_raw(oc_client_response_t* response, const uint8_t** payload, size_t* size,
                                    oc_content_format_t* content_format);
   /**
-   * Ignore the request
+   * @brief Ignore a request
    *
-   * The GET, PUT, POST or DELETE requests can be ignored. For example a
-   * oc_request_callback_t may only want to respond to multi-cast requests. Thus
-   * any request that is not over multi-cast endpoint could be ignored.
+   * The GET, PUT, POST or DELETE requests can be ignored. For example an oc_request_callback_t may only want
+   * to respond to multicast requests. Thus, any request that is not over multicast endpoint could be ignored.
    *
-   * Using `oc_ignore(request)` is preferred over
-   * `oc_send_response(request, OC_IGNORE)` since it does not attempt to fill the
-   * response buffer before sending the response.
+   * @note Using `oc_ignore(request)` is preferred over`oc_send_response(request, OC_IGNORE)` since it does 
+   * not attempt to fill the response buffer before sending the response.
    *
    * @param[in] request the request being responded to
    *

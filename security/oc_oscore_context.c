@@ -343,12 +343,12 @@ void oc_context_print_all(void) {
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %"PRIu64,
+    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",
             ctx->auth_at_index, 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
             ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
-            ctx->ssn);
+            (uint32_t)ctx->ssn);
 
     ctx = ctx->next;
   }
@@ -373,19 +373,18 @@ oc_oscore_context_t* oc_oscore_add_recipient_context(
           salt, salt_size, id_context, id_context_size, auth_at_index, 
           read_ssn_from_storage);
 
-  if (!ctx) {
-    // if context is null, free one & try adding again, on recipient context 
-    // this may happen in case of new/ fresh inbound request
+  if (!ctx) 
+  {
+    // if context is null, free one & try adding again, on recipient context, this may happen in case of new/ fresh inbound request
     oc_oscore_free_lru_recipient_context();
 
-    ctx = oc_oscore_add_context("", 0,
-            recipient_id, recipient_id_size,
-            0, 
-            mastersecret, mastersecret_size,
-            salt, salt_size, 
-            id_context, id_context_size, 
-            auth_at_index, 
-            read_ssn_from_storage);
+    ctx = oc_oscore_add_context("", 0, recipient_id, recipient_id_size,
+                                0, 
+                                mastersecret, mastersecret_size,
+                                salt, salt_size, 
+                                id_context, id_context_size, 
+                                auth_at_index, 
+                                read_ssn_from_storage);
   }
 
   #ifdef OC_DEBUG
@@ -401,30 +400,35 @@ oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t 
                                                      bool read_ssn_from_storage)
 {
 
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
   OC_DBG("adding OSCORE Request Sender Context (A1/8.1) with Sender ID : ");
   oc_char_println_hex(sender_id, sender_id_size);
 
   #endif
 
-  oc_oscore_context_t* ctx = oc_oscore_add_context(sender_id, sender_id_size, "" , 0, ssn,
+  oc_oscore_context_t* ctx = oc_oscore_add_context(sender_id, sender_id_size, "" , 0, 
+                                                   ssn,
                                                    mastersecret, mastersecret_size,
-                          salt, salt_size, id_context, id_context_size, auth_at_index, read_ssn_from_storage);
+                                                   salt, salt_size, id_context, id_context_size, auth_at_index, read_ssn_from_storage);
 
-  if (!ctx) {
-    // if context is null, free one & try adding again, on sender context this 
-    // may happen only in case of creating a new sender context for an "out of 
-    //the void" popping up 'unicast echo re-request'
+  if (!ctx) 
+  {
+    // if context is null, free one & try adding again, on sender context this may happen only in case of creating a new sender context 
+    // for an "out of the void" popping up 'unicast echo re-request'
     oc_oscore_free_lru_recipient_context();
 
-    ctx = oc_oscore_add_context(sender_id, sender_id_size, "" , 0, ssn, mastersecret,
-                                mastersecret_size,
-                            salt, salt_size, id_context, id_context_size, auth_at_index, read_ssn_from_storage);
+    ctx = oc_oscore_add_context(sender_id, sender_id_size, "" , 0, 
+                                ssn, 
+                                mastersecret, mastersecret_size, 
+                                salt, salt_size, 
+                                id_context, id_context_size, 
+                                auth_at_index, 
+                                read_ssn_from_storage);
   }
 
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
   oc_context_print_all();
-#endif
+  #endif
 
   return ctx;
 }
@@ -442,7 +446,8 @@ oc_oscore_context_t* oc_oscore_add_context(
   //get a free sender context
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_memb_alloc(&ctx_s);
 
-  if (!ctx) {
+  if (!ctx) 
+  {
     OC_ERR("No memory for allocating sender context");
     return NULL;
   }

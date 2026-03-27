@@ -70,12 +70,9 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
         PRIVATE "${PORT_DIR}"
     ) 
 
-    target_include_directories(mbedtls ${MBEDTLS_INCLUDE_DIRS})
-    target_include_directories(mbedcrypto ${MBEDTLS_INCLUDE_DIRS}) 
-    target_include_directories(mbedx509 ${MBEDTLS_INCLUDE_DIRS})
-
-if(WIN32 AND NOT MSVC)
-        # Note:# Mbed TLS v3.6.5 throws -Werror=format= errors when using MinGW
+    if(WIN32 AND NOT MSVC)
+        # Note:
+        # Mbed TLS v3.6.5 throws -Werror=format= errors when using MinGW
         # Remove the error flag from Mbed TLS targets (not needed/supported on MSVC)
         target_compile_options(mbedtls PRIVATE -Wno-error=format)
         target_compile_options(mbedcrypto PRIVATE -Wno-error=format)

@@ -74,12 +74,12 @@ extern "C" {
 /** OC_MAX_TRANSMIT_SPAN + (2 * MAX_LATENCY) + PROCESSING_DELAY */
 #define OC_EXCHANGE_LIFETIME (318)
 
-#define COAP_HEADER_LEN                                                        \
-  4 /* | version:0xC0 type:0x30 tkl:0x0F | code | mid:0xFF00 | mid:0x00FF | */
-#define COAP_TOKEN_LEN 8 /**< The maximum number of bytes for the Token */
-#define COAP_ETAG_LEN 8  /**< The maximum number of bytes for the ETag */
-#define COAP_ECHO_LEN 40 /**< The maximum size of the Echo option */
+#define COAP_HEADER_LEN 4   /* | version:0xC0 type:0x30 tkl:0x0F | code | mid:0xFF00 | mid:0x00FF | */
+#define COAP_TOKEN_LEN 8    /* The maximum number of bytes for the Token */
+#define COAP_ETAG_LEN 8     /* The maximum number of bytes for the ETag */
+#define COAP_ECHO_LEN 40    /* The maximum size of the Echo option */
 
+#define COAP_VERSION 1      /* current CoAP version is '1' (see RFC7252), don't allow other values on own sending  */
 #define COAP_HEADER_VERSION_MASK 0xC0
 #define COAP_HEADER_VERSION_POSITION 6
 #define COAP_HEADER_TYPE_MASK 0x30
@@ -90,9 +90,7 @@ extern "C" {
 #define COAP_HEADER_OPTION_DELTA_MASK 0xF0
 #define COAP_HEADER_OPTION_SHORT_LENGTH_MASK 0x0F
 
-#define COAP_TCP_DEFAULT_HEADER_LEN                                            \
-  2 /* | len:0xF0 tkl:0x0F | .... | code |                                     \
-     */
+#define COAP_TCP_DEFAULT_HEADER_LEN  2 /* | len:0xF0 tkl:0x0F | .... | code |  */
 #define COAP_TCP_MAX_EXTENDED_LENGTH_LEN 4
 #define COAP_PAYLOAD_MARKER_LEN 1 /* 0xFF */
 

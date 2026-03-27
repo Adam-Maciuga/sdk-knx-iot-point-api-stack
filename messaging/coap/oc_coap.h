@@ -27,10 +27,8 @@ extern "C" {
 
 struct oc_separate_response_s
 {
-  // LOCAL list to all requests where a separate response belongs to 
-  OC_LIST_STRUCT(requests);
-  // true: a separate response is still pending/processed and hence this not send out (yet), = 'active'
-  int active; 
+  OC_LIST_STRUCT(requests); // LOCAL list to all requests where a separate response belongs to 
+  bool active;              // true: a separate response is still pending/processed and hence this not send out (yet), = 'active'
   oc_blockwise_state_t *response_state;
 };
 
@@ -48,4 +46,4 @@ struct oc_response_buffer_s
 }
 #endif
 
-#endif /* OC_COAP_H */
+#endif 

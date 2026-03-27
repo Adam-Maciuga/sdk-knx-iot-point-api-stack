@@ -407,7 +407,7 @@ int coap_notify_observers(const oc_resource_t *resource,
         if (coap_separate_accept(req, response.separate_response,
                 &obs->endpoint, obs->obs_counter) == 1) {
 #endif
-          response.separate_response->active = 1;
+          response.separate_response->active = true;
         }
       } // separate response
       else {
@@ -631,7 +631,7 @@ void notify_resource_defaults_observer(const oc_resource_t *resource,
       if (coap_separate_accept(req, response.separate_response, &obs->endpoint,
                                obs->obs_counter) == 1)
       #endif 
-        response.separate_response->active = 1;
+        response.separate_response->active = true;
     } 
     else
     {
@@ -758,27 +758,28 @@ int coap_observe_handler(void *request, void *response, const oc_resource_t *res
                          oc_endpoint_t *endpoint, oc_interface_mask_t iface_mask)
 #endif 
 {
-  coap_packet_t *const coap_req = request;
-  coap_packet_t *const coap_res = response;
+  coap_packet_t *const coap_req = (coap_packet_t*)request;
+  coap_packet_t *const coap_res = (coap_packet_t*)response;
 
   int dup = -1;
 
   if (coap_req->code == COAP_GET && coap_res->code < BAD_REQUEST_4_00) 
   {
-    // A GET without a positive response
-    if (IS_OPTION(coap_req, COAP_OPTION_OBSERVE)) {
-      if (coap_req->observe == 0) 
+    // a GET wit a positive response
+    if (IS_OPTION(coap_req, COAP_OPTION_OBSERVE)) 
+    {
+      if (coap_req->observe == OC_OBSERVE_REGISTER) 
       { // register
         
-#ifdef OC_BLOCK_WISE
+        #ifdef OC_BLOCK_WISE
         dup = add_observer(resource, block2_size, endpoint, coap_req->token, coap_req->token_len, 
-                       coap_req->uri_path, coap_req->uri_path_len, iface_mask);
-#else  
+                           coap_req->uri_path, coap_req->uri_path_len, iface_mask);
+        #else  
         dup = add_observer(resource, endpoint, coap_req->token, coap_req->token_len,
-                       coap_req->uri_path, coap_req->uri_path_len, iface_mask);
-#endif 
+                           coap_req->uri_path, coap_req->uri_path_len, iface_mask);
+        #endif 
       }
-      else if (coap_req->observe == 1) 
+      else if (coap_req->observe == OC_OBSERVE_DEREGISTER) 
       { // deregister
         dup = coap_remove_observer_by_token(endpoint, coap_req->token, coap_req->token_len);
       }

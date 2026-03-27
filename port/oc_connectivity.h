@@ -91,16 +91,16 @@ extern "C" {
 struct oc_message_s
 {
   struct oc_message_s *next;
-  struct oc_memb *pool; // used to alloc/free the message as such
+  struct oc_memb *pool;     // used to alloc/free the message as such
   oc_endpoint_t endpoint;
   oc_ipv6_addr_t mcast_dest;
-  size_t length; // message length (the payload from -> data stream)
-  uint8_t ref_count; // check how message is used (allocated = 1 , tracked > 1)
+  size_t length;            // total message length (includes header, options and payload from message->data 'stream')
+  uint8_t ref_count;        // check how message is used (allocated = 1 , tracked > 1)
   #ifdef OC_DYNAMIC_ALLOCATION
   #ifdef OC_INOUT_BUFFER_SIZE
   uint8_t data[OC_INOUT_BUFFER_SIZE];
   #else  
-  uint8_t *data; // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)
+  uint8_t *data;            // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)  
   #endif 
   #else  
   uint8_t data[OC_PDU_SIZE];
@@ -108,7 +108,7 @@ struct oc_message_s
   #ifdef OC_TCP
   size_t read_offset;
   #endif 
-  uint8_t encrypted; // used to mark if a message was received via a 'secured' IP adapter socket (this does not mean OSCORE security)
+  uint8_t encrypted;        // used to mark if a message was received via a 'secured' IP adapter socket (this does not mean OSCORE security)
   void (*soft_ref_cb)(struct oc_message_s *); // used to define the 'to be used de allocator method' for a message in case it needs to be (auto) released by the OS
 };
 

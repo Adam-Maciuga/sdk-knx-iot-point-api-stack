@@ -86,18 +86,26 @@ void oc_prepare_linkformat_response(oc_request_t* request,
   }
 }
 
-void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code) {
-  // note that on a not present response and/or buffer the code below is skipped,
-  // such as on an (internal) PUT which does not request a response with a payload
-  if (request && request->response && request->response->response_buffer) {
+void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code) 
+{
+  /* 
+    note that on a not present response and/or buffer the code below is skipped,
+    such as on an (internal) PUT which does not request a response with any payload
+  */
+  if (request && request->response && request->response->response_buffer) 
+  {
     request->response->response_buffer->content_format = CONTENT_NONE;
     request->response->response_buffer->response_length = 0;
     request->response->response_buffer->code = oc_status_code(response_code);
   }
 }
 
-void oc_ignore_request(oc_request_t* request) {
-  request->response->response_buffer->code = OC_IGNORE;
+void oc_ignore_request(oc_request_t* request) 
+{
+  if (request && request->response && request->response->response_buffer)
+  {
+    request->response->response_buffer->code = OC_IGNORE;
+  }
 }
 
 void oc_set_delayed_callback(void* cb_data, oc_trigger_t callback, uint16_t seconds) {
@@ -583,7 +591,7 @@ next_separate_request:
     current = next;
   }
 
-  handle->active = 0;
+  handle->active = false;
   oc_blockwise_free_response_buffer(handle->response_state);
 }
 
