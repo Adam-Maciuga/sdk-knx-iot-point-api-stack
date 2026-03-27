@@ -343,12 +343,12 @@ void oc_context_print_all(void) {
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %"PRIu64,
+    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",
             ctx->auth_at_index, 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
             ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
-            ctx->ssn);
+            (uint32_t)ctx->ssn);
 
     ctx = ctx->next;
   }

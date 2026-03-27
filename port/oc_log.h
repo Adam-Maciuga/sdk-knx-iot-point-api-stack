@@ -247,10 +247,11 @@ extern "C" {
 
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
   #define OC_LOGbytes(bytes, length)                            \
-    do {                                                        \
-      for (uint16_t i = 0; i < (length); i++)                   \
-        PRINTF("%02x", (bytes)[i]);                             \
-    } while (0)
+  do                                                            \
+  {                                                             \
+    for (uint16_t i = 0; i < (length); i++)                     \
+     PRINTF("%x", (bytes)[i]);                                  \
+  } while (0)
 
 #else
 
