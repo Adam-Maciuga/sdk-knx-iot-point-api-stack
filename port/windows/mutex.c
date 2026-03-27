@@ -17,10 +17,10 @@
 */
 
 #define WIN32_LEAN_AND_MEAN
-#include "mutex.h"
-#include "oc_assert.h"
 #include <windows.h>
 #include <synchapi.h>
+#include "port/oc_assert.h"
+#include "mutex.h"
 
 HANDLE
 mutex_new()

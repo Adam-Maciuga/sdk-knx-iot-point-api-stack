@@ -1,22 +1,20 @@
-# patterns see https://git-scm.com/docs/gitignore#_pattern_format
+# Patterns see https://git-scm.com/docs/gitignore#_pattern_format
 
-# build system files
-out  
-out.*  
+# GitHub files
+.github
+
+# Dependend subprojects are not tracked (managed by .gitmodules)
+deps/**
+!deps/CMakeLists.txt
+
+# CMake
+CMakeUserPresets.json
 
 # VS Code setting files
 .vscode 
 
 # VS setting files
 .vs
-
-# Demo Apps
-apps/hems/client/knxiotclient/venv
-apps/dns-sd/bin
-apps/dns-sd/obj
-
-# CMake
-CMakeUserPresets.json
 
 # Vim
 .*.swp
@@ -32,13 +30,6 @@ __pycache__/
 *.gcda
 *.gcno
 
-# dependend subprojects are not tracked (managed by .gitmodules)
-deps/**
-!deps/CMakeLists.txt
-
-# EITT test configuration files 
-tests/eitt/**
-
-# GitHub files
-.github
-
+# Build system files
+build/
+install/

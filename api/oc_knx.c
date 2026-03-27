@@ -6,7 +6,6 @@
  */
 
 #include <inttypes.h>
-#include <oc_storage.h>
 #include "oc_knx.h"
 #include "api/oc_knx_helpers.h"
 #include "oc_api.h"
@@ -19,6 +18,7 @@
 #include "oc_oscore_context.h"
 #include "oc_rep.h"
 #include "port/dns-sd.h"
+#include "port/oc_storage.h"
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 

@@ -5,17 +5,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "api/oc_knx_fp.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 #include "oc_helpers.h"
 #include "oc_knx_helpers.h"
+#include "api/oc_knx_fp.h"
+#include "port/oc_storage.h"
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
-#include <inttypes.h>
 #include "oc_knx_client.h"
-#include "oc_storage.h"
 
 // PUB/RCV/GOT storage data (must use all the same name length, since TAB_SIZE is used for all)
 #define GPT_STORE "dev_knx_pub_entry"       // PUB table base file name
