@@ -2,10 +2,11 @@
 
 # Introduction 
 
-A common (stack) introduction and further information how to use the demo apps in ETS6 (including commissioning) is available on the KNX IoT [documentation pages](https://buildwithknxiot.knx.org/public-projects/knx-iot-docs/), 
+A common (stack) introduction and further information how to use the demo apps in ETS6 (including commissioning) is available 
+on the KNX IoT [documentation pages](https://buildwithknxiot.knx.org/public-projects/knx-iot-docs/), 
 more branch specific topics are listed here below. 
 
-- To directly jump the demo apps, go [here](apps/Readme.md).
+- To directly jump the demo apps, go [here](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-demos).
 - To understand the repository content the follwoing figure shows the used stack layers. 
 
 ```plantuml
@@ -71,26 +72,6 @@ Contains resource handlers that implement the security model, using OSCORE.
 __utils/*__  
 Contains a few primitive building blocks used internally by the core framework.
 
-__deps/*__  
-Contains external project dependencies.
-
- *  __tinycbor/*__   
-    Contains the tinyCBOR sources.
-
- *  __mbedtls/*__  
-    Contains the mbedTLS sources.
-   
- > The IoT stack repository uses GIT **submodules** to retrieve the (above described) external code 
-   as part of the version control system (also possible is to use CMake **fetchcontent** that handles
-   it as part of the build system). 
-   
-   - The `.gitmodules` file in the source root folder defines
-     the 'build' folder/path per used submodule (see git/stack overflow documentation for .gitmodules).
-   - The desired version (visible in the GitLab 
-     folder as a commit ID in form of gitlink name@commit)
-     can be updated to the requested version (e.g; go the corresponding sub folder, checkout with git the desired version, push the change, the new commit ID 
-     will be then visible in GitLab).
-
 __include/*__  
 Contains all common headers.
 
@@ -101,8 +82,7 @@ __include/oc_rep.h__
 Contains helper functions to encode/decode to/from cbor.
 
 __include/oc_helpers.h__  
-Contains utility functions for allocating strings and arrays either dynamically from the heap or 
-from pre-allocated memory pools.
+Contains utility functions for allocating strings and arrays either dynamically from the heap or from pre-allocated memory pools.
 
 __port/\*.h__  
 Contains the shared platform abstractions.
@@ -128,3 +108,11 @@ Contains adaptations per supported OS platform.
 - **Linux** 
 - **Windows**  
 - **Zephyr/RTOS**
+
+## Dependencies
+
+External project dependencies for the IoT stack repository uses CMake **fetchcontent** as part of the build system. 
+The following external dependencies are used:
+
+- **tinyCBOR** A small CBOR implementation in C, used for encoding/decoding CBOR data.
+- **mbedTLS** A lightweight cryptographic library in C, used for implementing security features such as OSCORE.
