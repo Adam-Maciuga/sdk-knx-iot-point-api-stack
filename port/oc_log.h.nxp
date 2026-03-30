@@ -60,7 +60,7 @@
 LOG_MODULE_DECLARE(libknx, CONFIG_LIB_KNX_LOG_LEVEL);
 #endif
 
-#ifdef OC_PLATFORM_DEFINED_PRINT
+#ifdef OC_PLATFORM_DEFINED_PRINT	// TODO MERGE?
 /* User needs to create a `oc_platform_logging.h` to link with platform defined logging APIs */
 #include "oc_platform_logging.h"
 #endif
