@@ -1315,7 +1315,7 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
   // real ptr to option 
   current_option += coap_pkt->token_len;
 
-  // parse inner + outer options of 'decrypted' message, OSCORE option must be already removed (otherwise 4.02)  
+  // parse inner + outer options of 'decrypted' message, OSCORE option must be either removed (on receive) or not yet present (on sending), otherwise 4.02  
   const coap_status_t ret = coap_oscore_parse_options(packet, data, (uint32_t) data_len, current_option, true, true, false);
 
   OC_INF("coap parse inner + outer options : %s", ret == COAP_NO_ERROR ? "ok" : "failed");

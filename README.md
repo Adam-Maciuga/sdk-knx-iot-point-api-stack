@@ -107,7 +107,7 @@ Contains adaptations per supported OS platform.
 
 - **Linux** 
 - **Windows**  
-- **Zephyr/RTOS**
+- **Zephyr**
 
 ## Dependencies
 
