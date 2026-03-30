@@ -89,13 +89,13 @@ void* _oc_memb_alloc(
       memset(ptr, 0, m->size);
     }
   }
-#ifdef OC_DYNAMIC_ALLOCATION
+  #ifdef OC_DYNAMIC_ALLOCATION
   else 
   {
     // dynamic allocation, allocate block with m->size and wipe it with '0'
     ptr = calloc(1, m->size);
   }
-#endif
+  #endif
 
   if (!ptr) 
   {

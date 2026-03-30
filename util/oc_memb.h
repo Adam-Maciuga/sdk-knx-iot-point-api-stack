@@ -145,7 +145,7 @@ struct oc_memb
 void oc_memb_init(struct oc_memb *m);
 
 /**
- * Allocate a memory block from a block of memory declared with MEMB().
+ * Allocate a memory block from a block of memory declared with MEMB() and init it with '0'.
  *
  * \param m A memory block previously declared with MEMB().
  */

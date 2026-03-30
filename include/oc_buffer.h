@@ -47,8 +47,8 @@ oc_message_t *oc_allocate_message(void);
 void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb);
 
 /**
- * @brief allocate a message from message pool, allocate message 'data' 
- *        buffer (with MTU size) and clears it with '0'
+ * @brief allocate a message from the message pool with allocated 'message->data' 
+ *        buffer (of MTU size) and clears this 'message->data' with '0' (ref_count is init with 1)
  *
  * @return oc_message_t* the CoAP message
  */

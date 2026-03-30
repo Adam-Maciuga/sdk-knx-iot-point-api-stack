@@ -193,7 +193,7 @@ oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_addr
 // inputs are checked against the own Recipient Contexts (RID)
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
-// inputs are checked against the own Sender Contexts (SID)
+// inputs are checked against the own Sender Contexts (SID), searches a context as a (OBSERVE) client or server
 oc_oscore_context_t *oc_oscore_find_context_by_token_mid(uint8_t *token, uint8_t token_len, uint16_t mid, uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
 #ifdef __cplusplus

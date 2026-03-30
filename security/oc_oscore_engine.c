@@ -614,7 +614,11 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     else
     { // kid_ctx != 10
 
-      //  find context from 'former' own request, but not for s-mode, here only requests exists, see "S-MODE" details (engine.c)
+      /*  find context from 'former' own request, 
+          - not for s-mode responses, here only requests exists, see "S-MODE" details (engine.c)
+          - for OBSERVE responses, each response uses the initial/ client 'request' token 
+            -> this means the device acts as a client that subscribes to a resource 
+      */
       oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len, coap_pkt->mid, &request_piv, &request_piv_len, false);
       if (!oscore_ctx)
       {
@@ -989,26 +993,22 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   oc_oscore_context_t* oscore_ctx = NULL;
 
   /*
-    Cases for a unicast (outbound) message:
+    Cases for a unicast messages:
 
     (uc-a) context will be retrieved by kid
-     - do uc outbound (server) response -> after former inbound (ext) CON/NON request
+     - uc outbound (server) response -> after former inbound (ext) CON/NON request
      - example: do "Piggybacked Response"
 
-    (uc-b) context will be retrieved by 'Sender ID' -> REMOVED 
-     - do uc outbound (client) request -> on client application initial r/w request via e.g.; 'dev/pm'
-
     (uc-c) context retried by group address
-     - do uc outbound (client) s-mode request
+     - uc outbound (client) s-mode request
      - example: do client application initial CON/NON r/w request via '/k'
 
     (uc-d) context retried by token/mid
-     - do ??? -> after inbound "Empty ACK" (only mid is included)
-     - example: ???
-     - TODO DL action unclear, to be investigated if this is only a second uc-a if token is in
+     - uc inbound server OBSERVE GET response -> after former own, outbound client OBSERVE GET request
+     - example: process response data
 
     (uc-e) context retried by NEW context
-     - do uc outbound (server) response -> after former UNSYNCED inbound (ext) CON/NON request
+     - uc outbound (server) response -> after former UNSYNCED inbound (ext) CON/NON request
      - example: do "Echo Response"
    */
 
@@ -1038,7 +1038,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (oscore_ctx == NULL)
   { // (uc-d)
 
-    // find context from 'former' own request
+    // find context from 'former' own OBSERVE GET request
     oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len, coap_pkt->mid, NULL, 0, false);
 
     OC_DBG_OSCORE("%s", oscore_ctx ? "found context by 'token/mid'" : "uc-d : non context");
@@ -1123,12 +1123,16 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     #ifdef OC_CLIENT
 
-    // find client cb from the former request
+    // find present OBSERVE client callback
     oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(coap_pkt->token, coap_pkt->token_len);
 
     if (cb)
     {
-      // copy NEW PIV into client cb data
+      /* 
+         update PIV in callback, used for
+         - replay protection of later incoming server OBSERVE responses in 'receive_message'
+         -> this means the device acts as a client that subscribes to a resource
+      */
       cb->piv_len = outbound_piv_len;
       memcpy(cb->piv, outbound_piv, outbound_piv_len);
     }

@@ -35,19 +35,23 @@ OC_MEMB(oc_incoming_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 #endif 
 
-static oc_message_t* allocate_message(struct oc_memb* pool) {
+static oc_message_t* allocate_message(struct oc_memb* pool) 
+{
   oc_network_event_handler_mutex_lock();
   oc_message_t* message = (oc_message_t*)oc_memb_alloc(pool);
   oc_network_event_handler_mutex_unlock();
-  if (message) {
-#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+  
+  if (message) 
+  {
+    #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
     message->data = (uint8_t*)malloc(OC_PDU_SIZE);
-    if (!message->data) {
+    if (!message->data) 
+    {
       OC_ERR("Out of memory, cannot allocate message");
       oc_memb_free(pool, message);
       return NULL;
     }
-#endif 
+    #endif 
 
     // allocated memory is wiped with '0' on allocation, hence do only others on init
     message->pool = pool;
@@ -55,9 +59,9 @@ static oc_message_t* allocate_message(struct oc_memb* pool) {
     message->endpoint.interface_index = -1;
     message->endpoint.auth_at_index_from_former_inbound_request = -1;
     
-#if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
+    #if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
     OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));
-#endif 
+    #endif 
   } 
   else 
   {
@@ -73,7 +77,8 @@ static oc_message_t* allocate_message(struct oc_memb* pool) {
     
     */
 
-    for (int i = 0; i < pool->num; i++) {
+    for (int i = 0; i < pool->num; i++) 
+    {
       const int offset = pool->size * i;
       message = (oc_message_t*) ((uint8_t*) pool->mem + offset);
 

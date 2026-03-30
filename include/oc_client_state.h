@@ -98,7 +98,8 @@ typedef struct oc_client_handler_t {
  *        (resource path, mid, method, token, ...)
  *
  */
-typedef struct oc_client_cb_t {
+typedef struct oc_client_cb_t 
+{
   struct oc_client_cb_t* next;         /**< pointer next callback information */
   oc_string_t uri;                     /**< the uri */
   oc_string_t query;                   /**< query parameters */
@@ -117,10 +118,12 @@ typedef struct oc_client_cb_t {
   bool stop_multicast_receive;         /**< stop receiving multi cast */
   uint8_t ref_count;                   /**< reference counting on this data block */
   uint8_t separate;                    /**< separate responses, 1 = is separate response, 0 is not */
+  
   // OSCORE
   uint8_t piv[OSCORE_PIV_LEN];         /**< partial IV */
   uint8_t piv_len;                     /**< length of the partial IV */
   uint64_t notification_num;           /**< notification number */
+
 } oc_client_cb_t;
 
 #ifdef OC_BLOCK_WISE
