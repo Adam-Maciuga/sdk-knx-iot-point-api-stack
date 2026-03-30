@@ -726,8 +726,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   memcpy(msg->endpoint.kid_ctx, coap_pkt->kid_ctx, msg->endpoint.kid_ctx_len);
 
   // uc-e: see send_unicast
-  msg->endpoint.request_piv_len = coap_pkt->piv_len > OSCORE_PIV_LEN ? OSCORE_PIV_LEN : coap_pkt->piv_len;
-  memcpy(msg->endpoint.request_piv, coap_pkt->piv, msg->endpoint.request_piv_len);
+  msg->endpoint.piv_len = coap_pkt->piv_len > OSCORE_PIV_LEN ? OSCORE_PIV_LEN : coap_pkt->piv_len;
+  memcpy(msg->endpoint.piv, coap_pkt->piv, msg->endpoint.piv_len);
 
   // remove specific echo context, not needed anymore and never auto released (was a sender context)
   if (s_mode_echo_re_request)
@@ -806,7 +806,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   memcpy(from_org_msg_cloned_outgoing_msg->data, msg->data, msg->length);
   memcpy(&from_org_msg_cloned_outgoing_msg->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
   
-  // release original message
+  // remove one reference (either 'msg' is just released or still present)
   oc_message_unref(msg);
 
   // create local CoAP packet
@@ -966,8 +966,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   memcpy(from_org_msg_cloned_outgoing_msg->data, msg->data, msg->length);
   memcpy(&from_org_msg_cloned_outgoing_msg->endpoint, &msg->endpoint, sizeof(oc_endpoint_t));
 
-  // save if original msg is 'tracked' AND remove one reference (either 'msg' is just released or still present)
-  bool original_msg_is_currently_tracked = msg->ref_count > 1;
+  // remove one reference (either 'msg' is just released or still present)
   oc_message_unref(msg);
 
   // create local CoAP packet
@@ -1121,12 +1120,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   // prepare kid/piv with request context data, may be overwritten later depending on the case (8.3)
   uint8_t *outbound_piv = piv, 
-          *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.request_piv, 
+          *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv, 
           *kid = oscore_ctx->sender_id,
           *kid_context = oscore_ctx->id_context;
 
   uint8_t outbound_piv_len = piv_len, 
-          inbound_piv_len = from_org_msg_cloned_outgoing_msg->endpoint.request_piv_len, 
+          inbound_piv_len = from_org_msg_cloned_outgoing_msg->endpoint.piv_len, 
           kid_len = oscore_ctx->sender_id_len, 
           kid_context_len = oscore_ctx->id_context_len;
   
@@ -1156,17 +1155,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                          oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
     oc_oscore_compose_AAD(kid, kid_len, outbound_piv, outbound_piv_len, aad, &aad_len);
-
-    // TODO AH , for a request not needed ?
-    // copy PIV to CoAP - handed over - unicast message (not the outgoing message)
-    if (original_msg_is_currently_tracked)
-    {
-      memcpy(msg->endpoint.request_piv, piv, piv_len);
-      msg->endpoint.request_piv_len = piv_len;
-
-      OC_DBG("sending request is still tracked, caching PIV for later use ...");
-      OC_LOGbytes_OSCORE(msg->endpoint.request_piv, msg->endpoint.request_piv_len);
-    }
 
     // debugging
     OC_DBG_OSCORE("sending request, using SSN as Partial IV with len = %x and piv = ", outbound_piv_len);

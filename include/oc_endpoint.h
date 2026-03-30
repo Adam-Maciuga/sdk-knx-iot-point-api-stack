@@ -113,8 +113,8 @@ extern "C" {
     int32_t auth_at_index_from_former_inbound_request;                  
 
     // OSCORE Partial IV (not empty) from inbound request
-    uint8_t request_piv[OSCORE_PIV_LEN]; // stores inbound PIV, maybe used for later echo responses with same PIV
-    uint8_t request_piv_len;              
+    uint8_t piv[OSCORE_PIV_LEN]; // stores inbound PIV, used for possible echo responses that needs the same PIV
+    uint8_t piv_len;              
 
     // OSCORE 'kid' (not empty) from inbound request
     uint8_t kid[OSCORE_SENDER_ID_LEN]; 

@@ -132,8 +132,8 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
 
     if (request_piv && request_piv_len) 
     {
-      *request_piv = t->message->endpoint.request_piv;
-      *request_piv_len = t->message->endpoint.request_piv_len;
+      *request_piv = t->message->endpoint.piv;
+      *request_piv_len = t->message->endpoint.piv_len;
     }
     
     oscore_id = t->message->endpoint.oscore_id;
