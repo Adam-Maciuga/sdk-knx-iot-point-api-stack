@@ -87,8 +87,6 @@ extern "C" {
   {
     struct oc_endpoint_t* next;           // pointer to the next structure
     enum transport_flags flags;           // transport flags such as mc,uc, oscore
-    char oscore_id[OSCORE_SENDER_ID_LEN]; // cnf:osc:id, max 7 bytes
-    size_t oscore_id_len;                 // len 
 
     union dev_addr // TODO FIXME remove IPv4 stuff
     {

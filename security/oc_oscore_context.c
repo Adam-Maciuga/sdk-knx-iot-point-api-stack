@@ -105,9 +105,6 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
       *request_piv = cb->piv;
       *request_piv_len = cb->piv_len;
     }
-
-    oscore_id = cb->endpoint.oscore_id;
-    oscore_id_len = cb->endpoint.oscore_id_len;
   } 
   else 
   {
@@ -135,9 +132,6 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
       *request_piv = t->message->endpoint.piv;
       *request_piv_len = t->message->endpoint.piv_len;
     }
-    
-    oscore_id = t->message->endpoint.oscore_id;
-    oscore_id_len = t->message->endpoint.oscore_id_len;
 
   #ifdef OC_CLIENT
   }
@@ -163,48 +157,6 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
   }
 
   return NULL;
-}
-
-// scans Client Recipient Context 
-oc_oscore_context_t* oc_oscore_find_context_by_oscore_id(char* oscore_id, size_t oscore_id_len) 
-{
-  if (oscore_id_len > OSCORE_SENDER_ID_LEN) 
-  {
-    OC_ERR("oscore_id too long: %d", (int) oscore_id_len);
-    return NULL;
-  }
-
-  if (oscore_id_len == 0) 
-  {
-    OC_ERR("oscore_id_len == 0");
-    return NULL;
-  }
-
-  if (oscore_id == NULL) 
-  {
-    OC_ERR("oscore_id NULL");
-    return NULL;
-  }
-
-  OC_DBG("scan contexts by oscore_id : "); 
-  oc_char_println_hex(oscore_id, oscore_id_len);
-
-  oc_oscore_context_t* ctx = (oc_oscore_context_t *)oc_list_head(contexts);
-  while (ctx) 
-  {
-    if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0) 
-    {
-      OC_DBG("found context by oscore_id at auth/at index : %d",  ctx->auth_at_index);
-      
-      ctx->last_used = oc_clock_time();
-      return ctx;
-    }
-
-    ctx = ctx->next;
-  }
-
-  OC_DBG("found NO context by oscore_id");
-  return ctx;
 }
 
 // scans all contexts auth at token if the ga is in the ga list of the AT token

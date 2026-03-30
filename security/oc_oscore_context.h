@@ -196,8 +196,6 @@ oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid,
 // inputs are checked against the own Sender Contexts (SID)
 oc_oscore_context_t *oc_oscore_find_context_by_token_mid(uint8_t *token, uint8_t token_len, uint16_t mid, uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
 
-oc_oscore_context_t *oc_oscore_find_context_by_oscore_id(char *oscore_id, size_t oscore_id_len);
-
 #ifdef __cplusplus
 }
 #endif

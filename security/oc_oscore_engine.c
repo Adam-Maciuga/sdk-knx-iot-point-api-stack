@@ -712,10 +712,6 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   // uc-a: save access token index, that was used to decrypt, see send_unicast
   msg->endpoint.auth_at_index_from_former_inbound_request = oscore_ctx->auth_at_index;
 
-  // uc-b: save 'kid'/ 'Sender ID' from inbound message, that was used to decrypt, see send_unicast
-  msg->endpoint.oscore_id_len = request_kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : request_kid_len;
-  memcpy(msg->endpoint.oscore_id, request_kid, msg->endpoint.oscore_id_len);
-
   // used for 'replay protection check' in CoAP (receive) layer, see receive_message
   msg->endpoint.kid_len = coap_pkt->kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : coap_pkt->kid_len;
   memcpy(msg->endpoint.kid, coap_pkt->kid, msg->endpoint.kid_len);
@@ -999,9 +995,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
      - do uc outbound (server) response -> after former inbound (ext) CON/NON request
      - example: do "Piggybacked Response"
 
-    (uc-b) context will be retrieved by 'Sender ID'
+    (uc-b) context will be retrieved by 'Sender ID' -> REMOVED 
      - do uc outbound (client) request -> on client application initial r/w request via e.g.; 'dev/pm'
-     - TODO DL not needed since (ETS) client functionality not present anymore?
 
     (uc-c) context retried by group address
      - do uc outbound (client) s-mode request
@@ -1030,16 +1025,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                                                                from_org_msg_cloned_outgoing_msg->endpoint.kid_ctx_len);
 
     OC_DBG_OSCORE("%s", oscore_ctx ? "found context by access token, step 2" : "uc-a : non context");
-  }
-
-  if (oscore_ctx == NULL)
-  { // (uc-b)
-
-    // search the oscore id, e.g. the cnf:osc:id ('kid' , 'Sender ID')
-    oscore_ctx = oc_oscore_find_context_by_oscore_id(from_org_msg_cloned_outgoing_msg->endpoint.oscore_id,
-                                                     from_org_msg_cloned_outgoing_msg->endpoint.oscore_id_len);
-
-    OC_DBG_OSCORE("%s", oscore_ctx ? "found context by 'kid'/ 'Sender ID'" : "uc-b : non context");
   }
 
   if (oscore_ctx == NULL)
