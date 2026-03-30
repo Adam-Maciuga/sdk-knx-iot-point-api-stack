@@ -839,8 +839,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     uint8_t* key = oscore_ctx->sender_key;
 
     uint8_t piv[OSCORE_PIV_LEN], piv_len = 0; 
-    uint8_t nonce[OSCORE_AEAD_NONCE_LEN];
-    uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0;
+    uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
     // request - use context SSN as Partial IV (before increment)
     oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
@@ -850,8 +849,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     /*
         increment SSN
-        - an initial NON request (transaction not present) -> a read request
-        - an initial NON request (transaction not present) -> a read response
+        - an initial NON request (CON transaction not present) -> a read request
+        - an initial NON request (CON transaction not present) -> a read response
     */
     increment_ssn_in_context(oscore_ctx);
 
@@ -898,7 +897,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     if (ret != 0)
     {
       OC_ERR("decrypting OSCORE payload : error (%d), ignore message", ret);
-      oc_message_unref(msg);
+      oc_message_unref(from_org_msg_cloned_outgoing_msg);
       return -1;
     }
 
@@ -931,8 +930,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   // from here on any message is encrypted ...
   UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, OSCORE_DECRYPTED);
 
-  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], 
-      from_org_msg_cloned_outgoing_msg) == OC_PROCESS_ERR_FULL)
+  if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED], from_org_msg_cloned_outgoing_msg) == OC_PROCESS_ERR_FULL)
   {
     OC_ERR("could not send message");
   }
