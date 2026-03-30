@@ -150,17 +150,36 @@ set(PORT_SOURCES
 )
 
 # Platform port — Zephyr-specific
-# Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
-# Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
-#       provides oc_connectivity_init, oc_send_buffer, etc.
 list(APPEND PORT_SOURCES
     ${STACK_ROOT}/port/zephyr/abort.c
     ${STACK_ROOT}/port/zephyr/clock.c
-    ${STACK_ROOT}/port/zephyr/connectivity_thread.c
-    ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
     ${STACK_ROOT}/port/zephyr/random.c
     ${STACK_ROOT}/port/zephyr/storage.c
 )
+
+# Network backend selection:
+#   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (OT SRP)
+#   Wi-Fi       — connectivity_wifi.c    +  dns-sd-wifi.c    (Zephyr BSD sockets + mDNS/DNS-SD)
+# Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
+# Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
+#       provides oc_connectivity_init, oc_send_buffer, etc.
+# Note: connectivity_wifi.c + dns-sd-wifi.c are the Wi-Fi equivalents using
+#       Zephyr BSD sockets and the Zephyr DNS-SD / mDNS responder API.
+if(CONFIG_NET_L2_OPENTHREAD)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/zephyr/connectivity_thread.c
+        ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
+    )
+elseif(CONFIG_WIFI)
+    list(APPEND PORT_SOURCES
+        ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
+        ${STACK_ROOT}/port/zephyr/dns-sd-wifi.c
+    )
+else()
+    message(FATAL_ERROR
+        "KNX-IoT stack: No supported network backend selected. "
+        "Enable CONFIG_NET_L2_OPENTHREAD (Thread) or CONFIG_WIFI (Wi-Fi).")
+endif()
 
 zephyr_library_named(knx_iot_stack)
 zephyr_library_sources(
