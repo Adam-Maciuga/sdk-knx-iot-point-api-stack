@@ -1231,7 +1231,19 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                               inbound_piv, inbound_piv_len, aad, &aad_len);
 
         UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC);
-        OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode multicast message");
+        
+        OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode multicast message using PIV with len = %u :", inbound_piv_len);
+        OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len);
+
+        // 8.1 (a) : update context data for echo responses caused by s-mode multicast requests (was a new context)
+        kid = oscore_ctx->sender_id;
+        kid_len = oscore_ctx->sender_id_len;
+        kid_context = oscore_ctx->id_context;
+        kid_context_len = oscore_ctx->id_context_len;
+
+        outbound_piv = inbound_piv;
+        outbound_piv_len = inbound_piv_len;
+
       }
     }
     else if (unicast_echo_response_by_uc)
@@ -1248,8 +1260,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                             inbound_piv, inbound_piv_len, aad, &aad_len);
 
       UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
-      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s unicast message",
-                    from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode" : "common");
+      
+      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s unicast message using PIV with len = %u :",
+                    from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode" : "common", inbound_piv_len);
+      OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len );
+
+       // 8.1 (a) : update context data for echo responses caused by s-mode unicast requests
+      outbound_piv = inbound_piv;
+      outbound_piv_len = inbound_piv_len;
+
     }
     else
     {
@@ -1262,11 +1281,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       // Recipient ID + Request PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
       oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len,
                             inbound_piv, inbound_piv_len, aad, &aad_len);
-    }
 
-    // debugging
-    OC_DBG_OSCORE("sending response, using SSN as Partial IV with len = %x and piv = ", inbound_piv_len);
-    OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len);
+       // 8.3 (b) : update context data for responses, no piv for common responses
+      outbound_piv = NULL;
+      outbound_piv_len = 0;
+
+      // debugging
+      OC_DBG("sending common response, using PIV with len = %u : ", inbound_piv_len);
+      OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len);
+    }
   }
 
   OC_DBG("computed AEAD : ");
@@ -1356,43 +1379,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       (c) note, an (4-byte) empty ACK is not processed by THIS OSCORE layer since it does not include any options/data
 
   */
-  if (is_outbound_request || unicast_echo_response_by_mc || unicast_echo_response_by_uc)
-  { // 8.1 (a)
-
-    if (unicast_echo_response_by_mc)
-    {
-      // update context data for echo responses caused by s-mode multicast requests (was a new context)
-      kid = oscore_ctx->sender_id;
-      kid_len = oscore_ctx->sender_id_len;
-      kid_context = oscore_ctx->id_context;
-      kid_context_len = oscore_ctx->id_context_len;
-
-      outbound_piv = inbound_piv;
-      outbound_piv_len = inbound_piv_len;
-
-    } 
-    else if (unicast_echo_response_by_uc)
-    {
-      // update context data for echo responses caused by s-mode unicast requests
-      outbound_piv = inbound_piv;
-      outbound_piv_len = inbound_piv_len;
-    }
-
-    coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
-
-    // debugging
-    OC_DBG("sending response, using SSN as Partial IV (request/echo response) with len = %u : ", piv_len);
-    OC_LOGbytes_OSCORE(piv, piv_len);
-  }
-  else if (is_outbound_response)
-  { // 8.3 (b)
-
-    coap_set_header_oscore(coap_pkt, NULL, 0, kid, kid_len, kid_context, kid_context_len);
-
-    // debugging
-    OC_DBG("sending response, using SSN as Partial IV (response) with len = %u : ", piv_len);
-    OC_LOGbytes_OSCORE(piv, piv_len);
-  }
+  coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
 
   // reflects the 'observe' option (if present in the CoAP packet)
   coap_pkt->observe = observe_option;
