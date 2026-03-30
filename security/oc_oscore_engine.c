@@ -716,9 +716,11 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   msg->endpoint.oscore_id_len = request_kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : request_kid_len;
   memcpy(msg->endpoint.oscore_id, request_kid, msg->endpoint.oscore_id_len);
 
+  // used for 'replay protection check' in CoAP (receive) layer, see receive_message
   msg->endpoint.kid_len = coap_pkt->kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : coap_pkt->kid_len;
   memcpy(msg->endpoint.kid, coap_pkt->kid, msg->endpoint.kid_len);
 
+  // used for 'replay protection check' in CoAP (receive) layer, see receive_message
   // uc-a: see send_unicast
   msg->endpoint.kid_ctx_len = coap_pkt->kid_ctx_len > OSCORE_ID_CONTEXT_LEN ? OSCORE_ID_CONTEXT_LEN : coap_pkt->kid_ctx_len;
   memcpy(msg->endpoint.kid_ctx, coap_pkt->kid_ctx, msg->endpoint.kid_ctx_len);
