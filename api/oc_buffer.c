@@ -141,9 +141,9 @@ void oc_message_unref(oc_message_t* message)
 
 void oc_receive_message(oc_message_t* message) 
 {
-  if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT],
-          message) == OC_PROCESS_ERR_FULL) 
+  if (oc_process_post(&message_buffer_handler, oc_events[INBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
   {
+    OC_ERR("oc_receive_message ref_count decrease due to FULL");
     oc_message_unref(message);
   }
 }
@@ -154,7 +154,7 @@ void oc_send_message(oc_message_t* message)
 	if (oc_process_post(&message_buffer_handler, oc_events[OUTBOUND_NETWORK_EVENT], message) == OC_PROCESS_ERR_FULL) 
   {
 		OC_ERR("oc_send_message ref_count decrease due to FULL");
-		message->ref_count--;
+    oc_message_unref(message);
 	}
 
   _oc_signal_event_loop();
