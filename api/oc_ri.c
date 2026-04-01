@@ -1568,16 +1568,20 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb, oc_endpoint_t *
   coap_get_header_observe(pkt, (uint32_t*) &client_response.observe_option);
 #endif 
 
+  // > 1, = inbound notification/response to a non-observe request, so check if the notification number is newer than the one in the client callback
   if (client_response.observe_option > 1) 
   {
+    // use PIV/SSN as observe notification number, as the server may not support observe sequence numbers
     uint64_t notification_num;
     oscore_store_piv_to_ssn(endpoint->piv, endpoint->piv_len, &notification_num);
     
     if (notification_num < cb->notification_num) 
     {
+      // this is an old notification, ignore it
       return true;
     }
 
+    // update the notification number in the client callback, so that the next notification can be checked against it
     cb->notification_num = notification_num;
   }
 

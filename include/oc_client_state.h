@@ -50,7 +50,7 @@ typedef struct
   void* user_data;                     /**< user data to be supplied to the callback to the client */
   oc_content_format_t content_format;  /**< content format of the payload */
   oc_status_t code;                    /**< status of the response */
-  int observe_option;                  /**< observe indication */
+  int observe_option;                  /**< observe option, request: 0 = register, 1 = deregister; response: > 1 notification value */
 } oc_client_response_t;
 
 /**
@@ -122,7 +122,7 @@ typedef struct oc_client_cb_t
   // OSCORE
   uint8_t piv[OSCORE_PIV_LEN];         /**< partial IV */
   uint8_t piv_len;                     /**< length of the partial IV */
-  uint64_t notification_num;           /**< notification number */
+  uint64_t notification_num;           /**< max 3 byte unsigned notification number, allows the client to detect reordering or loss of notifications [RFC 7641] */
 
 } oc_client_cb_t;
 
@@ -137,8 +137,7 @@ typedef struct oc_client_cb_t
  * @return true
  * @return false
  */
-bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_state, 
-       oc_client_cb_t* cb, oc_endpoint_t* endpoint);
+bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_state, oc_client_cb_t* cb, oc_endpoint_t* endpoint);
 #else
 /**
  * @brief invoke the Client callback when a response is received
@@ -149,8 +148,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_stat
  * @return true
  * @return false
  */
-bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, 
-        oc_endpoint_t* endpoint);
+bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* endpoint);
 #endif
 
 /**
