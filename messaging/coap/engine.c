@@ -479,12 +479,13 @@ int coap_receive(oc_message_t* incoming_message)
 			else
 			#endif 
 			{
-        if (is_con)
+			  // on inbound request it can only be con or non, no ack/rst 
+			  if (is_con)
         {
           // CON -> PREPARE (not send) a possible response with type ACK + same mid 
           coap_udp_init_message(outgoing_coap_response, COAP_TYPE_ACK, CONTENT_2_05, incoming_coap_message->mid);
         }
-        else if (is_non)
+        else 
         {
           // NON -> PREPARE (not send) a possible response with type NON + increases mid
           coap_udp_init_message(outgoing_coap_response, COAP_TYPE_NON, CONTENT_2_05, coap_get_next_mid());

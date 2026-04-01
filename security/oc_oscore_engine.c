@@ -614,10 +614,10 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     else
     { // kid_ctx != 10
 
-      /*  find context from 'former' own request, 
-          - not for s-mode responses, here only requests exists, see "S-MODE" details (engine.c)
-          - for OBSERVE responses, each response uses the initial/ client 'request' token 
-            -> this means the device acts as a client that subscribes to a resource 
+      /*  find context from 'former' own request on inbound:
+          - s-mode response, for s-mode only possible as empty CON responses, see "S-MODE" details (engine.c)
+          - OBSERVE response, each server response uses the initial client 'request' token, 
+            the device acts as a client that subscribes on a resource 
       */
       oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len, coap_pkt->mid, &request_piv, &request_piv_len, false);
       if (!oscore_ctx)
@@ -1130,8 +1130,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     {
       /* 
          update PIV in callback, used for
-         - replay protection of later incoming server OBSERVE responses in 'receive_message'
-         -> this means the device acts as a client that subscribes to a resource
+         - replay protection of later incoming server OBSERVE responses in 'receive_message', 
+         - the device acts as a client that subscribes on a resource
       */
       cb->piv_len = outbound_piv_len;
       memcpy(cb->piv, outbound_piv, outbound_piv_len);

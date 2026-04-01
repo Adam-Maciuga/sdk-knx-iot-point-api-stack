@@ -74,10 +74,8 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t t
     {
       OC_DBG("created new transaction with mid %u", mid);
 
+      // t is cleared with '0' so set only non-zero values
       t->mid = mid;
-      t->retransmit_counter = 0;
-      t->is_non_confirmable_smode_msg = false;
-
       // memcpy can handle '0' bytes, so no extra check
       t->token_len = token_len;
       memcpy(t->token, token, token_len);
@@ -196,7 +194,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
       // send message and keep transaction
       OC_DBG("sending CON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
-      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
+      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
       coap_send_message(t->message);
     }
     else 
@@ -239,7 +237,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
       // send message and keep transaction
       OC_DBG("sending NON s-mode message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
-      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
+      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
       coap_send_message(t->message);
     }
     else
@@ -249,11 +247,11 @@ void coap_send_transaction(coap_transaction_t *t)
     }
   } 
   else
-  { // empty ACK/RST, other application messages, ...
+  { // empty ACK/RST, other NON application messages, ...
     
-    // send message and keep transaction
+    // send message and clear transaction
     OC_DBG("sending NON coap message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
-    oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 0, so set here to 1 (allocated)
+    oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
     coap_send_message(t->message);
     coap_clear_transaction(t);
   }

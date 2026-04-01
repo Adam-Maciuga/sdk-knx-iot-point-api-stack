@@ -40,8 +40,8 @@ void oc_oscore_free_lru_recipient_context(void) {
 }
 
 // checking against receiver in contexts
-oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(
-        uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) {
+oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) 
+{
 
   if (kid_len == 0) 
   {
@@ -93,9 +93,11 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
   
   char* oscore_id;
   size_t oscore_id_len;
+  int32_t at_index = -1;
 
   #ifdef OC_CLIENT
-  // search for client cb by token
+  
+  // search as OBSERVE client for a cb by token
   oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(token, token_len);
 
   if (cb) 
@@ -105,11 +107,14 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
       *request_piv = cb->piv;
       *request_piv_len = cb->piv_len;
     }
+
+    at_index = cb->endpoint.auth_at_index_from_former_inbound_request;
   } 
   else 
   {
   #endif 
-    // search transactions by token
+    
+    // search as OBSERVE server for a transaction by token
     coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
 
     if (!t)
@@ -133,20 +138,23 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
       *request_piv_len = t->message->endpoint.piv_len;
     }
 
+    at_index = t->message->endpoint.auth_at_index_from_former_inbound_request; 
+
   #ifdef OC_CLIENT
   }
   #endif
 
-  oc_oscore_context_t* ctx = (oc_oscore_context_t *) oc_list_head(contexts);
-
-  if (oscore_id_len == 0) {
-    OC_ERR("***could not find matching OSCORE context: oscore_id is NULL***");
+  if (at_index == -1)
+  {
+    OC_ERR("***could not find matching OSCORE context: access token is -1 ***");
     return NULL;
   }
 
+  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
+
   while (ctx) 
   {
-    if (memcmp(oscore_id, ctx->sender_id, oscore_id_len) == 0) 
+    if (at_index == ctx->auth_at_index) 
     {
       PRINT("found context by_token/mid with auth/at index : %d ", ctx->auth_at_index);
       ctx->last_used = oc_clock_time();
