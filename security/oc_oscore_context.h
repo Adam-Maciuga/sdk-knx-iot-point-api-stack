@@ -52,7 +52,7 @@ typedef struct oc_rwin_t
 typedef struct oc_oscore_context_t
 {
   struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any */
-  int auth_at_index;                                /**< access token index from AT table, that was used to decrypt a received message */
+  int32_t auth_at_index;                            /**< access token index from AT table, that was used to decrypt a received message */
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  /**< OSCORE master secret */
   
   uint8_t sender_id[OSCORE_SENDER_ID_LEN];          /**< 'Sender ID' (in OSCORE) */
@@ -193,8 +193,8 @@ oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_addr
 // inputs are checked against the own Recipient Contexts (RID)
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
-// inputs are checked against the own Sender Contexts (SID), searches a context as a (OBSERVE) client or server
-oc_oscore_context_t *oc_oscore_find_context_by_token_mid(uint8_t *token, uint8_t token_len, uint16_t mid, uint8_t **request_piv, uint8_t *request_piv_len, bool tcp);
+// searches a context by token/ mid of inbound response, from a former (OBSERVE) request by a client (inputs are checked against the contexts INBOUND access token)
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token, uint8_t token_len, uint16_t mid, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp);
 
 #ifdef __cplusplus
 }

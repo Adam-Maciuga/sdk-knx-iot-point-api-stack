@@ -105,7 +105,7 @@ extern "C" {
     uint32_t group_address;                
     
     /* auth at index (assigned only on an inbound OSCORE request message)
-       - used for matching oscore context of an outbound response from a former inbound request
+       - used for matching oscore context of a - to be sent out - outbound response to a former inbound request
        - used for upper layers to check access scopes (on an inbound message)
     */
     int32_t auth_at_index_of_inbound_msg;    

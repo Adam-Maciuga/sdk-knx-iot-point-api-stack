@@ -86,77 +86,21 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   return NULL;
 }
 
-oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
-        uint8_t* token, uint8_t token_len, uint16_t mid,
-        uint8_t** request_piv, uint8_t* request_piv_len, bool tcp) 
+static oc_oscore_context_t* oc_oscore_find_context_by_access_token_index(int32_t index)
 {
-  
-  char* oscore_id;
-  size_t oscore_id_len;
-  int32_t at_index = -1;
 
-  #ifdef OC_CLIENT
-  
-  // search as OBSERVE client for a cb by token
-  oc_client_cb_t* cb = oc_ri_find_client_cb_by_token(token, token_len);
-
-  if (cb) 
-  {
-    if (request_piv && request_piv_len) 
-    {
-      *request_piv = cb->piv;
-      *request_piv_len = cb->piv_len;
-    }
-
-    at_index = cb->endpoint.auth_at_index_from_former_inbound_request;
-  } 
-  else 
-  {
-  #endif 
-    
-    // search as OBSERVE server for a transaction by token
-    coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
-
-    if (!t)
-    {
-      if (!tcp) 
-      {
-        // on no TCP search by mid (TCP : mid NOT relevant)
-        t = coap_get_transaction_by_mid(mid);
-      }
-
-      if (!t) 
-      {
-        // nothing found by token or mid 
-        return NULL;
-      }
-    }
-
-    if (request_piv && request_piv_len) 
-    {
-      *request_piv = t->message->endpoint.piv;
-      *request_piv_len = t->message->endpoint.piv_len;
-    }
-
-    at_index = t->message->endpoint.auth_at_index_from_former_inbound_request; 
-
-  #ifdef OC_CLIENT
-  }
-  #endif
-
-  if (at_index == -1)
+  if (index == -1)
   {
     OC_ERR("***could not find matching OSCORE context: access token is -1 ***");
     return NULL;
   }
 
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
-
-  while (ctx) 
+  while (ctx)
   {
-    if (at_index == ctx->auth_at_index) 
+    if (index == ctx->auth_at_index)
     {
-      PRINT("found context by_token/mid with auth/at index : %d ", ctx->auth_at_index);
+      OC_DBG("found context by_token/mid with auth/at index : %d ", index);
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -164,7 +108,38 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(
     ctx = ctx->next;
   }
 
+  OC_DBG("found NO context by_token/mid with auth/at index : %d ", index);
   return NULL;
+}
+
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token, uint8_t token_len, uint16_t mid, uint8_t** request_piv,
+                                                                 uint8_t* request_piv_len, bool tcp)
+{
+  // search for a transaction by token
+  coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
+
+  if (!t)
+  {
+    if (!tcp)
+    {
+      // on no TCP search by mid (TCP : mid NOT relevant)
+      t = coap_get_transaction_by_mid(mid);
+    }
+
+    if (!t)
+    {
+      // nothing found by token or mid
+      return NULL;
+    }
+  }
+
+  if (request_piv && request_piv_len)
+  {
+    *request_piv = t->message->endpoint.piv;
+    *request_piv_len = t->message->endpoint.piv_len;
+  }
+
+  return oc_oscore_find_context_by_access_token_index(t->message->endpoint.auth_at_index_of_inbound_msg);
 }
 
 // scans all contexts auth at token if the ga is in the ga list of the AT token
@@ -177,11 +152,13 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
   {
     // find AT for context that MAY host the GA
     const oc_auth_at_t* my_at_entry = oc_get_auth_at_entry(ctx->auth_at_index);
-    if (my_at_entry) {
+    if (my_at_entry) 
+    {
       // debugging 
       oc_print_auth_at_entry(ctx->auth_at_index);
 
-      for (int i = 0; i < my_at_entry->ga_len; i++) {
+      for (int i = 0; i < my_at_entry->ga_len; i++) 
+      {
         // scan all GA's
         const uint32_t group_value = my_at_entry->ga[i];
         

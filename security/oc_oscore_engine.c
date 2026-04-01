@@ -714,7 +714,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   */
 
   // uc-a: save access token index, that was used to decrypt, see send_unicast
-  msg->endpoint.auth_at_index_from_former_inbound_request = oscore_ctx->auth_at_index;
+  msg->endpoint.auth_at_index_of_inbound_msg = oscore_ctx->auth_at_index;
 
   // used for 'replay protection check' in CoAP (receive) layer, see receive_message
   msg->endpoint.kid_len = coap_pkt->kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : coap_pkt->kid_len;
@@ -997,22 +997,18 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     (uc-a) context will be retrieved by kid
      - uc outbound (server) response -> after former inbound (ext) CON/NON request
-     - example: do "Piggybacked Response"
+     - example: do "Piggybacked Response" or "Separate Response"
 
     (uc-c) context retried by group address
      - uc outbound (client) s-mode request
      - example: do client application initial CON/NON r/w request via '/k'
-
-    (uc-d) context retried by token/mid
-     - uc inbound server OBSERVE GET response -> after former own, outbound client OBSERVE GET request
-     - example: process response data
 
     (uc-e) context retried by NEW context
      - uc outbound (server) response -> after former UNSYNCED inbound (ext) CON/NON request
      - example: do "Echo Response"
    */
 
-  oc_auth_at_t* at_entry = oc_get_auth_at_entry(from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_from_former_inbound_request);
+  oc_auth_at_t* at_entry = oc_get_auth_at_entry(from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg);
 
   OC_DBG_OSCORE("%s", at_entry ? "found access token, step 1" : "uc-a : non access token");
 
@@ -1033,15 +1029,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     oscore_ctx = oc_oscore_find_context_by_group_address(from_org_msg_cloned_outgoing_msg->endpoint.group_address);
 
     OC_DBG_OSCORE("%s", oscore_ctx ? "found context by 'ga'" : "uc-c : non context");
-  }
-
-  if (oscore_ctx == NULL)
-  { // (uc-d)
-
-    // find context from 'former' own OBSERVE GET request
-    oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len, coap_pkt->mid, NULL, 0, false);
-
-    OC_DBG_OSCORE("%s", oscore_ctx ? "found context by 'token/mid'" : "uc-d : non context");
   }
 
   // we haven't found any context (uc-a) ... (uc-d), so we free the message we just created
@@ -1185,7 +1172,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
           oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
           (char*)rnd, 10, 
-          from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_from_former_inbound_request,
+          from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg,
           false);
 
         if (!oscore_ctx)
