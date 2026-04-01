@@ -87,7 +87,7 @@ bool oc_do_well_known_message_update(void)
   if (udp_message_update->length > 0) 
   {
     OC_INF("sent well-known message - OK");
-    oc_send_message(udp_message_update);
+    coap_send_message(udp_message_update);
     ret = true; // don't remove reference on sending message
   } 
   else 

@@ -1721,7 +1721,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
   // ------------
   // The device resource + method 'precompiled' ACL scope 
   // (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
-  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index_from_former_inbound_request);
+  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index_of_inbound_msg);
 
   // bitwise 'and' -> at least one scope from access token and resource must match
   if (caller_acl_scope & called_res_scope) {
@@ -1761,9 +1761,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
               // only GA is of interest
 
               // found a GA, check it, and break ...
-              group_address_match = check_access_token_for_group_address(
-                      endpoint->auth_at_index_from_former_inbound_request, 
-                      (uint32_t)s_map->value.integer);
+              group_address_match = check_access_token_for_group_address(endpoint->auth_at_index_of_inbound_msg, (uint32_t)s_map->value.integer);
               break;
             }
 
