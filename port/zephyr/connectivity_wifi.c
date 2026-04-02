@@ -31,6 +31,16 @@
 /* CoAP unencrypted port (RFC 7252) */
 #define COAP_PORT_UNSECURED  5683
 
+/* All CoAP nodes multicast addresses (RFC 7252 §12.8), three scopes.
+ * Joined unconditionally so CoAP discovery requests reach this socket.
+ * Mirrors the Linux ipadapter add_mcast_sock_to_ipv6_mcast_group(). */
+static const uint8_t ALL_COAP_NODES_LL[] = { 0xff, 0x02, 0, 0, 0, 0, 0, 0,
+                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
+static const uint8_t ALL_COAP_NODES_RL[] = { 0xff, 0x03, 0, 0, 0, 0, 0, 0,
+                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
+static const uint8_t ALL_COAP_NODES_SL[] = { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
+                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
+
 /* Receive thread parameters */
 #define RX_THREAD_STACK_SIZE 2048
 #define RX_THREAD_PRIORITY      7   /* lower number = higher priority */
@@ -50,10 +60,12 @@ static void rx_thread(void *p1, void *p2, void *p3)
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
 
+    OC_DBG("CoAP RX thread started, blocking on recvfrom fd=%d.", coap_sock);
+
     while (true) {
         oc_message_t *message = oc_allocate_message();
         if (!message) {
-            OC_ERR("rx_thread: failed to allocate OC message\r\n");
+            OC_ERR("Failed to allocate message for CoAP RX!");
             k_msleep(10);
             continue;
         }
@@ -70,7 +82,7 @@ static void rx_thread(void *p1, void *p2, void *p3)
                 break;
             }
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                OC_ERR("rx_thread: recvfrom error %d\r\n", errno);
+                OC_ERR("recvfrom error: %d", errno);// TODO wording
             }
             continue;
         }
@@ -81,7 +93,7 @@ static void rx_thread(void *p1, void *p2, void *p3)
         memcpy(message->endpoint.addr.ipv6.address,
                from.sin6_addr.s6_addr, 16);
 
-        OC_INF("Incoming message of size %d bytes from ", (int)len);
+        OC_INF("Incoming CoAP message of size %d bytes from ", (int)len);
         PRINTipaddr(message->endpoint);
         PRINT("\r\n");
 
@@ -102,18 +114,57 @@ int oc_connectivity_init(void)
 
     coap_sock = zsock_socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
     if (coap_sock < 0) {
-        OC_ERR("oc_connectivity_init: socket() failed: %d\r\n", errno);
+        OC_ERR("UDP socket creation failed: %d", errno);
         return -1;
     }
+    OC_DBG("UDP socket created, fd=%d.", coap_sock);
 
     /* Allow re-binding after a quick restart */
     zsock_setsockopt(coap_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
     if (zsock_bind(coap_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        OC_ERR("oc_connectivity_init: bind() failed: %d\r\n", errno);
+        OC_ERR("Bind to UDP port %d failed: %d", COAP_PORT_UNSECURED, errno);
         zsock_close(coap_sock);
         coap_sock = -1;
         return -1;
+    }
+    OC_DBG("Bound to UDP port %d.", COAP_PORT_UNSECURED);
+
+    /* Pin multicast sends to the default (WiFi) interface.
+     * Without this, sendto() on ff02::/ff03:: multicast destinations would rely
+     * on kernel routing which may fail if no explicit multicast route is set. */
+    int ifidx = net_if_get_by_iface(net_if_get_default());
+    if (ifidx > 0) {
+        if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+                             &ifidx, sizeof(ifidx)) < 0) {
+            OC_WRN("Failed to pin multicast sends to interface: %d", errno);
+        } else {
+            OC_DBG("Multicast sends pinned to interface ifidx=%d.", ifidx);
+        }
+
+        /* Subscribe to all-CoAP-nodes multicast groups so discovery
+         * requests reach this socket regardless of GOT configuration.
+         * Mirrors Linux ipadapter add_mcast_sock_to_ipv6_mcast_group(). */
+        {
+            static const uint8_t *coap_mcast[] = {
+                ALL_COAP_NODES_LL, ALL_COAP_NODES_RL, ALL_COAP_NODES_SL
+            };
+            struct ipv6_mreq mreq_coap = { 0 };
+            mreq_coap.ipv6mr_ifindex = (unsigned int)ifidx;
+            int n_joined = 0;
+            for (int i = 0; i < 3; i++) {
+                memcpy(&mreq_coap.ipv6mr_multiaddr, coap_mcast[i], 16);
+                if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+                                     &mreq_coap, sizeof(mreq_coap)) < 0) {
+                    OC_ERR("Failed to join all-CoAP-nodes group [%d]: %d", i, errno);
+                } else {
+                    n_joined++;
+                }
+            }
+            OC_INF("Joined %d/3 all-CoAP-nodes multicast groups.", n_joined);
+        }
+    } else {
+        OC_WRN("Default network interface not found, skipping multicast interface binding!");
     }
 
     rx_tid = k_thread_create(&rx_thread_data, rx_thread_stack,
@@ -121,9 +172,9 @@ int oc_connectivity_init(void)
                              rx_thread, NULL, NULL, NULL,
                              RX_THREAD_PRIORITY, 0, K_NO_WAIT);
     k_thread_name_set(rx_tid, "coap_rx_wifi");
+    OC_DBG("CoAP RX thread started.");
 
-    OC_INF("WiFi connectivity initialized on UDP port %d\r\n",
-           COAP_PORT_UNSECURED);
+    OC_INF("WiFi connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
     return 0;
 }
 
@@ -134,16 +185,16 @@ int oc_send_buffer(oc_message_t *message)
     };
 
     if (!message) {
-        OC_ERR("oc_send_buffer: NULL message\r\n");
+        OC_ERR("NULL message!");
         return -1;
     }
     if (coap_sock < 0) {
-        OC_ERR("oc_send_buffer: socket not open\r\n");
+        OC_ERR("CoAP socket not open!");
         return -1;
     }
 
 #ifdef OC_DEBUG
-    OC_INF("Outgoing message of size %d bytes to ", (int)message->length);
+    OC_DBG("Outgoing CoAP message of size %d bytes to ", (int)message->length);
     PRINTipaddr(message->endpoint);
     PRINT("\r\n");
 #endif
@@ -154,7 +205,7 @@ int oc_send_buffer(oc_message_t *message)
     ssize_t sent = zsock_sendto(coap_sock, message->data, message->length, 0,
                                 (struct sockaddr *)&to, sizeof(to));
     if (sent < 0) {
-        OC_ERR("oc_send_buffer: sendto failed: %d\r\n", errno);
+        OC_ERR("sendto failed: %d", errno); // TODO wording
         return -1;
     }
 
@@ -163,13 +214,48 @@ int oc_send_buffer(oc_message_t *message)
 
 void oc_send_discovery_request(oc_message_t *message)
 {
-    OC_INF("Sending discovery request\r\n");
+    OC_INF("Sending discovery request.");
     oc_send_buffer(message);
 }
 
+/* Static snapshot of the WiFi interface's IPv6 unicast addresses.
+ * Rebuilt on every call; callers must not hold the pointer across yields. */
+#define MAX_WIFI_ENDPOINTS 5
+static oc_endpoint_t wifi_endpoints[MAX_WIFI_ENDPOINTS];
+
 oc_endpoint_t *oc_connectivity_get_endpoints(void)
 {
-    return NULL;
+    struct net_if *iface = net_if_get_default();
+
+    if (!iface) {
+        return NULL;
+    }
+
+    struct net_if_ipv6 *ipv6 = iface->config.ip.ipv6;
+
+    if (!ipv6) {
+        return NULL;
+    }
+
+    memset(wifi_endpoints, 0, sizeof(wifi_endpoints));
+    int n = 0;
+
+    for (int i = 0; i < NET_IF_MAX_IPV6_ADDR && n < MAX_WIFI_ENDPOINTS; i++) {
+        if (!ipv6->unicast[i].is_used) {
+            continue;
+        }
+        wifi_endpoints[n].flags         = IPV6;
+        wifi_endpoints[n].addr.ipv6.port = COAP_PORT_UNSECURED;
+        wifi_endpoints[n].interface_index = net_if_get_by_iface(iface);
+        memcpy(wifi_endpoints[n].addr.ipv6.address,
+               ipv6->unicast[i].address.in6_addr.s6_addr, 16);
+        if (n > 0) {
+            wifi_endpoints[n - 1].next = &wifi_endpoints[n];
+        }
+        n++;
+    }
+
+    return (n > 0) ? &wifi_endpoints[0] : NULL;
 }
 
 void oc_connectivity_shutdown(void)
@@ -214,11 +300,14 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    mreq.ipv6mr_ifindex = 0; /* 0 = let the kernel choose the interface */
+    mreq.ipv6mr_ifindex = (unsigned int)net_if_get_by_iface(net_if_get_default());
 
+    OC_DBG("Subscribing to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
                    &mreq, sizeof(mreq)) < 0) {
-        OC_ERR("IPV6_ADD_MEMBERSHIP failed: %d\r\n", errno);
+        OC_ERR("Failed to subscribe to multicast group: %d", errno);
+    } else {
+        OC_INF("Subscribed to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     }
 }
 
@@ -231,11 +320,14 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    mreq.ipv6mr_ifindex = 0;
+    mreq.ipv6mr_ifindex = (unsigned int)net_if_get_by_iface(net_if_get_default());
 
+    OC_DBG("Unsubscribing from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
                    &mreq, sizeof(mreq)) < 0) {
-        OC_ERR("IPV6_DROP_MEMBERSHIP failed: %d\r\n", errno);
+        OC_ERR("Failed to unsubscribe from multicast group: %d", errno);
+    } else {
+        OC_INF("Unsubscribed from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     }
 }
 

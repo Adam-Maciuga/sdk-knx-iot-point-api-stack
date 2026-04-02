@@ -144,17 +144,23 @@ set(COAP_SOURCES
     ${STACK_ROOT}/messaging/coap/transactions.c
 )
 
-# Platform port — common
+# Platform port - common
 set(PORT_SOURCES
     ${STACK_ROOT}/port/oc_log.c
 )
 
-# Platform port — Zephyr-specific
+# Platform port - Zephyr-specific
 list(APPEND PORT_SOURCES
     ${STACK_ROOT}/port/zephyr/abort.c
     ${STACK_ROOT}/port/zephyr/clock.c
     ${STACK_ROOT}/port/zephyr/random.c
     ${STACK_ROOT}/port/zephyr/storage.c
+)
+
+# Platform port - Zephyr-specific - Optional
+# TODO FIXME add Kconfig switch
+list(APPEND PORT_SOURCES
+    ${STACK_ROOT}/port/zephyr/knx_shell.c
 )
 
 # Network backend selection:
@@ -246,13 +252,16 @@ zephyr_compile_definitions(
 
 ## Logging
 # OC_PRINT_ENABLED → OC_PRINT, OC_DEBUG_ENABLED → OC_DEBUG (internal names).
+# OC_PRINT is driven by CONFIG_KNXIOT_LOG_LEVEL (controls which Zephyr log
+# calls are compiled into the module; set to 4 to include LOG_DBG calls).
+# OC_DEBUG is driven by CONFIG_KNXIOT_DEBUG (compile-time flag that enables
+# debug code paths — independent of the runtime log level, which is controlled
+# via the Zephyr log shell: "log enable dbg <module>").
 if(CONFIG_KNXIOT_LOG_LEVEL GREATER 0)
     zephyr_compile_definitions(OC_PRINT)
 endif()
-if(CONFIG_KNXIOT_LOG_LEVEL GREATER_EQUAL 4)
-    zephyr_compile_definitions(OC_DEBUG)
-endif()
 zephyr_library_compile_definitions(
+    $<$<BOOL:${CONFIG_KNXIOT_DEBUG}>:OC_DEBUG>
     $<$<BOOL:${CONFIG_KNXIOT_DEBUG_OSCORE}>:OC_DEBUG_OSCORE>
     $<$<BOOL:${CONFIG_KNXIOT_LOG_CAST_64_BIT_INTS}>:KNX_LOG_CAST_64_BIT_INTS>
 )
