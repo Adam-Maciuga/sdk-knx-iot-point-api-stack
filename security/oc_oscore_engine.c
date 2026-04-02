@@ -1090,15 +1090,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   if (!is_a_con_repetition)
     increment_ssn_in_context(oscore_ctx);
 
-  // prepare kid/piv with request context data, may be overwritten later depending on the case (8.3)
+  // prepare piv, set context data for request, may be overwritten on the case 8.3
   uint8_t *outbound_piv = piv, 
           *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv, 
-          *kid = oscore_ctx->sender_id,
+          *kid = oscore_ctx->sender_id, 
           *kid_context = oscore_ctx->id_context;
 
   uint8_t outbound_piv_len = piv_len, 
           inbound_piv_len = from_org_msg_cloned_outgoing_msg->endpoint.piv_len, 
-          kid_len = oscore_ctx->sender_id_len, 
+          kid_len = oscore_ctx->sender_id_len,
           kid_context_len = oscore_ctx->id_context_len;
   
   if (is_outbound_request
@@ -1126,8 +1126,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     #endif
 
-    oc_oscore_AEAD_nonce(kid, kid_len,
-                         outbound_piv, outbound_piv_len,
+    oc_oscore_AEAD_nonce(kid, kid_len, outbound_piv, outbound_piv_len,
                          oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
     oc_oscore_compose_AAD(kid, kid_len, outbound_piv, outbound_piv_len, aad, &aad_len);
@@ -1184,83 +1183,83 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           return -1;
         }
 
-        // RFC 8613, 8.3, point 3 lower *, echo response 
-        // -> reuse the inbound PIV/SSN and Sender ID from just beforehand created context to compute a new AEAD nonce
-        oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len,
-                             inbound_piv, inbound_piv_len, oscore_ctx->common_iv, nonce,
-                             OSCORE_AEAD_NONCE_LEN);
-
-        // Sender ID from just beforehand created context  + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
-        oc_oscore_compose_AAD(oscore_ctx->sender_id, oscore_ctx->sender_id_len, 
-                              inbound_piv, inbound_piv_len, aad, &aad_len);
-
-        UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC);
-        
-        OC_DBG_OSCORE("send 'unicast echo response' caused by inbound s-mode multicast message using PIV with len = %u :", inbound_piv_len);
-        OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len);
-
-        // 8.1 (a) : update context data for echo responses caused by s-mode multicast requests (was a new context)
+        // 8.1 (a) below : update ALL context data for echo responses caused by s-mode multicast requests (was a new context)
         kid = oscore_ctx->sender_id;
         kid_len = oscore_ctx->sender_id_len;
         kid_context = oscore_ctx->id_context;
         kid_context_len = oscore_ctx->id_context_len;
 
+        // RFC 8613, 8.3, point 3 lower *, echo response > reuse the inbound SSN and Sender ID to compute a new AEAD nonce
+        oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
+                             oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
+
+        // Sender ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
+        oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
+
+        UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_MC_SRC);
+        
+        OC_DBG("send 'unicast echo response' caused by inbound s-mode multicast message using PIV with len = %u :", inbound_piv_len);
+        OC_LOGbytes(inbound_piv, inbound_piv_len);
+
+        // 8.1 (a) below, PIV shall be included
         outbound_piv = inbound_piv;
         outbound_piv_len = inbound_piv_len;
-
       }
     }
     else if (unicast_echo_response_by_uc)
-    { // s-mode (x1) | non s-mode (x6), context retrieved by (uc-a) ... (uc-d)
+    { // s-mode (x1) | non s-mode (x6), context retrieved by (uc-a) ... (uc-e)
 
-      // RFC 8613, 8.3, point 3 lower *, echo response 
-      // -> reuse the inbound PIV/SSN and Sender ID to compute a new AEAD nonce
-      oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len,
-                           inbound_piv, inbound_piv_len, oscore_ctx->common_iv, nonce,
-                           OSCORE_AEAD_NONCE_LEN);
+      // set for response
+      kid = oscore_ctx->recipient_id;
+      kid_len = oscore_ctx->recipient_id_len;
+      
+      // RFC 8613, 8.3, point 3 lower *, echo response -> reuse the inbound SSN and Sender ID
+      // (= Sender ID from the request) to compute a new AEAD nonce
+      oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len,inbound_piv, inbound_piv_len,
+                           oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
       // Sender ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
-      oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, 
-                            inbound_piv, inbound_piv_len, aad, &aad_len);
+      oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
 
       UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
       
-      OC_DBG_OSCORE("send 'unicast echo response' caused by inbound %s unicast message using PIV with len = %u :",
-                    from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode" : "common", inbound_piv_len);
-      OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len );
+      OC_DBG("send 'unicast echo response' caused by inbound %s unicast message using PIV with len = %u :",
+             from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode" : "common", inbound_piv_len);
+      OC_LOGbytes(inbound_piv, inbound_piv_len );
 
-       // 8.1 (a) : update context data for echo responses caused by s-mode unicast requests
+      // 8.1 (a) below, PIV shall be included
       outbound_piv = inbound_piv;
       outbound_piv_len = inbound_piv_len;
-
     }
     else
     {
-      // RFC 8613, 8.3, point 3 upper *, 2.0x/4.0x response -> reuse the inbound PIV/SSN and Recipient ID 
+      // set for response
+      kid = oscore_ctx->recipient_id;
+      kid_len = oscore_ctx->recipient_id_len;
+      
+      // RFC 8613, 8.3, point 3 upper *, 2.0x/4.0x response -> reuse the inbound SSN and Recipient ID 
       // (= Sender ID from the request) to compute the same AEAD nonce as for the inbound request
-      oc_oscore_AEAD_nonce(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, 
-                           inbound_piv, inbound_piv_len,
+      oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
                            oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-      // Recipient ID + Request PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
-      oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len,
-                            inbound_piv, inbound_piv_len, aad, &aad_len);
-
-       // 8.3 (b) : update context data for responses, no piv for common responses
-      outbound_piv = NULL;
-      outbound_piv_len = 0;
-
+      // Recipient ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
+      oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
+      
       // debugging
       OC_DBG("sending common response, using PIV with len = %u : ", inbound_piv_len);
-      OC_LOGbytes_OSCORE(inbound_piv, inbound_piv_len);
+      OC_LOGbytes(inbound_piv, inbound_piv_len);
+
+      // 8.3 (b) below : PIV shall NOT be included
+      outbound_piv = NULL;
+      outbound_piv_len = 0;
     }
   }
 
   OC_DBG("computed AEAD : ");
-  OC_LOGbytes_OSCORE(nonce, OSCORE_AEAD_NONCE_LEN);
+  OC_LOGbytes(nonce, OSCORE_AEAD_NONCE_LEN);
 
   OC_DBG("composed AAD  : ");
-  OC_LOGbytes_OSCORE(aad, aad_len);
+  OC_LOGbytes(aad, aad_len);
 
   // here requests and responses end up
 
