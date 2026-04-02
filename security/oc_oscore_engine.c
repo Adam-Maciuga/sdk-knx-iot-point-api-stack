@@ -837,9 +837,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   {
     OC_DBG_OSCORE("found group OSCORE context for GA %04X", group_address);
 
-    // use sender key for encryption
-    uint8_t* key = oscore_ctx->sender_key;
-
     uint8_t piv[OSCORE_PIV_LEN], piv_len = 0; 
     uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
@@ -891,9 +888,12 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     coap_pkt->payload = dst1;
     coap_pkt->payload_len = (uint32_t)plaintext_size;
 
+    // use sender key for encryption
+    uint8_t* encryption_key = oscore_ctx->sender_key;
+
     // verify and encrypt OSCORE payload in coap packet , acc. MBEDTLS same input/output buffer can be used
     const int ret = oc_oscore_encrypt(coap_pkt->payload, coap_pkt->payload_len,
-                                      OSCORE_AEAD_TAG_LEN, key, OSCORE_KEY_LEN,
+                                      OSCORE_AEAD_TAG_LEN, encryption_key, OSCORE_KEY_LEN,
                                       nonce, OSCORE_AEAD_NONCE_LEN, aad, aad_len, coap_pkt->payload);
 
     if (ret != 0)

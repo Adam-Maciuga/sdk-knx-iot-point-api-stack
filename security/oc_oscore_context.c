@@ -419,84 +419,74 @@ oc_oscore_context_t* oc_oscore_add_context(
   ctx->auth_at_index = auth_at_index;
   ctx->last_used = oc_clock_time();
 
-  // To prevent SSN reuse, bump the SNN to a higher value that could've been previously
-  // used, considering any possible failed writes to a nonvolatile storage.
-  // RFC - Appendix B 1.1
+  /* 
+     To prevent SSN reuse, bump the SNN to a higher value that could've been previously
+     used, considering any possible failed writes to a nonvolatile storage (RFC 8613 - Appendix B 1.1)
+  */
   if (read_ssn_from_storage) {
     ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
   }
 
-  if (sender_id && sender_id_size > 0) {
+  if (id_context && id_context_size > 0)
+  {
+    memcpy(ctx->id_context, id_context, id_context_size);
+    ctx->id_context_len = id_context_size;
+  }
+
+  if (mastersecret)
+  {
+    memcpy(&ctx->master_secret, mastersecret, mastersecret_size);
+  }
+
+  if (sender_id && sender_id_size > 0) 
+  {
     // set sender id to value from cnf:osc:id 
     memcpy(ctx->sender_id, sender_id, sender_id_size);
     ctx->sender_id_len = (uint8_t)sender_id_size;
   }
 
-  if (recipient_id && recipient_id_size > 0) {
+  if (recipient_id && recipient_id_size > 0) 
+  {
     // set recipient id to value from cnf:osc:id 
     memcpy(ctx->recipient_id, recipient_id, recipient_id_size);
     ctx->recipient_id_len = (uint8_t)recipient_id_size;
   }
 
-  if (id_context && id_context_size > 0) {
-    memcpy(ctx->id_context, id_context, id_context_size);
-    ctx->id_context_len = id_context_size;
-  }
-  
-  if (mastersecret) {
-    memcpy(&ctx->master_secret, mastersecret, mastersecret_size);
-  }
-
-  // TODO LOG make this depending on log level, info?
-  PRINT("### AT Index      : (%2d)\t= ", auth_at_index);
-  PRINT("### Sender ID     : (%2d)\t= ", ctx->sender_id_len);
-  OC_LOGbytes_OSCORE(ctx->sender_id, ctx->sender_id_len);
-  PRINT("### Recipient ID  : (%2d)\t= ", ctx->recipient_id_len);
-  OC_LOGbytes_OSCORE(ctx->recipient_id, ctx->recipient_id_len);
-  PRINT("### ID Context    : (%2d)\t= ", ctx->id_context_len);
-  OC_LOGbytes_OSCORE(ctx->id_context, ctx->id_context_len);
-  PRINT("### Master Secret : (%zu)\t= ", mastersecret_size);
-  oc_char_println_hex(mastersecret, mastersecret_size);
-  PRINT("### Salt          : (%zu)\t= ", salt_size);
-  oc_char_println_hex(salt, salt_size);
-  PRINT("### SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
-
-  if (oc_oscore_context_derive_param(
-          ctx->sender_id, ctx->sender_id_len,
-          ctx->id_context, ctx->id_context_len,
-          "Key",
-          mastersecret, (uint8_t)mastersecret_size, 
-          salt, (uint8_t)salt_size,
-          ctx->sender_key, OSCORE_KEY_LEN) < 0) {
+   if (oc_oscore_context_derive_param(ctx->sender_id, ctx->sender_id_len,
+       ctx->id_context, ctx->id_context_len, "Key", mastersecret,
+       (uint8_t)mastersecret_size, salt, (uint8_t)salt_size, ctx->sender_key, OSCORE_KEY_LEN) < 0)
+  {
     OC_ERR("### error deriving Sender Key ...");
     goto add_oscore_context_error;
   }
 
-  if (oc_oscore_context_derive_param(
-          ctx->recipient_id, ctx->recipient_id_len, 
-          ctx->id_context, ctx->id_context_len,
-          "Key",
-          mastersecret, (uint8_t)mastersecret_size, 
-          salt, (uint8_t)salt_size,
-          ctx->recipient_key, OSCORE_KEY_LEN) < 0) {
+  if (oc_oscore_context_derive_param(ctx->recipient_id, ctx->recipient_id_len,
+      ctx->id_context, ctx->id_context_len, "Key", mastersecret,
+      (uint8_t)mastersecret_size, salt, (uint8_t)salt_size, ctx->recipient_key, OSCORE_KEY_LEN) < 0)
+  {
     OC_ERR("### error deriving Recipient Key ...");
     goto add_oscore_context_error;
   }
 
-  if (oc_oscore_context_derive_param(
-          NULL, 0,
-          ctx->id_context, ctx->id_context_len,
-          "IV", 
-          mastersecret, (uint8_t)mastersecret_size, 
-          salt, (uint8_t)salt_size,
-          ctx->common_iv, OSCORE_COMMON_IV_LEN) < 0) {
+  if (oc_oscore_context_derive_param(NULL, 0, 
+      ctx->id_context, ctx->id_context_len, "IV", mastersecret,
+      (uint8_t)mastersecret_size, salt, (uint8_t)salt_size, ctx->common_iv, OSCORE_COMMON_IV_LEN) < 0)
+  {
     OC_ERR("### error deriving Common IV ...");
     goto add_oscore_context_error;
   }
 
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Request Key  : ", ctx->sender_key));
-  OC_DBG_OSCORE(PRINT16BYTEHEX("### derived Response Key : ", ctx->recipient_key));
-  OC_DBG_OSCORE(PRINT13BYTEHEX("### derived Common IV    : ", ctx->common_iv));
+  OC_DBG("### AT Index      : (%2d)\t= ", auth_at_index);
+  OC_DBG("### Sender ID     : (%2d)\t= ", ctx->sender_id_len);  OC_LOGbytes(ctx->sender_id, ctx->sender_id_len);
+  OC_DBG("### Recipient ID  : (%2d)\t= ", ctx->recipient_id_len);  OC_LOGbytes(ctx->recipient_id, ctx->recipient_id_len);
+  OC_DBG("### ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes(ctx->id_context, ctx->id_context_len);
+  OC_DBG("### Master Secret : (%zu)\t= ", mastersecret_size);  oc_char_println_hex(mastersecret, mastersecret_size);
+  OC_DBG("### Salt          : (%zu)\t= ", salt_size);  oc_char_println_hex(salt, salt_size);
+  OC_DBG("### SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
+
+  OC_DBG(PRINT16BYTEHEX("### derived Request Key  : ", ctx->sender_key));
+  OC_DBG(PRINT16BYTEHEX("### derived Response Key : ", ctx->recipient_key));
+  OC_DBG(PRINT13BYTEHEX("### derived Common IV    : ", ctx->common_iv));
 
   oc_list_add(contexts, ctx);
 
