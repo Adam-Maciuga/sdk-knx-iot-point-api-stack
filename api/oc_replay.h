@@ -22,6 +22,7 @@ extern "C" {
 
 #include "oc_helpers.h"
 #include "oc_buffer.h"
+#include "oc_endpoint.h"
 
 typedef enum replay_state
 {
@@ -42,10 +43,9 @@ typedef enum replay_state
  * from now on are ignored.    
  *
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
- * @param rx_kid Key Identifier of received request
- * @param rx_kid_ctx Key ID Context of received request
+ * @param endpoint inbound endpoint carrying kid and kid_ctx
  */
-void oc_replay_add_client(const uint64_t rx_ssn, const oc_string_t rx_kid, const oc_string_t rx_kid_ctx);
+void oc_replay_add_client(uint64_t rx_ssn, const oc_endpoint_t* endpoint);
 
 /**
  * @brief Clear all replay records
@@ -64,19 +64,11 @@ void oc_oscore_free_all_replay_records(void);
  * natural usage of this function.
  *
  * @param rx_ssn Sender Sequence Number of newly received OSCORE request
- * @param rx_kid Key Identifier of received request
- * @param rx_kid_ctx Key ID Context of received request
+ * @param endpoint inbound endpoint carrying kid and kid_ctx
  * @return Either client is synchronised (you may accept the frame with the given SSN)
  * or it is not synchronised (either you challenge the frame or deny it completely)
  */
-replay_state_t oc_replay_check_client(uint64_t rx_ssn, oc_string_t rx_kid, oc_string_t rx_kid_ctx);
-
-/**
- * @brief Get the first available (not used) record
- *
- * @return oc_replay_record*
- */
-static struct oc_replay_record *get_empty_record(void);
+replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endpoint);
 
 #ifdef __cplusplus
 }

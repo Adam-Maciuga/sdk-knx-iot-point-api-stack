@@ -107,7 +107,8 @@ enum StringRepresentation {
         _oc_new_string(ocstring, str, str_len)
 
 /**
- * @brief create new (byte) string from string (not null terminated)
+ * @brief creates a new (byte) string from string (not null terminated) by allocating the needed memory 
+ *        and copying the content
  *
  */
 #define oc_new_byte_string(ocstring, str, str_len) \
