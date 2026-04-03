@@ -70,21 +70,26 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
 
 int oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint64_t* ssn) 
 {
+  /*
+   PIV is a big-endian encoded integer; accumulate each byte MSB-first into the numeric value without any endianness detection or byte-swapping.
+   
+   Platform: little-endian (x86, ARM Cortex-M)
+   Platform: big-endian (PowerPC, SPARC)
+
+   Example: piv = { 0xAA, 0xBB, 0xCC }, piv_len = 3
+     i=0: ssn = (0x00000000 << 8) | 0xAA = 0x000000AA
+     i=1: ssn = (0x000000AA << 8) | 0xBB = 0x0000AABB
+     i=2: ssn = (0x0000AABB << 8) | 0xCC = 0x00AABBCC
+
+     The new code uses only arithmetic operators (<< and |) which always operate on the numeric value of *ssn, never on its memory representation.
+     The C standard guarantees that << and | on unsigned integers produce the same value on every platform.
+  */
+
   *ssn = 0;
 
-  uint8_t j = sizeof(uint64_t) - piv_len;
-  for (uint8_t i = 0; i < piv_len; i++, j++) 
+  for (uint8_t i = 0; i < piv_len; i++)
   {
-    memcpy((char*) ssn + j, &piv[i], 1);
-  }
-
-  int _botest = 1;
-  if (*(char*) &_botest == 1) 
-  {
-    // If byte order is Little-endian, convert to Big-endian.
-    *ssn = (*ssn & 0x00ff00ff00ff00ff) << 8  | (*ssn & 0xff00ff00ff00ff00) >> 8;
-    *ssn = (*ssn & 0x0000ffff0000ffff) << 16 | (*ssn & 0xffff0000ffff0000) >> 16;
-    *ssn = (*ssn & 0x00000000ffffffff) << 32 | (*ssn & 0xffffffff00000000) >> 32;
+    *ssn = (*ssn << 8) | piv[i];
   }
 
   return 0;
@@ -93,39 +98,36 @@ int oscore_store_piv_to_ssn(uint8_t* piv, uint8_t piv_len, uint64_t* ssn)
 
 int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn) 
 {
-  int _botest = 1;
-
   memset(piv, 0, OSCORE_PIV_LEN);
 
-  if (ssn == 0) 
+  if (ssn == 0)
   {
+    // SSN of zero encodes as a single zero byte (RFC 8613 minimum PIV length = 1)
     piv[0] = 0;
     *piv_len = 1;
     return 0;
   }
 
-  if (*(char*) &_botest == 1) 
-  {
-    // If byte order is Little-endian, convert to Big-endian.
-    ssn = (ssn & 0x00ff00ff00ff00ff) << 8  | (ssn & 0xff00ff00ff00ff00) >> 8;
-    ssn = (ssn & 0x0000ffff0000ffff) << 16 | (ssn & 0xffff0000ffff0000) >> 16;
-    ssn = (ssn & 0x00000000ffffffff) << 32 | (ssn & 0xffffffff00000000) >> 32;
-  }
+  /*
+    Emit SSN as big-endian byte sequence (RFC 8613 minimum-length encoding).
+    Strips leading zero bytes using right-shifts on the numeric value.
+    Platform-independent: no endianness detection required.
+   
+    Example: ssn = 0x00AABBCC, OSCORE_PIV_LEN = 5
+      shift=32: byte = 0x00 -> skip (leading zero)
+      shift=24: byte = 0x00 -> skip (leading zero)
+      shift=16: byte = 0xAA -> write, piv_len = 1
+      shift= 8: byte = 0xBB -> write, piv_len = 2
+      shift= 0: byte = 0xCC -> write, piv_len = 3
+      Result: piv = { 0xAA, 0xBB, 0xCC }, piv_len = 3
+   */
 
   *piv_len = 0;
-  char* p = (char*) &ssn + 8 - OSCORE_PIV_LEN; // ptr to first digit of ssn 
-  char* end = p + OSCORE_PIV_LEN; // ptr to last digit of ssn 
-  
-  while (p != end && *p == 0) 
+  for (int shift = (OSCORE_PIV_LEN - 1) * 8; shift >= 0; shift -= 8)
   {
-    // from first digit to last digit skip all leading '0' in ssn
-    p++;
-  }
-
-  while (p != end) 
-  {
-    piv[(*piv_len)++] = *p; // copy piv bytes and adjust piv len 
-    p++;
+    const uint8_t byte = (uint8_t)(ssn >> shift);
+    if (*piv_len > 0 || byte != 0)  // skip leading zeros
+      piv[(*piv_len)++] = byte;     // write byte and increment length (from here piv_len is not 0 anymore, so no more skipping)
   }
 
   return 0;
@@ -140,47 +142,52 @@ int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
  * @param packet the CoAp packet to be scanned
  *
  */
-uint8_t oscore_get_outer_code(void* packet) {
+uint8_t oscore_get_outer_code(void* packet) 
+{
   coap_packet_t const* coap_pkt = (coap_packet_t*) packet;
 
   const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
 
   if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH
-#ifdef OC_TCP
+  #ifdef OC_TCP
           || (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01)
-#endif 
-  ) { 
+  #endif 
+  ) 
+  { 
     // requests
     return observe ? OC_FETCH : OC_POST;
   }
 	
   // responses
-  return observe ? (uint8_t)oc_status_code(OC_STATUS_OK) : 
-          (uint8_t)oc_status_code(OC_STATUS_CHANGED);
+  return observe ? (uint8_t)oc_status_code(OC_STATUS_OK) : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
 }
 
-int coap_get_header_oscore(void* packet, uint8_t** piv, uint8_t* piv_len,
-        uint8_t** kid, uint8_t* kid_len, uint8_t** kid_ctx, uint8_t* kid_ctx_len) {
+int coap_get_header_oscore(void* packet, uint8_t** piv, uint8_t* piv_len, uint8_t** kid, uint8_t* kid_len, uint8_t** kid_ctx, uint8_t* kid_ctx_len) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) {
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) 
+  {
     return 0;
   }
 
   // Partial IV
-  if (piv) {
+  if (piv) 
+  {
     *piv = coap_pkt->piv;
     *piv_len = coap_pkt->piv_len;
   }
 
   // kid
-  if (kid) {
+  if (kid) 
+  {
     *kid = coap_pkt->kid;
     *kid_len = coap_pkt->kid_len;
   }
 
   // kid context
-  if (kid_ctx) {
+  if (kid_ctx) 
+  {
     *kid_ctx = coap_pkt->kid_ctx;
     *kid_ctx_len = coap_pkt->kid_ctx_len;
   }
