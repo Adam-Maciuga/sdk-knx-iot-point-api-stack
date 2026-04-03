@@ -162,39 +162,6 @@ uint8_t oscore_get_outer_code(void* packet)
   return observe ? (uint8_t)oc_status_code(OC_STATUS_OK) : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
 }
 
-int coap_get_header_oscore(void* packet, uint8_t** piv, uint8_t* piv_len, uint8_t** kid, uint8_t* kid_len, uint8_t** kid_ctx, uint8_t* kid_ctx_len) 
-{
-  coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
-
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) 
-  {
-    return 0;
-  }
-
-  // Partial IV
-  if (piv) 
-  {
-    *piv = coap_pkt->piv;
-    *piv_len = coap_pkt->piv_len;
-  }
-
-  // kid
-  if (kid) 
-  {
-    *kid = coap_pkt->kid;
-    *kid_len = coap_pkt->kid_len;
-  }
-
-  // kid context
-  if (kid_ctx) 
-  {
-    *kid_ctx = coap_pkt->kid_ctx;
-    *kid_ctx_len = coap_pkt->kid_ctx_len;
-  }
-
-  return 1;
-}
-
 int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len, uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) 
 {
   coap_packet_t* const coap_pkt = (coap_packet_t *)packet;

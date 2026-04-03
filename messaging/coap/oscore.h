@@ -32,8 +32,6 @@ extern "C"
 
   size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, uint8_t* buffer);
 
-  int coap_get_header_oscore(void* packet, uint8_t** piv, uint8_t* piv_len, uint8_t** kid, uint8_t* kid_len, uint8_t** kid_ctx, uint8_t* kid_ctx_len);
-
   int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len, uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len);
 
   // a message is serialized by adding outer options AND the OSCORE option (application payload and inner options don't touched)
