@@ -1,19 +1,9 @@
 /*
-// Copyright (c) 2023 Cascoda Ltd
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2020 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include <stdbool.h>
 #include <inttypes.h>
 #include <string.h>
@@ -45,14 +35,10 @@ void oc_oscore_free_all_replay_records(void)
 {
 	for (int i = 0; i < OC_MAX_REPLAY_RECORDS; i++)
 	{
-		// c pointer arithmetics
-		oc_replay_record_t* rec = replay_records + i;
+    // c pointer arithmetics
+    oc_replay_record_t* rec = replay_records + i;
 
-		if (rec->in_use)
-		{
-			// clearing it marks the record as free
-			rec->in_use = false;
-		}
+	  rec->in_use = false;
 	}
 	PRINT("Cleared all replay window records");
 }
@@ -177,8 +163,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endp
 		          or after a release of an old recipient context
 	*/
 	replay_state_t result = ECHO;
-	
 	oc_replay_record_t* rec = get_record(endpoint);
+
 	if (rec)
 	{
 		/*
@@ -243,8 +229,8 @@ replay_state_t oc_replay_check_client(uint64_t rx_ssn, const oc_endpoint_t* endp
 			rec->window |= 1;
 			rec->rx_ssn = rx_ssn;
 
-			PRINT("wnd new\t= %" PRIx32, rec->window);
-			PRINT("outside window (size %" PRIu32 ") right bound by %" PRIi64, replay_window_size, -ssn_diff);
+			OC_DBG("wnd new\t= %" PRIx32, rec->window);
+      OC_DBG("outside window (size %" PRIu32 ") right bound by %" PRIi64, replay_window_size, -ssn_diff);
 			result = SYNCED;
 		}
 	}
