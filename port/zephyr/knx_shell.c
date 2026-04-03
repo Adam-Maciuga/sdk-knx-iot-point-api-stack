@@ -30,6 +30,34 @@ extern char sn_upper[];
 extern const char sn_lower_case[];
 extern const char application_name[];
 
+/* Format a KNX group address as ETS 3-level string (main/middle/sub).
+ * main   = bits 15-11, range 0..31
+ * middle = bits 10-8,  range 0..7
+ * sub    = bits  7-0,  range 0..255 */
+static int knx_ga_to_str(uint32_t ga, char *buf, int size)
+{
+    return snprintf(buf, size, "%" PRIu32 "/%" PRIu32 "/%" PRIu32,
+                    ga >> 11, (ga >> 8) & 0x7u, ga & 0xFFu);
+}
+
+/* Format a KNX Installation ID as string.
+ * 4-byte (byte_5 == 0): BBBB:BBBB
+ * 5-byte (byte_5 != 0): BB:BBBB:BBBB */
+static int knx_iid_to_str(uint64_t iid, char *buf, int size)
+{
+    const uint8_t b1 = (uint8_t)(iid);
+    const uint8_t b2 = (uint8_t)(iid >> 8);
+    const uint8_t b3 = (uint8_t)(iid >> 16);
+    const uint8_t b4 = (uint8_t)(iid >> 24);
+    const uint8_t b5 = (uint8_t)(iid >> 32);
+    if (b5 == 0) {
+        return snprintf(buf, size, "%02" PRIx8 "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8,
+                        b4, b3, b2, b1);
+    }
+    return snprintf(buf, size, "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8,
+                    b5, b4, b3, b2, b1);
+}
+
 /* KNX Serial Number command */
 static int knx_serial_number_cmd(const struct shell *sh, size_t argc, char **argv)
 {
@@ -180,19 +208,9 @@ static int knx_ia_cmd(const struct shell *sh, size_t argc, char **argv)
 static int knx_iid_cmd(const struct shell *sh, size_t argc, char **argv)
 {
     if (argc == 1) {
-        const uint64_t value = oc_core_get_device_iid();
-        const uint8_t byte_1 = (uint8_t)(value);
-        const uint8_t byte_2 = (uint8_t)(value >> 8);
-        const uint8_t byte_3 = (uint8_t)(value >> 16);
-        const uint8_t byte_4 = (uint8_t)(value >> 24);
-        const uint8_t byte_5 = (uint8_t)(value >> 32);
-        if (byte_5 == 0) {
-            shell_print(sh, "%02" PRIx8 "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8,
-                        byte_4, byte_3, byte_2, byte_1);
-        } else {
-            shell_print(sh, "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8,
-                        byte_5, byte_4, byte_3, byte_2, byte_1);
-        }
+        char iid_str[16];
+        knx_iid_to_str(oc_core_get_device_iid(), iid_str, sizeof(iid_str));
+        shell_print(sh, "%s", iid_str);
         return 0;
     }
     if (argc != 2) {
@@ -304,11 +322,11 @@ static int knx_got_cmd(const struct shell *sh, size_t argc, char **argv)
         char ga_str[256];
         int pos = snprintf(ga_str, sizeof(ga_str), "[");
         for (int j = 0; j < e->ga_len; j++) {
-            pos += snprintf(ga_str + pos, sizeof(ga_str) - pos,
-                            j > 0 ? ", %04" PRIx32 : "%04" PRIx32, e->ga[j]);
+            if (j > 0) { pos += snprintf(ga_str + pos, sizeof(ga_str) - pos, ", "); }
+            pos += knx_ga_to_str(e->ga[j], ga_str + pos, sizeof(ga_str) - pos);
         }
         snprintf(ga_str + pos, sizeof(ga_str) - pos, "]");
-        shell_print(sh, "[%d] id:%" PRId32 " href:%s cflags:%s ga:%s",
+        shell_print(sh, "[%d] id:%" PRId32 " url:%s cflags:%s ga:%s",
                     i, e->id, oc_string_checked(e->href), cflags_str, ga_str);
     }
     return 0;
@@ -327,16 +345,18 @@ static int knx_gpt_cmd(const struct shell *sh, size_t argc, char **argv)
         char ga_str[256];
         int pos = snprintf(ga_str, sizeof(ga_str), "[");
         for (int j = 0; j < e->ga_len; j++) {
-            pos += snprintf(ga_str + pos, sizeof(ga_str) - pos,
-                            j > 0 ? ", %04" PRIx32 : "%04" PRIx32, e->ga[j]);
+            if (j > 0) { pos += snprintf(ga_str + pos, sizeof(ga_str) - pos, ", "); }
+            pos += knx_ga_to_str(e->ga[j], ga_str + pos, sizeof(ga_str) - pos);
         }
         snprintf(ga_str + pos, sizeof(ga_str) - pos, "]");
+        char iid_str[16];
+        knx_iid_to_str((uint64_t)e->iid, iid_str, sizeof(iid_str));
         if (oc_string_len(e->at) > 0) {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%" PRIi64 " fid:%" PRIi64 " grpid:%" PRIu32 " at:%s ga:%s",
-                        i, e->id, e->ia, e->iid, e->fid, e->grpid, oc_string_checked(e->at), ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " at:%s ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, e->grpid, oc_string_checked(e->at), ga_str);
         } else {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%" PRIi64 " fid:%" PRIi64 " grpid:%" PRIu32 " ga:%s",
-                        i, e->id, e->ia, e->iid, e->fid, e->grpid, ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, e->grpid, ga_str);
         }
     }
     return 0;
@@ -355,16 +375,18 @@ static int knx_grt_cmd(const struct shell *sh, size_t argc, char **argv)
         char ga_str[256];
         int pos = snprintf(ga_str, sizeof(ga_str), "[");
         for (int j = 0; j < e->ga_len; j++) {
-            pos += snprintf(ga_str + pos, sizeof(ga_str) - pos,
-                            j > 0 ? ", %04" PRIx32 : "%04" PRIx32, e->ga[j]);
+            if (j > 0) { pos += snprintf(ga_str + pos, sizeof(ga_str) - pos, ", "); }
+            pos += knx_ga_to_str(e->ga[j], ga_str + pos, sizeof(ga_str) - pos);
         }
         snprintf(ga_str + pos, sizeof(ga_str) - pos, "]");
+        char iid_str[16];
+        knx_iid_to_str((uint64_t)e->iid, iid_str, sizeof(iid_str));
         if (oc_string_len(e->at) > 0) {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%" PRIi64 " fid:%" PRIi64 " grpid:%" PRIu32 " at:%s ga:%s",
-                        i, e->id, e->ia, e->iid, e->fid, e->grpid, oc_string_checked(e->at), ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " at:%s ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, e->grpid, oc_string_checked(e->at), ga_str);
         } else {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%" PRIi64 " fid:%" PRIi64 " grpid:%" PRIu32 " ga:%s",
-                        i, e->id, e->ia, e->iid, e->fid, e->grpid, ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, e->grpid, ga_str);
         }
     }
     return 0;
@@ -417,19 +439,9 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
                 ia_a, ia_l, ia_d, device->ia);
 
     /* Installation ID */
-    const uint64_t iid_val = oc_core_get_device_iid();
-    const uint8_t iid_b1 = (uint8_t)(iid_val);
-    const uint8_t iid_b2 = (uint8_t)(iid_val >> 8);
-    const uint8_t iid_b3 = (uint8_t)(iid_val >> 16);
-    const uint8_t iid_b4 = (uint8_t)(iid_val >> 24);
-    const uint8_t iid_b5 = (uint8_t)(iid_val >> 32);
-    if (iid_b5 == 0) {
-        shell_print(sh, "Installation ID    : %02" PRIx8 "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8,
-                    iid_b4, iid_b3, iid_b2, iid_b1);
-    } else {
-        shell_print(sh, "Installation ID    : %02" PRIx8 ":%02" PRIx8 "%02" PRIx8 ":%02" PRIx8 "%02" PRIx8,
-                    iid_b5, iid_b4, iid_b3, iid_b2, iid_b1);
-    }
+    char iid_str[16];
+    knx_iid_to_str(oc_core_get_device_iid(), iid_str, sizeof(iid_str));
+    shell_print(sh, "Installation ID    : %s", iid_str);
 
     shell_print(sh, "Programming mode   : %s", oc_knx_device_in_programming_mode() ? "ON" : "OFF");
     shell_print(sh, "Load state machine : %s", knx_lsm_state_str());
