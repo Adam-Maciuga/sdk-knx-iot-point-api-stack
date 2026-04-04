@@ -415,7 +415,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
    */
 
   uint8_t *request_piv = NULL, *request_kid = NULL, *nonce_piv = NULL, *nonce_kid = NULL;
-  uint8_t request_piv_len = 0, request_kid_len = 0, nonce_piv_len = 0, nonce_kid_len;
+  uint8_t request_piv_len = 0, request_kid_len = 0, nonce_piv_len = 0, nonce_kid_len = 0;
 
   #ifdef OC_REQUEST_HISTORY
   // a check here removes unnecessary decryption and a throw later in coap layer
@@ -488,11 +488,12 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
         // take over client's ssn on synchronization, due to a lost sync by the client
-        oscore_ctx = oc_oscore_add_recipient_context(oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-                                                     inbound_ssn,
-                                                     oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
-                                                     oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-                                                     (char*)coap_pkt->kid_ctx, coap_pkt->kid_ctx_len, idx, false);
+        oscore_ctx = oc_oscore_add_recipient_context(
+          oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
+          inbound_ssn,
+          oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
+          oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
+          (char*)coap_pkt->kid_ctx, coap_pkt->kid_ctx_len, idx, false);
 
         if (!oscore_ctx)
         {
