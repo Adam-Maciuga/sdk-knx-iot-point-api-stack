@@ -252,14 +252,14 @@ extern "C" {
 	void oc_create_knx_sec_resources(void);
 
 	/**
-	 * @brief initialize all OSCORE context from AT table content
+	 * @brief initialize all OSCORE context from AT table content, called after device reset/ restart or 
+	 *        on an inbound POST to /auth/at table
 	 *
 	 * @note
-	 * - OSCORE context entries are an internal linked list
-	 * - called after device reset/ restart or on POST /auth/at table
-	 * - is used to not issue after a reset/ restart for all new requests a 4.01 unauthorized cycle
+	 * If true the SNN is increased after reading from storage by at least the replay window size
 	 *
-	 * @param read_ssn_from_storage if content is read from storage (true/false), this affects how to handle the SSN (true usually after device reset/ restart)
+	 * @param read_ssn_from_storage affects if the to be used, send out SSN is increased on reading from storage
+	 *                              (true usually after device reset/ restart)
 	 */
 	void oc_init_oscore_from_storage(bool read_ssn_from_storage);
 

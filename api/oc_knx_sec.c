@@ -872,10 +872,12 @@ static void oc_core_auth_at_post_handler(oc_request_t* request,
 
   PRINT("activating oscore context");
 
-  if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true) {
+  if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true) 
+  {
     // do not update the oscore when update only scope content
     OC_WRN("updated scopes only, NO reinitializing of all used oscore keys ");
-  } else {
+  } else 
+  {
     // add the oscore contexts by reinitializing all used oscore keys
     oc_init_oscore_from_storage(false);
   }
@@ -885,13 +887,14 @@ static void oc_core_auth_at_post_handler(oc_request_t* request,
   PRINT("oc_core_auth_at_post_handler - end"); // TODO LOG make this depending on log level
 }
 
-static void oc_core_auth_at_delete_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
   PRINT("oc_core_auth_at_delete_handler - start"); // TODO LOG make this depending on log level
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -1622,43 +1625,65 @@ void oc_create_knx_sec_resources(void) {
   oc_load_at_table();
 }
 
-void oc_init_oscore_from_storage(const bool read_ssn_from_storage) {
+void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
+{
   oc_oscore_free_sender_contexts();
-  
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++) {
-    if (oc_string_len(g_at_entries[i].id) > 0) {
+
+  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  {
+    if (oc_string_len(g_at_entries[i].id) > 0)
+    {
       oc_print_auth_at_entry(i);
 
-      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || 
-              g_at_entries[i].profile == OC_PROFILE_COAP_PASE) {
+      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
+      {
 
         // 'Client' Side (details see method 'oc_oscore_receive_message' header)
         //  - create oscore REQUEST sender context = kid + kid_context + ms + salt from token  
         //  - SSN initialized = read from storage, context is already present
 
+        /*
+           'Client' Side (details see method 'oc_oscore_receive_message' header), create:
+            Request Sender Context
+           - kid
+           - kid_context 
+           - ms + salt 
+           - ssn = read from storage, context is already present
+        */
+
+        const uint8_t* osc_id = (const uint8_t*)oc_string(g_at_entries[i].osc_id);
+        const uint8_t osc_id_len = oc_byte_string_len(g_at_entries[i].osc_id);
+        const uint8_t* osc_contextid = (const uint8_t*)oc_string(g_at_entries[i].osc_contextid);
+        const uint8_t osc_contextid_len = oc_byte_string_len(g_at_entries[i].osc_contextid);
+
+        const uint8_t* osc_ms = (const uint8_t*)oc_string(g_at_entries[i].osc_ms);
+        const uint8_t osc_ms_len = oc_byte_string_len(g_at_entries[i].osc_ms);
+
+        const uint8_t* osc_salt = (const uint8_t*)oc_string(g_at_entries[i].osc_salt);
+        const uint8_t osc_salt_len = oc_byte_string_len(g_at_entries[i].osc_salt);
+
         // always read stored SSN from storage to maintain continuity
-        uint64_t stored_ssn = oc_read_ssn_from_storage(
-                (const uint8_t*)oc_string(g_at_entries[i].osc_id), 
-                oc_byte_string_len(g_at_entries[i].osc_id),
-                (const uint8_t*)oc_string(g_at_entries[i].osc_contextid), 
-                oc_byte_string_len(g_at_entries[i].osc_contextid));
-        
+        const uint64_t stored_ssn = oc_read_ssn_from_storage(osc_id,osc_id_len,osc_contextid,osc_contextid_len);
+
         OC_DBG("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
         // Request Sender Context (used by access token = Request)
-        const oc_oscore_context_t* ctx = oc_oscore_add_sender_context(
-          oc_string(g_at_entries[i].osc_id), oc_byte_string_len(g_at_entries[i].osc_id),
-          stored_ssn, // use SSN loaded from storage
-          oc_string(g_at_entries[i].osc_ms), oc_byte_string_len(g_at_entries[i].osc_ms),
-          oc_string(g_at_entries[i].osc_salt), oc_byte_string_len(g_at_entries[i].osc_salt),
-          oc_string(g_at_entries[i].osc_contextid), oc_byte_string_len(g_at_entries[i].osc_contextid),
+        const oc_oscore_context_t* oscore_ctx = oc_oscore_add_sender_context(
+          osc_id, osc_id_len, 
+          stored_ssn,
+          osc_ms, osc_ms_len,
+          osc_salt, osc_salt_len,
+          osc_contextid, osc_contextid_len,
           i,
           read_ssn_from_storage);
 
-        if (ctx == NULL) {
+        if (!oscore_ctx)
+        {
           OC_ERR("failed to add a context entry for AT table entry (on device startup this is usually because of too less context buffers = %d", i);
         }
-      } else {
+      }
+      else
+      {
         OC_DBG_OSCORE("no oscore context was initialized");
       }
     }
@@ -1666,9 +1691,10 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage) {
 }
 
 // used for API test only
-bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, 
-        oc_interface_mask_t called_scope) {
-  if (caller_scope & called_scope) {
+bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, oc_interface_mask_t called_scope) 
+{
+  if (caller_scope & called_scope) 
+  {
     // one of the entries is matching (bitset of 'a and b')
     return true;
   }
@@ -1676,33 +1702,36 @@ bool oc_knx_contains_interface(oc_interface_mask_t caller_scope,
   return false;
 }
 
-bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, 
-        oc_endpoint_t* endpoint, oc_rep_t* value_object) {
+bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
+{
   //  scope of called resource, init with default
   oc_acl_mask_t called_res_scope = OC_ACL_NONE;
 
   // check for scope, considering of CoAP INNER method (GET, PUT, ...)
-  if (!oc_resource_get_acl_for_method(resource, method, &called_res_scope)) {
+  if (!oc_resource_get_acl_for_method(resource, method, &called_res_scope))
+  {
     // resource or handler for method does not exist, no access
     return false;
   }
 
   // resource and handler for method exists...
   // uri len of resource versus uri len of caller endpoint was checked before
-  if (called_res_scope == OC_ACL_NONE) {
+  if (called_res_scope == OC_ACL_NONE)
+  {
     // not a secure resource, access allowed, see table in clause 5.1.3 of specification,
     // all resources with methods that do not have any scope uses in stack 'OC_ACL_NONE'
     return true;
   }
 
   // debugging
-  PRINT("method allowed flags : "); // TODO LOG make this depending on log level, debug!?
-  PRINTipaddr_flags(*endpoint); // TODO LOG make this depending on log level, debug!?
+  OC_DBG("method allowed flags : ");
+  PRINTipaddr_flags(*endpoint);
 
-  if ((endpoint->flags & (OSCORE + OSCORE_DECRYPTED)) != OSCORE + OSCORE_DECRYPTED) {
+  if ((endpoint->flags & (OSCORE + OSCORE_DECRYPTED)) != OSCORE + OSCORE_DECRYPTED)
+  {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
-    OC_DBG_OSCORE("access denied for: %s with flags: %d", 
-            oc_string_checked(resource->uri), endpoint->flags);
+    OC_DBG_OSCORE("access denied for: %s with flags: %d",
+                  oc_string_checked(resource->uri), endpoint->flags);
     return false;
   }
 
@@ -1719,12 +1748,13 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
   //
   // called scope
   // ------------
-  // The device resource + method 'precompiled' ACL scope 
-  // (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
+  // The device resource + method 'precompiled' ACL scope (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
+  
   const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index_of_inbound_msg);
 
   // bitwise 'and' -> at least one scope from access token and resource must match
-  if (caller_acl_scope & called_res_scope) {
+  if (caller_acl_scope & called_res_scope)
+  {
     // Here the caller/called scopes are matching
     //
     // O0 common endpoint (auth/at) call with caller/called scope hosting at least 'if.sec'
@@ -1741,7 +1771,8 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
     //    - no other EP than /k uses '<ga>' as resource scope (see resource definition)
     //    - <ga> scope is set only in one place (create access token with non-empty list)
 
-    if (caller_acl_scope == OC_ACL_GA) {
+    if (caller_acl_scope == OC_ACL_GA)
+    {
       // O2 - a call with <ga> access token
       // Here this is only possible if /k resource was addressed.
       // (caller_acl_scope & called_res_scope -> 
@@ -1751,13 +1782,17 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
       const oc_rep_t* rep = value_object;
       bool group_address_match = false;
 
-      while (rep) {
-        if (rep->type == OC_REP_OBJECT) {
+      while (rep)
+      {
+        if (rep->type == OC_REP_OBJECT)
+        {
           // s map with st/ga/value (if present on w=write/a=update)
           const oc_rep_t* s_map = rep->value.object;
 
-          while (s_map) {
-            if (s_map->type == OC_REP_INT && s_map->iname == 7) {
+          while (s_map)
+          {
+            if (s_map->type == OC_REP_INT && s_map->iname == 7)
+            {
               // only GA is of interest
 
               // found a GA, check it, and break ...
@@ -1784,15 +1819,13 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource,
     return true;
   }
 
-#ifdef OC_DEBUG
-  OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :",
-          oc_string(resource->uri), 
-          caller_acl_scope,
-          called_res_scope);
+  #ifdef OC_DEBUG
+  OC_DBG_OSCORE("access to %s unauthorized: request scope=%d ; resource scope=%d :", oc_string(resource->uri), caller_acl_scope, called_res_scope);
 
   oc_print_acl_scopes(caller_acl_scope);
   oc_print_acl_scopes(called_res_scope);
-#endif
+
+  #endif
 
   return false;
 }

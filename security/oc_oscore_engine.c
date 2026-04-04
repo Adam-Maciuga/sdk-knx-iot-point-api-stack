@@ -1148,7 +1148,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       { // any context using an access token with ga len > 0 is an s-mode message
         
         // mc echo data = random
-        unsigned char rnd[10];
+        uint8_t rnd[10];
 
         mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
         mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
@@ -1171,7 +1171,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           inbound_ssn,
           oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
           oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-          (char*)rnd, 10, 
+          rnd, 10, 
           from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg,
           false);
 

@@ -111,9 +111,9 @@ void oc_oscore_free_context(oc_oscore_context_t *ctx);
 void oc_oscore_free_all_contexts(void);
 
 /**
- * @brief free all OSCORE sender contexts
+ * @brief free all Request/Response Sender Contexts
  *
- * @note releases any context if it is not used as a "Recipient Context"
+ * @note releases any context if it is not used as any "Recipient Context"
  *
  */
 void oc_oscore_free_sender_contexts(void);
@@ -152,33 +152,33 @@ void oc_oscore_free_contexts_at_id(int auth_at_index);
  * @return != NULL context can be used for encryption/decryption, else not
  */
 oc_oscore_context_t* oc_oscore_add_context(
-        const char* sender_id, size_t sender_id_size,
-        const char* recipient_id, size_t recipient_id_size,
-        uint64_t ssn,
-        const char* mastersecret, size_t mastersecret_size,
-        const char* salt, size_t salt_size,
-        const char* id_context, uint8_t id_context_size,
-        int auth_at_index,
-        bool read_ssn_from_storage);
+  const uint8_t* sender_id, uint8_t sender_id_size,
+  const uint8_t* recipient_id, uint8_t recipient_id_size,
+  uint64_t ssn,
+  const uint8_t* mastersecret, uint8_t mastersecret_size,
+  const uint8_t* salt, uint8_t salt_size,
+  const uint8_t* id_context, uint8_t id_context_size,
+  int32_t auth_at_index,
+  bool read_ssn_from_storage);
 
   /**
   * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting sender id = "" (0) and ssn to inbound snn
   *
   **/
-  oc_oscore_context_t* oc_oscore_add_recipient_context(const char* recipient_id, size_t recipient_id_size, uint64_t ssn,
-                                                       const char* mastersecret, size_t mastersecret_size, 
-                                                       const char* salt, size_t salt_size,
-                                                       const char* id_context, uint8_t id_context_size,
-                                                       int auth_at_index, bool read_ssn_from_storage);
+  oc_oscore_context_t* oc_oscore_add_recipient_context(const uint8_t* recipient_id, uint8_t recipient_id_size, uint64_t ssn,
+                                                       const uint8_t* mastersecret, uint8_t mastersecret_size,
+                                                       const uint8_t* salt, uint8_t salt_size,
+                                                       const uint8_t* id_context, uint8_t id_context_size,
+                                                       int32_t auth_at_index, bool read_ssn_from_storage);
 
   /**
    * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting recipient id = "" (0)
    *
    **/
-  oc_oscore_context_t* oc_oscore_add_sender_context(const char* sender_id, size_t sender_id_size, uint64_t ssn, 
-                                                    const char* mastersecret, size_t mastersecret_size,
-                               const char* salt, size_t salt_size, const char* id_context, uint8_t id_context_size,
-                               int auth_at_index, bool read_ssn_from_storage);
+  oc_oscore_context_t* oc_oscore_add_sender_context(const uint8_t* sender_id, uint8_t sender_id_size, uint64_t ssn,
+                                                    const uint8_t* mastersecret, uint8_t mastersecret_size,
+                                                    const uint8_t* salt, uint8_t salt_size, const uint8_t* id_context, uint8_t id_context_size,
+                                                    int32_t auth_at_index, bool read_ssn_from_storage);
 
 /**
  * @brief Free the least recently used recipient context
