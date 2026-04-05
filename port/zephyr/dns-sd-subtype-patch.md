@@ -53,12 +53,11 @@ KNX-IoT requires three subtype PTR records per device:
   `knx_subtype_pm`.
 - Three `DNS_SD_REGISTER_SERVICE_SUBTYPE` linker-section records sharing the
   same `knx_instance` / `knx_txt` / `knx_port` buffers as the primary record.
-- `knx_publish_service`: populates sub-type buffers from `iid`, `ia`, and `pm`
+- `knx_dns_sd_update_service`: populates sub-type buffers from `iid`, `ia`, and `pm`
   arguments; zeroes `knx_subtype_ia` when uncommissioned (`iid == 0 && ia == 0`);
   zeroes `knx_subtype_pm` when `pm == false`.
-- `knx_stop_mdns`: zeroes all three sub-type buffers alongside `knx_instance`,
+- `knx_dns_sd_stop`: zeroes all three sub-type buffers alongside `knx_instance`,
   suppressing all mDNS advertisements atomically.
-- Removed stale `(void)iid`, `(void)ia`, `(void)pm` suppressors.
 
 ---
 
@@ -66,7 +65,7 @@ KNX-IoT requires three subtype PTR records per device:
 
 All four records (primary + three sub-types) share the `knx_instance` pointer.
 Zephyr's `rec_is_valid()` rejects records with an empty instance string, so
-zeroing `knx_instance` in `knx_stop_mdns` silently suppresses all four records
+zeroing `knx_instance` in `knx_dns_sd_stop` silently suppresses all four records
 in the next mDNS response cycle without any special-casing per record.
 
 Individual sub-type records can be suppressed independently by zeroing their

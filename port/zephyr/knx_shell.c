@@ -260,7 +260,7 @@ static int knx_pm_cmd(const struct shell *sh, size_t argc, char **argv)
     device->pm = mode;
     oc_storage_write(KNX_STORAGE_PM, (uint8_t *)&mode, sizeof(mode));
     /* Update DNS-SD */
-    knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, mode);
+    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, mode);
     return 0;
 }
 

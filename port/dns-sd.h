@@ -25,6 +25,7 @@ extern "C" {
 #include "../api/oc_knx_fp.h"  // for oc_ip_status_t
 
 /**
+  TODO FIXME Review mDNS vs DNS-SD terminology in the API and docs.
    @brief Publish a KNX mDNS service in order to enable DNS-SD discovery on server side.
   
    @param serial_no KNX serial number
@@ -48,7 +49,7 @@ extern "C" {
 
    
  */
-int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
+int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
 
  
 /**
@@ -57,7 +58,7 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm);
  * @param sp The period, in milliseconds. A value of 0 removes the
  * advertisement, signalling that the device is wakeful.
  */
-void knx_service_sleep_period(int sp);
+void knx_dns_sd_set_sleep_period(int sp);
 
  /**
  * @brief Returns the device used unicast port.
@@ -67,15 +68,24 @@ void knx_service_sleep_period(int sp);
  *       specific IP header file in the (OS) shared stack code.
  *
  */
-uint16_t knx_get_used_port(void);
+uint16_t knx_dns_sd_get_used_port(void);
 
 /**
- * @brief Stop the mDNS service: send goodbye, stop listener thread, close sockets.
+ * @brief Stop DNS-SD/mDNS service advertisements during application shutdown.
  *
- * Call this during application shutdown (e.g. from oc_main_shutdown).
+ * On Zephyr (Wi-Fi / Thread): suppresses DNS-SD advertisements by zeroing the
+ * instance and sub-type record buffers; the mDNS responder thread keeps running.
+ *
+ * On Linux / Windows: sends mDNS goodbye packets, stops the listener thread,
+ * and closes the multicast socket — the mDNS service is fully torn down.
+ *
+ * Call this from oc_main_shutdown before tearing down the network stack.
  */
-void knx_stop_mdns(void);
-
+#ifdef __ZEPHYR__
+void knx_dns_sd_stop(void);
+#else
+void knx_mdns_stop(void);
+#endif
 
 #ifdef __cplusplus
 }

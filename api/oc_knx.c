@@ -166,9 +166,9 @@ static oc_event_callback_retval_t reset(void* context)
     my_reset_cb->cb(cached_erase_code_value, my_reset_cb->data);
   }
 
-  PRINT("Re-register mDNS after a reset with erase code 2 or 7");
+  PRINT("Re-register DNS-SD service after a reset with erase code 2 or 7");
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return OC_EVENT_DONE;
 }
@@ -496,8 +496,8 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
         oc_register_group_multicasts();
         oc_init_datapoints_at_initialization();
 
-        PRINT("Re-register mDNS after a LSM went to loaded");
-        knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+        PRINT("Re-register DNS-SD service after a LSM went to loaded");
+        knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
         // task 2
         oc_knx_increase_fingerprint();
@@ -1221,7 +1221,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     // even when the device is not yet in loaded/runtime state.
     PRINT("Re-register mDNS after writing iid + ia)");
     const oc_device_info_t* const  device = oc_core_get_device_info();
-    knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
   }

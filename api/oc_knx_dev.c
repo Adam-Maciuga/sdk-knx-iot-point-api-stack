@@ -335,9 +335,9 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request,
             oc_register_group_multicasts();
             oc_init_datapoints_at_initialization();
 
-            PRINT("Re-register mDNS after a writing iid)"); // TODO LOG make this depending on log level
+            PRINT("Re-register DNS-SD service after writing IID)"); // TODO LOG make this depending on log level
             const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_publish_service(oc_string(device->serialnumber), device->iid, 
+            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
                     device->ia, device->pm);
           }
 
@@ -547,8 +547,8 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
           device->pm = rep->value.boolean;
         }
 
-        PRINT("Re-register mDNS after a writing PROG mode)"); // TODO LOG make this depending on log level
-        knx_publish_service(oc_string(device->serialnumber), device->iid, 
+        PRINT("Re-register DNS-SD service after writing PROG mode)"); // TODO LOG make this depending on log level
+        knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
                 device->ia, device->pm);
         oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&rep->value.boolean, 1);
 
@@ -836,7 +836,7 @@ static void oc_core_dev_port_get_handler(oc_request_t* request,
   
   oc_rep_begin_root_object();
   // use actual used port from ip adapter
-  oc_rep_i_set_int(root, 1, knx_get_used_port());
+  oc_rep_i_set_int(root, 1, knx_dns_sd_get_used_port());
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
@@ -1282,10 +1282,10 @@ void oc_knx_device_restart(void) {
   // check and send on i-flags
   oc_init_datapoints_at_initialization();
 
-  // Re-publish mDNS service after restart to reflect updated state
+  // Re-publish DNS-SD service after restart to reflect updated state
   // (e.g. PM=false, changed IA/IID from prior POST).
-  PRINT("Re-register mDNS after device restart)");
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  PRINT("Re-register DNS-SD service after device restart)");
+  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   // application restart callback handler
   const oc_restart_t* my_restart = oc_get_restart_cb();

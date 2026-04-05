@@ -195,7 +195,7 @@ static void knx_set_dynamic_subtypes(uint32_t iid, uint32_t ia, bool pm)
     }
 }
 
-int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
+int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
     otInstance * thrInstancePtr = openthread_get_default_instance();
     oc_device_info_t *device = oc_core_get_device_info();
@@ -260,12 +260,12 @@ int knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
     return 0;
 }
 
-uint16_t knx_get_used_port(void)
+uint16_t knx_dns_sd_get_used_port(void)
 {
   return KNX_SRP_PORT;
 }
 
-void knx_service_sleep_period(int sp)
+void knx_dns_sd_set_sleep_period(int sp)
 {
   if (sp)
     // string includes "SP=xx"
@@ -275,7 +275,7 @@ void knx_service_sleep_period(int sp)
     memset(sp_text_record, 0, sizeof(sp_text_record));
 }
 
-void knx_stop_mdns(void)
+void knx_dns_sd_stop(void)
 {
     /* To adapt with new used MDNS */
 }
