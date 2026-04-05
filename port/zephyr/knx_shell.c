@@ -253,10 +253,13 @@ static int knx_pm_cmd(const struct shell *sh, size_t argc, char **argv)
         return -EINVAL;
     }
     bool mode = (arg == 1) ? true : false;
+    /* TODO FIXME: Merge with equivalent code in apps/knx_iot_app.c into a
+     * single stack function (oc_knx_device_set_programming_mode) that covers
+     * field update, storage write, and DNS-SD update in one place. */
     oc_device_info_t *device = oc_core_get_device_info();
     device->pm = mode;
     oc_storage_write(KNX_STORAGE_PM, (uint8_t *)&mode, sizeof(mode));
-    /* Update mDNS */
+    /* Update DNS-SD */
     knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, mode);
     return 0;
 }
@@ -351,12 +354,14 @@ static int knx_gpt_cmd(const struct shell *sh, size_t argc, char **argv)
         snprintf(ga_str + pos, sizeof(ga_str) - pos, "]");
         char iid_str[16];
         knx_iid_to_str((uint64_t)e->iid, iid_str, sizeof(iid_str));
+        char grpid_str[16];
+        knx_iid_to_str((uint64_t)e->grpid, grpid_str, sizeof(grpid_str));
         if (oc_string_len(e->at) > 0) {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " at:%s ga:%s",
-                        i, e->id, e->ia, iid_str, e->fid, e->grpid, oc_string_checked(e->at), ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%s at:%s ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, grpid_str, oc_string_checked(e->at), ga_str);
         } else {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " ga:%s",
-                        i, e->id, e->ia, iid_str, e->fid, e->grpid, ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%s ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, grpid_str, ga_str);
         }
     }
     return 0;
@@ -381,12 +386,14 @@ static int knx_grt_cmd(const struct shell *sh, size_t argc, char **argv)
         snprintf(ga_str + pos, sizeof(ga_str) - pos, "]");
         char iid_str[16];
         knx_iid_to_str((uint64_t)e->iid, iid_str, sizeof(iid_str));
+        char grpid_str[16];
+        knx_iid_to_str((uint64_t)e->grpid, grpid_str, sizeof(grpid_str));
         if (oc_string_len(e->at) > 0) {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " at:%s ga:%s",
-                        i, e->id, e->ia, iid_str, e->fid, e->grpid, oc_string_checked(e->at), ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%s at:%s ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, grpid_str, oc_string_checked(e->at), ga_str);
         } else {
-            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%" PRIu32 " ga:%s",
-                        i, e->id, e->ia, iid_str, e->fid, e->grpid, ga_str);
+            shell_print(sh, "[%d] id:%" PRId32 " ia:%" PRId32 " iid:%s fid:%" PRIi64 " grpid:%s ga:%s",
+                        i, e->id, e->ia, iid_str, e->fid, grpid_str, ga_str);
         }
     }
     return 0;
