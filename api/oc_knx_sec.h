@@ -303,7 +303,7 @@ extern "C" {
 	 * @return int -1 : AT entry not found
 	 * @return int >=0 : index to place entry
 	 */
-  int oc_core_find_at_entry_with_osc_id(uint8_t* osc_id, size_t osc_id_len);
+  int oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len);
 
 	/**
    * @brief get OSCORE Replay Window Size

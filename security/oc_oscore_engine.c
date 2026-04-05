@@ -443,7 +443,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       { // no beforehand cached context available, make one (usually on a fresh req[in])
 
         // find auth/at entry with corresponding 'kid' from inbound message
-        const int idx = oc_core_find_at_entry_with_osc_id(coap_pkt->kid, coap_pkt->kid_len);
+        const int idx = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
         if (idx == -1)
         {
           /*
@@ -484,7 +484,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         uint64_t inbound_ssn;
         oscore_store_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len, &inbound_ssn);
 
-        // get access token, idx cannot be out of range because of the check before, see method 'oc_core_find_at_entry_with_osc_id' 
+        // get access token, idx cannot be out of range because of the check before, see method 'oc_core_find_at_entry_by_osc_id' 
         const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
         // take over client's ssn on synchronization, due to a lost sync by the client
@@ -554,7 +554,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     { // kid_ctx = 10
 
       // find auth/at entry with corresponding 'kid' from inbound message
-      const int idx = oc_core_find_at_entry_with_osc_id(coap_pkt->kid, coap_pkt->kid_len);
+      const int idx = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
       if (idx == -1)
       {
         /*
@@ -581,7 +581,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
      
       // TODO DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
       
-      // get access token, cannot be out of range because of the check before, see method 'oc_core_find_at_entry_with_osc_id'
+      // get access token, cannot be out of range because of the check before, see method 'oc_core_find_at_entry_by_osc_id'
       const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
       // init ssn with '0', not used on any sending (BUT consider on TASK above) 
