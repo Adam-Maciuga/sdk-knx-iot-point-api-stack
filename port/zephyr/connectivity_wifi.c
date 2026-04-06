@@ -10,8 +10,13 @@
  * connectivity_thread.c but uses POSIX-compatible Zephyr sockets instead of
  * the OpenThread-specific otUdp API.
  *
- * A dedicated receive thread blocks on recvfrom() and feeds incoming datagrams
- * into the KNX-IoT stack via oc_network_event().
+ * Two sockets are used to distinguish unicast from multicast traffic, mirroring
+ * the Linux ipadapter design:
+ *   server_sock — unicast only; no multicast groups joined; used for all sends.
+ *   mcast_sock  — multicast only; all group subscriptions are made here.
+ * A receive thread polls both sockets and sets the MULTICAST endpoint flag for
+ * packets arriving on mcast_sock.  This flag is required for correct S-mode
+ * (group communication) Echo handling in the KNX-IoT CoAP/OSCORE engine.
  */
 
 #include <errno.h>
@@ -49,8 +54,69 @@ K_THREAD_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
 static struct k_thread rx_thread_data;
 K_MUTEX_DEFINE(network_mutex);
 
-static int   coap_sock    = -1;
-static k_tid_t rx_tid     = NULL;
+/* server_sock: unicast traffic only; also used for all outgoing sends.
+ * mcast_sock:  multicast group subscriptions; receive-only. */
+static int server_sock = -1;
+static int mcast_sock  = -1;
+static k_tid_t rx_tid  = NULL;
+
+/* ── Helpers ────────────────────────────────────────────────────────────────── */
+
+/* Receive one datagram from fd using recvmsg() so that the IPV6_PKTINFO
+ * ancillary message is available.  Populates source address, interface index,
+ * and (for unicast sockets) the destination address into addr_local.
+ * is_mcast must be true when fd is mcast_sock so that addr_local is cleared
+ * instead (mirrors the Linux ipadapter recv_msg() behaviour). */
+static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
+{
+    struct sockaddr_in6 from = {0};
+    uint8_t ctrl[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+    struct iovec iov = {
+        .iov_base = message->data,
+        .iov_len  = OC_PDU_SIZE,
+    };
+    struct msghdr mhdr = {
+        .msg_name       = &from,
+        .msg_namelen    = sizeof(from),
+        .msg_iov        = &iov,
+        .msg_iovlen     = 1,
+        .msg_control    = ctrl,
+        .msg_controllen = sizeof(ctrl),
+    };
+
+    ssize_t len = zsock_recvmsg(fd, &mhdr, 0);
+    if (len < 0) {
+        return false;
+    }
+
+    message->length                  = (size_t)len;
+    message->endpoint.addr.ipv6.port = ntohs(from.sin6_port);
+    memcpy(message->endpoint.addr.ipv6.address, from.sin6_addr.s6_addr, 16);
+
+    /* Parse IPV6_PKTINFO ancillary data for interface index and
+     * destination address (required for correct OSCORE response routing). */
+    for (struct cmsghdr *cm = CMSG_FIRSTHDR(&mhdr); cm != NULL;
+         cm = CMSG_NXTHDR(&mhdr, cm)) {
+        if (cm->cmsg_level == IPPROTO_IPV6 && cm->cmsg_type == IPV6_PKTINFO) {
+            struct in6_pktinfo *pi =
+                (struct in6_pktinfo *)CMSG_DATA(cm);
+            message->endpoint.interface_index = (int)pi->ipi6_ifindex;
+            if (!is_mcast) {
+                /* Unicast socket: record destination address so the stack
+                 * can use it as the source address in replies. */
+                memcpy(message->endpoint.addr_local.ipv6.address,
+                       pi->ipi6_addr.s6_addr, 16);
+            } else {
+                /* Multicast socket: addr_local is not meaningful here;
+                 * clear it to avoid stale data (matches Linux ipadapter). */
+                memset(message->endpoint.addr_local.ipv6.address, 0, 16);
+            }
+            break;
+        }
+    }
+
+    return true;
+}
 
 /* ── Receive thread ────────────────────────────────────────────────────────── */
 
@@ -60,90 +126,181 @@ static void rx_thread(void *p1, void *p2, void *p3)
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
 
-    OC_DBG("CoAP RX thread started, blocking on recvfrom fd=%d.", coap_sock);
+    OC_DBG("CoAP RX thread started, polling server_sock=%d mcast_sock=%d.",
+           server_sock, mcast_sock);
 
     while (true) {
-        oc_message_t *message = oc_allocate_message();
-        if (!message) {
-            OC_ERR("Failed to allocate message for CoAP RX!");
-            k_msleep(10);
-            continue;
-        }
+        struct zsock_pollfd fds[2] = {
+            { .fd = server_sock, .events = ZSOCK_POLLIN },
+            { .fd = mcast_sock,  .events = ZSOCK_POLLIN },
+        };
 
-        struct sockaddr_in6 from;
-        socklen_t from_len = sizeof(from);
-
-        ssize_t len = zsock_recvfrom(coap_sock, message->data, OC_PDU_SIZE, 0,
-                                     (struct sockaddr *)&from, &from_len);
-        if (len < 0) {
-            oc_message_unref(message);
-            if (coap_sock < 0) {
-                /* Socket closed — shutdown requested, exit thread. */
+        int r = zsock_poll(fds, 2, -1);
+        if (r < 0) {
+            if (server_sock < 0 && mcast_sock < 0) {
+                /* Both sockets closed — shutdown requested, exit thread. */
                 break;
             }
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                OC_ERR("recvfrom error: %d", errno);// TODO wording
+                OC_ERR("Failed to wait for incoming CoAP datagrams: %d", errno);
             }
             continue;
         }
 
-        message->length                    = (size_t)len;
-        message->endpoint.flags            = IPV6;
-        message->endpoint.addr.ipv6.port   = ntohs(from.sin6_port);
-        memcpy(message->endpoint.addr.ipv6.address,
-               from.sin6_addr.s6_addr, 16);
+        for (int i = 0; i < 2; i++) {
+            if (!(fds[i].revents & ZSOCK_POLLIN)) {
+                continue;
+            }
 
-        OC_INF("Incoming CoAP message of size %d bytes from ", (int)len);
-        PRINTipaddr(message->endpoint);
-        PRINT("\r\n");
+            oc_message_t *message = oc_allocate_message();
+            if (!message) {
+                OC_ERR("Failed to allocate message buffer for incoming CoAP datagram!");
+                /* Drain the socket to avoid getting stuck. */
+                uint8_t drain[1];
+                zsock_recv(fds[i].fd, drain, sizeof(drain), 0);
+                continue;
+            }
 
-        oc_network_event(message);
+            /* i == 0: server_sock → unicast; i == 1: mcast_sock → multicast */
+            bool is_mcast = (i == 1);
+            message->endpoint.flags = IPV6 | (is_mcast ? MULTICAST : 0);
+
+            if (!recv_one(fds[i].fd, message, is_mcast)) {
+                oc_message_unref(message);
+                if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                    OC_ERR("Failed to receive CoAP datagram: %d", errno);
+                }
+                continue;
+            }
+
+            OC_INF("Incoming CoAP message of size %d bytes from ", (int)message->length);
+            PRINTipaddr(message->endpoint);
+            PRINT("\r\n");
+
+            oc_network_event(message);
+        }
     }
+}
+
+/* ── Socket helpers ─────────────────────────────────────────────────────────── */
+
+/* Open a UDP socket and bind it to the given port on any IPv6 address.
+ * Pass port=0 to let the OS assign an ephemeral port (used for server_sock).
+ * Pass port=COAP_PORT_UNSECURED for mcast_sock; SO_REUSEADDR is set so that
+ * both sockets can coexist without SO_REUSEPORT — which would cause the kernel
+ * to load-balance packets between sockets and break the unicast/multicast split.
+ * description is a human-readable label used in log messages, e.g. "unicast". */
+static int open_and_bind_socket(uint16_t port, const char *description)
+{
+    struct sockaddr_in6 addr = {
+        .sin6_family = AF_INET6,
+        .sin6_port   = htons(port),
+        .sin6_addr   = IN6ADDR_ANY_INIT,
+    };
+    int on = 1;
+    int fd = zsock_socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    if (fd < 0) {
+        OC_ERR("Failed to open %s UDP socket for port %u: %d",
+               description, (unsigned)port, errno);
+        return -1;
+    }
+
+    /* Allow two sockets to share port 5683 without SO_REUSEPORT load-balancing. */
+    if (zsock_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
+        OC_ERR("Failed to enable address reuse (SO_REUSEADDR) on %s socket: %d",
+               description, errno);
+    }
+
+    /* Deliver destination address and receive interface index via recvmsg()
+     * ancillary data (IPV6_PKTINFO).  Required to populate
+     * endpoint->interface_index and endpoint->addr_local correctly. */
+    if (zsock_setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) < 0) {
+        OC_ERR("Failed to enable receive packet info (IPV6_RECVPKTINFO) on %s socket: %d",
+               description, errno);
+    }
+
+    /* Restrict to real IPv6; reject IPv4-mapped addresses (mirrors Linux ipadapter). */
+    if (zsock_setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on)) < 0) {
+        OC_ERR("Failed to restrict to IPv6 only (IPV6_V6ONLY) on %s socket: %d",
+               description, errno);
+    }
+
+    /* Prefer stable public SLAAC address as source to prevent source address
+     * flip between S-mode retransmissions, which breaks the Echo sync loop.
+     * NOTE: IPV6_ADDR_PREFERENCES is defined as a macro in <zephyr/net/socket.h>
+     * so this #ifdef always evaluates to true on Zephyr — the guard is kept only
+     * for portability with the Linux ipadapter pattern. */
+#ifdef IPV6_ADDR_PREFERENCES
+    {
+        int prefer = IPV6_PREFER_SRC_PUBLIC;
+        if (zsock_setsockopt(fd, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES,
+                             &prefer, sizeof(prefer)) < 0) {
+            OC_ERR("Failed to set source address preference (IPV6_ADDR_PREFERENCES) on %s socket: %d",
+                   description, errno);
+        }
+    }
+#endif
+
+    if (zsock_bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        int bind_err = errno;  /* preserve errno before zsock_close() can overwrite it */
+        OC_ERR("Failed to bind %s UDP socket to port %u: %d",
+               description, (unsigned)port, bind_err);
+        zsock_close(fd);
+        errno = bind_err;
+        return -1;
+    }
+    return fd;
 }
 
 /* ── Public interface ─────────────────────────────────────────────────────── */
 
 int oc_connectivity_init(void)
 {
-    struct sockaddr_in6 addr = {
-        .sin6_family = AF_INET6,
-        .sin6_port   = htons(COAP_PORT_UNSECURED),
-        .sin6_addr   = IN6ADDR_ANY_INIT,
-    };
-    int on = 1;
-
-    coap_sock = zsock_socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-    if (coap_sock < 0) {
-        OC_ERR("UDP socket creation failed: %d", errno);
+    /* server_sock binds to port 0 so the OS assigns an ephemeral port.
+     * This mirrors the Linux ipadapter: server_sock never competes with
+     * mcast_sock for port 5683, so no SO_REUSEPORT is needed and the kernel
+     * delivers port-5683 traffic exclusively to mcast_sock. */
+    server_sock = open_and_bind_socket(0, "unicast");
+    if (server_sock < 0) {
+        OC_ERR("Failed to create unicast CoAP socket: %d", errno);
         return -1;
     }
-    OC_DBG("UDP socket created, fd=%d.", coap_sock);
 
-    /* Allow re-binding after a quick restart */
-    zsock_setsockopt(coap_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    /* Discover and log the actual ephemeral port assigned to server_sock. */
+    {
+        struct sockaddr_in6 sa = {0};
+        socklen_t sa_len = sizeof(sa);
+        if (zsock_getsockname(server_sock, (struct sockaddr *)&sa, &sa_len) == 0) {
+            OC_DBG("Unicast socket ready, fd=%d, ephemeral port=%u.",
+                   server_sock, (unsigned)ntohs(sa.sin6_port));
+        } else {
+            OC_DBG("Unicast socket ready, fd=%d.", server_sock);
+        }
+    }
 
-    if (zsock_bind(coap_sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        OC_ERR("Bind to UDP port %d failed: %d", COAP_PORT_UNSECURED, errno);
-        zsock_close(coap_sock);
-        coap_sock = -1;
+    mcast_sock = open_and_bind_socket(COAP_PORT_UNSECURED, "multicast");
+    if (mcast_sock < 0) {
+        OC_ERR("Failed to create multicast CoAP socket: %d", errno);
+        zsock_close(server_sock);
+        server_sock = -1;
         return -1;
     }
-    OC_DBG("Bound to UDP port %d.", COAP_PORT_UNSECURED);
+    OC_DBG("Multicast socket ready, fd=%d, port=%u.", mcast_sock, COAP_PORT_UNSECURED);
 
     /* Pin multicast sends to the default (WiFi) interface.
      * Without this, sendto() on ff02::/ff03:: multicast destinations would rely
      * on kernel routing which may fail if no explicit multicast route is set. */
     int ifidx = net_if_get_by_iface(net_if_get_default());
     if (ifidx > 0) {
-        if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+        if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                              &ifidx, sizeof(ifidx)) < 0) {
             OC_WRN("Failed to pin multicast sends to interface: %d", errno);
         } else {
             OC_DBG("Multicast sends pinned to interface ifidx=%d.", ifidx);
         }
 
-        /* Subscribe to all-CoAP-nodes multicast groups so discovery
-         * requests reach this socket regardless of GOT configuration.
+        /* Subscribe to all-CoAP-nodes multicast groups on mcast_sock so
+         * discovery requests reach the device regardless of GOT configuration.
          * Mirrors Linux ipadapter add_mcast_sock_to_ipv6_mcast_group(). */
         {
             static const uint8_t *coap_mcast[] = {
@@ -154,7 +311,7 @@ int oc_connectivity_init(void)
             int n_joined = 0;
             for (int i = 0; i < 3; i++) {
                 memcpy(&mreq_coap.ipv6mr_multiaddr, coap_mcast[i], 16);
-                if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+                if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
                                      &mreq_coap, sizeof(mreq_coap)) < 0) {
                     OC_ERR("Failed to join all-CoAP-nodes group [%d]: %d", i, errno);
                 } else {
@@ -185,11 +342,11 @@ int oc_send_buffer(oc_message_t *message)
     };
 
     if (!message) {
-        OC_ERR("NULL message!");
+        OC_ERR("Attempted to send a NULL message!");
         return -1;
     }
-    if (coap_sock < 0) {
-        OC_ERR("CoAP socket not open!");
+    if (server_sock < 0) {
+        OC_ERR("Cannot send CoAP message: socket is not open!");
         return -1;
     }
 
@@ -202,10 +359,10 @@ int oc_send_buffer(oc_message_t *message)
     to.sin6_port = htons(message->endpoint.addr.ipv6.port);
     memcpy(to.sin6_addr.s6_addr, message->endpoint.addr.ipv6.address, 16);
 
-    ssize_t sent = zsock_sendto(coap_sock, message->data, message->length, 0,
+    ssize_t sent = zsock_sendto(server_sock, message->data, message->length, 0,
                                 (struct sockaddr *)&to, sizeof(to));
     if (sent < 0) {
-        OC_ERR("sendto failed: %d", errno); // TODO wording
+        OC_ERR("Failed to send CoAP message: %d", errno);
         return -1;
     }
 
@@ -260,9 +417,16 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
 
 void oc_connectivity_shutdown(void)
 {
-    if (coap_sock >= 0) {
-        int fd   = coap_sock;
-        coap_sock = -1;    /* signal rx_thread to exit before closing */
+    /* Set both fds to -1 before closing so the rx_thread poll loop detects
+     * shutdown and exits cleanly. */
+    if (server_sock >= 0) {
+        int fd = server_sock;
+        server_sock = -1;
+        zsock_close(fd);
+    }
+    if (mcast_sock >= 0) {
+        int fd = mcast_sock;
+        mcast_sock = -1;
         zsock_close(fd);
     }
 }
@@ -295,7 +459,7 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     struct ipv6_mreq mreq = {0};
 
-    if (coap_sock < 0 || !address) {
+    if (mcast_sock < 0 || !address) {
         return;
     }
 
@@ -303,7 +467,7 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     mreq.ipv6mr_ifindex = (unsigned int)net_if_get_by_iface(net_if_get_default());
 
     OC_DBG("Subscribing to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
-    if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+    if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
                    &mreq, sizeof(mreq)) < 0) {
         OC_ERR("Failed to subscribe to multicast group: %d", errno);
     } else {
@@ -315,7 +479,7 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
 {
     struct ipv6_mreq mreq = {0};
 
-    if (coap_sock < 0 || !address) {
+    if (mcast_sock < 0 || !address) {
         return;
     }
 
@@ -323,7 +487,7 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     mreq.ipv6mr_ifindex = (unsigned int)net_if_get_by_iface(net_if_get_default());
 
     OC_DBG("Unsubscribing from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
-    if (zsock_setsockopt(coap_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
+    if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
                    &mreq, sizeof(mreq)) < 0) {
         OC_ERR("Failed to unsubscribe from multicast group: %d", errno);
     } else {

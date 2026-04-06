@@ -353,9 +353,9 @@ void oc_main_shutdown(void)
    * On Zephyr: suppresses DNS-SD advertisements (mDNS responder keeps running).
    * On Linux/Windows: sends goodbye, stops listener thread, closes socket. */
 #ifdef __ZEPHYR__
-  knx_stop_dns_sd();
+  knx_dns_sd_stop();
 #else
-  knx_stop_mdns();
+  knx_mdns_stop();
 #endif
 
   /* Send MLD leave messages for all registered multicast groups */
