@@ -488,12 +488,20 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
         // take over client's ssn on synchronization, due to a lost sync by the client
-        oscore_ctx = oc_oscore_add_recipient_context(
-          oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-          inbound_ssn,
-          oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
-          oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-          (char*)coap_pkt->kid_ctx, coap_pkt->kid_ctx_len, idx, false);
+        const oc_oscore_context_params_t oscore_params = {
+          .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
+          .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
+          .ssn = inbound_ssn,
+          .mastersecret = (uint8_t*)oc_string(at_entry->osc_ms),
+          .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
+          .salt = (uint8_t*)oc_string(at_entry->osc_salt),
+          .salt_size = oc_byte_string_len(at_entry->osc_salt),
+          .id_context = (const uint8_t*)coap_pkt->kid_ctx,
+          .id_context_size = coap_pkt->kid_ctx_len,
+          .auth_at_index = idx,
+          .read_ssn_from_storage = false
+        };
+        oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
         if (!oscore_ctx)
         {
@@ -584,13 +592,21 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       // get access token, cannot be out of range because of the check before, see method 'oc_core_find_at_entry_by_osc_id'
       const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
-      // init ssn with '0', not used on any sending (BUT consider on TASK above) 
-      oscore_ctx = oc_oscore_add_recipient_context(
-        oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id), 
-        0,
-        oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
-        oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-        (char*)coap_pkt->kid_ctx, coap_pkt->kid_ctx_len, idx, false);
+      // init ssn with '0', not used on any sending (BUT consider on TASK above)
+      const oc_oscore_context_params_t oscore_params = {
+        .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
+        .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
+        .ssn = 0,
+        .mastersecret = (uint8_t*)oc_string(at_entry->osc_ms),
+        .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
+        .salt = (uint8_t*)oc_string(at_entry->osc_salt),
+        .salt_size = oc_byte_string_len(at_entry->osc_salt),
+        .id_context = (const uint8_t*)coap_pkt->kid_ctx,
+        .id_context_size = coap_pkt->kid_ctx_len,
+        .auth_at_index = idx,
+        .read_ssn_from_storage = false
+      };
+      oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
       if (!oscore_ctx)
       {
@@ -1166,14 +1182,20 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                - ssn = from s-mode request message, used for 'unicast echo responses'
         */
 
-        oscore_ctx = oc_oscore_add_sender_context(
-          oc_string(at_entry->osc_id), oc_byte_string_len(at_entry->osc_id),
-          inbound_ssn,
-          oc_string(at_entry->osc_ms), oc_byte_string_len(at_entry->osc_ms),
-          oc_string(at_entry->osc_salt), oc_byte_string_len(at_entry->osc_salt),
-          rnd, 10, 
-          from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg,
-          false);
+        const oc_oscore_context_params_t oscore_params = {
+          .sender_id = (uint8_t*)oc_string(at_entry->osc_id),
+          .sender_id_size = oc_byte_string_len(at_entry->osc_id),
+          .ssn = inbound_ssn,
+          .mastersecret = (uint8_t*)oc_string(at_entry->osc_ms),
+          .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
+          .salt = (uint8_t*)oc_string(at_entry->osc_salt),
+          .salt_size = oc_byte_string_len(at_entry->osc_salt),
+          .id_context = rnd,
+          .id_context_size = 10,
+          .auth_at_index = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg,
+          .read_ssn_from_storage = false
+        };
+        oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 
         if (!oscore_ctx)
         {

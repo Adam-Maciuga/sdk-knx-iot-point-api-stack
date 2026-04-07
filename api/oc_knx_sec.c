@@ -1902,14 +1902,20 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         OC_DBG("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
         // Request Sender Context (used by access token = Request)
-        const oc_oscore_context_t* oscore_ctx = oc_oscore_add_sender_context(
-          osc_id, osc_id_len,
-          stored_ssn,
-          osc_ms, osc_ms_len,
-          osc_salt, osc_salt_len,
-          osc_contextid, osc_contextid_len,
-          i,
-          read_ssn_from_storage);
+        const oc_oscore_context_params_t oscore_params = {
+          .sender_id = osc_id,
+          .sender_id_size = osc_id_len,
+          .ssn = stored_ssn,
+          .mastersecret = osc_ms,
+          .mastersecret_size = osc_ms_len,
+          .salt = osc_salt,
+          .salt_size = osc_salt_len,
+          .id_context = osc_contextid,
+          .id_context_size = osc_contextid_len,
+          .auth_at_index = i,
+          .read_ssn_from_storage = read_ssn_from_storage
+        };
+        const oc_oscore_context_t* oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 
         if (!oscore_ctx)
         {
