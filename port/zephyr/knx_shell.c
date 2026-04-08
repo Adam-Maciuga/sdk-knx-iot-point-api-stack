@@ -12,6 +12,8 @@
 #include <inttypes.h>
 
 #include <zephyr/shell/shell.h>
+#include <zephyr/sys/sys_heap.h>
+#include <zephyr/sys/mem_stats.h>
 
 #include "oc_main.h"
 #include "oc_knx.h" // RESET_TO_DEFAULT_STATE
@@ -486,6 +488,59 @@ static int knx_factory_reset_cmd(const struct shell *sh, size_t argc, char **arg
     return 0;
 }
 
+/* KNX heap statistics command.
+ *
+ * Zephyr has two separate heaps:
+ *  1. Zephyr sys_heap (_system_heap) — used by k_malloc()/k_free().
+ *     Also shown by "kernel heap".  Covers Wi-Fi driver, WPA supplicant,
+ *     net stack, mDNS, DNS, HTTP server, DHCP.
+ *  2. C malloc heap (z_malloc_heap) — used by the KNX IoT stack via
+ *     malloc()/free().  NOT shown by "kernel heap".  Backed by remaining
+ *     RAM after all static allocations including the sys_heap array.
+ *
+ * Requires CONFIG_SYS_HEAP_RUNTIME_STATS=y (set via CONFIG_KERNEL_SHELL). */
+static int knx_heap_cmd(const struct shell *sh, size_t argc, char **argv)
+{
+#if defined(CONFIG_SYS_HEAP_RUNTIME_STATS)
+    extern struct sys_heap _system_heap;
+
+    struct sys_memory_stats stats;
+
+    shell_print(sh, "Zephyr sys_heap (k_malloc — Wi-Fi driver, net stack, mDNS, DNS, HTTP, DHCP):");
+    if (sys_heap_runtime_stats_get(&_system_heap, &stats) == 0) {
+        shell_print(sh, "  Total arena size : %zu bytes", _system_heap.init_bytes);
+        shell_print(sh, "  Allocated        : %zu bytes", stats.allocated_bytes);
+        shell_print(sh, "  Free             : %zu bytes", stats.free_bytes);
+        shell_print(sh, "  Max. allocated   : %zu bytes", stats.max_allocated_bytes);
+    } else {
+        shell_error(sh, "  Failed to read sys_heap stats");
+    }
+
+#if defined(CONFIG_KNXIOT_ZEPHYR_MALLOC_HEAP_STATS)
+    extern int z_malloc_heap_runtime_stats_get(struct sys_memory_stats *stats);
+    extern size_t z_malloc_heap_init_bytes(void);
+
+    shell_print(sh, "C library heap (z_malloc_heap — all malloc/free callers, incl. KNX IoT stack):");
+    if (z_malloc_heap_runtime_stats_get(&stats) == 0) {
+        shell_print(sh, "  Total arena size : %zu bytes", z_malloc_heap_init_bytes());
+        shell_print(sh, "  Allocated        : %zu bytes", stats.allocated_bytes);
+        shell_print(sh, "  Free             : %zu bytes", stats.free_bytes);
+        shell_print(sh, "  Max. allocated   : %zu bytes", stats.max_allocated_bytes);
+    } else {
+        shell_error(sh, "  Failed to read malloc heap stats");
+    }
+#else
+    shell_print(sh, "C library heap (z_malloc_heap): not available");
+    shell_print(sh, "  Enable CONFIG_KNXIOT_ZEPHYR_MALLOC_HEAP_STATS and apply");
+    shell_print(sh, "  0005-zephyr-4.3-lib-libc-common-add-malloc-heap-stats-acc.patch");
+#endif
+
+#else
+    shell_error(sh, "Not available: requires CONFIG_SYS_HEAP_RUNTIME_STATS=y");
+#endif /* CONFIG_SYS_HEAP_RUNTIME_STATS */
+    return 0;
+}
+
 /* Define main KNX IoT command structure */
 SHELL_STATIC_SUBCMD_SET_CREATE(knx_iot_subcmd,
     SHELL_CMD_ARG(serial_number, NULL, "Serial number", knx_serial_number_cmd, 1, 0), /* TODO add set? */
@@ -510,6 +565,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(knx_iot_subcmd,
     SHELL_CMD_ARG(print_all, NULL, "Print all parameters and tables", knx_print_all_cmd, 1, 0),
     SHELL_CMD_ARG(clear_tables, NULL, "Clear tables (keeps IA)", knx_clear_tables_cmd, 1, 0),
     SHELL_CMD_ARG(factory_reset, NULL, "Factory reset", knx_factory_reset_cmd, 1, 0),
+    SHELL_CMD_ARG(heap, NULL, "Zephyr sys_heap and KNX malloc heap statistics", knx_heap_cmd, 1, 0),
     SHELL_SUBCMD_SET_END
 );
 

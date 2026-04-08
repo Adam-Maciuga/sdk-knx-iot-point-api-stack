@@ -164,6 +164,20 @@ config KNXIOT_TLS_PKI
     help
       Corresponds to CMake: OC_PKI_ENABLED.
 
+# ── Diagnostics ────────────────────────────────────────────────────────────────
+
+config KNXIOT_ZEPHYR_MALLOC_HEAP_STATS
+    bool "C library malloc heap runtime statistics"
+    depends on COMMON_LIBC_MALLOC && SYS_HEAP_RUNTIME_STATS
+    default n
+    help
+      Expose C library malloc heap statistics in the KNX-IoT shell command
+      "knx_iot malloc_heap".  Requires Zephyr to be patched with
+      0005-zephyr-4.3-lib-libc-common-add-malloc-heap-stats-acc.patch, which
+      adds z_malloc_heap_runtime_stats_get() and z_malloc_heap_init_bytes()
+      as thin wrappers around the otherwise-static z_malloc_heap.
+      Without the patch this option must be left off (default).
+
 # ── Logging ────────────────────────────────────────────────────────────────────
 
 config KNXIOT_LOG_LEVEL
