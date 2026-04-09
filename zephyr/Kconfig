@@ -164,6 +164,13 @@ config KNXIOT_TLS_PKI
     help
       Corresponds to CMake: OC_PKI_ENABLED.
 
+# ── Timing ─────────────────────────────────────────────────────────────────────
+# OC_CLOCK_CONF_TICKS_PER_SECOND (port/zephyr/oc_config.h) is set to
+# CONFIG_SYS_CLOCK_TICKS_PER_SEC so the KNX-IoT timer arithmetic matches
+# oc_clock_time() which returns k_uptime_get() (milliseconds).
+# No separate KNX-IoT symbol is needed; configure the tick rate via
+# CONFIG_SYS_CLOCK_TICKS_PER_SEC in Zephyr's kernel/Kconfig if needed.
+
 # ── Diagnostics ────────────────────────────────────────────────────────────────
 
 config KNXIOT_ZEPHYR_MALLOC_HEAP_STATS

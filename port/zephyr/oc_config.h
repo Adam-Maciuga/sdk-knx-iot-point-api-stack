@@ -18,7 +18,12 @@ extern "C" {
 #endif
 
 typedef uint64_t oc_clock_time_t;
-#define OC_CLOCK_CONF_TICKS_PER_SECOND CLOCKS_PER_SEC
+// Clock tick rate must match oc_clock_time() which returns k_uptime_get() (milliseconds).
+// CONFIG_SYS_CLOCK_TICKS_PER_SEC is 1000 on ESP32-C6, giving 1 tick = 1 ms — correct.
+// Do NOT use CLOCKS_PER_SEC here: picolibc defines it as 1 000 000, which would make
+// all CoAP retransmit timers (e.g. COAP_RESPONSE_TIMEOUT_TICKS = 5 * 1 000 000 ticks)
+// expire after ~83 minutes instead of 5 seconds.
+#define OC_CLOCK_CONF_TICKS_PER_SECOND CONFIG_SYS_CLOCK_TICKS_PER_SEC
 
 /* Security Layer */
 // Max inactivity timeout before tearing down DTLS connection.
@@ -50,7 +55,6 @@ typedef uint64_t oc_clock_time_t;
 #else /* OC_DYNAMIC_ALLOCATION */
 // List of constraints below for a build that does not employ dynamic
 // memory allocation.
-*
 // Memory pool sizes.
 #define OC_BYTES_POOL_SIZE (1800)
 #define OC_INTS_POOL_SIZE (100)
