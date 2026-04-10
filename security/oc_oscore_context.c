@@ -393,12 +393,14 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   ctx->last_used = oc_clock_time();
 
   /* 
-     To prevent SSN reuse, bump the SNN to a higher value that could've been previously
-     used, considering any possible failed writes to a nonvolatile storage (RFC 8613 - Appendix B 1.1)
+     To prevent SSN reuse, 
+     - bump the SNN to a higher value that could've been previously used, considering any possible failed writes to a nonvolatile storage (RFC 8613 - Appendix B 1.1)
+     - store it back so that in case of a crash before the next write, the SSN is not reused on the next boot (RFC 8613 - Appendix B 1.1)
   */
   if (params->read_ssn_from_storage)
   {
     ctx->ssn += OSCORE_SSN_WRITE_FREQ_K + OSCORE_SSN_PAD_F;
+    oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
   }
 
   if (params->id_context && params->id_context_size > 0)

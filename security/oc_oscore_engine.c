@@ -141,45 +141,12 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   ctx->ssn++;
 
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
-  {
+  { // save ssn to storage every K times
 
     // TODO Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
 
-    /*
-
-      store current SSN with frequency OSCORE_WRITE_FREQ_K,
-      based on recommendations in RFC 8613, appendix B.1. to prevent SSN reuse
-
-      save ssn per (hex) sender id and (hex) id context as storage name 'ssn' + sender id + id context
-      - sender id  -> with max 14 ascii chars (hex coded)
-      - id context -> with max 32 ascii chars (hex coded) - may be empty
-
-      example: for sender id 0001 and id context 200105b7fd8e = 'ssn_0001_200105b7fd8e'
-     */
-    char storage_name[OSCORE_STORAGE_KEY_LEN] = {OSCORE_STORAGE_PREFIX};
-    size_t storage_name_len;
-
-    // claim that first buffer is big enough, is used in method below
-    storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN;
-
-    // add 'id' behind prefix that is something like 'ssn_'
-    oc_conv_byte_array_to_hex_string(ctx->sender_id, ctx->sender_id_len,
-                                     // buffer start ptr, to paste in the hex coded sender id
-                                     storage_name + OSCORE_STORAGE_PREFIX_LEN, &storage_name_len);
-
-    // append divider ( -1 to overwrite the '\0')
-    storage_name[OSCORE_STORAGE_PREFIX_LEN + storage_name_len - 1] = '_';
-
-    // claim that buffer is big enough, is used in method below ( +1 to include the foreseen sting end '\0' placeholder)
-    storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN - OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
-
-    // add 'context' behind the 'id'
-    oc_conv_byte_array_to_hex_string(
-      ctx->id_context, ctx->id_context_len,
-      // buffer start ptr, to paste in the hex coded id context ( + 1 to skip divider)
-      storage_name + (OSCORE_STORAGE_PREFIX_LEN + ctx->sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN), &storage_name_len);
-
-    oc_storage_write(storage_name, (uint8_t*)&ctx->ssn, sizeof(ctx->ssn));
+    // uses the 'Sender ID' and 'ID Context' from access token 
+    oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
   }
 }
 
@@ -477,18 +444,15 @@ static int oc_oscore_receive_message(oc_message_t* msg)
              - kid (taken from the inbound request message)
              - kid_context (taken from the inbound request message = by MaC written)
              - ms + salt from token
-             - ssn 
+             - ssn (take over client's ssn on synchronization, due to a lost sync by the client)
 
         */
 
         uint64_t inbound_ssn;
         oscore_store_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len, &inbound_ssn);
 
-        /* 
-           take over client's ssn on synchronization, due to a lost sync by the client
-           at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id' 
-        */
-        const oc_oscore_context_params_t oscore_params = {
+        const oc_oscore_context_params_t oscore_params = 
+        {
           .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
           .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
           .ssn = inbound_ssn,
@@ -498,8 +462,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = (const uint8_t*)coap_pkt->kid_ctx,
           .id_context_size = coap_pkt->kid_ctx_len,
-          .auth_at = at_entry, 
-          .read_ssn_from_storage = false
+          .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+          .read_ssn_from_storage = false // NO offset is added to SSN
         };
         oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
@@ -583,16 +547,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
            - kid (taken from access token)
            - kid_context (taken from the inbound message = rnd)
            - ms + salt from token
-           - ssn 
+           - ssn (init ssn with '0', not used on any sending)
       */
 
       // TODO DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
 
-      /*
-           init ssn with '0', not used on any sending (BUT consider on TASK above),
-           at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
-      */
-      const oc_oscore_context_params_t oscore_params = {
+      const oc_oscore_context_params_t oscore_params = 
+      {
         .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
         .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
         .ssn = 0,
@@ -602,8 +563,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         .salt_size = oc_byte_string_len(at_entry->osc_salt),
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
         .id_context_size = coap_pkt->kid_ctx_len,
-        .auth_at = at_entry,
-        .read_ssn_from_storage = false
+        .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+        .read_ssn_from_storage = false // NO offset is added to SSN
       };
       oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
@@ -1180,8 +1141,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                - ms + salt from token
                - ssn = from s-mode request message, used for 'unicast echo responses'
         */
-
-        const oc_oscore_context_params_t oscore_params = {
+        const oc_oscore_context_params_t oscore_params = 
+        {
           .sender_id = (uint8_t*)oc_string(at_entry->osc_id),
           .sender_id_size = oc_byte_string_len(at_entry->osc_id),
           .ssn = inbound_ssn,
@@ -1191,8 +1152,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = rnd,
           .id_context_size = 10,
-          .auth_at = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg,
-          .read_ssn_from_storage = false
+          .auth_at = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg, 
+          .read_ssn_from_storage = false // NO offset is added to SSN
         };
         oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 

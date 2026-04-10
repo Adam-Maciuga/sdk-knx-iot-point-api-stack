@@ -147,7 +147,7 @@ typedef struct oc_oscore_context_params_t {
   const uint8_t* id_context;    /**< ID Context */
   uint8_t id_context_size;      /**< Length of ID Context */
   const oc_auth_at_t* auth_at;  /**< Pointer to the access token entry in the AT table */
-  bool read_ssn_from_storage;   /**< If true, initialize SSN with an offset from storage */
+  bool read_ssn_from_storage;   /**< If true, an offset is added to the SSN, otherwise not */
 } oc_oscore_context_params_t;
 
 /**

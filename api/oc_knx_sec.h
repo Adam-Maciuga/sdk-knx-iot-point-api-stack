@@ -309,6 +309,15 @@ oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len
    */
   void set_oscore_osn_delay_ms(uint16_t milliseconds);
 
+	/**
+   * @brief write SSN to storage
+   *
+   * @param entry the 'Sender ID' and 'ID Context' are used to identify the storage name
+   * @param ssn the sender sequence number to be stored
+   *
+   */
+  void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn);
+
 #ifdef __cplusplus
 }
 #endif

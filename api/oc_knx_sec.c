@@ -48,54 +48,84 @@ void set_oscore_osn_delay_ms(uint16_t milliseconds)
   g_oscore_osn_delay_ms = milliseconds;
 }
 
-/**
- * @brief Read SSN from storage for a given sender ID and ID context
- * 
- * Constructs storage key as 'ssn_<sender_id_hex>_<id_context_hex>' and reads
- * the stored SSN value. Returns 0 if not found.
- * 
- * @param sender_id Sender ID byte array
- * @param sender_id_len Length of sender ID
- * @param id_context ID context byte array
- * @param id_context_len Length of ID context
- * @return uint64_t Stored SSN value, or 0 if not found
- */
-static uint64_t oc_read_ssn_from_storage(const uint8_t* sender_id, size_t sender_id_len, const uint8_t* id_context, size_t id_context_len)
+/*
+  Builds the storage key for an SSN entry as 'ssn_<osc_id_hex>_<contextid_hex>'.
+  The caller must pre-initialize storage_name[OSCORE_STORAGE_KEY_LEN] with OSCORE_STORAGE_PREFIX.
+  Example: sender id 0x0001, id context 0x200105b7fd8e -> "ssn_0001_200105b7fd8e"
+*/
+static void oc_build_ssn_storage_name(const oc_auth_at_t* entry, char* storage_name)
 {
-  uint64_t ssn = 0;
-  char storage_name[OSCORE_STORAGE_KEY_LEN] = {OSCORE_STORAGE_PREFIX};
+  const uint8_t* sender_id = (const uint8_t*)oc_string(entry->osc_id);
+  const size_t sender_id_len = oc_byte_string_len(entry->osc_id);
+  const uint8_t* id_context = (const uint8_t*)oc_string(entry->osc_contextid);
+  const size_t id_context_len = oc_byte_string_len(entry->osc_contextid);
   size_t storage_name_len;
 
-  // Construct storage key: 'ssn_<sender_id_hex>_<id_context_hex>'
-  storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN;
+  // add 'Sender ID' in hex behind prefix that is something like 'ssn_'
+  storage_name_len = OSCORE_STORAGE_KEY_LEN - OSCORE_STORAGE_PREFIX_LEN;
+  oc_conv_byte_array_to_hex_string(sender_id, sender_id_len,
+                                   storage_name + OSCORE_STORAGE_PREFIX_LEN,
+                                   &storage_name_len);
 
-  // Add sender ID in hex
-  oc_conv_byte_array_to_hex_string(
-    sender_id, sender_id_len,
-    storage_name + OSCORE_STORAGE_PREFIX_LEN, &storage_name_len);
-
-  // Append divider
+  // append divider ( -1 to overwrite the '\0')
   storage_name[OSCORE_STORAGE_PREFIX_LEN + storage_name_len - 1] = '_';
 
-  // Add ID context in hex
-  storage_name_len = sizeof(storage_name) - OSCORE_STORAGE_PREFIX_LEN -
-    OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
+  // add 'ID Context' behind the 'Sender ID' (+1 to include the foreseen string end '\0' placeholder)
+  storage_name_len = OSCORE_STORAGE_KEY_LEN - OSCORE_STORAGE_PREFIX_LEN - OSCORE_STORAGE_DIVIDER_LEN - storage_name_len + 1;
+  oc_conv_byte_array_to_hex_string(id_context, id_context_len,
+                                   storage_name + (OSCORE_STORAGE_PREFIX_LEN + sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN),
+                                   &storage_name_len);
+}
 
-  oc_conv_byte_array_to_hex_string(
-    id_context, id_context_len,
-    storage_name + (OSCORE_STORAGE_PREFIX_LEN + sender_id_len * 2 + OSCORE_STORAGE_DIVIDER_LEN),
-    &storage_name_len);
+/**
+ * @brief Read SSN from storage for a given access token entry
+ *
+ * Constructs storage key as 'ssn_<osc_id_hex>_<contextid_hex>' and reads
+ * the stored SSN value. Returns 0 if not found or entry is NULL.
+ *
+ * @param entry Pointer to the AT table entry
+ * @return uint64_t Stored SSN value, or 0 if not found
+ */
+static uint64_t oc_read_ssn_from_storage(const oc_auth_at_t* entry)
+{
+  if (!entry)
+  {
+    return 0;
+  }
 
-  // Read SSN from storage
-  long bytes_read = oc_storage_read(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+  char storage_name[OSCORE_STORAGE_KEY_LEN] = OSCORE_STORAGE_PREFIX;
+  oc_build_ssn_storage_name(entry, storage_name);
+
+  uint64_t ssn = 0;
+  const long bytes_read = oc_storage_read(storage_name, (uint8_t*)&ssn, sizeof(ssn));
 
   if (bytes_read == sizeof(ssn))
   {
-    OC_INF("Read SSN from storage '%s': %" PRIu64, storage_name, ssn);
+    OC_DBG("Read SSN from storage '%s': %" PRIu64, storage_name, ssn);
     return ssn;
   }
-  OC_WRN("No SSN found in storage '%s', starting from 0", storage_name); 
+  OC_WRN("Read NO SSN from storage '%s', starting from 0", storage_name);
   return 0;
+}
+
+void oc_write_ssn_to_storage(const oc_auth_at_t* entry, uint64_t ssn)
+{
+  if (!entry)
+  {
+    return;
+  }
+
+  char storage_name[OSCORE_STORAGE_KEY_LEN] = OSCORE_STORAGE_PREFIX;
+  oc_build_ssn_storage_name(entry, storage_name);
+
+  const long bytes_written = oc_storage_write(storage_name, (uint8_t*)&ssn, sizeof(ssn));
+
+  if (bytes_written == sizeof(ssn))
+  {
+    OC_DBG("Wrote SSN to storage '%s': %" PRIu64, storage_name, ssn);
+    return;
+  }
+  OC_WRN("Wrote NO SSN to storage '%s'", storage_name);
 }
 
 char* oc_at_profile_to_string(oc_at_profile_t at_profile)
@@ -1849,14 +1879,14 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
   oc_oscore_free_sender_contexts();
 
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (oc_auth_at_t* at_entry = g_at_entries; at_entry < g_at_entries + G_AT_MAX_ENTRIES; at_entry++)
   {
-    if (oc_string_len(entry->id) > 0)
+    if (oc_string_len(at_entry->id) > 0)
     {
       // debugging 
-      oc_print_auth_at_entry(entry);
+      oc_print_auth_at_entry(at_entry);
 
-      if (entry->profile == OC_PROFILE_COAP_OSCORE || entry->profile == OC_PROFILE_COAP_PASE)
+      if (at_entry->profile == OC_PROFILE_COAP_OSCORE || at_entry->profile == OC_PROFILE_COAP_PASE)
       {
 
         /*
@@ -1872,35 +1902,32 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           - ssn = read from storage, context is already present
         */
 
-        const uint8_t* osc_id = (const uint8_t*)oc_string(entry->osc_id);
-        const uint8_t osc_id_len = oc_byte_string_len(entry->osc_id);
-        const uint8_t* osc_contextid = (const uint8_t*)oc_string(entry->osc_contextid);
-        const uint8_t osc_contextid_len = oc_byte_string_len(entry->osc_contextid);
-
-        const uint8_t* osc_ms = (const uint8_t*)oc_string(entry->osc_ms);
-        const uint8_t osc_ms_len = oc_byte_string_len(entry->osc_ms);
-
-        const uint8_t* osc_salt = (const uint8_t*)oc_string(entry->osc_salt);
-        const uint8_t osc_salt_len = oc_byte_string_len(entry->osc_salt);
-
         // always read stored SSN from storage to maintain continuity
-        const uint64_t stored_ssn = oc_read_ssn_from_storage(osc_id, osc_id_len, osc_contextid, osc_contextid_len);
+        const uint64_t stored_ssn = oc_read_ssn_from_storage(at_entry);
 
-        OC_DBG("Loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
+        OC_DBG("loaded SSN from storage: %" PRIu64 " (padding=%s)", stored_ssn, read_ssn_from_storage ? "yes" : "no");
 
-        // Request Sender Context (used by access token = Request)
-        const oc_oscore_context_params_t oscore_params = {
-          .sender_id = osc_id,
-          .sender_id_size = osc_id_len,
+        /*
+               'Client' Side (details see method 'oc_oscore_receive_message' header), create:
+                Request Sender Context (from access token)
+               - kid
+               - kid_context (rnd)
+               - ms + salt from token
+               - ssn = from storage
+        */
+        const oc_oscore_context_params_t oscore_params = 
+        {
+          .sender_id = (const uint8_t*)oc_string(at_entry->osc_id),
+          .sender_id_size = oc_byte_string_len(at_entry->osc_id),
           .ssn = stored_ssn,
-          .mastersecret = osc_ms,
-          .mastersecret_size = osc_ms_len,
-          .salt = osc_salt,
-          .salt_size = osc_salt_len,
-          .id_context = osc_contextid,
-          .id_context_size = osc_contextid_len,
-          .auth_at = entry,
-          .read_ssn_from_storage = read_ssn_from_storage
+          .mastersecret = (const uint8_t*)oc_string(at_entry->osc_ms),
+          .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
+          .salt = (const uint8_t*)oc_string(at_entry->osc_salt),
+          .salt_size = oc_byte_string_len(at_entry->osc_salt),
+          .id_context = (const uint8_t*)oc_string(at_entry->osc_contextid),
+          .id_context_size = oc_byte_string_len(at_entry->osc_contextid),
+          .auth_at = at_entry, // at entry cannot be out of range because of loop above
+          .read_ssn_from_storage = read_ssn_from_storage // offset is added to SSN when reading from storage
         };
         const oc_oscore_context_t* oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 
@@ -1911,7 +1938,7 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
       }
       else
       {
-        OC_DBG_OSCORE("no oscore context was initialized");
+        OC_WRN("no oscore context was initialized, no PASE/OSCORE context available");
       }
     }
   }
