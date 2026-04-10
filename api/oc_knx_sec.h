@@ -168,7 +168,7 @@ extern "C" {
    * @param shared_key the master key after SPAKE2 handshake
    * @param shared_key_size key size
    */
-	void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size);
+	void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size);
 
 	/**
 	 * @brief retrieve auth/at entry by index

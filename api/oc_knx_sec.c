@@ -1722,7 +1722,6 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
   }
 }
 
-
 void oc_core_find_and_remove_pase_token_in_at_table(void)
 {
   for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
@@ -1799,15 +1798,9 @@ void oc_delete_at_table_except_sec_scope_entries(void)
   oc_init_oscore_from_storage(true);
 }
 
-void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size)
+void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size)
 {
-  // local tmp token id
-  oc_string_t pase_token_id = {NULL, 0, NULL};
-
-  // id
-  oc_new_string(&pase_token_id, client_sender_id, client_sender_id_size);
-
-  oc_auth_at_t* at_entry = find_entry_from_access_token_string(oc_string(pase_token_id), oc_string_len(pase_token_id));
+  oc_auth_at_t* at_entry = find_entry_from_access_token_string(client_sender_id, client_sender_id_size);
 
   if (!at_entry)
   {
@@ -1826,9 +1819,9 @@ void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size
       to AT table (RAM) and file storage
     */
 
-    // id (use local temp id)
+    // id
     oc_free_string(&at_entry->id);
-    oc_new_string(&at_entry->id, oc_string(pase_token_id), oc_string_len(pase_token_id));
+    oc_new_string(&at_entry->id, client_sender_id, client_sender_id_size);
 
     // pase token owns only if.sec scope
     at_entry->scope = OC_ACL_SEC;
@@ -1859,9 +1852,6 @@ void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size
     // init
     oc_init_oscore_from_storage(false);
   }
-
-  // free allocated memory from local pase token id
-  oc_free_string(&pase_token_id);
 }
 
 oc_auth_at_t* oc_get_auth_at_entry(int index)
