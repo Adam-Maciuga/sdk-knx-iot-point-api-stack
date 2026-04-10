@@ -293,7 +293,6 @@ int oc_lf_number_of_entries(const char *payload, int payload_len) {
 static int oc_lf_get_line(const char *payload, int payload_len, int entry,
         const char **line, int *line_len) {
   int nr_entries = 0;
-  int i;
   if (payload == NULL) {
     return nr_entries;
   }
@@ -308,7 +307,7 @@ static int oc_lf_get_line(const char *payload, int payload_len, int entry,
   bool end_set = false;
 
   // find begin
-  for (i = 0; i < payload_len - 1; i++) {
+  for (int i = 0; i < payload_len - 1; i++) {
     if (entry == nr_entries) {
       if (begin_set == false) {
         begin_line_index = i;

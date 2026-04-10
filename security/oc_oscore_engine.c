@@ -443,8 +443,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       { // no beforehand cached context available, make one (usually on a fresh req[in])
 
         // find auth/at entry with corresponding 'kid' from inbound message
-        const int idx = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
-        if (idx == -1)
+        const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
+        if (!at_entry)
         {
           /*
             'kid' from 'request' not found as part of my own contexts,
@@ -484,10 +484,10 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         uint64_t inbound_ssn;
         oscore_store_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len, &inbound_ssn);
 
-        // get access token, idx cannot be out of range because of the check before, see method 'oc_core_find_at_entry_by_osc_id' 
-        const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
-
-        // take over client's ssn on synchronization, due to a lost sync by the client
+        /* 
+           take over client's ssn on synchronization, due to a lost sync by the client
+           at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id' 
+        */
         const oc_oscore_context_params_t oscore_params = {
           .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
           .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
@@ -498,7 +498,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = (const uint8_t*)coap_pkt->kid_ctx,
           .id_context_size = coap_pkt->kid_ctx_len,
-          .auth_at_index = idx,
+          .auth_at = at_entry, 
           .read_ssn_from_storage = false
         };
         oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
@@ -562,8 +562,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     { // kid_ctx = 10
 
       // find auth/at entry with corresponding 'kid' from inbound message
-      const int idx = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
-      if (idx == -1)
+      const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
+      if (!at_entry)
       {
         /*
            'kid' from 'unicast echo response' not found as part of my onw access token table,
@@ -586,13 +586,12 @@ static int oc_oscore_receive_message(oc_message_t* msg)
            - ssn 
       */
 
-     
       // TODO DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
-      
-      // get access token, cannot be out of range because of the check before, see method 'oc_core_find_at_entry_by_osc_id'
-      const oc_auth_at_t* at_entry = oc_get_auth_at_entry(idx);
 
-      // init ssn with '0', not used on any sending (BUT consider on TASK above)
+      /*
+           init ssn with '0', not used on any sending (BUT consider on TASK above),
+           at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+      */
       const oc_oscore_context_params_t oscore_params = {
         .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
         .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
@@ -603,7 +602,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         .salt_size = oc_byte_string_len(at_entry->osc_salt),
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
         .id_context_size = coap_pkt->kid_ctx_len,
-        .auth_at_index = idx,
+        .auth_at = at_entry,
         .read_ssn_from_storage = false
       };
       oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
@@ -730,8 +729,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     - used for 4.02 error (see below)
   */
 
-  // uc-a: save access token index, that was used to decrypt, see send_unicast
-  msg->endpoint.auth_at_index_of_inbound_msg = oscore_ctx->auth_at_index;
+  // uc-a: save access token pointer, that was used to decrypt, see send_unicast
+  msg->endpoint.auth_at_of_inbound_msg = oscore_ctx->auth_at;
 
   // used for 'replay protection check' in CoAP (receive) layer, see receive_message
   msg->endpoint.kid_len = coap_pkt->kid_len > OSCORE_SENDER_ID_LEN ? OSCORE_SENDER_ID_LEN : coap_pkt->kid_len;
@@ -846,7 +845,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   /*
     find Sender Context (SID) for sending ga, in case
     - ga = '0' = NOT initialized, this call fails since no context will be available
-    - ga = '0' = i want to send ga 0, this call succeeds since context will be available
+    - ga = '0' = I want to send ga 0, this call succeeds since context will be available
   */
   oc_oscore_context_t* oscore_ctx = oc_oscore_find_context_by_group_address(group_address);
 
@@ -1025,7 +1024,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
      - example: do "Echo Response"
    */
 
-  oc_auth_at_t* at_entry = oc_get_auth_at_entry(from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg);
+  const oc_auth_at_t* at_entry = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg;
 
   OC_DBG_OSCORE("%s", at_entry ? "found access token, step 1" : "uc-a : non access token");
 
@@ -1159,7 +1158,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     if (unicast_echo_response_by_mc)
     { // s-mode (x0), (uc-e) - overwrites context retrieved by (uc-a)
 
-      bool is_smode = oc_get_auth_at_entry(oscore_ctx->auth_at_index)->ga_len > 0;
+      bool is_smode = oscore_ctx->auth_at->ga_len > 0;
       if (is_smode)
       { // any context using an access token with ga len > 0 is an s-mode message
         
@@ -1192,7 +1191,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
           .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = rnd,
           .id_context_size = 10,
-          .auth_at_index = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_index_of_inbound_msg,
+          .auth_at = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg,
           .read_ssn_from_storage = false
         };
         oscore_ctx = oc_oscore_add_sender_context(&oscore_params);

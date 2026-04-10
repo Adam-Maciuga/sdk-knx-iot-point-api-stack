@@ -13,6 +13,7 @@
 #include "oc_helpers.h"
 #include "port/oc_clock.h"
 #include "oc_uuid.h"
+#include "api/oc_knx_sec.h"
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -52,7 +53,7 @@ typedef struct oc_rwin_t
 typedef struct oc_oscore_context_t
 {
   struct oc_oscore_context_t *next;                 /**< pointer to the next, NULL if there is not any */
-  int32_t auth_at_index;                            /**< access token index from AT table, that was used to decrypt a received message */
+  const oc_auth_at_t* auth_at;                      /**< pointer to the access token entry from AT table, that was used to decrypt a received message */
   uint8_t master_secret[OSCORE_MASTER_SECRET_LEN];  /**< OSCORE master secret */
   
   uint8_t sender_id[OSCORE_SENDER_ID_LEN];          /**< 'Sender ID' (in OSCORE) */
@@ -125,9 +126,9 @@ void oc_oscore_free_sender_contexts(void);
  *
  * @note deletes all security context that are referring to the given at token
  *
- * @param auth_at_index the index
+ * @param auth_at_entry the access token entry
  */
-void oc_oscore_free_contexts_at_id(int auth_at_index);
+void oc_oscore_free_contexts_at_id(const oc_auth_at_t* auth_at_entry);
 
 /**
  * @brief Parameters for creating an OSCORE context.
@@ -145,7 +146,7 @@ typedef struct oc_oscore_context_params_t {
   uint8_t salt_size;            /**< Length of salt */
   const uint8_t* id_context;    /**< ID Context */
   uint8_t id_context_size;      /**< Length of ID Context */
-  int32_t auth_at_index;        /**< Index in the auth AT table */
+  const oc_auth_at_t* auth_at;  /**< Pointer to the access token entry in the AT table */
   bool read_ssn_from_storage;   /**< If true, initialize SSN with an offset from storage */
 } oc_oscore_context_params_t;
 

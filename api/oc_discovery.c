@@ -166,19 +166,15 @@ bool oc_add_resource_to_response_payload(const oc_resource_t* resource, size_t* 
 	return true;
 }
 
-bool oc_check_request_from_index(int index, oc_request_t* request, 
-																size_t* response_length, int* skipped, 
-																int first_entry, bool truncate)
+bool oc_check_request_from_index(int index, oc_request_t* request, size_t* response_length, int* skipped, int first_entry, bool truncate)
 {
   const oc_resource_t* indexed_resource = oc_core_get_core_resource_by_index(index);
   return oc_check_request_from_resource(indexed_resource, request,response_length, skipped, first_entry, truncate);
 }
 
-bool oc_check_request_from_resource(const oc_resource_t* resource, oc_request_t* request,
-																	size_t* response_length, int* skipped,
-																	int first_entry, bool truncate)
+bool oc_check_request_from_resource(const oc_resource_t* resource, oc_request_t* request,	size_t* response_length, int* skipped, int first_entry, bool truncate)
 {
-  if (resource == NULL)
+  if (!resource)
   {
     return false;
   }
@@ -478,13 +474,13 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	  // ga must be decimal coded and at least one digit long, if ga value exceeds 32 bit it is cut to 32 bit 
 	  errno = 0;
     const uint32_t group_address = strtol(&d_request[12], NULL, 10);
-    PRINT("group address: %04x", group_address);
+    OC_DBG("group address: %04x", group_address);
 
 		// if not in 'runtime' or a conversion error just return
     if (!oc_is_device_in_runtime() || errno)
 		{
 			// handle bad request, note below layer ignores this message if it is a multicast request
-			PRINT("device not at 'runtime' or ga conversion error");
+			OC_ERR("device not at 'runtime' or ga conversion error");
 			oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 			return;
 		}
@@ -526,7 +522,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 					 needs to respond when the device is in programming mode
 			*/
 
-			PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on");
+			OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on");
 
 			if (ep_request && ep_len > 9 && strncmp(ep_request, "knx://sn.", 9) == 0)
 			{ // query parameter if=urn:knx:if.pm AND ep=knx://sn. AND some extra xx data present
@@ -537,7 +533,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 				if (strncmp(oc_string(device->serialnumber), ep_serialnumber, strlen(oc_string(device->serialnumber))) != 0)
 				{ // SN does NOT match, xx data can be anything
 
-					PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
+					OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN no direct match");
 
 					if (request->origin && request->origin->flags & MULTICAST)
 					{
@@ -551,7 +547,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 					}
 					return;
 				}
-				PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN 1:1 match");
+				OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN 1:1 match");
 				// SN does match 1:1, leaves here and continues on 'handle serial number' (with double code)
 			}
 			else
@@ -568,14 +564,14 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 					query_parameter_key_value_pair_matches++;
 				}
 
-				PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN MAY match");
+				OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode on, SN MAY match");
 				// SN may match, leaves here and continues on 'handle serial number' (with double code)
 			}
 		}
 		else
 		{ // PRG mode off
 
-			PRINT("oc_well_known_core_discovery_handler PM HANDLING: PRG mode off");
+			OC_INF("oc_well_known_core_discovery_handler PM HANDLING: PRG mode off");
 
 			if (request->origin && request->origin->flags & MULTICAST)
 			{
@@ -737,7 +733,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 	 * - add on a 'hit' the resource to the response
 	 */
 
-	PRINT("oc_well_known_core_discovery_handler add core resources ...");
+	OC_INF("oc_well_known_core_discovery_handler add core resources ...");
 
   // core
   current_page_is_full = oc_process_core_resources(request, &response_length, &query_parameter_key_value_pair_matches,
@@ -746,17 +742,14 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
   // add application resources only if query parameters are present
 	if (rt_len > 0 || if_len > 0)
   {
-    PRINT("oc_well_known_core_discovery_handler rt='%.*s' if='%.*s' ", 
-					rt_len, rt_request, 
-					if_len, if_request); // first (len) value defines precision for %.
+    OC_DBG("oc_well_known_core_discovery_handler rt='%.*s' if='%.*s' ", rt_len, rt_request, if_len, if_request); // first (len) value defines precision for %.
 
     // application
     if (!current_page_is_full)
     {
-      PRINT("oc_well_known_core_discovery_handler add application resources ...");
+      OC_INF("oc_well_known_core_discovery_handler add application resources ...");
 
-      current_page_is_full = oc_process_application_resources(request, &response_length, &query_parameter_key_value_pair_matches, 
-																															&skipped, first_entry, first_entry + query_ps);
+      current_page_is_full = oc_process_application_resources(request, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
     }
   }
 
@@ -769,7 +762,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 		// - if=*, if=*ll* -> urn:knx:id.ll
 		if (oc_check_if_functional_blocks_need_to_add(request))
 		{
-			PRINT("oc_well_known_core_discovery_handler add functional block resources ...");
+			OC_INF("oc_well_known_core_discovery_handler add functional block resources ...");
 
 			// note that this function is reusing the number of counted FBs 
 		  oc_add_functional_blocks_from_application_to_response(request, false, &response_length, &query_parameter_key_value_pair_matches, &skipped, first_entry, first_entry + query_ps);
@@ -789,7 +782,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 			response_length += add_next_page_indicator(oc_string(request->resource->uri), ++query_pn);
 		}
 
-		PRINT("oc_well_known_core_discovery_handler send matching response with length = %d", (int) response_length);
+		OC_DBG("oc_well_known_core_discovery_handler send matching response with length = %d", (int) response_length);
 		oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 	}
 	else
@@ -801,12 +794,12 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
 		if (request->origin && request->origin->flags & MULTICAST)
 		{ // multicast request
-      PRINT("oc_well_known_core_discovery_handler multicast request, no match -> ignore it");
+      OC_DBG("oc_well_known_core_discovery_handler multicast request, no match -> ignore it");
       oc_ignore_request(request);
 		}
 		else
 		{ // unicast request
-      PRINT("oc_well_known_core_discovery_handler unicast request, no match -> send unicast response with length = 0");
+      OC_DBG("oc_well_known_core_discovery_handler unicast request, no match -> send unicast response with length = 0");
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
 		}
 	}
@@ -870,7 +863,7 @@ oc_ri_process_discovery_payload(const uint8_t* payload, const int len,
 	if (content == APPLICATION_LINK_FORMAT)
 	{
 
-		PRINT("calling handler 'discovery all'");
+		OC_INF("calling handler 'discovery all'");
 		if (all_handler)
 		{
 			all_handler((const char*) payload, len, endpoint, user_data);

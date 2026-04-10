@@ -31,7 +31,7 @@ static const uint16_t g_oscore_replay_window_size = 32; // default according to 
 static uint16_t g_oscore_osn_delay_ms; // format = dpt.timePeriodMsec
 static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
 
-static void oc_store_at_table_entry(int entry);
+static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
 uint32_t get_oscore_replay_window_size(void)
 {
@@ -91,10 +91,10 @@ static uint64_t oc_read_ssn_from_storage(const uint8_t* sender_id, size_t sender
 
   if (bytes_read == sizeof(ssn))
   {
-    PRINT("Read SSN from storage '%s': %" PRIu64, storage_name, ssn); // TODO LOG make this depending on log level
+    OC_INF("Read SSN from storage '%s': %" PRIu64, storage_name, ssn);
     return ssn;
   }
-  PRINT("No SSN found in storage '%s', starting from 0", storage_name); // TODO LOG make this depending on log level
+  OC_WRN("No SSN found in storage '%s', starting from 0", storage_name); 
   return 0;
 }
 
@@ -139,8 +139,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request,
-                                                    oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
@@ -387,7 +386,7 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
   // input was set, so create the response
   if (changed == true)
   {
-    PRINT("oc_core_a_sen_post_handler cmd %d ", cmd); // TODO LOG make this depending on log level
+    OC_INF("oc_core_a_sen_post_handler cmd %d ", cmd);
     /*
       renew the credentials
       Note: This is optional for now.
@@ -421,32 +420,33 @@ const oc_resource_t core_resource_a_sen = {
 PRAGMA_OUT
 
 // empty ... when 'id' string is an empty string "" 
-static int find_empty_at_index(void)
+static oc_auth_at_t* find_empty_at_entry(void)
 {
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (oc_string_len(g_at_entries[i].id) == 0)
+    if (oc_string_len(entry->id) == 0)
     {
-      // found an empty string  
-      return i;
+      // found an empty 'id' string ...
+      return entry;
     }
   }
 
-  return -1;
+  return NULL;
 }
 
-static int find_index_from_access_token_string(const char* at, size_t len_at)
+static oc_auth_at_t* find_entry_from_access_token_string(const char* at, size_t len_at)
 {
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    const size_t len = oc_string_len(g_at_entries[i].id);
-    if (len > 0 && len == len_at && strncmp(at, oc_string(g_at_entries[i].id), len) == 0)
+    const size_t len = oc_string_len(entry->id);
+    if (len > 0 && len == len_at && strncmp(at, oc_string(entry->id), len) == 0)
     {
-      return i;
+      return entry;
     }
   }
 
-  return -1;
+  return NULL;
 }
 
 // NULL if none is found in payload
@@ -461,7 +461,7 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
       if (oc_string_len(object->name) == 0 && object->iname == 0)
       {
         oc_string_t* index = &object->value.string;
-        PRINT("find id from request: %s ", oc_string_checked(*index)); // TODO LOG make this depending on log level.
+        OC_INF("find id from request: %s ", oc_string_checked(*index));
         return index;
       }
 
@@ -473,20 +473,26 @@ static oc_string_t* find_access_token_id_from_payload(oc_rep_t* object)
     object = object->next;
   }
 
-  PRINT("no id found (error)"); // TODO LOG make this depending on log level. And shouldn't this be an error level?
+  OC_ERR("no id found (error)");
   return NULL;
 }
 
 // false, if the GA was NOT found in access token GA list
-static bool check_access_token_for_group_address(int access_token_index, uint32_t group_address)
+static bool check_access_token_for_group_address(const oc_auth_at_t* at_entry, uint32_t group_address)
 {
+  if (!at_entry)
+  {
+    return false;
+  }
+
   /*
     if there is no GA list (len =0), loop does not start
     must be a stack issue that the wrong access token is used
   */
-  for (int i = 0; i < g_at_entries[access_token_index].ga_len; i++)
+
+  for (int i = 0; i < at_entry->ga_len; i++)
   {
-    if (g_at_entries[access_token_index].ga[i] == group_address)
+    if (at_entry->ga[i] == group_address)
     {
       return true;
     }
@@ -509,9 +515,9 @@ int oc_core_get_at_table_size(void)
 int oc_core_items_used_in_auth_at_table(void)
 {
   int counter = 0;
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (oc_string_len(g_at_entries[i].id) > 0)
+    if (oc_string_len(entry->id) > 0)
     {
       counter++;
     }
@@ -525,12 +531,13 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   (void)data;
   (void)iface_mask;
 
-  int query_parameter_kvpair_matches = 0; // query parameter key/value pair matches found
+  // query parameter key/value pair matches found
+  int query_parameter_kvpair_matches = 0; 
   size_t response_length = 0;
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_auth_at_get_handler - start");; // TODO LOG make this depending on log level.
+  OC_INF("oc_core_auth_at_get_handler - start"); 
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -579,12 +586,11 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
   const bool more_request_needed = total > first_entry + query_ps ? true : false;
 
   /*
-    Example </auth/at/token-id>;ct=60 ; must run through entire table since
-    entries are stored randomly.
+    Example </auth/at/token-id>;ct=60 ; must run through entire table since entries are stored randomly.
   */
-  for (int i = first_entry; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries + first_entry; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (oc_string_len(g_at_entries[i].id) > 0)
+    if (oc_string_len(entry->id) > 0)
     {
       if (response_length > 0)
       {
@@ -593,7 +599,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
       }
 
       response_length += oc_rep_add_line_to_buffer("</auth/at/");
-      response_length += oc_rep_add_line_to_buffer(oc_string(g_at_entries[i].id));
+      response_length += oc_rep_add_line_to_buffer(oc_string(entry->id));
       response_length += oc_rep_add_line_to_buffer(">;ct=60");
 
       query_parameter_kvpair_matches++;
@@ -614,7 +620,7 @@ static void oc_core_auth_at_get_handler(oc_request_t* request, oc_interface_mask
 
   oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_auth_at_get_handler - end"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_get_handler - end");
 }
 
 static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -632,8 +638,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
   bool scope_updated = false;
   bool other_updated = false;
 
-  int index = -1;
-  PRINT("oc_core_auth_at_post_handler"); // TODO LOG make this depending on log level
+  oc_auth_at_t* at_entry = NULL;
+  OC_INF("oc_core_auth_at_post_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -659,7 +665,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       {
         if (object->type == OC_REP_MIXED_ARRAY)
         {
-          PRINT("mixed array as scope is not allowed!");
+          OC_WRN("mixed array as scope is not allowed!");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
@@ -684,8 +690,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       }
 
       // find index from access token table
-      index = find_index_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
-      if (index != -1)
+      at_entry = find_entry_from_access_token_string(oc_string(*access_token_id), oc_string_len(*access_token_id));
+      if (at_entry)
       {
         // index already in use, so it will be changed
         return_status = OC_STATUS_CHANGED;
@@ -696,8 +702,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         return_status = OC_STATUS_CREATED;
 
         // no index, so we will create one (default)
-        index = find_empty_at_index();
-        if (index == -1)
+        at_entry = find_empty_at_entry();
+        if (!at_entry)
         {
           OC_ERR("AT table has no empty slot to add a new entry!");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
@@ -712,9 +718,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
         Set access token id, note that an access token is (too) complex to use
         a shadow copy as for POST on pub/rcp/go.
       */
-      oc_free_string(&g_at_entries[index].id);
-      oc_new_string(&g_at_entries[index].id, oc_string(*access_token_id),
-                    oc_string_len(*access_token_id));
+      oc_free_string(&at_entry->id);
+      oc_new_string(&at_entry->id, oc_string(*access_token_id), oc_string_len(*access_token_id));
 
       // access token id already set
       int current_at_properties = 1;
@@ -741,12 +746,11 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             oc_acl_mask_t acl_scopes = OC_ACL_NONE;
 
             // release a possible ga array (same id was used with GA list, now without), free ignores NULL ptr
-            free(g_at_entries[index].ga);
+            free(at_entry->ga);
 
             // in case of scopes the GA/GA len property is not used
-            g_at_entries[index].ga = NULL;
-            g_at_entries[index].ga_len = 0;
-
+            at_entry->ga = NULL;
+            at_entry->ga_len = 0;
             for (int i = 0; i < new_array_size; i++)
             {
               // address each string
@@ -767,7 +771,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
             scope_updated = true;
 
             // scopes (compacted bits)
-            g_at_entries[index].scope = acl_scopes;
+            at_entry->scope = acl_scopes;
             current_at_properties++;
           }
         }
@@ -780,7 +784,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           if (object->iname == 9)
           {
             // default, will be overwritten if GA array was correctly assigned
-            g_at_entries[index].scope = OC_ACL_NONE;
+            at_entry->scope = OC_ACL_NONE;
 
             // a post request does NOT append items to an (existing) array, it overwrites them  
             const int64_t* array = oc_int_array(object->value.array);
@@ -797,13 +801,13 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                   new_array[i] = (uint32_t)array[i];
                 }
 
-                PRINT("ga size %d", new_array_size); // TODO LOG make this depending on log level
+                OC_DBG("ga size %d", new_array_size);
 
                 // release a possible ga array, it will be overwritten, free ignores NULL ptr
-                free(g_at_entries[index].ga);
+                free(at_entry->ga);
 
-                g_at_entries[index].ga_len = new_array_size;
-                g_at_entries[index].ga = new_array;
+                at_entry->ga_len = new_array_size;
+                at_entry->ga = new_array;
 
                 /*
                   define THIS auth at token below with <ga> scope 's-mode messaging',
@@ -811,7 +815,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                   - is used only on /k resource (see also oc_knx_sec_check_acl)
                   - is used only in combination with a present ga array / array len (see above)
                 */
-                g_at_entries[index].scope = OC_ACL_GA;
+                at_entry->scope = OC_ACL_GA;
                 current_at_properties++;
               }
               else
@@ -848,7 +852,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           // profile (38)
           if (object->iname == 38)
           {
-            g_at_entries[index].profile = (oc_at_profile_t)object->value.integer;
+            at_entry->profile = (oc_at_profile_t)object->value.integer;
             current_at_properties++;
           }
         }
@@ -861,7 +865,7 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
           cnf_object = object->value.object;
           int cnf_object_nr = object->iname;
 
-          PRINT("cnf object nr %d", cnf_object_nr); // TODO LOG make this depending on log level
+          OC_DBG("cnf object nr %d", cnf_object_nr);
           while (cnf_object)
           {
             if (cnf_object->type == OC_REP_OBJECT)
@@ -912,8 +916,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                       return;
                     }
 
-                    oc_free_string(&g_at_entries[index].osc_ms);
-                    oc_new_byte_string(&g_at_entries[index].osc_ms, mastersecret_ptr, mastersecret_size);
+                    oc_free_string(&at_entry->osc_ms);
+                    oc_new_byte_string(&at_entry->osc_ms, mastersecret_ptr, mastersecret_size);
 
                     other_updated = true;
                     current_at_properties++;
@@ -932,9 +936,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                       return;
                     }
 
-                    oc_free_string(&g_at_entries[index].osc_contextid);
-                    oc_new_byte_string(&g_at_entries[index].osc_contextid,
-                                       oc_string(oscore_object->value.string), id_context_size);
+                    oc_free_string(&at_entry->osc_contextid);
+                    oc_new_byte_string(&at_entry->osc_contextid, oc_string(oscore_object->value.string), id_context_size);
                     other_updated = true;
                   }
                   else if (cnf_object_nr == 8 && oscore_object_nr == 4 && oscore_object->iname == 0)
@@ -951,9 +954,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                       return;
                     }
 
-                    oc_free_string(&(g_at_entries[index].osc_id));
-                    oc_new_byte_string(&g_at_entries[index].osc_id,
-                                       oc_string(oscore_object->value.string), sender_id_size);
+                    oc_free_string(&at_entry->osc_id);
+                    oc_new_byte_string(&at_entry->osc_id, oc_string(oscore_object->value.string), sender_id_size);
                     other_updated = true;
                     current_at_properties++;
                   }
@@ -961,9 +963,8 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                   {
                     // cnf:osc:salt (8:4:5), RFC 9003 max 255 bytes on JSON ....
 
-                    oc_free_string(&g_at_entries[index].osc_salt);
-                    oc_new_byte_string(&g_at_entries[index].osc_salt,
-                                       oc_string(oscore_object->value.string), oc_string_len(oscore_object->value.string));
+                    oc_free_string(&at_entry->osc_salt);
+                    oc_new_byte_string(&at_entry->osc_salt, oc_string(oscore_object->value.string), oc_string_len(oscore_object->value.string));
                     other_updated = true;
                   }
                 }
@@ -988,30 +989,32 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
       if (return_status == OC_STATUS_CHANGED && id_only)
       {
         // c
-        PRINT("only found id in request, deleting entry at index: %d", index);
-        oc_delete_at_table_entry(index);
+        OC_DBG("only found id in request, deleting entry...");
+        oc_delete_at_table_entry(at_entry);
       }
       else
       {
         if (return_status == OC_STATUS_CREATED && current_at_properties < MANDATORY_AT_PROPERTIES)
         {
           // a
-          PRINT("mandatory items missing, no entry created at index: %d", index);
+          OC_WRN("mandatory items missing, no entry created");
           oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
           return;
         }
 
         // b + d
-        PRINT("storage index: %d (%s) ", index, oc_string_checked(*access_token_id));
-        oc_print_auth_at_entry(index);
-        oc_store_at_table_entry(index);
+        OC_DBG("storage index: %d (%s) ", (int)(at_entry - g_at_entries), oc_string_checked(*access_token_id));
+
+        // debugging
+        oc_print_auth_at_entry(at_entry);
+        oc_store_at_table_entry(at_entry);
       }
     }
 
     rep = rep->next;
   }
 
-  PRINT("activating oscore context");
+  OC_INF("activating oscore context");
 
   if (return_status == OC_STATUS_CHANGED && other_updated == false && scope_updated == true)
   {
@@ -1026,14 +1029,14 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
 
   // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
-  PRINT("oc_core_auth_at_post_handler - end"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_post_handler - end"); 
 }
 
 static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_auth_at_delete_handler - start"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_delete_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1043,7 +1046,7 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
   oc_delete_at_table();
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
-  PRINT("oc_core_auth_at_delete_handler - end"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_delete_handler - end"); 
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1068,8 +1071,7 @@ const oc_resource_t core_resource_knx_auth_at = {
   &core_resource_knx_auth_at_data};
 PRAGMA_OUT
 
-static void oc_core_auth_at_x_get_handler(oc_request_t* request,
-                                          oc_interface_mask_t iface_mask, void* data)
+static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
@@ -1079,10 +1081,10 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request,
   {
     return;
   }
-  PRINT("oc_core_auth_at_x_get_handler - start"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_x_get_handler - start");
 
   // find the id part from the invoked URL auth/at/xyz...123
-  int value_len = oc_uri_get_wildcard_value_as_string(
+  const int value_len = oc_uri_get_wildcard_value_as_string(
     oc_string(request->resource->uri),
     oc_string_len(request->resource->uri),
     request->uri_path, request->uri_path_len, &value);
@@ -1091,45 +1093,45 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request,
   if (value_len <= 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("AT string not found"); // TODO LOG make this depending on log level, error?
+    OC_WRN("AT string not found");
     return;
   }
 
-  PRINT("id = %.*s", value_len, value); // TODO LOG make this depending on log level
+  OC_DBG("id = %.*s", value_len, value); 
 
-  // get the AT index from access string token 
-  int index = find_index_from_access_token_string(value, value_len);
-  if (index < 0)
+  // get the AT entry from access string token
+  oc_auth_at_t* at_entry = find_entry_from_access_token_string(value, value_len);
+  if (!at_entry)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("AT index not found"); // TODO LOG make this depending on log level, error?
+    OC_WRN("AT entry not found");
     return;
   }
 
   // debugging
-  oc_print_auth_at_entry(index);
+  oc_print_auth_at_entry(at_entry);
 
   oc_rep_begin_root_object();
 
   // profile : 38
-  oc_rep_i_set_int(root, 38, g_at_entries[index].profile);
+  oc_rep_i_set_int(root, 38, at_entry->profile);
 
   // id : 0
-  oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[index].id));
+  oc_rep_i_set_text_string(root, 0, oc_string(at_entry->id));
 
   // scope : 9 (either list of GAS is used or acl scopes)
-  if (g_at_entries[index].scope == OC_ACL_GA)
+  if (at_entry->scope == OC_ACL_GA)
   {
     // list of GAs is used (the internal <ga> scope OC_ACL_GA is never returned as 'scope')
-    oc_rep_i_set_int_array(root, 9, g_at_entries[index].ga, g_at_entries[index].ga_len);
+    oc_rep_i_set_int_array(root, 9, at_entry->ga, at_entry->ga_len);
   }
   else
   {
     // number of access scopes (all scopes except <ga> scope)
-    const unsigned int nr_entries = oc_count_total_scopes_in_mask(g_at_entries[index].scope);
+    const unsigned int nr_entries = oc_count_total_scopes_in_mask(at_entry->scope);
     if (nr_entries > 0)
     {
-      PRINT("%u scope entries", nr_entries); // TODO LOG make this depending on log level
+      OC_DBG("%u scope entries", nr_entries);
 
       // access scope list
       oc_string_array_t scopes;
@@ -1137,14 +1139,14 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request,
       oc_new_string_array(&scopes, nr_entries);
 
       // compacted list of access scopes is used (specification says "interfaces" but access scopes are meant)
-      oc_put_all_access_scope_names_from_a_mask_in_string_array(g_at_entries[index].scope, scopes);
+      oc_put_all_access_scope_names_from_a_mask_in_string_array(at_entry->scope, scopes);
       oc_rep_i_set_string_array(root, 9, scopes);
 
       oc_free_string_array(&scopes);
     }
   }
 
-  if (g_at_entries[index].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[index].profile == OC_PROFILE_COAP_PASE)
+  if (at_entry->profile == OC_PROFILE_COAP_OSCORE || at_entry->profile == OC_PROFILE_COAP_PASE)
   {
     // create cnf map (8)
     oc_rep_i_set_key(&root_map, 8);
@@ -1158,27 +1160,27 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request,
     CborEncoder osc_map;
     cbor_encoder_create_map(&cnf_map, &osc_map, CborIndefiniteLength);
 
-    if (oc_string_len(g_at_entries[index].osc_ms) > 0)
+    if (oc_string_len(at_entry->osc_ms) > 0)
     {
       // root::cnf::osc::ms
-      oc_rep_i_set_byte_string(osc, 2, oc_byte_string(g_at_entries[index].osc_ms),
-                               oc_byte_string_len(g_at_entries[index].osc_ms));
+      oc_rep_i_set_byte_string(osc, 2, oc_byte_string(at_entry->osc_ms),
+                               oc_byte_string_len(at_entry->osc_ms));
     }
 
-    if (oc_string_len(g_at_entries[index].osc_contextid) > 0)
+    if (oc_string_len(at_entry->osc_contextid) > 0)
     {
       // root::cnf::osc::contextid
       oc_rep_i_set_byte_string(osc, 6,
-                               oc_byte_string(g_at_entries[index].osc_contextid),
-                               oc_byte_string_len(g_at_entries[index].osc_contextid));
+                               oc_byte_string(at_entry->osc_contextid),
+                               oc_byte_string_len(at_entry->osc_contextid));
     }
 
-    if (oc_string_len(g_at_entries[index].osc_id) > 0)
+    if (oc_string_len(at_entry->osc_id) > 0)
     {
       // root::cnf::osc::osc_id
       oc_rep_i_set_byte_string(osc, 0,
-                               oc_byte_string(g_at_entries[index].osc_id),
-                               oc_byte_string_len(g_at_entries[index].osc_id));
+                               oc_byte_string(at_entry->osc_id),
+                               oc_byte_string_len(at_entry->osc_id));
     }
 
     cbor_encoder_close_container_checked(&cnf_map, &osc_map);
@@ -1188,7 +1190,7 @@ static void oc_core_auth_at_x_get_handler(oc_request_t* request,
   oc_rep_end_root_object();
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
-  PRINT("oc_core_auth_at_x_get_handler - end");
+  OC_INF("oc_core_auth_at_x_get_handler - end");
 }
 
 static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1202,41 +1204,40 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
     return;
   }
 
-  PRINT("oc_core_auth_at_x_delete_handler - start"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_x_delete_handler - start");
 
   // find the id part from the invoked URL auth/at/xyz...123
-  int value_len = oc_uri_get_wildcard_value_as_string(
+  const int value_len = oc_uri_get_wildcard_value_as_string(
     oc_string(request->resource->uri), oc_string_len(request->resource->uri),
-    request->uri_path, request->uri_path_len,
-    &value);
+    request->uri_path, request->uri_path_len, &value);
 
   // no access token string found
   if (value_len <= 0)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("AT string not found");
+    OC_WRN("AT string not found");
     return;
   }
 
-  PRINT("id = %.*s", value_len, value); // TODO LOG make this depending on log level
+  OC_DBG("id = %.*s", value_len, value); 
 
-  // get the AT index from access string token 
-  int index = find_index_from_access_token_string(value, value_len);
+  // get the AT entry from access string token
+  oc_auth_at_t* at_entry = find_entry_from_access_token_string(value, value_len);
 
-  if (index < 0)
+  if (!at_entry)
   {
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
-    PRINT("AT index not found"); // TODO LOG make this depending on log level, error?
+    OC_WRN("AT entry not found");
     return;
   }
 
-  PRINT("delete AT table index"); // TODO LOG make this depending on log level
-  oc_delete_at_table_entry(index);
+  OC_DBG("delete AT table entry");
+  oc_delete_at_table_entry(at_entry);
 
   // delete the related oscore contexts
-  oc_oscore_free_contexts_at_id(index);
+  oc_oscore_free_contexts_at_id(at_entry);
 
-  PRINT("oc_core_auth_at_x_delete_handler - done"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_auth_at_x_delete_handler - done");
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
@@ -1279,7 +1280,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_knx_auth_get_handler - start"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_knx_auth_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -1341,7 +1342,7 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_knx_auth_get_handler - end"); // TODO LOG make this depending on log level
+  OC_INF("oc_core_knx_auth_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1366,99 +1367,103 @@ const oc_resource_t core_resource_knx_auth = {
   &core_resource_knx_auth_data};
 PRAGMA_OUT
 
-void oc_print_auth_at_entry(int index)
+void oc_print_auth_at_entry(const oc_auth_at_t* entry)
 {
-#ifdef OC_PRINT
-  if (index >= 0 && index < G_AT_MAX_ENTRIES)
+  #ifdef OC_PRINT
+  if (entry && oc_string_len(entry->id) > 0)
   {
-    if (oc_string_len(g_at_entries[index].id) > 0)
+    PRINT("at index      : %d", (int)(entry - g_at_entries));
+    PRINT("id (0)        : %s", oc_string_checked(entry->id));
+    PRINT("scope (9)     : %d", entry->scope);
+    PRINT("profile (38)  : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
+
+    if (entry->profile == OC_PROFILE_COAP_OSCORE || entry->profile == OC_PROFILE_COAP_PASE)
     {
-      PRINT("at index      : %d", index);
-      PRINT("id (0)        : %s", oc_string_checked(g_at_entries[index].id));
-      PRINT("scope (9)     : %d", g_at_entries[index].scope);
-      PRINT("profile (38)  : %d (%s)", g_at_entries[index].profile,
-            oc_at_profile_to_string(g_at_entries[index].profile));
-
-      if (g_at_entries[index].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[index].profile == OC_PROFILE_COAP_PASE)
+      if (oc_string_len(entry->osc_ms) > 0)
       {
-        if (oc_string_len(g_at_entries[index].osc_ms) > 0)
+        PRINT("osc:ms (h)    : (%d) ", (int)oc_byte_string_len(entry->osc_ms));
+        oc_string_println_hex(entry->osc_ms);
+      }
+
+      if (oc_string_len(entry->osc_salt) > 0)
+      {
+        PRINT("osc:salt (h)  : (%d) ", (int)oc_byte_string_len(entry->osc_salt));
+        oc_string_println_hex(entry->osc_salt);
+      }
+
+      if (oc_string_len(entry->osc_contextid) > 0)
+      {
+        PRINT("osc:ctx_id (h): (%d) ", (int)oc_byte_string_len(entry->osc_contextid));
+        oc_string_println_hex(entry->osc_contextid);
+      }
+
+      if (oc_string_len(entry->osc_id) > 0)
+      {
+        PRINT("osc:id (h)    : (%d) ", (int)oc_byte_string_len(entry->osc_id));
+        oc_string_println_hex(entry->osc_id);
+      }
+
+      if (entry->scope == OC_ACL_GA)
+      {
+        PRINT("osc:ga        : [");
+        for (int i = 0; i < entry->ga_len; i++)
         {
-          PRINT("osc:ms (h)    : (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_ms));
-          oc_string_println_hex(g_at_entries[index].osc_ms);
+          PRINTF("%" PRIu64 " ", (uint64_t)entry->ga[i]);
         }
 
-        if (oc_string_len(g_at_entries[index].osc_salt) > 0)
-        {
-          PRINT("osc:salt (h)  : (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_salt));
-          oc_string_println_hex(g_at_entries[index].osc_salt);
-        }
-
-        if (oc_string_len(g_at_entries[index].osc_contextid) > 0)
-        {
-          PRINT("osc:ctx_id (h): (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_contextid));
-          oc_string_println_hex(g_at_entries[index].osc_contextid);
-        }
-
-        if (oc_string_len(g_at_entries[index].osc_id) > 0)
-        {
-          PRINT("osc:id (h)    : (%d) ", (int)oc_byte_string_len(g_at_entries[index].osc_id));
-          oc_string_println_hex(g_at_entries[index].osc_id);
-        }
-
-        if (g_at_entries[index].scope == OC_ACL_GA)
-        {
-          PRINT("osc:ga        : [");
-          for (int i = 0; i < g_at_entries[index].ga_len; i++)
-          {
-            PRINTF("%" PRIu64 " ", (uint64_t)g_at_entries[index].ga[i]);
-          }
-
-          PRINTF("]");
-        }
+        PRINTF("]");
       }
     }
   }
 #endif
 }
 
-static oc_acl_mask_t oc_at_get_scope_mask(int entry)
+static oc_acl_mask_t oc_at_get_scope_mask(const oc_auth_at_t* entry)
 {
-  return entry >= 0 && entry < G_AT_MAX_ENTRIES ? g_at_entries[entry].scope : OC_ACL_NONE;
+  return entry ? entry->scope : OC_ACL_NONE;
 }
 
-int oc_delete_at_table_entry(int entry)
+int oc_delete_at_table_entry(oc_auth_at_t* entry)
 {
-  if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
+  if (!entry)
+  {
+    return -1;
+  }
+
+  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  const int index = (int)(entry - g_at_entries);
+
+  if (index >= 0 && index < G_AT_MAX_ENTRIES)
   {
     // AT file entry
     char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
+    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
     oc_storage_erase(filename);
 
     // id, scope, profile
-    oc_free_string(&g_at_entries[entry].id);
-    oc_new_string(&g_at_entries[entry].id, "", 0);
-    g_at_entries[entry].scope = OC_ACL_NONE;
-    g_at_entries[entry].profile = OC_PROFILE_UNKNOWN;
+    oc_free_string(&entry->id);
+    oc_new_string(&entry->id, "", 0);
+    entry->scope = OC_ACL_NONE;
+    entry->profile = OC_PROFILE_UNKNOWN;
 
     // oscore object
-    oc_free_string(&g_at_entries[entry].osc_ms);
-    oc_new_byte_string(&g_at_entries[entry].osc_ms, "", 0);
+    oc_free_string(&entry->osc_ms);
+    oc_new_byte_string(&entry->osc_ms, "", 0);
 
-    oc_free_string(&g_at_entries[entry].osc_salt);
-    oc_new_byte_string(&g_at_entries[entry].osc_salt, "", 0);
+    oc_free_string(&entry->osc_salt);
+    oc_new_byte_string(&entry->osc_salt, "", 0);
 
-    oc_free_string(&g_at_entries[entry].osc_contextid);
-    oc_new_byte_string(&g_at_entries[entry].osc_contextid, "", 0);
+    oc_free_string(&entry->osc_contextid);
+    oc_new_byte_string(&entry->osc_contextid, "", 0);
 
-    oc_free_string(&g_at_entries[entry].osc_id);
-    oc_new_byte_string(&g_at_entries[entry].osc_id, "", 0);
+    oc_free_string(&entry->osc_id);
+    oc_new_byte_string(&entry->osc_id, "", 0);
 
     // release a possible ga array, free ignores NULL ptr
-    free(g_at_entries[entry].ga);
+    free(entry->ga);
 
-    g_at_entries[entry].ga = NULL;
-    g_at_entries[entry].ga_len = 0;
+    entry->ga = NULL;
+    entry->ga_len = 0;
     return 0;
   }
 
@@ -1470,12 +1475,20 @@ int oc_delete_at_table_entry(int entry)
   Storage of the fields is done via the cbor keys in their hierarchy.
   Example tag cnf:osc:ms = 8:4:2 = 842
 */
-static void oc_store_at_table_entry(int entry)
+static void oc_store_at_table_entry(oc_auth_at_t* entry)
 {
-  if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
+  if (!entry)
+  {
+    return;
+  }
+
+  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  const int index = (int)(entry - g_at_entries);
+  
+  if (index >= 0 && index < G_AT_MAX_ENTRIES)
   {
     char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
+    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
 
     uint8_t* buf = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
     if (!buf)
@@ -1489,27 +1502,19 @@ static void oc_store_at_table_entry(int entry)
     oc_rep_begin_root_object();
 
     // 0: id
-    oc_rep_i_set_text_string(root, 0, oc_string(g_at_entries[entry].id));
+    oc_rep_i_set_text_string(root, 0, oc_string(entry->id));
 
     // 9: acl scope (compacted bits)
-    oc_rep_i_set_int(root, 9, g_at_entries[entry].scope);
+    oc_rep_i_set_int(root, 9, entry->scope);
 
     // 38: profile
-    oc_rep_i_set_int(root, 38, g_at_entries[entry].profile);
+    oc_rep_i_set_int(root, 38, entry->profile);
 
     // 84x: cnf:osc:xx map
-    oc_rep_i_set_byte_string(root, 840,
-                             oc_byte_string(g_at_entries[entry].osc_id),
-                             oc_byte_string_len(g_at_entries[entry].osc_id));
-    oc_rep_i_set_byte_string(root, 842,
-                             oc_byte_string(g_at_entries[entry].osc_ms),
-                             oc_byte_string_len(g_at_entries[entry].osc_ms));
-    oc_rep_i_set_byte_string(root, 845,
-                             oc_byte_string(g_at_entries[entry].osc_salt),
-                             oc_byte_string_len(g_at_entries[entry].osc_salt));
-    oc_rep_i_set_byte_string(root, 846,
-                             oc_byte_string(g_at_entries[entry].osc_contextid),
-                             oc_byte_string_len(g_at_entries[entry].osc_contextid));
+    oc_rep_i_set_byte_string(root, 840, oc_byte_string(entry->osc_id), oc_byte_string_len(entry->osc_id));
+    oc_rep_i_set_byte_string(root, 842, oc_byte_string(entry->osc_ms), oc_byte_string_len(entry->osc_ms));
+    oc_rep_i_set_byte_string(root, 845, oc_byte_string(entry->osc_salt), oc_byte_string_len(entry->osc_salt));
+    oc_rep_i_set_byte_string(root, 846, oc_byte_string(entry->osc_contextid), oc_byte_string_len(entry->osc_contextid));
 
     /*
       777: ga's
@@ -1517,19 +1522,19 @@ static void oc_store_at_table_entry(int entry)
       Here also an empty array (777: []) might be written in case of present
       scopes such as a binary 'if.sec').
     */
-    oc_rep_i_set_int_array(root, 777, g_at_entries[entry].ga, g_at_entries[entry].ga_len);
+    oc_rep_i_set_int_array(root, 777, entry->ga, entry->ga_len);
 
     oc_rep_end_root_object();
 
     const int size = oc_rep_get_encoded_payload_size();
     if (size > 0)
     {
-      OC_DBG("stored current state [%s] [%d]: size %d", filename, entry, size);
+      OC_DBG("stored current state [%s] [%d]: size %d", filename, index, size);
 
       const long written_size = oc_storage_write(filename, buf, size);
       if (written_size != (long)size)
       {
-        PRINT("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
+        OC_WRN("entry: [%s] written %d != %d (to write)", filename, (int)written_size, size);
       }
     }
 
@@ -1537,12 +1542,20 @@ static void oc_store_at_table_entry(int entry)
   }
 }
 
-static void oc_load_at_table_entry(int entry)
+static void oc_load_at_table_entry(oc_auth_at_t* entry)
 {
-  if (entry >= 0 && entry < G_AT_MAX_ENTRIES)
+  if (!entry)
+  {
+    return;
+  }
+  
+  // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
+  const int index = (int)(entry - g_at_entries);
+  
+  if (index >= 0 && index < G_AT_MAX_ENTRIES)
   {
     char filename[AT_SIZE];
-    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, entry);
+    (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
 
     oc_rep_t* rep;
 
@@ -1573,12 +1586,12 @@ static void oc_load_at_table_entry(int entry)
             if (rep->iname == 9)
             {
               // 9: scope (compacted bits)
-              g_at_entries[entry].scope = (oc_acl_mask_t)rep->value.integer;
+              entry->scope = (oc_acl_mask_t)rep->value.integer;
             }
             else if (rep->iname == 38)
             {
               // 38: profile
-              g_at_entries[entry].profile = (oc_at_profile_t)rep->value.integer;
+              entry->profile = (oc_at_profile_t)rep->value.integer;
             }
 
             break;
@@ -1586,8 +1599,8 @@ static void oc_load_at_table_entry(int entry)
             if (rep->iname == 0)
             {
               // 0: id
-              oc_free_string(&g_at_entries[entry].id);
-              oc_new_string(&g_at_entries[entry].id, oc_string(rep->value.string), oc_string_len(rep->value.string));
+              oc_free_string(&entry->id);
+              oc_new_string(&entry->id, oc_string(rep->value.string), oc_string_len(rep->value.string));
             }
 
             break;
@@ -1598,27 +1611,24 @@ static void oc_load_at_table_entry(int entry)
             */
             if (rep->iname == 840)
             {
-              oc_free_string(&g_at_entries[entry].osc_id);
-              oc_new_byte_string(&g_at_entries[entry].osc_id,
-                                 oc_string(rep->value.string), oc_string_len(rep->value.string));
+              oc_free_string(&entry->osc_id);
+              oc_new_byte_string(&entry->osc_id, oc_string(rep->value.string), oc_string_len(rep->value.string));
             }
             else if (rep->iname == 842)
             {
-              oc_free_string(&g_at_entries[entry].osc_ms);
-              oc_new_byte_string(&g_at_entries[entry].osc_ms,
-                                 oc_string(rep->value.string), oc_string_len(rep->value.string));
+              oc_free_string(&entry->osc_ms);
+              oc_new_byte_string(&entry->osc_ms, oc_string(rep->value.string), oc_string_len(rep->value.string));
             }
             else if (rep->iname == 845)
             {
-              oc_free_string(&g_at_entries[entry].osc_salt);
-              oc_new_byte_string(&g_at_entries[entry].osc_salt,
+              oc_free_string(&entry->osc_salt);
+              oc_new_byte_string(&entry->osc_salt,
                                  oc_string(rep->value.string), oc_string_len(rep->value.string));
             }
             else if (rep->iname == 846)
             {
-              oc_free_string(&g_at_entries[entry].osc_contextid);
-              oc_new_byte_string(&g_at_entries[entry].osc_contextid,
-                                 oc_string(rep->value.string), oc_string_len(rep->value.string));
+              oc_free_string(&entry->osc_contextid);
+              oc_new_byte_string(&entry->osc_contextid, oc_string(rep->value.string), oc_string_len(rep->value.string));
             }
 
             break;
@@ -1640,11 +1650,11 @@ static void oc_load_at_table_entry(int entry)
                 }
 
                 // release an already assigned ga array on the org ptr, free ignores NULL ptr
-                free(g_at_entries[entry].ga);
+                free(entry->ga);
 
                 // assign only when the new array is allocated correctly
-                g_at_entries[entry].ga_len = new_array_size;
-                g_at_entries[entry].ga = new_array;
+                entry->ga_len = new_array_size;
+                entry->ga = new_array;
 
                 OC_DBG("at table entry with NON empty ga array 777: [...] loaded from storage, size %d", new_array_size);
               }
@@ -1657,10 +1667,10 @@ static void oc_load_at_table_entry(int entry)
             if (rep->iname == 777)
             {
               // release an already assigned ga array on the org ptr, free ignores NULL ptr
-              free(g_at_entries[entry].ga);
+              free(entry->ga);
 
-              g_at_entries[entry].ga_len = 0;
-              g_at_entries[entry].ga = NULL;
+              entry->ga_len = 0;
+              entry->ga = NULL;
 
               OC_DBG("at table entry with empty ga array 777: [] loaded from storage, size 0");
             }
@@ -1682,81 +1692,57 @@ static void oc_load_at_table_entry(int entry)
   }
 }
 
-static int oc_core_find_at_entry_with_id(char* id)
-{
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
-  {
-  if (oc_string_len(g_at_entries[i].id) > 0 && (strncmp(oc_string(g_at_entries[i].id), id, strlen(id)) == 0))
-    {
-      return i;
-    }
-  }
-
-  return -1;
-}
 
 void oc_core_find_and_remove_pase_token_in_at_table(void)
 {
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
+    if (entry->profile == OC_PROFILE_COAP_PASE)
     {
-      oc_delete_at_table_entry(i); // delete entry from AT table
-      oc_oscore_free_contexts_at_id(i); // removes possible references
-      PRINT("PASE key found at id : %d, invalidated...", i);
+      oc_delete_at_table_entry(entry);      // delete entry from AT table
+      oc_oscore_free_contexts_at_id(entry); // removes possible references
+      PRINT("PASE key found, invalidated...");
     }
   }
 }
 
-int oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len)
+oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len)
 {
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (oc_byte_string_len(g_at_entries[i].osc_id) == osc_id_len &&
-      memcmp(oc_string(g_at_entries[i].osc_id), osc_id, osc_id_len) == 0)
+    if (oc_byte_string_len(entry->osc_id) == osc_id_len && memcmp(oc_string(entry->osc_id), osc_id, osc_id_len) == 0)
     {
-      return i;
+      return entry;
     }
   }
 
-  return -1;
-}
-
-int oc_core_find_at_entry_empty_slot(void)
-{
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
-  {
-    if (oc_string_len(g_at_entries[i].id) == 0)
-    {
-      return i;
-    }
-  }
-
-  return -1;
+  return NULL;
 }
 
 static void oc_load_at_table(void)
 {
-  PRINT("Loading AT Table into RAM from persistent storage"); // TODO LOG make this depending on log level
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  OC_INF("Loading AT Table into RAM from persistent storage");
+  
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    oc_load_at_table_entry(i);
-    oc_print_auth_at_entry(i);
+    // debugging 
+    oc_load_at_table_entry(entry);
+    oc_print_auth_at_entry(entry);
   }
 
   // create the oscore contexts
   oc_init_oscore_from_storage(true);
 }
 
-
 void oc_delete_at_table(void)
 {
-  PRINT("Deleting AT from RAM and persistent storage"); // TODO LOG make this depending on log level
+  OC_INF("Deleting AT from RAM and persistent storage");
 
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    oc_print_auth_at_entry(i);
-    oc_delete_at_table_entry(i);
+    // debugging 
+    oc_print_auth_at_entry(entry);
+    oc_delete_at_table_entry(entry);
   }
 
   oc_oscore_free_all_contexts();
@@ -1767,15 +1753,15 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 {
   PRINT("deleting 'non if.sec' access token table entries from RAM and storage"); // TODO LOG make this depending on log level
 
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    const oc_acl_mask_t scope = oc_at_get_scope_mask(i);
+    const oc_acl_mask_t scope = oc_at_get_scope_mask(entry);
 
     if (!(scope & OC_ACL_SEC))
     {
       // delete the entries that are not including "if.sec"
-      oc_print_auth_at_entry(i);
-      oc_delete_at_table_entry(i);
+      oc_print_auth_at_entry(entry);
+      oc_delete_at_table_entry(entry);
     }
   }
 
@@ -1786,59 +1772,59 @@ void oc_delete_at_table_except_sec_scope_entries(void)
 void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size)
 {
   // local tmp token id
-  oc_string_t pase_token_id = {NULL, 0,NULL};
+  oc_string_t pase_token_id = {NULL, 0, NULL};
 
   // id
   oc_new_string(&pase_token_id, client_sender_id, client_sender_id_size);
 
-  int index = oc_core_find_at_entry_with_id(oc_string(pase_token_id));
+  oc_auth_at_t* at_entry = find_entry_from_access_token_string(oc_string(pase_token_id), oc_string_len(pase_token_id));
 
-  if (index == -1)
+  if (!at_entry)
   {
     // no pase token present in AT table (normal case)
-    index = oc_core_find_at_entry_empty_slot();
+    at_entry = find_empty_at_entry();
   }
 
-  if (index == -1)
+  if (!at_entry)
   {
     OC_ERR("no space left in AT table");
   }
   else
   {
     /*
-      write (OR overwrite if index was already occupied) the above defined pase entry
-      to AT table (RAM) and file storage, here the 'index' cannot be >= G_AT_MAX_ENTRIES
+      write (OR overwrite if entry was already occupied) the above defined pase entry
+      to AT table (RAM) and file storage
     */
 
     // id (use local temp id)
-    oc_free_string(&g_at_entries[index].id);
-    oc_new_string(&g_at_entries[index].id, oc_string(pase_token_id), oc_string_len(pase_token_id));
+    oc_free_string(&at_entry->id);
+    oc_new_string(&at_entry->id, oc_string(pase_token_id), oc_string_len(pase_token_id));
 
-    // pase token owns only if.sec scope 
-    g_at_entries[index].scope = OC_ACL_SEC;
-    g_at_entries[index].profile = OC_PROFILE_COAP_PASE;
+    // pase token owns only if.sec scope
+    at_entry->scope = OC_ACL_SEC;
+    at_entry->profile = OC_PROFILE_COAP_PASE;
 
     // secret
-    oc_free_string(&g_at_entries[index].osc_ms);
-    oc_new_byte_string(&g_at_entries[index].osc_ms, (char*)shared_key, shared_key_size);
+    oc_free_string(&at_entry->osc_ms);
+    oc_new_byte_string(&at_entry->osc_ms, (char*)shared_key, shared_key_size);
 
     // no 'kid_context'
-    oc_free_string(&g_at_entries[index].osc_contextid);
-    oc_new_byte_string(&g_at_entries[index].osc_contextid, "", 0);
+    oc_free_string(&at_entry->osc_contextid);
+    oc_new_byte_string(&at_entry->osc_contextid, "", 0);
 
     // 'kid' (on the wire it was a byte string, so we have to store the byte string)
-    oc_free_string(&g_at_entries[index].osc_id);
-    oc_new_byte_string(&g_at_entries[index].osc_id, client_sender_id, client_sender_id_size);
+    oc_free_string(&at_entry->osc_id);
+    oc_new_byte_string(&at_entry->osc_id, client_sender_id, client_sender_id_size);
 
     // release a possible ga array, it will be overwritten, free ignores NULL ptr
-    free(g_at_entries[index].ga);
+    free(at_entry->ga);
 
     // no ga array as scope for PASE token
-    g_at_entries[index].ga_len = 0;
-    g_at_entries[index].ga = NULL;
+    at_entry->ga_len = 0;
+    at_entry->ga = NULL;
 
     // store
-    oc_store_at_table_entry(index);
+    oc_store_at_table_entry(at_entry);
 
     // init
     oc_init_oscore_from_storage(false);
@@ -1863,13 +1849,14 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 {
   oc_oscore_free_sender_contexts();
 
-  for (int i = 0; i < G_AT_MAX_ENTRIES; i++)
+  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (oc_string_len(g_at_entries[i].id) > 0)
+    if (oc_string_len(entry->id) > 0)
     {
-      oc_print_auth_at_entry(i);
+      // debugging 
+      oc_print_auth_at_entry(entry);
 
-      if (g_at_entries[i].profile == OC_PROFILE_COAP_OSCORE || g_at_entries[i].profile == OC_PROFILE_COAP_PASE)
+      if (entry->profile == OC_PROFILE_COAP_OSCORE || entry->profile == OC_PROFILE_COAP_PASE)
       {
 
         /*
@@ -1885,16 +1872,16 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           - ssn = read from storage, context is already present
         */
 
-        const uint8_t* osc_id = (const uint8_t*)oc_string(g_at_entries[i].osc_id);
-        const uint8_t osc_id_len = oc_byte_string_len(g_at_entries[i].osc_id);
-        const uint8_t* osc_contextid = (const uint8_t*)oc_string(g_at_entries[i].osc_contextid);
-        const uint8_t osc_contextid_len = oc_byte_string_len(g_at_entries[i].osc_contextid);
+        const uint8_t* osc_id = (const uint8_t*)oc_string(entry->osc_id);
+        const uint8_t osc_id_len = oc_byte_string_len(entry->osc_id);
+        const uint8_t* osc_contextid = (const uint8_t*)oc_string(entry->osc_contextid);
+        const uint8_t osc_contextid_len = oc_byte_string_len(entry->osc_contextid);
 
-        const uint8_t* osc_ms = (const uint8_t*)oc_string(g_at_entries[i].osc_ms);
-        const uint8_t osc_ms_len = oc_byte_string_len(g_at_entries[i].osc_ms);
+        const uint8_t* osc_ms = (const uint8_t*)oc_string(entry->osc_ms);
+        const uint8_t osc_ms_len = oc_byte_string_len(entry->osc_ms);
 
-        const uint8_t* osc_salt = (const uint8_t*)oc_string(g_at_entries[i].osc_salt);
-        const uint8_t osc_salt_len = oc_byte_string_len(g_at_entries[i].osc_salt);
+        const uint8_t* osc_salt = (const uint8_t*)oc_string(entry->osc_salt);
+        const uint8_t osc_salt_len = oc_byte_string_len(entry->osc_salt);
 
         // always read stored SSN from storage to maintain continuity
         const uint64_t stored_ssn = oc_read_ssn_from_storage(osc_id, osc_id_len, osc_contextid, osc_contextid_len);
@@ -1912,14 +1899,14 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
           .salt_size = osc_salt_len,
           .id_context = osc_contextid,
           .id_context_size = osc_contextid_len,
-          .auth_at_index = i,
+          .auth_at = entry,
           .read_ssn_from_storage = read_ssn_from_storage
         };
         const oc_oscore_context_t* oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 
         if (!oscore_ctx)
         {
-          OC_ERR("failed to add a context entry for AT table entry (on device startup this is usually because of too less context buffers = %d", i);
+          OC_ERR("failed to add a context entry for AT table entry (on device startup this is usually because of too less context buffers");
         }
       }
       else
@@ -1967,7 +1954,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
   OC_DBG("method allowed flags : ");
   PRINTipaddr_flags(*endpoint);
 
-  if ((endpoint->flags & (OSCORE + OSCORE_DECRYPTED)) != OSCORE + OSCORE_DECRYPTED)
+  if ((endpoint->flags & OSCORE + OSCORE_DECRYPTED) != OSCORE + OSCORE_DECRYPTED)
   {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
     OC_DBG_OSCORE("access denied for: %s with flags: %d",
@@ -1993,7 +1980,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
     (see resource definitions, e.g.; auth/o GET = if.p/d/c for linked-list)
   */
 
-  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_index_of_inbound_msg);
+  const oc_acl_mask_t caller_acl_scope = oc_at_get_scope_mask(endpoint->auth_at_of_inbound_msg);
 
   // bitwise 'and' -> at least one scope from access token and resource must match
   if (caller_acl_scope & called_res_scope)
@@ -2043,7 +2030,7 @@ bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_
               // only GA is of interest
 
               // found a GA, check it, and break ...
-              group_address_match = check_access_token_for_group_address(endpoint->auth_at_index_of_inbound_msg, (uint32_t)s_map->value.integer);
+              group_address_match = check_access_token_for_group_address(endpoint->auth_at_of_inbound_msg, (uint32_t)s_map->value.integer);
               break;
             }
 

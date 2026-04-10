@@ -27,33 +27,35 @@ static bool mmem_initialized = false;
 
 static void oc_malloc(
 #ifdef OC_MEMORY_TRACE
-  const char* func,
+  const char *func, 
 #endif
   oc_handle_t* block, size_t num_items, pool pool_type)
 {
-  if (!mmem_initialized) {
+  if (!mmem_initialized)
+  {
     oc_mmem_init();
     mmem_initialized = true;
   }
 
   size_t alloc_ret = _oc_mmem_alloc(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          block, num_items, pool_type);
+    block, num_items, pool_type);
   // oc_assert(alloc_ret > 0);
 }
 
 static void oc_free(
 #ifdef OC_MEMORY_TRACE
-  const char* func,
+  const char *func, 
 #endif
-  oc_handle_t* block, pool pool_type) {
+  oc_handle_t* block, pool pool_type)
+{
   _oc_mmem_free(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          block, pool_type);
+    block, pool_type);
 
   block->next = 0;
   block->ptr = 0;
@@ -62,54 +64,59 @@ static void oc_free(
 
 void _oc_new_string(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_string_t* ocstring, const char* str, size_t str_len) {
+  oc_string_t* ocstring, const char* str, size_t str_len)
+{
   oc_malloc(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          ocstring, str_len + 1, BYTE_POOL);
-  memcpy(oc_string(*ocstring), (const uint8_t*) str, str_len);
-  memcpy(oc_string(*ocstring) + str_len, (const uint8_t*) "", 1);
+    ocstring, str_len + 1, BYTE_POOL);
+  memcpy(oc_string(*ocstring), (const uint8_t*)str, str_len);
+  memcpy(oc_string(*ocstring) + str_len, (const uint8_t*)"", 1);
 }
 
 void _oc_new_byte_string(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_string_t* ocstring, const char* str, size_t str_len) {
+  oc_string_t* ocstring, const char* str, size_t str_len)
+{
   oc_malloc(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          ocstring, str_len, BYTE_POOL);
-  memcpy(oc_string(*ocstring), (const uint8_t*) str, str_len);
+    ocstring, str_len, BYTE_POOL);
+  memcpy(oc_string(*ocstring), (const uint8_t*)str, str_len);
 }
 
 void _oc_alloc_string(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_string_t* ocstring, size_t size) {
+  oc_string_t* ocstring, size_t size)
+{
   oc_malloc(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          ocstring, size, BYTE_POOL);
+    ocstring, size, BYTE_POOL);
 }
 
 void _oc_free_string(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_string_t* ocstring) {
-  if (ocstring && ocstring->size > 0) {
+  oc_string_t* ocstring)
+{
+  if (ocstring && ocstring->size > 0)
+  {
     oc_free(
 #ifdef OC_MEMORY_TRACE
-            func,
+      func,
 #endif
-            ocstring, BYTE_POOL);
+      ocstring, BYTE_POOL);
   }
 }
 
@@ -119,86 +126,88 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2)
   oc_alloc_string(concat, len1 + len2 + 1);
   memcpy(oc_string(*concat), str1, len1);
   memcpy(oc_string(*concat) + len1, str2, len2);
-  memcpy(oc_string(*concat) + len1 + len2, (const char*) "", 1);
+  memcpy(oc_string(*concat) + len1 + len2, (const char*)"", 1);
 }
 
 void _oc_new_array(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_array_t* ocarray, size_t size, pool type)
+  oc_array_t* ocarray, size_t size, pool type)
 {
-  switch (type) {
-    case INT_POOL:
-    case BYTE_POOL:
-    case FLOAT_POOL:
-    case DOUBLE_POOL:
-      oc_malloc(
+  switch (type)
+  {
+  case INT_POOL:
+  case BYTE_POOL:
+  case FLOAT_POOL:
+  case DOUBLE_POOL:
+    oc_malloc(
 #ifdef OC_MEMORY_TRACE
-              func,
+      func,
 #endif
-              ocarray, size, type);
-      break;
-    default:
-      break;
+      ocarray, size, type);
+    break;
+  default:
+    break;
   }
 }
 
 void _oc_free_array(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_array_t* ocarray, pool type)
+  oc_array_t* ocarray, pool type)
 {
   oc_free(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          ocarray, type);
+    ocarray, type);
 }
 
 void _oc_alloc_string_array(
 #ifdef OC_MEMORY_TRACE
-        const char* func,
+  const char *func, 
 #endif
-        oc_string_array_t* ocstringarray, size_t size)
+  oc_string_array_t* ocstringarray, size_t size)
 {
   _oc_alloc_string(
 #ifdef OC_MEMORY_TRACE
-          func,
+    func,
 #endif
-          ocstringarray, size * STRING_ARRAY_ITEM_MAX_LEN);
+    ocstringarray, size * STRING_ARRAY_ITEM_MAX_LEN);
 
   size_t i, pos;
-  for (i = 0; i < size; i++) {
+  for (i = 0; i < size; i++)
+  {
     pos = i * STRING_ARRAY_ITEM_MAX_LEN;
-    memcpy((char*) oc_string(*ocstringarray) + pos, (const char*) "", 1);
+    memcpy((char*)oc_string(*ocstringarray) + pos, (const char*)"", 1);
   }
 
   ocstringarray->size = size * STRING_ARRAY_ITEM_MAX_LEN;
 }
 
-bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray,
-        const char str[], size_t str_len, size_t index)
+bool oc_copy_byte_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len, size_t index)
 {
 
   // break if too long 
-  oc_assert(strlen(str) < STRING_ARRAY_ITEM_MAX_LEN); 
-  
+  oc_assert(strlen(str) < STRING_ARRAY_ITEM_MAX_LEN);
+
   size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
-  oc_string(*ocstringarray)[pos] = (uint8_t) str_len;
+  oc_string(*ocstringarray)[pos] = (uint8_t)str_len;
   pos++;
-  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*) str, str_len);
+  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*)str, str_len);
 
   return true;
 }
 
-bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray,
-        const char str[], size_t str_len)
+bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[], size_t str_len)
 {
   bool success = false;
-  for (size_t i = 0; i < oc_byte_string_array_get_allocated_size(*ocstringarray); i++) {
-    if (oc_byte_string_array_get_item_size(*ocstringarray, i) == 0) {
+  for (size_t i = 0; i < oc_byte_string_array_get_allocated_size(*ocstringarray); i++)
+  {
+    if (oc_byte_string_array_get_item_size(*ocstringarray, i) == 0)
+    {
       success = oc_byte_string_array_set_item(*ocstringarray, str, str_len, i);
       break;
     }
@@ -207,31 +216,33 @@ bool oc_byte_string_array_add_item_internal(oc_string_array_t* ocstringarray,
   return success;
 }
 
-bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[],
-        size_t index)
+bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t index)
 {
-  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN) {
+  if (strlen(str) >= STRING_ARRAY_ITEM_MAX_LEN)
+  {
     return false;
   }
 
   size_t pos = index * STRING_ARRAY_ITEM_MAX_LEN;
   size_t len = strlen(str);
-  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*) str, len);
-  memcpy(oc_string(*ocstringarray) + pos + len, (const uint8_t*) "", 1);
+  memcpy(oc_string(*ocstringarray) + pos, (const uint8_t*)str, len);
+  memcpy(oc_string(*ocstringarray) + pos + len, (const uint8_t*)"", 1);
 
   return true;
 }
 
-bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, 
-        const char str[])
+bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[])
 {
   bool success = false;
-  if (ocstringarray == NULL) {
+  if (ocstringarray == NULL)
+  {
     return false;
   }
 
-  for (size_t i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++) {
-    if (oc_string_array_get_item_size(*ocstringarray, i) == 0) {
+  for (size_t i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  {
+    if (oc_string_array_get_item_size(*ocstringarray, i) == 0)
+    {
       success = oc_string_array_set_item(*ocstringarray, str, i);
       break;
     }
@@ -244,10 +255,12 @@ void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstrin
 {
   size_t len = 0;
   size_t i;
-  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++) {
+  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  {
     const char* item =
-            (const char*) oc_string_array_get_item(*ocstringarray, i);
-    if (strlen(item)) {
+      (const char*)oc_string_array_get_item(*ocstringarray, i);
+    if (strlen(item))
+    {
       len += strlen(item);
       len++;
     }
@@ -255,26 +268,30 @@ void oc_join_string_array(oc_string_array_t* ocstringarray, oc_string_t* ocstrin
 
   oc_alloc_string(ocstring, len);
   len = 0;
-  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++) {
+  for (i = 0; i < oc_string_array_get_allocated_size(*ocstringarray); i++)
+  {
     const char* item =
-      (const char*) oc_string_array_get_item(*ocstringarray, i);
-    if (strlen(item)) {
-      if (len > 0) {
+      (const char*)oc_string_array_get_item(*ocstringarray, i);
+    if (strlen(item))
+    {
+      if (len > 0)
+      {
         oc_string(*ocstring)[len] = ' ';
         len++;
       }
 
-      memcpy((char*) oc_string(*ocstring) + len, item, strlen(item));
+      memcpy((char*)oc_string(*ocstring) + len, item, strlen(item));
       len += strlen(item);
     }
   }
 
-  strcpy((char*) oc_string(*ocstring) + len, "");
+  strcpy((char*)oc_string(*ocstring) + len, "");
 }
 
 int oc_conv_uint64_to_dec_string(char* str, uint64_t number)
 {
-  if (number == 0) {
+  if (number == 0)
+  {
     snprintf(str, 2, "0");
     return 0;
   }
@@ -283,14 +300,16 @@ int oc_conv_uint64_to_dec_string(char* str, uint64_t number)
   uint64_t temp = number;
   int numDigits = 0; // Note: This needs to be an int to prevent underflow
 
-  while (temp != 0) {
+  while (temp != 0)
+  {
     temp /= 10;
     numDigits++;
   }
 
   // Convert the number to a string
   int i; // int to prevent underflow!!
-  for (i = numDigits - 1; i >= 0; i--) {
+  for (i = numDigits - 1; i >= 0; i--)
+  {
     str[i] = '0' + (number % 10);
     number /= 10;
   }
@@ -304,9 +323,12 @@ int oc_print_uint64_t(uint64_t number, enum StringRepresentation rep)
 {
   char str[21]; // uint64_t decimal number has max 20 numbers + 1 for null terminator
 
-  if (rep == DEC_REPRESENTATION) {
+  if (rep == DEC_REPRESENTATION)
+  {
     oc_conv_uint64_to_dec_string(str, number);
-  } else {
+  }
+  else
+  {
     oc_conv_uint64_to_hex_string(str, number);
   }
 
@@ -320,14 +342,16 @@ int oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
   // 64 bit = 16 nibble chars + '\0' -> 0x 1122 3344 5566 7788
   char temp_str[17] = "";
 
-  if (number == 0) {
+  if (number == 0)
+  {
     // An all zero value MUST is defined as a leading zero (incl. \0)
     (void)snprintf(str, 2, "0");
     return 0;
   }
 
   // convert to lower hex string, but will include leading zeros 
-  for (uint8_t i = 0; i < 16; ++i) {
+  for (uint8_t i = 0; i < 16; ++i)
+  {
     // Example, nibble bits 63..60 = number >> 60
     const uint8_t nibble = number >> (16 - (i + 1)) * 4;
     (void)sprintf(temp_str + i, "%x", nibble & 0xF);
@@ -337,9 +361,11 @@ int oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
   temp_str[16] = '\0';
 
   // count leading zeros
-  for (int leading_zeros = 0; leading_zeros < 16; ++leading_zeros) {
+  for (int leading_zeros = 0; leading_zeros < 16; ++leading_zeros)
+  {
     // break if byte is not '0' ...
-    if (temp_str[leading_zeros] != '0') {
+    if (temp_str[leading_zeros] != '0')
+    {
       // remove present leading zeros, copy from first non '0' src to dst
       // 64 bit 0x0000AABBCCDDEEFF => copy from AA
       strcpy(str, temp_str + leading_zeros);
@@ -352,19 +378,21 @@ int oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
 
 int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len, char* hex_str, size_t* hex_str_len)
 {
-  if (*hex_str_len < array_len * 2 + 1) {
+  if (*hex_str_len < array_len * 2 + 1)
+  {
     return -1;
   }
 
   *hex_str_len = 0;
 
-  for (size_t i = 0; i < array_len; i++) {
+  for (size_t i = 0; i < array_len; i++)
+  {
     (void)snprintf(hex_str + *hex_str_len, 3, "%02x", array[i]);
     *hex_str_len += 2;
   }
-  
+
   // set to next char after string and add string termination
-  *hex_str_len +=1;
+  *hex_str_len += 1;
   hex_str[*hex_str_len] = '\0';
 
   return 0;
@@ -372,13 +400,15 @@ int oc_conv_byte_array_to_hex_string(const uint8_t* array, size_t array_len, cha
 
 int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, uint8_t* array, size_t* array_len)
 {
-  if (hex_str_len < 1) {
+  if (hex_str_len < 1)
+  {
     return -1;
   }
 
-  size_t a = (size_t) ((double) hex_str_len / 2.0 + 0.5);
+  size_t a = (size_t)((double)hex_str_len / 2.0 + 0.5);
 
-  if (*array_len < a) {
+  if (*array_len < a)
+  {
     return -1;
   }
 
@@ -388,27 +418,34 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
   uint32_t tmp;
   size_t start;
 
-  if (hex_str_len % 2 == 0) {
+  if (hex_str_len % 2 == 0)
+  {
     start = 0;
-  } else {
+  }
+  else
+  {
     start = 1;
     int processed_fields = sscanf(&hex_str[0], "%1x", &tmp);
-    if (processed_fields != 1) {
+    if (processed_fields != 1)
+    {
       return -1;
     }
 
-    array[a++] = (uint8_t) tmp;
+    array[a++] = (uint8_t)tmp;
   }
 
-  if (hex_str_len >= 2) {
+  if (hex_str_len >= 2)
+  {
     // save guard against string lengths of 1
-    for (size_t i = start; i <= hex_str_len - 2; i += 2) {
+    for (size_t i = start; i <= hex_str_len - 2; i += 2)
+    {
       int processed_fields = sscanf(&hex_str[i], "%2x", &tmp);
-      if (processed_fields != 1) {
+      if (processed_fields != 1)
+      {
         return -1;
       }
 
-      array[a++] = (uint8_t) tmp;
+      array[a++] = (uint8_t)tmp;
     }
   }
 
@@ -416,13 +453,13 @@ int oc_conv_hex_string_to_byte_array(const char* hex_str, size_t hex_str_len, ui
 }
 
 int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
-        oc_string_t* out)
+                                    oc_string_t* out)
 {
   int return_value = -1;
   size_t size_bytes = (hex_str_len / 2);
 
   PRINT("oc_conv_hex_string_to_oc_string len:%d -> bytes:%d",
-          (int) hex_str_len, (int) size_bytes);
+        (int) hex_str_len, (int) size_bytes);
 
   oc_free_string(out);
 
@@ -431,9 +468,10 @@ int oc_conv_hex_string_to_oc_string(const char* hex_str, size_t hex_str_len,
   PRINT("oc_conv_hex_string_to_oc_string alloc string");
   char* ptr = oc_string(*out);
   PRINT("oc_conv_hex_string_to_oc_string ptr");
-  if (ptr != NULL) {
-    return_value = oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr, 
-            &size_bytes);
+  if (ptr != NULL)
+  {
+    return_value = oc_conv_hex_string_to_byte_array(hex_str, hex_str_len, ptr,
+                                                    &size_bytes);
   }
 
   PRINT("oc_conv_hex_string_to_oc_string result=%d", return_value);
@@ -444,8 +482,10 @@ int oc_string_is_hex_array(oc_string_t hex_string)
 {
   char* array = oc_string(hex_string);
   int array_len = strlen(array);
-  for (int i = 0; i < array_len; i++) {
-    if (isxdigit(array[i]) == false) {
+  for (int i = 0; i < array_len; i++)
+  {
+    if (isxdigit(array[i]) == false)
+    {
       return -1;
     }
   }
@@ -456,7 +496,8 @@ int oc_string_is_hex_array(oc_string_t hex_string)
 size_t oc_char_print_hex(const char* str, size_t str_len)
 {
 #ifdef OC_DEBUG
-  for (size_t i = 0; i < str_len; i++) {
+  for (size_t i = 0; i < str_len; i++)
+  {
     PRINTF("%02x", (unsigned char) str[i]);
   }
 
@@ -504,16 +545,16 @@ int oc_string_copy_from_char(oc_string_t* string1, const char* string2)
   return 0;
 }
 
-int oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2, 
-        size_t string2_len)
+int oc_string_copy_from_char_with_size(oc_string_t* string1, const char* string2,
+                                       size_t string2_len)
 {
   oc_free_string(string1);
   oc_new_string(string1, string2, string2_len);
   return 0;
 }
 
-int oc_byte_string_copy_from_char_with_size(oc_string_t* string1, 
-        const char* string2, size_t string2_len)
+int oc_byte_string_copy_from_char_with_size(oc_string_t* string1,
+                                            const char* string2, size_t string2_len)
 {
   oc_free_string(string1);
   oc_new_byte_string(string1, string2, string2_len);
@@ -522,37 +563,41 @@ int oc_byte_string_copy_from_char_with_size(oc_string_t* string1,
 
 int oc_string_cmp(oc_string_t string1, oc_string_t string2)
 {
-  if (oc_string_len(string1) != oc_string_len(string2)) {
+  if (oc_string_len(string1) != oc_string_len(string2))
+  {
     return -1;
   }
 
-  return strncmp(oc_string(string1), oc_string(string2), 
-          oc_string_len(string1));
+  return strncmp(oc_string(string1), oc_string(string2),
+                 oc_string_len(string1));
 }
 
 int oc_byte_string_cmp(oc_string_t string1, oc_string_t string2)
 {
-  if (oc_byte_string_len(string1) != oc_byte_string_len(string2)) {
+  if (oc_byte_string_len(string1) != oc_byte_string_len(string2))
+  {
     return -1;
   }
 
-  return memcmp(oc_string(string1), oc_string(string2), 
-          oc_byte_string_len(string1));
+  return memcmp(oc_string(string1), oc_string(string2),
+                oc_byte_string_len(string1));
 }
 
 int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
 {
-  char* str1 = oc_string(href_string);  // input is href from request payload 
+  char* str1 = oc_string(href_string); // input is href from request payload 
   char* str2 = oc_string(resource_string); // input is application resource URL 
   const char* cmp1 = str1;
   const char* cmp2 = str2;
 
-  if (strlen(str1) > 1 && str1[0] == '/') {
+  if (strlen(str1) > 1 && str1[0] == '/')
+  {
     // remove a leading '/', to normalize the path as a string 
     cmp1 = &str1[1];
   }
 
-  if (strlen(str2) > 1 && str2[0] == '/') {
+  if (strlen(str2) > 1 && str2[0] == '/')
+  {
     // remove a leading '/', to normalize the path as a string 
     cmp2 = &str2[1];
   }
@@ -562,25 +607,28 @@ int oc_url_cmp(oc_string_t href_string, oc_string_t resource_string)
 
 bool oc_uri_contains_wildcard(const char* uri)
 {
-  if (uri == NULL) {
+  if (uri == NULL)
+  {
     return false;
   }
 
-  size_t len = strlen(uri);
-  if (uri[len - 1] == '*') {
+  const size_t len = strlen(uri);
+  if (uri[len - 1] == '*')
+  {
     return true;
   }
 
   return false;
 }
 
-int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, 
-        size_t uri_len, const char* uri_invoked, size_t invoked_len)
+int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource, size_t uri_len, const char* uri_invoked, size_t invoked_len)
 {
-  if (uri_resource[uri_len - 1] == '*') {
+  if (uri_resource[uri_len - 1] == '*')
+  {
     // EP must be defined with a '*' at the end of e.g.; /fp/g/* 
 
-    if (invoked_len + 1 >= uri_len) { 
+    if (invoked_len + 1 >= uri_len)
+    {
       // - invoked uri has no heading '/', need at least one digit from invoked uri, 
       // - 'fp/g/4' versus '/fp/g/*', set pointer - 2 = heading '/' and trailing '*' from '/fp/g/*'
 
@@ -593,12 +641,13 @@ int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource,
       char* ptr_last_converted_digit = NULL;
       const char* ptr_first_to_be_converted_digit = &uri_invoked[uri_len - 2];
 
-      errno = 0; 
+      errno = 0;
       const int converted_value = strtol(ptr_first_to_be_converted_digit, &ptr_last_converted_digit, 10);
 
       // accept only entire numbers (ptr_last_converted_digit = last string position)
       // with no conversion errors (see 'strtol' details)
-      if (errno || ptr_last_converted_digit != &uri_invoked[invoked_len]) {
+      if (errno || ptr_last_converted_digit != &uri_invoked[invoked_len])
+      {
         return -1;
       }
 
@@ -610,14 +659,14 @@ int oc_uri_get_wildcard_int_value_as_int(const char* uri_resource,
   return -1;
 }
 
-int oc_uri_get_fb_string_value_as_int(const char* resource_uri, 
-        size_t resource_len, const char* invoked_uri, size_t invoked_len,
-        bool instance_number)
+int oc_uri_get_fb_string_value_as_int(const char* resource_uri, size_t resource_len, const char* invoked_uri, size_t invoked_len, bool instance_number)
 {
-  if (resource_uri[resource_len - 1] == '*') {
+  if (resource_uri[resource_len - 1] == '*')
+  {
     // EP must be defined with a '*' at the end of e.g.; /f/*
 
-    if (invoked_len + 1 >= resource_len) {
+    if (invoked_len + 1 >= resource_len)
+    {
       // - invoked uri 'f/4' has no heading '/', + 1 -> need at least one digit from invoked uri 
       // - cut from resource uri '/f/*' - 2  -> get first number position 
 
@@ -626,28 +675,37 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri,
       const char* underscore = strchr(ptr_first_to_be_converted_digit, '_');
 
       errno = 0;
-      if (underscore) {
+      if (underscore)
+      {
         // an FB with instance is asked (x_y)
 
-        if (instance_number) { 
+        if (instance_number)
+        {
           // convert fb instance, convert from pointer after 'f/4_', note that
           // - f/4_001, f/4_1 results both in 1
           // - f/4_abc, f/4_1abc results in string error '-1'
           ptr_first_to_be_converted_digit = underscore + 1;
-          
-        } else {
+
+        }
+        else
+        {
           // convert fb number, convert from pointer after 'f/', note that
           // - f/4_, f/004_ results in 4
           // - f/4abc_, f/abc_ results in string error '-1'
           ptr_last_to_be_converted_digit = underscore;
         }
-      } else {
+      }
+      else
+      {
         // an FB without instance is asked
 
-        if (instance_number) {
+        if (instance_number)
+        {
           // convert fb instance, is always 0
           return 0;
-        } else {
+        }
+        else
+        {
           // convert fb number, convert from pointer after 'f/', note that
           // - f/4, f/004 results in 4
           // - f/4abc, f/abc results in string error '-1'
@@ -659,10 +717,11 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri,
 
       // accept only entire numbers (ptr_last_converted_digit = '_' string position)
       // with no conversion errors (see 'strtol' details)
-      if (errno || ptr_last_is_converted_digit != ptr_last_to_be_converted_digit) {
+      if (errno || ptr_last_is_converted_digit != ptr_last_to_be_converted_digit)
+      {
         return -1;
       }
-      
+
       return converted_value;
     }
   }
@@ -671,15 +730,15 @@ int oc_uri_get_fb_string_value_as_int(const char* resource_uri,
   return -1;
 }
 
-int oc_uri_get_wildcard_value_as_string(const char* uri_resource, 
-        size_t resource_len, const char* uri_invoked, size_t invoked_len,
-        const char** value)
+int oc_uri_get_wildcard_value_as_string(const char* uri_resource, size_t resource_len, const char* uri_invoked, size_t invoked_len, const char** value)
 {
   // resource URI contains '*', -1 since array counts from 0...n
-  if (uri_resource[resource_len - 1] == '*') {
+  if (uri_resource[resource_len - 1] == '*')
+  {
     // invoked URI must be larger than resource URI;
     // +1 since '/' is not included in invoked URI
-    if (invoked_len + 1 >= resource_len) {
+    if (invoked_len + 1 >= resource_len)
+    {
       // pointer to wildcard part of invoked URI,
       // e.g; to 'abba' from invoked URI aut/at/abba
       // -2 since '/' is not included in invoked URI and array counts from 0...n
@@ -695,8 +754,10 @@ int oc_uri_get_wildcard_value_as_string(const char* uri_resource,
 
 char* oc_strnchr(char* string, char p, int size)
 {
-  for (int i = 0; i < size; i++) {
-    if (string[i] == p) {
+  for (int i = 0; i < size; i++)
+  {
+    if (string[i] == p)
+    {
       return &string[i];
     }
   }
@@ -706,7 +767,8 @@ char* oc_strnchr(char* string, char p, int size)
 
 int oc_charstream_convert_to_lower(char* stream)
 {
-  for (; *stream; stream++) {
+  for (; *stream; stream++)
+  {
     // loops until *str is 0, e.g.; stream ends with \0
     *stream = (char)tolower(*stream);
   }
@@ -716,10 +778,12 @@ int oc_charstream_convert_to_lower(char* stream)
 
 bool oc_check_string_on_zero_content(const char* stream)
 {
-  while (*stream) {
+  while (*stream)
+  {
     // loops until *str is 0, e.g.; stream ends with \0
-    if (*stream != '0') {
-       // there was one byte not zero ...
+    if (*stream != '0')
+    {
+      // there was one byte not zero ...
       return false;
     }
 

@@ -1,23 +1,9 @@
 /*
-// Copyright (c) 2021-2023 Cascoda Ltd
-// Copyright (c) 2024-2025 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
-/**
-	@brief knx application level security
-	@file
-*/
+ * Copyright (c) 2021-2023 Cascoda Ltd
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef OC_KNX_SEC_INTERNAL_H
 #define OC_KNX_SEC_INTERNAL_H
@@ -147,11 +133,11 @@ extern "C" {
 	} oc_auth_at_t;
 
 	/**
-	 * @brief returns the amount of total entries of the auth/at table
+	 * @brief returns the amount of total entries of the auth/at table 
 	 *
 	 * @note
 	 * - returned size depends on if AT table is present (>0) or not (=0)
-	 * - defined as extra method, to be used from extern
+   * - defined as extra method, to be used from extern applications, used currently only in the DEMO apps
 	 *
 	 * @return the allocated amount of entries of the auth/at table
 	 */
@@ -175,14 +161,6 @@ extern "C" {
 	void oc_core_find_and_remove_pase_token_in_at_table(void);
 
 	/**
-	 * @brief find empty slot
-	 *
-	 * @return int -1 : no space left
-	 * @return int >=0 : index to place entry
-	 */
-	int oc_core_find_at_entry_empty_slot(void);
-
-	/**
    * @brief set shared (SPAKE) key to the auth at table, on the device (server) side
    *
    * @param client_sender_id device id that has been negotiated with SPAKE2+, it will become the kid (Sender ID) within the OSCORE context. 
@@ -193,8 +171,10 @@ extern "C" {
 	void oc_oscore_set_auth_shared(char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size);
 
 	/**
-	 * @brief retrieve auth/at entry
-	 *
+	 * @brief retrieve auth/at entry by index
+	 * 
+	 * @note used by API/ DEMO applications
+	 * 
 	 * @param index the index in the table
 	 * @return oc_auth_at_t* the auth at entry
 	 */
@@ -203,9 +183,9 @@ extern "C" {
 	/**
 	 * @brief print the AT table entry (debugging) if present (id > 0)
 	 *
-	 * @param index the index in the table to be printed
+	 * @param entry pointer to the AT table entry to be printed
 	 */
-	void oc_print_auth_at_entry(int index);
+	void oc_print_auth_at_entry(const oc_auth_at_t* entry);
 
 	/**
 	 * @brief deletes the entire AT table
@@ -231,10 +211,10 @@ extern "C" {
 	 * - from RAM
 	 * - from storage (file system)
 	 *
-	 * @param entry the index in the table
-	 * return 0 == success
+	 * @param entry pointer to the AT table entry to be deleted
+   * @return 0 == success, - 1 == entry not found
 	 */
-	int oc_delete_at_table_entry(int entry);
+  int oc_delete_at_table_entry(oc_auth_at_t* entry);
 
 	/**
 	 * @brief Creation of the KNX security resources.
@@ -300,10 +280,10 @@ extern "C" {
 	 * @param osc_id OSCORE ID
 	 * @param osc_id_len OSCORE ID length
 	 *
-	 * @return int -1 : AT entry not found
-	 * @return int >=0 : index to place entry
+	 * @return NULL : AT entry not found
+	 * @return pointer to AT entry : AT entry found
 	 */
-  int oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len);
+oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len);
 
 	/**
    * @brief get OSCORE Replay Window Size

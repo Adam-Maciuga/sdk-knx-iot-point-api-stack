@@ -70,7 +70,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
             memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0) 
     {
 
-      PRINT("found OSCORE Recipient ID context, with auth/at index: %d",ctx->auth_at_index);
+      PRINT("found OSCORE Recipient ID context");
 
       // update time for a possible release of "last used" - if table is full
       ctx->last_used = oc_clock_time();
@@ -86,21 +86,21 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   return NULL;
 }
 
-static oc_oscore_context_t* oc_oscore_find_context_by_access_token_index(int32_t index)
+static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth_at_t* auth_at)
 {
 
-  if (index == -1)
+  if (!auth_at)
   {
-    OC_ERR("***could not find matching OSCORE context: access token is -1 ***");
+    OC_ERR("***could not find matching OSCORE context: access token is NULL ***");
     return NULL;
   }
 
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
   while (ctx)
   {
-    if (index == ctx->auth_at_index)
+    if (ctx->auth_at == auth_at)
     {
-      OC_DBG("found context by_token/mid with auth/at index : %d ", index);
+      OC_DBG("found context by_token/mid");
       ctx->last_used = oc_clock_time();
       return ctx;
     }
@@ -108,7 +108,7 @@ static oc_oscore_context_t* oc_oscore_find_context_by_access_token_index(int32_t
     ctx = ctx->next;
   }
 
-  OC_DBG("found NO context by_token/mid with auth/at index : %d ", index);
+  OC_DBG("found NO context by_token/mid");
   return NULL;
 }
 
@@ -139,7 +139,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token, uint8_t
     *request_piv_len = t->message->endpoint.piv_len;
   }
 
-  return oc_oscore_find_context_by_access_token_index(t->message->endpoint.auth_at_index_of_inbound_msg);
+  return oc_oscore_find_context_by_access_token(t->message->endpoint.auth_at_of_inbound_msg);
 }
 
 // scans all contexts auth at token if the ga is in the ga list of the AT token
@@ -151,16 +151,15 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
   while (ctx) 
   {
     // find AT for context that MAY host the GA
-    const oc_auth_at_t* my_at_entry = oc_get_auth_at_entry(ctx->auth_at_index);
-    if (my_at_entry) 
+    if (ctx->auth_at) 
     {
       // debugging 
-      oc_print_auth_at_entry(ctx->auth_at_index);
+      oc_print_auth_at_entry(ctx->auth_at);
 
-      for (int i = 0; i < my_at_entry->ga_len; i++) 
+      for (int i = 0; i < ctx->auth_at->ga_len; i++) 
       {
         // scan all GA's
-        const uint32_t group_value = my_at_entry->ga[i];
+        const uint32_t group_value = ctx->auth_at->ga[i];
         
         if (group_address == group_value) 
         {
@@ -228,7 +227,7 @@ void oc_oscore_free_sender_contexts(void) {
   }
 }
 
-void oc_oscore_free_contexts_at_id(int auth_at_index) 
+void oc_oscore_free_contexts_at_id(const oc_auth_at_t* auth_at_entry) 
 {
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
@@ -238,7 +237,7 @@ void oc_oscore_free_contexts_at_id(int auth_at_index)
     // get temp copy
     oc_oscore_context_t* next = ctx->next;  
 
-    if (ctx->auth_at_index == auth_at_index) 
+    if (ctx->auth_at == auth_at_entry) 
     {
       oc_oscore_free_context(ctx);
     }
@@ -287,8 +286,8 @@ void oc_context_print_all(void) {
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",
-            ctx->auth_at_index, 
+    PRINT("%-9.p | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",
+            ctx->auth_at, 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
             ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 
@@ -390,7 +389,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   }
 
   ctx->ssn = params->ssn;
-  ctx->auth_at_index = params->auth_at_index;
+  ctx->auth_at = params->auth_at;
   ctx->last_used = oc_clock_time();
 
   /* 
@@ -454,7 +453,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
     goto add_oscore_context_error;
   }
 
-  OC_DBG("### AT Index      : (%2d)\t= ", params->auth_at_index);
+  
   OC_DBG("### Sender ID     : (%2d)\t= ", ctx->sender_id_len);  OC_LOGbytes(ctx->sender_id, ctx->sender_id_len);
   OC_DBG("### Recipient ID  : (%2d)\t= ", ctx->recipient_id_len);  OC_LOGbytes(ctx->recipient_id, ctx->recipient_id_len);
   OC_DBG("### ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes(ctx->id_context, ctx->id_context_len);

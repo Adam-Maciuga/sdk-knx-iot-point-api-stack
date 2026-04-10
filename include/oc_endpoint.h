@@ -17,6 +17,9 @@
 
 #include "messaging/coap/oscore_constants.h"
 
+/* Forward declaration — avoids circular dependency (oc_ri.h includes this header) */
+typedef struct oc_auth_at oc_auth_at_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -104,11 +107,11 @@ extern "C" {
     */
     uint32_t group_address;                
     
-    /* auth at index (assigned only on an inbound OSCORE request message)
+    /* auth/at entry pointer (assigned only on an inbound OSCORE request message)
        - used for matching oscore context of a - to be sent out - outbound response to a former inbound request
        - used for upper layers to check access scopes (on an inbound message)
     */
-    int32_t auth_at_index_of_inbound_msg;    
+    const oc_auth_at_t* auth_at_of_inbound_msg;
 
     // OSCORE Partial IV (not empty) from inbound request
     uint8_t piv[OSCORE_PIV_LEN]; // stores inbound PIV, used for possible echo responses that needs the same PIV
@@ -132,9 +135,6 @@ extern "C" {
   // creates endpoint and assign IPv6, other structure members are set to '0' except auth at index (-1)
   #define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)            \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
-                             .group_address = 0,                               \
-                             .interface_index = 0,                             \
-                             .auth_at_index_of_inbound_msg = -1,               \
                              .addr.ipv6 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
 

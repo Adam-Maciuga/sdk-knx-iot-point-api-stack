@@ -57,7 +57,6 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
     message->pool = pool;
     message->ref_count = 1;
     message->endpoint.interface_index = -1;
-    message->endpoint.auth_at_index_of_inbound_msg = -1;
     
     #if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
     OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));

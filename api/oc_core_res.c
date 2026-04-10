@@ -283,7 +283,7 @@ bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* reques
 			  const int resource_type_len =	oc_string_array_get_item_size(resource->types, i);
 				const char* resource_type_ptr =	oc_string_array_get_item(resource->types, i);
 
-			  PRINT("rt type '%s'", resource_type_ptr);
+			  OC_DBG("rt type '%s'", resource_type_ptr);
 
 			  if (wildcard)
 				{
@@ -360,7 +360,7 @@ bool oc_check_resource_by_if(const oc_resource_t* resource, oc_request_t* reques
             const char* resource_if_ptr = get_interface_string_full_urn(i);
             const int resource_if_ptr_len = (int)strlen(resource_if_ptr);
 
-            PRINT("if type '%s'", resource_if_ptr);
+            OC_DBG("if type '%s'", resource_if_ptr);
 
             if (wildcard)
             {
