@@ -273,8 +273,8 @@ void oc_context_print_all(void) {
   size_t rid_len;
   size_t cid_len;
 
-  //     10        | 21                  | 21                  | 40                                     | 
-  PRINT("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
+  //     17               | 21                  | 21                  | 40                                     | 
+  PRINT("AT entry         | Sender ID           | Recipient ID        | ID Context                             | ssn");
         
   // print all present context entries
   while (ctx) {

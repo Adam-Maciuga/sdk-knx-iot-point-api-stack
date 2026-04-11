@@ -221,8 +221,7 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   &core_resource_knx_auth_o_osndelay_data};
 PRAGMA_OUT
 
-static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request,
-                                                   oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
@@ -261,8 +260,7 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   &core_resource_knx_auth_o_replwdo_data};
 PRAGMA_OUT
 
-static void oc_core_knx_auth_o_get_handler(oc_request_t* request,
-                                           oc_interface_mask_t iface_mask, void* data)
+static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
@@ -373,7 +371,7 @@ static int a_sen_convert_cmd(char* cmd)
   {
     return LDEVID_RENEW;
   }
-  else if (strncmp(cmd, "stop", strlen("stop")) == 0)
+  if (strncmp(cmd, "stop", strlen("stop")) == 0)
   {
     return LDEVID_STOP;
   }
