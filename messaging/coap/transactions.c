@@ -64,7 +64,7 @@ void coap_register_as_transaction_handler(void)
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
+coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
 {
   coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
   if (t)
@@ -101,7 +101,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t t
   return t;
 }
 
-coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
+coap_transaction_t* smode_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
 {
   /* 
     We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged
@@ -286,7 +286,7 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
   return NULL;
 }
 
-coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token_len)
+coap_transaction_t * coap_get_transaction_by_token(const uint8_t *token, uint8_t token_len)
 {
   for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next)
   {
@@ -302,7 +302,7 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   return NULL;
 }
 
-transaction_t* get_any_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+transaction_t* get_any_transaction_by_token_or_mid(uint16_t mid, const uint8_t* token, uint8_t token_len)
 {
   for (transaction_t* t = (transaction_t*)oc_list_head(transactions_list); t ; t = t->next)
   {
@@ -379,7 +379,7 @@ void coap_free_all_transactions(void)
   }
 }
 
-void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
+void coap_free_transactions_by_endpoint(const oc_endpoint_t *endpoint)
 {
   coap_transaction_t* t = (coap_transaction_t*) oc_list_head(transactions_list);
 
