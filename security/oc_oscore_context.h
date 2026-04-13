@@ -136,17 +136,13 @@ void oc_oscore_free_contexts_at_id(const oc_auth_at_t* auth_at_entry);
  */
 typedef struct oc_oscore_context_params_t {
   const uint8_t* sender_id;     /**< Sender ID (NULL for a recipient-only context) */
-  uint8_t sender_id_size;       /**< Length of sender_id */
   const uint8_t* recipient_id;  /**< Recipient ID (NULL for a sender-only context) */
-  uint8_t recipient_id_size;    /**< Length of recipient_id */
   uint64_t ssn;                 /**< Sender sequence number */
-  const uint8_t* mastersecret;  /**< OSCORE master secret */
-  uint8_t mastersecret_size;    /**< Length of master secret */
-  const uint8_t* salt;          /**< Salt */
-  uint8_t salt_size;            /**< Length of salt */
   const uint8_t* id_context;    /**< ID Context */
-  uint8_t id_context_size;      /**< Length of ID Context */
   const oc_auth_at_t* auth_at;  /**< Pointer to the access token entry in the AT table */
+  uint8_t id_context_size;      /**< Length of ID Context */
+  uint8_t sender_id_size;       /**< Length of sender_id */
+  uint8_t recipient_id_size;    /**< Length of recipient_id */
   bool read_ssn_from_storage;   /**< If true, an offset is added to the SSN, otherwise not */
 } oc_oscore_context_params_t;
 
@@ -159,16 +155,16 @@ typedef struct oc_oscore_context_params_t {
 oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* params);
 
 /**
- * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting sender_id = NULL (0) and ssn to inbound snn
+ * @brief creates an OSCORE recipient context by filling 'oc_oscore_add_context' with 'Recipient ID' ('Sender ID' is NULL/0)
  *
  **/
-oc_oscore_context_t* oc_oscore_add_recipient_context(const oc_oscore_context_params_t* params);
+oc_oscore_context_t* oc_oscore_add_recipient_context(oc_oscore_context_params_t* params);
 
 /**
- * @brief creates an OSCORE context as it is done with 'oc_oscore_add_context' by setting recipient_id = NULL (0)
+ * @brief creates an OSCORE sender context by filling 'oc_oscore_add_context' with 'Sender ID' ('Recipient ID' is NULL/0)
  *
  **/
-oc_oscore_context_t* oc_oscore_add_sender_context(const oc_oscore_context_params_t* params);
+oc_oscore_context_t* oc_oscore_add_sender_context(oc_oscore_context_params_t* params);
 
 /**
  * @brief Free the least recently used recipient context

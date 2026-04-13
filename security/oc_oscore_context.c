@@ -298,11 +298,14 @@ void oc_context_print_all(void) {
 #endif
 }
 
-oc_oscore_context_t* oc_oscore_add_recipient_context(const oc_oscore_context_params_t* params)
+oc_oscore_context_t* oc_oscore_add_recipient_context(oc_oscore_context_params_t* params)
 {
-
+  // assign for recipient context the recipient id from the access token entry, so that it can be found by the 'kid' from the inbound request message
+  params->recipient_id = (uint8_t*)oc_string(params->auth_at->osc_id);
+  params->recipient_id_size = oc_byte_string_len(params->auth_at->osc_id);
+  
   #ifdef OC_DEBUG
-  OC_DBG("adding OSCORE Request Recipient Context (A2/8.2) with Recipient ID : ");
+  OC_DBG("adding OSCORE Request Recipient Context with 'Recipient ID' : ");
   oc_char_println_hex((const char*)params->recipient_id, params->recipient_id_size);
   #endif
 
@@ -322,11 +325,14 @@ oc_oscore_context_t* oc_oscore_add_recipient_context(const oc_oscore_context_par
   return ctx;
 }
 
-oc_oscore_context_t* oc_oscore_add_sender_context(const oc_oscore_context_params_t* params)
+oc_oscore_context_t* oc_oscore_add_sender_context(oc_oscore_context_params_t* params)
 {
+  // assign for sender context the sender id from the access token entry, so that it can be found by the 'kid' from the outbound request message
+  params->sender_id = (uint8_t*)oc_string(params->auth_at->osc_id);
+  params->sender_id_size = oc_byte_string_len(params->auth_at->osc_id);
 
   #ifdef OC_DEBUG
-  OC_DBG("adding OSCORE Request Sender Context (A1/8.1) with Sender ID : ");
+  OC_DBG("adding OSCORE Request Sender Context with 'Sender ID' : ");
   oc_char_println_hex((const char*)params->sender_id, params->sender_id_size);
   #endif
 
@@ -358,15 +364,21 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
     return NULL;
   }
 
-  if (!params->sender_id && !params->recipient_id && !params->mastersecret)
+  // get all access token parameters for context creation
+  const uint8_t* mastersecret = (const uint8_t*)oc_string(params->auth_at->osc_ms);
+  const uint8_t mastersecret_size = oc_byte_string_len(params->auth_at->osc_ms); 
+  const uint8_t* salt = (const uint8_t*)oc_string(params->auth_at->osc_salt); 
+  const uint8_t salt_size = oc_byte_string_len(params->auth_at->osc_salt); 
+
+  if (!params->sender_id && !params->recipient_id && !mastersecret)
   {
     OC_ERR("No sender ID or recipient ID or Master secret");
     goto add_oscore_context_error;
   }
 
-  if (params->mastersecret_size < OSCORE_KEY_LEN || params->mastersecret_size > OSCORE_MASTER_SECRET_LEN)
+  if (mastersecret_size < OSCORE_KEY_LEN || mastersecret_size > OSCORE_MASTER_SECRET_LEN)
   {
-    OC_ERR("master secret size is must be in range 16 ... 32 : %d", params->mastersecret_size);
+    OC_ERR("master secret size is must be in range 16 ... 32 : %d", mastersecret_size);
     goto add_oscore_context_error;
   }
 
@@ -409,28 +421,28 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
     ctx->id_context_len = params->id_context_size;
   }
 
-  if (params->mastersecret)
+  if (mastersecret)
   {
-    memcpy(&ctx->master_secret, params->mastersecret, params->mastersecret_size);
+    memcpy(&ctx->master_secret, mastersecret, mastersecret_size);
   }
 
   if (params->sender_id && params->sender_id_size > 0)
   {
     // set sender id to value from cnf:osc:id 
     memcpy(ctx->sender_id, params->sender_id, params->sender_id_size);
-    ctx->sender_id_len = (uint8_t)params->sender_id_size;
+    ctx->sender_id_len = params->sender_id_size;
   }
 
   if (params->recipient_id && params->recipient_id_size > 0)
   {
     // set recipient id to value from cnf:osc:id 
     memcpy(ctx->recipient_id, params->recipient_id, params->recipient_id_size);
-    ctx->recipient_id_len = (uint8_t)params->recipient_id_size;
+    ctx->recipient_id_len = params->recipient_id_size;
   }
 
   if (oc_oscore_context_derive_param(ctx->sender_id, ctx->sender_id_len,
-                                     ctx->id_context, ctx->id_context_len, "Key", params->mastersecret,
-                                     (uint8_t)params->mastersecret_size, params->salt, (uint8_t)params->salt_size,
+                                     ctx->id_context, ctx->id_context_len, "Key", mastersecret,
+                                     mastersecret_size, salt, salt_size,
                                      ctx->sender_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Sender Key ...");
@@ -438,8 +450,8 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   }
 
   if (oc_oscore_context_derive_param(ctx->recipient_id, ctx->recipient_id_len,
-                                     ctx->id_context, ctx->id_context_len, "Key", params->mastersecret,
-                                     (uint8_t)params->mastersecret_size, params->salt, (uint8_t)params->salt_size,
+                                     ctx->id_context, ctx->id_context_len, "Key", mastersecret,
+                                     mastersecret_size, salt, salt_size,
                                      ctx->recipient_key, OSCORE_KEY_LEN) < 0)
   {
     OC_ERR("### error deriving Recipient Key ...");
@@ -447,8 +459,8 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   }
 
   if (oc_oscore_context_derive_param(NULL, 0,
-                                     ctx->id_context, ctx->id_context_len, "IV", params->mastersecret,
-                                     (uint8_t)params->mastersecret_size, params->salt, (uint8_t)params->salt_size,
+                                     ctx->id_context, ctx->id_context_len, "IV", mastersecret,
+                                     mastersecret_size, salt, salt_size,
                                      ctx->common_iv, OSCORE_COMMON_IV_LEN) < 0)
   {
     OC_ERR("### error deriving Common IV ...");
@@ -459,8 +471,8 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   OC_DBG("### Sender ID     : (%2d)\t= ", ctx->sender_id_len);  OC_LOGbytes(ctx->sender_id, ctx->sender_id_len);
   OC_DBG("### Recipient ID  : (%2d)\t= ", ctx->recipient_id_len);  OC_LOGbytes(ctx->recipient_id, ctx->recipient_id_len);
   OC_DBG("### ID Context    : (%2d)\t= ", ctx->id_context_len);  OC_LOGbytes(ctx->id_context, ctx->id_context_len);
-  OC_DBG("### Master Secret : (%2d)\t= ", params->mastersecret_size);  oc_char_println_hex((const char*)params->mastersecret, params->mastersecret_size);
-  OC_DBG("### Salt          : (%2d)\t= ", params->salt_size);  oc_char_println_hex((const char*)params->salt, params->salt_size);
+  OC_DBG("### Master Secret : (%2d)\t= ", mastersecret_size);  oc_char_println_hex((const char*)mastersecret, mastersecret_size);
+  OC_DBG("### Salt          : (%2d)\t= ", salt_size);  oc_char_println_hex((const char*)salt, salt_size);
   OC_DBG("### SSN           : (%2d)\t= %" PRIu64, (int)sizeof(ctx->ssn), ctx->ssn);
 
   OC_DBG(PRINT16BYTEHEX("### derived Request Key  : ", ctx->sender_key));

@@ -1898,20 +1898,14 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
         /*
                'Client' Side (details see method 'oc_oscore_receive_message' header), create:
                 Request Sender Context (from access token)
-               - kid
-               - kid_context (rnd)
-               - ms + salt from token
+               - kid (oc_oscore_add_sender_context')
+               - kid_context (here)
+               - ms + salt from token (inside 'oc_oscore_add_context')
                - ssn = from storage
         */
-        const oc_oscore_context_params_t oscore_params = 
+        oc_oscore_context_params_t oscore_params = 
         {
-          .sender_id = (const uint8_t*)oc_string(at_entry->osc_id),
-          .sender_id_size = oc_byte_string_len(at_entry->osc_id),
           .ssn = stored_ssn,
-          .mastersecret = (const uint8_t*)oc_string(at_entry->osc_ms),
-          .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
-          .salt = (const uint8_t*)oc_string(at_entry->osc_salt),
-          .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = (const uint8_t*)oc_string(at_entry->osc_contextid),
           .id_context_size = oc_byte_string_len(at_entry->osc_contextid),
           .auth_at = at_entry, // at entry cannot be out of range because of loop above

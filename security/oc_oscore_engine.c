@@ -441,9 +441,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
            'Server' Side (details see method 'oc_oscore_receive_message' header), create:
             Request Recipient Context (normal context for the inbound 'normal' message)
-             - kid (taken from the inbound request message)
-             - kid_context (taken from the inbound request message = by MaC written)
-             - ms + salt from token
+             - kid (oc_oscore_add_recipient_context')
+             - kid_context (here, taken from the inbound request message, by MaC written)
+             - ms + salt from token (inside 'oc_oscore_add_context')
              - ssn (take over client's ssn on synchronization, due to a lost sync by the client)
 
         */
@@ -451,15 +451,9 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         uint64_t inbound_ssn;
         oscore_store_piv_to_ssn(coap_pkt->piv, coap_pkt->piv_len, &inbound_ssn);
 
-        const oc_oscore_context_params_t oscore_params = 
+        oc_oscore_context_params_t oscore_params = 
         {
-          .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
-          .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
           .ssn = inbound_ssn,
-          .mastersecret = (uint8_t*)oc_string(at_entry->osc_ms),
-          .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
-          .salt = (uint8_t*)oc_string(at_entry->osc_salt),
-          .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = (const uint8_t*)coap_pkt->kid_ctx,
           .id_context_size = coap_pkt->kid_ctx_len,
           .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
@@ -544,23 +538,17 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
          'Client' Side (details see method 'oc_oscore_receive_message' header), create:
           Response Recipient Context (normal context for the inbound 'unicast echo response' message)
-           - kid (taken from access token)
-           - kid_context (taken from the inbound message = rnd)
-           - ms + salt from token
+           - kid (oc_oscore_add_recipient_context')
+           - kid_context (here, taken from access token and inbound message)
+           - ms + salt from token (inside 'oc_oscore_add_context')
            - ssn (init ssn with '0', not used on any sending)
       */
 
       // TODO DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
 
-      const oc_oscore_context_params_t oscore_params = 
+      oc_oscore_context_params_t oscore_params = 
       {
-        .recipient_id = (uint8_t*)oc_string(at_entry->osc_id),
-        .recipient_id_size = oc_byte_string_len(at_entry->osc_id),
         .ssn = 0,
-        .mastersecret = (uint8_t*)oc_string(at_entry->osc_ms),
-        .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
-        .salt = (uint8_t*)oc_string(at_entry->osc_salt),
-        .salt_size = oc_byte_string_len(at_entry->osc_salt),
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
         .id_context_size = coap_pkt->kid_ctx_len,
         .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
@@ -1136,23 +1124,17 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         /*
                'Server' Side (details see method 'oc_oscore_receive_message' header), create:
                 Response Sender Context
-               - kid
-               - kid_context (rnd)
-               - ms + salt from token
-               - ssn = from s-mode request message, used for 'unicast echo responses'
+                - kid (oc_oscore_add_sender_context')
+                - kid_context (here, rnd)
+                - ms + salt from token (inside 'oc_oscore_add_context')
+                - ssn = from s-mode request message, used for 'unicast echo responses'
         */
-        const oc_oscore_context_params_t oscore_params = 
+        oc_oscore_context_params_t oscore_params = 
         {
-          .sender_id = (uint8_t*)oc_string(at_entry->osc_id),
-          .sender_id_size = oc_byte_string_len(at_entry->osc_id),
           .ssn = inbound_ssn,
-          .mastersecret = (uint8_t*)oc_string(at_entry->osc_ms),
-          .mastersecret_size = oc_byte_string_len(at_entry->osc_ms),
-          .salt = (uint8_t*)oc_string(at_entry->osc_salt),
-          .salt_size = oc_byte_string_len(at_entry->osc_salt),
           .id_context = rnd,
           .id_context_size = 10,
-          .auth_at = from_org_msg_cloned_outgoing_msg->endpoint.auth_at_of_inbound_msg, 
+          .auth_at = at_entry, 
           .read_ssn_from_storage = false // NO offset is added to SSN
         };
         oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
