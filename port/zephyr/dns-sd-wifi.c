@@ -47,6 +47,7 @@
 
 #include <zephyr/net/dns_sd.h>
 #include <zephyr/net/hostname.h>
+#include <zephyr/net/mdns_responder.h>
 
 /* ── Constants ────────────────────────────────────────────────────────────── */
 
@@ -79,7 +80,9 @@
 
 static char     knx_instance[INSTANCE_SIZE];   /* serial lowercase; empty → suppress */
 static char     knx_hostname[HOSTNAME_SIZE];   /* UPPERCASE.knx */
-static uint16_t knx_port    = KNX_COAP_PORT;
+/* Port in network byte order: Zephyr's dns_sd_rec.port convention matches
+ * DNS_SD_REGISTER_UDP_SERVICE, which stores sys_cpu_to_be16(port). */
+static uint16_t knx_port    = sys_cpu_to_be16(KNX_COAP_PORT);
 
 /* TXT record buffer in DNS label wire format.
  * Starts as all-zero (empty TXT record, per RFC 6763 §6.1).
@@ -237,7 +240,12 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     }
 
     OC_INF("DNS-SD: KNX service registered: %s._knx._udp.local port %d.",
-           knx_instance, knx_port);
+           knx_instance, (int)sys_be16_to_cpu(knx_port));
+
+    /* Proactively announce the updated service records (primary + all subtypes)
+     * so that ETS and other tools see the changes immediately without waiting
+     * for an incoming query. */
+    mdns_announce_dns_sd_services();
 #else
     OC_WRN("DNS-SD: OC_DNS_SD not defined, DNS-SD service registration is disabled!");
 #endif /* OC_DNS_SD */
