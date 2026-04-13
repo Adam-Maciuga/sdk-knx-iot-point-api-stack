@@ -86,8 +86,6 @@ typedef struct coap_transaction
   uint8_t token_len;
   uint8_t retransmit_counter;         // 0 = initial message, no retransmission started 
   uint16_t mid;                       // coap TL level: a client relates an out CON msg with an in ACK msg, a receiver ignores already received msg
-  bool is_non_confirmable_smode_msg;  // true if the transaction hosts an NON-confirmable s-mode message (uc/mc) 
-
 } coap_transaction_t, transaction_t;
 
 void coap_register_as_transaction_handler(void);
@@ -101,10 +99,10 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
 void coap_send_transaction(coap_transaction_t *t);
 void coap_clear_transaction(coap_transaction_t *t);
 
-// returns coap transactions
+// returns ONLY coap CON transactions by mid
 coap_transaction_t *coap_get_transaction_by_mid(uint16_t mid);
   
-// returns coap transactions, note, returns also a non-null transaction if both token len's are '0';
+// returns ONLY coap CON transactions by token, note, returns also a non-null transaction if both token len's are '0';
 coap_transaction_t *coap_get_transaction_by_token(uint8_t *token, uint8_t token_len);
 
 // returns ANY transaction (CON/NON, w/wo s-mode), checks first mid then token, note, returns also a non-null transaction if both token len's are '0';
