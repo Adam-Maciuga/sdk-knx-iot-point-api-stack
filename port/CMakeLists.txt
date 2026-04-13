@@ -70,6 +70,16 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
         PRIVATE "${PORT_DIR}"
     ) 
 
+    target_include_directories(mbedtls ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedcrypto ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedx509 ${MBEDTLS_INCLUDE_DIRS})
+    # Note:
+    # p256m and everest are sub-libraries of mbedtls that also include oc_config.h
+    # via knx_mbedtls_config.h. They do not inherit include dirs from mbedcrypto,
+    # so PORT_DIR must be added explicitly.
+    target_include_directories(p256m ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(everest ${MBEDTLS_INCLUDE_DIRS})
+
     if(WIN32 AND NOT MSVC)
         # Note:
         # Mbed TLS v3.6.5 throws -Werror=format= errors when using MinGW

@@ -246,7 +246,7 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
   static const char sub_pm[] = "_pm._sub._knx._udp.local.";
 
   /* --- Port (from stack) ----------------------------------------- */
-  uint16_t port = knx_get_used_port();
+  uint16_t port = knx_dns_sd_get_used_port();
 
   /* --- Build records --------------------------------------------- */
 
@@ -625,7 +625,7 @@ send_query_response(int sock, const char *ptr_name)
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", sn_lower);
   size_t hostname_len = strlen(hostname);
 
-  uint16_t port = knx_get_used_port();
+  uint16_t port = knx_dns_sd_get_used_port();
 
   /* Answer: PTR — the name must match the query the client sent */
   mdns_record_t answer;
@@ -756,7 +756,7 @@ send_srv_response(int sock)
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", sn_lower);
   size_t hostname_len = strlen(hostname);
 
-  uint16_t port = knx_get_used_port();
+  uint16_t port = knx_dns_sd_get_used_port();
 
   /* Answer: SRV */
   mdns_record_t answer;
@@ -1145,8 +1145,7 @@ stop_listener(void)
 /* Public API  (see port/dns-sd.h)                                    */
 /* ------------------------------------------------------------------ */
 
-int
-knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
+int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
 #ifndef OC_DNS_SD
   (void)serial_no;
@@ -1181,23 +1180,26 @@ knx_publish_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 #endif /* OC_DNS_SD */
 }
 
-void
-knx_service_sleep_period(int sp)
+void knx_dns_sd_set_sleep_period(int sp)
 {
   if (sp)
     (void)snprintf(sp_value, sizeof(sp_value), "%d", sp);
   else
     memset(sp_value, 0, sizeof(sp_value));
+
+  /* Re-announce immediately so the updated TXT record (SP=<n>) is picked up
+   * without the caller having to call knx_dns_sd_update_service separately. */
+  if (prev_valid)
+    (void)send_announcement(prev_serial, prev_iid, prev_ia, prev_pm, /*goodbye=*/false);
+  OC_INF("DNS-SD: Sleep period set to %d.", sp);
 }
 
-uint16_t
-knx_get_used_port(void)
+uint16_t knx_dns_sd_get_used_port(void)
 {
   return get_ip_context_for_device()->port;
 }
 
-void
-knx_stop_mdns(void)
+void knx_mdns_stop(void)
 {
 #ifdef OC_DNS_SD
   /* Send goodbye for current advertisement */

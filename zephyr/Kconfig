@@ -1,0 +1,234 @@
+# This file is sourced by the Zephyr build system via zephyr/module.yml and
+# exposes all KNX-IoT stack options in the Zephyr menuconfig / guiconfig.
+# The symbol names mirror the CMake cache variables used for Linux/Windows builds.
+
+config KNXIOT_LIB
+    bool "KNX-IoT Point API Stack"
+    select MBEDTLS
+    help
+      Enable the KNX-IoT Point API protocol stack.
+
+if KNXIOT_LIB
+
+# ── External libraries ─────────────────────────────────────────────────────────
+
+config KNXIOT_MBEDTLS_BUILTIN
+    bool "Use stack-bundled Mbed TLS"
+    default y
+    help
+      Corresponds to CMake: CONFIG_KNXIOT_MBEDTLS_BUILTIN.
+      Set to n to use the Mbed TLS module provided by Zephyr.
+
+config KNXIOT_TINYCBOR_BUILTIN
+    bool "Use stack-bundled TinyCBOR"
+    default y
+    help
+      Corresponds to CMake: CONFIG_KNXIOT_TINYCBOR_BUILTIN.
+      Set to n to use the TinyCBOR module provided by Zephyr.
+
+# ── Protocol ───────────────────────────────────────────────────────────────────
+
+config KNXIOT_DYNAMIC_ALLOCATION
+    bool "Dynamic memory allocation"
+    default y
+    help
+      Corresponds to CMake: OC_DYNAMIC_ALLOCATION.
+      Required for the current stack implementation.  # TODO FIXME: make optional
+
+config KNXIOT_CLIENT
+    bool "KNX-IoT client mode support"
+    default y
+    help
+      Corresponds to CMake: OC_CLIENT.
+
+config KNXIOT_SERVER
+    bool "KNX-IoT server mode support"
+    default y
+    help
+      Corresponds to CMake: OC_SERVER.
+
+config KNXIOT_PUBLISHER_TABLE
+    bool "Publisher table (Group Publisher Table) support"
+    default y
+    help
+      Corresponds to CMake: OC_PUBLISHER_TABLE_ENABLED.
+      Enables the Group Publisher Table (GPT), which allows the device to
+      participate in table-managed KNX S-mode group communication and to
+      receive group messages. Disable for plain senders that only transmit
+      S-mode messages without table-based management.
+
+# ── Table sizes ────────────────────────────────────────────────────────────────
+
+config KNXIOT_GOT_MAX_ENTRIES
+    int "Group Object Table (GOT) max entries"
+    default 50
+    help
+      Corresponds to CMake: KNX_GOT_MAX_ENTRIES.
+      Maximum number of entries in the Group Object Table.
+      Each entry maps one group object (a data point on this device) to a
+      group address and data type. Size this to the total number of group
+      objects the device exposes across all channels and functions.
+
+config KNXIOT_GPT_MAX_ENTRIES
+    int "Group Publisher Table (GPT) max entries"
+    default 20
+    depends on KNXIOT_PUBLISHER_TABLE
+    help
+      Corresponds to CMake: KNX_GPT_MAX_ENTRIES.
+      Maximum number of entries in the Group Publisher Table.
+      Each entry defines a group object this device publishes (sends)
+      S-mode messages for. Size this to the number of group objects
+      the device actively sends.
+
+config KNXIOT_GRT_MAX_ENTRIES
+    int "Group Recipient Table (GRT) max entries"
+    default 20
+    help
+      Corresponds to CMake: KNX_GRT_MAX_ENTRIES.
+      Maximum number of entries in the Group Recipient Table.
+      Each entry defines a group address this device subscribes to
+      (receives S-mode messages from). Size this to the number of
+      group objects the device listens to.
+
+config KNXIOT_SEC_MAX_ENTRIES
+    int "Access Token Table max entries"
+    default 20
+    help
+      Corresponds to CMake: KNX_SEC_MAX_ENTRIES.
+      Maximum number of entries in the Access Token (AT) table.
+      Each entry holds a security token granting a management client
+      access rights to this device. Size this to the maximum number
+      of management clients (e.g., ETS, MaC tools) that may be
+      simultaneously authorised.
+
+config KNXIOT_PAGE_SIZE
+    int "Server default page size"
+    default 20
+    help
+      Corresponds to CMake: KNX_PAGE_SIZE.
+      Number of entries returned per page in paginated CoAP responses
+      to management requests (e.g., table read-out by ETS or MaC).
+      Reduce if CoAP response payloads exceed the network MTU.
+
+# ── Network ────────────────────────────────────────────────────────────────────
+
+config KNXIOT_DNS_SD
+    bool "DNS-SD / mDNS discovery support"
+    default y
+    help
+      Corresponds to CMake: OC_DNS_SD_ENABLED.
+      Enables DNS-SD based discovery in addition to CoAP multicast discovery.
+
+config KNXIOT_SENDER_MULTICAST_SCOPE
+    int "IPv6 multicast scope for outgoing S-mode messages"
+    default 2
+    help
+      Corresponds to CMake: OC_SENDER_MULTICAST_SCOPE.
+      This is the IPv6 multicast scope used when sending KNX S-mode messages.
+      Scope 2 (link-local) is suitable for single-segment networks and
+      same-host testing. Scope 5 (site-local) is used in routed deployments.
+
+config KNXIOT_RESET_PROCESS_TIME
+    int "KNX reset process time (seconds)"
+    default 2
+    help
+      Corresponds to CMake: KNX_RESPONSE_TIME_SECONDS.
+      Maximum time in seconds for the device to complete a KNX reset.
+      This value is sent in the reset response to management clients
+      (e.g., EITT, MaC) so they know how long to wait before issuing
+      follow-up requests while the device is resetting locally.
+
+# ── Security ───────────────────────────────────────────────────────────────────
+
+config KNXIOT_SPAKE_ITERATIONS
+    int "SPAKE2+ iteration count"
+    default 50000
+    help
+      Corresponds to CMake: KNX_SPAKE_ITERATIONS.
+      Number of SHA-256 iterations used in the SPAKE2+ password-based
+      key exchange during device enrollment. Higher values increase
+      resistance to brute-force attacks at the cost of enrollment time.
+
+config KNXIOT_REPLAY_PROTECTION
+    bool "Replay protection"
+    default y
+    help
+      Corresponds to CMake: OC_REPLAY_PROTECTION_ENABLED.
+      Enables security replay protection using the CoAP Echo option.
+      Prevents an attacker from re-sending previously captured valid
+      requests to trigger unintended actions on the device.
+
+config KNXIOT_TLS_PKI
+    bool "TLS PKI support"
+    default n
+    help
+      Corresponds to CMake: OC_PKI_ENABLED.
+
+# ── Timing ─────────────────────────────────────────────────────────────────────
+# OC_CLOCK_CONF_TICKS_PER_SECOND (port/zephyr/oc_config.h) is set to
+# CONFIG_SYS_CLOCK_TICKS_PER_SEC so the KNX-IoT timer arithmetic matches
+# oc_clock_time() which returns k_uptime_get() (milliseconds).
+# No separate KNX-IoT symbol is needed; configure the tick rate via
+# CONFIG_SYS_CLOCK_TICKS_PER_SEC in Zephyr's kernel/Kconfig if needed.
+
+# ── Diagnostics ────────────────────────────────────────────────────────────────
+
+config KNXIOT_ZEPHYR_MALLOC_HEAP_STATS
+    bool "C library malloc heap runtime statistics"
+    depends on COMMON_LIBC_MALLOC && SYS_HEAP_RUNTIME_STATS
+    default n
+    help
+      Expose C library malloc heap statistics in the KNX-IoT shell command
+      "knx_iot malloc_heap".  Requires Zephyr to be patched with
+      0005-zephyr-4.3-lib-libc-common-add-malloc-heap-stats-acc.patch, which
+      adds z_malloc_heap_runtime_stats_get() and z_malloc_heap_init_bytes()
+      as thin wrappers around the otherwise-static z_malloc_heap.
+      Without the patch this option must be left off (default).
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+
+config KNXIOT_LOG_LEVEL
+    int "KNX-IoT stack log level"
+    default 3
+    range 0 3 if !KNXIOT_DEBUG
+    range 0 4 if KNXIOT_DEBUG
+    help
+      Follows the Zephyr log level convention (CONFIG_<MODULE>_LOG_LEVEL).
+      Corresponds to CMake: OC_PRINT_ENABLED (level > 0) / OC_DEBUG_ENABLED (level 4).
+      0 = OFF   - no logging
+      1 = ERR   - errors only
+      2 = WRN   - warnings and errors
+      3 = INF   - informational (default)
+      4 = DBG   - debug (only available when KNXIOT_DEBUG=y)
+
+config KNXIOT_DEBUG
+    bool "Enable debug logging (level 4)"
+    default n
+    help
+      Unlocks log level 4 (DBG) for KNXIOT_LOG_LEVEL.
+      Corresponds to CMake: OC_DEBUG_ENABLED.
+
+config KNXIOT_DEBUG_OSCORE
+    bool "OSCORE debug output"
+    default n
+    depends on KNXIOT_DEBUG
+    help
+      Corresponds to CMake: OC_DEBUG_OSCORE_ENABLED.
+
+config KNXIOT_LOG_HEXDUMP_DBG
+    bool "Enable OC_LOGbytes() output via LOG_HEXDUMP_DBG"
+    default n
+    depends on KNXIOT_DEBUG
+    help
+      When enabled, OC_LOGbytes() and OC_LOGbytes_OSCORE() emit raw byte
+      buffers using Zephyr's LOG_HEXDUMP_DBG() in a single log message.
+      When disabled (default), OC_LOGbytes() is a no-op on Zephyr. Per-byte
+      LOG_INF calls would generate one log message per byte and flood the output.
+
+config KNXIOT_LOG_CAST_64_BIT_INTS
+    bool "Cast 64-bit integers in log output"
+    default n
+    help
+      Corresponds to CMake: KNX_LOG_CAST_64_BIT_INTS_ENABLED.
+
+endif # KNXIOT_LIB

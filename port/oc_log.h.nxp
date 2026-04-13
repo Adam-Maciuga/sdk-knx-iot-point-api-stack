@@ -1,36 +1,49 @@
-/* 
- * Copyright (c) 2016 Intel Corporation
- * Copyright (c) 2022 Cascoda Ltd
- * Copyright (c) 2024-2026 KNX Association
- *            
- * SPDX-License-Identifier: Apache-2.0
- *
- *  @brief platform abstraction of logging
- *  @file
- *
- *  Generic logging functions:
- *  - OC_INF
- *    prints information as Info level, used by PRINT
- *  - OC_WRN
- *    prints information as Warning level
- *  - OC_ERR
- *    prints information as Error level
- *  - OC_DBG
- *    prints information as Debug level
- *  - OC_LOGipaddr
- *    prints the endpoint information to stdout
- *  - OC_LOGbytes
- *    prints the bytes to stdout
- *
- *  Compile flags:
- *  - OC_DEBUG
- *    enables output of logging functions
- *  - OC_NO_LOG_BYTES
- *    disables output of OC_LOGbytes logging function
- *    if OC_DEBUG is enabled.
- *  - KNX_LOG_TO_FILE
- *    logs the PRINT statements to file
- */
+/*
+// Copyright (c) 2016 Intel Corporation
+// Copyright (c) 2022 Cascoda Ltd.
+// Copyright (c) 2024-2025 KNX Association
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+*/
+/**
+  @brief platform abstraction of logging
+  @file
+
+  generic logging functions:
+  - OC_LOGipaddr
+    prints the endpoint information to stdout
+  - OC_LOGbytes
+    prints the bytes to stdout
+  - OC_DBG
+    prints information as Debug level
+  - OC_WRN
+    prints information as Warning level
+  - OC_ERR
+    prints information as Error level
+  - OC_INF
+    prints information as Info level, used by PRINT
+
+  compile flags:
+  - OC_DEBUG
+    enables output of logging functions
+  - OC_NO_LOG_BYTES
+    disables output of OC_LOGbytes logging function
+    if OC_DEBUG is enabled.
+  - KNX_LOG_TO_FILE
+    logs the PRINT statements to file
+  - KNX_LOG_TO_ZEPHYR
+    logs using Zephyr logging subsystem
+*/
 #ifndef OC_LOG_H
 #define OC_LOG_H
 
@@ -39,12 +52,17 @@
 #include <string.h>
 #include "oc_clock_util.h"
 
-// For clock function in debug output, maybe used for debugging in release 
-// builds, hence included globally.
+// for clock function in debug output, maybe used for debugging in release builds, hence included globally 
 #include "oc_clock.h"
 
-#ifdef __ZEPHYR__
-#include "log_zephyr.h"
+#ifdef KNX_LOG_TO_ZEPHYR
+#include <zephyr/logging/log.h>
+LOG_MODULE_DECLARE(libknx, CONFIG_LIB_KNX_LOG_LEVEL);
+#endif
+
+#ifdef OC_PLATFORM_DEFINED_PRINT	// TODO MERGE?
+/* User needs to create a `oc_platform_logging.h` to link with platform defined logging APIs */
+#include "oc_platform_logging.h"
 #endif
 
 #ifdef _WIN32
@@ -55,6 +73,32 @@
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifdef OC_PRINT
+  #ifdef KNX_LOG_TO_FILE
+    // print to file
+    void oc_file_print(char* format, ...);
+
+    // logging to file
+    #define PRINT(...) oc_file_print(__VA_ARGS__)
+    #define PRINTF(...) oc_file_print(__VA_ARGS__)
+  #elif defined(KNX_LOG_TO_ZEPHYR)
+    // logging to Zephyr
+    #define PRINT(...) LOG_INF(__VA_ARGS__)
+    #define PRINTF(...) LOG_INF(__VA_ARGS__)
+  #else
+    // logging to console
+    #define PRINT(...) OC_INF(__VA_ARGS__)
+    #ifndef OC_PLATFORM_DEFINED_PRINT
+      /* Use toolchain print */
+      #define PRINTF(...) printf(__VA_ARGS__)
+    #endif
+  #endif
+#else
+    // logging to void
+    #define PRINT(...)
+    #define PRINTF(...)
 #endif
 
 #define SPRINTF(...) sprintf(__VA_ARGS__)
@@ -184,100 +228,98 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
-// Note:
-// It is recommended to use a console for the output that allows a 'no word wrap'
+// it is recommended to use a console for the output that allows a 'no word wrap' 
 
-#ifdef OC_PRINT
-  #ifdef __ZEPHYR__
-    // logging via Zephyr logging subsystem (thread-safe ring buffer)
-    #define PRINT(...)  LOG_INF(__VA_ARGS__)
-    #define PRINTF(...) LOG_INF(__VA_ARGS__)
-  #elif defined(KNX_LOG_TO_FILE)
-    // print to file
-    void oc_file_print(char* format, ...);
-
-    // logging to file
-    #define PRINT(...) oc_file_print(__VA_ARGS__)
-    #define PRINTF(...) oc_file_print(__VA_ARGS__)
-  #else
-    // logging to console
-    #define PRINT(...) OC_INF(__VA_ARGS__)
-    #define PRINTF(...) printf(__VA_ARGS__)
-  #endif
-#else
-    // logging to void
-    #define PRINT(...)
-    #define PRINTF(...)
-#endif
-
-/* OC_LOG
- * Prepends timestamp, file:line and function name, then the message.
- *
- * Only used on non-Zephyr platforms. On Zephyr, OC_ERR/WRN/INF/DBG map directly
- * to LOG_ERR/WRN/INF/DBG and Zephyr adds its own standard metadata.
- */ // TODO Do we want a switch for this in the config?
-#ifndef __ZEPHYR__
-#define OC_LOG(level, ...)                                      \
-  do {                                                          \
-  oc_clock_time_t _current_time = oc_clock_time();              \
-  \
-   char fileShort[20] = {0};                                    \
-  strncpy(fileShort, __FILENAME__, 15);                         \
-  strncat(fileShort, "...", sizeof("..."));                     \
-  \
-  char funcShort[30] = {0};                                     \
-  strncpy(funcShort, __func__, 24);                             \
-  strncat(funcShort, "...", sizeof("..."));                     \
-  \
-  PRINTF("\n"                                                   \
-         "%-14" PRIu64 ": "                                     \
-         "%-4s: "                                               \
-         "%-20.18s"                                             \
-         "%-5d: "                                               \
-         "%-30.27s> ",                                          \
-         _current_time,                                         \
-         level,                                                 \
-         strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
-         __LINE__,                                              \
-         strlen(__func__) > 27 ? funcShort : __func__);         \
-  \
-  PRINTF(__VA_ARGS__);                                          \
+#ifdef KNX_LOG_TO_ZEPHYR
+// Simplified logging for Zephyr - no timestamp/file/line as Zephyr adds these
+#define OC_LOG(level, ...)                                                     \
+  do {                                                                         \
+    PRINTF(__VA_ARGS__);                                                       \
   } while (0)
 
-/* OC_ERR / OC_WRN / OC_INF
- * Platform-specific log macros for error, warning and info messages.
- *
- * Windows/Unix
- * Routed through OC_LOG which prepends its own metadata.
- * Always do OC_ERR and OC_WRN logs.
- */
+// Map to Zephyr log levels
+#define OC_ERR(...) LOG_ERR(__VA_ARGS__)
+#define OC_WRN(...) LOG_WRN(__VA_ARGS__)
+#define OC_INF(...) LOG_INF(__VA_ARGS__)
+
+#else
+// Original logging with timestamps and file info
+#define OC_LOG(level, ...)                                                     \
+  do {                                                                         \
+    oc_clock_time_t _current_time = oc_clock_time();                           \
+                                                                               \
+    char fileShort[20];                                                        \
+    snprintf(fileShort, sizeof(fileShort), "%s",                               \
+             strlen(__FILENAME__) > 18 ? "..." : "");                          \
+    if (strlen(__FILENAME__) > 18) {                                           \
+      snprintf(fileShort, sizeof(fileShort), "%.15s...", __FILENAME__);        \
+    }                                                                          \
+                                                                               \
+    char funcShort[30];                                                        \
+    if (strlen(__func__) > 27) {                                               \
+      snprintf(funcShort, sizeof(funcShort), "%.24s...", __func__);            \
+    }                                                                          \
+                                                                               \
+    PRINTF("\n"                                                                \
+           "%-14" PRIu64 ": "                                                  \
+           "%-4s: "                                                            \
+           "%-20.18s"                                                          \
+           "%-5d: "                                                            \
+           "%-30.27s> ",                                                       \
+           _current_time,                                                      \
+           level,                                                              \
+           strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,               \
+           __LINE__,                                                           \
+           strlen(__func__) > 27 ? funcShort : __func__);                      \
+                                                                               \
+    PRINTF(__VA_ARGS__);                                                       \
+  } while (0)
+
+// always do OC_ERR and OC_WRN logs
 #define OC_ERR(...) OC_LOG("ERR", __VA_ARGS__)
 #define OC_WRN(...) OC_LOG("WRN", __VA_ARGS__)
 #define OC_INF(...) OC_LOG("INF", __VA_ARGS__)
 
-/* OC_DBG / OC_LOGbytes */
+#endif // KNX_LOG_TO_ZEPHYR
+
 #ifdef OC_DEBUG
-  #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
-  #define OC_LOGbytes(bytes, length)                          \
-    do {                                                      \
-      for (uint16_t i = 0; i < (length); i++)                 \
-        PRINTF("%02x", (bytes)[i]);                           \
+
+  #ifdef KNX_LOG_TO_ZEPHYR
+    #define OC_DBG(...) LOG_DBG(__VA_ARGS__)
+  #else
+    #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
+  #endif
+  
+  #define OC_LOGbytes(bytes, length)                            \
+    do {                                                        \
+      for (uint16_t i = 0; i < (length); i++)                   \
+        PRINTF("%02x", (bytes)[i]);                             \
     } while (0)
+
 #else
+
   #define OC_DBG(...)
   #define OC_LOGbytes(bytes, length)
+
 #endif
 
-/* OC_DBG_OSCORE / OC_DBG_SPAKE */
 #ifdef OC_DEBUG_OSCORE
-  #define OC_DBG_OSCORE(...) OC_LOG("OSC", __VA_ARGS__)
-  #define OC_DBG_SPAKE(...)  OC_LOG("SPK", __VA_ARGS__)
+
+  #ifdef KNX_LOG_TO_ZEPHYR
+    #define OC_DBG_OSCORE(...) LOG_DBG("OSCORE: " __VA_ARGS__)
+    #define OC_DBG_SPAKE(...)  LOG_DBG("SPAKE: " __VA_ARGS__)
+  #else
+    #define OC_DBG_OSCORE(...) OC_LOG("OSC", __VA_ARGS__)
+    #define OC_DBG_SPAKE(...)  OC_LOG("SPK", __VA_ARGS__)
+  #endif
+  
   #define OC_LOGbytes_OSCORE(bytes, length) OC_LOGbytes(bytes, length)
+
 #else
+
   #define OC_DBG_OSCORE(...)
   #define OC_DBG_SPAKE(...)
   #define OC_LOGbytes_OSCORE(bytes, length)
-#endif
 
 #endif
 

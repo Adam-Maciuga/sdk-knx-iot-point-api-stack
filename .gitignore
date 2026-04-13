@@ -11,7 +11,8 @@ deps/**
 CMakeUserPresets.json
 
 # VS Code setting files
-.vscode 
+.vscode
+.claude/
 
 # VS setting files
 .vs
