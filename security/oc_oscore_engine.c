@@ -863,12 +863,12 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     if (ret != 0)
     {
-      OC_ERR("decrypting OSCORE payload : error (%d), ignore message", ret);
+      OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
       oc_message_unref(from_org_msg_cloned_outgoing_msg);
       return -1;
     }
 
-    OC_DBG("decrypting OSCORE payload : success (0)");
+    OC_DBG("encrypting OSCORE payload : success (0)");
 
     // adjust payload length to include the size of the authentication tag
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
