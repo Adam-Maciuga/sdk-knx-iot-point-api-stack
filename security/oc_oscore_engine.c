@@ -548,7 +548,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
       oc_oscore_context_params_t oscore_params = 
       {
-        .ssn = 0,
+        // .ssn = 0, not used for receiving; C99 zero-initializes unnamed fields
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
         .id_context_size = coap_pkt->kid_ctx_len,
         .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
@@ -1033,45 +1033,89 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   uint8_t piv[OSCORE_PIV_LEN], piv_len = 0;
   uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
-  // request - use context SSN as Partial IV (before increment)
-  oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
-
   coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
   bool is_a_con_repetition = transaction && transaction->retransmit_counter > 0;
 
   /*
-    increment SSN
-    - an initial CON request (transaction present) -> a s-mode ('r' -read) OR s-mode ('a' response)
-    - an initial NON request (transaction not present) -> a s-mode ('r' -read) OR s-mode ('a' response)
-    - an initial CON response (transaction present) -> a read response
-    - an initial NON response (transaction not present) -> a read response
-
-    Note s-mode uses only requests, see "S-MODE" details (engine.c).
-
-    keep SSN
-    - CON retransmissions (counter > 0) use the same SSN
-
+    outbound_piv defaults to NULL/0: RFC 8613 §8.3 states the Sender Sequence Number is not used
+    when the response does not carry a Partial IV. SSN is only consumed for outbound requests (8.1)
+    and echo responses that explicitly carry a PIV.
   */
-  if (!is_a_con_repetition)
-    increment_ssn_in_context(oscore_ctx);
-
-  // prepare piv, set context data for request, may be overwritten on the case 8.3
-  uint8_t *outbound_piv = piv, 
-          *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv, 
-          *kid = oscore_ctx->sender_id, 
+  uint8_t *outbound_piv = NULL,
+          *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv,
+          *kid = oscore_ctx->sender_id,
           *kid_context = oscore_ctx->id_context;
 
-  uint8_t outbound_piv_len = piv_len, 
-          inbound_piv_len = from_org_msg_cloned_outgoing_msg->endpoint.piv_len, 
+  uint8_t outbound_piv_len = 0,
+          inbound_piv_len = from_org_msg_cloned_outgoing_msg->endpoint.piv_len,
           kid_len = oscore_ctx->sender_id_len,
           kid_context_len = oscore_ctx->id_context_len;
-  
+
+  /*
+    Context, key and PIV selection per outbound message type
+    =========================================================
+
+    Note: in KNX IoT sender_id == recipient_id == osc.id (same access token field),
+          so nonce/AAD byte values are equal regardless of which ID alias is named below.
+
+    (8.1) Request (is_outbound_request)
+      Context    : Sender Context (found by GA or by kid+kid_context)
+      kid        : sender_id
+      key        : sender_key
+      PIV        : SSN (converted, then incremented; kept on CON retransmissions)
+      nonce      : AEAD_nonce(sender_id, outbound_piv, common_iv)
+      AAD        : compose_AAD(sender_id, outbound_piv)
+
+    (8.3) Normal response (is_outbound_response, no echo flag)
+      Context    : Recipient Context (found by kid+kid_context from inbound request)
+      kid        : recipient_id
+      key        : sender_key
+      PIV        : none (outbound_piv = NULL / 0)
+      nonce      : AEAD_nonce(recipient_id, inbound_piv, common_iv)
+      AAD        : compose_AAD(recipient_id, inbound_piv)
+
+    (x0) Echo response caused by inbound s-mode multicast (ECHO_CAUSED_BY_MC_SRC)
+      Context    : NEW temp Sender Context (ssn=0, 10-byte random kid_context, freed after use)
+      kid        : sender_id  (of the new temp context)
+      key        : sender_key (of the new temp context)
+      PIV        : inbound_piv (reused from the inbound multicast request)
+      nonce      : AEAD_nonce(sender_id, inbound_piv, common_iv)
+      AAD        : compose_AAD(sender_id, inbound_piv)
+
+    (x1/x6) Echo response caused by inbound unicast (ECHO_CAUSED_BY_UC_SRC)
+      Context    : Recipient Context (found by kid+kid_context from inbound request)
+      kid        : recipient_id  (used for AAD and OSCORE option)
+      key        : sender_key
+      PIV        : inbound_piv (reused from the inbound unicast request)
+      nonce      : AEAD_nonce(sender_id, inbound_piv, common_iv)   <- sender_id for nonce
+      AAD        : compose_AAD(recipient_id, inbound_piv)           <- recipient_id for AAD
+  */
+
   if (is_outbound_request
   #ifdef OC_TCP
       || coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01
   #endif
   )
   { // 8.1
+
+    // use context SSN as Partial IV (before increment)
+    oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
+
+    /*
+      increment SSN (RFC 8613 §8.1: SSN is only used and incremented for outbound requests)
+      - an initial CON request (transaction present) -> s-mode ('r' -read) OR s-mode ('a' response)
+      - an initial NON request (transaction not present) -> s-mode ('r' -read) OR s-mode ('a' response)
+
+      Note s-mode uses only requests, see "S-MODE" details (engine.c).
+
+      keep SSN
+      - CON retransmissions (counter > 0) use the same SSN
+    */
+    if (!is_a_con_repetition)
+      increment_ssn_in_context(oscore_ctx);
+
+    outbound_piv = piv;
+    outbound_piv_len = piv_len;
 
     #ifdef OC_CLIENT
 
@@ -1117,21 +1161,17 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
         mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
 
-        // echo response - use s-mode inbound request SSN as Partial IV
-        uint64_t inbound_ssn;
-        oscore_store_piv_to_ssn(inbound_piv, inbound_piv_len, &inbound_ssn);
-
         /*
                'Server' Side (details see method 'oc_oscore_receive_message' header), create:
                 Response Sender Context
                 - kid (oc_oscore_add_sender_context')
                 - kid_context (here, rnd)
                 - ms + salt from token (inside 'oc_oscore_add_context')
-                - ssn = from s-mode request message, used for 'unicast echo responses'
+                - ssn = 0, not used: outbound_piv is set directly from inbound_piv, context is freed after use
         */
         oc_oscore_context_params_t oscore_params = 
         {
-          .ssn = inbound_ssn,
+          // .ssn = 0, not used: outbound_piv is set directly from inbound_piv, context is freed after use; C99 zero-initializes unnamed fields
           .id_context = rnd,
           .id_context_size = 10,
           .auth_at = at_entry, 
@@ -1143,8 +1183,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         {
           // this should not happen, because there was with LRU a context released
           OC_ERR("could not create oscore sender context, return unsecured 5.00");
-          oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, &msg->endpoint, false);
-          oc_message_unref(msg);
+          oscore_send_error(coap_pkt, INTERNAL_SERVER_ERROR_5_00, &from_org_msg_cloned_outgoing_msg->endpoint, false);
+          oc_message_unref(from_org_msg_cloned_outgoing_msg);
           return -1;
         }
 
@@ -1189,7 +1229,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
       
       OC_DBG("send 'unicast echo response' caused by inbound %s unicast message using PIV with len = %u :",
-             from_org_msg_cloned_outgoing_msg->endpoint.flags & S_MODE_NON_REQUEST + S_MODE_CON_REQUEST ? "s-mode" : "common", inbound_piv_len);
+             from_org_msg_cloned_outgoing_msg->endpoint.flags & (S_MODE_NON_REQUEST | S_MODE_CON_REQUEST) ? "s-mode" : "common", inbound_piv_len);
       OC_LOGbytes(inbound_piv, inbound_piv_len );
 
       // 8.1 (a) below, PIV shall be included
@@ -1214,9 +1254,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       OC_DBG("sending common response, using PIV with len = %u : ", inbound_piv_len);
       OC_LOGbytes(inbound_piv, inbound_piv_len);
 
-      // 8.3 (b) below : PIV shall NOT be included
-      outbound_piv = NULL;
-      outbound_piv_len = 0;
+      // 8.3 (b): PIV not included — outbound_piv/outbound_piv_len already default to NULL/0
     }
   }
 
