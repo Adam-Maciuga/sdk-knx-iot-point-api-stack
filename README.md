@@ -108,7 +108,8 @@ Contains adaptations per supported OS platform.
 - **Linux** 
 - **Windows**  
 - **Zephyr**
-
+- **FreeRTOS** (not directly available in this repository, for a port on NXP platforms see [here](https://buildwithknxiot.knx.org/public-projects/knx-iot-docs/pointapi/stack-freertos-overview/))
+                
 ## Dependencies
 
 External project dependencies for the IoT stack repository uses CMake **fetchcontent** as part of the build system. 
