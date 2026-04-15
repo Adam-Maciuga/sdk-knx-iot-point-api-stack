@@ -1,0 +1,8 @@
+# Registers the KNX-IoT Point API Stack as a Zephyr module so that west and
+# the Zephyr build system automatically include its CMake integration and
+# Kconfig symbols when the stack is listed as a project in the west workspace
+# manifest.
+
+build:
+  cmake: zephyr    # Zephyr includes <stack-root>/zephyr/CMakeLists.txt
+  kconfig: zephyr/Kconfig # Kconfig symbols sourced from <stack-root>/zephyr/Kconfig

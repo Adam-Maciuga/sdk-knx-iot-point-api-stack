@@ -14,32 +14,6 @@
 // limitations under the License.
 */
 
-#ifdef __ZEPHYR__
-#include <zephyr/logging/log.h>
-/* LOG_MODULE_REGISTER
- * Creates the Zephyr log module "knx_iot".
- *
- * Compile-time maximum level:
- *   - LOG_LEVEL_DBG (4) when CONFIG_KNXIOT_DEBUG or CONFIG_KNXIOT_DEBUG_OSCORE
- *     is set — enables `log enable dbg knx_iot` at runtime without a rebuild.
- *   - CONFIG_KNXIOT_LOG_LEVEL otherwise (default: INF).
- *
- * The initial runtime level is clamped to CONFIG_LOG_DEFAULT_LEVEL regardless,
- * so debug output is not shown until explicitly enabled via the Zephyr shell:
- *   > log enable dbg knx_iot
- *
- * All translation units that include port/oc_log.h reference this module via
- * LOG_MODULE_DECLARE. Zephyr's logging subsystem serialises output through a
- * lock-free ring buffer so multiple threads can call LOG_* simultaneously
- * without their output lines interleaving.
- */
-#if defined(CONFIG_KNXIOT_DEBUG) || defined(CONFIG_KNXIOT_DEBUG_OSCORE)
-LOG_MODULE_REGISTER(knx_iot, LOG_LEVEL_DBG);
-#else
-LOG_MODULE_REGISTER(knx_iot, CONFIG_KNXIOT_LOG_LEVEL);
-#endif
-#endif /* __ZEPHYR__ */
-
 #if defined(OC_PRINT) && defined(KNX_LOG_TO_FILE)
 
 #include <stdarg.h>

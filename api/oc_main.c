@@ -324,9 +324,9 @@ int oc_main_init(const oc_handler_t* handler)
      network thread; the endpoints are not yet enumerated at this point. */
   oc_network_refresh_endpoints();
 
-  PRINT("Re-register mDNS after a stack initialization)");
+  PRINT("Re-register DNS-SD service after stack initialization)");
   const oc_device_info_t* const  device = oc_core_get_device_info();
-  knx_publish_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   return 0;
 }
@@ -349,8 +349,14 @@ void oc_main_shutdown(void)
 
   initialized = false;
 
-  /* Stop mDNS (goodbye + listener thread) before tearing down networking */
-  knx_stop_mdns();
+  /* Stop DNS-SD/mDNS service before tearing down networking.
+   * On Zephyr: suppresses DNS-SD advertisements (mDNS responder keeps running).
+   * On Linux/Windows: sends goodbye, stops listener thread, closes socket. */
+#ifdef __ZEPHYR__
+  knx_dns_sd_stop();
+#else
+  knx_mdns_stop();
+#endif
 
   /* Send MLD leave messages for all registered multicast groups */
   oc_unregister_group_multicasts();

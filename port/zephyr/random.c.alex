@@ -1,0 +1,78 @@
+/*
+ * Copyright (c) 2025 Alexander Burker
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * [documentation: Zephyr - Random Number Generation](https://docs.zephyrproject.org/latest/services/crypto/random/index.html "")
+ * [documentation: Zephyr - Random Function APIs](https://docs.zephyrproject.org/latest/doxygen/html/group__random__api.html "")
+ * [documentation Mbed-TLS - Random data generation](https://github.com/Mbed-TLS/mbedtls-docs/blob/main/kb/how-to/add-a-random-generator.md "")
+ */
+
+// Use the cryptographically secure, FIPS 140-2 compliant, random number generator.
+// TBD add this as a Kconfig option.
+#define CONFIG_KNX_USE_CRYPTO_RNG
+
+// TBD remove unused header files begin
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+// TBD remove unused header files end
+
+#include <zephyr/random/random.h>
+//#include "mbedtls/entropy.h"	// Mbed TLS entropy collection module 
+//#include "mbedtls/ctr_drbg.h"	// Mbed TLS Counter mode Deterministic Random Bit Generator (CTR-DRBG) module
+#include "port/oc_random.h"
+
+//TBD ZEPHYR static int urandom_fd;
+static mbedtls_entropy_context entropy_context;
+static mbedtls_ctr_drbg_context ctr_drbg_context;
+
+void oc_random_init(void)
+{
+  //TBD ZEPHYR     urandom_fd = open("/dev/urandom", O_RDONLY);	// TBD init Zephyr ESP32 RNG, no device in Zephyr, remove urandom_fd everywhere!
+
+  // Init the Mbed-TLS entropy source and CTR-DRBG module.
+  mbedtls_entropy_init(&entropy_context);
+  mbedtls_ctr_drbg_init(&ctr_drbg_context);
+  int ret = mbedtls_ctr_drbg_seed(&ctr_drbg_context, mbedtls_entropy_func, 
+          &entropy_context, NULL, 0);
+
+  if (ret != 0)
+  {
+    // TBD add error handling
+  }
+}
+
+unsigned int oc_random_value(void)
+{
+  unsigned int random_value = 0;
+
+#ifdef CONFIG_KNX_USE_CRYPTO_RNG
+  // Fill the destination buffer with cryptographically secure random data values.
+  int ret = sys_csrand_get(&random_value, sizeof(random_value));
+  if (ret != 0 )
+  {
+    // TBD add error handling
+    // -EIO if entropy reseed error 
+  }
+#else
+    // Fill the destination buffer with random data values that should pass general randomness tests.
+    sys_rand_get(&random_value, sizeof(random_value));
+#endif
+    return random_value;
+}
+
+void oc_random_destroy(void) {
+//TBD ZEPHYR  close(urandom_fd);
+
+  // Reset the CTR-DRBG context and free the date in the entropy context.
+  mbedtls_ctr_drbg_free(&ctr_drbg_context);
+  mbedtls_entropy_free(&entropy_context);
+}
+
+mbedtls_ctr_drbg_context* oc_random_get_ctr_drbg_context() {
+  return &ctr_drbg_context;
+}

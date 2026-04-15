@@ -117,3 +117,23 @@ The following external dependencies are used:
 
 - **tinyCBOR** A small CBOR implementation in C, used for encoding/decoding CBOR data.
 - **mbedTLS** A lightweight cryptographic library in C, used for implementing security features such as OSCORE.
+
+## Building
+
+The stack is typically consumed as a library by the
+[KNX IoT Point API Demos](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-demos)
+via CMake `FetchContent`. See the
+[demos repository README](https://gitlab.knx.org/public-projects/knx-iot-point-api/knx-iot-point-api-demos/-/blob/HEAD/README.md)
+for the full build instructions, including prerequisites, IDE walkthroughs,
+and CMake preset tables.
+
+To build the stack standalone (for example to run tests), use
+[CMake Presets](https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html).
+CMake 3.21+ and Ninja are required.
+
+```bash
+cmake --preset <preset-name>
+cmake --build --preset <preset-name>
+```
+
+Run `cmake --list-presets` to see all available configure presets.
