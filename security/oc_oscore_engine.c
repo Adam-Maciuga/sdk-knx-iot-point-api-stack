@@ -33,15 +33,15 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
 #ifdef OC_TCP
   if (msg->endpoint.flags & TCP)
   {
-    coap_pkt->transport_type = COAP_TRANSPORT_TCP;
+    packet->transport_type = COAP_TRANSPORT_TCP;
     // parse header fields
     size_t message_length = 0;
     uint8_t num_extended_length_bytes = 0;
     coap_tcp_parse_message_length(msg->data, &message_length, &num_extended_length_bytes);
 
-    coap_pkt->type = COAP_TYPE_NON;
-    coap_pkt->mid = 0;
-    coap_pkt->code = coap_pkt->buffer[1 + num_extended_length_bytes];
+    packet->type = COAP_TYPE_NON;
+    packet->mid = 0;
+    packet->code = packet->buffer[1 + num_extended_length_bytes];
 
     current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
   }
@@ -308,7 +308,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
   /*
     msg was filled before from an inbound message, consider also:
-    - COAP_TYPE_RST, treat reset with code > EMPTY_0_00 the same is as RST with EMPTY_0_00 (not a response)
+    - COAP_TYPE_RST: valid only with code EMPTY_0_00 (RFC 7252 §3); RST with any other code is malformed and rejected
     - COAP_TYPE_ACK
 
   */
@@ -317,6 +317,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   bool is_reset;
   bool is_con;
   bool is_non;
+  bool is_ack;
 
   // check loop back first before process any message, removes also unnecessary decryption and a throw later in coap layer
   if (oc_coap_check_if_loopback_message(msg))
@@ -355,12 +356,21 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   }
 
   // assign first on no error
-  is_reset = coap_pkt->type == COAP_TYPE_RST;
-  is_con = coap_pkt->type == COAP_TYPE_CON;
-  is_non = coap_pkt->type == COAP_TYPE_NON;
+  is_reset = coap_pkt->type == COAP_TYPE_RST && coap_pkt->code == EMPTY_0_00; // RFC 7252 §3: RST must carry code 0.00
+  is_con   = coap_pkt->type == COAP_TYPE_CON;
+  is_non   = coap_pkt->type == COAP_TYPE_NON;
+  is_ack   = coap_pkt->type == COAP_TYPE_ACK;
 
-  is_inbound_request = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  is_inbound_response = !is_reset && coap_pkt->code > OC_FETCH; // NON response or CON|ACK response 
+  is_inbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
+  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // explicit allowlist: CON/NON/ACK with response code
+
+  if (!is_inbound_request && !is_inbound_response && !is_reset)
+  {
+    // e.g. ACK with a request-range code (1-5): not a valid OSCORE carrier — drop silently
+    OC_WRN("unexpected CoAP type/code combination (type=%u code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
+    oc_message_unref(msg);
+    return -1;
+  }
 
   OC_DBG("parse OUTER OSCORE message : ok");
 
@@ -1005,12 +1015,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   }
 
   // msg was filled before from an inbound request or self issued request message, consider also COAP_TYPE_RST or COAP_TYPE_ACK
-  bool is_reset = coap_pkt->type == COAP_TYPE_RST;
   bool is_con = coap_pkt->type == COAP_TYPE_CON;
   bool is_non = coap_pkt->type == COAP_TYPE_NON;
+  bool is_ack  = coap_pkt->type == COAP_TYPE_ACK;
 
-  bool is_outbound_request = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  bool is_outbound_response = !is_reset && coap_pkt->code > OC_FETCH; // NON response or CON(sep)|ACK(piggy) response
+  bool is_outbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
+  bool is_outbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // explicit allowlist: CON/NON/ACK with response code
   
   bool unicast_echo_response_by_mc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC;
   bool unicast_echo_response_by_uc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC;
