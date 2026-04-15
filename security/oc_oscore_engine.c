@@ -1025,6 +1025,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   bool unicast_echo_response_by_mc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC;
   bool unicast_echo_response_by_uc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC;
 
+  if (!is_outbound_request && !is_outbound_response)
+  {
+    // e.g. RST or empty ACK with code 0.00: not a valid OSCORE carrier — drop silently
+    OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE unicast message, ignore", coap_pkt->type, coap_pkt->code);
+    oc_message_unref(from_org_msg_cloned_outgoing_msg);
+    return -1;
+  }
+
   /*
    s-mode = only if ga len is > '0'
 
@@ -1318,12 +1326,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   if (ret != 0)
   {
-    OC_ERR("decrypting OSCORE payload : error (%d), ignore message", ret);
+    OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
     oc_message_unref(from_org_msg_cloned_outgoing_msg);
     return -1;
-  }
+    }
 
-  OC_DBG("decrypting OSCORE payload : success (0)");
+    OC_DBG("encrypting OSCORE payload : success (0)");
 
   // adjust payload length to include the size of the authentication tag
   coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
