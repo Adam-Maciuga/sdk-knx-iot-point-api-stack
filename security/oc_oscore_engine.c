@@ -367,7 +367,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   if (!is_inbound_request && !is_inbound_response && !is_reset)
   {
     // e.g. ACK with a request-range code (1-5): not a valid OSCORE carrier — drop silently
-    OC_WRN("unexpected CoAP type/code combination (type=%u code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
+    OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
     oc_message_unref(msg);
     return -1;
   }
@@ -823,8 +823,8 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     /*
         increment SSN
-        - an initial NON request (CON transaction not present) -> a read request
-        - an initial NON request (CON transaction not present) -> a read response
+        - an initial NON request (CON transaction not present) -> a group value write
+        - an initial NON request (CON transaction not present) -> a group value read
     */
     increment_ssn_in_context(oscore_ctx);
 
@@ -1382,9 +1382,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   return 0;
 
-#endif
+  #endif
 
-#if defined(OC_CLIENT) && defined(KNX_TCP_TLS)
+  #if defined(OC_CLIENT) && defined(KNX_TCP_TLS)
   OC_DBG_OSCORE("Outbound network event: forwarding to TLS");
   if (!oc_tls_connected(&from_org_msg_cloned_outgoing_msg->endpoint))
   {
@@ -1392,12 +1392,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     oc_process_post(&oc_tls_handler, oc_events[INIT_TLS_CONN_EVENT], from_org_msg_cloned_outgoing_msg);
   }
   else
-#endif
+  #endif
   {
-#ifdef KNX_TCP_TLS
+    #ifdef KNX_TCP_TLS
     OC_DBG_OSCORE("Posting RI_TO_TLS_EVENT");
     oc_process_post(&oc_tls_handler, oc_events[RI_TO_TLS_EVENT], from_org_msg_cloned_outgoing_msg);
-#endif
+    #endif
   }
 
   return 0;
