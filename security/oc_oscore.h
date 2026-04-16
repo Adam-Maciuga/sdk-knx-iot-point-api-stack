@@ -16,9 +16,6 @@ extern "C" {
 
 OC_PROCESS_NAME(oc_oscore_handler);
 
-void oc_oscore_set_next_ssn(uint64_t ssn);
-uint64_t oc_oscore_get_next_ssn(void);
-
 #ifdef __cplusplus
 }
 #endif
