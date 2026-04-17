@@ -644,7 +644,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) {
   // - scope 5: ff05::fd (site-local all CoAP nodes)
   oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, 
           COAP_DEFAULT_PORT, 
-          0xFF, OC_SENDER_MULTICAST_SCOPE, 0, 0, 
+          0xFF, KNX_MULTICAST_SCOPE, 0, 0, 
           0,0,0,0, 
           0,0,0,0, 
           0,0,0,0xFD); 

@@ -1017,7 +1017,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                   if (recipient->grpid > 0)
                   { // multicast: read response uses grpid from RCP table (configured by MaC)
 
-                    oc_send_s_mode_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+                    oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, recipient->grpid,
                                                                      sending_ga, 'a', 
                                                                      new_request.response->response_buffer->buffer,
                                                                      (int)new_request.response->response_buffer->response_length);
