@@ -1105,8 +1105,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       kid        : recipient_id  (used for AAD and OSCORE option)
       key        : sender_key
       PIV        : inbound_piv (reused from the inbound unicast request)
-      nonce      : AEAD_nonce(sender_id, inbound_piv, common_iv)   <- sender_id for nonce
-      AAD        : compose_AAD(recipient_id, inbound_piv)           <- recipient_id for AAD
+      nonce      : AEAD_nonce(sender_id, inbound_piv, common_iv)
+      AAD        : compose_AAD(recipient_id, inbound_piv)
   */
 
   if (is_outbound_request
@@ -1236,12 +1236,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       kid = oscore_ctx->recipient_id;
       kid_len = oscore_ctx->recipient_id_len;
       
-      // RFC 8613, 8.3, point 3 lower *, echo response -> reuse the inbound SSN and Sender ID
-      // (= Sender ID from the request) to compute a new AEAD nonce
+      // RFC 8613, 8.3, point 3 lower *, echo response > reuse the inbound SSN and Sender ID to compute a new AEAD nonce
       oc_oscore_AEAD_nonce(oscore_ctx->sender_id, oscore_ctx->sender_id_len,inbound_piv, inbound_piv_len,
                            oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-      // Sender ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
+      // Recipient ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
       oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
 
       UNSET_BIT(from_org_msg_cloned_outgoing_msg->endpoint.flags, ECHO_CAUSED_BY_UC_SRC);
