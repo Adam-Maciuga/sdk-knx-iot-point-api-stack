@@ -54,30 +54,12 @@ typedef enum { BYTE_POOL, INT_POOL, DOUBLE_POOL, FLOAT_POOL } pool;
 
 void oc_mmem_init(void);
 
-#ifdef OC_MEMORY_TRACE
-
-#define oc_mmem_alloc(m, size, pool_type)                                      \
-  _oc_mmem_alloc(__func__, m, size, pool_type)
-#define oc_mmem_free(m, pool_type) _oc_mmem_free(__func__, m, pool_type)
-
-#else /* OC_MEMORY_TRACE */
-
 #define oc_mmem_alloc(m, size, pool_type) _oc_mmem_alloc(m, size, pool_type)
 #define oc_mmem_free(m, pool_type) _oc_mmem_free(m, pool_type)
 
-#endif /* !OC_MEMORY_TRACE */
+size_t _oc_mmem_alloc(struct oc_mmem *m, size_t size, pool pool_type);
 
-size_t _oc_mmem_alloc(
-#ifdef OC_MEMORY_TRACE
-  const char *func,
-#endif
-  struct oc_mmem *m, size_t size, pool pool_type);
-
-void _oc_mmem_free(
-#ifdef OC_MEMORY_TRACE
-  const char *func,
-#endif
-  struct oc_mmem *m, pool pool_type);
+void _oc_mmem_free(struct oc_mmem *m, pool pool_type);
 
 #ifdef __cplusplus
 }

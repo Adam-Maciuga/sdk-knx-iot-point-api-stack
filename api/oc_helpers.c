@@ -26,9 +26,6 @@ static bool mmem_initialized = false;
 #endif
 
 static void oc_malloc(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_handle_t* block, size_t num_items, pool pool_type)
 {
   if (!mmem_initialized)
@@ -38,23 +35,14 @@ static void oc_malloc(
   }
 
   size_t alloc_ret = _oc_mmem_alloc(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     block, num_items, pool_type);
   // oc_assert(alloc_ret > 0);
 }
 
 static void oc_free(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_handle_t* block, pool pool_type)
 {
   _oc_mmem_free(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     block, pool_type);
 
   block->next = 0;
@@ -63,59 +51,35 @@ static void oc_free(
 }
 
 void _oc_new_string(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_string_t* ocstring, const char* str, size_t str_len)
 {
   oc_malloc(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     ocstring, str_len + 1, BYTE_POOL);
   memcpy(oc_string(*ocstring), (const uint8_t*)str, str_len);
   memcpy(oc_string(*ocstring) + str_len, (const uint8_t*)"", 1);
 }
 
 void _oc_new_byte_string(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_string_t* ocstring, const char* str, size_t str_len)
 {
   oc_malloc(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     ocstring, str_len, BYTE_POOL);
   memcpy(oc_string(*ocstring), (const uint8_t*)str, str_len);
 }
 
 void _oc_alloc_string(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_string_t* ocstring, size_t size)
 {
   oc_malloc(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     ocstring, size, BYTE_POOL);
 }
 
 void _oc_free_string(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_string_t* ocstring)
 {
   if (ocstring && ocstring->size > 0)
   {
     oc_free(
-#ifdef OC_MEMORY_TRACE
-      func,
-#endif
       ocstring, BYTE_POOL);
   }
 }
@@ -130,9 +94,6 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2)
 }
 
 void _oc_new_array(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_array_t* ocarray, size_t size, pool type)
 {
   switch (type)
@@ -142,9 +103,6 @@ void _oc_new_array(
   case FLOAT_POOL:
   case DOUBLE_POOL:
     oc_malloc(
-#ifdef OC_MEMORY_TRACE
-      func,
-#endif
       ocarray, size, type);
     break;
   default:
@@ -153,28 +111,16 @@ void _oc_new_array(
 }
 
 void _oc_free_array(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_array_t* ocarray, pool type)
 {
   oc_free(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     ocarray, type);
 }
 
 void _oc_alloc_string_array(
-#ifdef OC_MEMORY_TRACE
-  const char *func, 
-#endif
   oc_string_array_t* ocstringarray, size_t size)
 {
   _oc_alloc_string(
-#ifdef OC_MEMORY_TRACE
-    func,
-#endif
     ocstringarray, size * STRING_ARRAY_ITEM_MAX_LEN);
 
   size_t i, pos;

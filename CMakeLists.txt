@@ -130,7 +130,6 @@ set(CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/util/oc_etimer.c
     ${PROJECT_SOURCE_DIR}/util/oc_list.c
     ${PROJECT_SOURCE_DIR}/util/oc_memb.c
-    ${PROJECT_SOURCE_DIR}/util/oc_mem_trace.c
     ${PROJECT_SOURCE_DIR}/util/oc_mmem.c
     ${PROJECT_SOURCE_DIR}/util/oc_process.c
     ${PROJECT_SOURCE_DIR}/util/oc_timer.c

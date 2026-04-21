@@ -38,11 +38,6 @@
 #include "port/oc_log.h"
 #include <stdint.h>
 #include <string.h>
-#ifdef OC_MEMORY_TRACE
-#include "oc_mem_trace.h"
-#include <stdbool.h>
-#endif
-
 #ifndef OC_DYNAMIC_ALLOCATION
 #if !defined(OC_BYTES_POOL_SIZE) || !defined(OC_INTS_POOL_SIZE) ||             \
   !defined(OC_DOUBLES_POOL_SIZE)
@@ -66,9 +61,6 @@ OC_LIST(doubles_list);
 
 size_t
 _oc_mmem_alloc(
-#ifdef OC_MEMORY_TRACE
-  const char *func,
-#endif
   struct oc_mmem *m, size_t size, pool pool_type)
 {
   if (!m) {
@@ -146,42 +138,17 @@ _oc_mmem_alloc(
     break;
   }
 
-#ifdef OC_MEMORY_TRACE
-  oc_mem_trace_add_pace(func, bytes_allocated, MEM_TRACE_ALLOC, m->ptr);
-#endif
-
   return (int)bytes_allocated;
 }
 
 void
 _oc_mmem_free(
-#ifdef OC_MEMORY_TRACE
-  const char *func,
-#endif
   struct oc_mmem *m, pool pool_type)
 {
   if (!m) {
     OC_ERR("oc_mmem is NULL");
     return;
   }
-
-#ifdef OC_MEMORY_TRACE
-  unsigned int bytes_freed = m->size;
-  switch (pool_type) {
-  case INT_POOL:
-    bytes_freed *= sizeof(int64_t);
-    break;
-  case FLOAT_POOL:
-    bytes_freed *= sizeof(float);
-    break;
-  case DOUBLE_POOL:
-    bytes_freed *= sizeof(double);
-    break;
-  default:
-    break;
-  }
-  oc_mem_trace_add_pace(func, bytes_freed, MEM_TRACE_FREE, m->ptr);
-#endif /* OC_MEMORY_TRACE */
 
 #ifndef OC_DYNAMIC_ALLOCATION
   struct oc_mmem *n;
