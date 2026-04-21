@@ -12,7 +12,7 @@
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
-#include "util/oc_etimer.h"
+#include "util/oc_etimer.h" 
 
 #ifdef __cplusplus
 extern "C" {
@@ -337,10 +337,10 @@ typedef enum {
   OC_KNX,                              /**< .well-known / knx */
   OC_KNX_FP_G,                         /**< FP/G */
   OC_KNX_FP_G_X,                       /**< FP/G/X */
-#ifdef OC_PUBLISHER_TABLE	// TODO FIXME hmmm, this changes numbers depending on define, do we really want this!?
+#ifdef OC_PUBLISHER_TABLE              /** read the notes above on the enum order! */
   OC_KNX_FP_P,                         /**< FP/P */
   OC_KNX_FP_P_X,                       /**< FP/P/X */
-#endif
+  #endif
   OC_KNX_FP_R,                         /**< FP/R */
   OC_KNX_FP_R_X,                       /**< FP/R/X */
   OC_KNX_P,                            /**< P */
