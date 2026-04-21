@@ -135,10 +135,14 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, const uint8_t* token, ui
   return t;
 }
 
-// sends a message by 'transaction'
-// - NON-confirmable : send + clear the transaction afterward
-// - NON-confirmable s-mode : send + NOT clear the transaction afterward (transaction runs into timeout)
-// - CON-confirmable : send + clear the transaction after response or all reps are done
+/* 
+  sends a message by 'transaction'
+  NON 
+    - non s-mode msg : send + clear the transaction afterward
+    - s-mode msg: send + NOT clear the transaction afterward (transaction runs into timeout)
+  CON 
+    - all msg : send + clear the transaction after response or all repetitions are done
+*/
 void coap_send_transaction(coap_transaction_t *t) 
 {
   if (!oc_main_initialized()) 
