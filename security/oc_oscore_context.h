@@ -10,38 +10,12 @@
 #define OC_OSCORE_CONTEXT_H
 
 #include "messaging/coap/oscore_constants.h"
-#include "oc_helpers.h"
-#include "port/oc_clock.h"
-#include "oc_uuid.h"
 #include "api/oc_knx_sec.h"
-#include <inttypes.h>
 #include <stdbool.h>
-#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief Replay window type definition
- *
- */
-typedef struct oc_rwin_t
-{
-  /**
-   * @brief Sender Sequence Number
-   */
-  uint64_t ssn;
-  /**
-   * @brief Sender Address, usually the IPv6 source address of the sending
-   * device
-   */
-  uint8_t sender_address[16];
-  /**
-   * @brief  Destination Address, usually an S-mode multicast address
-   */
-  uint8_t destination_address[16];
-} oc_rwin_t;
 
 /**
  *

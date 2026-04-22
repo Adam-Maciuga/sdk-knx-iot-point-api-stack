@@ -59,11 +59,12 @@ OC_LIST(transactions_list);
 
 static struct oc_process *transaction_handler_process = NULL;
 
-void coap_register_as_transaction_handler(void) {
+void coap_register_as_transaction_handler(void) 
+{
   transaction_handler_process = OC_PROCESS_CURRENT();
 }
 
-coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
+coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
 {
   coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
   if (t)
@@ -100,13 +101,13 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, uint8_t* token, uint8_t t
   return t;
 }
 
-coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
+coap_transaction_t* smode_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
 {
   /* 
-    We only want to cache OSCORE s-mode requests, as these frames are the only ones that will be challenged
+    We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged
     with an Echo option. Use coap transaction framework to handle this.
     0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
-    1. for NON s-mode messages (uc + mc) use a specific s-mode transaction framework
+    1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension
     - transaction init with a fixed timeout
     - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
       (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_NON_REQUEST)
@@ -125,8 +126,6 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
     t->message->length = s_mode_message->length;
     // memcpy can handle '0' bytes, so no extra check
     memcpy(t->message->data, s_mode_message->data, s_mode_message->length);
-
-    t->is_non_confirmable_smode_msg = s_mode_message->endpoint.flags & S_MODE_NON_REQUEST;
   }
   else
   {
@@ -136,10 +135,14 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, uint8_t* token, uint8_t 
   return t;
 }
 
-// sends a message by 'transaction'
-// - NON-confirmable : send + clear the transaction afterward
-// - NON-confirmable s-mode : send + NOT clear the transaction afterward (transaction runs into timeout)
-// - CON-confirmable : send + clear the transaction after response or all reps are done
+/* 
+  sends a message by 'transaction'
+  NON 
+    - non s-mode msg : send + clear the transaction afterward
+    - s-mode msg: send + NOT clear the transaction afterward (transaction runs into timeout)
+  CON 
+    - all msg : send + clear the transaction after response or all repetitions are done
+*/
 void coap_send_transaction(coap_transaction_t *t) 
 {
   if (!oc_main_initialized()) 
@@ -163,11 +166,12 @@ void coap_send_transaction(coap_transaction_t *t)
   #endif
 
   const uint8_t type = (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION;
+  // confirmable s-mode or confirmable non s-mode messages ... 
   const bool confirmable_all_types = type == COAP_TYPE_CON;
-  const bool non_confirmable_smode = t->is_non_confirmable_smode_msg;
+  const bool non_confirmable_smode = t->message->endpoint.flags & S_MODE_NON_REQUEST;
 
   #ifdef OC_TCP
-  if (!(t->message->endpoint.flags & TCP) && confirmable) {
+  if (!(t->message->endpoint.flags & TCP) && confirmable_all_types) {
   #else 
   if (confirmable_all_types) 
   {
@@ -272,9 +276,10 @@ void coap_clear_transaction(coap_transaction_t *t)
 
 coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 {
-  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); 
-       t && !t->is_non_confirmable_smode_msg; t = t->next)
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next)
   {
+    // skip NON-confirmable s-mode transactions
+    if (t->message->endpoint.flags & S_MODE_NON_REQUEST) continue; 
     if (t->mid == mid) 
     {
       OC_DBG("found coap transaction for MID %u", t->mid);
@@ -285,11 +290,12 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
   return NULL;
 }
 
-coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token_len)
+coap_transaction_t * coap_get_transaction_by_token(const uint8_t *token, uint8_t token_len)
 {
-  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list);
-       t && !t->is_non_confirmable_smode_msg; t = t->next) 
+  for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next)
   {
+    // skip NON-confirmable s-mode transactions
+    if (t->message->endpoint.flags & S_MODE_NON_REQUEST) continue; 
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
     {
       OC_DBG("found coap transaction for token %p and flags %i", (void *)t, t->message->endpoint.flags);
@@ -300,7 +306,7 @@ coap_transaction_t * coap_get_transaction_by_token(uint8_t *token, uint8_t token
   return NULL;
 }
 
-transaction_t* get_any_transaction_by_token_or_mid(uint16_t mid, uint8_t* token, uint8_t token_len)
+transaction_t* get_any_transaction_by_token_or_mid(uint16_t mid, const uint8_t* token, uint8_t token_len)
 {
   for (transaction_t* t = (transaction_t*)oc_list_head(transactions_list); t ; t = t->next)
   {
@@ -350,7 +356,7 @@ void coap_check_transactions(void)
          * 
          * before 3 , after 3 = 0 - continue the list (nothing removed, next = ok)
          * before 3 , after 2 = 1 - restart the list ('t' or another removed, next = maybe corrupted)
-         * before 3 , after 1 = 1 - restart the list ('t' or other's removed, next = maybe corrupted)
+         * before 3 , after 1 = 2 - restart the list ('t' or other's removed, next = maybe corrupted)
          *
          */
         t = (coap_transaction_t*)oc_list_head(transactions_list);
@@ -377,7 +383,7 @@ void coap_free_all_transactions(void)
   }
 }
 
-void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
+void coap_free_transactions_by_endpoint(const oc_endpoint_t *endpoint)
 {
   coap_transaction_t* t = (coap_transaction_t*) oc_list_head(transactions_list);
 
@@ -399,8 +405,16 @@ void coap_free_transactions_by_endpoint(oc_endpoint_t *endpoint)
 
       if (before - after > 0) 
       {
-        // List is not empty maybe there is another transaction for the same endpoint. 
-        // Restart the list.
+        /*
+         * sending out/clearing transaction may/will remove the own transaction 't' and/or possibly other transaction as well,
+         * in this case the beforehand saved 'next' pointer may be invalid,
+         * hence check it and reset the list pointer for safety reasons
+         *
+         * before 3 , after 3 = 0 - continue the list (nothing removed, next = ok)
+         * before 3 , after 2 = 1 - restart the list ('t' or another removed, next = maybe corrupted)
+         * before 3 , after 1 = 2 - restart the list ('t' or other's removed, next = maybe corrupted)
+         *
+         */
         t = (coap_transaction_t *)oc_list_head(transactions_list);
         continue;
       }

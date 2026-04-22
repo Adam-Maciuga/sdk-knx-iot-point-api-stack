@@ -33,19 +33,17 @@ static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
-uint32_t get_oscore_replay_window_size(void)
+uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size;}
+uint32_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms;}
+void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds;}
+int32_t get_at_index(const oc_auth_at_t* entry)
 {
-  return g_oscore_replay_window_size;
-}
-
-uint32_t get_oscore_osn_delay_ms(void)
-{
-  return g_oscore_osn_delay_ms;
-}
-
-void set_oscore_osn_delay_ms(uint16_t milliseconds)
-{
-  g_oscore_osn_delay_ms = milliseconds;
+  if (!entry)
+  {
+    return -1;
+  }
+  const int32_t index = (int32_t)(entry - g_at_entries);
+  return index >= 0 && index < G_AT_MAX_ENTRIES ? index : -1;
 }
 
 /*
@@ -1453,15 +1451,10 @@ static oc_acl_mask_t oc_at_get_scope_mask(const oc_auth_at_t* entry)
 
 int oc_delete_at_table_entry(oc_auth_at_t* entry)
 {
-  if (!entry)
-  {
-    return -1;
-  }
-
   // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
-  const int index = (int)(entry - g_at_entries);
+  const int index = get_at_index(entry);
 
-  if (index >= 0 && index < G_AT_MAX_ENTRIES)
+  if (index != -1)
   {
     // AT file entry
     char filename[AT_SIZE];
@@ -1505,15 +1498,10 @@ int oc_delete_at_table_entry(oc_auth_at_t* entry)
 */
 static void oc_store_at_table_entry(oc_auth_at_t* entry)
 {
-  if (!entry)
-  {
-    return;
-  }
-
   // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
-  const int index = (int)(entry - g_at_entries);
+  const int index = get_at_index(entry);
   
-  if (index >= 0 && index < G_AT_MAX_ENTRIES)
+  if (index != -1)
   {
     char filename[AT_SIZE];
     (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);
@@ -1572,15 +1560,10 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry)
 
 static void oc_load_at_table_entry(oc_auth_at_t* entry)
 {
-  if (!entry)
-  {
-    return;
-  }
-  
   // results in a valid case in an index between 0 ... G_AT_MAX_ENTRIES
-  const int index = (int)(entry - g_at_entries);
+  const int index = get_at_index(entry);
   
-  if (index >= 0 && index < G_AT_MAX_ENTRIES)
+  if (index !=-1)
   {
     char filename[AT_SIZE];
     (void)snprintf(filename, AT_SIZE, "%s_%d", AT_STORE, index);

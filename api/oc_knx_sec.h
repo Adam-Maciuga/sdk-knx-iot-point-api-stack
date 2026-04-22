@@ -176,6 +176,7 @@ extern "C" {
 	 * @note used by API/ DEMO applications
 	 * 
 	 * @param index the index in the table
+	 *
 	 * @return oc_auth_at_t* the auth at entry
 	 */
 	oc_auth_at_t* oc_get_auth_at_entry(int index);
@@ -283,7 +284,7 @@ extern "C" {
 	 * @return NULL : AT entry not found
 	 * @return pointer to AT entry : AT entry found
 	 */
-oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len);
+  oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len);
 
 	/**
    * @brief get OSCORE Replay Window Size
@@ -299,6 +300,16 @@ oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len
    */
 	uint32_t get_oscore_osn_delay_ms(void);
 
+  /**
+   * @brief get the access token table index from an entry
+   *
+   * @param entry access token table entry 
+   *
+   * @return index 0...n  (entry is part of the table)
+   * @return index -1 (entry is not part of the table or entry is NULL)
+   */
+  int32_t get_at_index(const oc_auth_at_t* entry);
+  
 	/**
    * @brief set OSCORE OSN Delay Time
    *

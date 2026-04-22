@@ -273,8 +273,8 @@ void oc_context_print_all(void) {
   size_t rid_len;
   size_t cid_len;
 
-  //     17               | 21                  | 21                  | 40                                     | 
-  PRINT("AT entry         | Sender ID           | Recipient ID        | ID Context                             | ssn");
+  //     10        | 21                  | 21                  | 40                                     | 
+  PRINT("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
         
   // print all present context entries
   while (ctx) {
@@ -286,8 +286,8 @@ void oc_context_print_all(void) {
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    PRINT("%-9.p | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",
-            ctx->auth_at, 
+    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",  
+            get_at_index(ctx->auth_at), 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
             ctx->id_context_len, ctx->id_context_len != 0 ? cid : "n/a", 

@@ -91,10 +91,10 @@ extern "C" {
     struct oc_endpoint_t* next;           // pointer to the next structure
     enum transport_flags flags;           // transport flags such as mc,uc, oscore
 
-    union dev_addr // TODO FIXME remove IPv4 stuff
+    union dev_addr
     {
       oc_ipv6_addr_t ipv6;                // ipv6 address
-      oc_ipv4_addr_t ipv4;                // ipv4 address 
+      oc_ipv4_addr_t ipv4;                // ipv4 address (not used in OSCORE, but in IP adapter, hence we cannot remove it)
     } addr, addr_local;
 
     int interface_index;                  // interface index 
@@ -127,12 +127,13 @@ extern "C" {
 
   } oc_endpoint_t;
 
+// creates endpoint and assign IPv4, other structure members are set to '0'
   #define oc_make_ipv4_endpoint(__name__, __flags__, __port__, ...)            \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .addr.ipv4 = { .port = __port__,                  \
                                             .address = { __VA_ARGS__ } } }
 
-  // creates endpoint and assign IPv6, other structure members are set to '0' except auth at index (-1)
+  // creates endpoint and assign IPv6, other structure members are set to '0'
   #define oc_make_ipv6_endpoint(__name__, __flags__, __port__, ...)            \
   oc_endpoint_t __name__ = { .flags = __flags__,                               \
                              .addr.ipv6 = { .port = __port__,                  \
