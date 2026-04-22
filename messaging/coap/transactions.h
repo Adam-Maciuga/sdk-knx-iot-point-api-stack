@@ -90,11 +90,11 @@ typedef struct coap_transaction
 
 void coap_register_as_transaction_handler(void);
 
-// starting a common CoAP transaction + DOES NOT copy message data
+// creates a CoAP transaction + DOES NOT copy message data
 coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t *token, uint8_t token_len, oc_endpoint_t *endpoint);
 
-// starting a specific s-mode transaction that init a timeout without sending + copy message data (uses common CoAP transaction)
-coap_transaction_t* smode_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
+// creates a CoAP transaction + DOES copy message data 1:1 (copies also type NON (uc/mc)/ CON (uc))
+coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message);
 
 void coap_send_transaction(coap_transaction_t *t);
 void coap_clear_transaction(coap_transaction_t *t);

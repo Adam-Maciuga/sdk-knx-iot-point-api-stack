@@ -46,8 +46,19 @@ bool oc_do_s_mode_message_update(void)
 
     if (udp_message_update->length > 0)
     {
-      // create a new (specific) s-mode transaction
-      coap_transaction_t* s_mode_transaction = smode_new_transaction(
+      /*
+        We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged with an Echo option.
+        Use coap transaction framework to handle this.
+        0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
+        1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension done in 'coap_send_transaction':
+           - init transaction with a fixed timeout
+           - send 'echo re-request' message ones in view of AL (3.6.4.1.3); may result in reps for CON messages on TL level
+           - DON'T clear the transaction after sending
+           - transaction expires on timeout automatically without resending the NON s-mode message again, 
+             timeout is only present to catch & process further incoming echo responses from DIFFERENT devices with same 
+             coap token as in org. s-mode request (see use of S_MODE_NON_REQUEST)
+      */
+      coap_transaction_t* s_mode_transaction = coap_new_transaction_with_data(
         udp_coap_request->mid,
         udp_coap_request->token,
         udp_coap_request->token_len,
