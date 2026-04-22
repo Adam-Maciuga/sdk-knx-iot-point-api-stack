@@ -918,30 +918,35 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
   if (message->endpoint.flags & IPV6) {
     Msg.namelen = sizeof(struct sockaddr_in6);
 
+    // For multicast, skip pktinfo and rely on IPV6_MULTICAST_IF socket option
+    // (set by oc_send_discovery_request) for interface selection.
+    // pktinfo can cause WSAEADDRNOTAVAIL (10049) with site-local multicast.
+    struct sockaddr_in6 *dest = (struct sockaddr_in6 *)receiver;
+    if (IN6_IS_ADDR_MULTICAST(&dest->sin6_addr)) {
+      Msg.Control.len = 0;
+      Msg.Control.buf = NULL;
+    } else {
+      // Unicast: specify source address and outgoing interface via pktinfo.
 #pragma warning(suppress : 4116)
-    Msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
+      Msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
 
 #pragma warning(suppress : 4116)
-    MsgHdr = WSA_CMSG_FIRSTHDR(&Msg);
+      MsgHdr = WSA_CMSG_FIRSTHDR(&Msg);
 #pragma warning(suppress : 4116)
-    memset(MsgHdr, 0, WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)));
+      memset(MsgHdr, 0, WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)));
 
-    MsgHdr->cmsg_level = IPPROTO_IPV6;
-    MsgHdr->cmsg_type = IPV6_PKTINFO;
-    MsgHdr->cmsg_len = WSA_CMSG_LEN(sizeof(struct in6_pktinfo));
+      MsgHdr->cmsg_level = IPPROTO_IPV6;
+      MsgHdr->cmsg_type = IPV6_PKTINFO;
+      MsgHdr->cmsg_len = WSA_CMSG_LEN(sizeof(struct in6_pktinfo));
 
-    struct in6_pktinfo *pktinfo = (struct in6_pktinfo *)WSA_CMSG_DATA(MsgHdr);
+      struct in6_pktinfo *pktinfo = (struct in6_pktinfo *)WSA_CMSG_DATA(MsgHdr);
+      pktinfo->ipi6_ifindex = message->endpoint.interface_index;
 
-    // Get the outgoing interface index from message->endpoint.
-    pktinfo->ipi6_ifindex = message->endpoint.interface_index;
-
-    // Set the source address of this message using the address
-    // from the endpoint's addr_local attribute.
-    set_source_address_for_interface(AF_INET6,
-            message->endpoint.addr_local.ipv6.address,
-            16, message->endpoint.interface_index);
-
-    memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
+      set_source_address_for_interface(AF_INET6,
+              message->endpoint.addr_local.ipv6.address,
+              16, message->endpoint.interface_index);
+      memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
+    }
   } else {
     OC_ERR("Invalid endpoint!");
     return -1;
@@ -1059,20 +1064,26 @@ void oc_send_discovery_request(oc_message_t *message) {
         unsigned int hops = 1;
         if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                        (char *)&hops, sizeof(hops)) == SOCKET_ERROR) {
-          OC_ERR("setting socket option for default IPV6_MULTICAST_IF: %d",
+          OC_ERR("setting socket option for default IPV6_MULTICAST_HOPS: %d",
                  WSAGetLastError());
           goto done;
         }
-        message->endpoint.addr.ipv6.scope = (uint8_t)ifaddr->if_index;
       } else {
         unsigned int hops = 255;
         if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                        (char *)&hops, sizeof(hops)) == SOCKET_ERROR) {
-          OC_ERR("setting socket option for default IPV6_MULTICAST_IF: %d",
+          OC_ERR("setting socket option for default IPV6_MULTICAST_HOPS: %d",
                  WSAGetLastError());
           goto done;
         }
-        message->endpoint.addr.ipv6.scope = 0;
+      }
+      // Set scope_id (zone ID) based on the multicast destination scope.
+      // Only link-local multicast (scope <= 2) needs the interface index as zone ID.
+      // Higher scopes (realm-local, site-local, etc.) must use scope_id = 0.
+      {
+        uint8_t mcast_scope = message->endpoint.addr.ipv6.address[1] & 0x0f;
+        message->endpoint.addr.ipv6.scope =
+          (mcast_scope <= 2) ? (uint8_t)ifaddr->if_index : 0;
       }
       message->endpoint.interface_index = ifaddr->if_index;
       memcpy(message->endpoint.addr_local.ipv6.address, addr->sin6_addr.u.Byte,
