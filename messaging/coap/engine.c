@@ -285,7 +285,7 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data)
   STOP                                                : no response to a response
  
           -> CoAP NON Request (POST/GET) 
-          <- CoAP NON Response (2.0x/4.05)
+          <- CoAP NON Response (2.0x/4.05) + Payload  : = "Non-confirmable Response"
  
   MID relates CON to ACK = Transport 
   Token relates Request to Response = Application

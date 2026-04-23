@@ -156,8 +156,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 
   GENERAL RULE
   ============
-  For an incoming secure request or response, if I can decode it successfully,
-  my answer is always secure.
+  For an incoming secure request or response, if I can decode it successfully, my answer is always secure.
 
   MESSAGE
   =======
@@ -220,60 +219,6 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
                       no own response for a received response
         -> step 8     decryption failed, stop processing and ignore
 
-  STEPS
-  =====
-
-  Send a message
-  =================
-
-  Sender -> Message -> Receiver
-  =============================
-
-    Sender (IA 2.0.1)
-    -----------------
-      Access Token (configured by MaC)
-      - osc.id <0001> (usually the sending GA (mc) or device SN (uc))
-      - osc.ms <ms_1>
-      - osc.salt <salt_1>
-      - osc.contextId 2001140921 (IA + time stamp (seconds))
-
-      Sender Context
-      - Sender ID, 0001
-      - ID Context, 2001140921
-      > AES Key, by device generated
-
-    Message (unicast or multicast)
-    ------------------------------
-    - kid 0001
-    - kid_context 2001140921
-
-    Receiver (IA 2.0.2)
-    -------------------
-      Access Token (configured by MaC)
-      - osc.id <0001> (usually the sending GA (mc) or device SN (uc))
-      - osc.ms <ms_1>
-      - osc.salt <salt_1>
-      - osc.contextId 2002140922 (IA + time stamp (seconds))
-
-      Recipient Context
-      - Recipient ID, ?
-      - ID Context, ?
-      > AES Key, ?
-
-      1. Step: try find (kid/ kid_context) in list of Recipient Contexts
-               (usually saved to avoid a resynchronization after a device restart)
-      2. Step: if nothing found in step 1, create a new Recipient Context
-
-               Step A: look at kid in <Message> to get Recipient ID => 0001
-               Step B: find access token with kid => 0001 to get corresponding master secret <ms_1>
-               Step C: look at kid_context in <Message> to get ID Context => 2001140921
-
-      3. Recipient Context (created - see 2 - or already present)
-         - Recipient ID 0001
-         - ID Context 2001140921 (from <Message>)
-         - Master secret <ms_1> (from Receiver - Access Token)
-         - Replay window <UNINITIALIZED>
-         > AES Key, by device generated
 */
 
 /**
@@ -466,8 +411,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           .ssn = inbound_ssn,
           .id_context = (const uint8_t*)coap_pkt->kid_ctx,
           .id_context_size = coap_pkt->kid_ctx_len,
-          .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
-          .read_ssn_from_storage = false // NO offset is added to SSN
+          .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+          .read_ssn_from_storage = false  // NO offset is added to SSN
         };
         oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
@@ -490,7 +435,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       request_piv_len = nonce_piv_len = coap_pkt->piv_len;
 
       if (coap_pkt->piv_len > 0)
-      { // // 8.2, step 4/5 : kid > 0, piv > 0 -> use kid/piv from response message
+      { // 8.2, step 4/5 : kid > 0, piv > 0 -> use kid/piv from response message
 
         // AAD use always request kid/PIV (8.2 step 4)
         oc_oscore_compose_AAD(request_kid, request_kid_len,
@@ -561,8 +506,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         // .ssn = 0, not used for receiving; C99 zero-initializes unnamed fields
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
         .id_context_size = coap_pkt->kid_ctx_len,
-        .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
-        .read_ssn_from_storage = false // NO offset is added to SSN
+        .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+        .read_ssn_from_storage = false  // NO offset is added to SSN
       };
       oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
