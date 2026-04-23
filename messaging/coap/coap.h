@@ -101,137 +101,154 @@ typedef enum
   COAP_TRANSPORT_UDP, COAP_TRANSPORT_TCP
 } coap_transport_type_t;
 
-/** parsed message struct */
+/** parsed message struct — fields ordered by descending alignment to minimize padding */
 typedef struct coap_packet_t
 {
-  uint8_t* buffer;                     // host the serialized (to be sent out) CoAP packet byte stream with header/type/token/...
-  coap_transport_type_t transport_type;// UDP or TCP
-  uint8_t version;                     // current version is '1'
-  coap_message_type_t type;            // CON, NON, ACK, ...
-  uint8_t code;                        // CoAP code such as GET = 1, CHANGED_2_04 = 68
-  uint16_t mid;                        // transport level: client relates outbound CON message with inbound ACK, 
-                                       // receiver uses it to ignore an already received messages
-  
-  uint8_t token_len;
-  uint8_t token[COAP_TOKEN_LEN];       // application level: a client matches a request with a response
-  
-  uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE + 1]; // results in a 32 byte bitmap, used to set/check options (see macros)
-  
-  uint16_t content_format;             // parse options once and store; allows setting options in random order
-  uint32_t max_age;
-  uint8_t etag_len;
-  uint8_t etag[COAP_ETAG_LEN];
-  size_t proxy_uri_len;
+  // --- 8-byte aligned: pointers and size_t ---
+  uint8_t*    buffer;                     // host the serialized (to be sent out) CoAP packet byte stream with header/type/token/...
+  uint8_t*    payload;                    // hosts the coap application payload byte stream (usually in CBOR or LINK format)
   const char* proxy_uri;
-  size_t proxy_scheme_len;
   const char* proxy_scheme;
-  size_t uri_host_len;
   const char* uri_host;
-  size_t location_path_len;
   const char* location_path;
-  uint16_t uri_port;
-  size_t location_query_len;
   const char* location_query;
-  size_t uri_path_len;
   const char* uri_path;
+  const char* uri_query;
+  size_t proxy_uri_len;
+  size_t proxy_scheme_len;
+  size_t uri_host_len;
+  size_t location_path_len;
+  size_t location_query_len;
+  size_t uri_path_len;
+  size_t uri_query_len;
+  size_t echo_len;
+
+  // --- 4-byte aligned: uint32_t and enums ---
+  coap_transport_type_t transport_type;   // UDP or TCP
+  coap_message_type_t   type;             // CON, NON, ACK, ...
+  uint32_t max_age;
   uint32_t observe;
-  uint16_t accept;
-  uint8_t if_match_len;
-  uint8_t if_match[COAP_ETAG_LEN];
   uint32_t block2_num;
-  uint8_t block2_more;
-  uint16_t block2_size;
   uint32_t block2_offset;
   uint32_t block1_num;
-  uint8_t block1_more;
-  uint16_t block1_size;
   uint32_t block1_offset;
   uint32_t size2;
   uint32_t size1;
-  size_t uri_query_len;
-  const char* uri_query;
+  uint32_t payload_len;                   // application payload len, not including any CoAP header, token or (OSCORE) options
+
+  // --- 2-byte aligned: uint16_t ---
+  uint16_t mid;                           // transport level: client relates outbound CON message with inbound ACK,
+                                          // receiver uses it to ignore an already received message
+  uint16_t content_format;                // parse options once and store; allows setting options in random order
+  uint16_t uri_port;
+  uint16_t accept;
+  uint16_t block2_size;
+  uint16_t block1_size;
+
+  // --- 1-byte: uint8_t scalars and arrays ---
+  uint8_t version;                        // current version is '1'
+  uint8_t code;                           // CoAP code such as GET = 1, CHANGED_2_04 = 68
+  uint8_t token_len;
+  uint8_t token[COAP_TOKEN_LEN];          // application level: a client matches a request with a response
+  uint8_t options[COAP_OPTION_ECHO / OPTION_MAP_SIZE + 1]; // 32-byte bitmap, used to set/check options (see macros)
+  uint8_t etag_len;
+  uint8_t etag[COAP_ETAG_LEN];
+  uint8_t if_match_len;
+  uint8_t if_match[COAP_ETAG_LEN];
+  uint8_t block2_more;
+  uint8_t block1_more;
   uint8_t if_none_match;
-  
-  #ifdef OC_TCP
-  // TCP
-  uint32_t max_msg_size;
-  uint8_t blockwise_transfer;
-  uint8_t custody;
-  const char* alt_addr;
-  size_t alt_addr_len;
-  uint32_t hold_off;
-  uint16_t bad_csm_opt;
-  #endif 
-  
-  // OSCORE
-  uint8_t oscore_flags;                   // flags 000|h|k|nnn, as described  in RFC 8613
+
+  // --- OSCORE: all uint8_t ---
+  uint8_t oscore_flags;                   // flags 000|h|k|nnn, as described in RFC 8613
   uint8_t piv[OSCORE_PIV_LEN];            // 'Partial IV' in OSCORE
   uint8_t piv_len;
-  uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile 
+  uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // 'kid_context' in message, 'ID Context' in OSCORE, osc:contextid in OSCORE Profile
   uint8_t kid_ctx_len;
-  uint8_t kid[OSCORE_SENDER_ID_LEN];      // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile  
+  uint8_t kid[OSCORE_SENDER_ID_LEN];      // 'kid' in message, 'Sender ID' in OSCORE, osc:id in OSCORE Profile
   uint8_t kid_len;
   uint8_t echo[COAP_ECHO_LEN];            // echo challenge random data (is part of inner options, RFC 9175)
-  size_t echo_len;
-  
-  uint32_t payload_len;                   // application payload len, not including any CoAP header, token or (OSCORE) options
-  uint8_t* payload;                       // hosts the coap application payload byte stream (usually in CBOR or LINK format)
+
+  #ifdef OC_TCP
+  // --- TCP: ordered by alignment ---
+  const char* alt_addr;
+  size_t      alt_addr_len;
+  uint32_t    max_msg_size;
+  uint32_t    hold_off;
+  uint16_t    bad_csm_opt;
+  uint8_t     blockwise_transfer;
+  uint8_t     custody;
+  #endif
 } coap_packet_t;
 
 /** option format serialization */
-#define COAP_SERIALIZE_INT_OPTION(number, field, text) \
-  if (IS_OPTION(coap_pkt, number)) { \
-    option_length += coap_serialize_int_option(number, current_number, option, \
-            coap_pkt->field); \
-    if (option) { \
-      OC_DBG(text " [%u]", (unsigned int)coap_pkt->field); \
-      option = option_array + option_length; \
-    } \
-    current_number = number; \
+#define COAP_SERIALIZE_INT_OPTION(number, field, text)          \
+  if (IS_OPTION(coap_pkt, number))                              \
+  {                                                             \
+    option_length += coap_serialize_int_option(number,          \
+                                               current_number,  \
+                                               option,          \
+                                               coap_pkt->field);\
+    if (option)                                                 \
+    {                                                           \
+      OC_DBG(text " [%u]", (unsigned int)coap_pkt->field);      \
+      option = option_array + option_length;                    \
+    }                                                           \
+    current_number = number;                                    \
   }
 
-#define COAP_SERIALIZE_BYTE_OPTION(number, field, text) \
-  if (IS_OPTION(coap_pkt, number)) { \
-    option_length += coap_serialize_array_option(number, current_number, \
-            option, coap_pkt->field, coap_pkt->field##_len, '\0'); \
-    if (option) { \
-      OC_DBG(text " %u [0x%02X%02X%02X%02X%02X%02X%02X%02X]", \
-             (unsigned int)coap_pkt->field##_len, coap_pkt->field[0], \
-             coap_pkt->field[1], coap_pkt->field[2], coap_pkt->field[3], \
-             coap_pkt->field[4], coap_pkt->field[5], coap_pkt->field[6], \
-             coap_pkt->field[7]); /* FIXME always prints 8 bytes */ \
-      option = option_array + option_length; \
-    } \
-    current_number = number; \
+#define COAP_SERIALIZE_BYTE_OPTION(number, field, text)                               \
+  if (IS_OPTION(coap_pkt, number))                                                    \
+  {                                                                                   \
+    option_length += coap_serialize_array_option(number, current_number,              \
+                                                 option, coap_pkt->field,             \
+                                                 coap_pkt->field##_len, '\0');        \
+    if (option)                                                                       \
+    {                                                                                 \
+      OC_DBG(text " %u [0x%02X%02X%02X%02X%02X%02X%02X%02X]",                         \
+             (unsigned int)coap_pkt->field##_len, coap_pkt->field[0],                 \
+             coap_pkt->field[1], coap_pkt->field[2], coap_pkt->field[3],              \
+             coap_pkt->field[4], coap_pkt->field[5], coap_pkt->field[6],              \
+             coap_pkt->field[7]); /* FIXME always prints 8 bytes */                   \
+      option = option_array + option_length;                                          \
+    }                                                                                 \
+    current_number = number;                                                          \
   }
 
-#define COAP_SERIALIZE_STRING_OPTION(number, field, splitter, text) \
-  if (IS_OPTION(coap_pkt, number)) { \
-    option_length += coap_serialize_array_option( \
-      number, current_number, option, (uint8_t *)coap_pkt->field, \
-      coap_pkt->field##_len, splitter); \
-    if (option) { \
-      OC_DBG(text " [%.*s]", (int)coap_pkt->field##_len, coap_pkt->field); \
-      option = option_array + option_length; \
-    } \
-    current_number = number; \
+#define COAP_SERIALIZE_STRING_OPTION(number, field, splitter, text)                   \
+  if (IS_OPTION(coap_pkt, number))                                                    \
+  {                                                                                   \
+    option_length += coap_serialize_array_option(number, current_number,              \
+                                                 option,                              \
+                                                 (uint8_t*)coap_pkt->field,           \
+                                                 coap_pkt->field##_len,               \
+                                                 splitter);                           \
+    if (option)                                                                       \
+    {                                                                                 \
+      OC_DBG(text " [%.*s]", (int)coap_pkt->field##_len, coap_pkt->field);            \
+      option = option_array + option_length;                                          \
+    }                                                                                 \
+    current_number = number;                                                          \
   }
 
-#define COAP_SERIALIZE_BLOCK_OPTION(number, field, text) \
-  if (IS_OPTION(coap_pkt, number)) { \
-    uint32_t block = coap_pkt->field##_num << 4; \
-    if (coap_pkt->field##_more) { \
-      block |= 0x8; \
-    } \
-    block |= 0xF & coap_log_2(coap_pkt->field##_size / 16); \
-    option_length += coap_serialize_int_option(number, current_number, option, block); \
-    if (option) { \
-      OC_DBG(text " [%lu%s (%u B/blk)]", (unsigned long)coap_pkt->field##_num, \
-              coap_pkt->field##_more ? "+" : "", coap_pkt->field##_size); \
-      OC_DBG(text " encoded: 0x%lX", (unsigned long)block); \
-      option = option_array + option_length; \
-    } \
-    current_number = number; \
+#define COAP_SERIALIZE_BLOCK_OPTION(number, field, text)                              \
+  if (IS_OPTION(coap_pkt, number))                                                    \
+  {                                                                                   \
+    uint32_t block = coap_pkt->field##_num << 4;                                      \
+    if (coap_pkt->field##_more)                                                       \
+    {                                                                                 \
+      block |= 0x8;                                                                   \
+    }                                                                                 \
+    block |= 0xF & coap_log_2(coap_pkt->field##_size / 16);                           \
+    option_length += coap_serialize_int_option(number, current_number, option, block);\
+    if (option)                                                                       \
+    {                                                                                 \
+      OC_DBG(text " [%lu%s (%u B/blk)]", (unsigned long)coap_pkt->field##_num,        \
+             coap_pkt->field##_more ? "+" : "", coap_pkt->field##_size);              \
+      OC_DBG(text " encoded: 0x%lX", (unsigned long)block);                           \
+      option = option_array + option_length;                                          \
+    }                                                                                 \
+    current_number = number;                                                          \
   }
 
 /** stores error code */
