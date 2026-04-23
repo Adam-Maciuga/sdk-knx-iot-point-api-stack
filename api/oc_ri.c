@@ -1738,17 +1738,20 @@ static void free_all_client_cbs(void) {
 }
 
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
-        oc_method_t method, const char* query, oc_client_handler_t handler, oc_qos_t qos,
-        void* user_data) {
+        oc_method_t method, const char* query, oc_client_handler_t handler, oc_qos_t qos, void* user_data) 
+{
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
-  if (!cb) {
+  if (!cb) 
+  {
     OC_WRN("insufficient memory to add client callback");
     return cb;
   }
 
   // note that token/mid of a created callback  must be filled later in the corresponding (outbound) message
   cb->mid = coap_get_next_mid();
-  cb->token_len = 8;
+
+  // set here fix COAP_TOKEN_LEN byte token len
+  cb->token_len = COAP_TOKEN_LEN;
   const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
   const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
 
@@ -1761,7 +1764,9 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
   cb->timestamp = oc_clock_time();
   cb->observe_seq = -1;
   oc_endpoint_copy(&cb->endpoint, endpoint);
-  if (query && strlen(query) > 0) {
+  
+  if (query && strlen(query) > 0) 
+  {
     oc_new_string(&cb->query, query, strlen(query));
   }
 

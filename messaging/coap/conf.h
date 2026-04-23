@@ -55,7 +55,7 @@
 extern "C" {
 #endif
 
-/* Features that can be disabled to achieve smaller memory footprint */
+// features that can be disabled to achieve smaller memory footprint
 #define COAP_LINK_FORMAT_FILTERING 0
 #define COAP_PROXY_OPTION_PROCESSING 0
 
@@ -64,31 +64,29 @@ extern "C" {
 #define COAP_MAX_OPEN_TRANSACTIONS (OC_MAX_NUM_CONCURRENT_REQUESTS)
 #endif 
 
-/* Conservative size limit, as not all options have to be set at the same time.
- * Check when Proxy-Uri option is used */
-#ifndef COAP_MAX_HEADER_SIZE /*     Hdr                  CoF  If-Match         \
-                                Obs Blo strings   */
+/* 
+   Conservative size limit, as not all options have to be set at the same time.
+   Check when Proxy-Uri option is used 
+*/
+#ifndef COAP_MAX_HEADER_SIZE // Hdr CoF  If-Match  Obs Blo strings 
 
 #ifdef OC_BLOCK_WISE
-#define COAP_MAX_HEADER_SIZE                                                   \
-  (4 + COAP_TOKEN_LEN + 3 + COAP_ETAG_LEN + 4 + 4 + 150)
-#else /* OC_BLOCK_WISE */
+#define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + COAP_ETAG_LEN + 4 + 4 + 150)
+#else 
 #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + 4 + 4 + 100)
-#endif /* !OC_BLOCK_WISE */
-#endif /* COAP_MAX_HEADER_SIZE */
+#endif 
+#endif 
 
-/* Number of observer slots (each takes abot xxx bytes) */
+// number of observer slots (each takes about xxx bytes)
 #ifndef COAP_MAX_OBSERVERS
-#define COAP_MAX_OBSERVERS                                                     \
-  (OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS)
-#endif /* COAP_MAX_OBSERVERS */
+#define COAP_MAX_OBSERVERS  (OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS)
+#endif 
 
-/* Interval in notifies in which NON notifies are changed to CON notifies to
- * check client. */
+// interval in notifies in which NON notifies are changed to CON notifies to check client
 #define COAP_OBSERVE_REFRESH_INTERVAL 5
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CONF_H */
+#endif 

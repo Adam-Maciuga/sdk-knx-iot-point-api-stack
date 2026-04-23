@@ -626,10 +626,12 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 }
 
 // send CoAP discovery multicast to resolve IA to IPv6
-oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) {
+oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) 
+{
 
   // register client callback
-  const oc_client_handler_t handler = {
+  const oc_client_handler_t handler = 
+  {
     .response = knx_coap_discovery_response_handler, 
     .discovery = NULL, 
     .discovery_all = NULL
@@ -689,8 +691,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) {
       return OC_IP_STATUS_RESOLVING;
     }
 
-    // b.1 - took too long, try again to send a next discovery message
-    // Note: needs to update mid/token
+    // b.1 - took too long, send a next discovery message -> needs to update mid/token/timestamp in present cb (token len still present)
     cb->timestamp = now;
     cb->mid = coap_get_next_mid();
     const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
@@ -699,7 +700,8 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) {
     OC_INF("CoAP discovery: Timeout, Resending Discovery Request");
   }
 
-  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED) {
+  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED) 
+  {
     // a
 
     // user data is an entry (pointer) of recipient table

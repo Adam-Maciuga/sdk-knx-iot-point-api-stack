@@ -152,7 +152,8 @@ oc_blockwise_alloc_response_buffer(const char *href, size_t href_len,
   oc_blockwise_response_state_t *buffer =
     (oc_blockwise_response_state_t *)oc_blockwise_init_buffer(
       &oc_blockwise_response_states_s, href, href_len, endpoint, method, role);
-  if (buffer) {
+  if (buffer) 
+  {
     int i = COAP_ETAG_LEN;
     uint32_t r = oc_random_value();
     while (i > 0) {

@@ -141,13 +141,10 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
   coap_udp_init_message(udp_coap_request, type, OC_POST, coap_get_next_mid());
   coap_set_header_accept(udp_coap_request, APPLICATION_CBOR);
 
-  uint32_t a = oc_random_value();
-  uint32_t b = oc_random_value();
-
-  // set here fix 8 byte token len
-  udp_coap_request->token_len = 8; 
-  memcpy(udp_coap_request->token + 0, (uint8_t*)&a, 4);
-  memcpy(udp_coap_request->token + 4, (uint8_t*)&b, 4);
+  // set here fix COAP_TOKEN_LEN byte token len
+  udp_coap_request->token_len = COAP_TOKEN_LEN; 
+  const uint32_t a = oc_random_value(); memcpy(udp_coap_request->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(udp_coap_request->token + 4, &b, sizeof(b));
 
   // s-mode messages carries a uri + no query + outgoing format
   coap_set_header_content_format(udp_coap_request, APPLICATION_CBOR);
@@ -174,8 +171,8 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
 
   // well-known message DO NOT carry a payload (yet)
 
-  // set here fix 8 byte token len
-  udp_coap_request->token_len = 8;
+  // set here fix COAP_TOKEN_LEN byte token len
+  udp_coap_request->token_len = COAP_TOKEN_LEN;
   memcpy(udp_coap_request->token + 0, callback->token + 0, 4);
   memcpy(udp_coap_request->token + 4, callback->token + 4, 4);
 
