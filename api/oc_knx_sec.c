@@ -1921,7 +1921,7 @@ bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, oc_interface_ma
   return false;
 }
 
-bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
+bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
 {
   //  scope of called resource, init with default
   oc_acl_mask_t called_res_scope = OC_ACL_NONE;

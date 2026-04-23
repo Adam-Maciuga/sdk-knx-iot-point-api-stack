@@ -960,25 +960,27 @@ static void free_all_event_timers(void) {
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         oc_blockwise_state_t** request_state,
         oc_blockwise_state_t** response_state,
-        uint16_t block2_size, oc_endpoint_t* endpoint) {
+        uint16_t block2_size, oc_endpoint_t* endpoint) 
+{
 #else  
 bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         uint8_t* buffer,
-        oc_endpoint_t* endpoint) {
+        oc_endpoint_t* endpoint) 
+{
 #endif 
+  
   // flags that capture status along various stages of processing the request.
   bool method_impl = true, bad_request = false, success = false, forbidden = false, entity_too_large = false;
 
-  // Parsed CoAP PDU structure.
+  // parsed CoAP PDU structure
   coap_packet_t* const packet = (coap_packet_t*) request;
 
-  // This function is a server-side entry point solely for requests.
-  // Hence, "code" contains the CoAP method code.
-  oc_method_t method = (oc_method_t)packet->code;
+  // This function is a server-side entry point solely for requests. Hence, "code" contains the CoAP method code.
+  coap_method_t method = (coap_method_t)packet->code;
 
   // each app. callback handler gets a new copy from org. req, the response buffer is a 1:1 pointer copy from org. req
   oc_request_t new_request = {0};		// partiality filled later on, hence init with '0'
-  oc_response_t response_obj;			// filled completely later on, hence no init with '0'
+  oc_response_t response_obj;			  // filled completely later on, hence no init with '0'
   oc_response_buffer_t response_buffer = {0};	// partiality filled later on, hence init with '0'
 
 #ifdef OC_BLOCK_WISE
@@ -1202,22 +1204,22 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         // access scope ok
       
         // invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
-        if (method == OC_GET && matching_resource->get_handler.cb) {
+        if (method == COAP_GET && matching_resource->get_handler.cb) {
           // entry point, such as for GET /k
           matching_resource->get_handler.cb(&new_request, 
           matching_resource->get_handler.interface_mask,
           matching_resource->get_handler.user_data);
-      } else if (method == OC_POST && matching_resource->post_handler.cb) {
+      } else if (method == COAP_POST && matching_resource->post_handler.cb) {
           // entry point, such as for POST /p with a collection or POST /k with an item 
           matching_resource->post_handler.cb(&new_request, 
           matching_resource->post_handler.interface_mask,
           matching_resource->post_handler.user_data);
-      } else if (method == OC_PUT && matching_resource->put_handler.cb) {
+      } else if (method == COAP_PUT && matching_resource->put_handler.cb) {
          // entry point, such as for PUT /p/{property-path} with an item 
          matching_resource->put_handler.cb(&new_request, 
          matching_resource->put_handler.interface_mask,
          matching_resource->put_handler.user_data);
-      } else if (method == OC_DELETE && matching_resource->delete_handler.cb) {
+      } else if (method == COAP_DELETE && matching_resource->delete_handler.cb) {
          matching_resource->delete_handler.cb(&new_request, 
          matching_resource->delete_handler.interface_mask,
          matching_resource->delete_handler.user_data);
@@ -1368,7 +1370,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     // If the recently handled request was a PUT/POST, it conceivably
     // altered the resource state, so attempt to notify all observers
     // of that resource with the change.
-    if (matching_resource && (method == OC_PUT || method == OC_POST) &&
+    if (matching_resource && (method == COAP_PUT || method == COAP_POST) &&
             response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST)) {
       // check this with s-mode
       if (endpoint->flags & MULTICAST) {
@@ -1712,14 +1714,17 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t * cb, oc_endpoint_t *
   return true;
 }
 
-oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t * endpoint, oc_method_t method) {
+oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t * endpoint, coap_method_t method) 
+{
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
 
-  while (cb) {
-    if (oc_string_len(cb->uri) == strlen(uri) &&
-            strncmp(oc_string(cb->uri), uri, strlen(uri)) == 0 &&
-            oc_endpoint_compare(&cb->endpoint, endpoint) == 0 &&
-            cb->method == method) {
+  while (cb) 
+  {
+    if (oc_string_len(cb->uri) == strlen(uri) 
+        && strncmp(oc_string(cb->uri), uri, strlen(uri)) == 0 
+        && oc_endpoint_compare(&cb->endpoint, endpoint) == 0 
+        && cb->method == method) 
+    {
       return cb;
     }
 
@@ -1738,7 +1743,7 @@ static void free_all_client_cbs(void) {
 }
 
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t * endpoint,
-        oc_method_t method, const char* query, oc_client_handler_t handler, oc_qos_t qos, void* user_data) 
+        coap_method_t method, const char* query, oc_client_handler_t handler, oc_qos_t qos, void* user_data) 
 {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
   if (!cb) 

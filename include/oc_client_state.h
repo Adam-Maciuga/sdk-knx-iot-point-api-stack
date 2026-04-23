@@ -109,7 +109,7 @@ typedef struct oc_client_cb_t
   int32_t observe_seq;                 /**< observe sequence number */
   oc_clock_time_t timestamp;           /**< time stamp is INITIALLY set to the time when the callback was created  */
   oc_qos_t qos;                        /**< quality of service */
-  oc_method_t method;                  /**< method used */
+  coap_method_t method;                  /**< method used */
   uint16_t mid;                        /**< CoAP message identifier */
   uint8_t token[COAP_TOKEN_LEN];       /**< CoAP token */
   uint8_t token_len;                   /**< CoAP token length */
@@ -175,7 +175,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
  *			  
  */
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, 
-        oc_method_t method, const char* query, oc_client_handler_t handler, 
+        coap_method_t method, const char* query, oc_client_handler_t handler, 
         oc_qos_t qos, void* user_data);
 
 /**
@@ -186,7 +186,7 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint,
  * @param method the used method
  * @return oc_client_cb_t* the client callback info
  */
-oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t* endpoint, oc_method_t method);
+oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t* endpoint, coap_method_t method);
 
 /**
  * @brief is the client callback information valid

@@ -26,7 +26,7 @@ typedef struct coap_separate
   uint16_t block2_size;
   uint32_t observe;           // 1:register; 0:de-register, 2:error
   oc_endpoint_t endpoint;
-  oc_method_t method;
+  coap_method_t method;
   oc_string_t uri;
 } coap_separate_t;
 

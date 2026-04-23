@@ -158,14 +158,14 @@ uint8_t oscore_get_outer_code(void* packet)
 
   const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
 
-  if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH
+  if (coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH
   #ifdef OC_TCP
           || (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01)
   #endif 
   ) 
   { 
     // requests
-    return observe ? OC_FETCH : OC_POST;
+    return observe ? COAP_FETCH : COAP_POST;
   }
 	
   // responses

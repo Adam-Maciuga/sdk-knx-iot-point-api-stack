@@ -162,9 +162,9 @@ extern "C"
      *   oc_resource_bind_dpt(bswitch, "urn:knx:dpt.switch");
      *   oc_resource_bind_resource_interface(bswitch, OC_IF_A);
      *   oc_resource_set_discoverable(bswitch, true);
-     *   oc_resource_set_request_handler(bswitch, OC_GET, get_switch, NULL);
-     *   oc_resource_set_request_handler(bswitch, OC_PUT, put_switch, NULL);
-     *   oc_resource_set_request_handler(bswitch, OC_POST, post_switch, NULL);
+     *   oc_resource_set_request_handler(bswitch, COAP_GET, get_switch, NULL);
+     *   oc_resource_set_request_handler(bswitch, COAP_PUT, put_switch, NULL);
+     *   oc_resource_set_request_handler(bswitch, COAP_POST, post_switch, NULL);
      *   oc_add_resource(bswitch);
      * }
      * ```
@@ -641,14 +641,11 @@ extern "C"
    * @note All resources must provide at least one request handler to be a valid resource.
    *
    * method types:
-   * - `OC_GET`  the `oc_request_callback_t` is responsible for returning the
-   *             current value of all resource properties.
-   * - `OC_PUT`  the `oc_request_callback_t` is responsible for updating one or
-   *             more of the resource properties.
-   * - `OC_POST` the `oc_request_callback_t` is responsible for updating one or
-   *             more of the resource properties. The callback may also be responsible for
-   *             creating new resources.
-   * - `OC_DELETE` the `oc_request_callback_t` is responsible for deleting a resource
+   * - `COAP_GET` the `oc_request_callback_t` is responsible for returning the current value of all resource properties
+   * - `COAP_PUT` the `oc_request_callback_t` is responsible for updating one or more of the resource properties
+   * - `COAP_POST` the `oc_request_callback_t` is responsible for updating one or more of the resource properties, 
+   *               the callback may also be responsible for creating new resources.
+   * - `COAP_DELETE` the `oc_request_callback_t` is responsible for deleting a resource
    *
    * @note Some methods may never be invoked based on the resources Interface as
    *       well as the provisioning permissions of the client.
@@ -667,7 +664,7 @@ extern "C"
    *
    * @see oc_new_resource to see example code using this function
    */
-  void oc_resource_set_request_handler(oc_resource_t* resource, oc_method_t method, oc_request_callback_t callback,
+  void oc_resource_set_request_handler(oc_resource_t* resource, coap_method_t method, oc_request_callback_t callback,
                                        void* user_data, oc_acl_mask_t scopes, oc_interface_mask_t interfaces);
   /**
    * Get for a resource the interfaces for all methods
@@ -697,7 +694,7 @@ extern "C"
    * - false otherwise (scope is not touched)
    *
    */
-  bool oc_resource_get_acl_for_method(const oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes);
+  bool oc_resource_get_acl_for_method(const oc_resource_t* resource, coap_method_t method, oc_acl_mask_t* scopes);
 
 
   /**

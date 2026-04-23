@@ -30,7 +30,7 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
   packet->buffer = msg->data;
   uint8_t* current_option = NULL;
 
-#ifdef OC_TCP
+  #ifdef OC_TCP
   if (msg->endpoint.flags & TCP)
   {
     packet->transport_type = COAP_TRANSPORT_TCP;
@@ -46,7 +46,7 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
     current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
   }
   else
-#endif
+  #endif
   {
     packet->transport_type = COAP_TRANSPORT_UDP;
     packet->version = (COAP_HEADER_VERSION_MASK & packet->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
@@ -58,15 +58,13 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
     current_option = msg->data + COAP_HEADER_LEN;
   }
 
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
 
   print_coap_service(packet->code, "outer coap code");
 
-#endif
+  #endif
 
-  const bool is_ack = packet->type == COAP_TYPE_ACK;
-  const bool is_ack_with_empty_payload = is_ack && packet->code == EMPTY_0_00;
-
+  const bool is_ack_with_empty_payload = packet->type == COAP_TYPE_ACK && packet->code == EMPTY_0_00;
 
   if (is_ack_with_empty_payload)
   {
@@ -286,7 +284,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     is_con = coap_pkt->type == COAP_TYPE_CON;
     is_non = coap_pkt->type == COAP_TYPE_NON;
-    is_inbound_request = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
+    is_inbound_request = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
 
     if (is_inbound_request)
     { // (y)
@@ -306,8 +304,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   is_non   = coap_pkt->type == COAP_TYPE_NON;
   is_ack   = coap_pkt->type == COAP_TYPE_ACK;
 
-  is_inbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // allowlist: CON (sep)/NON/ACK (piggy) response
+  is_inbound_request  = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
+  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > COAP_FETCH; // allowlist: CON (sep)/NON/ACK (piggy) response
 
   if (!is_inbound_request && !is_inbound_response && !is_reset)
   {
@@ -829,7 +827,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
 
     // set the OUTER code for the OSCORE packet (on mc request = POST)
-    coap_pkt->code = OC_POST;
+    coap_pkt->code = COAP_POST;
 
     /*
       Wireshark fix - include the 'kid_context' (in msg) = 'ID Context' (OSCORE)
@@ -964,8 +962,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   bool is_non = coap_pkt->type == COAP_TYPE_NON;
   bool is_ack  = coap_pkt->type == COAP_TYPE_ACK;
 
-  bool is_outbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  bool is_outbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // explicit allowlist: CON/NON/ACK with response code
+  bool is_outbound_request  = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
+  bool is_outbound_response = (is_con || is_non || is_ack) && coap_pkt->code > COAP_FETCH; // explicit allowlist: CON/NON/ACK with response code
   
   bool unicast_echo_response_by_mc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC;
   bool unicast_echo_response_by_uc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC;

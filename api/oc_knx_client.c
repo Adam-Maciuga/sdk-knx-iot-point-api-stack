@@ -263,7 +263,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   // allow (a generic) application callback to identify the caller
   new_request.resource = app_resource_with_href_match;
   // note, s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/update
-  new_request.request_method = OC_POST;
+  new_request.request_method = COAP_POST;
   new_request.content_format = APPLICATION_CBOR;               
   // a GET handler WILL check this
   new_request.accept = APPLICATION_CBOR;
@@ -438,7 +438,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
             // allows (a generic) application callback to identify the caller
             new_request.resource = application_resource_with_href_match;
             // a PUT handler MAY check the request method
-            new_request.request_method = OC_PUT;
+            new_request.request_method = COAP_PUT;
             new_request.content_format = APPLICATION_CBOR;
             // a PUT MAY need APPLICATION_CBOR for response payload with 2.04
             new_request.accept = APPLICATION_CBOR;
@@ -705,7 +705,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
     // a
 
     // user data is an entry (pointer) of recipient table
-    cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, OC_GET, query,  handler, LOW_QOS, recipient);
+    cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, COAP_GET, query,  handler, LOW_QOS, recipient);
     if (!cb) 
     {
       OC_ERR("CoAP discovery: Failed to register callback");

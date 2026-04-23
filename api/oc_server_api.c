@@ -328,12 +328,14 @@ void oc_resource_set_functional_block_data(oc_resource_t* resource,
 void oc_resource_set_properties_cbs(oc_resource_t* resource, 
         oc_get_properties_cb_t get_properties, void* get_props_user_data, 
         oc_set_properties_cb_t set_properties, void* set_props_user_data) {
-  if (resource == NULL) {
+  if (resource == NULL) 
+  {
     OC_ERR("oc_resource_set_properties_cbs: resource is NULL");
     return;
   }
 
-  if (resource->is_const) {
+  if (resource->is_const) 
+  {
     OC_ERR("oc_resource_set_properties_cbs: resource data is const");
     return;
   }
@@ -345,39 +347,44 @@ void oc_resource_set_properties_cbs(oc_resource_t* resource,
 }
 
 void oc_resource_set_request_handler(oc_resource_t* resource, 
-        oc_method_t method, oc_request_callback_t callback, void* user_data, 
-        oc_acl_mask_t scopes, oc_interface_mask_t interfaces) {
+        coap_method_t method, oc_request_callback_t callback, void* user_data, 
+        oc_acl_mask_t scopes, oc_interface_mask_t interfaces) 
+{
   // used to create a copy of the resource pointer 
   oc_request_handler_t* handler = NULL;
 
-  if (resource == NULL) {
+  if (resource == NULL) 
+  {
     OC_ERR("oc_resource_set_request_handler: resource is NULL");
     return;
   }
 
-  if (resource->is_const) {
+  if (resource->is_const) 
+  {
     OC_ERR("oc_resource_set_request_handler: resource data is const");
     return;
   }
 
-  switch (method) {
-    case OC_GET:
+  switch (method) 
+  {
+    case COAP_GET:
       handler = &resource->get_handler;
       break;
-    case OC_POST:
+    case COAP_POST:
       handler = &resource->post_handler;
       break;
-    case OC_PUT:
+    case COAP_PUT:
       handler = &resource->put_handler;
       break;
-    case OC_DELETE:
+    case COAP_DELETE:
       handler = &resource->delete_handler;
       break;
     default:  // skip FETCH method for now 
       break;
   }
 
-  if (handler) {
+  if (handler) 
+  {
     handler->cb = callback;
     handler->user_data = user_data;
     handler->acl_scope_mask |= scopes;
@@ -427,7 +434,7 @@ bool oc_resource_get_all_interfaces_for_a_resource(
   return false;
 }
 
-bool oc_resource_get_acl_for_method(const oc_resource_t* resource, oc_method_t method, oc_acl_mask_t* scopes) {
+bool oc_resource_get_acl_for_method(const oc_resource_t* resource, coap_method_t method, oc_acl_mask_t* scopes) {
   // used to create a copy of the resource pointer
   const oc_request_handler_t* handler = NULL;
 
@@ -437,16 +444,16 @@ bool oc_resource_get_acl_for_method(const oc_resource_t* resource, oc_method_t m
   }
 
   switch (method) {
-    case OC_GET:
+    case COAP_GET:
       handler = &resource->get_handler;
       break;
-    case OC_POST:
+    case COAP_POST:
       handler = &resource->post_handler;
       break;
-    case OC_PUT:
+    case COAP_PUT:
       handler = &resource->put_handler;
       break;
-    case OC_DELETE:
+    case COAP_DELETE:
       handler = &resource->delete_handler;
       break;
     default: 

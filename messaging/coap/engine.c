@@ -367,10 +367,10 @@ int coap_receive(oc_message_t* incoming_message)
   bool is_non = inbound_coap_pkt->type == COAP_TYPE_NON;
   bool is_ack = inbound_coap_pkt->type == COAP_TYPE_ACK; // covers empty ack and piggybacked ack 
 
-  bool is_coap_request_code = inbound_coap_pkt->code >= OC_GET && inbound_coap_pkt->code <= OC_FETCH;  // covers CoAP request codes from GET (0.01) ... FETCH (0.05)
+  bool is_coap_request_code = inbound_coap_pkt->code >= COAP_GET && inbound_coap_pkt->code <= COAP_FETCH;  // covers CoAP request codes from GET (0.01) ... FETCH (0.05)
   bool is_inbound_request = (is_con || is_non) && is_coap_request_code;        
-  bool is_inbound_con_response = is_con && inbound_coap_pkt->code > OC_FETCH;  // CON separate response 
-  bool is_inbound_non_response = is_non && inbound_coap_pkt->code > OC_FETCH;  // NON confirmable response
+  bool is_inbound_con_response = is_con && inbound_coap_pkt->code > COAP_FETCH;  // CON separate response 
+  bool is_inbound_non_response = is_non && inbound_coap_pkt->code > COAP_FETCH;  // NON confirmable response
 
   if (coap_status_code == COAP_NO_ERROR)
   {
