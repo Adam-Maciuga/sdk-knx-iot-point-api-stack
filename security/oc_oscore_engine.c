@@ -301,13 +301,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   }
 
   // assign first on no error
-  is_reset = coap_pkt->type == COAP_TYPE_RST && coap_pkt->code == EMPTY_0_00; // RFC 7252 §3: RST must carry code 0.00
+  is_reset = coap_pkt->type == COAP_TYPE_RST && coap_pkt->code == EMPTY_0_00; // RFC 7252 RST must carry code 0.00
   is_con   = coap_pkt->type == COAP_TYPE_CON;
   is_non   = coap_pkt->type == COAP_TYPE_NON;
   is_ack   = coap_pkt->type == COAP_TYPE_ACK;
 
   is_inbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // explicit allowlist: CON/NON/ACK with response code
+  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // allowlist: CON (sep)/NON/ACK (piggy) response
 
   if (!is_inbound_request && !is_inbound_response && !is_reset)
   {
