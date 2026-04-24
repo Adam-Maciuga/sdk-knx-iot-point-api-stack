@@ -21,31 +21,38 @@
 #include <errno.h>
 
 // deferred callback to send CoAP discovery after the piggybacked ACK, this ensures the ACK is sent before the discovery request
-static oc_event_callback_retval_t deferred_coap_discovery_callback(void* data) 
+static oc_event_callback_retval_t deferred_coap_discovery_callback(void* data)
 {
   oc_group_table_t* recipient = (oc_group_table_t*)data;
-  if (recipient) 
+  if (recipient)
   {
     knx_resolve_via_coap_discovery(recipient);
   }
   return OC_EVENT_DONE;
 }
 
-void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, 
-        uint32_t group_address, char service_type, const uint8_t* value_data, 
-        int value_size, bool non_confirmable);
+static void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path,
+                                    uint32_t group_address, char service_type, const uint8_t* value_data,
+                                    int value_size, bool non_confirmable);
 
-// Find a GA within a recipient table entry including a GA array.
-// Note:
-// Not in header, used only within this file and oc_knx.c/oc_knx_fp.c via direct access.
-oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga) {
-  int total = oc_core_get_recipient_table_size();
-  for (int i = 0; i < total; i++) {
+/*
+  Find a GA within a recipient table entry including a GA array.
+  Note:
+  Not in header, used only within this file and oc_knx.c/oc_knx_fp.c via direct access.
+*/
+oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
+{
+  const int total = oc_core_get_recipient_table_size();
+  for (int i = 0; i < total; i++)
+  {
     oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
 
-    if (entry && entry->id >= 0) {
-      for (int j = 0; j < entry->ga_len; j++) {
-        if (entry->ga[j] == ga) {
+    if (entry && entry->id >= 0)
+    {
+      for (int j = 0; j < entry->ga_len; j++)
+      {
+        if (entry->ga[j] == ga)
+        {
           return entry;
         }
       }
@@ -55,21 +62,29 @@ oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga) {
   return NULL;
 }
 
-int oc_is_redirected_request_from(const oc_request_t* request) {
-  if (!request || request->uri_path_len == 0) {
+int oc_is_redirected_request_from(const oc_request_t* request)
+{
+  if (!request || request->uri_path_len == 0)
+  {
     return -1;
   }
 
-  // check POST to '/k' -> s-mode message
-  // - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
-  if (request->uri_path[0] == 'k') {
+  /*
+    check POST to '/k' -> s-mode message
+    - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
+  */
+  if (request->uri_path[0] == 'k')
+  {
     return 0;
   }
 
-  // check GET/PUT to '/p/{point-path}' or POST to '/p' -> both are property messages
-  // - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
-  // - we don't care of total uri length, at least 'p' must be present
-  if (request->uri_path[0] == 'p') {
+  /*
+    check GET/PUT to '/p/{point-path}' or POST to '/p' -> both are property messages
+    - note that the stack uri's works without leading '/', e.g.; also when calling the callbacks
+    - we don't care of total uri length, at least 'p' must be present
+  */
+  if (request->uri_path[0] == 'p')
+  {
     return 1;
   }
 
@@ -79,38 +94,40 @@ int oc_is_redirected_request_from(const oc_request_t* request) {
 
 void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
                                     const uint8_t* value_data, int value_size, oc_group_table_t* recipient,
-                                    oc_group_object_table_t* group_object) 
+                                    oc_group_object_table_t* group_object)
 {
-  if (!recipient) 
+  if (!recipient)
   {
     OC_ERR("Cannot send unicast: recipient is NULL");
     return;
   }
 
-  if (recipient->ia == -1) 
+  if (recipient->ia == -1)
   {
     OC_ERR("Cannot send unicast: invalid IA in recipient for GA %u", group_address);
     return;
   }
 
-  // Send s-mode unicast message, IPv6 address of recipient must be known
-  // (0) - if already resolved -> skip resolving process, send s-mode message
-  // (a) - not resolved, first try -> alloc the callback, send first discovery
-  // (b) - not resolved, next (re)tries
-  //       (1) timed out : simply use the existing callback + refresh coap token/mid, resend discovery
-  //       (2) not timed out : wait for timeout before sending a next discovery, 
-  //           also a permanent try to send inside the timeout will not send a next discovery (debouncing) 
+  /*
+    Send s-mode unicast message, IPv6 address of recipient must be known
+    (0) - if already resolved -> skip resolving process, send s-mode message
+    (a) - not resolved, first try -> alloc the callback, send first discovery
+    (b) - not resolved, next (re)tries
+          (1) timed out : simply use the existing callback + refresh coap token/mid, resend discovery
+          (2) not timed out : wait for timeout before sending a next discovery,
+              also a permanent try to send inside the timeout will not send a next discovery (debouncing)
+  */
 
   // TODO AH how to re-resolve when not getting any answer later with a resolved IP 
 
-  if (recipient->ipv6_res.resolve_status != OC_IP_STATUS_RESOLVED) 
+  if (recipient->ipv6_res.resolve_status != OC_IP_STATUS_RESOLVED)
   {
     // check resolving status
 
     // store GO + service type (overwrites it also when triggers a next message but still not resolved)
     recipient->ipv6_res.group_object = group_object;
     recipient->ipv6_res.service_type = service_type;
-    
+
     // defer discovery to ensure piggybacked ACK is sent BEFORE the discovery request
     oc_set_delayed_callback_ms(recipient, deferred_coap_discovery_callback, 10);
 
@@ -118,10 +135,12 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
     return;
   }
 
-  // create unicast endpoint from ipv6 address + port
-  // - 'kid' + 'kid_context' = 0
-  // - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
-  // - 'ga' is set
+  /*
+    create unicast endpoint from ipv6 address + port
+    - 'kid' + 'kid_context' = 0
+    - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
+    - 'ga' is set
+  */
   oc_endpoint_t group_ucast_endpoint = {0};
   group_ucast_endpoint = oc_create_unicast_group_address_with_port_interface(group_ucast_endpoint, recipient);
 
@@ -139,11 +158,13 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t gr
 {
   // get local device info (iid) -> always the same
   const uint64_t iid = oc_core_get_device_info()->iid;
-  
-  // create multicast endpoint from grpid/iid and coap default + port 
-  // - 'kid' + 'kid_context' = 0
-  // - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
-  // - 'ga' is set 
+
+  /*
+    create multicast endpoint from grpid/iid and coap default + port
+    - 'kid' + 'kid_context' = 0
+    - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
+    - 'ga' is set
+  */
   oc_endpoint_t group_mcast_endpoint = {0};
   group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, scope, COAP_DEFAULT_PORT);
 
@@ -157,22 +178,23 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t gr
 }
 
 // sends a mc (non) or uc (con/non) s-mode message
-void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, char service_type, const uint8_t* value_data, int value_size, bool non_confirmable) 
+void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, char service_type, const uint8_t* value_data,
+                             int value_size, bool non_confirmable)
 {
   // get local device info (sia) -> always the same
   const uint16_t sia = oc_core_get_device_info()->ia;
-  
+
   // convert the single char into a string with '\0' for the cbor encoder
   const char service[] = {service_type, '\0'};
 
-  if (oc_init_s_mode_message_update(endpoint, path, non_confirmable)) 
+  if (oc_init_s_mode_message_update(endpoint, path, non_confirmable))
   {
     // { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
 
     oc_rep_begin_root_object();                       // BF (1st level)
-    oc_rep_i_set_int(root, 4, sia);                   // 4: <sia> 
+    oc_rep_i_set_int(root, 4, sia);                   // 4: <sia>
 
-    oc_rep_i_set_key(&root_map, 5);                   // 5:  
+    oc_rep_i_set_key(&root_map, 5);                   // 5:
 
     CborEncoder value_map;                            // BF (a)
     cbor_encoder_create_map(&root_map, &value_map, CborIndefiniteLength);
@@ -186,8 +208,8 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
        - otherwise a read request without data
        - other combinations = error (no value data and size > 2, ...)
     */
-    if (value_data && value_size > 2) 
-    { 
+    if (value_data && value_size > 2)
+    {
       /* 
          copies raw data, the data are prepared by the callback handler with the leading '1' such as with GET to a bool = oc_rep_i_set_boolean (root, 1, true)
 
@@ -208,12 +230,12 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
     oc_rep_end_root_object();
 
     #ifdef OC_DEBUG
-    
+
     OC_INF("send s-mode to ipv6 address : ");
     PRINTipaddr(*endpoint);
     OC_INF("send s-mode (%d) with CBOR payload : ", oc_rep_get_encoded_payload_size());
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
-    
+
     #endif
 
     // called only in case the static buffer was allocated 
@@ -221,23 +243,22 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
   }
 }
 
-/* 
- * @brief copies the resource data to a buffer by invoking the GET resource callback handler 
- *        (see notes)
- *
- * @return data len 
- *
- * @note buffer len must satisfy the maximum possible resource len 
- */
-static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, uint16_t buffer_size) 
+/*
+  @brief copies the resource data to a buffer by invoking the GET resource callback handler (see notes)
+
+  @return data len
+
+  @note buffer len must satisfy the maximum possible resource len
+*/
+static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buffer, uint16_t buffer_size)
 {
-  if (!resource_path) 
+  if (!resource_path)
   {
     return 0;
   }
 
   const oc_resource_t* app_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
-  if (!app_resource_with_href_match) 
+  if (!app_resource_with_href_match)
   {
     PRINT("error, application resource path not found %s", resource_path);
     return 0;
@@ -264,7 +285,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   new_request.resource = app_resource_with_href_match;
   // note, s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/update
   new_request.request_method = COAP_POST;
-  new_request.content_format = APPLICATION_CBOR;               
+  new_request.content_format = APPLICATION_CBOR;
   // a GET handler WILL check this
   new_request.accept = APPLICATION_CBOR;
   // allow (a generic) application callback to identify the caller
@@ -275,9 +296,9 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   oc_rep_new(buffer, buffer_size);
 
   // call application handler GET with own interface/ user data, it makes no sense to call it with a fix value
-  app_resource_with_href_match->get_handler.cb(&new_request, 
-          app_resource_with_href_match->get_handler.interface_mask, 
-          app_resource_with_href_match->get_handler.user_data);
+  app_resource_with_href_match->get_handler.cb(&new_request,
+                                               app_resource_with_href_match->get_handler.interface_mask,
+                                               app_resource_with_href_match->get_handler.user_data);
 
   // return the filled data size 
   return oc_rep_get_encoded_payload_size();
@@ -391,23 +412,25 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
       while (go_table_index_where_ga_is_used != -1)
       {
         // for all GOs with the GA included -> update the values
-        const oc_string_t go_href =  oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
-        const oc_resource_t* application_resource_with_href_match = 
+        const oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
+        const oc_resource_t* application_resource_with_href_match =
           oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
         if (!application_resource_with_href_match)
         {
-          // - group object table and application resource definition see above
-          // - POST /k with write on GA 39
-          // - if the first GO href entry does not have a matching application resource
-          //   option 1 :
-          //   1. first GO is GO5 -> no application resource
-          //   2. stop and return
-          //   option 2 (used):
-          //   1. first GO is GO5 -> no application resource
-          //   2. search GO table for next href with GA included -> GO6 -> AR3
-          //   3. update AR3
-          //   4. return
+          /*
+            - group object table and application resource definition see above
+            - POST /k with write on GA 39
+            - if the first GO href entry does not have a matching application resource
+              option 1 :
+              1. first GO is GO5 -> no application resource
+              2. stop and return
+              option 2 (used):
+              1. first GO is GO5 -> no application resource
+              2. search GO table for next href with GA included -> GO6 -> AR3
+              3. update AR3
+              4. return
+          */
 
           // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
           go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
@@ -481,44 +504,48 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 /* CoAP Discovery for IPv6 Resolution */
 
 // response handler for CoAP discovery
-static void knx_coap_discovery_response_handler(oc_client_response_t *data) 
+static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 {
-  if (!data || !data->endpoint) 
+  if (!data || !data->endpoint)
   {
     OC_ERR("CoAP discovery: Invalid response data");
     return;
   }
 
-  // IPv6 is set since callback is not executed without 
-  // OSCORE is not set since it would not end up here 
+  /*
+    IPv6 is set since callback is not executed without
+    OSCORE is not set since it would not end up here
+  */
 
   // get recipient (pointer) that was issued as user data with the callback 
   oc_group_table_t* recipient = (oc_group_table_t*)data->user_data;
-  
+
   OC_INF("CoAP discovery response: IPv6 %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (if=%d) ",
-          data->endpoint->addr.ipv6.address[0], data->endpoint->addr.ipv6.address[1], 
-          data->endpoint->addr.ipv6.address[2], data->endpoint->addr.ipv6.address[3], 
-          data->endpoint->addr.ipv6.address[4], data->endpoint->addr.ipv6.address[5],
-          data->endpoint->addr.ipv6.address[6], data->endpoint->addr.ipv6.address[7], 
-          data->endpoint->addr.ipv6.address[8], data->endpoint->addr.ipv6.address[9], 
-          data->endpoint->addr.ipv6.address[10], data->endpoint->addr.ipv6.address[11],
-          data->endpoint->addr.ipv6.address[12], data->endpoint->addr.ipv6.address[13], 
-          data->endpoint->addr.ipv6.address[14], data->endpoint->addr.ipv6.address[15],
-          data->endpoint->interface_index);
+         data->endpoint->addr.ipv6.address[0], data->endpoint->addr.ipv6.address[1],
+         data->endpoint->addr.ipv6.address[2], data->endpoint->addr.ipv6.address[3],
+         data->endpoint->addr.ipv6.address[4], data->endpoint->addr.ipv6.address[5],
+         data->endpoint->addr.ipv6.address[6], data->endpoint->addr.ipv6.address[7],
+         data->endpoint->addr.ipv6.address[8], data->endpoint->addr.ipv6.address[9],
+         data->endpoint->addr.ipv6.address[10], data->endpoint->addr.ipv6.address[11],
+         data->endpoint->addr.ipv6.address[12], data->endpoint->addr.ipv6.address[13],
+         data->endpoint->addr.ipv6.address[14], data->endpoint->addr.ipv6.address[15],
+         data->endpoint->interface_index);
 
   // store resolved IPv6 in recipient table
-  if (recipient) 
+  if (recipient)
   {
     bool ia_and_iid_valid_and_present = false;
-    
+
     // check if the response matches the beforehand request IA/IID 
-    if (data->_payload) 
+    if (data->_payload)
     {
-      // same principle as inbound discovery on well-known request
-      // 
-      // response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
-      // the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
-      
+      /*
+        same principle as inbound discovery on well-known request
+
+        response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
+        the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
+      */
+
       #define LEN_SN (12)              // 00fa12345678
       #define LEN_DOT_SN (16)          // <>;ep="knx://sn.
       #define LEN_DOT_IA (9)           // knx://ia.
@@ -533,7 +560,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
       char* iid_start_pos = oc_strnchr((char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA) + 3; // + 3 = 'ia.'
       char* ia_start_pos = oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) + 1;
 
-      if (iid_start_pos) 
+      if (iid_start_pos)
       {
         // convert only if a 'i' was found
 
@@ -553,7 +580,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
         const uint64_t iid = strtoull(iid_str, NULL, 16);
 
         // test IID first since many devices will have the same IID
-        if (errno == 0 && iid == device->iid) 
+        if (errno == 0 && iid == device->iid)
         {
           // empty max len IA + string termination '\0'
           char ia_str[IA_STR_LEN_MAX + 1] = "";
@@ -561,7 +588,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
           // IA can be of 0..4 chars (valid) or > 4 (attack/error)
           // Note: -1 for escaped " at the end '\"'
           char* ia_end_pos = (char*)data->_payload + data->_payload_len - 1;
-          size_t ia_len = ia_end_pos - ia_start_pos;  
+          size_t ia_len = ia_end_pos - ia_start_pos;
 
           // copy IA size 0..4 , but don't copy > 4 chars
           strncpy(ia_str, ia_start_pos, ia_len > IA_STR_LEN_MAX ? IA_STR_LEN_MAX : ia_len);
@@ -572,7 +599,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 
           // Converted ia = 0 is accepted, but usually the recipient device will 
           // not have 0 assigned.
-          if (errno == 0 && ia == recipient->ia) 
+          if (errno == 0 && ia == recipient->ia)
           {
             ia_and_iid_valid_and_present = true;
           }
@@ -581,7 +608,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
     }
 
     // only if ia + iid is correct accept this response
-    if (!ia_and_iid_valid_and_present) 
+    if (!ia_and_iid_valid_and_present)
     {
       // discovery response silently ignored, state remains unresolved
       return;
@@ -612,7 +639,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 
     // copy resource value to buffer, return value size, -> buffer must be big enough to carry resource value!
     const int resource_value_size = oc_s_mode_get_resource_value(resource_path, resource_value_buffer, OC_MAX_APP_DATA_SIZE);
-    
+
     // since the IPV6 resolving is done, this below call does not end in an endless loop
     oc_send_s_mode_unicast_message(group_address, service_type, resource_value_buffer, resource_value_size, recipient, NULL);
 
@@ -621,22 +648,22 @@ static void knx_coap_discovery_response_handler(oc_client_response_t *data)
 
     return;
   }
-  
+
   OC_ERR("Recipient is NULL, callback (init) error");
 }
 
 // send CoAP discovery multicast to resolve IA to IPv6
-oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient) 
+oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
 {
 
   // register client callback
-  const oc_client_handler_t handler = 
+  const oc_client_handler_t handler =
   {
-    .response = knx_coap_discovery_response_handler, 
-    .discovery = NULL, 
+    .response = knx_coap_discovery_response_handler,
+    .discovery = NULL,
     .discovery_all = NULL
   };
-  
+
   // flags, well-known is never secure ...
   const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;
 
@@ -644,12 +671,12 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
   // scope-dependent all CoAP nodes address, scope-dependent multicast address:
   // - scope 2: ff02::fd (link-local all CoAP nodes)
   // - scope 5: ff05::fd (site-local all CoAP nodes)
-  oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, 
-          COAP_DEFAULT_PORT, 
-          0xFF, OC_SENDER_MULTICAST_SCOPE, 0, 0, 
-          0,0,0,0, 
-          0,0,0,0, 
-          0,0,0,0xFD); 
+  oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags,
+                        COAP_DEFAULT_PORT,
+                        0xFF, OC_SENDER_MULTICAST_SCOPE, 0, 0,
+                        0, 0, 0, 0,
+                        0, 0, 0, 0,
+                        0, 0, 0, 0xFD);
 
   // uses all interfaces --> cleared to '0' 
 
@@ -676,7 +703,7 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
   oc_client_cb_t* cb = recipient->ipv6_res.callback;
   const uint64_t now = oc_clock_time();
 
-  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_RESOLVING) 
+  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_RESOLVING)
   {
     // b, details see code comment when method is called
 
@@ -694,19 +721,21 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
     // b.1 - took too long, send a next discovery message -> needs to update mid/token/timestamp in present cb (token len still present)
     cb->timestamp = now;
     cb->mid = coap_get_next_mid();
-    const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
-    const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
+    const uint32_t a = oc_random_value();
+    memcpy(cb->token + 0, &a, sizeof(a));
+    const uint32_t b = oc_random_value();
+    memcpy(cb->token + 4, &b, sizeof(b));
 
     OC_INF("CoAP discovery: Timeout, Resending Discovery Request");
   }
 
-  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED) 
+  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED)
   {
     // a
 
     // user data is an entry (pointer) of recipient table
-    cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, COAP_GET, query,  handler, LOW_QOS, recipient);
-    if (!cb) 
+    cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, COAP_GET, query, handler, LOW_QOS, recipient);
+    if (!cb)
     {
       OC_ERR("CoAP discovery: Failed to register callback");
       return OC_IP_STATUS_UNRESOLVED;
@@ -715,10 +744,10 @@ oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
     // remember the callback
     recipient->ipv6_res.callback = cb;
     recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
-  } 
+  }
 
   // here we enter on (a) or (b.1)
-  if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb)) 
+  if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb))
   {
     oc_do_well_known_message_update();
     OC_INF("CoAP discovery: Sending Discovery Request");
