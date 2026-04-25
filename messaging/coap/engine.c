@@ -1065,7 +1065,8 @@ int coap_receive(oc_message_t* incoming_message)
              (a) echo option from inbound 4.01 'echo response', new mid and new token, 
              (b) destination from inbound 4.01 'echo response'
              (c) type 'unicast'  
-             (d) it will be no new s-mode transaction with a new timeout and kept transaction, send simply a CON/NON message
+             (d) it will be no new s-mode transaction with a new timeout and kept transaction, 
+                 send it as a standard CoAP CON/NON message (CON with poss. reps, NON fire and drop after sending)
           
              All (1...n) later, additionally received inbound 'echo responses' from other devices uses the 
              coap token from the original (transaction'ized) s-mode message that we need to match with. In this case 

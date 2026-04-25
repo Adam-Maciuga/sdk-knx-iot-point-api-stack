@@ -124,7 +124,10 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   {
     // check resolving status
 
-    // store GO + service type (overwrites it also when triggers a next message but still not resolved)
+    /* 
+       (re)store GO + service type when still not resolved on (a) or (b)
+       - means it overwrites go/srv on triggering a next message for the same recipient ()
+    */
     recipient->ipv6_res.group_object = group_object;
     recipient->ipv6_res.service_type = service_type;
 
