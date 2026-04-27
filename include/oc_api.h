@@ -1228,18 +1228,17 @@ extern "C"
    * @brief Schedule a callback to be invoked after a set number of seconds.
    *
    * @param[in] cb_data user defined context pointer that is passed to the oc_trigger_t callback
-   * @param[in] callback the callback (method) invoked after the set number of seconds
+   * @param[in] callback the callback (method) invoked 
    * @param[in] seconds the number of seconds to wait till the callback is invoked
    */
   void oc_set_delayed_callback(void* cb_data, oc_trigger_t callback, uint16_t seconds);
 
   /**
-   * Schedule a callback to be invoked after a set number of milliseconds.
+   * @brief Schedule a callback to be invoked after a set number of milliseconds.
    *
    * @param[in] cb_data user defined context pointer that is passed to the oc_trigger_t callback
-   * @param[in] callback the callback invoked after the set number of seconds
-   * @param[in] milliseconds the number of milliseconds to wait till the callback is
-   * invoked
+   * @param[in] callback the callback (method) invoked 
+   * @param[in] milliseconds the number of milliseconds to wait till the callback is invoked
    */
   void oc_set_delayed_callback_ms(void* cb_data, oc_trigger_t callback, uint16_t milliseconds);
 

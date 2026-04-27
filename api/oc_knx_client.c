@@ -20,26 +20,102 @@
 #include <inttypes.h>
 #include <errno.h>
 
-// deferred callback to send CoAP discovery after the piggybacked ACK, this ensures the ACK is sent before the discovery request
-static oc_event_callback_retval_t deferred_coap_discovery_callback(void* data)
+
+/**
+    @brief checks the current IPv6 resolving status 
+    
+    @return true is resolved, false not resolved
+    
+    @note 
+    Send s-mode unicast message, IPv6 address of recipient must be known
+    (0) - resolved -> skip resolving process, send s-mode message
+    (a) - not resolved
+          (1) first try -> alloc the callback handler, init counter, send first discovery
+          (2) timed out -> retry with max counter 
+*/
+static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipient, oc_group_object_table_t* group_object)
 {
-  oc_group_table_t* recipient = (oc_group_table_t*)data;
-  if (recipient)
+  switch (recipient->ipv6_res.resolve_status)
   {
-    knx_resolve_via_coap_discovery(recipient);
+    case OC_IP_STATUS_UNRESOLVED:
+      
+      // max attempts to resolve 
+      recipient->ipv6_res.attempts = 3;
+      
+      //  store GO + service on first resolver attempt 
+      recipient->ipv6_res.group_object = group_object;
+      recipient->ipv6_res.service_type = service_type;
+
+      // defer discovery to ensure a possible empty ACK is sent BEFORE the discovery request
+      oc_set_delayed_callback_ms(recipient, knx_add_ipv6_address_coap_discovery_handler, 10);
+      
+    OC_DBG("Resolve ipv6 address: UNRESOLVED -> count %d", recipient->ipv6_res.attempts);
+      
+    break;
+    
+    case OC_IP_STATUS_INVALID_DATA:
+    case OC_IP_STATUS_TIMED_OUT:
+      
+      if (recipient->ipv6_res.attempts > 0)
+      {
+        recipient->ipv6_res.attempts--;
+
+        //  store GO + service after timeout (here we accept a possible new go/srv)
+        recipient->ipv6_res.group_object = group_object;
+        recipient->ipv6_res.service_type = service_type;
+
+        // defer discovery to ensure a possible empty ACK is sent BEFORE the discovery request
+        oc_set_delayed_callback_ms(recipient, knx_add_ipv6_address_coap_discovery_handler, 10);
+      }
+      else
+      {
+        // stop endless attempts 
+        recipient->ipv6_res.resolve_status = OC_IP_STATUS_FAILED;
+      }
+
+    OC_DBG("Resolve ipv6 address: TIMEOUT -> remaining attempts %i", recipient->ipv6_res.attempts);
+
+    break;
+
+    case OC_IP_STATUS_RESOLVING:
+      
+    
+    OC_DBG("Resolve ipv6 address: RESOLVING -> remaining attempts %i", recipient->ipv6_res.attempts);
+    
+    // don't issue a next s-mode r/w request cycle if not already resolved (debouncing)
+    break;
+
+    case OC_IP_STATUS_RESOLVED:
+    
+    // TODO AH how to re-resolve when not getting any answer later with a resolved IP 
+    
+    OC_DBG("Resolve ipv6 address: RESOLVED -> remaining attempts %i", recipient->ipv6_res.attempts);
+      
+      // is resolved 
+      return true;
+
+    case OC_IP_STATUS_FAILED:
+      
+    OC_DBG("Resolve ipv6 address: FAILED -> remaining attempts %i", recipient->ipv6_res.attempts);
+    
+    // block endless discovery attempts (stuck here)
+
+    break;
+
+    case OC_IP_STATUS_EXPIRED:
+      
+    // tbd
+    break;
   }
-  return OC_EVENT_DONE;
+
+  return false;
 }
 
 static void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path,
                                     uint32_t group_address, char service_type, const uint8_t* value_data,
                                     int value_size, bool non_confirmable);
 
-/*
-  Find a GA within a recipient table entry including a GA array.
-  Note:
-  Not in header, used only within this file and oc_knx.c/oc_knx_fp.c via direct access.
-*/
+
 oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
 {
   const int total = oc_core_get_recipient_table_size();
@@ -104,45 +180,21 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   if (recipient->ia == -1)
   {
-    OC_ERR("Cannot send unicast: invalid IA in recipient for GA %u", group_address);
+    OC_ERR("Cannot send unicast: invalid IA in recipient table for GA %u", group_address);
     return;
   }
 
-  /*
-    Send s-mode unicast message, IPv6 address of recipient must be known
-    (0) - if already resolved -> skip resolving process, send s-mode message
-    (a) - not resolved, first try -> alloc the callback, send first discovery
-    (b) - not resolved, next (re)tries
-          (1) timed out : simply use the existing callback + refresh coap token/mid, resend discovery
-          (2) not timed out : wait for timeout before sending a next discovery,
-              also a permanent try to send inside the timeout will not send a next discovery (debouncing)
-  */
-
-  // TODO AH how to re-resolve when not getting any answer later with a resolved IP 
-
-  if (recipient->ipv6_res.resolve_status != OC_IP_STATUS_RESOLVED)
+  if (!ipv6_for_ia_is_resolved(service_type, recipient, group_object))
   {
-    // check resolving status
-
-    /* 
-       (re)store GO + service type when still not resolved on (a) or (b)
-       - means it overwrites go/srv on triggering a next message for the same recipient ()
-    */
-    recipient->ipv6_res.group_object = group_object;
-    recipient->ipv6_res.service_type = service_type;
-
-    // defer discovery to ensure piggybacked ACK is sent BEFORE the discovery request
-    oc_set_delayed_callback_ms(recipient, deferred_coap_discovery_callback, 10);
-
-    OC_INF("cannot send unicast: resolver is (still) pending for GA %u", group_address);
-    return;
+    OC_INF("Cannot send unicast: IPv6 address resolver still in progress for GA %u", group_address);
+    return; 
   }
 
   /*
-    create unicast endpoint from ipv6 address + port
-    - 'kid' + 'kid_context' = 0
-    - 'access token' index is invalidated - it is a fresh request and not a response to a former inbound request
-    - 'ga' is set
+    (0) create an empty unicast endpoint from ipv6 address + port
+        - 'kid', 'kid_context', 'piv', = 0 - filled later
+        - 'access token' entry is invalidated - it is a fresh request and not a response to a former inbound request
+        - 'ga' is set
   */
   oc_endpoint_t group_ucast_endpoint = {0};
   group_ucast_endpoint = oc_create_unicast_group_address_with_port_interface(group_ucast_endpoint, recipient);
@@ -154,6 +206,7 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   // send unicast message (confirmable or non-confirmable)
   oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient->non);
+
 }
 
 void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address,
@@ -506,6 +559,27 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 
 /* CoAP Discovery for IPv6 Resolution */
 
+// remove discovery response callback handler (on timeout or on valid response)
+static oc_event_callback_retval_t knx_remove_ipv6_address_coap_discovery_handler(void* data)
+{
+  oc_group_table_t* recipient = (oc_group_table_t*)data;
+
+  if (recipient && recipient->ipv6_res.callback)
+  { // here the discovery response callback handler is still present, what means there was no response received ...
+    oc_ri_remove_client_cb(recipient->ipv6_res.callback);
+
+    recipient->ipv6_res.callback = NULL;
+    recipient->ipv6_res.resolve_status = OC_IP_STATUS_TIMED_OUT;
+    OC_INF("CoAP discovery: timeout occurred, ipv6 discovery callback handler PRESENT (was auto removed)");
+  }
+  else
+  {
+    OC_INF("CoAP discovery: timeout occurred, ipv6 discovery callback handler NOT PRESENT");
+  }
+
+  return OC_EVENT_DONE;
+}
+
 // response handler for CoAP discovery
 static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 {
@@ -520,19 +594,16 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
     OSCORE is not set since it would not end up here
   */
 
+  OC_INF("CoAP discovery response: IPv6 %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (if=%d) ",
+         data->endpoint->addr.ipv6.address[0], data->endpoint->addr.ipv6.address[1], data->endpoint->addr.ipv6.address[2],
+         data->endpoint->addr.ipv6.address[3], data->endpoint->addr.ipv6.address[4], data->endpoint->addr.ipv6.address[5],
+         data->endpoint->addr.ipv6.address[6], data->endpoint->addr.ipv6.address[7], data->endpoint->addr.ipv6.address[8],
+         data->endpoint->addr.ipv6.address[9], data->endpoint->addr.ipv6.address[10], data->endpoint->addr.ipv6.address[11],
+         data->endpoint->addr.ipv6.address[12], data->endpoint->addr.ipv6.address[13], data->endpoint->addr.ipv6.address[14],
+         data->endpoint->addr.ipv6.address[15], data->endpoint->interface_index);
+  
   // get recipient (pointer) that was issued as user data with the callback 
   oc_group_table_t* recipient = (oc_group_table_t*)data->user_data;
-
-  OC_INF("CoAP discovery response: IPv6 %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x (if=%d) ",
-         data->endpoint->addr.ipv6.address[0], data->endpoint->addr.ipv6.address[1],
-         data->endpoint->addr.ipv6.address[2], data->endpoint->addr.ipv6.address[3],
-         data->endpoint->addr.ipv6.address[4], data->endpoint->addr.ipv6.address[5],
-         data->endpoint->addr.ipv6.address[6], data->endpoint->addr.ipv6.address[7],
-         data->endpoint->addr.ipv6.address[8], data->endpoint->addr.ipv6.address[9],
-         data->endpoint->addr.ipv6.address[10], data->endpoint->addr.ipv6.address[11],
-         data->endpoint->addr.ipv6.address[12], data->endpoint->addr.ipv6.address[13],
-         data->endpoint->addr.ipv6.address[14], data->endpoint->addr.ipv6.address[15],
-         data->endpoint->interface_index);
 
   // store resolved IPv6 in recipient table
   if (recipient)
@@ -561,7 +632,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
       // find first 'i' in 'knx://ia.'
       // Assume heading some SN with at least with one char.
       char* iid_start_pos = oc_strnchr((char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA) + 3; // + 3 = 'ia.'
-      char* ia_start_pos = oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) + 1;
+      const char* ia_start_pos = oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) + 1;
 
       if (iid_start_pos)
       {
@@ -613,13 +684,24 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
     // only if ia + iid is correct accept this response
     if (!ia_and_iid_valid_and_present)
     {
-      // discovery response silently ignored, state remains unresolved
+      /* 
+         discovery response present, but silently ignored since uc to 'me' was not hosting my iid/ia
+         - resolver state remains unresolved (as it is)
+         - callback as such is auto released by coap handler on return here, 
+         - it will ONLY be rescheduled (with poss. attempt's) on an 'own' new s-mode request   
+      */
+      
+      recipient->ipv6_res.resolve_status = OC_IP_STATUS_INVALID_DATA;
       return;
     }
 
-    // on callback issued an "answer" was received 
-    // -> is resolved now (callback is auto released)
+    // for the callback a valid "answer" was received -> is resolved now, callback as such is auto released in coap handler on return here
+
+    // remove the (still) pending 'auto release' handler
+    oc_remove_delayed_callback(recipient, knx_remove_ipv6_address_coap_discovery_handler); 
+
     recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;
+    recipient->ipv6_res.callback = NULL;
 
     // store IPv6 address, port and interface index
     memcpy(recipient->ipv6_adr.ipv6, data->endpoint->addr.ipv6.address, 16);
@@ -655,109 +737,78 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
   OC_ERR("Recipient is NULL, callback (init) error");
 }
 
-// send CoAP discovery multicast to resolve IA to IPv6
-oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient)
+// add discovery response callback handler (+ send CoAP discovery request (multicast) to resolve IA to IPv6)
+oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* data)
 {
-
-  // register client callback
-  const oc_client_handler_t handler =
+  oc_group_table_t* recipient = (oc_group_table_t*)data;
+  
+  if (recipient)
   {
-    .response = knx_coap_discovery_response_handler,
-    .discovery = NULL,
-    .discovery_all = NULL
-  };
+    // register client callback
+    const oc_client_handler_t handler = {.response = knx_coap_discovery_response_handler, .discovery = NULL, .discovery_all = NULL};
 
-  // flags, well-known is never secure ...
-  const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;
+    // flags, well-known is never secure ...
+    const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;
 
-  // create multicast endpoint
-  // scope-dependent all CoAP nodes address, scope-dependent multicast address:
-  // - scope 2: ff02::fd (link-local all CoAP nodes)
-  // - scope 5: ff05::fd (site-local all CoAP nodes)
-  oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags,
-                        COAP_DEFAULT_PORT,
-                        0xFF, OC_SENDER_MULTICAST_SCOPE, 0, 0,
-                        0, 0, 0, 0,
-                        0, 0, 0, 0,
-                        0, 0, 0, 0xFD);
+    // create multicast endpoint
+    // scope-dependent all CoAP nodes address, scope-dependent multicast address:
+    // - scope 2: ff02::fd (link-local all CoAP nodes)
+    // - scope 5: ff05::fd (site-local all CoAP nodes)
+    oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, COAP_DEFAULT_PORT, 0xFF, OC_SENDER_MULTICAST_SCOPE, 
+                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFD);
 
-  // uses all interfaces --> cleared to '0' 
+    // uses all interfaces --> cleared to '0'
 
-  // get local device iid + recipient IA from table -> is valid was checked before
-  const uint64_t iid = oc_core_get_device_info()->iid;
-  const uint16_t ia = (uint16_t)recipient->ia;
+    // get local device iid + recipient IA from table -> is valid was checked before
+    const uint64_t iid = oc_core_get_device_info()->iid;
+    const uint16_t ia = (uint16_t)recipient->ia;
 
-  // ep=knx://ia.
-  #define EP_STR_LEN_DOT_IA (12)
-  // max IID length in hex coded ASCII if no leading zeros are omitted
-  // Note: 5 octets = 40 bit
-  #define IID_STR_LEN_MAX (10)
-  // max IA length in hex coded ASCII
-  // Note: 2 octets = 16 bit
-  #define IA_STR_LEN_MAX (4)
+    // ep=knx://ia.
+    #define EP_STR_LEN_DOT_IA (12)
+    // max IID length in hex coded ASCII if no leading zeros are omitted
+    // Note: 5 octets = 40 bit
+    #define IID_STR_LEN_MAX (10)
+    // max IA length in hex coded ASCII
+    // Note: 2 octets = 16 bit
+    #define IA_STR_LEN_MAX (4)
 
-  // build URI and query: /.well-known/core?ep=knx://ia.<iid>.<ia>
-  const char uri[] = "/.well-known/core";
-  char query[EP_STR_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1];
+    // build URI and query: /.well-known/core?ep=knx://ia.<iid>.<ia>
+    const char uri[] = "/.well-known/core";
+    char query[EP_STR_LEN_DOT_IA + IID_STR_LEN_MAX + 1 + IA_STR_LEN_MAX + 1];
 
-  (void)snprintf(query, sizeof(query), "ep=knx://ia.%"PRIx64".%x", iid, ia);
-
-  // set as default, is NULL in case of the first discovery 
-  oc_client_cb_t* cb = recipient->ipv6_res.callback;
-  const uint64_t now = oc_clock_time();
-
-  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_RESOLVING)
-  {
-    // b, details see code comment when method is called
-
-    // timeout for unicast message resolving, after this a new discovery can be sent out
-    #define PENDING_MESSAGE_TIMEOUT_SECONDS 5
-
-    // check for timeout, start time was set on creating cb
-    // Note: cb MUST be present in state resolving
-    if (now - cb->timestamp < PENDING_MESSAGE_TIMEOUT_SECONDS * OC_CLOCK_SECOND)
-    {
-      // b.2, details see code comment when method is called
-      return OC_IP_STATUS_RESOLVING;
-    }
-
-    // b.1 - took too long, send a next discovery message -> needs to update mid/token/timestamp in present cb (token len still present)
-    cb->timestamp = now;
-    cb->mid = coap_get_next_mid();
-    const uint32_t a = oc_random_value();
-    memcpy(cb->token + 0, &a, sizeof(a));
-    const uint32_t b = oc_random_value();
-    memcpy(cb->token + 4, &b, sizeof(b));
-
-    OC_INF("CoAP discovery: Timeout, Resending Discovery Request");
-  }
-
-  if (recipient->ipv6_res.resolve_status == OC_IP_STATUS_UNRESOLVED)
-  {
-    // a
+    (void)snprintf(query, sizeof(query), "ep=knx://ia.%" PRIx64 ".%x", iid, ia);
 
     // user data is an entry (pointer) of recipient table
-    cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, COAP_GET, query, handler, LOW_QOS, recipient);
-    if (!cb)
+    oc_client_cb_t* cb = oc_ri_alloc_client_cb(uri, &group_mcast_endpoint, COAP_GET, query, handler, LOW_QOS, recipient);
+    if (cb)
     {
-      OC_ERR("CoAP discovery: Failed to register callback");
-      return OC_IP_STATUS_UNRESOLVED;
+      // here we enter on (a) or (b.1)
+      if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb))
+      {
+        oc_do_well_known_message_update();
+
+        // timeout for unicast message resolving, after this the discovery handler is 'auto removed' 
+        #define DISCOVERY_RESPONSE_MESSAGE_TIMEOUT_SECONDS (25)
+
+        // remember the callback + status
+        recipient->ipv6_res.callback = cb;
+        recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
+
+        OC_DBG("adding client %p", (void*)cb);
+        // remove callback handler after timeout occurs (means no answer was received)
+        oc_set_delayed_callback(recipient, knx_remove_ipv6_address_coap_discovery_handler, DISCOVERY_RESPONSE_MESSAGE_TIMEOUT_SECONDS); 
+
+        OC_INF("CoAP discovery: Sending Discovery Request");
+        return OC_EVENT_DONE;
+      }
+
+      // on sending error remove present callback handler immediately and restart over
+      oc_ri_remove_client_cb(cb);
+      recipient->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
     }
-
-    // remember the callback
-    recipient->ipv6_res.callback = cb;
-    recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
   }
 
-  // here we enter on (a) or (b.1)
-  if (oc_init_well_known_message_update(&group_mcast_endpoint, uri, query, true, cb))
-  {
-    oc_do_well_known_message_update();
-    OC_INF("CoAP discovery: Sending Discovery Request");
-    return OC_IP_STATUS_RESOLVING;
-  }
-
-  OC_ERR("CoAP discovery: Failed to send discovery request");
-  recipient->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
-  return OC_IP_STATUS_UNRESOLVED;
+  OC_ERR("CoAP discovery: Failed to send/register discovery request");
+  
+  return OC_EVENT_DONE;
 }

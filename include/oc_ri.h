@@ -488,8 +488,8 @@ typedef struct oc_resource_dummy_s {
  *
  */
 typedef enum {
-  OC_EVENT_DONE = 0,                   /**< callback done, e.g. don't call again */
-  OC_EVENT_CONTINUE                    /**< callbacks continue */
+  OC_EVENT_DONE = 0,                   /**< callback is executed, will be deleted (don't call again) */
+  OC_EVENT_CONTINUE                    /**< callback is executed, will be NOT deleted, continues, restart timer and wait for next call */
 } oc_event_callback_retval_t;
 
 typedef oc_event_callback_retval_t(*oc_trigger_t)(void*);
@@ -498,7 +498,8 @@ typedef oc_event_callback_retval_t(*oc_trigger_t)(void*);
  * @brief event callback
  *
  */
-typedef struct oc_event_callback_s {
+typedef struct oc_event_callback_s 
+{
   struct oc_event_callback_s* next;    /**< next callback */
   struct oc_etimer timer;              /**< timer */
   oc_trigger_t callback;               /**< callback to be invoked */
