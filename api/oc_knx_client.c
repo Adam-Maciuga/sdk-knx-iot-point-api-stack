@@ -59,12 +59,13 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
     
     case OC_IP_STATUS_TIMED_OUT:
 
-      // store GO + service after timeout (here we accept a possible new go/srv)
+      // accept the latest GO + service on timeout - a new s-mode trigger may have a different target
       recipient->ipv6_res.group_object = group_object;
       recipient->ipv6_res.service_type = service_type;
 
     // fall through intended ...
     case OC_IP_STATUS_DATA_ERROR:  // NOLINT(clang-diagnostic-implicit-fallthrough)
+      // DATA_ERROR: keep the original GO + service - the response was invalid, retry for the same target
 
       if (recipient->ipv6_res.attempts > 0)
       {
@@ -73,7 +74,7 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
         // defer discovery to ensure a possible empty ACK is sent BEFORE the discovery request
         oc_set_delayed_callback_ms(recipient, knx_add_ipv6_address_coap_discovery_handler, 10);
 
-        // set RESOLVING immediately so rapid re-calls debounce + not decrement attempts (on invalid data received), handler may set another status
+        // set RESOLVING immediately so rapid re-calls debounce and do not decrement attempts again
         recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
       }
       else
