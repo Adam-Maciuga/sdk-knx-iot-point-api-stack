@@ -53,16 +53,19 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
       
     break;
     
-    case OC_IP_STATUS_INVALID_DATA:
+    
     case OC_IP_STATUS_TIMED_OUT:
+      
+    //  store GO + service after timeout (here we accept a possible new go/srv)
+      recipient->ipv6_res.group_object = group_object;
+      recipient->ipv6_res.service_type = service_type;
+    
+    // fall through intended ...
+    case OC_IP_STATUS_INVALID_DATA:  // NOLINT(clang-diagnostic-implicit-fallthrough)
       
       if (recipient->ipv6_res.attempts > 0)
       {
         recipient->ipv6_res.attempts--;
-
-        //  store GO + service after timeout (here we accept a possible new go/srv)
-        recipient->ipv6_res.group_object = group_object;
-        recipient->ipv6_res.service_type = service_type;
 
         // defer discovery to ensure a possible empty ACK is sent BEFORE the discovery request
         oc_set_delayed_callback_ms(recipient, knx_add_ipv6_address_coap_discovery_handler, 10);
@@ -802,9 +805,9 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
         return OC_EVENT_DONE;
       }
 
-      // on sending error remove present callback handler immediately and restart over
+      // on sending error remove present callback handler immediately, it will ONLY be rescheduled (with poss. attempt's) on an 'own' new s-mode request
       oc_ri_remove_client_cb(cb);
-      recipient->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+      recipient->ipv6_res.resolve_status = OC_IP_STATUS_INVALID_DATA;
     }
   }
 
