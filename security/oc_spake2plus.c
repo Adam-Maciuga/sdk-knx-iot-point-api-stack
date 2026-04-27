@@ -15,8 +15,6 @@
 // limitations under the License.
 */
 
-#ifdef OC_SPAKE
-
 #include <stdlib.h>
 
 #include "mbedtls/md.h"
@@ -558,5 +556,3 @@ int oc_spake_calc_K_shared_256(uint8_t* K_main, uint8_t K_shared[32])
                          strlen("SharedKey"), K_shared, 32);
   return ret;
 }
-
-#endif

@@ -239,7 +239,6 @@ int oc_main_init(const oc_handler_t* handler)
   oc_ri_init();
   oc_network_event_handler_mutex_init();
 
-  #ifdef OC_SPAKE
   // call one time on startup (must be successful)
   if (oc_initialise_spake_data() < 0)
   {
@@ -249,7 +248,6 @@ int oc_main_init(const oc_handler_t* handler)
     oc_shutdown_device();
     return -1;
   }
-  #endif
 
   // call one time on startup (must be successful)
   if (app_callbacks->init() < 0)

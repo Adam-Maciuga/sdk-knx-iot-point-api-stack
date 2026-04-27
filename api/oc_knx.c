@@ -22,9 +22,7 @@
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
-#ifdef OC_SPAKE
 #include "security/oc_spake2plus.h"
-#endif
 
 // ---------------------------Variables --------------------------------------
 
@@ -1337,7 +1335,6 @@ const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_idevid_data};
 PRAGMA_OUT
 
-#ifdef OC_SPAKE
 static spake_data_t spake_data = {0};
 
 static int8_t failed_handshake_count = 0;
@@ -1366,10 +1363,8 @@ static void increment_spake_request_counter(void)
   }
 }
 
-// returns handshake blocker 
+// returns handshake blocker
 static bool is_handshake_blocked(void) { return is_blocked; }
-
-#endif
 
 // a linked list for THE delayed response message for a (single) spake request (only one pending response is allowed)
 static oc_separate_response_t delayed_separate_response_for_a_spake_request;
@@ -1419,14 +1414,12 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-  #ifdef OC_SPAKE
   if (is_handshake_blocked())
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
     request->response->response_buffer->max_age = failed_handshake_count * 10;
     return;
   }
-  #endif
 
   // set ptr
   oc_rep_t* rep = request->request_payload;
@@ -1589,8 +1582,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     // return 2.04 changed, frame rnd, salt, it , ...
 
-    #ifdef OC_SPAKE
-
     /*
       PASE parameter exchange (step 1)
 
@@ -1604,8 +1595,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase.rnd, sizeof(g_pase.rnd));
     OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
     OC_DBG_SPAKE("Iterations: %u", g_pase.it);
-
-    #endif 
 
     oc_rep_begin_root_object();
 
@@ -1626,7 +1615,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     return OC_EVENT_DONE;
   }
 
-  #ifdef OC_SPAKE
   // step 2
   if (pase_step == SPAKE_PA_SHARE_P)
   {
@@ -1783,9 +1771,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   mbedtls_ecp_point_init(&spake_data.pub_y);
   mbedtls_mpi_init(&spake_data.w0);
   mbedtls_mpi_init(&spake_data.y);
-  #endif 
 
-  // reset pase object, except id (it holds an allocated oc_string stack memory)
+  // reset pase object
   memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
   memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
   memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
@@ -1794,10 +1781,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
 
 
-  #ifdef OC_SPAKE
   g_pase.it = OC_SPAKE_IT;
   increment_spake_request_counter();
-  #endif
 
   oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
@@ -1824,11 +1809,10 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
                                                &core_resource_knx_spake_data};
 PRAGMA_OUT
 
-#ifdef OC_SPAKE
 int oc_initialise_spake_data(void)
 {
   // can fail if initialization of the RNG does not work (return == 0)
-  if(oc_spake_init() != 0) 
+  if(oc_spake_init() != 0)
     return -1;
 
   mbedtls_mpi_init(&spake_data.w0);
@@ -1841,7 +1825,6 @@ int oc_initialise_spake_data(void)
 
   return 0;
 }
-#endif 
 
 void oc_knx_set_idevid(const char* idevid, int len)
 {

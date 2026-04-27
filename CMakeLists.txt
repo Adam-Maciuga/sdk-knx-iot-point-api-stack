@@ -155,11 +155,9 @@ set(COAP_SOURCES
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
 
-## Security 
+## Security
 # OSCORE
-# TODO FIXME Remove OS_CORE everywhere then remove here.
-# TODO OC_SPAKE always on?
-target_compile_definitions(kis-common INTERFACE OC_SPAKE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
+target_compile_definitions(kis-common INTERFACE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
