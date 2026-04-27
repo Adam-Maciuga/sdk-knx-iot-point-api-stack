@@ -1339,44 +1339,35 @@ PRAGMA_OUT
 
 #ifdef OC_SPAKE
 static spake_data_t spake_data = {0};
-static int failed_handshake_count = 0;
 
-static bool is_blocking = false;
+static int8_t failed_handshake_count = 0;
+static bool is_blocked = false;
 
-static oc_event_callback_retval_t decrement_counter(void* data)
+// called every 10 seconds, if zero -> unblock the client
+static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
+  // on '0' don't continue to decrement and unblock (note the callback is still active)
   if (failed_handshake_count > 0)
+  if (--failed_handshake_count == 0)
   {
-    --failed_handshake_count;
-  }
-
-  if (is_blocking && failed_handshake_count == 0)
-  {
-    is_blocking = false;
+    is_blocked = false;
   }
   return OC_EVENT_CONTINUE;
 }
 
-static void increment_counter(void) { ++failed_handshake_count; }
-
-// prevent from brute force handshake attempts
-static bool is_handshake_blocked(void)
+// called on every unsuccessful spake attempt, if > 10 -> block the client
+static void increment_spake_request_counter(void)
 {
-  if (is_blocking)
+  // on '60' don't continue to increment
+  if (failed_handshake_count < 60)
+  if (++failed_handshake_count > 10)
   {
-    return true;
+    is_blocked = true;
   }
-
-  // after 10 failed attempts per minute, block the client for the
-  // next minute
-  if (failed_handshake_count > 10)
-  {
-    is_blocking = true;
-    return true;
-  }
-
-  return false;
 }
+
+// returns handshake blocker 
+static bool is_handshake_blocked(void) { return is_blocked; }
 
 #endif
 
@@ -1428,14 +1419,14 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-#ifdef OC_SPAKE
+  #ifdef OC_SPAKE
   if (is_handshake_blocked())
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
     request->response->response_buffer->max_age = failed_handshake_count * 10;
     return;
   }
-#endif
+  #endif
 
   // set ptr
   oc_rep_t* rep = request->request_payload;
@@ -1805,7 +1796,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
   #ifdef OC_SPAKE
   g_pase.it = OC_SPAKE_IT;
-  increment_counter();
+  increment_spake_request_counter();
   #endif
 
   oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);
@@ -1846,7 +1837,7 @@ int oc_initialise_spake_data(void)
   mbedtls_ecp_point_init(&spake_data.pub_y);
 
   // start SPAKE brute force protection timer
-  oc_set_delayed_callback(NULL, decrement_counter, 10);
+  oc_set_delayed_callback(NULL, decrement_spake_request_counter, 10);
 
   return 0;
 }
