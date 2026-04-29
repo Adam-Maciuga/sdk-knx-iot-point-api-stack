@@ -46,14 +46,28 @@ endif()
 
 if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(BUILD_TOOLS ON CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 
     FetchContent_Declare(
         tinycbor
         GIT_REPOSITORY https://github.com/intel/tinycbor.git
         GIT_TAG v7.0
+        EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(tinycbor)
+
+    # Propagate Zephyr's toolchain flags (-mcpu, -mthumb, etc.) to
+    # tinycbor via generator expressions.  We cannot use
+    # target_link_libraries because tinycbor's own CMakeLists.txt uses
+    # the plain signature and CMake forbids mixing plain and keyword
+    # forms; a plain link also breaks install(EXPORT) because
+    # zephyr_interface is not in any export set.
+    target_compile_options(tinycbor PRIVATE
+        $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_OPTIONS>)
+    target_include_directories(tinycbor PRIVATE
+        $<TARGET_PROPERTY:zephyr_interface,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_definitions(tinycbor PRIVATE
+        $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_DEFINITIONS>)
 
     zephyr_library_link_libraries(tinycbor)
     zephyr_include_directories(${tinycbor_SOURCE_DIR}/src ${tinycbor_BINARY_DIR})
@@ -176,7 +190,7 @@ if(CONFIG_NET_L2_OPENTHREAD)
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
         ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
     )
-elseif(CONFIG_WIFI)
+elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
         ${STACK_ROOT}/port/zephyr/dns-sd-wifi.c
@@ -184,7 +198,7 @@ elseif(CONFIG_WIFI)
 else()
     message(FATAL_ERROR
         "KNX-IoT stack: No supported network backend selected. "
-        "Enable CONFIG_NET_L2_OPENTHREAD (Thread) or CONFIG_WIFI (Wi-Fi).")
+        "Enable CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
 endif()
 
 zephyr_library_named(knx_iot_stack)
@@ -238,7 +252,7 @@ zephyr_compile_definitions(
 ## Network
 zephyr_compile_definitions(
     $<$<BOOL:${CONFIG_KNXIOT_DNS_SD}>:OC_DNS_SD>
-    OC_SENDER_MULTICAST_SCOPE=${CONFIG_KNXIOT_SENDER_MULTICAST_SCOPE}
+    KNX_MULTICAST_SCOPE=${CONFIG_KNXIOT_SENDER_MULTICAST_SCOPE}
     KNX_RESPONSE_TIME_SECONDS=${CONFIG_KNXIOT_RESET_PROCESS_TIME}
 )
 
