@@ -768,7 +768,8 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
   // scope-dependent all CoAP nodes address, scope-dependent multicast address:
   // - scope 2: ff02::fd (link-local all CoAP nodes)
   // - scope 5: ff05::fd (site-local all CoAP nodes)
-  oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, COAP_DEFAULT_PORT, 0xFF, KNX_MULTICAST_SCOPE,
+  oc_make_ipv6_endpoint(group_mcast_endpoint, my_transport_flags, COAP_DEFAULT_PORT, 0xFF, 
+                        KNX_MULTICAST_SCOPE,
                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFD);
 
   // uses all interfaces --> cleared to '0'
