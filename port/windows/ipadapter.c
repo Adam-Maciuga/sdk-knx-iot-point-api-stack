@@ -918,13 +918,24 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
   if (message->endpoint.flags & IPV6) {
     Msg.namelen = sizeof(struct sockaddr_in6);
 
-    // For multicast, skip pktinfo and rely on IPV6_MULTICAST_IF socket option
-    // (set by oc_send_discovery_request) for interface selection.
-    // pktinfo can cause WSAEADDRNOTAVAIL (10049) with site-local multicast.
     struct sockaddr_in6 *dest = (struct sockaddr_in6 *)receiver;
+
     if (IN6_IS_ADDR_MULTICAST(&dest->sin6_addr)) {
+      // Multicast: skip pktinfo and use IPV6_MULTICAST_IF socket option
+      // to select the outgoing interface. The OS then picks the appropriate
+      // source address for the multicast destination scope.
+      // Using pktinfo with an explicit source address causes WSAEADDRNOTAVAIL
+      // (10049) when the source scope doesn't match the multicast scope,
+      // and pktinfo with a zero source address results in :: as source.
       Msg.Control.len = 0;
       Msg.Control.buf = NULL;
+      DWORD mif = (DWORD)message->endpoint.interface_index;
+      if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+                     (char *)&mif, sizeof(mif)) == SOCKET_ERROR) {
+        OC_ERR("send_msg: setting IPV6_MULTICAST_IF to %u failed: %d",
+               mif, WSAGetLastError());
+        return -1;
+      }
     } else {
       // Unicast: specify source address and outgoing interface via pktinfo.
 #pragma warning(suppress : 4116)
