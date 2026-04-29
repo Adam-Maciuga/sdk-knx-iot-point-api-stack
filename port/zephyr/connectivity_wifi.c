@@ -32,6 +32,7 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
+#include <zephyr/net/wifi_mgmt.h>
 
 /* CoAP unencrypted port (RFC 7252) */
 #define COAP_PORT_UNSECURED  5683
@@ -287,10 +288,16 @@ int oc_connectivity_init(void)
     }
     OC_DBG("Multicast socket ready, fd=%d, port=%u.", mcast_sock, COAP_PORT_UNSECURED);
 
-    /* Pin multicast sends to the default (WiFi) interface.
-     * Without this, sendto() on ff02::/ff03:: multicast destinations would rely
-     * on kernel routing which may fail if no explicit multicast route is set. */
-    int ifidx = net_if_get_by_iface(net_if_get_default());
+    /* Pin multicast sends to the WiFi STA interface.
+     * net_if_get_default() may return the Ethernet interface on boards with
+     * both Ethernet and WiFi (e.g. FRDM-RW612), so we explicitly look up the
+     * first WiFi interface instead.  Fall back to default for Ethernet-only
+     * builds where no WiFi interface exists. */
+    struct net_if *wifi_iface = net_if_get_first_wifi();
+    if (!wifi_iface) {
+        wifi_iface = net_if_get_default();
+    }
+    int ifidx = wifi_iface ? net_if_get_by_iface(wifi_iface) : -1;
     if (ifidx > 0) {
         if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                              &ifidx, sizeof(ifidx)) < 0) {
@@ -321,7 +328,7 @@ int oc_connectivity_init(void)
             OC_INF("Joined %d/3 all-CoAP-nodes multicast groups.", n_joined);
         }
     } else {
-        OC_WRN("Default network interface not found, skipping multicast interface binding!");
+        OC_WRN("No network interface found, skipping multicast interface binding!");
     }
 
     rx_tid = k_thread_create(&rx_thread_data, rx_thread_stack,
@@ -382,7 +389,10 @@ static oc_endpoint_t wifi_endpoints[MAX_WIFI_ENDPOINTS];
 
 oc_endpoint_t *oc_connectivity_get_endpoints(void)
 {
-    struct net_if *iface = net_if_get_default();
+    struct net_if *iface = net_if_get_first_wifi();
+    if (!iface) {
+        iface = net_if_get_default();
+    }
 
     if (!iface) {
         return NULL;
@@ -464,7 +474,11 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    mreq.ipv6mr_ifindex = (unsigned int)net_if_get_by_iface(net_if_get_default());
+    struct net_if *wifi_if = net_if_get_first_wifi();
+    if (!wifi_if) {
+        wifi_if = net_if_get_default();
+    }
+    mreq.ipv6mr_ifindex = wifi_if ? (unsigned int)net_if_get_by_iface(wifi_if) : 0;
 
     OC_DBG("Subscribing to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
@@ -484,7 +498,11 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     }
 
     memcpy(&mreq.ipv6mr_multiaddr, address->addr.ipv6.address, 16);
-    mreq.ipv6mr_ifindex = (unsigned int)net_if_get_by_iface(net_if_get_default());
+    struct net_if *wifi_if = net_if_get_first_wifi();
+    if (!wifi_if) {
+        wifi_if = net_if_get_default();
+    }
+    mreq.ipv6mr_ifindex = wifi_if ? (unsigned int)net_if_get_by_iface(wifi_if) : 0;
 
     OC_DBG("Unsubscribing from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,

@@ -73,7 +73,7 @@ set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in second
 # Scope 2 MAY be needed for the virtual DEMO applications when:
 # - the devices are running on the same PC (e.g. for testing with EITT)
 # - a network router does not allow to send multicast messages with scope 5 (site local)
-set(OC_SENDER_MULTICAST_SCOPE "2" CACHE STRING "IPv6 multicast scope, used on sending all (multicast) s-mode messages")
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on sending and recieving all (multicast) s-mode messages")
 
 ## Hidden Variables
 # Note:
@@ -224,4 +224,4 @@ add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server def
 add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
 # IPv6 multicast scope
-add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
+add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
