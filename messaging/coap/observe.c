@@ -63,9 +63,6 @@ static uint32_t observe_counter = 3;
 OC_LIST(observers_list);
 OC_MEMB(observers_memb, coap_observer_t, COAP_MAX_OBSERVERS);
 
-/*---------------------------------------------------------------------------*/
-/*- Internal API ------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
 static void coap_remove_observer(coap_observer_t* o);
 static void coap_remove_expired_observers(void);
 
@@ -93,7 +90,6 @@ static int coap_remove_observer_handle_by_uri(oc_endpoint_t* endpoint, const cha
   return removed;
 }
 
-/*---------------------------------------------------------------------------*/
 
 #ifdef OC_BLOCK_WISE
 static int add_observer(const oc_resource_t* resource, uint16_t block2_size,
@@ -267,9 +263,7 @@ int coap_remove_observer_by_resource(const oc_resource_t* rsc)
   return removed;
 }
 
-/*---------------------------------------------------------------------------*/
-/*- Notification ------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
+
 #ifdef OC_SECURITY	// TODO FIXME this is NOT TCP only!
 int coap_remove_observers_on_dos_change(bool reset)
 {
@@ -568,11 +562,9 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
 }
 
 #ifdef OC_BLOCK_WISE
-int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, uint16_t block2_size,
-                         oc_endpoint_t* endpoint)
+int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, uint16_t block2_size, oc_endpoint_t* endpoint)
 #else
-int coap_observe_handler(void* request, void* response, const oc_resource_t* resource,
-                         oc_endpoint_t* endpoint)
+int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, oc_endpoint_t* endpoint)
 #endif
 {
   coap_packet_t* const coap_req = (coap_packet_t*)request;
