@@ -428,10 +428,8 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         if (response_buf)
         {
           coap_packet_t notification[1];
-          bool is_revert = false;
           uint8_t status_code = CONTENT_2_05;
           const uint16_t mid = coap_get_next_mid();
-          // // is_revert branch omitted
           #ifdef OC_TCP
           if (obs->endpoint.flags & TCP)
           {
@@ -443,81 +441,78 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
             coap_udp_init_message(notification, COAP_TYPE_NON, status_code, mid);
           }
 
-          if (!is_revert)
+          #ifdef OC_BLOCK_WISE
+          #ifdef OC_TCP
+          if (!(obs->endpoint.flags & TCP) &&
+            response_buf->response_length > obs->block2_size) { 
+          #else
+          if (response_buf->response_length > obs->block2_size)
           {
-            #ifdef OC_BLOCK_WISE
+            #endif
+            notification->type = COAP_TYPE_CON;
+            response_state = oc_blockwise_find_response_buffer(
+              oc_string(obs->resource->uri) + 1,
+              oc_string_len(obs->resource->uri) - 1,
+              &obs->endpoint, COAP_GET,
+              NULL, 0, OC_BLOCKWISE_SERVER);
+            if (response_state)
+            {
+              if (response_state->payload_size ==
+                response_state->next_block_offset)
+              {
+                oc_blockwise_free_response_buffer(response_state);
+                response_state = NULL;
+              }
+              else
+              {
+                continue;
+              }
+            }
+
+            response_state = oc_blockwise_alloc_response_buffer(
+              oc_string(obs->resource->uri) + 1,
+              oc_string_len(obs->resource->uri) - 1,
+              &obs->endpoint, COAP_GET,
+              OC_BLOCKWISE_SERVER);
+
+            if (!response_state)
+            {
+              goto leave_notify_observers;
+            }
+
+            memcpy(response_state->buffer, response_buf->buffer,
+                   response_buf->response_length);
+            response_state->payload_size =
+              (uint32_t)response_buf->response_length;
+            uint32_t payload_size = 0;
+            const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
+            if (payload)
+            {
+              coap_set_payload(notification, payload, payload_size);
+              coap_set_header_block2(notification, 0, 1, obs->block2_size);
+              coap_set_header_size2(notification, response_state->payload_size);
+              oc_blockwise_response_state_t* bwt_res_state =
+                (oc_blockwise_response_state_t*)response_state;
+              coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
+            }
+          } // blockwise transfer
+          else
+          #endif
+          {
             #ifdef OC_TCP
             if (!(obs->endpoint.flags & TCP) &&
-              response_buf->response_length > obs->block2_size) { 
+              obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0) { 
             #else
-            if (response_buf->response_length > obs->block2_size)
+            if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
             {
               #endif
+              OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
               notification->type = COAP_TYPE_CON;
-              response_state = oc_blockwise_find_response_buffer(
-                oc_string(obs->resource->uri) + 1,
-                oc_string_len(obs->resource->uri) - 1,
-                &obs->endpoint, COAP_GET,
-                NULL, 0, OC_BLOCKWISE_SERVER);
-              if (response_state)
-              {
-                if (response_state->payload_size ==
-                  response_state->next_block_offset)
-                {
-                  oc_blockwise_free_response_buffer(response_state);
-                  response_state = NULL;
-                }
-                else
-                {
-                  continue;
-                }
-              }
+            }
 
-              response_state = oc_blockwise_alloc_response_buffer(
-                oc_string(obs->resource->uri) + 1,
-                oc_string_len(obs->resource->uri) - 1,
-                &obs->endpoint, COAP_GET,
-                OC_BLOCKWISE_SERVER);
-
-              if (!response_state)
-              {
-                goto leave_notify_observers;
-              }
-
-              memcpy(response_state->buffer, response_buf->buffer,
-                     response_buf->response_length);
-              response_state->payload_size =
-                (uint32_t)response_buf->response_length;
-              uint32_t payload_size = 0;
-              const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
-              if (payload)
-              {
-                coap_set_payload(notification, payload, payload_size);
-                coap_set_header_block2(notification, 0, 1, obs->block2_size);
-                coap_set_header_size2(notification, response_state->payload_size);
-                oc_blockwise_response_state_t* bwt_res_state =
-                  (oc_blockwise_response_state_t*)response_state;
-                coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
-              }
-            } // blockwise transfer
-            else
-            #endif
-            {
-              #ifdef OC_TCP
-              if (!(obs->endpoint.flags & TCP) &&
-                obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0) { 
-              #else
-              if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
-              {
-                #endif
-                OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
-                notification->type = COAP_TYPE_CON;
-              }
-
-              coap_set_payload(notification, response_buf->buffer,
-                               response_buf->response_length);
-            } //! blockwise transfer
-          } // !is_revert
+            coap_set_payload(notification, response_buf->buffer,
+                             response_buf->response_length);
+          }
 
           coap_set_status_code(notification, response_buf->code);
           if (response_buf->content_format > 0)
