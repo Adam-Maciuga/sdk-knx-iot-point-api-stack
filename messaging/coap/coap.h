@@ -127,7 +127,10 @@ typedef struct coap_packet_t
   coap_transport_type_t transport_type;   // UDP or TCP
   coap_message_type_t   type;             // CON, NON, ACK, ...
   uint32_t max_age;
-  uint32_t observe;
+  uint32_t observe;                       /* RFC 7641: CoAP Observe option value (0..2^24-1)
+                                             - client request:  0 = register (OC_OBSERVE_REGISTER), 1 = deregister (OC_OBSERVE_DEREGISTER)
+                                             - server response: monotonically increasing sequence number for notifications
+                                             - only valid when IS_OPTION(pkt, COAP_OPTION_OBSERVE) is true */
   uint32_t block2_num;
   uint32_t block2_offset;
   uint32_t block1_num;
@@ -342,13 +345,13 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
 /**
  *
- * @brief parses *data and copy from it coap header/token/mid/options
- *        to *packet
+ * @brief parses *data and copy from it coap header/token/mid/options to *packet
  *
  * @note  does not copy OSCORE option security content
  *
  */
 coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_len);
+
 
 int coap_get_query_variable(void* packet, const char* name, const char** output);
 int coap_get_post_variable(void* packet, const char* name, const char** output);

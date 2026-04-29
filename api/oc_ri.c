@@ -13,6 +13,7 @@
 #include "messaging/coap/constants.h"
 #include "messaging/coap/engine.h"
 #include "messaging/coap/oc_coap.h"
+#include "messaging/coap/observe.h"
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
 #endif
@@ -1207,24 +1208,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   coap_get_header_accept(request, &accept_int);
   oc_content_format_t accept = (oc_content_format_t)accept_int;
 
-  // 'if' query mask (from request), initialized with default
-  oc_interface_mask_t if_mask_from_query = OC_IF_NONE;
-
   if (uri_query_len)
   {
     new_request.query = uri_query;
     new_request.query_len = uri_query_len;
-
-    // check if query string includes an interface 'if=if.xx' parameter
-    char* pointer_to_if_value;
-    int if_len = oc_ri_get_query_value(uri_query, uri_query_len, "if", &pointer_to_if_value);
-    if (if_len != -1)
-    {
-      // the first and ONLY one 'urn:knx:if.xx' is picked up
-      // - on more if's the query must be composed by '&' --> the support of more than one parameter is a MAY in the specification 
-      // - only the full URN is assumed here as input 
-      if_mask_from_query = oc_ri_get_interface_mask(pointer_to_if_value, if_len);
-    }
   }
 
   // obtain handle to buffer containing the serialized payload
@@ -1511,24 +1498,39 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe))
   {
-    // process all < 4.00, check if the resource is OBSERVABLE
+    // process all < 4.00 and observe option is set, check if the resource is OBSERVABLE
     if (matching_resource->properties & OC_OBSERVABLE)
     {
       if (observe == OC_OBSERVE_REGISTER)
       {
-        // register, if the observe option is set to register (OC_OBSERVE_REGISTER), make an attempt to add the requesting client as an observer
+        /*
+          Register: attempt to add the requesting client as an observer.
+          coap_observe_handler parses "lt" and "non" query parameters (KNX 2.5.9.3/4)
+          and returns -2 if "lt" is missing (observer is removed internally).
+        */
 
+        int observe_result;
+        
         #ifdef OC_BLOCK_WISE
-        if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint, if_mask_from_query) >= 0)
+        observe_result = coap_observe_handler(request, response, matching_resource, block2_size, endpoint);
+        #else
+        observe_result = coap_observe_handler(request, response, matching_resource, endpoint);
+        #endif
+
+        if (observe_result == -2)
         {
-          #else
-          if (coap_observe_handler(request, response, cur_resource, endpoint) >= 0) { 
-          #endif
+          // "lt" query missing -- observer was rejected and removed
+          response_buffer.code = oc_status_code(OC_STATUS_BAD_REQUEST);
+        }
+        else if (observe_result >= 0)
+        {
+          // set observe option in response (RFC 7641 Section 3.1)
+          coap_set_header_observe(response, 0);
 
           /*
-            If the resource is marked as periodic observable it means it must be polled internally for updates 
-            (which would lead to notifications being sent). If so, add the resource to a list of periodic GET callbacks to utilize the framework's 
-            internal polling mechanism.
+            If the resource is marked as periodic observable it means it must be polled internally for updates
+            (which would lead to notifications being sent). If so, add the resource to a list of periodic GET
+            callbacks to utilize the framework's internal polling mechanism.
           */
           if (matching_resource->properties & OC_PERIODIC)
           {
@@ -1536,26 +1538,22 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
             { // error adding periodic observe callback, so remove observer
               coap_remove_observer_by_token(endpoint, packet->token, packet->token_len);
             }
-            else
-            {
-              coap_set_header_observe(response, 0);
-            }
-
           }
         }
       }
       else if (observe == OC_OBSERVE_DEREGISTER)
       {
-        /* 
-          If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the requesting client from the list of observers. 
-          In addition, remove the resource from the list periodic GET callbacks if it is periodic observable.
+        /*
+          If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the requesting
+          client from the list of observers. In addition, remove the resource from the list periodic GET callbacks
+          if it is periodic observable.
         */
 
         #ifdef OC_BLOCK_WISE
-        if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint, if_mask_from_query) > 0)
+        if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint) > 0)
         {
           #else
-          if (coap_observe_handler(request, response, matching_resource, endpoint, if_mask_from_query) > 0)
+          if (coap_observe_handler(request, response, matching_resource, endpoint) > 0)
           {
  
           #endif
@@ -1576,19 +1574,17 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   }
 
   #ifdef OC_SERVER
-  // The presence of a separate response handle here indicates a
-  // successful handling of the request by a slow resource.
-  if (response_obj.separate_response != NULL)
+  
+  // the presence of a separate response handle here indicates a successful handling of the request by a slow resource.
+  if (response_obj.separate_response)
   {
-    // Attempt to register a client request to the separate response tracker
-    // and pass in the observe option (if present) or the value 2 as
-    // determined by the code block above. Values 0 and 1 result in their
-    // expected behaviors whereas 2 indicates an absence of an observe
-    // option and hence a one-off request.
-    // Following a successful registration, the separate response tracker
-    // is flagged as "active". In this way, the function that later executes
-    // out-of-band upon availability of the resource state knows it must
-    // send out a response with it.
+    /*
+      Attempt to register a client request to the separate response tracker and pass in the observe option (if present) or the value 2 as
+      determined by the code block above. Values 0 and 1 result in their expected behaviors whereas 2 indicates an absence of an observe
+      option and hence a one-off request. Following a successful registration, the separate response tracker is flagged as "active". In this way, 
+      the function that later executes out-of-band upon availability of the resource state knows it must send out a response with it.
+    */
+    
     #ifdef OC_BLOCK_WISE
     // note, observe may also 'error'
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe, block2_size) == 1)
@@ -1639,21 +1635,19 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         #else
         coap_set_payload(response, response_buffer.buffer, response_buffer.response_length);
         #endif
+        
         if (response_buffer.content_format > 0)
         {
-          // sets header format in all cases > 0 
+          // with payload, set response header format from request 1:1 in response if it is > 0 (means initialized)
           coap_set_header_content_format(response, response_buffer.content_format);
         }
       }
       else
       {
-        // TODO unclear why on payload =0 the format is ONLY set on LINK/CBOR
-
-        // for EITT test 5.1.1.4 & 5.2.3.1b
-        if (response_buffer.content_format == APPLICATION_LINK_FORMAT ||
-          response_buffer.content_format == APPLICATION_CBOR)
+        // no payload, set response header format to LINK/CBOR if it was LINK/CBOR, for EITT test 5.1.1.4 & 5.2.3.1b
+        if (response_buffer.content_format == APPLICATION_LINK_FORMAT || response_buffer.content_format == APPLICATION_CBOR)
         {
-          // sets header format in  cases LINK/CBOR
+          
           coap_set_header_content_format(response, response_buffer.content_format);
         }
       }
@@ -2043,11 +2037,10 @@ oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t* endpoint, co
 
 static void free_all_client_cbs(void)
 {
-  oc_client_cb_t* cb = oc_list_pop(client_cbs);
-  while (cb != NULL)
+  oc_client_cb_t* cb;
+  while ((cb = (oc_client_cb_t*)oc_list_pop(client_cbs)))
   {
     free_client_cb(cb);
-    cb = oc_list_pop(client_cbs);
   }
 }
 
@@ -2112,7 +2105,6 @@ void oc_ri_shutdown(void)
   // wait until no event is pending anymore
   while (oc_main_poll())
   {
-    ;
   }
 
   stop_processes();
