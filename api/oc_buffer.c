@@ -236,18 +236,10 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
        
         if (message->endpoint.flags & OSCORE)
         {
-          if (message->endpoint.flags & MULTICAST)
-          {
-            OC_DBG("Outbound OSCORE multicast message, forwarding to IP layer");
-            oc_send_buffer(message);
-            oc_message_unref(message);
-          }
-          else
-          {
-            OC_DBG("Outbound OSCORE unicast message, forwarding to IP layer");
-            oc_send_buffer(message);
-            oc_message_unref(message);
-          }
+          OC_DBG("Outbound OSCORE %s message, forwarding to IP layer",
+                 (message->endpoint.flags & MULTICAST) ? "multicast" : "unicast");
+          oc_send_buffer(message);
+          oc_message_unref(message);
         }
       }
     }
