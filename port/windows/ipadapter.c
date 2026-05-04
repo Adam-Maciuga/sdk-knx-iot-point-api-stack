@@ -888,6 +888,75 @@ static void set_source_address_for_interface(ADDRESS_FAMILY family, uint8_t *add
   free_network_addresses(ifaddr_list);
 }
 
+// RFC 6724 Section 3.1: Determine the scope of a unicast address.
+//   Link-local (fe80::/10) and loopback (::1) -> scope 2
+//   ULA (fc00::/7) and deprecated site-local (fec0::/10) -> scope 5
+//   Global unicast -> scope 14
+static int get_addr_scope(const struct in6_addr *addr) {
+  const uint8_t *a = (const uint8_t *)addr;
+  if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_LINKLOCAL(addr))
+    return 2;
+  if (a[0] == 0xfc || a[0] == 0xfd)  // ULA fc00::/7
+    return 5;
+  if (a[0] == 0xfe && (a[1] & 0xc0) == 0xc0)  // deprecated site-local fec0::/10
+    return 5;
+  return 14;
+}
+
+// Select a source address for an interface based on the destination scope,
+// implementing RFC 6724 Rule 2: prefer the source whose scope is the smallest
+// value that is still >= the destination scope.
+//
+// For multicast destinations, the scope comes from the multicast address byte.
+// For unicast destinations, the scope is derived from the address prefix.
+// Falls back to the first available address on the interface.
+// This ensures consistent source address selection across unicast responses
+// and multicast sends, which is required by some testing suites.
+static void select_source_address(uint8_t *address, int interface_index,
+                                  const struct in6_addr *dest) {
+  int dest_scope;
+  if (IN6_IS_ADDR_MULTICAST(dest)) {
+    dest_scope = ((const uint8_t *)dest)[1] & 0x0f;
+  } else {
+    dest_scope = get_addr_scope(dest);
+  }
+
+  ifaddr_t *ifaddr_list = get_network_addresses();
+  uint8_t best[16] = {0};
+  int best_scope = -1;
+  uint8_t fallback[16] = {0};
+  bool have_fallback = false;
+
+  for (ifaddr_t *ifaddr = ifaddr_list; ifaddr != NULL; ifaddr = ifaddr->next) {
+    if (ifaddr->addr.ss_family != AF_INET6 ||
+        (int)ifaddr->if_index != interface_index)
+      continue;
+
+    struct sockaddr_in6 *a = (struct sockaddr_in6 *)&ifaddr->addr;
+    int src_scope = get_addr_scope(&a->sin6_addr);
+
+    if (!have_fallback) {
+      memcpy(fallback, a->sin6_addr.u.Byte, 16);
+      have_fallback = true;
+    }
+
+    // RFC 6724 Rule 2: prefer smallest scope >= dest_scope
+    if (src_scope >= dest_scope) {
+      if (best_scope < 0 || src_scope < best_scope) {
+        memcpy(best, a->sin6_addr.u.Byte, 16);
+        best_scope = src_scope;
+      }
+    }
+  }
+
+  if (best_scope >= 0) {
+    memcpy(address, best, 16);
+  } else if (have_fallback) {
+    memcpy(address, fallback, 16);
+  }
+  free_network_addresses(ifaddr_list);
+}
+
 static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t *message) {
   if (!PWSASendMsg && get_WSASendMsg() < 0) {
     return -1;
@@ -920,44 +989,32 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
 
     struct sockaddr_in6 *dest = (struct sockaddr_in6 *)receiver;
 
-    if (IN6_IS_ADDR_MULTICAST(&dest->sin6_addr)) {
-      // Multicast: skip pktinfo and use IPV6_MULTICAST_IF socket option
-      // to select the outgoing interface. The OS then picks the appropriate
-      // source address for the multicast destination scope.
-      // Using pktinfo with an explicit source address causes WSAEADDRNOTAVAIL
-      // (10049) when the source scope doesn't match the multicast scope,
-      // and pktinfo with a zero source address results in :: as source.
-      Msg.Control.len = 0;
-      Msg.Control.buf = NULL;
-      DWORD mif = (DWORD)message->endpoint.interface_index;
-      if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
-                     (char *)&mif, sizeof(mif)) == SOCKET_ERROR) {
-        OC_ERR("send_msg: setting IPV6_MULTICAST_IF to %u failed: %d",
-               mif, WSAGetLastError());
-        return -1;
-      }
-    } else {
-      // Unicast: specify source address and outgoing interface via pktinfo.
+    // Use pktinfo for both multicast and unicast to ensure consistent
+    // source address selection across all send paths.
 #pragma warning(suppress : 4116)
-      Msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
+    Msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
 
 #pragma warning(suppress : 4116)
-      MsgHdr = WSA_CMSG_FIRSTHDR(&Msg);
+    MsgHdr = WSA_CMSG_FIRSTHDR(&Msg);
 #pragma warning(suppress : 4116)
-      memset(MsgHdr, 0, WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)));
+    memset(MsgHdr, 0, WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)));
 
-      MsgHdr->cmsg_level = IPPROTO_IPV6;
-      MsgHdr->cmsg_type = IPV6_PKTINFO;
-      MsgHdr->cmsg_len = WSA_CMSG_LEN(sizeof(struct in6_pktinfo));
+    MsgHdr->cmsg_level = IPPROTO_IPV6;
+    MsgHdr->cmsg_type = IPV6_PKTINFO;
+    MsgHdr->cmsg_len = WSA_CMSG_LEN(sizeof(struct in6_pktinfo));
 
-      struct in6_pktinfo *pktinfo = (struct in6_pktinfo *)WSA_CMSG_DATA(MsgHdr);
-      pktinfo->ipi6_ifindex = message->endpoint.interface_index;
+    struct in6_pktinfo *pktinfo = (struct in6_pktinfo *)WSA_CMSG_DATA(MsgHdr);
+    pktinfo->ipi6_ifindex = message->endpoint.interface_index;
 
-      set_source_address_for_interface(AF_INET6,
-              message->endpoint.addr_local.ipv6.address,
-              16, message->endpoint.interface_index);
-      memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
+    // Select source address: use addr_local if already set (e.g. unicast
+    // response echoing the destination of the incoming request), otherwise
+    // pick a scope-appropriate address for the destination.
+    if (check_if_address_unset(message->endpoint.addr_local.ipv6.address, 16)) {
+      select_source_address(message->endpoint.addr_local.ipv6.address,
+                            message->endpoint.interface_index,
+                            &dest->sin6_addr);
     }
+    memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
   } else {
     OC_ERR("Invalid endpoint!");
     return -1;
