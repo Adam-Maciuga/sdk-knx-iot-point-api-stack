@@ -919,26 +919,43 @@ static int send_msg(int sock, struct sockaddr_storage *receiver, oc_message_t *m
   msg.msg_iovlen = 1;
 
   if (message->endpoint.flags & IPV6) {
-    struct cmsghdr *cmsg;
-    struct in6_pktinfo *pktinfo;
+    struct sockaddr_in6 *dest = (struct sockaddr_in6 *)receiver;
 
-    msg.msg_control = msg_control;
-    msg.msg_controllen = CMSG_SPACE(sizeof(struct in6_pktinfo));
-    memset(msg.msg_control, 0, msg.msg_controllen);
+    if (IN6_IS_ADDR_MULTICAST(&dest->sin6_addr)) {
+      // Multicast: skip pktinfo and use IPV6_MULTICAST_IF socket option
+      // to select the outgoing interface. The OS then picks the appropriate
+      // source address for the multicast destination scope.
+      // Using pktinfo with a link-local source address causes issues
+      // when the multicast scope is site-local or higher.
+      msg.msg_control = NULL;
+      msg.msg_controllen = 0;
+      unsigned int mif = message->endpoint.interface_index;
+      if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+                     &mif, sizeof(mif)) == -1) {
+        OC_ERR("send_msg: setting IPV6_MULTICAST_IF to %u failed: %d",
+               mif, errno);
+        return -1;
+      }
+    } else {
+      // Unicast: specify source address and outgoing interface via pktinfo.
+      struct cmsghdr *cmsg;
+      struct in6_pktinfo *pktinfo;
 
-    cmsg = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_level = IPPROTO_IPV6;
-    cmsg->cmsg_type = IPV6_PKTINFO;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+      msg.msg_control = msg_control;
+      msg.msg_controllen = CMSG_SPACE(sizeof(struct in6_pktinfo));
+      memset(msg.msg_control, 0, msg.msg_controllen);
 
-    pktinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg);
-    memset(pktinfo, 0, sizeof(struct in6_pktinfo));
+      cmsg = CMSG_FIRSTHDR(&msg);
+      cmsg->cmsg_level = IPPROTO_IPV6;
+      cmsg->cmsg_type = IPV6_PKTINFO;
+      cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
 
-    // Get the outgoing interface index from message->endpoint.
-    pktinfo->ipi6_ifindex = message->endpoint.interface_index;
-    // Set the source address of this message using the address
-    // from the endpoint's addr_local attribute.
-    memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
+      pktinfo = (struct in6_pktinfo *)CMSG_DATA(cmsg);
+      memset(pktinfo, 0, sizeof(struct in6_pktinfo));
+
+      pktinfo->ipi6_ifindex = message->endpoint.interface_index;
+      memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
+    }
   } else {
     OC_ERR("Invalid send message endpoint!");
     return -1;
