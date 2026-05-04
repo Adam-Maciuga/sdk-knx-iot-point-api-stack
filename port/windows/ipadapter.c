@@ -888,19 +888,22 @@ static void set_source_address_for_interface(ADDRESS_FAMILY family, uint8_t *add
   free_network_addresses(ifaddr_list);
 }
 
-// RFC 6724 Section 3.1: Determine the scope of a unicast address.
-//   Link-local (fe80::/10) and loopback (::1) -> scope 2
-//   ULA (fc00::/7) and deprecated site-local (fec0::/10) -> scope 5
-//   Global unicast -> scope 14
+// RFC 6724 Section 3.2: Determine the scope of a unicast address.
+//   Loopback (::1) -> scope 1
+//   Link-local (fe80::/10) -> scope 2
+//   Deprecated site-local (fec0::/10) -> scope 5
+//   Everything else (including ULA fc00::/7 and GUA) -> scope 14 (global)
 static int get_addr_scope(const struct in6_addr *addr) {
   const uint8_t *a = (const uint8_t *)addr;
   if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_LINKLOCAL(addr))
     return 2;
-  if (a[0] == 0xfc || a[0] == 0xfd)  // ULA fc00::/7
-    return 5;
   if (a[0] == 0xfe && (a[1] & 0xc0) == 0xc0)  // deprecated site-local fec0::/10
     return 5;
   return 14;
+}
+
+static bool is_ula(const struct in6_addr *addr) {
+  return (((const uint8_t *)addr)[0] & 0xfe) == 0xfc;  // fc00::/7
 }
 
 // Select a source address for an interface based on the destination scope,
@@ -924,6 +927,7 @@ static void select_source_address(uint8_t *address, int interface_index,
   ifaddr_t *ifaddr_list = get_network_addresses();
   uint8_t best[16] = {0};
   int best_scope = -1;
+  bool best_is_ula = false;
   uint8_t fallback[16] = {0};
   bool have_fallback = false;
 
@@ -941,10 +945,15 @@ static void select_source_address(uint8_t *address, int interface_index,
     }
 
     // RFC 6724 Rule 2: prefer smallest scope >= dest_scope
+    // Rule 5 (simplified): prefer GUA over ULA when scopes are equal
     if (src_scope >= dest_scope) {
       if (best_scope < 0 || src_scope < best_scope) {
         memcpy(best, a->sin6_addr.u.Byte, 16);
         best_scope = src_scope;
+        best_is_ula = is_ula(&a->sin6_addr);
+      } else if (src_scope == best_scope && best_is_ula && !is_ula(&a->sin6_addr)) {
+        memcpy(best, a->sin6_addr.u.Byte, 16);
+        best_is_ula = false;
       }
     }
   }
@@ -1092,7 +1101,48 @@ int oc_send_buffer(oc_message_t *message) {
 #else
   OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, -1, message->endpoint.flags);
 #endif
-  
+
+  // For multicast destinations not coming from oc_send_discovery_request
+  // (e.g. OSCORE multicast from oc_buffer.c), configure the outgoing interface.
+  {
+    struct sockaddr_in6 *dest = (struct sockaddr_in6 *)&receiver;
+    if (IN6_IS_ADDR_MULTICAST(&dest->sin6_addr) &&
+        message->endpoint.interface_index == 0) {
+      ifaddr_t *ifaddr_list = get_network_addresses();
+      uint32_t filter = oc_network_get_interface_filter();
+      for (ifaddr_t *ifaddr = ifaddr_list; ifaddr != NULL;
+           ifaddr = ifaddr->next) {
+        if (filter != 0 && ifaddr->if_index != filter) {
+          continue;
+        }
+        if (ifaddr->addr.ss_family == AF_INET6) {
+          message->endpoint.interface_index = ifaddr->if_index;
+          break;
+        }
+      }
+      free_network_addresses(ifaddr_list);
+
+      DWORD mif = (DWORD)message->endpoint.interface_index;
+      if (setsockopt(send_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char *)&mif,
+                     sizeof(mif)) == SOCKET_ERROR) {
+        OC_ERR("setting IPV6_MULTICAST_IF: %d", WSAGetLastError());
+      }
+
+      uint8_t mcast_scope = dest->sin6_addr.s6_addr[1] & 0x0f;
+      unsigned int hops = (mcast_scope <= 2) ? 1 : 255;
+      if (setsockopt(send_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+                     (char *)&hops, sizeof(hops)) == SOCKET_ERROR) {
+        OC_ERR("setting IPV6_MULTICAST_HOPS: %d", WSAGetLastError());
+      }
+
+      if (mcast_scope <= 2) {
+        dest->sin6_scope_id = message->endpoint.interface_index;
+      } else {
+        dest->sin6_scope_id = 0;
+      }
+    }
+  }
+
   return send_msg(send_sock, &receiver, message);
 }
 
