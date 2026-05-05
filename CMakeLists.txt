@@ -73,7 +73,8 @@ set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in second
 # Scope 2 MAY be needed for the virtual DEMO applications when:
 # - the devices are running on the same PC (e.g. for testing with EITT)
 # - a network router does not allow to send multicast messages with scope 5 (site local)
-set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on sending and recieving all (multicast) s-mode messages" FORCE)
+# the scope is used by stack (discovery) and application (push button demo) messages
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) (stack) s-mode messages" FORCE)
 
 ## Hidden Variables
 # Note:
