@@ -8,16 +8,11 @@
 #include "oc_api.h"
 #include "api/oc_knx_client.h"
 #include "api/oc_knx_fp.h"
-#include "api/oc_knx_sec.h"
-#include "oc_spake2plus.h"
 #include "oc_core_res.h"
-#include "port/oc_clock.h"
-#include <stdio.h>
 #include <string.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 #include <inttypes.h>
 #include <errno.h>
-
 
 /**
     @brief checks the current IPv6 resolving status 
