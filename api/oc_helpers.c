@@ -363,7 +363,7 @@ int oc_conv_uint64_to_hex_string(char* str, const uint64_t number)
   // count leading zeros
   for (int leading_zeros = 0; leading_zeros < 16; ++leading_zeros)
   {
-    // break if byte is not '0' ...
+    // break if byte is not ascii '0' ...
     if (temp_str[leading_zeros] != '0')
     {
       // remove present leading zeros, copy from first non '0' src to dst
@@ -776,19 +776,18 @@ int oc_charstream_convert_to_lower(char* stream)
   return 0;
 }
 
-bool oc_check_string_on_zero_content(const char* stream)
+bool oc_check_string_on_zero_content(const char* stream_ptr, uint8_t stream_len)
 {
-  while (*stream)
-  {
-    // loops until *str is 0, e.g.; stream ends with \0
-    if (*stream != '0')
+  for (const char* ptr = stream_ptr; ptr < stream_ptr + stream_len; ptr++)
+  { // loops until byte stream end defined by '\0' 
+    
+    if (*ptr)
     {
-      // there was one byte not zero ...
+      // there was one byte not zero, e.g.; > 0 (note it is a byte stream, not any ascii or hex stream)
       return false;
     }
-
-    stream++;
   }
 
+  // here we have all stream chars as '0' -> example 16 byte "0000|0000|0000|0000" + '\0'
   return true;
 }
