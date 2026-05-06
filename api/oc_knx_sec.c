@@ -923,21 +923,22 @@ static void oc_core_auth_at_post_handler(oc_request_t* request, oc_interface_mas
                   {
                     // cnf:osc:ms (8:4:2)
 
-                    size_t mastersecret_size = oc_string_len(oscore_object->value.string);
+                    uint8_t mastersecret_size = oc_string_len(oscore_object->value.string);
                     char* mastersecret_ptr = oc_string(oscore_object->value.string);
 
                     // size does not fit
                     if (mastersecret_size < OSCORE_KEY_LEN || mastersecret_size > OSCORE_MASTER_SECRET_LEN)
                     {
-                      OC_ERR("master secret size must be in range 16 ... 32: %zu", mastersecret_size);
+                      OC_ERR("master secret size must be in range 16 ... 32: %u", mastersecret_size);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }
 
                     // all '0'
-                    if (oc_check_string_on_zero_content(mastersecret_ptr))
+                    if (oc_check_string_on_zero_content(mastersecret_ptr, mastersecret_size))
                     {
-                      OC_ERR("master secret content cannot be zero : %zu", mastersecret_size);
+
+                      OC_ERR("master secret with len %u content cannot be zero : ", mastersecret_size);
                       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
                       return;
                     }

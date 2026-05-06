@@ -473,11 +473,12 @@ char* oc_strnchr(char* string, char p, int size);
 int oc_charstream_convert_to_lower(char* stream);
 
 /**
- * @brief helper function to check if a string contains only of '0'
- * @param stream the string pointer
+ * @brief helper function to check if a byte string contains only of zero values (0)
+ * @param stream_ptr the byte stream pointer
+ * @param stream_len the length of the byte stream
  * @return all zero, true
  */
-bool oc_check_string_on_zero_content(const char* stream);
+bool oc_check_string_on_zero_content(const char* stream_ptr, uint8_t stream_len);
 
 /**
  * @brief copy string from char*
