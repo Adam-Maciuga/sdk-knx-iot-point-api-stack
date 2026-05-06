@@ -71,7 +71,7 @@ static int HKDF_Extract(const uint8_t *salt, uint8_t salt_len,
 
 static int HKDF_Expand(const uint8_t *prk,
         const uint8_t *info, uint8_t info_len,
-        const uint8_t *okm, size_t okm_len) {
+        uint8_t *okm, size_t okm_len) {
   // From RFC 5869
   // HKDF-Expand(PRK, info, L) -> OKM
   if (okm_len > HKDF_OUTPUT_MAXLEN) {

@@ -213,7 +213,7 @@ int spake2plus_calc_transcript_responder(spake_data_t *spake_data,
  * @return 0 on success, non-zero on failure.
  */
 int spake2plus_calc_transcript_initiator(const uint8_t w0[32], const uint8_t w1[32],
-        int8_t x[32],
+        const uint8_t x[32],
         const uint8_t shareP_enc[kPubKeySize],
         const uint8_t shareV_enc[kPubKeySize],
         uint8_t K_main[32],
