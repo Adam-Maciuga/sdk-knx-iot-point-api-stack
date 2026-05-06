@@ -255,14 +255,16 @@ extern "C" {
 #define OC_WRN(...) OC_LOG("WRN", __VA_ARGS__)
 #define OC_INF(...) OC_LOG("INF", __VA_ARGS__)
 
+/* knx_log_bytes_hex: Print label then bytes as lowercase hex ("xx "), 32 bytes per line.
+ * Defined in port/oc_log.c. Used by OC_LOGbytes and OC_LOGbytes_OSCORE.
+ */
+void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
+
 /* OC_DBG / OC_LOGbytes */
 #ifdef OC_DEBUG
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
-  #define OC_LOGbytes(bytes, length)                          \
-    do {                                                      \
-      for (uint16_t i = 0; i < (length); i++)                 \
-        PRINTF("%02x", (bytes)[i]);                           \
-    } while (0)
+  #define OC_LOGbytes(bytes, length) \
+    knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)(length))
 #else
   #define OC_DBG(...)
   #define OC_LOGbytes(bytes, length)
@@ -272,7 +274,8 @@ extern "C" {
 #ifdef OC_DEBUG_OSCORE
   #define OC_DBG_OSCORE(...) OC_LOG("OSC", __VA_ARGS__)
   #define OC_DBG_SPAKE(...)  OC_LOG("SPK", __VA_ARGS__)
-  #define OC_LOGbytes_OSCORE(bytes, length) OC_LOGbytes(bytes, length)
+  #define OC_LOGbytes_OSCORE(bytes, length) \
+    knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)(length))
 #else
   #define OC_DBG_OSCORE(...)
   #define OC_DBG_SPAKE(...)

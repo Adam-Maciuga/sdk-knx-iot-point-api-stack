@@ -33,18 +33,27 @@
  * lock-free ring buffer so multiple threads can call LOG_* simultaneously
  * without their output lines interleaving.
  */
-#if defined(CONFIG_KNXIOT_DEBUG) || defined(CONFIG_KNXIOT_DEBUG_OSCORE)
-LOG_MODULE_REGISTER(knx_iot, LOG_LEVEL_DBG);
-#else
 LOG_MODULE_REGISTER(knx_iot, CONFIG_KNXIOT_LOG_LEVEL);
-#endif
+/* Note: The compile-time maximum level is always CONFIG_KNXIOT_LOG_LEVEL.
+ * Defining CONFIG_KNXIOT_DEBUG / CONFIG_KNXIOT_DEBUG_OSCORE compiles in
+ * debug code (OC_DBG, OC_LOGbytes, etc.) but does not raise the log level
+ * automatically. To activate debug output at runtime, use the Zephyr shell:
+ *   > log enable dbg knx_iot
+ */
+/* oc_log.h cannot be included in this translation unit on Zephyr: it pulls in
+ * log_zephyr.h which contains LOG_MODULE_DECLARE, conflicting with the
+ * LOG_MODULE_REGISTER above. knx_log_bytes_hex() uses LOG_DBG directly.
+ */
 #endif /* __ZEPHYR__ */
+
+#ifndef __ZEPHYR__
+#include "oc_log.h"
+#endif
 
 #if defined(OC_PRINT) && defined(KNX_LOG_TO_FILE)
 
 #include <stdarg.h>
 #include <stdio.h>
-#include "oc_log.h"
 
 #define OUTPUT_FILE_NAME "stack_print_output.txt"
 
@@ -68,3 +77,37 @@ void oc_file_print(char *format, ...)
 }
 
 #endif
+
+/* TODO FIXME we need to cleanup the debug log output we want the function name and a prefix. */
+void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length)
+{
+  /* Print label followed by bytes as lowercase hex ("xx "), 32 bytes per line.
+   * Buffers of 16 bytes or fewer fit on a single line.
+   */
+  const char *h = "0123456789abcdef";
+  char buf[97]; /* 32 bytes x 3 chars ("xx ") + NUL */
+  size_t i = 0;
+  while (i < length)
+  {
+    size_t pos = 0;
+    size_t end = (i + 32u < length) ? (i + 32u) : length;
+    for (size_t j = i; j < end; j++)
+    {
+      buf[pos++] = h[(bytes[j] >> 4) & 0xf];
+      buf[pos++] = h[bytes[j] & 0xf];
+      buf[pos++] = ' ';
+    }
+
+    if (pos > 0)
+    {
+      buf[pos - 1] = '\0';
+    }
+
+#ifdef __ZEPHYR__
+    LOG_DBG("%s%s", label, buf);
+#else
+    PRINTF("%s%s\n", label, buf);
+#endif
+    i = end;
+  }
+}

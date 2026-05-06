@@ -202,14 +202,14 @@ config KNXIOT_DEBUG_OSCORE
       Corresponds to CMake: OC_DEBUG_OSCORE_ENABLED.
 
 config KNXIOT_LOG_HEXDUMP_DBG
-    bool "Enable OC_LOGbytes() output via LOG_HEXDUMP_DBG"
+    bool "Enable OC_LOGbytes() hex output"
     default n
     depends on KNXIOT_DEBUG
     help
-      When enabled, OC_LOGbytes() and OC_LOGbytes_OSCORE() emit raw byte
-      buffers using Zephyr's LOG_HEXDUMP_DBG() in a single log message.
-      When disabled (default), OC_LOGbytes() is a no-op on Zephyr. Per-byte
-      LOG_INF calls would generate one log message per byte and flood the output.
+      When enabled, OC_LOGbytes() and OC_LOGbytes_OSCORE() print byte buffers
+      as lowercase hex ("xx xx ..."), 32 bytes per line. Buffers of 16 bytes
+      or fewer fit on a single line.
+      When disabled (default), OC_LOGbytes() is a no-op on Zephyr.
 
 config KNXIOT_LOG_CAST_64_BIT_INTS
     bool "Cast 64-bit integers in log output"

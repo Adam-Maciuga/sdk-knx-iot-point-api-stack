@@ -30,11 +30,13 @@
  * Every translation unit that includes this header declares itself as part of
  * the "knx_iot" module so all OC_* log calls carry the same module tag.
  */
-#if defined(CONFIG_KNXIOT_DEBUG) || defined(CONFIG_KNXIOT_DEBUG_OSCORE)
-LOG_MODULE_DECLARE(knx_iot, LOG_LEVEL_DBG);
-#else
+/* Note: Always declare at CONFIG_KNXIOT_LOG_LEVEL, not LOG_LEVEL_DBG.
+ * Defining CONFIG_KNXIOT_DEBUG / CONFIG_KNXIOT_DEBUG_OSCORE compiles in
+ * debug code but does not raise the level automatically. To activate debug
+ * output at runtime, use the Zephyr shell:
+ *   > log enable dbg knx_iot
+ */
 LOG_MODULE_DECLARE(knx_iot, CONFIG_KNXIOT_LOG_LEVEL);
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,17 +52,24 @@ extern "C" {
 #define OC_WRN(...) LOG_WRN(__VA_ARGS__)
 #define OC_INF(...) LOG_INF(__VA_ARGS__)
 
+/* knx_log_bytes_hex: Print label then bytes as lowercase hex ("xx "), 32 bytes per line.
+ * Defined in port/oc_log.c. Used by OC_LOGbytes and OC_LOGbytes_OSCORE.
+ */
+void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
+
 /* OC_DBG / OC_LOGbytes */
 #ifdef OC_DEBUG
-  /* On Zephyr debug output via LOG_DBG, filtered by CONFIG_KNXIOT_LOG_LEVEL.
+  /* On Zephyr debug output goes via LOG_DBG, filtered by CONFIG_KNXIOT_LOG_LEVEL.
    *
-   * OC_LOGbytes uses LOG_HEXDUMP_DBG when CONFIG_KNXIOT_LOG_HEXDUMP_DBG=y.
-   * Without that option it is a no-op. Per-byte LOG_INF calls would generate
-   * one log message per byte and flood the output.
+   * OC_LOGbytes is enabled by CONFIG_KNXIOT_LOG_HEXDUMP_DBG.
+   * Without that option it is a no-op.
+   * Bytes are printed via LOG_HEXDUMP_DBG (16 bytes per line with ASCII column).
+   * The correct calling function name is shown in the log output.
    */
   #define OC_DBG(...) LOG_DBG(__VA_ARGS__)
   #ifdef CONFIG_KNXIOT_LOG_HEXDUMP_DBG
-    #define OC_LOGbytes(bytes, length) LOG_HEXDUMP_DBG(bytes, length, "")
+    #define OC_LOGbytes(bytes, length) \
+      LOG_HEXDUMP_DBG(bytes, length, #bytes "\t: ")
   #else
     #define OC_LOGbytes(bytes, length)
   #endif
@@ -78,7 +87,12 @@ extern "C" {
    */
   #define OC_DBG_OSCORE(...) LOG_DBG("OSCORE: " __VA_ARGS__)
   #define OC_DBG_SPAKE(...)  LOG_DBG("SPAKE: "  __VA_ARGS__)
-  #define OC_LOGbytes_OSCORE(bytes, length) OC_LOGbytes(bytes, length)
+  #ifdef CONFIG_KNXIOT_LOG_HEXDUMP_DBG
+    #define OC_LOGbytes_OSCORE(bytes, length) \
+      LOG_HEXDUMP_DBG(bytes, length, "OSCORE: " #bytes "\t: ")
+  #else
+    #define OC_LOGbytes_OSCORE(bytes, length)
+  #endif
 #else
   #define OC_DBG_OSCORE(...)
   #define OC_DBG_SPAKE(...)
