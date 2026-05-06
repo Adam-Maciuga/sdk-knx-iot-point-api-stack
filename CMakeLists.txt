@@ -64,7 +64,7 @@ set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher tab
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
-set(KNX_SPAKE_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake")
+set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake")
 
 # KNX reset "Process Time" in seconds
 set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
@@ -78,7 +78,7 @@ set(OC_SENDER_MULTICAST_SCOPE "2" CACHE STRING "IPv6 multicast scope, used on se
 ## Hidden Variables
 # Note:
 # Don't show variables below in any (command) GUI.
-mark_as_advanced(KNX_SPAKE_ITERATIONS)
+mark_as_advanced(KNX_IOT_SPAKE2PLUS_ITERATIONS)
 
 ### KNX-IoT Stack ###
 set(KNX_INCLUDE_DIRS 
@@ -138,9 +138,11 @@ set(CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_context.c
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_crypto.c
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_engine.c
-    ${PROJECT_SOURCE_DIR}/security/oc_spake2plus.c
     ${PROJECT_SOURCE_DIR}/security/oc_tls.c
 )
+
+# TODO KNX_IOT_SPAKE2PLUS always on?
+list(APPEND CORE_SOURCES ${PROJECT_SOURCE_DIR}/security/spake2plus.c)
 
 set(COAP_SOURCES
     ${PROJECT_SOURCE_DIR}/messaging/coap/coap.c
@@ -159,8 +161,8 @@ add_library(kis-common INTERFACE)
 ## Security 
 # OSCORE
 # TODO FIXME Remove OS_CORE everywhere then remove here.
-# TODO OC_SPAKE always on?
-target_compile_definitions(kis-common INTERFACE OC_SPAKE OC_SPAKE_IT=${KNX_SPAKE_ITERATIONS})
+# TODO KNX_IOT_SPAKE2PLUS always on?
+target_compile_definitions(kis-common INTERFACE KNX_IOT_SPAKE2PLUS KNX_IOT_SPAKE2PLUS_ITERATIONS=${KNX_IOT_SPAKE2PLUS_ITERATIONS})
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
@@ -207,6 +209,13 @@ target_include_directories(kisClientServer PUBLIC ${KNX_INCLUDE_DIRS})
 target_link_libraries(kisClientServer PUBLIC kis-common)
 if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     target_link_libraries(kisClientServer PUBLIC mbedtls)
+    # Note:
+    # spake2plus.c uses private TF-PSA-Crypto ECP/BigNum headers for raw
+    # P-256 point arithmetic that has no PSA equivalent in Mbed TLS 4.x.
+    # See docs/mbedtls_3.x_to_4.x_migration.md, section "SPAKE2+ Migration Design".
+    target_include_directories(kisClientServer PRIVATE
+        "${mbedtls_SOURCE_DIR}/tf-psa-crypto/drivers/builtin/include"
+    )
 endif()
 if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     target_link_libraries(kisClientServer PUBLIC tinycbor)

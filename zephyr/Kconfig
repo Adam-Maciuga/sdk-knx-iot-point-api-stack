@@ -140,11 +140,11 @@ config KNXIOT_RESET_PROCESS_TIME
 
 # ── Security ───────────────────────────────────────────────────────────────────
 
-config KNXIOT_SPAKE_ITERATIONS
+config KNXIOT_SPAKE2PLUS_ITERATIONS
     int "SPAKE2+ iteration count"
     default 50000
     help
-      Corresponds to CMake: KNX_SPAKE_ITERATIONS.
+      Corresponds to CMake: KNX_IOT_SPAKE2PLUS_ITERATIONS.
       Number of SHA-256 iterations used in the SPAKE2+ password-based
       key exchange during device enrollment. Higher values increase
       resistance to brute-force attacks at the cost of enrollment time.
@@ -170,20 +170,6 @@ config KNXIOT_TLS_PKI
 # oc_clock_time() which returns k_uptime_get() (milliseconds).
 # No separate KNX-IoT symbol is needed; configure the tick rate via
 # CONFIG_SYS_CLOCK_TICKS_PER_SEC in Zephyr's kernel/Kconfig if needed.
-
-# ── Diagnostics ────────────────────────────────────────────────────────────────
-
-config KNXIOT_ZEPHYR_MALLOC_HEAP_STATS
-    bool "C library malloc heap runtime statistics"
-    depends on COMMON_LIBC_MALLOC && SYS_HEAP_RUNTIME_STATS
-    default n
-    help
-      Expose C library malloc heap statistics in the KNX-IoT shell command
-      "knx_iot malloc_heap".  Requires Zephyr to be patched with
-      0005-zephyr-4.3-lib-libc-common-add-malloc-heap-stats-acc.patch, which
-      adds z_malloc_heap_runtime_stats_get() and z_malloc_heap_init_bytes()
-      as thin wrappers around the otherwise-static z_malloc_heap.
-      Without the patch this option must be left off (default).
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 

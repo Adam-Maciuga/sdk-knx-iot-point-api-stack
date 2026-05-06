@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <strings.h>          /* strncasecmp */
 #include "util/oc_etimer.h"
 #include "util/oc_list.h"
 #include "util/oc_memb.h"

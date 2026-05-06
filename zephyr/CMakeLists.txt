@@ -15,8 +15,14 @@ get_filename_component(STACK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." REALPATH)
 include(FetchContent)
 
 if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
-    # Use the same configuration file as the Linux/Windows build.
-    set(MBEDTLS_CONFIG_FILE "${STACK_ROOT}/security/knx_mbedtls_config.h")
+    # Note:
+    # Mbed TLS 4.x splits the configuration into two files.
+    # Use the same configuration files as the Linux/Windows build.
+    #
+    # TF_PSA_CRYPTO_CONFIG_FILE: PSA crypto primitives (PSA_WANT_* defines).
+    # MBEDTLS_CONFIG_FILE: TLS/X.509/platform options (MBEDTLS_* defines).
+    set(TF_PSA_CRYPTO_CONFIG_FILE "${STACK_ROOT}/security/knx_psa_crypto_config.h" CACHE FILEPATH "" FORCE)
+    set(MBEDTLS_CONFIG_FILE "${STACK_ROOT}/security/knx_mbedtls_config.h" CACHE FILEPATH "" FORCE)
     set(UNSAFE_BUILD OFF CACHE BOOL "" FORCE)
     set(MBEDTLS_FATAL_WARNINGS ON CACHE BOOL "" FORCE)
     set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
@@ -24,10 +30,17 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     set(USE_STATIC_MBEDTLS_LIBRARY ON CACHE BOOL "" FORCE)
     set(USE_SHARED_MBEDTLS_LIBRARY OFF CACHE BOOL "" FORCE)
 
+    # Note:
+    # GEN_FILES=ON (the default on Linux) requires Perl and Python to regenerate
+    # auto-generated source files. Disable it when building as a subproject.
+    # The pre-generated files shipped in the release tarball are used instead.
+    set(GEN_FILES OFF CACHE BOOL "" FORCE)
+
     FetchContent_Declare(
         mbedtls
-        URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.5/mbedtls-3.6.5.tar.bz2
-        URL_HASH SHA256=4a11f1777bb95bf4ad96721cac945a26e04bf19f57d905f241fe77ebeddf46d8
+        # v4.1.0 released 2026-03-31.
+        URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-4.1.0/mbedtls-4.1.0.tar.bz2
+        URL_HASH SHA256=377a09cf8eb81b5fb2707045e5522d5489d3309fed5006c9874e60558fc81d10
         DOWNLOAD_EXTRACT_TIMESTAMP ON
     )
     FetchContent_MakeAvailable(mbedtls)
@@ -37,23 +50,85 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
         PRIVATE "${STACK_ROOT}/include"
         PRIVATE "${STACK_ROOT}/port/zephyr"   # for oc_config.h
     )
-    target_include_directories(mbedtls    ${MBEDTLS_INCLUDE_DIRS})
-    target_include_directories(mbedcrypto ${MBEDTLS_INCLUDE_DIRS})
-    target_include_directories(mbedx509   ${MBEDTLS_INCLUDE_DIRS})
+    # Note:
+    # Both config files include KNX-IoT stack headers (<oc_config.h>, "port/oc_assert.h").
+    # In Mbed TLS 4.x the crypto library is split into many internal sub-targets, each
+    # of which compiles the config files independently. The stack include dirs must
+    # therefore be added to every sub-target. Guarded with if(TARGET …) because not
+    # all drivers are enabled in every build.
+    target_include_directories(tfpsacrypto ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedtls     ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedx509    ${MBEDTLS_INCLUDE_DIRS})
+    foreach(_tgt builtin p256-m everest pqcp extras platform utilities)
+        if(TARGET ${_tgt})
+            target_include_directories(${_tgt} ${MBEDTLS_INCLUDE_DIRS})
+        endif()
+    endforeach()
 
     zephyr_library_link_libraries(mbedtls)
+
+    # Note:
+    # spake2plus.c uses private TF-PSA-Crypto ECP/BigNum headers for raw
+    # P-256 point arithmetic that has no PSA equivalent in Mbed TLS 4.x.
+    # See docs/mbedtls_3.x_to_4.x_migration.md, section "SPAKE2+ Migration Design".
+    zephyr_library_include_directories(
+        "${mbedtls_SOURCE_DIR}/tf-psa-crypto/drivers/builtin/include"
+    )
 endif()
 
 if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(BUILD_TOOLS ON CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+
+    # Note:
+    # Zephyr 4.3 (newlib) worked without intervention: newlib does not declare
+    # funopen() in stdio.h, so TinyCBOR's check_symbol_exists() naturally fell
+    # through to the WITHOUT_OPEN_MEMSTREAM fallback.
+    # Zephyr 4.4 switched to picolibc, which IS BSD-derived and declares funopen()
+    # in stdio.h — but with an incompatible write callback signature
+    # (const void*/size_t vs. const char*/int), causing a Werror build failure.
+    #
+    # Fix for picolibc: picolibc provides open_memstream() natively (POSIX.1-2008),
+    # which is the correct and complete solution — it enables TinyCBOR's CBOR
+    # pretty-printing and CBOR→JSON conversion, unlike the WITHOUT_OPEN_MEMSTREAM
+    # fallback which silently disables those features. Picolibc only exposes
+    # open_memstream() in stdio.h when _POSIX_C_SOURCE >= 200809L is defined, which
+    # is not set during CMake's check_symbol_exists() probe (try_compile does not
+    # inherit the Zephyr -imacros autoconf.h flags). Pre-populate HAVE_OPEN_MEMSTREAM
+    # so TinyCBOR's probe is skipped and no open_memstream.c fallback is compiled.
+    # _POSIX_C_SOURCE=200809L is added to tinycbor after MakeAvailable (see below)
+    # to expose the declaration in stdio.h at tinycbor compile time.
+    if(CONFIG_PICOLIBC)
+        set(HAVE_OPEN_MEMSTREAM TRUE CACHE BOOL "" FORCE)
+    endif()
 
     FetchContent_Declare(
         tinycbor
         GIT_REPOSITORY https://github.com/intel/tinycbor.git
         GIT_TAG v7.0
+        EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(tinycbor)
+
+    # _POSIX_C_SOURCE=200809L: POSIX feature-test macro required by picolibc to
+    # expose open_memstream() in stdio.h. Without it the function exists in the
+    # library but is not declared in the header, causing an implicit-declaration error.
+    if(CONFIG_PICOLIBC)
+        target_compile_definitions(tinycbor PRIVATE _POSIX_C_SOURCE=200809L)
+    endif()
+
+    # Propagate Zephyr's toolchain flags (-mcpu, -mthumb, etc.) to
+    # tinycbor via generator expressions.  We cannot use
+    # target_link_libraries because tinycbor's own CMakeLists.txt uses
+    # the plain signature and CMake forbids mixing plain and keyword
+    # forms; a plain link also breaks install(EXPORT) because
+    # zephyr_interface is not in any export set.
+    target_compile_options(tinycbor PRIVATE
+        $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_OPTIONS>)
+    target_include_directories(tinycbor PRIVATE
+        $<TARGET_PROPERTY:zephyr_interface,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_definitions(tinycbor PRIVATE
+        $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_DEFINITIONS>)
 
     zephyr_library_link_libraries(tinycbor)
     zephyr_include_directories(${tinycbor_SOURCE_DIR}/src ${tinycbor_BINARY_DIR})
@@ -130,9 +205,11 @@ set(CORE_SOURCES
     ${STACK_ROOT}/security/oc_oscore_context.c
     ${STACK_ROOT}/security/oc_oscore_crypto.c
     ${STACK_ROOT}/security/oc_oscore_engine.c
-    ${STACK_ROOT}/security/oc_spake2plus.c
     ${STACK_ROOT}/security/oc_tls.c
 )
+
+# TODO KNX_IOT_SPAKE2PLUS always on?
+list(APPEND CORE_SOURCES ${STACK_ROOT}/security/spake2plus.c)
 
 set(COAP_SOURCES
     ${STACK_ROOT}/messaging/coap/coap.c
@@ -176,7 +253,7 @@ if(CONFIG_NET_L2_OPENTHREAD)
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
         ${STACK_ROOT}/port/zephyr/dns-sd-thread.c
     )
-elseif(CONFIG_WIFI)
+elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
         ${STACK_ROOT}/port/zephyr/dns-sd-wifi.c
@@ -184,7 +261,7 @@ elseif(CONFIG_WIFI)
 else()
     message(FATAL_ERROR
         "KNX-IoT stack: No supported network backend selected. "
-        "Enable CONFIG_NET_L2_OPENTHREAD (Thread) or CONFIG_WIFI (Wi-Fi).")
+        "Enable CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
 endif()
 
 zephyr_library_named(knx_iot_stack)
@@ -244,8 +321,8 @@ zephyr_compile_definitions(
 
 ## Security
 zephyr_compile_definitions(
-    OC_SPAKE # TODO: verify whether OC_SPAKE should always be on or be conditional
-    OC_SPAKE_IT=${CONFIG_KNXIOT_SPAKE_ITERATIONS}
+    KNX_IOT_SPAKE2PLUS # TODO: verify whether KNX_IOT_SPAKE2PLUS should always be on or be conditional
+    KNX_IOT_SPAKE2PLUS_ITERATIONS=${CONFIG_KNXIOT_SPAKE2PLUS_ITERATIONS}
     $<$<BOOL:${CONFIG_KNXIOT_REPLAY_PROTECTION}>:OC_REPLAY_PROTECTION>
     $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>
 )

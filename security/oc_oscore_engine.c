@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <inttypes.h>
+#include "psa/crypto.h"
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"
 #include "messaging/coap/engine.h"
@@ -1114,8 +1115,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         // mc echo data = random
         uint8_t rnd[10];
 
-        mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
-        mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
+        psa_generate_random(rnd, sizeof(rnd));
 
         // echo response - use s-mode inbound request SSN as Partial IV
         uint64_t inbound_ssn;

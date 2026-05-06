@@ -9,8 +9,8 @@
 #include "api/oc_knx_client.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#ifdef OC_SPAKE
-#include "oc_spake2plus.h"
+#ifdef KNX_IOT_SPAKE2PLUS
+#include "security/spake2plus.h"
 #endif
 #include "oc_core_res.h"
 #include "port/oc_clock.h"
