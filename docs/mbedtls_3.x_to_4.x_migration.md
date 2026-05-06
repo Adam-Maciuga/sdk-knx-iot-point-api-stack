@@ -26,6 +26,119 @@
 
 ---
 
+## Security Motivation for the Migration
+
+This section summarises why the migration to PSA Crypto matters from a security
+perspective, beyond the mechanical necessity of keeping up with a breaking API
+change.
+
+### 1. Key Isolation — Logical Separation of Key Material
+
+In Mbed TLS 3.x, the application holds raw key bytes directly. An AES key for
+OSCORE lives in a `mbedtls_ccm_context` on the heap or stack; a SPAKE2+ scalar
+lives in a `mbedtls_mpi`. Any memory read — a buffer overrun, a debugger
+session, a crash dump, or an accidental log — can expose the key bytes, because
+they are ordinary memory the application owns.
+
+In PSA, the application holds only a `psa_key_id_t`: a small opaque integer
+handle. The actual key bytes are imported once into the PSA key store and are
+never returned to the caller unless the key was explicitly created with
+`PSA_KEY_USAGE_EXPORT`. Application code cannot form a pointer to them.
+
+**Important caveat:** On a software-only embedded target (no TrustZone, no
+secure element), the PSA key store is still in the same physical RAM as the
+rest of the application. The isolation is *logical*, not physical:
+
+- Key bytes do not appear in application stack frames, heap structs, or
+  function arguments — accidental leakage paths are eliminated.
+- A buffer overrun in application code does not *directly* reach the key store
+  (it is a different allocation, managed by the library).
+- Without `PSA_KEY_USAGE_EXPORT` the API will refuse to return the raw bytes,
+  regardless of what the caller holds.
+
+On hardware with TrustZone or a secure element the isolation becomes *physical*:
+the PSA implementation runs in a separate security domain and the key bytes
+never cross to the normal world. PSA is designed for this upgrade path — no
+application code changes are required when moving from software-only to a
+hardware-backed key store.
+
+References:
+- PSA key management API: https://arm-software.github.io/psa-api/crypto/1.1/api/keys/management.html
+
+### 2. Algorithm Policy Enforcement
+
+When a key is imported into the PSA key store, `psa_key_attributes_t` binds it
+to a specific algorithm (e.g. `PSA_ALG_CCM`) and a set of usage flags (e.g.
+`PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT`). The PSA layer rejects any
+attempt to use that key for a different purpose at the API boundary — a key
+imported for AES-CCM cannot be silently passed to an HMAC operation.
+
+In Mbed TLS 3.x there is no such enforcement. A raw AES key is just bytes; it
+can be passed to any cipher function without restriction.
+
+References:
+- PSA key policy API: https://arm-software.github.io/psa-api/crypto/1.1/api/keys/policy.html
+- PSA key attributes: https://arm-software.github.io/psa-api/crypto/1.1/api/keys/attributes.html
+
+### 3. Thread Safety
+
+In Mbed TLS 3.x, `mbedtls_ctr_drbg_context` is a shared mutable object. The
+KNX-IoT Stack exposes it via `oc_random_get_ctr_drbg_context()` so that
+SPAKE2+ and the RNG layer can share the same generator instance. Access from
+multiple RTOS threads without an explicit mutex is a data race.
+
+The PSA Crypto layer manages its own global state internally and is
+thread-safe. All callers simply call `psa_generate_random()` with no shared
+context object. The `oc_random_get_ctr_drbg_context()` accessor and the shared
+pointer are eliminated entirely.
+
+References:
+- Mbed TLS thread safety: https://mbed-tls.readthedocs.io/en/latest/kb/development/thread-safety-and-multi-threading/
+
+### 4. Hardware Acceleration Readiness
+
+PSA Crypto defines a driver interface through which a hardware crypto
+peripheral — AES-CCM engine, SHA accelerator, hardware true RNG — can be
+registered as a PSA driver. Application code calls the same
+`psa_aead_encrypt()` or `psa_generate_random()` regardless of whether the
+operation executes in software or on the hardware peripheral.
+
+**Current situation on ESP32/Zephyr (verified in Zephyr 4.4.x source):**
+
+| Peripheral | Used by Mbed TLS / PSA on Zephyr? | Notes |
+|---|---|---|
+| Hardware RNG | **Yes** | `zephyr_entropy.c` implements `mbedtls_psa_external_get_random()` via the Zephyr entropy driver (`entropy_esp32.c`). All calls to `psa_generate_random()` go through the ESP32 hardware RNG. |
+| Hardware AES | **No** | `crypto_esp32_aes.c` exists in Zephyr 4.4.x but implements Zephyr's generic `crypto` driver API (`zephyr/crypto/cipher.h`), which is a separate subsystem. The Zephyr Mbed TLS 4.1.0 module has no ESP32 PSA driver shim for AES. AES-CCM in OSCORE runs in software. |
+| Hardware SHA | **No** | Same situation as AES. `crypto_esp32_sha.c` is a Zephyr `crypto` API driver, not a PSA driver. SHA operations in Mbed TLS run in software. |
+
+The KNX-IoT Stack's own private Mbed TLS 3.x build (via `FetchContent`) uses
+no hardware acceleration at all — including RNG, which in that build comes from
+the CTR-DRBG software PRNG seeded by the Zephyr entropy driver.
+
+**What the PSA migration enables for the future:** PSA provides the standard
+interface for registering hardware acceleration drivers. If Espressif or the
+Zephyr project adds PSA driver shims for the ESP32 AES and SHA peripherals in
+a future release, the KNX-IoT Stack would benefit automatically without any
+changes to stack code. The migration to PSA now ensures the stack is on the
+correct API to receive that benefit.
+
+References:
+- Hardware accelerated crypto porting: https://os.mbed.com/docs/mbed-os/v6.16/porting/hardware-accelerated-crypto.html
+- Zephyr entropy integration for PSA: `modules/mbedtls/zephyr_entropy.c` in the Zephyr RTOS repo
+
+### 5. CVEs Resolved in Mbed TLS 4.x
+
+Mbed TLS 3.6 carried several published CVEs. The 4.x release line addresses
+these, and the removal of the legacy API surface (which carried most of the
+historical attack surface) reduces the area exposed to future vulnerabilities.
+
+References:
+- Mbed TLS security advisories: https://mbed-tls.readthedocs.io/en/latest/security-advisories/
+- Mbed TLS GitHub releases (security fix details per release): https://github.com/Mbed-TLS/mbedtls/releases
+- Mbed TLS 4.0 migration guide: https://github.com/Mbed-TLS/mbedtls/blob/mbedtls-4.0.0/docs/4.0-migration-guide.md
+
+---
+
 ## Analysis: Current KNX-IoT Stack
 
 ### 1. Mbed TLS Components Used
