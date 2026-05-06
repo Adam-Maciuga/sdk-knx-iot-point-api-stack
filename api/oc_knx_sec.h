@@ -273,7 +273,7 @@ extern "C" {
 	 * @return true has access (the resource is unsecured/public or the ACL has a match)
 	 * @return false does not have access
 	 */
-  bool oc_knx_sec_check_acl(oc_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object);
+  bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object);
 
 	/**
 	 * @brief returns AT entry with OSCORE ID

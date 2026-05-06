@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 
+#include <sys_malloc.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/sys/sys_heap.h>
 #include <zephyr/sys/mem_stats.h>
@@ -21,7 +22,6 @@
 #include "oc_knx_fp.h"
 #include "oc_knx_sec.h"
 #include "oc_core_res.h"
-#include "oc_spake2plus.h"
 #include "oc_endpoint.h" // SERIAL_NUM_SIZE
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
@@ -31,6 +31,22 @@
 extern char sn_upper[];
 extern const char sn_lower_case[];
 extern const char application_name[];
+
+/* Application-provided password callback (declared here to avoid pulling in the
+ * full application header; the app must define this function).
+ * TODO FIXME: move this declaration to a shared port header (e.g. port/oc_app.h)
+ * so all port files can include it instead of duplicating the extern. */
+extern const char *app_get_password(void);
+
+/* Upper-case a NUL-terminated string in-place.
+ * TODO FIXME: move to a shared utility header once util_str2upper is in the stack repo. */
+static void str_toupper_inplace(char *s)
+{
+  while (*s) {
+    *s = (char)toupper((unsigned char)*s);
+    s++;
+  }
+}
 
 /* Format a KNX group address as ETS 3-level string (main/middle/sub).
  * main   = bits 15-11, range 0..31
@@ -130,7 +146,7 @@ static int knx_qr_code_cmd(const struct shell *sh, size_t argc, char **argv)
     char sn_upper[SERIAL_NUM_SIZE + 1];
     memcpy(sn_upper, sn_lower_case, SERIAL_NUM_SIZE + 1);
     // TODO FIXME move utils to the stack repo?
-    util_str2upper(sn_upper);
+    str_toupper_inplace(sn_upper);
 
     shell_print(sh, "KNX:S:%s;P:%s", sn_upper, app_get_password());
     return 0;
@@ -411,7 +427,7 @@ static int knx_at_cmd(const struct shell *sh, size_t argc, char **argv)
         if (e == NULL || oc_string_len(e->id) == 0) {
             continue;
         }
-        oc_print_auth_at_entry(i);
+        oc_print_auth_at_entry(e);
     }
     return 0;
 }
@@ -434,7 +450,7 @@ static int knx_print_all_cmd(const struct shell *sh, size_t argc, char **argv)
     char sn_upper_buf[SERIAL_NUM_SIZE + 1];
     memcpy(sn_upper_buf, sn_lower_case, SERIAL_NUM_SIZE + 1);
     // TODO FIXME move utils to the stack repo?
-    util_str2upper(sn_upper_buf);
+    str_toupper_inplace(sn_upper_buf);
     shell_print(sh, "QR code            : KNX:S:%s;P:%s", sn_upper_buf, app_get_password());
 
     shell_print(sh, "Manufacturer ID    : %" PRIu32, device->mid);
@@ -502,42 +518,39 @@ static int knx_factory_reset_cmd(const struct shell *sh, size_t argc, char **arg
 static int knx_heap_cmd(const struct shell *sh, size_t argc, char **argv)
 {
 #if defined(CONFIG_SYS_HEAP_RUNTIME_STATS)
+    int rc = 0;
+    struct sys_memory_stats stats;
     extern struct sys_heap _system_heap;
 
-    struct sys_memory_stats stats;
+    // TODO do we want more info? See: samples/basic/sys_heap/src/main.c
 
-    shell_print(sh, "Zephyr sys_heap (k_malloc — Wi-Fi driver, net stack, mDNS, DNS, HTTP, DHCP):");
-    if (sys_heap_runtime_stats_get(&_system_heap, &stats) == 0) {
+    shell_print(sh, "Zephyr system heap (k_malloc — Wi-Fi driver, net stack, mDNS, DNS, HTTP, DHCP):");
+    if ((rc = sys_heap_runtime_stats_get(&_system_heap, &stats)) == 0) {
         shell_print(sh, "  Total arena size : %zu bytes", _system_heap.init_bytes);
+        shell_print(sh, "  Total usable     : %zu bytes", stats.allocated_bytes + stats.free_bytes);
         shell_print(sh, "  Allocated        : %zu bytes", stats.allocated_bytes);
         shell_print(sh, "  Free             : %zu bytes", stats.free_bytes);
         shell_print(sh, "  Max. allocated   : %zu bytes", stats.max_allocated_bytes);
     } else {
-        shell_error(sh, "  Failed to read sys_heap stats");
+        shell_error(sh, "  Failed to get system heap stats (%d)!", rc);
     }
-
-#if defined(CONFIG_KNXIOT_ZEPHYR_MALLOC_HEAP_STATS)
-    extern int z_malloc_heap_runtime_stats_get(struct sys_memory_stats *stats);
-    extern size_t z_malloc_heap_init_bytes(void);
 
     shell_print(sh, "C library heap (z_malloc_heap — all malloc/free callers, incl. KNX IoT stack):");
-    if (z_malloc_heap_runtime_stats_get(&stats) == 0) {
-        shell_print(sh, "  Total arena size : %zu bytes", z_malloc_heap_init_bytes());
+    /* Note: free + allocated < init_bytes because the heap uses part of the
+     * arena for its own internal bookkeeping (z_heap header, chunk headers,
+     * alignment padding).  "Total usable" is therefore a slight under-estimate
+     * of the configured arena size. */
+    if ((rc = malloc_runtime_stats_get(&stats)) == 0) {
+        shell_print(sh, "  Total usable     : %zu bytes", stats.allocated_bytes + stats.free_bytes);
         shell_print(sh, "  Allocated        : %zu bytes", stats.allocated_bytes);
         shell_print(sh, "  Free             : %zu bytes", stats.free_bytes);
         shell_print(sh, "  Max. allocated   : %zu bytes", stats.max_allocated_bytes);
     } else {
-        shell_error(sh, "  Failed to read malloc heap stats");
+        shell_error(sh, "  Failed to get malloc heap stats (%d)!", rc);
     }
 #else
-    shell_print(sh, "C library heap (z_malloc_heap): not available");
-    shell_print(sh, "  Enable CONFIG_KNXIOT_ZEPHYR_MALLOC_HEAP_STATS and apply");
-    shell_print(sh, "  0005-zephyr-4.3-lib-libc-common-add-malloc-heap-stats-acc.patch");
-#endif
-
-#else
     shell_error(sh, "Not available: requires CONFIG_SYS_HEAP_RUNTIME_STATS=y");
-#endif /* CONFIG_SYS_HEAP_RUNTIME_STATS */
+#endif
     return 0;
 }
 

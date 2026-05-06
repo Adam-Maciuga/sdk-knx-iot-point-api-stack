@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <inttypes.h>
+#include "psa/crypto.h"
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"
 #include "messaging/coap/engine.h"
@@ -30,7 +31,7 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
   packet->buffer = msg->data;
   uint8_t* current_option = NULL;
 
-#ifdef OC_TCP
+  #ifdef OC_TCP
   if (msg->endpoint.flags & TCP)
   {
     packet->transport_type = COAP_TRANSPORT_TCP;
@@ -46,7 +47,7 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
     current_option = msg->data + COAP_TCP_DEFAULT_HEADER_LEN + num_extended_length_bytes;
   }
   else
-#endif
+  #endif
   {
     packet->transport_type = COAP_TRANSPORT_UDP;
     packet->version = (COAP_HEADER_VERSION_MASK & packet->buffer[0]) >> COAP_HEADER_VERSION_POSITION;
@@ -58,15 +59,13 @@ static coap_status_t oscore_parse_outer_message(oc_message_t* msg, coap_packet_t
     current_option = msg->data + COAP_HEADER_LEN;
   }
 
-#ifdef OC_DEBUG
+  #ifdef OC_DEBUG
 
   print_coap_service(packet->code, "outer coap code");
 
-#endif
+  #endif
 
-  const bool is_ack = packet->type == COAP_TYPE_ACK;
-  const bool is_ack_with_empty_payload = is_ack && packet->code == EMPTY_0_00;
-
+  const bool is_ack_with_empty_payload = packet->type == COAP_TYPE_ACK && packet->code == EMPTY_0_00;
 
   if (is_ack_with_empty_payload)
   {
@@ -156,8 +155,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 
   GENERAL RULE
   ============
-  For an incoming secure request or response, if I can decode it successfully,
-  my answer is always secure.
+  For an incoming secure request or response, if I can decode it successfully, my answer is always secure.
 
   MESSAGE
   =======
@@ -220,60 +218,6 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
                       no own response for a received response
         -> step 8     decryption failed, stop processing and ignore
 
-  STEPS
-  =====
-
-  Send a message
-  =================
-
-  Sender -> Message -> Receiver
-  =============================
-
-    Sender (IA 2.0.1)
-    -----------------
-      Access Token (configured by MaC)
-      - osc.id <0001> (usually the sending GA (mc) or device SN (uc))
-      - osc.ms <ms_1>
-      - osc.salt <salt_1>
-      - osc.contextId 2001140921 (IA + time stamp (seconds))
-
-      Sender Context
-      - Sender ID, 0001
-      - ID Context, 2001140921
-      > AES Key, by device generated
-
-    Message (unicast or multicast)
-    ------------------------------
-    - kid 0001
-    - kid_context 2001140921
-
-    Receiver (IA 2.0.2)
-    -------------------
-      Access Token (configured by MaC)
-      - osc.id <0001> (usually the sending GA (mc) or device SN (uc))
-      - osc.ms <ms_1>
-      - osc.salt <salt_1>
-      - osc.contextId 2002140922 (IA + time stamp (seconds))
-
-      Recipient Context
-      - Recipient ID, ?
-      - ID Context, ?
-      > AES Key, ?
-
-      1. Step: try find (kid/ kid_context) in list of Recipient Contexts
-               (usually saved to avoid a resynchronization after a device restart)
-      2. Step: if nothing found in step 1, create a new Recipient Context
-
-               Step A: look at kid in <Message> to get Recipient ID => 0001
-               Step B: find access token with kid => 0001 to get corresponding master secret <ms_1>
-               Step C: look at kid_context in <Message> to get ID Context => 2001140921
-
-      3. Recipient Context (created - see 2 - or already present)
-         - Recipient ID 0001
-         - ID Context 2001140921 (from <Message>)
-         - Master secret <ms_1> (from Receiver - Access Token)
-         - Replay window <UNINITIALIZED>
-         > AES Key, by device generated
 */
 
 /**
@@ -341,7 +285,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     is_con = coap_pkt->type == COAP_TYPE_CON;
     is_non = coap_pkt->type == COAP_TYPE_NON;
-    is_inbound_request = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
+    is_inbound_request = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
 
     if (is_inbound_request)
     { // (y)
@@ -356,13 +300,13 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   }
 
   // assign first on no error
-  is_reset = coap_pkt->type == COAP_TYPE_RST && coap_pkt->code == EMPTY_0_00; // RFC 7252 §3: RST must carry code 0.00
+  is_reset = coap_pkt->type == COAP_TYPE_RST && coap_pkt->code == EMPTY_0_00; // RFC 7252 RST must carry code 0.00
   is_con   = coap_pkt->type == COAP_TYPE_CON;
   is_non   = coap_pkt->type == COAP_TYPE_NON;
   is_ack   = coap_pkt->type == COAP_TYPE_ACK;
 
-  is_inbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // explicit allowlist: CON/NON/ACK with response code
+  is_inbound_request  = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
+  is_inbound_response = (is_con || is_non || is_ack) && coap_pkt->code > COAP_FETCH; // allowlist: CON (sep)/NON/ACK (piggy) response
 
   if (!is_inbound_request && !is_inbound_response && !is_reset)
   {
@@ -466,8 +410,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           .ssn = inbound_ssn,
           .id_context = (const uint8_t*)coap_pkt->kid_ctx,
           .id_context_size = coap_pkt->kid_ctx_len,
-          .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
-          .read_ssn_from_storage = false // NO offset is added to SSN
+          .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+          .read_ssn_from_storage = false  // NO offset is added to SSN
         };
         oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
@@ -490,7 +434,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       request_piv_len = nonce_piv_len = coap_pkt->piv_len;
 
       if (coap_pkt->piv_len > 0)
-      { // // 8.2, step 4/5 : kid > 0, piv > 0 -> use kid/piv from response message
+      { // 8.2, step 4/5 : kid > 0, piv > 0 -> use kid/piv from response message
 
         // AAD use always request kid/PIV (8.2 step 4)
         oc_oscore_compose_AAD(request_kid, request_kid_len,
@@ -561,8 +505,8 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         // .ssn = 0, not used for receiving; C99 zero-initializes unnamed fields
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
         .id_context_size = coap_pkt->kid_ctx_len,
-        .auth_at = at_entry, // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
-        .read_ssn_from_storage = false // NO offset is added to SSN
+        .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+        .read_ssn_from_storage = false  // NO offset is added to SSN
       };
       oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
 
@@ -884,7 +828,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
 
     // set the OUTER code for the OSCORE packet (on mc request = POST)
-    coap_pkt->code = OC_POST;
+    coap_pkt->code = COAP_POST;
 
     /*
       Wireshark fix - include the 'kid_context' (in msg) = 'ID Context' (OSCORE)
@@ -1019,8 +963,8 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   bool is_non = coap_pkt->type == COAP_TYPE_NON;
   bool is_ack  = coap_pkt->type == COAP_TYPE_ACK;
 
-  bool is_outbound_request  = (is_con || is_non) && coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH;
-  bool is_outbound_response = (is_con || is_non || is_ack) && coap_pkt->code > OC_FETCH; // explicit allowlist: CON/NON/ACK with response code
+  bool is_outbound_request  = (is_con || is_non) && coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH;
+  bool is_outbound_response = (is_con || is_non || is_ack) && coap_pkt->code > COAP_FETCH; // explicit allowlist: CON/NON/ACK with response code
   
   bool unicast_echo_response_by_mc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_MC_SRC;
   bool unicast_echo_response_by_uc = from_org_msg_cloned_outgoing_msg->endpoint.flags & ECHO_CAUSED_BY_UC_SRC;
@@ -1176,8 +1120,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         // mc echo data = random
         uint8_t rnd[10];
 
-        mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
-        mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
+        psa_generate_random(rnd, sizeof(rnd));
 
         /*
                'Server' Side (details see method 'oc_oscore_receive_message' header), create:

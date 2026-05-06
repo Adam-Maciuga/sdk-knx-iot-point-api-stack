@@ -12,23 +12,13 @@
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
-#include "util/oc_etimer.h" 
+#include "util/oc_etimer.h"
+#include "messaging/coap/constants.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * @brief CoAP methods
- *
- */
-typedef enum {
-  OC_GET = 1,                          /**< GET */
-  OC_POST,                             /**< POST*/
-  OC_PUT,                              /**< PUT*/
-  OC_DELETE,                           /**< DELETE*/
-  OC_FETCH                             /**< FETCH*/
-} oc_method_t;
 
 /**
  * @brief CoAP observe codes, see https://www.rfc-editor.org/rfc/rfc7641#section-2
@@ -379,7 +369,8 @@ typedef struct oc_resource oc_resource_t;
  * @brief request information structure
  *
  */
-typedef struct oc_request_t {
+typedef struct oc_request_t 
+{
   oc_endpoint_t* origin;               /**< origin (endpoint) of the request */
   const oc_resource_t* resource;       /**< addressed target resource */
   const char* query;                   /**< query (as string) */
@@ -392,7 +383,7 @@ typedef struct oc_request_t {
   oc_content_format_t content_format;  /**< content format (of the payload in the request) */
   oc_content_format_t  accept;         /**< accept header, e.g. the format to be returned on the request */
   oc_response_t* response;             /**< pointer to the response */
-  oc_method_t request_method;          /**< the request (CoAP) method */
+  coap_method_t request_method;        /**< the request (CoAP) method */
 } oc_request_t;
 
 /**
@@ -497,8 +488,8 @@ typedef struct oc_resource_dummy_s {
  *
  */
 typedef enum {
-  OC_EVENT_DONE = 0,                   /**< callback done, e.g. don't call again */
-  OC_EVENT_CONTINUE                    /**< callbacks continue */
+  OC_EVENT_DONE = 0,                   /**< callback is executed, will be deleted (don't call again) */
+  OC_EVENT_CONTINUE                    /**< callback is executed, will be NOT deleted, continues, restart timer and wait for next call */
 } oc_event_callback_retval_t;
 
 typedef oc_event_callback_retval_t(*oc_trigger_t)(void*);
@@ -507,7 +498,8 @@ typedef oc_event_callback_retval_t(*oc_trigger_t)(void*);
  * @brief event callback
  *
  */
-typedef struct oc_event_callback_s {
+typedef struct oc_event_callback_s 
+{
   struct oc_event_callback_s* next;    /**< next callback */
   struct oc_etimer timer;              /**< timer */
   oc_trigger_t callback;               /**< callback to be invoked */

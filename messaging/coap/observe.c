@@ -154,7 +154,7 @@ void coap_remove_observer(coap_observer_t *o)
   const char *query = get_iface_query(o->iface_mask);
   oc_blockwise_state_t *response_state = oc_blockwise_find_response_buffer(
     oc_string(o->resource->uri) + 1, oc_string_len(o->resource->uri) - 1,
-  &o->endpoint, OC_GET, query, (query) ? strlen(query) : 0,
+  &o->endpoint, COAP_GET, query, (query) ? strlen(query) : 0,
     OC_BLOCKWISE_SERVER);
   if (response_state) {
     response_state->ref_count = 0;
@@ -272,7 +272,7 @@ int coap_remove_observers_on_dos_change(bool reset)
   // Iterate over observers.
   coap_observer_t *obs = (coap_observer_t *)oc_list_head(observers_list);
   while (obs != NULL) {
-    if (reset || !oc_sec_check_acl(OC_GET, obs->resource, &obs->endpoint)) {
+    if (reset || !oc_sec_check_acl(COAP_GET, obs->resource, &obs->endpoint)) {
       coap_observer_t *o = obs;
       coap_packet_t notification[1];
 #ifdef OC_TCP
@@ -446,7 +446,7 @@ int coap_notify_observers(const oc_resource_t *resource,
               response_state = oc_blockwise_find_response_buffer(
                       oc_string(obs->resource->uri) + 1, 
                       oc_string_len(obs->resource->uri) - 1, 
-                      &obs->endpoint, OC_GET,
+                      &obs->endpoint, COAP_GET,
                       NULL, 0, OC_BLOCKWISE_SERVER);
               if (response_state) {
                 if (response_state->payload_size ==
@@ -461,7 +461,7 @@ int coap_notify_observers(const oc_resource_t *resource,
               response_state = oc_blockwise_alloc_response_buffer(
                       oc_string(obs->resource->uri) + 1,
                       oc_string_len(obs->resource->uri) - 1, 
-                      &obs->endpoint, OC_GET,
+                      &obs->endpoint, COAP_GET,
                       OC_BLOCKWISE_SERVER);
 
               if (!response_state) {
@@ -661,7 +661,7 @@ void notify_resource_defaults_observer(const oc_resource_t *resource,
           notification->type = COAP_TYPE_CON;
           response_state = oc_blockwise_find_response_buffer(
             oc_string(obs->resource->uri) + 1,
-            oc_string_len(obs->resource->uri) - 1, &obs->endpoint, OC_GET, NULL,
+            oc_string_len(obs->resource->uri) - 1, &obs->endpoint, COAP_GET, NULL,
             0, OC_BLOCKWISE_SERVER);
           if (response_state) {
             if (response_state->payload_size ==
@@ -674,7 +674,7 @@ void notify_resource_defaults_observer(const oc_resource_t *resource,
           }
           response_state = oc_blockwise_alloc_response_buffer(
             oc_string(obs->resource->uri) + 1,
-            oc_string_len(obs->resource->uri) - 1, &obs->endpoint, OC_GET,
+            oc_string_len(obs->resource->uri) - 1, &obs->endpoint, COAP_GET,
             OC_BLOCKWISE_SERVER);
           if (!response_state) {
             goto leave_notify_observers;

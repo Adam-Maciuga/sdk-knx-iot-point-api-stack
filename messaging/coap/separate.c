@@ -82,7 +82,7 @@ coap_separate_accept(void* request, oc_separate_response_t* separate_response, o
 
     oc_new_string(&separate_store->uri, coap_req->uri_path, coap_req->uri_path_len);
 
-    separate_store->method = (oc_method_t)coap_req->code;
+    separate_store->method = (coap_method_t)coap_req->code;
 
     #ifdef OC_BLOCK_WISE
     separate_store->block2_size = block2_size;

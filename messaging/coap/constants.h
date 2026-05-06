@@ -75,7 +75,7 @@ extern "C" {
 #define OC_EXCHANGE_LIFETIME (318)
 
 #define COAP_HEADER_LEN 4   /* | version:0xC0 type:0x30 tkl:0x0F | code | mid:0xFF00 | mid:0x00FF | */
-#define COAP_TOKEN_LEN 8    /* The maximum number of bytes for the Token */
+#define COAP_TOKEN_LEN 8    /* Token len (exactly, stack sends always this amount of token bytes) */
 #define COAP_ETAG_LEN 8     /* The maximum number of bytes for the ETag */
 #define COAP_ECHO_LEN 40    /* The maximum size of the Echo option */
 
@@ -115,19 +115,27 @@ typedef enum {
 } coap_message_type_t;
 
 /** CoAP request method codes */
-typedef enum { COAP_GET = 1, COAP_POST, COAP_PUT, COAP_DELETE } coap_method_t;
+typedef enum
+{
+  COAP_EMPTY = 0, // not used, only to initialize a coap packet with code {0} -> compiler warning 
+  COAP_GET = 1,
+  COAP_POST,
+  COAP_PUT,
+  COAP_DELETE,
+  COAP_FETCH
+} coap_method_t;
 
 /** CoAP response codes */
 typedef enum {
   COAP_NO_ERROR = 0,
 
-  EMPTY_0_00 = 0,     /* EMPTY */ 
-  CREATED_2_01 = 65,  /* CREATED */
-  DELETED_2_02 = 66,  /* DELETED */
-  VALID_2_03 = 67,    /* NOT_MODIFIED */
-  CHANGED_2_04 = 68,  /* CHANGED */
-  CONTENT_2_05 = 69,  /* OK */
-  CONTINUE_2_31 = 95, /* CONTINUE */
+  EMPTY_0_00 = 0,                      /* EMPTY */ 
+  CREATED_2_01 = 65,                   /* CREATED */
+  DELETED_2_02 = 66,                   /* DELETED */
+  VALID_2_03 = 67,                     /* NOT_MODIFIED */
+  CHANGED_2_04 = 68,                   /* CHANGED */
+  CONTENT_2_05 = 69,                   /* OK */
+  CONTINUE_2_31 = 95,                  /* CONTINUE */
 
   BAD_REQUEST_4_00 = 128,              /* BAD_REQUEST */
   UNAUTHORIZED_4_01 = 129,             /* UNAUTHORIZED */
@@ -140,12 +148,12 @@ typedef enum {
   REQUEST_ENTITY_TOO_LARGE_4_13 = 141, /* REQUEST_ENTITY_TOO_LARGE */
   UNSUPPORTED_MEDIA_TYPE_4_15 = 143,   /* UNSUPPORTED_MEDIA_TYPE */
 
-  INTERNAL_SERVER_ERROR_5_00 = 160,  /* INTERNAL_SERVER_ERROR */
-  NOT_IMPLEMENTED_5_01 = 161,        /* NOT_IMPLEMENTED */
-  BAD_GATEWAY_5_02 = 162,            /* BAD_GATEWAY */
-  SERVICE_UNAVAILABLE_5_03 = 163,    /* SERVICE_UNAVAILABLE */
-  GATEWAY_TIMEOUT_5_04 = 164,        /* GATEWAY_TIMEOUT */
-  PROXYING_NOT_SUPPORTED_5_05 = 165, /* PROXYING_NOT_SUPPORTED */
+  INTERNAL_SERVER_ERROR_5_00 = 160,     /* INTERNAL_SERVER_ERROR */
+  NOT_IMPLEMENTED_5_01 = 161,           /* NOT_IMPLEMENTED */
+  BAD_GATEWAY_5_02 = 162,               /* BAD_GATEWAY */
+  SERVICE_UNAVAILABLE_5_03 = 163,       /* SERVICE_UNAVAILABLE */
+  GATEWAY_TIMEOUT_5_04 = 164,           /* GATEWAY_TIMEOUT */
+  PROXYING_NOT_SUPPORTED_5_05 = 165,    /* PROXYING_NOT_SUPPORTED */
 
   /* Stack errors */
   MEMORY_ALLOCATION_ERROR = 192,

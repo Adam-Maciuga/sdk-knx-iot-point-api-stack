@@ -20,7 +20,12 @@
 extern "C" {
 #endif
 
-// TODO add documentation?
+/**
+  @brief find a group address within a recipient table entry including a group address array.
+
+  @param ga the to be found group address
+   
+*/
 oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
 
 /**
@@ -131,10 +136,10 @@ void oc_send_s_mode_unicast_message(
  * Sends CoAP GET to /.well-known/core?ep=knx://ia.<iid>.<ia> via multicast
  * and extracts the IPv6 address from the source address of the response.
  *
- * @param recipient recipient in table
- * @return resolver status
+ * @param data callback data 
+ * @return callback status
  */
-oc_ip_status_t knx_resolve_via_coap_discovery(oc_group_table_t* recipient);
+oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* data);
 
 /**
  * @brief Process pending s-mode messages for a resolved IA

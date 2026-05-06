@@ -101,18 +101,8 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uin
   return t;
 }
 
-coap_transaction_t* smode_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
+coap_transaction_t* coap_new_transaction_with_data(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_message_t* s_mode_message)
 {
-  /* 
-    We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged
-    with an Echo option. Use coap transaction framework to handle this.
-    0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
-    1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension
-    - transaction init with a fixed timeout
-    - send message 1:1 as 'send transaction' is doing that, but without clearing the transaction afterward
-      (hence transaction lasts until the timeout expires after sending the s-mode message, see use of S_MODE_NON_REQUEST)
-  */
-
   coap_transaction_t* t = coap_new_transaction(mid, token, token_len, &s_mode_message->endpoint);
 
   if (t)
@@ -138,10 +128,10 @@ coap_transaction_t* smode_new_transaction(uint16_t mid, const uint8_t* token, ui
 /* 
   sends a message by 'transaction'
   NON 
-    - non s-mode msg : send + clear the transaction afterward
-    - s-mode msg: send + NOT clear the transaction afterward (transaction runs into timeout)
+    - others : send + clear the transaction afterward (note that also an 'echo re-request' falls under this 'others' type)
+    - s-mode : send + NOT clear the transaction afterward (kept to match with 'echo responses' -> transaction runs into timeout)
   CON 
-    - all msg : send + clear the transaction after response or all repetitions are done
+    - all : send + clear the transaction after response or all repetitions are done
 */
 void coap_send_transaction(coap_transaction_t *t) 
 {
@@ -152,20 +142,14 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #ifdef OC_DEBUG
 
-  if (t == NULL) {
-    OC_ERR("transaction == NULL");
-  }
+  if (t == NULL) { OC_ERR("transaction == NULL"); }
+  if (t->message == NULL) { OC_ERR("message in transaction == NULL");}
+  if (t->message->data == NULL) { OC_ERR("data in message in transaction == NULL");}
 
-  if (t->message == NULL) {
-    OC_ERR("message in transaction == NULL");
-  }
-
-  if (t->message->data == NULL) {
-    OC_ERR("data in message in transaction == NULL");
-  }
   #endif
 
   const uint8_t type = (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION;
+  
   // confirmable s-mode or confirmable non s-mode messages ... 
   const bool confirmable_all_types = type == COAP_TYPE_CON;
   const bool non_confirmable_smode = t->message->endpoint.flags & S_MODE_NON_REQUEST;

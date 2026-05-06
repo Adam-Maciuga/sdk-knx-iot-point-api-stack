@@ -44,7 +44,7 @@ typedef struct oc_blockwise_state_s
   struct oc_blockwise_state_s *next;
   oc_string_t href;           /**< href e.g. path of the transfer */
   oc_endpoint_t endpoint;     /**< endpoint of the transfer */
-  oc_method_t method;         /**< coap method for this blockwise transfer */
+  coap_method_t method;       /**< coap method for this blockwise transfer */
   oc_blockwise_role_t role;   /**< role of the buffer, e.g. client or server */
   uint32_t payload_size;      /**< the payload size in bytes */
   uint32_t next_block_offset; /**< offset in buffer to the next block */
@@ -160,7 +160,7 @@ oc_blockwise_state_t *oc_blockwise_find_response_buffer_by_client_cb(
  */
 oc_blockwise_state_t *oc_blockwise_find_request_buffer(
   const char *href, size_t href_len, oc_endpoint_t *endpoint,
-  oc_method_t method, const char *query, size_t query_len,
+  coap_method_t method, const char *query, size_t query_len,
   oc_blockwise_role_t role);
 
 /**
@@ -177,7 +177,7 @@ oc_blockwise_state_t *oc_blockwise_find_request_buffer(
  */
 oc_blockwise_state_t *oc_blockwise_find_response_buffer(
   const char *href, size_t href_len, oc_endpoint_t *endpoint,
-  oc_method_t method, const char *query, size_t query_len,
+  coap_method_t method, const char *query, size_t query_len,
   oc_blockwise_role_t role);
 
 /**
@@ -192,7 +192,7 @@ oc_blockwise_state_t *oc_blockwise_find_response_buffer(
  */
 oc_blockwise_state_t *oc_blockwise_alloc_request_buffer(
   const char *href, size_t href_len, oc_endpoint_t *endpoint,
-  oc_method_t method, oc_blockwise_role_t role);
+  coap_method_t method, oc_blockwise_role_t role);
 
 /**
  * @brief allocate the response buffer
@@ -206,7 +206,7 @@ oc_blockwise_state_t *oc_blockwise_alloc_request_buffer(
  */
 oc_blockwise_state_t *oc_blockwise_alloc_response_buffer(
   const char *href, size_t href_len, oc_endpoint_t *endpoint,
-  oc_method_t method, oc_blockwise_role_t role);
+  coap_method_t method, oc_blockwise_role_t role);
 
 /**
  * @brief free the request buffer

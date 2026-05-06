@@ -46,8 +46,19 @@ bool oc_do_s_mode_message_update(void)
 
     if (udp_message_update->length > 0)
     {
-      // create a new (specific) s-mode transaction
-      coap_transaction_t* s_mode_transaction = smode_new_transaction(
+      /*
+        We must cache OSCORE s-mode requests, as these frames are the ones that will be challenged with an Echo option.
+        Use coap transaction framework to handle this.
+        0. for CON s-mode messages (uc) use the coap framework as it is, con messages simply follow coap transactions
+        1. for NON s-mode messages (uc + mc) use the coap framework with some s-mode extension done in 'coap_send_transaction':
+           - init transaction with a fixed timeout
+           - send 'echo re-request' message ones in view of AL (3.6.4.1.3); may result in reps for CON messages on TL level
+           - DON'T clear the transaction after sending
+           - transaction expires on timeout automatically without resending the NON s-mode message again, 
+             timeout is only present to catch & process further incoming echo responses from DIFFERENT devices with same 
+             coap token as in org. s-mode request (see use of S_MODE_NON_REQUEST)
+      */
+      coap_transaction_t* s_mode_transaction = coap_new_transaction_with_data(
         udp_coap_request->mid,
         udp_coap_request->token,
         udp_coap_request->token_len,
@@ -127,16 +138,13 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
   // apply
   udp_message_update->endpoint.flags |= flags;
 
-  coap_udp_init_message(udp_coap_request, type, OC_POST, coap_get_next_mid());
+  coap_udp_init_message(udp_coap_request, type, COAP_POST, coap_get_next_mid());
   coap_set_header_accept(udp_coap_request, APPLICATION_CBOR);
 
-  uint32_t a = oc_random_value();
-  uint32_t b = oc_random_value();
-
-  // set here fix 8 byte token len
-  udp_coap_request->token_len = 8; 
-  memcpy(udp_coap_request->token + 0, (uint8_t*)&a, 4);
-  memcpy(udp_coap_request->token + 4, (uint8_t*)&b, 4);
+  // set here fix COAP_TOKEN_LEN byte token len
+  udp_coap_request->token_len = COAP_TOKEN_LEN; 
+  const uint32_t a = oc_random_value(); memcpy(udp_coap_request->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(udp_coap_request->token + 4, &b, sizeof(b));
 
   // s-mode messages carries a uri + no query + outgoing format
   coap_set_header_content_format(udp_coap_request, APPLICATION_CBOR);
@@ -158,13 +166,13 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   // a callback is attached to this (outbound) well-known GET message, the message needs to take over the callback token/mid
   memcpy(&udp_message_update->endpoint, well_known_message, sizeof(oc_endpoint_t));
   
-  coap_udp_init_message(udp_coap_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, OC_GET, callback->mid);
+  coap_udp_init_message(udp_coap_request, non_confirmable ? COAP_TYPE_NON : COAP_TYPE_CON, COAP_GET, callback->mid);
   coap_set_header_accept(udp_coap_request, APPLICATION_LINK_FORMAT);
 
   // well-known message DO NOT carry a payload (yet)
 
-  // set here fix 8 byte token len
-  udp_coap_request->token_len = 8;
+  // set here fix COAP_TOKEN_LEN byte token len
+  udp_coap_request->token_len = COAP_TOKEN_LEN;
   memcpy(udp_coap_request->token + 0, callback->token + 0, 4);
   memcpy(udp_coap_request->token + 4, callback->token + 4, 4);
 

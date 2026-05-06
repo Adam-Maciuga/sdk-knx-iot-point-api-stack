@@ -32,11 +32,14 @@ include(FetchContent)
 ### Mbed TLS (provided by the KNX-IoT stack) ###
 if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     # Note:
-    # All *.c files from Mbed TLS v3.6.5 directory "mbedtls/library" are used, other directories are not required.
-
-    # Note:
-    # Make sure all KNX-IoT related options are already set, they are used in "knx_mbedtls_config.h".
-    set(MBEDTLS_CONFIG_FILE "${PROJECT_SOURCE_DIR}/security/knx_mbedtls_config.h") # TODO refactor config file
+    # Mbed TLS 4.x splits the configuration into two files.
+    # Make sure all KNX-IoT related options are already set before FetchContent_MakeAvailable,
+    # as both files are included during compilation of the Mbed TLS library targets.
+    #
+    # TF_PSA_CRYPTO_CONFIG_FILE: PSA crypto primitives (PSA_WANT_* defines).
+    # MBEDTLS_CONFIG_FILE: TLS/X.509/platform options (MBEDTLS_* defines).
+    set(TF_PSA_CRYPTO_CONFIG_FILE "${PROJECT_SOURCE_DIR}/security/knx_psa_crypto_config.h" CACHE FILEPATH "" FORCE)
+    set(MBEDTLS_CONFIG_FILE "${PROJECT_SOURCE_DIR}/security/knx_mbedtls_config.h" CACHE FILEPATH "" FORCE)
 
     # Be strict and reduce compilation resources
     set(UNSAFE_BUILD OFF CACHE BOOL "" FORCE)
@@ -50,42 +53,51 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     #set(LINK_WITH_PTHREAD OFF CACHE BOOL "" FORCE)
     #set(LINK_WITH_TRUSTED_STORAGE OFF CACHE BOOL "" FORCE)
 
+    # Note:
+    # GEN_FILES=ON (the default on Linux) requires Perl and Python to regenerate
+    # auto-generated source files. Disable it when building as a subproject.
+    # The pre-generated files shipped in the release tarball are used instead.
+    set(GEN_FILES OFF CACHE BOOL "" FORCE)
+
     FetchContent_Declare(
         mbedtls
-        # v3.6.5 is a LTS security update.
+        # v4.1.0 released 2026-03-31.
         # Note:
         # The git approach uses ~250MB more disk space, so we go with the release version.
-        URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.5/mbedtls-3.6.5.tar.bz2
-        URL_HASH SHA256=4a11f1777bb95bf4ad96721cac945a26e04bf19f57d905f241fe77ebeddf46d8
+        URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-4.1.0/mbedtls-4.1.0.tar.bz2
+        URL_HASH SHA256=377a09cf8eb81b5fb2707045e5522d5489d3309fed5006c9874e60558fc81d10
         DOWNLOAD_EXTRACT_TIMESTAMP ON
     )
 
     FetchContent_MakeAvailable(mbedtls)
 
-    # Additional include directories for "knx_mbedtls_config.h".
-    # TBD FIXME #include "port/oc_assert.h" why is that one needed?
+    # Additional include directories for "knx_psa_crypto_config.h" and "knx_mbedtls_config.h".
+    # Both config files include KNX-IoT stack headers (<oc_config.h>, "port/oc_assert.h").
+    # knx_mbedtls_config.h also includes "port/oc_connectivity.h".
+    # In Mbed TLS 4.x the crypto library is split into many internal sub-targets, each
+    # of which compiles the config files independently. The stack include dirs must
+    # therefore be added to every sub-target. Guarded with if(TARGET …) because not
+    # all drivers are enabled in every build.
     set(MBEDTLS_INCLUDE_DIRS
         PRIVATE "${PROJECT_SOURCE_DIR}"
         PRIVATE "${PROJECT_SOURCE_DIR}/include"
         PRIVATE "${PORT_DIR}"
-    ) 
-
-    target_include_directories(mbedtls ${MBEDTLS_INCLUDE_DIRS})
-    target_include_directories(mbedcrypto ${MBEDTLS_INCLUDE_DIRS})
-    target_include_directories(mbedx509 ${MBEDTLS_INCLUDE_DIRS})
-    # Note:
-    # p256m and everest are sub-libraries of mbedtls that also include oc_config.h
-    # via knx_mbedtls_config.h. They do not inherit include dirs from mbedcrypto,
-    # so PORT_DIR must be added explicitly.
-    target_include_directories(p256m ${MBEDTLS_INCLUDE_DIRS})
-    target_include_directories(everest ${MBEDTLS_INCLUDE_DIRS})
+    )
+    target_include_directories(tfpsacrypto ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedtls     ${MBEDTLS_INCLUDE_DIRS})
+    target_include_directories(mbedx509    ${MBEDTLS_INCLUDE_DIRS})
+    foreach(_tgt builtin p256-m everest pqcp extras platform utilities)
+        if(TARGET ${_tgt})
+            target_include_directories(${_tgt} ${MBEDTLS_INCLUDE_DIRS})
+        endif()
+    endforeach()
 
     if(WIN32 AND NOT MSVC)
         # Note:
-        # Mbed TLS v3.6.5 throws -Werror=format= errors when using MinGW
-        # Remove the error flag from Mbed TLS targets (not needed/supported on MSVC)
+        # Mbed TLS 4.x throws -Werror=format= errors when using MinGW.
+        # Remove the error flag from Mbed TLS targets (not needed/supported on MSVC).
+        target_compile_options(tfpsacrypto PRIVATE -Wno-error=format)
         target_compile_options(mbedtls PRIVATE -Wno-error=format)
-        target_compile_options(mbedcrypto PRIVATE -Wno-error=format)
         target_compile_options(mbedx509 PRIVATE -Wno-error=format)
     endif()
 endif()
@@ -138,7 +150,7 @@ target_sources(kis-port PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/dns-sd.c
     ${PORT_DIR}/ipadapter.c
     ${PORT_DIR}/oc_network_interface.c
-    ${PORT_DIR}/random.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/random_psa.c
     ${PORT_DIR}/storage.c
     ${PORT_DIR}/tcpadapter.c
 )

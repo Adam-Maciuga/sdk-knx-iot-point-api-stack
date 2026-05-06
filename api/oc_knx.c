@@ -22,9 +22,9 @@
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
-#ifdef OC_SPAKE
-#include "security/oc_spake2plus.h"
-#endif
+
+#include "security/spake2plus.h"
+
 
 // ---------------------------Variables --------------------------------------
 
@@ -1337,48 +1337,37 @@ const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_idevid_data};
 PRAGMA_OUT
 
-#ifdef OC_SPAKE
+
 static spake_data_t spake_data = {0};
-static int failed_handshake_count = 0;
 
-static bool is_blocking = false;
+static int8_t failed_handshake_count = 0;
+static bool is_blocked = false;
 
-static oc_event_callback_retval_t decrement_counter(void* data)
+// called every 10 seconds, if zero -> unblock the client
+static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
+  // on '0' don't continue to decrement and unblock (note the callback is still active)
   if (failed_handshake_count > 0)
+  if (--failed_handshake_count == 0)
   {
-    --failed_handshake_count;
-  }
-
-  if (is_blocking && failed_handshake_count == 0)
-  {
-    is_blocking = false;
+    is_blocked = false;
   }
   return OC_EVENT_CONTINUE;
 }
 
-static void increment_counter(void) { ++failed_handshake_count; }
-
-// prevent from brute force handshake attempts
-static bool is_handshake_blocked(void)
+// called on every unsuccessful spake attempt, if > 10 -> block the client
+static void increment_spake_request_counter(void)
 {
-  if (is_blocking)
+  // on '60' don't continue to increment
+  if (failed_handshake_count < 60)
+  if (++failed_handshake_count > 10)
   {
-    return true;
+    is_blocked = true;
   }
-
-  // after 10 failed attempts per minute, block the client for the
-  // next minute
-  if (failed_handshake_count > 10)
-  {
-    is_blocking = true;
-    return true;
-  }
-
-  return false;
 }
 
-#endif
+// returns handshake blocker
+static bool is_handshake_blocked(void) { return is_blocked; }
 
 // a linked list for THE delayed response message for a (single) spake request (only one pending response is allowed)
 static oc_separate_response_t delayed_separate_response_for_a_spake_request;
@@ -1428,14 +1417,13 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-#ifdef OC_SPAKE
+
   if (is_handshake_blocked())
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
     request->response->response_buffer->max_age = failed_handshake_count * 10;
     return;
   }
-#endif
 
   // set ptr
   oc_rep_t* rep = request->request_payload;
@@ -1598,8 +1586,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     // return 2.04 changed, frame rnd, salt, it , ...
 
-    #ifdef OC_SPAKE
-
     /*
       PASE parameter exchange (step 1)
 
@@ -1607,14 +1593,13 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
       - set fixed compile time value for number of iterations (IMPORTANT consider the notes on oc_pase_t type definition)
 
     */
-    g_pase.it = OC_SPAKE_IT;
-    oc_spake_parameter_exchange(g_pase.rnd, g_pase.salt);
+    g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
+    spake2plus_parameter_exchange(g_pase.rnd, sizeof(g_pase.rnd),
+                                  g_pase.salt, sizeof(g_pase.salt));
 
     OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase.rnd, sizeof(g_pase.rnd));
     OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
     OC_DBG_SPAKE("Iterations: %u", g_pase.it);
-
-    #endif 
 
     oc_rep_begin_root_object();
 
@@ -1635,64 +1620,55 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     return OC_EVENT_DONE;
   }
 
-  #ifdef OC_SPAKE
+  
   // step 2
   if (pase_step == SPAKE_PA_SHARE_P)
   {
     // return 2.04 changed, frame shareV, confirmV
 
-    mbedtls_mpi_free(&spake_data.w0);
-    mbedtls_ecp_point_free(&spake_data.L);
-    mbedtls_mpi_free(&spake_data.y);
-    mbedtls_ecp_point_free(&spake_data.pub_y);
+    memset(&spake_data, 0, sizeof(spake_data));
 
-    mbedtls_mpi_init(&spake_data.w0);
-    mbedtls_ecp_point_init(&spake_data.L);
-    mbedtls_mpi_init(&spake_data.y);
-    mbedtls_ecp_point_init(&spake_data.pub_y);
-
-    int ret = oc_spake_get_w0_L_params(sizeof(g_pase.salt), g_pase.salt, g_pase.it, &spake_data.w0, &spake_data.L);
+    /* app_get_password() is provided by the application; prototype declared here
+     * to avoid pulling in the full application header. */
+    const char *app_get_password(void);
+    const char *pwd = app_get_password();
+    int ret = spake2plus_get_w0_L_params(
+      (const uint8_t *)pwd, strlen(pwd),
+      g_pase.salt, sizeof(g_pase.salt), g_pase.it,
+      KNX_IOT_SPAKE2PLUS_ID_PROVER, KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
+      spake_data.w0, spake_data.L);
     if (ret != 0)
     {
-      OC_ERR("oc_spake_get_w0_L_params failed with code %d", ret);
+      OC_ERR("SPAKE2+ password expansion failed with code %d!", ret);
       goto error;
     }
 
-    ret = oc_spake_gen_keypair(&spake_data.y, &spake_data.pub_y);
+    ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
     if (ret != 0)
     {
-      OC_ERR("oc_spake_gen_keypair failed with code %d", ret);
+      OC_ERR("SPAKE2+ ephemeral key pair generation failed with code %d!", ret);
       goto error;
     }
 
-    // next step: calculate pB, encode it into the struct
-    mbedtls_ecp_point pB;
-    mbedtls_ecp_point_init(&pB);
-    ret = oc_spake_calc_shareV(&pB, &spake_data.pub_y, &spake_data.w0);
+    // calculate shareV = pub_y + w0*N (encoded as uncompressed P-256 point)
+    ret = spake2plus_calc_shareV(g_pase.shareV, spake_data.pub_y, spake_data.w0);
     if (ret != 0)
     {
-      OC_ERR("oc_spake_calc_pB failed with code %d", ret);
-      mbedtls_ecp_point_free(&pB);
+      OC_ERR("SPAKE2+ shareV computation failed with code %d!", ret);
       goto error;
     }
 
-    ret = oc_spake_encode_pubkey(&pB, g_pase.shareV);
+    ret = spake2plus_calc_transcript_responder(&spake_data, g_pase.shareP, g_pase.shareV,
+                                               KNX_IOT_SPAKE2PLUS_ID_PROVER,
+                                               KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
+                                               KNX_IOT_SPAKE2PLUS_CONTEXT);
     if (ret != 0)
     {
-      OC_ERR("oc_spake_encode_pubkey failed with code %d", ret);
-      mbedtls_ecp_point_free(&pB);
-      goto error;
-    }
-    ret = oc_spake_calc_transcript_responder(&spake_data, g_pase.shareP, &pB);
-    if (ret != 0)
-    {
-      OC_ERR("oc_spake_calc_transcript_responder failed with code %d", ret);
-      mbedtls_ecp_point_free(&pB);
+      OC_ERR("SPAKE2+ transcript computation failed with code %d!", ret);
       goto error;
     }
 
-    oc_spake_calc_confirmV(spake_data.K_main, g_pase.confirmV, g_pase.shareP);
-    mbedtls_ecp_point_free(&pB);
+    spake2plus_calc_confirmV(spake_data.K_main, g_pase.confirmV, g_pase.shareP);
 
     // return 2.04 changed, frame shareV (11) & confirmV (13)
 
@@ -1720,19 +1696,19 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("KaKe & pB Bytes");
     OC_LOGbytes_OSCORE(spake_data.K_main, 32);
     OC_LOGbytes_OSCORE(g_pase.shareV, sizeof(g_pase.shareV));
-    oc_spake_calc_confirmP(spake_data.K_main, expected_ca, g_pase.shareV);
+    spake2plus_calc_confirmP(spake_data.K_main, expected_ca, g_pase.shareV);
     OC_DBG_SPAKE("cA:");
     OC_LOGbytes_OSCORE(expected_ca, 32);
 
     if (memcmp(expected_ca, g_pase.confirmP, sizeof(g_pase.confirmP)) != 0)
     {
-      OC_ERR("oc_spake_calc_confirmP failed");
+      OC_ERR("SPAKE2+ confirmP verification failed!");
       goto error;
     }
 
     // shared_key is 16-byte array - NOT NULL TERMINATED
     uint8_t shared_key[16] = {0};
-    oc_spake_calc_K_shared(spake_data.K_main, shared_key);
+    spake2plus_calc_K_shared(spake_data.K_main, shared_key);
 
     // set the /auth/at entry with the calculated shared key
     // update pase token in AT table
@@ -1753,16 +1729,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_send_empty_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
 
     // handshake completed successfully - clear state
-    memset(spake_data.K_main, 0, sizeof(spake_data.K_main));
-    mbedtls_ecp_point_free(&spake_data.L);
-    mbedtls_ecp_point_free(&spake_data.pub_y);
-    mbedtls_mpi_free(&spake_data.w0);
-    mbedtls_mpi_free(&spake_data.y);
-
-    mbedtls_ecp_point_init(&spake_data.L);
-    mbedtls_ecp_point_init(&spake_data.pub_y);
-    mbedtls_mpi_init(&spake_data.w0);
-    mbedtls_mpi_init(&spake_data.y);
+    memset(&spake_data, 0, sizeof(spake_data));
 
     // reset pase object, except id (it holds an allocated oc_string stack memory)
     memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
@@ -1772,7 +1739,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
     memset(g_pase.salt, 0, sizeof(g_pase.salt));
 
-    g_pase.it = OC_SPAKE_IT;
+    g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
 
     return OC_EVENT_DONE;
   }
@@ -1782,19 +1749,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   PRINT("oc_core_knx_spake_separate_post_handler - error");
 
   // be paranoid: wipe all global data after an error
-  memset(spake_data.K_main, 0, sizeof(spake_data.K_main));
-  mbedtls_ecp_point_free(&spake_data.L);
-  mbedtls_ecp_point_free(&spake_data.pub_y);
-  mbedtls_mpi_free(&spake_data.w0);
-  mbedtls_mpi_free(&spake_data.y);
+  memset(&spake_data, 0, sizeof(spake_data));
 
-  mbedtls_ecp_point_init(&spake_data.L);
-  mbedtls_ecp_point_init(&spake_data.pub_y);
-  mbedtls_mpi_init(&spake_data.w0);
-  mbedtls_mpi_init(&spake_data.y);
-  #endif 
-
-  // reset pase object, except id (it holds an allocated oc_string stack memory)
+  // reset pase object
   memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
   memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
   memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
@@ -1803,10 +1760,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
 
 
-  #ifdef OC_SPAKE
-  g_pase.it = OC_SPAKE_IT;
-  increment_counter();
-  #endif
+  g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
+  increment_spake_request_counter();
 
   oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
@@ -1833,24 +1788,20 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
                                                &core_resource_knx_spake_data};
 PRAGMA_OUT
 
-#ifdef OC_SPAKE
-int oc_initialise_spake_data(void)
+int oc_spake2plus_init_data(void)
 {
   // can fail if initialization of the RNG does not work (return == 0)
-  if(oc_spake_init() != 0) 
+  if(spake2plus_init() != 0)
     return -1;
 
-  mbedtls_mpi_init(&spake_data.w0);
-  mbedtls_ecp_point_init(&spake_data.L);
-  mbedtls_mpi_init(&spake_data.y);
-  mbedtls_ecp_point_init(&spake_data.pub_y);
+  // spake_data fields are plain byte arrays — zero-initialize is sufficient
+  memset(&spake_data, 0, sizeof(spake_data));
 
   // start SPAKE brute force protection timer
-  oc_set_delayed_callback(NULL, decrement_counter, 10);
+  oc_set_delayed_callback(NULL, decrement_spake_request_counter, 10);
 
   return 0;
 }
-#endif 
 
 void oc_knx_set_idevid(const char* idevid, int len)
 {
