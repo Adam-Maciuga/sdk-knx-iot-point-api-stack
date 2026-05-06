@@ -125,8 +125,10 @@ extern "C"
     OC_IP_STATUS_UNRESOLVED = 0,  // IP address not resolved yet
     OC_IP_STATUS_RESOLVING = 1,   // IP address resolving in progress
     OC_IP_STATUS_RESOLVED = 2,    // IP address successfully resolved
-    OC_IP_STATUS_FAILED = 3,      // IP address resolving failed
-    OC_IP_STATUS_EXPIRED = 4      // IP address expired/needs refresh
+    OC_IP_STATUS_FAILED = 3,      // IP address resolving failed (block further resolving attempts)
+    OC_IP_STATUS_EXPIRED = 4,     // IP address expired/needs refresh
+    OC_IP_STATUS_TIMED_OUT = 5,   // IP address resolving process timed out (no answer at all)
+    OC_IP_STATUS_DATA_ERROR = 6   // IP address resolving process data error (no valid answer data, alloc error, send error)
   } oc_ip_status_t;
 
   /**
@@ -148,6 +150,7 @@ extern "C"
    */
   typedef struct oc_resolver_t
   {
+    uint8_t attempts;                       // number of resolver attempts in case of no response 
     char service_type;                      // service type as 'w', 'r', or 'a'
     oc_ip_status_t resolve_status;          // initialization status with multiple states
     oc_group_object_table_t* group_object;  // the GO table entry that hosts the sending ga and href

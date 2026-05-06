@@ -100,6 +100,16 @@ int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
 {
   memset(piv, 0, OSCORE_PIV_LEN);
 
+  /*
+    KNX IoT uses a 32-bit SSN space (max = 2^32 - 1 = OSCORE_SSN_MAX) and allows rollover.
+    Fold ssn into [0, OSCORE_SSN_MAX] before encoding so that any value above 2^32 - 1
+    wraps correctly. This also covers the edge case where ssn is an exact multiple of 2^32
+    (e.g. after the first rollover ssn == 2^32): without the mask every byte cast to uint8_t
+    is 0, the leading-zero-skip loop produces piv_len = 0, which is invalid for a request PIV.
+    After masking, ssn == 0 is caught by the special case below and yields [0x00], piv_len = 1.
+  */
+  ssn &= OSCORE_SSN_MAX;
+
   if (ssn == 0)
   {
     // SSN of zero encodes as a single zero byte (RFC 8613 minimum PIV length = 1)
@@ -112,9 +122,9 @@ int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
     Emit SSN as big-endian byte sequence (RFC 8613 minimum-length encoding).
     Strips leading zero bytes using right-shifts on the numeric value.
     Platform-independent: no endianness detection required.
-   
+
     Example: ssn = 0x00AABBCC, OSCORE_PIV_LEN = 5
-      shift=32: byte = 0x00 -> skip (leading zero)
+      shift=32: byte = 0x00 -> skip (leading zero, ssn <= 2^32 - 1 after mask)
       shift=24: byte = 0x00 -> skip (leading zero)
       shift=16: byte = 0xAA -> write, piv_len = 1
       shift= 8: byte = 0xBB -> write, piv_len = 2
@@ -148,14 +158,14 @@ uint8_t oscore_get_outer_code(void* packet)
 
   const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
 
-  if (coap_pkt->code >= OC_GET && coap_pkt->code <= OC_FETCH
+  if (coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH
   #ifdef OC_TCP
           || (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01)
   #endif 
   ) 
   { 
     // requests
-    return observe ? OC_FETCH : OC_POST;
+    return observe ? COAP_FETCH : COAP_POST;
   }
 	
   // responses

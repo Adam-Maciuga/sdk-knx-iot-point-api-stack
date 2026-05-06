@@ -1060,7 +1060,8 @@ void coap_init_connection(void)
 }
 
 // get next message id
-uint16_t coap_get_next_mid(void) {
+uint16_t coap_get_next_mid(void) 
+{
   return ++current_mid;
 }
 
@@ -1297,7 +1298,8 @@ coap_status_t coap_parse_udp_message(void* packet, uint8_t* data, size_t data_le
     return BAD_REQUEST_4_00;
   }
 
-  if (coap_pkt->token_len > COAP_TOKEN_LEN) {
+  if (coap_pkt->token_len > COAP_TOKEN_LEN) 
+  {
     OC_ERR("Token Length must not be more than 8");
     return BAD_REQUEST_4_00;
   }

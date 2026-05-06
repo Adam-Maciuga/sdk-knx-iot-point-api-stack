@@ -121,9 +121,9 @@ config KNXIOT_DNS_SD
 
 config KNXIOT_SENDER_MULTICAST_SCOPE
     int "IPv6 multicast scope for outgoing S-mode messages"
-    default 2
+    default 5
     help
-      Corresponds to CMake: OC_SENDER_MULTICAST_SCOPE.
+      Corresponds to CMake: KNX_MULTICAST_SCOPE.
       This is the IPv6 multicast scope used when sending KNX S-mode messages.
       Scope 2 (link-local) is suitable for single-segment networks and
       same-host testing. Scope 5 (site-local) is used in routed deployments.

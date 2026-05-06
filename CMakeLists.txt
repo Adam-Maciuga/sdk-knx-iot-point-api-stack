@@ -73,7 +73,8 @@ set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in second
 # Scope 2 MAY be needed for the virtual DEMO applications when:
 # - the devices are running on the same PC (e.g. for testing with EITT)
 # - a network router does not allow to send multicast messages with scope 5 (site local)
-set(OC_SENDER_MULTICAST_SCOPE "2" CACHE STRING "IPv6 multicast scope, used on sending all (multicast) s-mode messages")
+# the scope is used by stack (discovery) and application (push button demo) messages
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) (stack) s-mode messages" FORCE)
 
 ## Hidden Variables
 # Note:
@@ -130,7 +131,6 @@ set(CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/util/oc_etimer.c
     ${PROJECT_SOURCE_DIR}/util/oc_list.c
     ${PROJECT_SOURCE_DIR}/util/oc_memb.c
-    ${PROJECT_SOURCE_DIR}/util/oc_mem_trace.c
     ${PROJECT_SOURCE_DIR}/util/oc_mmem.c
     ${PROJECT_SOURCE_DIR}/util/oc_process.c
     ${PROJECT_SOURCE_DIR}/util/oc_timer.c
@@ -158,7 +158,7 @@ set(COAP_SOURCES
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
 
-## Security 
+## Security
 # OSCORE
 # TODO FIXME Remove OS_CORE everywhere then remove here.
 # TODO KNX_IOT_SPAKE2PLUS always on?
@@ -236,4 +236,4 @@ add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server def
 add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
 # IPv6 multicast scope
-add_compile_definitions(OC_SENDER_MULTICAST_SCOPE=${OC_SENDER_MULTICAST_SCOPE})
+add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})

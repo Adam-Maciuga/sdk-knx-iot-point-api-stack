@@ -45,6 +45,14 @@
 #define OSCORE_SSN_WRITE_FREQ_K (32)
 #define OSCORE_SSN_PAD_F (OSCORE_SSN_WRITE_FREQ_K * 4)
 
+/*
+  KNX IoT maximum Sender Sequence Number: 2^32 - 1 = 4,294,967,295.
+  KNX IoT uses a 32-bit SSN space (4-byte PIV), independent of OSCORE_PIV_LEN.
+  The SSN is allowed to roll over modulo (OSCORE_SSN_MAX + 1), so this
+  constant is used as a rollover mask rather than a hard stop.
+*/
+#define OSCORE_SSN_MAX ((1ULL << 32) - 1)
+
 #define OSCORE_FLAGS_BIT_KID_POSITION 3
 #define OSCORE_FLAGS_BIT_KID_CTX_POSITION 4
 #define OSCORE_FLAGS_PIVLEN_BITMASK 0x07

@@ -4,9 +4,11 @@ BasedOnStyle: LLVM
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 AlignOperands: false
-AlignTrailingComments: false
+AlignTrailingComments: true
 AllowShortIfStatementsOnASingleLine: false
 AlwaysBreakTemplateDeclarations: Yes
+AlwaysBreakAfterReturnType: None
+BreakAfterReturnType: None
 BraceWrapping: 
   AfterCaseLabel: true
   AfterClass: true
@@ -40,6 +42,7 @@ IncludeCategories:
     Priority: 3
 IncludeIsMainRegex: '([-_](test|unittest))?$'
 InsertNewlineAtEOF: true
+IndentPPDirectives: BeforeHash
 MacroBlockBegin: ''
 MacroBlockEnd: ''
 MaxEmptyLinesToKeep: 2

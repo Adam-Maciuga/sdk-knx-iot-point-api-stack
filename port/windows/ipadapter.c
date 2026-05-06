@@ -888,6 +888,84 @@ static void set_source_address_for_interface(ADDRESS_FAMILY family, uint8_t *add
   free_network_addresses(ifaddr_list);
 }
 
+// RFC 6724 Section 3.2: Determine the scope of a unicast address.
+//   Loopback (::1) -> scope 1
+//   Link-local (fe80::/10) -> scope 2
+//   Deprecated site-local (fec0::/10) -> scope 5
+//   Everything else (including ULA fc00::/7 and GUA) -> scope 14 (global)
+static int get_addr_scope(const struct in6_addr *addr) {
+  const uint8_t *a = (const uint8_t *)addr;
+  if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_LINKLOCAL(addr))
+    return 2;
+  if (a[0] == 0xfe && (a[1] & 0xc0) == 0xc0)  // deprecated site-local fec0::/10
+    return 5;
+  return 14;
+}
+
+static bool is_ula(const struct in6_addr *addr) {
+  return (((const uint8_t *)addr)[0] & 0xfe) == 0xfc;  // fc00::/7
+}
+
+// Select a source address for an interface based on the destination scope,
+// implementing RFC 6724 Rule 2: prefer the source whose scope is the smallest
+// value that is still >= the destination scope.
+//
+// For multicast destinations, the scope comes from the multicast address byte.
+// For unicast destinations, the scope is derived from the address prefix.
+// Falls back to the first available address on the interface.
+// This ensures consistent source address selection across unicast responses
+// and multicast sends, which is required by some testing suites.
+static void select_source_address(uint8_t *address, int interface_index,
+                                  const struct in6_addr *dest) {
+  int dest_scope;
+  if (IN6_IS_ADDR_MULTICAST(dest)) {
+    dest_scope = ((const uint8_t *)dest)[1] & 0x0f;
+  } else {
+    dest_scope = get_addr_scope(dest);
+  }
+
+  ifaddr_t *ifaddr_list = get_network_addresses();
+  uint8_t best[16] = {0};
+  int best_scope = -1;
+  bool best_is_ula = false;
+  uint8_t fallback[16] = {0};
+  bool have_fallback = false;
+
+  for (ifaddr_t *ifaddr = ifaddr_list; ifaddr != NULL; ifaddr = ifaddr->next) {
+    if (ifaddr->addr.ss_family != AF_INET6 ||
+        (int)ifaddr->if_index != interface_index)
+      continue;
+
+    struct sockaddr_in6 *a = (struct sockaddr_in6 *)&ifaddr->addr;
+    int src_scope = get_addr_scope(&a->sin6_addr);
+
+    if (!have_fallback) {
+      memcpy(fallback, a->sin6_addr.u.Byte, 16);
+      have_fallback = true;
+    }
+
+    // RFC 6724 Rule 2: prefer smallest scope >= dest_scope
+    // Rule 5 (simplified): prefer GUA over ULA when scopes are equal
+    if (src_scope >= dest_scope) {
+      if (best_scope < 0 || src_scope < best_scope) {
+        memcpy(best, a->sin6_addr.u.Byte, 16);
+        best_scope = src_scope;
+        best_is_ula = is_ula(&a->sin6_addr);
+      } else if (src_scope == best_scope && best_is_ula && !is_ula(&a->sin6_addr)) {
+        memcpy(best, a->sin6_addr.u.Byte, 16);
+        best_is_ula = false;
+      }
+    }
+  }
+
+  if (best_scope >= 0) {
+    memcpy(address, best, 16);
+  } else if (have_fallback) {
+    memcpy(address, fallback, 16);
+  }
+  free_network_addresses(ifaddr_list);
+}
+
 static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t *message) {
   if (!PWSASendMsg && get_WSASendMsg() < 0) {
     return -1;
@@ -918,6 +996,10 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
   if (message->endpoint.flags & IPV6) {
     Msg.namelen = sizeof(struct sockaddr_in6);
 
+    struct sockaddr_in6 *dest = (struct sockaddr_in6 *)receiver;
+
+    // Use pktinfo for both multicast and unicast to ensure consistent
+    // source address selection across all send paths.
 #pragma warning(suppress : 4116)
     Msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
 
@@ -931,16 +1013,16 @@ static int send_msg(SOCKET sock, struct sockaddr_storage *receiver, oc_message_t
     MsgHdr->cmsg_len = WSA_CMSG_LEN(sizeof(struct in6_pktinfo));
 
     struct in6_pktinfo *pktinfo = (struct in6_pktinfo *)WSA_CMSG_DATA(MsgHdr);
-
-    // Get the outgoing interface index from message->endpoint.
     pktinfo->ipi6_ifindex = message->endpoint.interface_index;
 
-    // Set the source address of this message using the address
-    // from the endpoint's addr_local attribute.
-    set_source_address_for_interface(AF_INET6,
-            message->endpoint.addr_local.ipv6.address,
-            16, message->endpoint.interface_index);
-
+    // Select source address: use addr_local if already set (e.g. unicast
+    // response echoing the destination of the incoming request), otherwise
+    // pick a scope-appropriate address for the destination.
+    if (check_if_address_unset(message->endpoint.addr_local.ipv6.address, 16)) {
+      select_source_address(message->endpoint.addr_local.ipv6.address,
+                            message->endpoint.interface_index,
+                            &dest->sin6_addr);
+    }
     memcpy(&pktinfo->ipi6_addr, message->endpoint.addr_local.ipv6.address, 16);
   } else {
     OC_ERR("Invalid endpoint!");
@@ -1019,7 +1101,48 @@ int oc_send_buffer(oc_message_t *message) {
 #else
   OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x", (int)send_sock, (int)dev->server_sock, -1, message->endpoint.flags);
 #endif
-  
+
+  // For multicast destinations not coming from oc_send_discovery_request
+  // (e.g. OSCORE multicast from oc_buffer.c), configure the outgoing interface.
+  {
+    struct sockaddr_in6 *dest = (struct sockaddr_in6 *)&receiver;
+    if (IN6_IS_ADDR_MULTICAST(&dest->sin6_addr) &&
+        message->endpoint.interface_index == 0) {
+      ifaddr_t *ifaddr_list = get_network_addresses();
+      uint32_t filter = oc_network_get_interface_filter();
+      for (ifaddr_t *ifaddr = ifaddr_list; ifaddr != NULL;
+           ifaddr = ifaddr->next) {
+        if (filter != 0 && ifaddr->if_index != filter) {
+          continue;
+        }
+        if (ifaddr->addr.ss_family == AF_INET6) {
+          message->endpoint.interface_index = ifaddr->if_index;
+          break;
+        }
+      }
+      free_network_addresses(ifaddr_list);
+
+      DWORD mif = (DWORD)message->endpoint.interface_index;
+      if (setsockopt(send_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char *)&mif,
+                     sizeof(mif)) == SOCKET_ERROR) {
+        OC_ERR("setting IPV6_MULTICAST_IF: %d", WSAGetLastError());
+      }
+
+      uint8_t mcast_scope = dest->sin6_addr.s6_addr[1] & 0x0f;
+      unsigned int hops = (mcast_scope <= 2) ? 1 : 255;
+      if (setsockopt(send_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+                     (char *)&hops, sizeof(hops)) == SOCKET_ERROR) {
+        OC_ERR("setting IPV6_MULTICAST_HOPS: %d", WSAGetLastError());
+      }
+
+      if (mcast_scope <= 2) {
+        dest->sin6_scope_id = message->endpoint.interface_index;
+      } else {
+        dest->sin6_scope_id = 0;
+      }
+    }
+  }
+
   return send_msg(send_sock, &receiver, message);
 }
 
@@ -1059,20 +1182,26 @@ void oc_send_discovery_request(oc_message_t *message) {
         unsigned int hops = 1;
         if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                        (char *)&hops, sizeof(hops)) == SOCKET_ERROR) {
-          OC_ERR("setting socket option for default IPV6_MULTICAST_IF: %d",
+          OC_ERR("setting socket option for default IPV6_MULTICAST_HOPS: %d",
                  WSAGetLastError());
           goto done;
         }
-        message->endpoint.addr.ipv6.scope = (uint8_t)ifaddr->if_index;
       } else {
         unsigned int hops = 255;
         if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                        (char *)&hops, sizeof(hops)) == SOCKET_ERROR) {
-          OC_ERR("setting socket option for default IPV6_MULTICAST_IF: %d",
+          OC_ERR("setting socket option for default IPV6_MULTICAST_HOPS: %d",
                  WSAGetLastError());
           goto done;
         }
-        message->endpoint.addr.ipv6.scope = 0;
+      }
+      // Set scope_id (zone ID) based on the multicast destination scope.
+      // Only link-local multicast (scope <= 2) needs the interface index as zone ID.
+      // Higher scopes (realm-local, site-local, etc.) must use scope_id = 0.
+      {
+        uint8_t mcast_scope = message->endpoint.addr.ipv6.address[1] & 0x0f;
+        message->endpoint.addr.ipv6.scope =
+          (mcast_scope <= 2) ? (uint8_t)ifaddr->if_index : 0;
       }
       message->endpoint.interface_index = ifaddr->if_index;
       memcpy(message->endpoint.addr_local.ipv6.address, addr->sin6_addr.u.Byte,

@@ -84,12 +84,11 @@ typedef void (*oc_response_handler_t)(oc_client_response_t*);
  * @brief client handler information
  *
  */
-typedef struct oc_client_handler_t {
-  oc_response_handler_t response;      /**< response handler */
-  oc_discovery_handler_t
-  discovery;                           /**< discovery handler, e.g. per line entry */
-  oc_discovery_all_handler_t
-  discovery_all;                       /**< discovery all handler, full payload */
+typedef struct oc_client_handler_t 
+{
+  oc_response_handler_t response;             /**< response handler */
+  oc_discovery_handler_t discovery;           /**< discovery handler, e.g. per line entry */
+  oc_discovery_all_handler_t discovery_all;   /**< discovery all handler, full payload */
 } oc_client_handler_t;
 
 /**
@@ -109,7 +108,7 @@ typedef struct oc_client_cb_t
   int32_t observe_seq;                 /**< observe sequence number */
   oc_clock_time_t timestamp;           /**< time stamp is INITIALLY set to the time when the callback was created  */
   oc_qos_t qos;                        /**< quality of service */
-  oc_method_t method;                  /**< method used */
+  coap_method_t method;                  /**< method used */
   uint16_t mid;                        /**< CoAP message identifier */
   uint8_t token[COAP_TOKEN_LEN];       /**< CoAP token */
   uint8_t token_len;                   /**< CoAP token length */
@@ -128,7 +127,7 @@ typedef struct oc_client_cb_t
 
 #ifdef OC_BLOCK_WISE
 /**
- * @brief invoke the Client callback when a response is received
+ * @brief invoke a client callback when a response is received
  *
  * @param response the response
  * @param response_state the state of the block-wise transfer
@@ -152,7 +151,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 #endif
 
 /**
- * @brief allocate the client callback information, please read the additional notes
+ * @brief allocate a client callback, please read the additional notes
  *
  * @param uri the uri to be called
  * @param endpoint the endpoint of the device
@@ -166,27 +165,25 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
  * @note the callback creates and stores 
  *       - a CoAP token/mid that is used later for the sending message, 
  *         purpose of that is to match an (outbound) request with a later (inbound) response: 
- *          - a message send out without a callback, SOME token/mid MUST be set in the outbound request 
- *          - a message send out with a callback, the callback is present, THIS callback token/mid MUST be set in 
- *            outbound request
- *			    it is better to create token/mid here, usually when creating a callback the caller 
- *			    does not have access to the later on sending message
+ *         - a message send out without a callback, SOME token/mid MUST be set in the outbound request 
+ *         - a message send out with a callback, the callback is present, THIS callback token/mid MUST be set in outbound request
+ *			     it is better to create token/mid here, usually when creating a callback the caller does not have access to the later on sending message
  *       - a timestamp when the callback was created 
  *			  
  */
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, 
-        oc_method_t method, const char* query, oc_client_handler_t handler, 
+        coap_method_t method, const char* query, oc_client_handler_t handler, 
         oc_qos_t qos, void* user_data);
 
 /**
- * @brief retrieve the client callback information
+ * @brief retrieve a client callback
  *
  * @param uri the uri for the callback
  * @param endpoint the endpoint for the callback
  * @param method the used method
  * @return oc_client_cb_t* the client callback info
  */
-oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t* endpoint, oc_method_t method);
+oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t* endpoint, coap_method_t method);
 
 /**
  * @brief is the client callback information valid
@@ -198,7 +195,7 @@ oc_client_cb_t* oc_ri_get_client_cb(const char* uri, oc_endpoint_t* endpoint, oc
 bool oc_ri_is_client_cb_valid(oc_client_cb_t* client_cb);
 
 /**
- * @brief find the client callback info by token
+ * @brief find a client callback info by token
  *
  * @param token the token
  * @param token_len the token length
@@ -207,7 +204,7 @@ bool oc_ri_is_client_cb_valid(oc_client_cb_t* client_cb);
 oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t* token, uint8_t token_len);
 
 /**
- * @brief find the client callback info by message id (mid)
+ * @brief find a client callback info by mid
  *
  * @note the callback hosts the caller information (resource path, token, method, ...) 
  *
@@ -217,22 +214,21 @@ oc_client_cb_t* oc_ri_find_client_cb_by_token(uint8_t* token, uint8_t token_len)
 oc_client_cb_t* oc_ri_find_client_cb_by_mid(uint16_t mid);
 
 /**
- * @brief free the client callback information by endpoint
+ * @brief free a client callback information by endpoint
  *
  * @param endpoint the endpoint
  */
 void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t* endpoint);
 
 /**
- * @brief free the client callback information by message id (mid)
+ * @brief free a client callback by mid
  *
  * @param mid the message id
  */
 void oc_ri_free_client_cbs_by_mid(uint16_t mid);
 
 /**
- * @brief handle the discovery payload (e.g. parse the response and do
- * the callbacks)
+ * @brief handle the discovery payload (e.g. parse the response and do the callbacks)
  *
  * @param payload the received discovery response
  * @param len the length of the payload

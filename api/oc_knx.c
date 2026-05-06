@@ -1017,7 +1017,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                   if (recipient->grpid > 0)
                   { // multicast: read response uses grpid from RCP table (configured by MaC)
 
-                    oc_send_s_mode_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid,
+                    oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, recipient->grpid,
                                                                      sending_ga, 'a', 
                                                                      new_request.response->response_buffer->buffer,
                                                                      (int)new_request.response->response_buffer->response_length);
@@ -1339,46 +1339,35 @@ PRAGMA_OUT
 
 #ifdef KNX_IOT_SPAKE2PLUS
 static spake_data_t spake_data = {0};
-static int failed_handshake_count = 0;
 
-static bool is_blocking = false;
+static int8_t failed_handshake_count = 0;
+static bool is_blocked = false;
 
-static oc_event_callback_retval_t decrement_counter(void* data)
+// called every 10 seconds, if zero -> unblock the client
+static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
+  // on '0' don't continue to decrement and unblock (note the callback is still active)
   if (failed_handshake_count > 0)
+  if (--failed_handshake_count == 0)
   {
-    --failed_handshake_count;
-  }
-
-  if (is_blocking && failed_handshake_count == 0)
-  {
-    is_blocking = false;
+    is_blocked = false;
   }
   return OC_EVENT_CONTINUE;
 }
 
-static void increment_counter(void) { ++failed_handshake_count; }
-
-// prevent from brute force handshake attempts
-static bool is_handshake_blocked(void)
+// called on every unsuccessful spake attempt, if > 10 -> block the client
+static void increment_spake_request_counter(void)
 {
-  if (is_blocking)
+  // on '60' don't continue to increment
+  if (failed_handshake_count < 60)
+  if (++failed_handshake_count > 10)
   {
-    return true;
+    is_blocked = true;
   }
-
-  // after 10 failed attempts per minute, block the client for the
-  // next minute
-  if (failed_handshake_count > 10)
-  {
-    is_blocking = true;
-    return true;
-  }
-
-  return false;
 }
 
-#endif
+// returns handshake blocker
+static bool is_handshake_blocked(void) { return is_blocked; }
 
 // a linked list for THE delayed response message for a (single) spake request (only one pending response is allowed)
 static oc_separate_response_t delayed_separate_response_for_a_spake_request;
@@ -1435,7 +1424,6 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     request->response->response_buffer->max_age = failed_handshake_count * 10;
     return;
   }
-#endif
 
   // set ptr
   oc_rep_t* rep = request->request_payload;
@@ -1615,8 +1603,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
     OC_DBG_SPAKE("Iterations: %u", g_pase.it);
 
-    #endif 
-
     oc_rep_begin_root_object();
 
     // rnd (15)
@@ -1768,7 +1754,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   memset(&spake_data, 0, sizeof(spake_data));
   #endif 
 
-  // reset pase object, except id (it holds an allocated oc_string stack memory)
+  // reset pase object
   memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
   memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
   memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
@@ -1818,11 +1804,10 @@ int oc_spake2plus_init_data(void)
   memset(&spake_data, 0, sizeof(spake_data));
 
   // start SPAKE brute force protection timer
-  oc_set_delayed_callback(NULL, decrement_counter, 10);
+  oc_set_delayed_callback(NULL, decrement_spake_request_counter, 10);
 
   return 0;
 }
-#endif 
 
 void oc_knx_set_idevid(const char* idevid, int len)
 {

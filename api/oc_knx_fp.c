@@ -2978,7 +2978,7 @@ void oc_register_group_multicasts(void)
 
         if (grpid > 0)
         { // found, note -> if for different ga's from above the same group id will be found it will be registered again here
-          subscribe_group_to_multicast_with_port(grpid, device->iid, OC_SENDER_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
+          subscribe_group_to_multicast_with_port(grpid, device->iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
         }
         // note , unicast will be "resolved" on trigger an r/w s-mode message
       }
@@ -3006,7 +3006,7 @@ void oc_unregister_group_multicasts(void)
 
         if (grpid > 0)
         {
-          unsubscribe_group_to_multicast_with_port(grpid, device->iid, OC_SENDER_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
+          unsubscribe_group_to_multicast_with_port(grpid, device->iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
         }
       }
     }
@@ -3058,7 +3058,7 @@ void oc_init_datapoints_at_initialization(void)
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
 
-            oc_send_s_mode_multicast_message(OC_SENDER_MULTICAST_SCOPE, recipient->grpid, sending_ga, 'r', NULL, 0);
+            oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, recipient->grpid, sending_ga, 'r', NULL, 0);
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)
