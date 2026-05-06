@@ -206,10 +206,8 @@ set(CORE_SOURCES
     ${STACK_ROOT}/security/oc_oscore_crypto.c
     ${STACK_ROOT}/security/oc_oscore_engine.c
     ${STACK_ROOT}/security/oc_tls.c
+    ${STACK_ROOT}/security/spake2plus.c
 )
-
-# TODO KNX_IOT_SPAKE2PLUS always on?
-list(APPEND CORE_SOURCES ${STACK_ROOT}/security/spake2plus.c)
 
 set(COAP_SOURCES
     ${STACK_ROOT}/messaging/coap/coap.c
@@ -321,7 +319,6 @@ zephyr_compile_definitions(
 
 ## Security
 zephyr_compile_definitions(
-    KNX_IOT_SPAKE2PLUS # TODO: verify whether KNX_IOT_SPAKE2PLUS should always be on or be conditional
     KNX_IOT_SPAKE2PLUS_ITERATIONS=${CONFIG_KNXIOT_SPAKE2PLUS_ITERATIONS}
     $<$<BOOL:${CONFIG_KNXIOT_REPLAY_PROTECTION}>:OC_REPLAY_PROTECTION>
     $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>

@@ -281,14 +281,12 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
    */
   void oc_knx_load_fingerprint(void);
 
-  #ifdef KNX_IOT_SPAKE2PLUS
   /**
    * @brief Initialise the RNG used for SPAKE2+ and global data structures
    * @return int -1 error, 0 success
    *
    */
   int oc_spake2plus_init_data(void);
-  #endif
 
 #ifdef __cplusplus
 }

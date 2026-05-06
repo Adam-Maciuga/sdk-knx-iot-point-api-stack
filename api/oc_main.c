@@ -239,7 +239,6 @@ int oc_main_init(const oc_handler_t* handler)
   oc_ri_init();
   oc_network_event_handler_mutex_init();
 
-  #ifdef KNX_IOT_SPAKE2PLUS
   // call one time on startup (must be successful)
   if (oc_spake2plus_init_data() < 0)
   {

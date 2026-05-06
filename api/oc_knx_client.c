@@ -9,9 +9,9 @@
 #include "api/oc_knx_client.h"
 #include "api/oc_knx_fp.h"
 #include "api/oc_knx_sec.h"
-#ifdef KNX_IOT_SPAKE2PLUS
+
 #include "security/spake2plus.h"
-#endif
+
 #include "oc_core_res.h"
 #include <string.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++

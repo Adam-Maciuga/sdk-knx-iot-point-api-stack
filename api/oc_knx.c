@@ -22,9 +22,9 @@
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
-#ifdef KNX_IOT_SPAKE2PLUS
+
 #include "security/spake2plus.h"
-#endif
+
 
 // ---------------------------Variables --------------------------------------
 
@@ -1337,7 +1337,7 @@ const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_k
                                                 &core_resource_knx_idevid_data};
 PRAGMA_OUT
 
-#ifdef KNX_IOT_SPAKE2PLUS
+
 static spake_data_t spake_data = {0};
 
 static int8_t failed_handshake_count = 0;
@@ -1417,7 +1417,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-#ifdef KNX_IOT_SPAKE2PLUS
+
   if (is_handshake_blocked())
   {
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
@@ -1586,8 +1586,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     // return 2.04 changed, frame rnd, salt, it , ...
 
-    #ifdef KNX_IOT_SPAKE2PLUS
-
     /*
       PASE parameter exchange (step 1)
 
@@ -1622,7 +1620,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     return OC_EVENT_DONE;
   }
 
-  #ifdef KNX_IOT_SPAKE2PLUS
+  
   // step 2
   if (pase_step == SPAKE_PA_SHARE_P)
   {
@@ -1752,7 +1750,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
   // be paranoid: wipe all global data after an error
   memset(&spake_data, 0, sizeof(spake_data));
-  #endif 
 
   // reset pase object
   memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
@@ -1763,10 +1760,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   memset(g_pase.salt, 0, sizeof(g_pase.salt));
 
 
-  #ifdef KNX_IOT_SPAKE2PLUS
   g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
   increment_counter();
-  #endif
 
   oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
@@ -1793,7 +1788,6 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
                                                &core_resource_knx_spake_data};
 PRAGMA_OUT
 
-#ifdef KNX_IOT_SPAKE2PLUS
 int oc_spake2plus_init_data(void)
 {
   // can fail if initialization of the RNG does not work (return == 0)

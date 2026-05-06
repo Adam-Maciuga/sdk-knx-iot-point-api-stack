@@ -139,10 +139,8 @@ set(CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_crypto.c
     ${PROJECT_SOURCE_DIR}/security/oc_oscore_engine.c
     ${PROJECT_SOURCE_DIR}/security/oc_tls.c
+    ${PROJECT_SOURCE_DIR}/security/spake2plus.c
 )
-
-# TODO KNX_IOT_SPAKE2PLUS always on?
-list(APPEND CORE_SOURCES ${PROJECT_SOURCE_DIR}/security/spake2plus.c)
 
 set(COAP_SOURCES
     ${PROJECT_SOURCE_DIR}/messaging/coap/coap.c
@@ -160,9 +158,7 @@ add_library(kis-common INTERFACE)
 
 ## Security
 # OSCORE
-# TODO FIXME Remove OS_CORE everywhere then remove here.
-# TODO KNX_IOT_SPAKE2PLUS always on?
-target_compile_definitions(kis-common INTERFACE KNX_IOT_SPAKE2PLUS KNX_IOT_SPAKE2PLUS_ITERATIONS=${KNX_IOT_SPAKE2PLUS_ITERATIONS})
+target_compile_definitions(kis-common INTERFACE KNX_IOT_SPAKE2PLUS_ITERATIONS=${KNX_IOT_SPAKE2PLUS_ITERATIONS})
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
