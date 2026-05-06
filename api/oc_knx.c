@@ -1761,7 +1761,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
 
   g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
-  increment_counter();
+  increment_spake_request_counter();
 
   oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);
   return OC_EVENT_DONE;
