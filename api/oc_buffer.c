@@ -232,12 +232,11 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
       }
       else if (ev == oc_events[OUTBOUND_NETWORK_EVENT_ENCRYPTED])
       {
-        // 1. handle OSCORE (mc/uc) s-mode messages first, outgoing message are encrypted (received from OSCORE layer)
+        // 1. handle OSCORE (mc/uc) s-mode messages, outgoing message are encrypted (received from OSCORE layer)
        
         if (message->endpoint.flags & OSCORE)
         {
-          OC_DBG("Outbound OSCORE %s message, forwarding to IP layer",
-                 (message->endpoint.flags & MULTICAST) ? "multicast" : "unicast");
+          OC_DBG("Outbound OSCORE %s message, forwarding to IP layer", message->endpoint.flags & MULTICAST ? "multicast" : "unicast");
           oc_send_buffer(message);
           oc_message_unref(message);
         }
