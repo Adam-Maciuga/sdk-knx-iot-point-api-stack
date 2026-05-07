@@ -31,7 +31,7 @@
  * This file is part of the Contiki operating system.
  *
  */
-/* TODO FIXME: This file is a complete rewrite (PSA Crypto backend, Apache 2.0
+/* TODO 18 FIXME: This file is a complete rewrite (PSA Crypto backend, Apache 2.0
  * licensed content) and should be renamed to knx_random.h with all oc_/OC_
  * prefixes changed to knx_/KNX_.  The old BSD license header above will be
  * replaced with the standard Apache 2.0 header at that point.
@@ -89,4 +89,4 @@ int oc_random_fill(uint8_t *buf, size_t len);
 }
 #endif
 
-#endif /* OC_RANDOM_H */
+#endif 

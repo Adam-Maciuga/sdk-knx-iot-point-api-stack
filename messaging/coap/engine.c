@@ -511,8 +511,8 @@ int coap_receive(oc_message_t* incoming_message)
         replay_state_t sync_state = oc_replay_check_client(ssn, &incoming_message->endpoint);
 
         // server side, inbound request, external client is not synchronised, can be:
-        // a: mc/uc regular inbound request message
-        // b: uc 'echo re-request' inbound request message (after sending an own 'echo response')
+        // a: mc (NON) /uc (NON/CON) regular inbound request message
+        // b: uc (NON/CON) 'echo re-request' inbound request message (after sending an own 'echo response')
 
         if (sync_state != SYNCED)
         {
@@ -528,6 +528,8 @@ int coap_receive(oc_message_t* incoming_message)
               // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload, echo option 
               // -> multicast : send, there can be many responses from many receivers
               // -> unicast   : send
+
+              // TODO 21 osndelay , spread echo response with a delay 
               coap_send_response_with_empty_application_payload(
                 is_con ? COAP_TYPE_ACK : COAP_TYPE_NON,
                 is_con ? inbound_coap_pkt->mid : coap_get_next_mid(),
@@ -628,12 +630,26 @@ int coap_receive(oc_message_t* incoming_message)
           }
         }
 
-        // client is synchronised, SSNs updated 
+        /* 
+          - client is synchronised, SSNs updated,
+          - 
+        */
 
       }
       #endif
 
-      // TODO AH on server side , do not send an answer on a re-request from client (see spec figure 26, (3) -> (4))
+      /* 
+        TODO 8 on server side , how answer on a re-request from client (see spec figure 26, (3) -> (4))
+        
+        WRITE
+        - on (1) MC = NON = echo re-request = NON = only 2.04 ? (not visible in picture)
+        - on (1) UC = NON or CON = echo rerequest = NON or CON = 2.04 or ACK  
+
+        READ 
+        - on (1) MC = NON = echo re-request = NON = only 2.04 ? (not visible in picture)
+        - on (1) UC = NON or CON = echo rerequest = NON or CON = 2.04 or empty ACK + separate response OR piggybacked ACK with payload 
+    
+      */ 
 
       OC_DBG("clear transaction of inbound request message");
       
@@ -718,9 +734,7 @@ int coap_receive(oc_message_t* incoming_message)
               coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
               transaction->mid = outbound_coap_pkt->mid;
               coap_set_header_block1(outbound_coap_pkt, block1_num, block1_more, block1_size);
-              // TODO
-              //                coap_set_header_accept(response,
-              //                APPLICATION_CBOR);
+              // TODO 10 coap_set_header_accept(response, APPLICATION_CBOR); NOT needed since these are binary data ? 
               request_buffer->payload_size = request_buffer->next_block_offset;
               request_buffer->ref_count = 0;
               goto request_handler;
@@ -764,8 +778,7 @@ int coap_receive(oc_message_t* incoming_message)
                 coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
                 transaction->mid = outbound_coap_pkt->mid;
 
-                // TODO
-                // coap_set_header_accept(response, APPLICATION_CBOR);
+                // TODO 10 coap_set_header_accept(response, APPLICATION_CBOR); NOT needed since these are binary data ? 
               }
               coap_set_header_content_format( outbound_coap_pkt, response_buffer->return_content_type);
               coap_set_payload(outbound_coap_pkt, payload, payload_size);
@@ -1294,10 +1307,10 @@ int coap_receive(oc_message_t* incoming_message)
               coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, client_cb->method, response_mid);
               response_buffer->mid = response_mid;
               client_cb->mid = response_mid;
-              // TODO: This is still wrong - this code is likely to break down
-              // when responding to long requests with type
-              // application/link-format - the responses are gonna become
-              // application/cbor partway through
+              /*
+               TODO 11 This is still wrong - this code is likely to break down when responding to long requests with type
+               application/link-format - the responses are gonna become application/cbor partway through
+              */
               coap_set_header_accept(outbound_coap_pkt, APPLICATION_CBOR);
               coap_set_header_block2(outbound_coap_pkt, block2_num + 1, 0, block2_size);
               coap_set_header_uri_path(outbound_coap_pkt, oc_string(client_cb->uri), oc_string_len(client_cb->uri));
@@ -1321,7 +1334,7 @@ int coap_receive(oc_message_t* incoming_message)
         #ifdef OC_BLOCK_WISE
         if (request_buffer)
         {
-          request_buffer->ref_count = 0; // TODO AH logic unclear 
+          request_buffer->ref_count = 0; 
         }
 
         oc_ri_invoke_client_cb(inbound_coap_pkt, &response_buffer, client_cb, &incoming_message->endpoint);
@@ -1334,7 +1347,7 @@ int coap_receive(oc_message_t* incoming_message)
           {
             if (response_buffer)
             {
-              response_buffer->ref_count = 0; // TODO AH logic unclear 
+              response_buffer->ref_count = 0;
             }
           }
           else

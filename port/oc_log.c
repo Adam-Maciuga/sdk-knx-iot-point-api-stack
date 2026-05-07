@@ -78,7 +78,7 @@ void oc_file_print(char *format, ...)
 
 #endif
 
-/* TODO FIXME we need to cleanup the debug log output we want the function name and a prefix. */
+/* TODO 16 FIXME we need to cleanup the debug log output we want the function name and a prefix. */
 void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length)
 {
   /* Print label followed by bytes as lowercase hex ("xx "), 32 bytes per line.

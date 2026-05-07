@@ -142,7 +142,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   { // save ssn to storage every K times
 
-    // TODO Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
+    // TODO 19 Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
 
     // uses the 'Sender ID' and 'ID Context' from access token 
     oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
@@ -502,7 +502,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
            - ssn (init ssn with '0', not used on any sending)
       */
 
-      // TODO DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
+      // TODO 20 DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
 
       oc_oscore_context_params_t oscore_params = 
       {

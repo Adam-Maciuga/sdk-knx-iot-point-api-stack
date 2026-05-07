@@ -92,14 +92,14 @@ static void oc_core_knx_get_handler(oc_request_t* request, oc_interface_mask_t i
   if (request->accept == APPLICATION_JSON)
   {
     // no begin/end object is needed, it raps only the raw content
-    oc_rep_add_line_to_buffer("{\"api\": {\"base\": \"/\", \"version\": \"1.0.0\" }}");  // TODO will be 1.1.0
+    oc_rep_add_line_to_buffer("{\"api\": {\"base\": \"/\", \"version\": \"1.0.0\" }}");  // TODO 0 will be 1.1.0 acc. iot specification
     oc_prepare_json_response(request, OC_STATUS_OK);
   }
   else
   {
     oc_rep_begin_root_object();
     oc_rep_set_object(root, api);
-    oc_rep_text_set_text_string(api, version, "1.0.0"); // TODO will be 1.1.0
+    oc_rep_text_set_text_string(api, version, "1.0.0"); // TODO 0 will be 1.1.0 acc. iot specification
     oc_rep_text_set_text_string(api, base, "/");
     oc_rep_close_object(root, api);
     oc_rep_end_root_object();
@@ -564,8 +564,6 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
-
-  // TODO OBSERVE is not implemented for (1) 'lt' and 'non' metadata (2.5.9.3/4) and (2) SECOND get request -> response payload (2.5.9.1)
 
   // only ia of device, no payload for first GET request
   oc_rep_begin_root_object();
@@ -1034,11 +1032,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                          sia 5678 (from IoT Router) = IPV6 NOT 'resolved' (the IoT device sees the KNX device ia 1234, 
                          not the 5678 from the IoT Router) 
 
-                      TODO // also the recipient iid is compared the device iid (= same project)
+                      TODO 1 in case of a second installation the iid in GO table would be filled, 
+                             we would need also to check THIS recipient iid with the inbound iid from multicast address 
                     */
                     
                     if (received_notification.sia == (uint32_t)recipient->ia)
-                    {// 1
+                    {// 1 (all ia's are accepted, regardless of inbound iid from mc message) 
 
                       // set as auto resolved...
                       recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;

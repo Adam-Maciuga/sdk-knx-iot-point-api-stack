@@ -152,7 +152,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler"); // TODO LOG make this depending on log level
+  PRINT("oc_core_knx_auth_o_osndelay_get_handler"); // TODO 3 LOG make this depending on log level
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -163,7 +163,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   oc_rep_i_set_uint(root, 1, g_oscore_osn_delay_ms); // use direct access
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done"); // TODO LOG make this depending on log level
+  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done"); // TODO 3 LOG make this depending on log level
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -233,7 +233,7 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
   oc_rep_i_set_uint(root, 1, g_oscore_replay_window_size); // use direct access
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_auth_o_replwdo_get_handler - done"); // TODO LOG make this depending on log level
+  PRINT("oc_core_knx_auth_o_replwdo_get_handler - done"); // TODO 3 LOG make this depending on log level
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -273,7 +273,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_auth_o_get_handler - start"); // TODO LOG make this depending on log level
+  PRINT("oc_core_auth_o_get_handler - start"); // TODO 3 LOG make this depending on log level
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -394,7 +394,7 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
   const oc_rep_t* rep = request->request_payload;
   while (rep)
   {
-    PRINT("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name)); // TODO LOG make this depending on log level
+    PRINT("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name)); // TODO 3 LOG make this depending on log level
     if (rep->type == OC_REP_STRING)
     {
       if (rep->iname == 2)
@@ -1762,7 +1762,7 @@ void oc_delete_at_table(void)
 
 void oc_delete_at_table_except_sec_scope_entries(void)
 {
-  PRINT("deleting 'non if.sec' access token table entries from RAM and storage"); // TODO LOG make this depending on log level
+  PRINT("deleting 'non if.sec' access token table entries from RAM and storage"); // TODO 3 LOG make this depending on log level
 
   for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {

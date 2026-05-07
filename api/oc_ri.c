@@ -1331,11 +1331,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
           // start compare from 'fp/r/*' (omit '/') with 'fp/r/2' by compare only len of 'fp/r' = 4
           strncmp((const char*)oc_string(tmp_core_resource->uri) + 1, uri_path, tmp_core_resource_len - 2) == 0)
         {
-          // found core resource 
-
-          // TODO check if a security leak exists
-
-          // update request (with matching resource)
+          // found core resource, update request (with matching resource)
           new_request.resource = matching_resource = tmp_core_resource;
           break;
         }
@@ -1405,7 +1401,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       forbidden = true;
     }
     else
-    #ifdef OC_SECURITY	// TBD FIXME NOW this is the only place where this looks like not to be TLS related!
+    #ifdef OC_SECURITY	// TODO 12 FIXME NOW this is the only place where this looks like not to be TLS related!
     // If matching_resource is a coaps:// resource, then query ACL to check if
     // the requester (the subject) is authorized to issue this request to
     // the resource.
@@ -1648,13 +1644,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       }
       else
       {
-        // TODO unclear why on payload =0 the format is ONLY set on LINK/CBOR
-
-        // for EITT test 5.1.1.4 & 5.2.3.1b
-        if (response_buffer.content_format == APPLICATION_LINK_FORMAT ||
-          response_buffer.content_format == APPLICATION_CBOR)
+        // for EITT test 5.1.1.4 & 5.2.3.1b -> for an empty payload we mirror the inbound content (CBOR/LINK) format back to the response 
+        if (response_buffer.content_format == APPLICATION_LINK_FORMAT || response_buffer.content_format == APPLICATION_CBOR)
         {
-          // sets header format in  cases LINK/CBOR
+          // sets header format in cases LINK/CBOR
           coap_set_header_content_format(response, response_buffer.content_format);
         }
       }

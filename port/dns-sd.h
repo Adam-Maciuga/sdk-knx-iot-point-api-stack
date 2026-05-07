@@ -25,7 +25,7 @@ extern "C" {
 #include "../api/oc_knx_fp.h"  // for oc_ip_status_t
 
 /**
-  TODO FIXME Review mDNS vs DNS-SD terminology in the API and docs.
+   TODO 13 FIXME Review mDNS vs DNS-SD terminology in the API and docs.
    @brief Publish a KNX mDNS service in order to enable DNS-SD discovery on server side.
   
    @param serial_no KNX serial number

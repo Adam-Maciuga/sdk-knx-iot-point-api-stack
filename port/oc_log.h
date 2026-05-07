@@ -215,7 +215,7 @@ extern "C" {
  *
  * Only used on non-Zephyr platforms. On Zephyr, OC_ERR/WRN/INF/DBG map directly
  * to LOG_ERR/WRN/INF/DBG and Zephyr adds its own standard metadata.
- */ // TODO Do we want a switch for this in the config?
+ */ // TODO 17 Do we want a switch for this in the config?
 #ifndef __ZEPHYR__
 #define OC_LOG(level, ...)                                      \
   do {                                                          \

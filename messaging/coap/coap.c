@@ -787,41 +787,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
                 &(coap_pkt->proxy_uri_len), current_options, option_length, '\0');
         OC_DBG("Proxy-Uri [%.*s]", (int) coap_pkt->proxy_uri_len, coap_pkt->proxy_uri);
         break;
-#if 0
-      case COAP_OPTION_IF_MATCH:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
 
-				// TODO support multiple ETags
-        coap_pkt->if_match_len = MIN(COAP_ETAG_LEN, option_length);
-        memcpy(coap_pkt->if_match, current_options, coap_pkt->if_match_len);
-        OC_DBG("If-Match %u", coap_pkt->if_match_len);
-        OC_LOGbytes(coap_pkt->if_match, coap_pkt->if_match_len);
-        break;
-      case COAP_OPTION_IF_NONE_MATCH:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
-
-        coap_pkt->if_none_match = 1;
-        OC_DBG("If-None-Match");
-        break;
-      case COAP_OPTION_PROXY_SCHEME:
-        if (!accept_outer_options) {
-          return BAD_OPTION_4_02;
-        }
-
-#if COAP_PROXY_OPTION_PROCESSING
-        coap_pkt->proxy_scheme = (char*) current_options;
-        coap_pkt->proxy_scheme_len = option_length;
-#endif
-        OC_DBG("Proxy-Scheme NOT IMPLEMENTED [%.*s]",
-                (int) coap_pkt->proxy_scheme_len, coap_pkt->proxy_scheme);
-        return PROXYING_NOT_SUPPORTED_5_05;
-        break;
-#endif
-      
       case COAP_OPTION_URI_HOST:
         // class U option: OSCORE RFC 8613, clause 4.1.1
          if (!accept_outer_options) 

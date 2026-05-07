@@ -3034,8 +3034,8 @@ void oc_init_datapoints_at_initialization(void)
           1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href (note MaC ETS does not split entries)
           2. test again the INIT flag, it may be that the (other) found GO entry does not have it -> would be MaC configuration error
       */
-      // TODO AH Low Priority -> b.1, in case of 2...n GO entries with same href its send 2...n-time the read   
-      // TODO AH Hi Priority -> spread the init over a time period of x seconds
+      // TODO 4 Low Priority -> b.1, in case of 2...n GO entries with same href its send 2...n-time the read   
+      // TODO 5 Hi Priority -> spread the init over a time period of x seconds, see specification 
       
       oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
       if (go_entry && go_entry->cflags & OC_CFLAG_INIT)

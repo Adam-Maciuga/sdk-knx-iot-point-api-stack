@@ -94,7 +94,7 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
 
     case OC_IP_STATUS_RESOLVED:
     
-    // TODO AH how to re-resolve when not getting any answer later with a resolved IP 
+    // TODO 2 AH how to re-resolve when not getting any answer later with a resolved IP address? 
     
     OC_DBG("Resolve ipv6 address: RESOLVED -> remaining attempts %i", recipient->ipv6_res.attempts);
       

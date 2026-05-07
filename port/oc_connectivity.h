@@ -54,10 +54,10 @@ extern "C" {
 #endif
 
 enum {
-#ifdef OC_TCP // TODO Need to check about TLS packet.
+#ifdef OC_TCP // TODO 15 Need to check about TLS packet.
   OC_PDU_SIZE = (OC_MAX_APP_DATA_SIZE + 2 * COAP_MAX_HEADER_SIZE)
 #else
-#ifdef OC_SECURITY // TODO FIXME NOW this makes no sense OC_SECURITY is now OC_TCP_TLS, but here it is in the else path of if TCP!
+#ifdef OC_SECURITY // TODO 15 FIXME NOW this makes no sense OC_SECURITY is now OC_TCP_TLS, but here it is in the else path of if TCP!
   OC_PDU_SIZE = (OC_BLOCK_SIZE + 2 * COAP_MAX_HEADER_SIZE)
 #else
   OC_PDU_SIZE = (OC_BLOCK_SIZE + COAP_MAX_HEADER_SIZE)
