@@ -25,16 +25,16 @@
 #define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
 
 // static const, maybe changed in a later stack version
-static const uint16_t g_oscore_replay_window_size = 32; // default according to RFC OSCORE
+static const uint16_t g_oscore_replay_window_size = 32;   // default according to RFC OSCORE
 
-// static RAM variables init all with '0' (also in at table included strings next/ptr/size)
-static uint16_t g_oscore_osn_delay_ms; // format = dpt.timePeriodMsec
-static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];
+// static RAM variables 
+static uint16_t g_oscore_osn_delay_ms = 1000;             // format = dpt.TimePeriodMsec (U16)
+static oc_auth_at_t g_at_entries[G_AT_MAX_ENTRIES];       // init all with '0' (also in at table included strings next/ptr/size)
 
 static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
 uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size;}
-uint32_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms;}
+uint16_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms;}
 void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds;}
 int32_t get_at_index(const oc_auth_at_t* entry)
 {
