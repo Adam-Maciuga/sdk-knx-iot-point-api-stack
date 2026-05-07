@@ -310,7 +310,11 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
   if (!is_inbound_request && !is_inbound_response && !is_reset)
   {
-    // e.g. ACK with a request-range code (1-5): not a valid OSCORE carrier — drop silently
+    /* 
+       - e.g. ACK with a request-range code (1-5): not a valid OSCORE carrier — drop silently
+       - empty ack will not pop up in oscore layer (has no OSCORE option) and is handled in coap layer, 
+         but if it appears here, it is not a valid OSCORE carrier — drop silently
+    */
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
     oc_message_unref(msg);
     return -1;

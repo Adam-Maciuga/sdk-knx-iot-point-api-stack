@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2020 Intel Corporation
- * Copyright (c) 2022-2023 Cascoda Ltd.
- * Copyright (c) 2024-2026 KNX Association
- *            
- * SPDX-License-Identifier: Apache-2.0
- */
+  Copyright (c) 2020 Intel Corporation
+  Copyright (c) 2022-2023 Cascoda Ltd.
+  Copyright (c) 2024-2026 KNX Association
+
+  SPDX-License-Identifier: Apache-2.0
+*/
 
 #include <inttypes.h>
 #include "oc_oscore_context.h"
@@ -19,14 +19,17 @@ OC_MEMB(ctx_s, oc_oscore_context_t, 20);
 
 static void oc_context_print_all(void);
 
-void oc_oscore_free_lru_recipient_context(void) {
+void oc_oscore_free_lru_recipient_context(void) 
+{
   oc_oscore_context_t* lru_ctx;
 
   // get first context of list
   oc_oscore_context_t* ctx = lru_ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  while (ctx) {
-    if (ctx->sender_id_len == 0 && ctx->last_used < lru_ctx->last_used) {
+  while (ctx) 
+  {
+    if (ctx->sender_id_len == 0 && ctx->last_used < lru_ctx->last_used) 
+    {
       // catch tmp copy and make it to the LRU item
       lru_ctx = ctx; 
     }
@@ -64,10 +67,10 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
   {
     // received frame kid (Sender ID) and kid_context (ID Context) 
     // must both match in size and value to an oscore context 
-    if (kid_len == ctx->recipient_id_len && 
-            memcmp(kid, ctx->recipient_id, kid_len) == 0 && 
-            kid_ctx_len == ctx->id_context_len && 
-            memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0) 
+    if (kid_len == ctx->recipient_id_len 
+        && memcmp(kid, ctx->recipient_id, kid_len) == 0 
+        && kid_ctx_len == ctx->id_context_len 
+        && memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0) 
     {
 
       PRINT("found OSCORE Recipient ID context");
@@ -185,18 +188,20 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
   return NULL;
 }
 
-void oc_oscore_free_all_contexts(void) {
+void oc_oscore_free_all_contexts(void)
+{
 
   OC_DBG_OSCORE("removing all present OSCORE Sender/Recipient Contexts");
 
   // get first context of list
   oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
-  while (ctx) {
+  while (ctx)
+  {
     // tmp copy of next (if released its gone)
     oc_oscore_context_t* next = ctx->next;
     oc_oscore_free_context(ctx);
-    
+
     // restore next ptr
     ctx = next;
   }
@@ -204,7 +209,8 @@ void oc_oscore_free_all_contexts(void) {
   oc_list_init(contexts);
 }
 
-void oc_oscore_free_sender_contexts(void) {
+void oc_oscore_free_sender_contexts(void)
+{
 
   OC_DBG_OSCORE("removing all - in a client present - 'Request Sender Contexts'");
 
@@ -258,7 +264,8 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
   }
 }
 
-void oc_context_print_all(void) {
+void oc_context_print_all(void)
+{
 #ifdef OC_PRINT
 
   // get list start
@@ -277,7 +284,8 @@ void oc_context_print_all(void) {
   PRINT("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
         
   // print all present context entries
-  while (ctx) {
+  while (ctx)
+  {
     sid_len = sizeof(sid);
     rid_len = sizeof(rid);
     cid_len = sizeof(cid);
@@ -404,10 +412,12 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
   ctx->auth_at = params->auth_at;
   ctx->last_used = oc_clock_time();
 
-  /* 
-     To prevent SSN reuse, 
-     - bump the SNN to a higher value that could've been previously used, considering any possible failed writes to a nonvolatile storage (RFC 8613 - Appendix B 1.1)
-     - store it back so that in case of a crash before the next write, the SSN is not reused on the next boot (RFC 8613 - Appendix B 1.1)
+  /*
+    To prevent SSN reuse,
+    - bump the SNN to a higher value that could've been previously used, considering any possible failed writes to a nonvolatile
+      storage (RFC 8613 - Appendix B 1.1)
+    - store it back so that in case of a crash before the next write, the SSN is not reused on the next boot
+      (RFC 8613 - Appendix B 1.1)
   */
   if (params->read_ssn_from_storage)
   {
