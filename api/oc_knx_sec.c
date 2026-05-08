@@ -35,7 +35,7 @@ static void oc_store_at_table_entry(oc_auth_at_t* entry);
 
 uint32_t get_oscore_replay_window_size(void) { return g_oscore_replay_window_size;}
 uint16_t get_oscore_osn_delay_ms(void) { return g_oscore_osn_delay_ms;}
-void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds;}
+void set_oscore_osn_delay_ms(uint16_t milliseconds) { g_oscore_osn_delay_ms = milliseconds; }
 int32_t get_at_index(const oc_auth_at_t* entry)
 {
   if (!entry)
@@ -160,7 +160,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   }
 
   oc_rep_begin_root_object();
-  oc_rep_i_set_uint(root, 1, g_oscore_osn_delay_ms); // use direct access
+  oc_rep_i_set_uint(root, 1, get_oscore_osn_delay_ms());
   oc_rep_end_root_object();
 
   PRINT("oc_core_knx_auth_o_osndelay_get_handler - done"); // TODO 3 LOG make this depending on log level
@@ -185,7 +185,7 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
       if (rep->iname == 1)
       {
         OC_DBG("oc_core_knx_auth_o_osndelay_put_handler type: %d value %d", (int)rep->type, (int)rep->value.integer);
-        g_oscore_osn_delay_ms = (uint16_t)rep->value.integer; // use direct access
+        set_oscore_osn_delay_ms((uint16_t)rep->value.integer); 
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
       }
