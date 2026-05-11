@@ -7,10 +7,12 @@
  */
 
 #include "messaging/coap/coap.h"
+#include "oc_api.h"
+#include "conf.h"
+
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
 #endif 
-#include "oc_api.h"
 
 #ifdef OC_CLIENT
 

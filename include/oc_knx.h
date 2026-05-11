@@ -38,17 +38,35 @@ extern "C"
 #define RESET_TO_DEFAULT_STATE (2)  // factory reset
 #define RESET_TO_DEFAULT_WO_IA (7)  // factory reset w/o IA
 
+  /*
+   * KNX-IoT specific SPAKE2+ parameters for the PASE handshake.
+   *
+   * Context string and identity strings are fixed empty strings per KNX-IoT specification.
+   *
+   * Salt and random nonce sizes are KNX-IoT choices — RFC 9383 does not mandate
+   * specific sizes for either.
+   *
+   * The device password is not stored here. It is provided at runtime via
+   * app_get_password(). Per KNX-IoT specification 3/10/5 clause 3.6.6.3 the
+   * password is a string of min 6 and max 32 characters.
+   */
+#define KNX_IOT_SPAKE2PLUS_CONTEXT       "knxpase"
+#define KNX_IOT_SPAKE2PLUS_ID_PROVER     ""
+#define KNX_IOT_SPAKE2PLUS_ID_VERIFIER   ""
+#define KNX_IOT_SPAKE2PLUS_SALT_LENGTH   (32)
+#define KNX_IOT_SPAKE2PLUS_RND_LENGTH    (32)
+
   /**
-   * @brief PASE Resource Object 
+   * @brief PASE Resource Object
    *
    *  - A PAKE (Password Authenticated Key Exchange) 'protocol' is used to authenticate
    *    communication partners by establishing PASE (Password Authenticated Session Establishment) session keys
-   *    between the parties. 
+   *    between the parties.
    *  - SPAKE2+ is an augmented/extended PAKE 'protocol', where only one party (usually a MaC) knows (and uses) the password.
-   *    The other party (usually the server device) knows only a derivative of the password. 
+   *    The other party (usually the server device) knows only a derivative of the password.
    *
    *  The virtual demo applications uses the password also on server side, a real device shall use the password derivative,
-   *  see SPAKE2+, 3.2. Offline Registration. 
+   *  see SPAKE2+, 3.2. Offline Registration.
    *
    *  The steps for the key enrolment are described in KNX IoT specification 3/10/5 clause 3.6.6.3
    *
@@ -71,35 +89,35 @@ extern "C"
    *  the server device hardware calculation capabilities.
    *  The stack allows to define this (it) value as part of the CMake compile definitions.
    *  Note that a randomized iteration value (it) at runtime does not increase the security,
-   *  it only reduces the effort for an attacker.  
+   *  it only reduces the effort for an attacker.
    *
    *  (2)
-   *  The salt goes always together with an individual password.  
+   *  The salt goes always together with an individual password.
    *
    *  Example JSON
    *  ============
-   * 
+   *
    *  { "rnd"    : x}
    *  { "shareP" : x}
    *  { "shareV" : x}
    *  { "ca"     : x}
    *  { "pbkdf2" : { "salt" : "xxxx", "it" : 5}}
-   * 
+   *
    *
    * @note
    *  - no extra storage needed for map (12)
-   *  - 
+   *  -
    */
   typedef struct oc_pase_t
   {
-    oc_string_t id;       // recipient id 
-    uint8_t salt[32];     // salt 
-    uint8_t shareP[65];   // pa from RFC 9382 in Spake2+ = shareP   
-    uint8_t shareV[65];   // pb from RFC 9382 in Spake2+ = shareV
-    uint8_t confirmP[32]; // ca from RFC 9382 in Spake2+ = confirmP
-    uint8_t confirmV[32]; // cb from RFC 9382 in Spake2+ = confirmV
-    uint8_t rnd[32];      // random
-    uint32_t it;          // iterations (see hints above) 
+    oc_string_t id;                                // recipient ID
+    uint8_t salt[KNX_IOT_SPAKE2PLUS_SALT_LENGTH];  // salt (KNX_IOT_SPAKE2PLUS_SALT_LENGTH bytes)
+    uint8_t shareP[65];                            // prover public share (RFC 9383)
+    uint8_t shareV[65];                            // verifier public share (RFC 9383)
+    uint8_t confirmP[32];                          // prover confirmation (RFC 9383)
+    uint8_t confirmV[32];                          // verifier confirmation (RFC 9383)
+    uint8_t rnd[KNX_IOT_SPAKE2PLUS_RND_LENGTH];    // random nonce (wire name "rnd", KNX_IOT_SPAKE2PLUS_RND_LENGTH bytes)
+    uint32_t it;                                   // iterations (see hints above)
   } oc_pase_t;
 
   /**
@@ -268,7 +286,7 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
    * @return int -1 error, 0 success
    *
    */
-  int oc_initialise_spake_data(void);
+  int oc_spake2plus_init_data(void);
 
 #ifdef __cplusplus
 }

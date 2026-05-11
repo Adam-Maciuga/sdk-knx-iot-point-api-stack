@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <inttypes.h>
+#include "psa/crypto.h"
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"
 #include "messaging/coap/engine.h"
@@ -13,6 +14,8 @@
 #include "oc_client_state.h"
 #include "oc_oscore_context.h"
 #include "oc_oscore_crypto.h"
+#include "conf.h"
+
 #ifdef KNX_TCP_TLS
 #include "oc_tls.h"
 #endif
@@ -141,7 +144,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   if (ctx->ssn % OSCORE_SSN_WRITE_FREQ_K == 0)
   { // save ssn to storage every K times
 
-    // TODO Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
+    // TODO 19 Recipient ID + ID Context also saved ? (to not always on startup issue an echo challenge)
 
     // uses the 'Sender ID' and 'ID Context' from access token 
     oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
@@ -309,7 +312,11 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
   if (!is_inbound_request && !is_inbound_response && !is_reset)
   {
-    // e.g. ACK with a request-range code (1-5): not a valid OSCORE carrier — drop silently
+    /* 
+       - e.g. ACK with a request-range code (1-5): not a valid OSCORE carrier — drop silently
+       - empty ack will not pop up in oscore layer (has no OSCORE option) and is handled in coap layer, 
+         but if it appears here, it is not a valid OSCORE carrier — drop silently
+    */
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
     oc_message_unref(msg);
     return -1;
@@ -497,7 +504,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
            - ssn (init ssn with '0', not used on any sending)
       */
 
-      // TODO DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
+      // TODO 20 DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
 
       oc_oscore_context_params_t oscore_params = 
       {
@@ -1119,8 +1126,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         // mc echo data = random
         uint8_t rnd[10];
 
-        mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
-        mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
+        psa_generate_random(rnd, sizeof(rnd));
 
         /*
                'Server' Side (details see method 'oc_oscore_receive_message' header), create:

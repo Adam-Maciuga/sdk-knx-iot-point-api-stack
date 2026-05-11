@@ -140,11 +140,11 @@ config KNXIOT_RESET_PROCESS_TIME
 
 # ── Security ───────────────────────────────────────────────────────────────────
 
-config KNXIOT_SPAKE_ITERATIONS
+config KNXIOT_SPAKE2PLUS_ITERATIONS
     int "SPAKE2+ iteration count"
     default 50000
     help
-      Corresponds to CMake: KNX_SPAKE_ITERATIONS.
+      Corresponds to CMake: KNX_IOT_SPAKE2PLUS_ITERATIONS.
       Number of SHA-256 iterations used in the SPAKE2+ password-based
       key exchange during device enrollment. Higher values increase
       resistance to brute-force attacks at the cost of enrollment time.
@@ -170,20 +170,6 @@ config KNXIOT_TLS_PKI
 # oc_clock_time() which returns k_uptime_get() (milliseconds).
 # No separate KNX-IoT symbol is needed; configure the tick rate via
 # CONFIG_SYS_CLOCK_TICKS_PER_SEC in Zephyr's kernel/Kconfig if needed.
-
-# ── Diagnostics ────────────────────────────────────────────────────────────────
-
-config KNXIOT_ZEPHYR_MALLOC_HEAP_STATS
-    bool "C library malloc heap runtime statistics"
-    depends on COMMON_LIBC_MALLOC && SYS_HEAP_RUNTIME_STATS
-    default n
-    help
-      Expose C library malloc heap statistics in the KNX-IoT shell command
-      "knx_iot malloc_heap".  Requires Zephyr to be patched with
-      0005-zephyr-4.3-lib-libc-common-add-malloc-heap-stats-acc.patch, which
-      adds z_malloc_heap_runtime_stats_get() and z_malloc_heap_init_bytes()
-      as thin wrappers around the otherwise-static z_malloc_heap.
-      Without the patch this option must be left off (default).
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -216,14 +202,14 @@ config KNXIOT_DEBUG_OSCORE
       Corresponds to CMake: OC_DEBUG_OSCORE_ENABLED.
 
 config KNXIOT_LOG_HEXDUMP_DBG
-    bool "Enable OC_LOGbytes() output via LOG_HEXDUMP_DBG"
+    bool "Enable OC_LOGbytes() hex output"
     default n
     depends on KNXIOT_DEBUG
     help
-      When enabled, OC_LOGbytes() and OC_LOGbytes_OSCORE() emit raw byte
-      buffers using Zephyr's LOG_HEXDUMP_DBG() in a single log message.
-      When disabled (default), OC_LOGbytes() is a no-op on Zephyr. Per-byte
-      LOG_INF calls would generate one log message per byte and flood the output.
+      When enabled, OC_LOGbytes() and OC_LOGbytes_OSCORE() print byte buffers
+      as lowercase hex ("xx xx ..."), 32 bytes per line. Buffers of 16 bytes
+      or fewer fit on a single line.
+      When disabled (default), OC_LOGbytes() is a no-op on Zephyr.
 
 config KNXIOT_LOG_CAST_64_BIT_INTS
     bool "Cast 64-bit integers in log output"

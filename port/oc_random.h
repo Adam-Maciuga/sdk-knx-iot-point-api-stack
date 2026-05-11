@@ -31,6 +31,12 @@
  * This file is part of the Contiki operating system.
  *
  */
+/* TODO 18 FIXME: This file is a complete rewrite (PSA Crypto backend, Apache 2.0
+ * licensed content) and should be renamed to knx_random.h with all oc_/OC_
+ * prefixes changed to knx_/KNX_.  The old BSD license header above will be
+ * replaced with the standard Apache 2.0 header at that point.
+ * See the 15 call-site files that need updating (grep for oc_random). */
+
 /**
   @brief platform abstraction of a random number generator
   @file
@@ -38,40 +44,49 @@
 #ifndef OC_RANDOM_H
 #define OC_RANDOM_H
 
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief Initialize the pseudo-random generator.
+ * @brief Initialize the random number generator.
  *
+ * On Linux/Windows: calls psa_crypto_init() to set up the PSA subsystem.
+ * On Zephyr: calls psa_crypto_init(); random bytes are drawn from the
+ * platform entropy source (hardware TRNG on Espressif ESP32-S3/C5/C6,
+ * Nordic nRF TRNG, etc.).
  */
 void oc_random_init(void);
 
 /**
- *@brief  Calculate a pseudo random number.
+ * @brief Return a cryptographically secure random number.
  *
- * @return A pseudo-random number.
+ * Backed by the platform hardware TRNG via sys_csrand_get() on Zephyr,
+ * or psa_generate_random() on Linux/Windows.
+ *
+ * @return A random unsigned int value.
  */
 unsigned int oc_random_value(void);
 
 /**
- * @brief destroy the pseudo-random generator
- *
+ * @brief Destroy the random number generator.
  */
 void oc_random_destroy(void);
 
 /**
- * @brief Get the mbedTLS platform RNG context
+ * @brief Fill a buffer with cryptographically secure random bytes.
  *
+ * @param buf  Destination buffer.
+ * @param len  Number of bytes to fill.
+ * @return 0 on success, non-zero on failure.
  */
-mbedtls_ctr_drbg_context *oc_random_get_ctr_drbg_context(void);
+int oc_random_fill(uint8_t *buf, size_t len);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_RANDOM_H */
+#endif 

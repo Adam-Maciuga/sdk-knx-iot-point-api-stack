@@ -298,7 +298,7 @@ extern "C" {
    *
    * @return delay time (ms)
    */
-	uint32_t get_oscore_osn_delay_ms(void);
+  uint16_t get_oscore_osn_delay_ms(void);
 
   /**
    * @brief get the access token table index from an entry

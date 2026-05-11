@@ -1,0 +1,440 @@
+./CMakeLists.txt:    target_link_libraries(kisClientServer PUBLIC mbedtls)
+./api/oc_knx.c:    mbedtls_mpi_free(&spake_data.w0);
+./api/oc_knx.c:    mbedtls_ecp_point_free(&spake_data.L);
+./api/oc_knx.c:    mbedtls_mpi_free(&spake_data.y);
+./api/oc_knx.c:    mbedtls_ecp_point_free(&spake_data.pub_y);
+./api/oc_knx.c:    mbedtls_mpi_init(&spake_data.w0);
+./api/oc_knx.c:    mbedtls_ecp_point_init(&spake_data.L);
+./api/oc_knx.c:    mbedtls_mpi_init(&spake_data.y);
+./api/oc_knx.c:    mbedtls_ecp_point_init(&spake_data.pub_y);
+./api/oc_knx.c:    mbedtls_ecp_point pB;
+./api/oc_knx.c:    mbedtls_ecp_point_init(&pB);
+./api/oc_knx.c:      mbedtls_ecp_point_free(&pB);
+./api/oc_knx.c:      mbedtls_ecp_point_free(&pB);
+./api/oc_knx.c:      mbedtls_ecp_point_free(&pB);
+./api/oc_knx.c:    mbedtls_ecp_point_free(&pB);
+./api/oc_knx.c:    mbedtls_ecp_point_free(&spake_data.L);
+./api/oc_knx.c:    mbedtls_ecp_point_free(&spake_data.pub_y);
+./api/oc_knx.c:    mbedtls_mpi_free(&spake_data.w0);
+./api/oc_knx.c:    mbedtls_mpi_free(&spake_data.y);
+./api/oc_knx.c:    mbedtls_ecp_point_init(&spake_data.L);
+./api/oc_knx.c:    mbedtls_ecp_point_init(&spake_data.pub_y);
+./api/oc_knx.c:    mbedtls_mpi_init(&spake_data.w0);
+./api/oc_knx.c:    mbedtls_mpi_init(&spake_data.y);
+./api/oc_knx.c:  mbedtls_ecp_point_free(&spake_data.L);
+./api/oc_knx.c:  mbedtls_ecp_point_free(&spake_data.pub_y);
+./api/oc_knx.c:  mbedtls_mpi_free(&spake_data.w0);
+./api/oc_knx.c:  mbedtls_mpi_free(&spake_data.y);
+./api/oc_knx.c:  mbedtls_ecp_point_init(&spake_data.L);
+./api/oc_knx.c:  mbedtls_ecp_point_init(&spake_data.pub_y);
+./api/oc_knx.c:  mbedtls_mpi_init(&spake_data.w0);
+./api/oc_knx.c:  mbedtls_mpi_init(&spake_data.y);
+./api/oc_knx.c:  mbedtls_mpi_init(&spake_data.w0);
+./api/oc_knx.c:  mbedtls_ecp_point_init(&spake_data.L);
+./api/oc_knx.c:  mbedtls_mpi_init(&spake_data.y);
+./api/oc_knx.c:  mbedtls_ecp_point_init(&spake_data.pub_y);
+./port/linux/random.c:static mbedtls_entropy_context entropy_ctx;
+./port/linux/random.c:static mbedtls_ctr_drbg_context ctr_drbg_ctx;
+./port/linux/random.c:  mbedtls_entropy_init(&entropy_ctx);
+./port/linux/random.c:  mbedtls_ctr_drbg_init(&ctr_drbg_ctx);
+./port/linux/random.c:  mbedtls_ctr_drbg_seed(&ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx, NULL,
+./port/linux/random.c:  mbedtls_ctr_drbg_free(&ctr_drbg_ctx);
+./port/linux/random.c:  mbedtls_entropy_free(&entropy_ctx);
+./port/linux/random.c:mbedtls_ctr_drbg_context *
+./port/CMakeLists.txt:    # All *.c files from Mbed TLS v3.6.5 directory "mbedtls/library" are used, other directories are not required.
+./port/CMakeLists.txt:    # Make sure all KNX-IoT related options are already set, they are used in "knx_mbedtls_config.h".
+./port/CMakeLists.txt:    set(MBEDTLS_CONFIG_FILE "${PROJECT_SOURCE_DIR}/security/knx_mbedtls_config.h") # TODO refactor config file
+./port/CMakeLists.txt:    # mbedtls/library/CMakeLists.txt
+./port/CMakeLists.txt:        mbedtls
+./port/CMakeLists.txt:    FetchContent_MakeAvailable(mbedtls)
+./port/CMakeLists.txt:    # Additional include directories for "knx_mbedtls_config.h".
+./port/CMakeLists.txt:    target_include_directories(mbedtls ${MBEDTLS_INCLUDE_DIRS})
+./port/CMakeLists.txt:    # p256m and everest are sub-libraries of mbedtls that also include oc_config.h
+./port/CMakeLists.txt:    # via knx_mbedtls_config.h. They do not inherit include dirs from mbedcrypto,
+./port/CMakeLists.txt:        target_compile_options(mbedtls PRIVATE -Wno-error=format)
+./port/CMakeLists.txt:    target_link_libraries(kis-port PUBLIC mbedtls)
+./port/oc_random.h:#include "mbedtls/entropy.h"
+./port/oc_random.h:#include "mbedtls/ctr_drbg.h"
+./port/oc_random.h:mbedtls_ctr_drbg_context *oc_random_get_ctr_drbg_context(void);
+./port/zephyr/random.c:static mbedtls_entropy_context entropy_ctx;
+./port/zephyr/random.c:static mbedtls_ctr_drbg_context ctr_drbg_ctx;
+./port/zephyr/random.c:  mbedtls_entropy_init(&entropy_ctx);
+./port/zephyr/random.c:  mbedtls_ctr_drbg_init(&ctr_drbg_ctx);
+./port/zephyr/random.c:  mbedtls_ctr_drbg_seed(&ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx, NULL, 0);
+./port/zephyr/random.c:  mbedtls_ctr_drbg_random(&ctr_drbg_ctx, random_bytes, sizeof(random_bytes));
+./port/zephyr/random.c:  mbedtls_entropy_free(&entropy_ctx);
+./port/zephyr/random.c:  mbedtls_ctr_drbg_free(&ctr_drbg_ctx);
+./port/zephyr/random.c:mbedtls_ctr_drbg_context *
+./port/zephyr/random.c.alex://#include "mbedtls/entropy.h"	// Mbed TLS entropy collection module 
+./port/zephyr/random.c.alex://#include "mbedtls/ctr_drbg.h"	// Mbed TLS Counter mode Deterministic Random Bit Generator (CTR-DRBG) module
+./port/zephyr/random.c.alex:static mbedtls_entropy_context entropy_context;
+./port/zephyr/random.c.alex:static mbedtls_ctr_drbg_context ctr_drbg_context;
+./port/zephyr/random.c.alex:  mbedtls_entropy_init(&entropy_context);
+./port/zephyr/random.c.alex:  mbedtls_ctr_drbg_init(&ctr_drbg_context);
+./port/zephyr/random.c.alex:  int ret = mbedtls_ctr_drbg_seed(&ctr_drbg_context, mbedtls_entropy_func, 
+./port/zephyr/random.c.alex:  mbedtls_ctr_drbg_free(&ctr_drbg_context);
+./port/zephyr/random.c.alex:  mbedtls_entropy_free(&entropy_context);
+./port/zephyr/random.c.alex:mbedtls_ctr_drbg_context* oc_random_get_ctr_drbg_context() {
+grep: ./port/zephyr/.random.c.swp: binary file matches
+./port/oc_assert.h:// TODO FIXME KNX_LOG_TO_FILE is not set correctly when building mbedtls, fix this!
+./port/windows/random.c:static mbedtls_entropy_context entropy_ctx;
+./port/windows/random.c:static mbedtls_ctr_drbg_context ctr_drbg_ctx;
+./port/windows/random.c:  mbedtls_entropy_init(&entropy_ctx);
+./port/windows/random.c:  mbedtls_ctr_drbg_init(&ctr_drbg_ctx);
+./port/windows/random.c:  mbedtls_ctr_drbg_seed(&ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx, NULL,
+./port/windows/random.c:  mbedtls_ctr_drbg_free(&ctr_drbg_ctx);
+./port/windows/random.c:  mbedtls_entropy_free(&entropy_ctx);
+./port/windows/random.c:mbedtls_ctr_drbg_context *
+./security/knx_mbedtls_config.h:// Included in Zephyr config-mbedtls.h
+./security/knx_mbedtls_config.h: * (see modules/crypto/mbedtls/docs/architecture/tls13-support.md).
+./security/knx_mbedtls_config.h:#define MBEDTLS_SHA256_C	// TODO replace with MBEDTLS_256_ALT? see: Zephyr hal/espressif/components/mbedtls/port/include/mbedtls/esp_config.h 
+./security/knx_mbedtls_config.h:#define MBEDTLS_SSL_SRV_RESPECT_CLIENT_PREFERENCE	// TODO FIXME Replace MBEDTLS_SSL_SRV_RESPECT_CLIENT_PREFERENCE by a runtime configuration function mbedtls_ssl_conf_preference_order(). Fixes #4398.
+./security/knx_mbedtls_config.h:// #include "mbedtls/check_config.h"
+./security/oc_oscore_crypto.c:#include "mbedtls/ccm.h"
+./security/oc_oscore_crypto.c:#include "mbedtls/md.h"
+./security/oc_oscore_crypto.c:  mbedtls_md_context_t hmac_SHA256;
+./security/oc_oscore_crypto.c:  mbedtls_md_init(&hmac_SHA256);
+./security/oc_oscore_crypto.c:  mbedtls_md_setup(&hmac_SHA256, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1);
+./security/oc_oscore_crypto.c:  mbedtls_md_hmac_starts(&hmac_SHA256, key, key_len);
+./security/oc_oscore_crypto.c:  mbedtls_md_hmac_update(&hmac_SHA256, data, data_len);
+./security/oc_oscore_crypto.c:  mbedtls_md_hmac_finish(&hmac_SHA256, hmac);
+./security/oc_oscore_crypto.c:  mbedtls_md_free(&hmac_SHA256);
+./security/oc_oscore_crypto.c:  mbedtls_ccm_context ccm;
+./security/oc_oscore_crypto.c:  mbedtls_ccm_init(&ccm);
+./security/oc_oscore_crypto.c:  mbedtls_ccm_setkey(&ccm, MBEDTLS_CIPHER_ID_AES, key, key_len * 8);
+./security/oc_oscore_crypto.c:  int ret = mbedtls_ccm_encrypt_and_tag(&ccm, plaintext_len, nonce, nonce_len,
+./security/oc_oscore_crypto.c:    OC_ERR("***error encrypting OSCORE plaintext: mbedtls (%d)***", ret);
+./security/oc_oscore_crypto.c:  mbedtls_ccm_free(&ccm);
+./security/oc_oscore_crypto.c:  mbedtls_ccm_context ccm;
+./security/oc_oscore_crypto.c:  mbedtls_ccm_init(&ccm);
+./security/oc_oscore_crypto.c:  mbedtls_ccm_setkey(&ccm, MBEDTLS_CIPHER_ID_AES, key, key_len * 8);
+./security/oc_oscore_crypto.c:  int ret = mbedtls_ccm_auth_decrypt(&ccm, ciphertext_len - tag_len, 
+./security/oc_oscore_crypto.c:    OC_ERR("***error decrypting/verifying response: mbedtls (%d)***", ret);
+./security/oc_oscore_crypto.c:  mbedtls_ccm_free(&ccm);
+grep: ./security/.oc_spake2plus.c.swp: binary file matches
+./security/oc_oscore_engine.c:        mbedtls_ctr_drbg_context* ctr_drbg_context = oc_random_get_ctr_drbg_context();
+./security/oc_oscore_engine.c:        mbedtls_ctr_drbg_random(ctr_drbg_context, rnd, sizeof(rnd));
+./security/oc_tls.h:#include "mbedtls/ssl.h"
+./security/oc_tls.h:#include "mbedtls/x509_crt.h"
+./security/oc_tls.h:  mbedtls_ssl_context ssl_ctx;
+./security/oc_tls.h:  mbedtls_ssl_config ssl_conf;
+./security/oc_tls.h:mbedtls_x509_crt *oc_tls_get_trust_anchors(void);
+./security/oc_spake2plus.h:#include "mbedtls/bignum.h"
+./security/oc_spake2plus.h:#include "mbedtls/ecp.h"
+./security/oc_spake2plus.h:  mbedtls_mpi w0;
+./security/oc_spake2plus.h:  mbedtls_ecp_point L;
+./security/oc_spake2plus.h:  mbedtls_mpi y;
+./security/oc_spake2plus.h:  mbedtls_ecp_point pub_y;
+./security/oc_spake2plus.h: * @return int 0 on success, mbedtls error code on failure
+./security/oc_spake2plus.h: * @return int 0 on success, mbedtls error code on failure
+./security/oc_spake2plus.h:int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t *salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L);
+./security/oc_spake2plus.h: * @return int 0 on success, mbedtls error code on failure
+./security/oc_spake2plus.h:int oc_spake_gen_keypair(mbedtls_mpi *y, mbedtls_ecp_point *pub_y);
+./security/oc_spake2plus.h:int oc_spake_calc_shareP(mbedtls_ecp_point* shareP, const mbedtls_ecp_point* pubA,
+./security/oc_spake2plus.h:                         const mbedtls_mpi* w0);
+./security/oc_spake2plus.h:int oc_spake_calc_shareV(mbedtls_ecp_point* shareV, const mbedtls_ecp_point* pubB,
+./security/oc_spake2plus.h:                         const mbedtls_mpi *w0);
+./security/oc_spake2plus.h:int oc_spake_encode_pubkey(mbedtls_ecp_point *P, uint8_t out[kPubKeySize]);
+./security/oc_spake2plus.h: * @return int 0 on success, mbedtls error code on failure
+./security/oc_spake2plus.h:                                       mbedtls_ecp_point *shareV);
+./security/oc_spake2plus.h: * @return int 0 on success, mbedtls error otherwise
+./security/oc_spake2plus.h: * @return int 0 on success, mbedtls error otherwise
+./security/oc_spake2plus.h:size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, uint8_t* buffer);
+./security/oc_spake2plus.h:int calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc[kPubKeySize], mbedtls_ecp_point* shareV,
+./security/oc_spake2plus.h:int calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1, mbedtls_mpi* x, mbedtls_ecp_point* shareP,
+./security/oc_tls.c:#include "mbedtls/ctr_drbg.h"
+./security/oc_tls.c:#include "mbedtls/entropy.h"
+./security/oc_tls.c:#include "mbedtls/md.h"
+./security/oc_tls.c:#include "mbedtls/oid.h"
+./security/oc_tls.c:#include "mbedtls/pkcs5.h"
+./security/oc_tls.c:#include "mbedtls/ssl.h"
+./security/oc_tls.c:#include "mbedtls/ssl_cookie.h"
+./security/oc_tls.c:#include "mbedtls/ssl_internal.h"
+./security/oc_tls.c:#include "mbedtls/timing.h"
+./security/oc_tls.c:#include "mbedtls/debug.h"
+./security/oc_tls.c:#include "mbedtls/error.h"
+./security/oc_tls.c:#include "mbedtls/platform.h"
+./security/oc_tls.c:static mbedtls_entropy_context entropy_ctx;
+./security/oc_tls.c:static mbedtls_ctr_drbg_context ctr_drbg_ctx;
+./security/oc_tls.c:static mbedtls_ssl_cookie_ctx cookie_ctx;
+./security/oc_tls.c:  mbedtls_x509_crt *cert;
+./security/oc_tls.c:  mbedtls_x509_crt cert;
+./security/oc_tls.c:  mbedtls_pk_context pk;
+./security/oc_tls.c:mbedtls_x509_crt trust_anchors;
+./security/oc_tls.c:#include "mbedtls/memory_buffer_alloc.h"
+./security/oc_tls.c:mbedtls_x509_crt *
+./security/oc_tls.c:static void oc_mbedtls_debug(void *ctx, int level, const char *file, int line,
+./security/oc_tls.c:  PRINT("mbedtls_log: %s:%04d: %s", file, line, str);
+./security/oc_tls.c:  mbedtls_ssl_free(&peer->ssl_ctx);
+./security/oc_tls.c:  mbedtls_ssl_config_free(&peer->ssl_conf);
+./security/oc_tls.c:  mbedtls_ssl_free(&peer->ssl_ctx);
+./security/oc_tls.c:  mbedtls_ssl_config_free(&peer->ssl_conf);
+./security/oc_tls.c:    mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:      mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:        int ret = mbedtls_ssl_handshake(&peer->ssl_ctx);
+./security/oc_tls.c:          mbedtls_ssl_session_reset(&peer->ssl_ctx);
+./security/oc_tls.c:              mbedtls_ssl_set_client_transport_id(
+./security/oc_tls.c:          // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:          // OC_ERR("oc_tls: mbedtls_error: %s", buf);
+./security/oc_tls.c:  mbedtls_md_context_t hmac_SHA256;
+./security/oc_tls.c:  mbedtls_md_init(&hmac_SHA256);
+./security/oc_tls.c:  mbedtls_md_setup(&hmac_SHA256, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+./security/oc_tls.c:  int ret = mbedtls_pkcs5_pbkdf2_hmac(&hmac_SHA256, pin, pin_len,
+./security/oc_tls.c:  mbedtls_md_free(&hmac_SHA256);
+./security/oc_tls.c:  mbedtls_x509_crt *id_cert = &certs->cert;
+./security/oc_tls.c:  mbedtls_x509_crt cert_in_cred;
+./security/oc_tls.c:  mbedtls_x509_crt *cert = &cert_in_cred;
+./security/oc_tls.c:    mbedtls_x509_crt_init(cert);
+./security/oc_tls.c:    int ret = mbedtls_x509_crt_parse(
+./security/oc_tls.c:          mbedtls_x509_crt_free(&cert_in_cred);
+./security/oc_tls.c:          mbedtls_x509_crt_parse_der(&certs->cert, cert->raw.p, cert->raw.len);
+./security/oc_tls.c:          mbedtls_x509_crt_free(&cert_in_cred);
+./security/oc_tls.c:        mbedtls_x509_crt *c = &certs->cert;
+./security/oc_tls.c:          mbedtls_x509_crt_free(&cert_in_cred);
+./security/oc_tls.c:  mbedtls_x509_crt_init(&cert->cert);
+./security/oc_tls.c:    int ret = mbedtls_x509_crt_parse(
+./security/oc_tls.c:      ret = mbedtls_pk_parse_key(
+./security/oc_tls.c:  mbedtls_x509_crt *c = &cert->cert;
+./security/oc_tls.c:  mbedtls_x509_crt_free(&cert->cert);
+./security/oc_tls.c:  mbedtls_pk_free(&cert->pk);
+./security/oc_tls.c:    mbedtls_x509_crt_free(&cert->cert);
+./security/oc_tls.c:    mbedtls_pk_free(&cert->pk);
+./security/oc_tls.c:  mbedtls_x509_crt_free(&trust_anchors);
+./security/oc_tls.c:  mbedtls_x509_crt_init(&trust_anchors);
+./security/oc_tls.c:static int oc_tls_configure_end_entity_cert_chain(mbedtls_ssl_config *conf,
+./security/oc_tls.c:  if (!cert || mbedtls_ssl_conf_own_cert(conf, &cert->cert, &cert->pk) != 0) {
+./security/oc_tls.c:static int oc_tls_load_mfg_cert_chain(mbedtls_ssl_config *conf, int credid)
+./security/oc_tls.c:static int oc_tls_load_identity_cert_chain(mbedtls_ssl_config *conf,
+./security/oc_tls.c:  int ret = mbedtls_x509_crt_parse(
+./security/oc_tls.c:  mbedtls_x509_crt *c = &trust_anchors;
+./security/oc_tls.c:static oc_x509_crt_t * get_identity_cert_for_session(const mbedtls_ssl_config *conf)
+./security/oc_tls.c:static void oc_tls_set_ciphersuites(mbedtls_ssl_config *conf, oc_endpoint_t *endpoint)
+./security/oc_tls.c:  mbedtls_ssl_conf_ca_chain(conf, &trust_anchors, NULL);
+./security/oc_tls.c:  mbedtls_ssl_conf_ciphersuites(conf, ciphers);
+./security/oc_tls.c:static int verify_certificate(void *opq, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
+./security/oc_tls.c:      mbedtls_x509_crt *root_crt = id_cert->ctx->cert;
+./security/oc_tls.c:static int oc_tls_populate_ssl_config(mbedtls_ssl_config *conf, int role,
+./security/oc_tls.c:  mbedtls_ssl_config_init(conf);
+./security/oc_tls.c:  if (mbedtls_ssl_config_defaults(conf, role, transport_type,
+./security/oc_tls.c:    if (mbedtls_ssl_conf_psk(conf, device_id->id, 1,
+./security/oc_tls.c:    if (mbedtls_ssl_conf_psk(conf, identity_hint, 1, identity_hint,
+./security/oc_tls.c:  mbedtls_ssl_conf_dbg(conf, oc_mbedtls_debug, stdout);
+./security/oc_tls.c:  mbedtls_ssl_conf_rng(conf, mbedtls_ctr_drbg_random, &ctr_drbg_ctx);
+./security/oc_tls.c:  mbedtls_ssl_conf_min_version(conf, MBEDTLS_SSL_MAJOR_VERSION_3,
+./security/oc_tls.c:  //  mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+./security/oc_tls.c:  // mbedtls_ssl_conf_psk_cb(conf, get_psk_cb, NULL);
+./security/oc_tls.c:    mbedtls_ssl_conf_dtls_cookies(conf, mbedtls_ssl_cookie_write,
+./security/oc_tls.c:                                  mbedtls_ssl_cookie_check, &cookie_ctx);
+./security/oc_tls.c:    mbedtls_ssl_conf_handshake_timeout(conf, 1000, 20000);
+./security/oc_tls.c:      mbedtls_ssl_init(&peer->ssl_ctx);
+./security/oc_tls.c:      mbedtls_ssl_conf_verify(&peer->ssl_conf, verify_certificate, peer);
+./security/oc_tls.c:      int err = mbedtls_ssl_setup(&peer->ssl_ctx, &peer->ssl_conf);
+./security/oc_tls.c:        OC_ERR("oc_tls: error in mbedtls_ssl_setup: %d", err);
+./security/oc_tls.c:        mbedtls_ssl_set_mtu(
+./security/oc_tls.c:      mbedtls_ssl_set_bio(&peer->ssl_ctx, peer, ssl_send, ssl_recv, NULL);
+./security/oc_tls.c:          mbedtls_ssl_set_client_transport_id(
+./security/oc_tls.c:        mbedtls_ssl_set_timer_cb(&peer->ssl_ctx, &peer->timer, ssl_set_timer,
+./security/oc_tls.c:    mbedtls_x509_crt_free(&cert->cert);
+./security/oc_tls.c:    mbedtls_pk_free(&cert->pk);
+./security/oc_tls.c:  mbedtls_x509_crt_free(&trust_anchors);
+./security/oc_tls.c:  mbedtls_ctr_drbg_free(&ctr_drbg_ctx);
+./security/oc_tls.c:  mbedtls_ssl_cookie_free(&cookie_ctx);
+./security/oc_tls.c:  mbedtls_entropy_free(&entropy_ctx);
+./security/oc_tls.c:  mbedtls_memory_buffer_alloc_init(alloc_buf, sizeof(alloc_buf));
+./security/oc_tls.c:  // mbedtls debug logs fail if snprintf is not specified
+./security/oc_tls.c:  mbedtls_platform_set_snprintf(snprintf);
+./security/oc_tls.c:  mbedtls_debug_set_threshold(4);
+./security/oc_tls.c:  mbedtls_entropy_init(&entropy_ctx);
+./security/oc_tls.c:  mbedtls_ssl_cookie_init(&cookie_ctx);
+./security/oc_tls.c:  mbedtls_ctr_drbg_init(&ctr_drbg_ctx);
+./security/oc_tls.c:  if (mbedtls_ctr_drbg_seed(&ctr_drbg_ctx, mbedtls_entropy_func, &entropy_ctx,
+./security/oc_tls.c:  if (mbedtls_ssl_cookie_setup(&cookie_ctx, mbedtls_ctr_drbg_random,
+./security/oc_tls.c:  mbedtls_x509_crt_init(&trust_anchors);
+./security/oc_tls.c:    mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:      mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:        mbedtls_md_get_size(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256));
+./security/oc_tls.c:  mbedtls_md_context_t hmacA, hmacA_next;
+./security/oc_tls.c:  mbedtls_md_init(&hmacA);
+./security/oc_tls.c:  mbedtls_md_init(&hmacA_next);
+./security/oc_tls.c:  MBEDTLS_MD(mbedtls_md_setup, &hmacA,
+./security/oc_tls.c:             mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1);
+./security/oc_tls.c:  MBEDTLS_MD(mbedtls_md_setup, &hmacA_next,
+./security/oc_tls.c:             mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1);
+./security/oc_tls.c:  MBEDTLS_MD(mbedtls_md_hmac_starts, &hmacA, secret, secret_len);
+./security/oc_tls.c:    MBEDTLS_MD(mbedtls_md_hmac_update, &hmacA, msg, msg_len);
+./security/oc_tls.c:  MBEDTLS_MD(mbedtls_md_hmac_finish, &hmacA, A);
+./security/oc_tls.c:    MBEDTLS_MD(mbedtls_md_hmac_reset, &hmacA);
+./security/oc_tls.c:    MBEDTLS_MD(mbedtls_md_hmac_starts, &hmacA, secret, secret_len);
+./security/oc_tls.c:    MBEDTLS_MD(mbedtls_md_hmac_update, &hmacA, A, hash_len);
+./security/oc_tls.c:      MBEDTLS_MD(mbedtls_md_hmac_update, &hmacA, msg, msg_len);
+./security/oc_tls.c:    MBEDTLS_MD(mbedtls_md_hmac_finish, &hmacA, buf);
+./security/oc_tls.c:      MBEDTLS_MD(mbedtls_md_hmac_reset, &hmacA_next);
+./security/oc_tls.c:      MBEDTLS_MD(mbedtls_md_hmac_starts, &hmacA_next, secret, secret_len);
+./security/oc_tls.c:      MBEDTLS_MD(mbedtls_md_hmac_update, &hmacA_next, A, hash_len);
+./security/oc_tls.c:      MBEDTLS_MD(mbedtls_md_hmac_finish, &hmacA_next, A);
+./security/oc_tls.c:  mbedtls_md_free(&hmacA);
+./security/oc_tls.c:  mbedtls_md_free(&hmacA_next);
+./security/oc_tls.c:static int ssl_write_tcp(mbedtls_ssl_context *ssl, const unsigned char *buf, size_t len)
+./security/oc_tls.c:    int ret = mbedtls_ssl_write(ssl, buf + length, len - length);
+./security/oc_tls.c:      ret = mbedtls_ssl_write(&peer->ssl_ctx, (unsigned char *)message->data,
+./security/oc_tls.c:      // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:      // OC_ERR("oc_tls: mbedtls_error: %s", buf);
+./security/oc_tls.c:      ret = mbedtls_ssl_write(&peer->ssl_ctx, (unsigned char *)message->data,
+./security/oc_tls.c:      // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:      // OC_ERR("oc_tls: mbedtls_error: %s", buf);
+./security/oc_tls.c:    int ret = mbedtls_ssl_handshake(&peer->ssl_ctx);
+./security/oc_tls.c:      // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:      // OC_ERR("oc_tls: mbedtls_error: %s", buf);
+./security/oc_tls.c:      OC_DBG("oc_tls_tcp: mbedtls_ssl_read want read: %d", (int)want_read);
+./security/oc_tls.c:      int ret = mbedtls_ssl_read(&peer->ssl_ctx,
+./security/oc_tls.c:      OC_DBG("oc_tls_tcp: mbedtls_ssl_read returns: %d", ret);
+./security/oc_tls.c:          // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:          // OC_ERR("oc_tls_tcp: mbedtls_error: %s", buf);
+./security/oc_tls.c:          mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:          mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:      ret = mbedtls_ssl_handshake_step(&peer->ssl_ctx);
+./security/oc_tls.c:        mbedtls_ssl_session_reset(&peer->ssl_ctx);
+./security/oc_tls.c:            mbedtls_ssl_set_client_transport_id(
+./security/oc_tls.c:        // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:        // OC_ERR("oc_tls: mbedtls_error: %s", buf);
+./security/oc_tls.c:    int ret = mbedtls_ssl_read(&peer->ssl_ctx, message->data, OC_PDU_SIZE);
+./security/oc_tls.c:        // mbedtls_strerror(ret, buf, 256);
+./security/oc_tls.c:        // OC_ERR("oc_tls: mbedtls_error: %s", buf);
+./security/oc_tls.c:        mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_tls.c:        mbedtls_ssl_close_notify(&peer->ssl_ctx);
+./security/oc_spake2plus.c:#include "mbedtls/md.h"
+./security/oc_spake2plus.c:#include "mbedtls/ecp.h"
+./security/oc_spake2plus.c:#include "mbedtls/entropy.h"
+./security/oc_spake2plus.c:#include "mbedtls/ctr_drbg.h"
+./security/oc_spake2plus.c:#include "mbedtls/hkdf.h"
+./security/oc_spake2plus.c:#include "mbedtls/pkcs5.h"
+./security/oc_spake2plus.c:#include "mbedtls/sha256.h"
+./security/oc_spake2plus.c:static mbedtls_ctr_drbg_context* pointer_to_ctr_drbg_ctx;
+./security/oc_spake2plus.c:static mbedtls_ecp_group grp;
+./security/oc_spake2plus.c:  mbedtls_ecp_group_init(&grp);
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1));
+./security/oc_spake2plus.c:  mbedtls_ecp_group_free(&grp);
+./security/oc_spake2plus.c:size_t encode_point(mbedtls_ecp_group* group, const mbedtls_ecp_point* point, uint8_t* buffer)
+./security/oc_spake2plus.c:  int ret = mbedtls_ecp_point_write_binary(group, point, MBEDTLS_ECP_PF_UNCOMPRESSED, &len_point, point_buf, sizeof(point_buf));
+./security/oc_spake2plus.c:static size_t encode_mpi(mbedtls_mpi* mpi, uint8_t* buffer)
+./security/oc_spake2plus.c:  len_mpi = mbedtls_mpi_size(mpi);
+./security/oc_spake2plus.c:  int ret = mbedtls_mpi_write_binary(mpi, mpi_buf, len_mpi);
+./security/oc_spake2plus.c:int oc_spake_encode_pubkey(mbedtls_ecp_point* P, uint8_t out[kPubKeySize])
+./security/oc_spake2plus.c:  return mbedtls_ecp_point_write_binary(&grp, P, MBEDTLS_ECP_PF_UNCOMPRESSED,
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, rand, KNX_RNG_LEN));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_random(pointer_to_ctr_drbg_ctx, salt, KNX_SALT_LEN));
+./security/oc_spake2plus.c: * @return int 0 on success, mbedtls error code on failure
+./security/oc_spake2plus.c:static int oc_spake_calc_w0_w1(const char* pw, size_t len_salt, const uint8_t* salt, int it, mbedtls_mpi* w0, mbedtls_mpi* w1)
+./security/oc_spake2plus.c:  mbedtls_md_context_t ctx;
+./security/oc_spake2plus.c:  mbedtls_mpi w0s, w1s;
+./security/oc_spake2plus.c:  mbedtls_md_init(&ctx);
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&w0s);
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&w1s);
+./security/oc_spake2plus.c:    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_pkcs5_pbkdf2_hmac(&ctx, input, len_input, salt,
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(&w0s, output, output_len / 2));
+./security/oc_spake2plus.c:    mbedtls_mpi_read_binary(&w1s, output + output_len / 2, output_len / 2));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(w0, &w0s, &grp.N));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(w1, &w1s, &grp.N));
+./security/oc_spake2plus.c:  mbedtls_md_free(&ctx);
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&w0s);
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&w1s);
+./security/oc_spake2plus.c: * @return int 0 on success, mbedtls error code on failure
+./security/oc_spake2plus.c:static int oc_spake_calc_w0_L(const char* pw, size_t len_salt, const uint8_t* salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
+./security/oc_spake2plus.c:  mbedtls_mpi w1;
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&w1);
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, L, &w1, &grp.G, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&w1);
+./security/oc_spake2plus.c:int oc_spake_get_w0_L_params(size_t len_salt, const uint8_t* salt, uint32_t it, mbedtls_mpi* w0, mbedtls_ecp_point* L)
+./security/oc_spake2plus.c:int oc_spake_gen_keypair(mbedtls_mpi* y, mbedtls_ecp_point* pub_y)
+./security/oc_spake2plus.c:  return mbedtls_ecp_gen_keypair(&grp, y, pub_y, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx);
+./security/oc_spake2plus.c:static int calculate_pX(mbedtls_ecp_point* pX, const mbedtls_ecp_point* pubX, const mbedtls_mpi* wX, const uint8_t bytes_L[], size_t len_L)
+./security/oc_spake2plus.c:  mbedtls_mpi one;
+./security/oc_spake2plus.c:  mbedtls_ecp_point L;
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&one);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&L);
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_point_read_binary(&grp, &L, bytes_L, len_L));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_read_string(&one, 10, "1"));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_muladd(&grp, pX, &one, pubX, wX, &L));
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&one);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&L);
+./security/oc_spake2plus.c:int oc_spake_calc_shareP(mbedtls_ecp_point* shareP, const mbedtls_ecp_point* pubA, const mbedtls_mpi* w0)
+./security/oc_spake2plus.c:int oc_spake_calc_shareV(mbedtls_ecp_point* shareV, const mbedtls_ecp_point* pubB, const mbedtls_mpi* w0)
+./security/oc_spake2plus.c:static int calculate_JfKgL(mbedtls_ecp_point* J, const mbedtls_mpi* f, const mbedtls_ecp_point* K, const mbedtls_mpi* g, const mbedtls_ecp_point* L)
+./security/oc_spake2plus.c:  mbedtls_mpi negative_g, zero, one;
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&negative_g);
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&zero);
+./security/oc_spake2plus.c:  mbedtls_mpi_init(&one);
+./security/oc_spake2plus.c:  mbedtls_ecp_point K_minus_g_L;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&K_minus_g_L);
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_read_string(&zero, 10, "0"));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(&negative_g, &zero, g));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&negative_g, &negative_g, &grp.N));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_mpi_read_string(&one, 10, "1"));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_muladd(&grp, &K_minus_g_L, &one, K, &negative_g, L));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, J, f, &K_minus_g_L, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&negative_g);
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&zero);
+./security/oc_spake2plus.c:  mbedtls_mpi_free(&one);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&K_minus_g_L);
+./security/oc_spake2plus.c:static int calculate_ZV_N(mbedtls_ecp_point* Z, const mbedtls_mpi* x, const mbedtls_ecp_point* Y, const mbedtls_mpi* w0)
+./security/oc_spake2plus.c:  mbedtls_ecp_point N;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&N);
+./security/oc_spake2plus.c:    mbedtls_ecp_point_read_binary(&grp, &N, bytes_N, sizeof(bytes_N)));
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&N);
+./security/oc_spake2plus.c:static int calculate_Z_M(mbedtls_ecp_point* Z, const mbedtls_mpi* x, const mbedtls_ecp_point* Y, const mbedtls_mpi* w0)
+./security/oc_spake2plus.c:  mbedtls_ecp_point M;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&M);
+./security/oc_spake2plus.c:    mbedtls_ecp_point_read_binary(&grp, &M, bytes_M, sizeof(bytes_M)));
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&M);
+./security/oc_spake2plus.c:int calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc[kPubKeySize], mbedtls_ecp_point* shareV, char* idProver,
+./security/oc_spake2plus.c:  mbedtls_ecp_point Z, V, shareP;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&Z);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&V);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&shareP);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_read_binary(&grp, &shareP, shareP_enc, kPubKeySize);
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_is_zero(&shareP));
+./security/oc_spake2plus.c:  MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&grp, &V, &spake_data->y, &spake_data->L, mbedtls_ctr_drbg_random, pointer_to_ctr_drbg_ctx));
+./security/oc_spake2plus.c:  mbedtls_ecp_point M;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&M);
+./security/oc_spake2plus.c:    mbedtls_ecp_point_read_binary(&grp, &M, bytes_M, sizeof(bytes_M)));
+./security/oc_spake2plus.c:  mbedtls_ecp_point N;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&N);
+./security/oc_spake2plus.c:    mbedtls_ecp_point_read_binary(&grp, &N, bytes_N, sizeof(bytes_N)));
+./security/oc_spake2plus.c:  mbedtls_sha256(ttbuf, ttlen, spake_data->K_main, 0);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&Z);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&V);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&shareP);
+./security/oc_spake2plus.c:int oc_spake_calc_transcript_responder(spake_data_t* spake_data, const uint8_t shareP_enc[kPubKeySize], mbedtls_ecp_point* shareV)
+./security/oc_spake2plus.c:int calc_transcript_initiator(mbedtls_mpi* w0, mbedtls_mpi* w1, mbedtls_mpi* x, mbedtls_ecp_point* shareP, const uint8_t shareV_enc[kPubKeySize],
+./security/oc_spake2plus.c:  mbedtls_ecp_point Y, Z, V;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&Y);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&Z);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&V);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_read_binary(&grp, &Y, shareV_enc, kPubKeySize);
+./security/oc_spake2plus.c:  mbedtls_ecp_point M;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&M);
+./security/oc_spake2plus.c:    mbedtls_ecp_point_read_binary(&grp, &M, bytes_M, sizeof(bytes_M)));
+./security/oc_spake2plus.c:  mbedtls_ecp_point N;
+./security/oc_spake2plus.c:  mbedtls_ecp_point_init(&N);
+./security/oc_spake2plus.c:    mbedtls_ecp_point_read_binary(&grp, &N, bytes_N, sizeof(bytes_N)));
+./security/oc_spake2plus.c:  mbedtls_sha256(ttbuf, ttlen, K_main, 0);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&Y);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&Z);
+./security/oc_spake2plus.c:  mbedtls_ecp_point_free(&V);
+./security/oc_spake2plus.c:  error = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0,
+./security/oc_spake2plus.c:  return mbedtls_md_hmac(
+./security/oc_spake2plus.c:    mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+./security/oc_spake2plus.c:  error = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0,
+./security/oc_spake2plus.c:  return mbedtls_md_hmac(
+./security/oc_spake2plus.c:    mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), K_confirmP_K_confirmV,
+./security/oc_spake2plus.c:  int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0,
+./security/oc_spake2plus.c:  int ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0,
+./.claude/settings.local.json:      "Read(//data/Develop/Zephyr_v4.4.x/modules/crypto/mbedtls/**)",
+./.claude/settings.local.json:      "Read(//data/Develop/Zephyr_v4.4.x/modules/crypto/mbedtls-3.6/**)"
+./zephyr/CMakeLists.txt:    set(MBEDTLS_CONFIG_FILE "${STACK_ROOT}/security/knx_mbedtls_config.h")
+./zephyr/CMakeLists.txt:        mbedtls
+./zephyr/CMakeLists.txt:    FetchContent_MakeAvailable(mbedtls)
+./zephyr/CMakeLists.txt:    target_include_directories(mbedtls    ${MBEDTLS_INCLUDE_DIRS})
+./zephyr/CMakeLists.txt:    zephyr_library_link_libraries(mbedtls)
+./README.md: *  __mbedtls/*__  

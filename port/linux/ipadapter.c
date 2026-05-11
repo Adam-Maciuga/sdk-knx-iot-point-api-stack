@@ -53,7 +53,6 @@ static const uint8_t ALL_COAP_NODES_RL[] = { 0xff, 0x03, 0, 0, 0, 0, 0, 0,
                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
 static const uint8_t ALL_COAP_NODES_SL[] = { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
-#define ALL_COAP_NODES_V4 0xe00001bb // TODO this can be removed right?
 
 static pthread_mutex_t mutex;
 struct sockaddr_nl ifchange_nl;

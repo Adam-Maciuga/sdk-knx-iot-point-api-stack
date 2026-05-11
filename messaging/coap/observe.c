@@ -34,9 +34,9 @@
 
 #include "oc_config.h"
 #include "separate.h"
+#include "conf.h"
 
 #ifdef OC_SERVER
-
 #include "observe.h"
 #include "util/oc_memb.h"
 #include <stdio.h>
@@ -48,7 +48,6 @@
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
 #endif
-
 #include "oc_coap.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
@@ -263,8 +262,10 @@ int coap_remove_observer_by_resource(const oc_resource_t* rsc)
   return removed;
 }
 
-
-#ifdef OC_SECURITY	// TODO FIXME this is NOT TCP only!
+/*---------------------------------------------------------------------------*/
+/*- Notification ------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+#ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
 int coap_remove_observers_on_dos_change(bool reset)
 {
   // Iterate over observers.
@@ -319,10 +320,9 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     return 0;
   }
 
-  #ifdef OC_SECURITY	// TODO FIXME this is NOT TCP only!
-  oc_sec_pstat_t* ps = oc_sec_get_pstat();
-  if (ps->s != OC_DOS_RFNOP)
-  {
+#ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
+  oc_sec_pstat_t *ps = oc_sec_get_pstat();
+  if (ps->s != OC_DOS_RFNOP) {
     OC_WRN("coap_notify_observers: device not in RFNOP; skipping notification");
     return 0;
   }

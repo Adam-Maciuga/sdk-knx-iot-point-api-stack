@@ -20,10 +20,7 @@
 #include "oc_knx.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
-
-#ifdef OC_MEMORY_TRACE
-#include "util/oc_mem_trace.h"
-#endif
+#include "conf.h"
 #include "oc_main.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION
@@ -130,9 +127,9 @@ static size_t _OC_MTU_SIZE = OC_INOUT_BUFFER_SIZE;
 static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
 #endif 
 #ifdef OC_APP_DATA_BUFFER_SIZE
-static size_t _OC_MAX_APP_DATA_SIZE = 7168; // TODO FIXME replace of those with parameters in the CMake file
+static size_t _OC_MAX_APP_DATA_SIZE = 7168; // TODO 6 FIXME replace of those with parameters in global stack config.h
 #else                                
-static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define
+static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define TODO 6 FIXME replace of those with parameters in global stack config.h
 #endif                               
 static size_t _OC_BLOCK_SIZE = 1024;        // a static runtime variable (only get), no #define
 
@@ -232,15 +229,11 @@ int oc_main_init(const oc_handler_t* handler)
   // set application handlers
   app_callbacks = handler;
 
-  #ifdef OC_MEMORY_TRACE
-  oc_mem_trace_init();
-  #endif
-
   oc_ri_init();
   oc_network_event_handler_mutex_init();
 
   // call one time on startup (must be successful)
-  if (oc_initialise_spake_data() < 0)
+  if (oc_spake2plus_init_data() < 0)
   {
     OC_ERR("Error in SPAKE2+ initialization, spake data init failed");
 
@@ -375,10 +368,6 @@ void oc_main_shutdown(void)
   #endif
 
   app_callbacks = NULL;
-
-  #ifdef OC_MEMORY_TRACE
-  oc_mem_trace_shutdown();
-  #endif 
 }
 
 bool oc_main_initialized(void)

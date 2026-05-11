@@ -242,10 +242,13 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     OC_INF("DNS-SD: KNX service registered: %s._knx._udp.local port %d.",
            knx_instance, (int)sys_be16_to_cpu(knx_port));
 
-    /* Proactively announce the updated service records (primary + all subtypes)
+    /* TODO FIXME: Proactively announce the updated service records (primary + all subtypes)
      * so that ETS and other tools see the changes immediately without waiting
-     * for an incoming query. */
-    mdns_announce_dns_sd_services();
+     * for an incoming query.
+     * This requires implementing the full DNS-SD announcement/goodbye API for Zephyr,
+     * equivalent to what port/dns-sd.c provides for Linux/Windows (announce, goodbye,
+     * restart, etc.). No public Zephyr mDNS API for proactive announcements exists yet. */
+    //mdns_announce_dns_sd_services();
 #else
     OC_WRN("DNS-SD: OC_DNS_SD not defined, DNS-SD service registration is disabled!");
 #endif /* OC_DNS_SD */

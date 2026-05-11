@@ -36,14 +36,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "coap.h"
-#include "transactions.h"
+#include "conf.h"
+#include "oc_ri.h"
 
 #ifdef OC_TCP
 #include "coap_signal.h"
 #include "security/oc_tls.h"
 #endif
 
-#include "oc_ri.h"
 
 // variables 
 static uint16_t current_mid = 0;
@@ -790,41 +790,7 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
                 &(coap_pkt->proxy_uri_len), current_options, option_length, '\0');
         OC_DBG("Proxy-Uri [%.*s]", (int) coap_pkt->proxy_uri_len, coap_pkt->proxy_uri);
         break;
-#if 0
-      case COAP_OPTION_IF_MATCH:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
 
-				// TODO support multiple ETags
-        coap_pkt->if_match_len = MIN(COAP_ETAG_LEN, option_length);
-        memcpy(coap_pkt->if_match, current_options, coap_pkt->if_match_len);
-        OC_DBG("If-Match %u", coap_pkt->if_match_len);
-        OC_LOGbytes(coap_pkt->if_match, coap_pkt->if_match_len);
-        break;
-      case COAP_OPTION_IF_NONE_MATCH:
-        if (!accept_inner_options) {
-          return BAD_OPTION_4_02;
-        }
-
-        coap_pkt->if_none_match = 1;
-        OC_DBG("If-None-Match");
-        break;
-      case COAP_OPTION_PROXY_SCHEME:
-        if (!accept_outer_options) {
-          return BAD_OPTION_4_02;
-        }
-
-#if COAP_PROXY_OPTION_PROCESSING
-        coap_pkt->proxy_scheme = (char*) current_options;
-        coap_pkt->proxy_scheme_len = option_length;
-#endif
-        OC_DBG("Proxy-Scheme NOT IMPLEMENTED [%.*s]",
-                (int) coap_pkt->proxy_scheme_len, coap_pkt->proxy_scheme);
-        return PROXYING_NOT_SUPPORTED_5_05;
-        break;
-#endif
-      
       case COAP_OPTION_URI_HOST:
         // class U option: OSCORE RFC 8613, clause 4.1.1
          if (!accept_outer_options) 
@@ -1861,7 +1827,7 @@ int coap_set_header_size1(void* packet, uint32_t size) {
 
 int coap_get_header_echo(void* packet, uint8_t* echo) {
   // copy needed since name is used in macro
-  coap_packet_t* const coap_pkt = packet;
+  coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
   if (!IS_OPTION(coap_pkt, COAP_OPTION_ECHO)) {
     return 0;

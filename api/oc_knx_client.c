@@ -8,6 +8,10 @@
 #include "oc_api.h"
 #include "api/oc_knx_client.h"
 #include "api/oc_knx_fp.h"
+#include "api/oc_knx_sec.h"
+
+#include "security/spake2plus.h"
+
 #include "oc_core_res.h"
 #include <string.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
@@ -90,7 +94,7 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
 
     case OC_IP_STATUS_RESOLVED:
     
-    // TODO AH how to re-resolve when not getting any answer later with a resolved IP 
+    // TODO 2 AH how to re-resolve when not getting any answer later with a resolved IP address? 
     
     OC_DBG("Resolve ipv6 address: RESOLVED -> remaining attempts %i", recipient->ipv6_res.attempts);
       

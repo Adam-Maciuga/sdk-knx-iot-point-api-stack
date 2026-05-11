@@ -51,7 +51,6 @@ static const uint8_t ALL_COAP_NODES_RL[] = { 0xff, 0x03, 0, 0, 0, 0, 0, 0,
                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
 static const uint8_t ALL_COAP_NODES_SL[] = { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
                                              0,    0,    0, 0, 0, 0, 0, 0xFD };
-#define ALL_COAP_NODES_V4 0xe00001bb // TODO this can be removed right?
 
 static HANDLE mutex;
 SOCKET ifchange_sock;
@@ -1078,14 +1077,13 @@ int oc_send_buffer(oc_message_t *message) {
   }
 #endif 
 
-#if 1 // TODO FIXME is it planned to use the secure_sock for anything in the future?
-  // Note:
-  // OSCORE always uses server_sock (not secure_sock) to maintain consistent source port.
-  // The secure_sock is only for DTLS which is not used with OSCORE.
-  // IPv6
-  // Use server_sock for both OSCORE and unsecured messages.
+  #if 1
+  /* 
+   Note, OSCORE always uses server_sock (not secure_sock) to maintain consistent source port.
+   The secure_sock is only for DTLS which is not used with OSCORE. IPv6 uses server_sock for both OSCORE and unsecured messages.
+  */
   send_sock = dev->server_sock;
-#else
+  #else
   if (message->endpoint.flags & SECURED) {
     // IPv6 and SECURE
     send_sock = dev->secure_sock;
@@ -1093,7 +1091,7 @@ int oc_send_buffer(oc_message_t *message) {
     // IPv6
     send_sock = dev->server_sock;
   }
-#endif
+  #endif
 
   
 #ifdef KNX_UDP_DTLS
@@ -1641,24 +1639,20 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address) {
 
     // Obtain interface index for this address.
     const ULONG if_index = interface->if_index;
-    // Accordingly handle IPv6/IPv4 addresses.
-    // TODO This is probably a very bad cast - double check.
-    struct sockaddr_storage *a = &interface->addr;
-    if (a) {
-      // Subscribe to multicast group.
-      struct ipv6_mreq mreq = {0};
 
-      memcpy(mreq.ipv6mr_multiaddr.s6_addr, address->addr.ipv6.address, 16);
-      mreq.ipv6mr_interface = if_index;
+    // Subscribe to multicast group.
+    struct ipv6_mreq mreq = {0};
 
-      (void)setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
-             (char *)&mreq, sizeof(mreq));
+    memcpy(mreq.ipv6mr_multiaddr.s6_addr, address->addr.ipv6.address, 16);
+    mreq.ipv6mr_interface = if_index;
 
-      if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
-             (char *)&mreq, sizeof(mreq)) == -1) {
-        OC_ERR("Failed to add IPv6 multicast membership!");
-        return;
-      }
+    (void)setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
+           (char *)&mreq, sizeof(mreq));
+
+    if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+           (char *)&mreq, sizeof(mreq)) == -1) {
+      OC_ERR("Failed to add IPv6 multicast membership!");
+      return;
     }
   }
 }
@@ -1694,23 +1688,21 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address) {
     // Obtain interface index for this address.
     ULONG if_index = interface->if_index;
     // Accordingly handle IPv6/IPv4 addresses.
-    // TODO This is probably a very bad cast - double check.
-    struct sockaddr_storage *a = &interface->addr;
-    if (a) {
-      // Subscribe to multicast group.
-      struct ipv6_mreq mreq = {0};
+    
+    // Subscribe to multicast group.
+    struct ipv6_mreq mreq = {0};
 
-      memcpy(mreq.ipv6mr_multiaddr.s6_addr, address->addr.ipv6.address, 16);
-      mreq.ipv6mr_interface = if_index;
+    memcpy(mreq.ipv6mr_multiaddr.s6_addr, address->addr.ipv6.address, 16);
+    mreq.ipv6mr_interface = if_index;
 
-      (void)setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
-              (char *)&mreq, sizeof(mreq));
+    (void)setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
+            (char *)&mreq, sizeof(mreq));
 
-      // if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
-      //               (char *)&mreq, sizeof(mreq)) == -1) {
-      //  OC_ERR("Failed to add IPv6 multicast membership!");
-      //  return;
-      //}
-    }
+    // if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+    //               (char *)&mreq, sizeof(mreq)) == -1) {
+    //  OC_ERR("Failed to add IPv6 multicast membership!");
+    //  return;
+    //}
+    
   }
 }

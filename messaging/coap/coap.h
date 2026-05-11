@@ -35,17 +35,14 @@
 #ifndef COAP_H
 #define COAP_H
 
-#include "conf.h"
 #include "constants.h"
 #include <stddef.h> // for size_t
 #include <stdint.h>
 #include "oscore.h"
 #include "oc_buffer.h"
-#include "oc_config.h"
 #include "oc_ri.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_log.h"
-#include "port/oc_random.h"
 
 #ifdef __cplusplus
 extern "C" {
