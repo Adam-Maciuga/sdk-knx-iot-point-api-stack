@@ -793,13 +793,14 @@ bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
   }
 
   const oc_resource_t* dummy_resource = _resource;
-  while (dummy_resource && dummy_resource->next != NULL)
+  while (dummy_resource && dummy_resource->next)
   {
     dummy_resource = dummy_resource->next;
   }
 
   if (!dummy_resource)
   {
+    // dummy was not NULL, next was NULL, but dummy itself is NULL -> invalid resource block
     return false;
   }
 
@@ -810,27 +811,32 @@ bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
     whether the resource exists and when it doesn't we assume that
     a deallocation of the resource was already invoked and skip this one.
   */
-  if (oc_list_remove_block2(app_resources, (void*)_resource,
-                            (void*)dummy_resource) == NULL)
+  if (oc_list_remove_block2(app_resources, (void*)_resource, (void*)dummy_resource) == NULL)
   {
     return true;
   }
 
-  for (; _resource != dummy_resource; _resource = _resource->next)
+  while (_resource != dummy_resource)
   {
+    // tmp copy of next pointer, as we will free the resource and thus cannot access its next pointer anymore
+    const oc_resource_t* next = _resource->next;
+
     if (_resource->is_const)
     {
+      _resource = next;
       continue;
     }
 
-    oc_resource_t* resource = (oc_resource_t*)_resource;
-    if (resource->runtime_data->num_observers > 0)
+    if (_resource->runtime_data->num_observers > 0)
     {
-      coap_remove_observer_by_resource(resource);
+      coap_remove_observer_by_resource((oc_resource_t*)_resource);
     }
 
-    oc_ri_free_resource_properties(resource);
-    oc_memb_free(&app_resources_s, resource);
+    oc_ri_free_resource_properties((oc_resource_t*)_resource);
+    oc_memb_free(&app_resources_s, (oc_resource_t*)_resource);
+
+    // restore tmp copy of next pointer for next loop iteration
+    _resource = next;
   }
 
   return true;
@@ -851,14 +857,13 @@ bool oc_ri_add_resource(oc_resource_t* resource)
 
   bool valid = true;
 
-  if (!resource->get_handler.cb && !resource->put_handler.cb &&
-    !resource->post_handler.cb && !resource->delete_handler.cb)
+  if (!resource->get_handler.cb && !resource->put_handler.cb && !resource->post_handler.cb && !resource->delete_handler.cb)
   {
+    // there must at least one method, short circuit check
     valid = false;
   }
 
-  if (resource->properties & OC_PERIODIC &&
-    resource->observe_period_seconds == 0)
+  if (resource->properties & OC_PERIODIC && resource->observe_period_seconds == 0)
   {
     valid = false;
   }
