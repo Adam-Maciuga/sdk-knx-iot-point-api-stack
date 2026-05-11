@@ -105,7 +105,7 @@ void oc_prepare_linkformat_response(oc_request_t* request,
   }
 }
 
-void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code)
+void oc_prepare_no_format_response_no_payload(const oc_request_t* request, oc_status_t response_code)
 {
   /* 
     note that on a not present response and/or buffer the code below is skipped,

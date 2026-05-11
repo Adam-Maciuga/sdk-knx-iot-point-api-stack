@@ -918,7 +918,7 @@ extern "C"
    * @param request the request being responded to
    * @param response_code the to be used response code
    */
-  void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
+  void oc_prepare_no_format_response_no_payload(const oc_request_t* request, oc_status_t response_code);
 
   /**
    * @brief retrieve the response payload, without processing
