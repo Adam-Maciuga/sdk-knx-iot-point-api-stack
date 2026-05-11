@@ -201,16 +201,16 @@ typedef enum {
   OC_ACL_D = OC_IF_D,                  /**< if.d (diagnostic) */
   OC_ACL_A = OC_IF_A,                  /**< if.a (HW actuator) */
   OC_ACL_S = OC_IF_S,                  /**< if.s (HW sensor) */
-		                       /* if.ll (is not a scope) */
-		                       /* if.b  (is not a scope) */
+		                                   /* if.ll (is not a scope) */
+		                                   /* if.b  (is not a scope) */
   OC_ACL_SEC = OC_IF_SEC,              /**< if.sec  */
   OC_ACL_SWU = OC_IF_SWU,              /**< if.swu  */
-	                               /* if.pm (is not a scope) */
-		                       /* if.m.x (is not a scope) */
+	                                     /* if.pm (is not a scope) */
+		                                   /* if.m.x (is not a scope) */
   OC_ACL_GA = OC_IF_M << 1             /**< <ga> ([owl]some ga's are allowed, see oc_knx_sec_check_acl), is ONLY an INTERNAL scope and has no corr. interface */
 } oc_acl_mask_t;
 
-#define MAX_ACL_SCOPE_BIT (12)	// the highest 'defined' valid scope bit-position (mote, the <ga> scope is internal and not considered)
+#define MAX_ACL_SCOPE_BIT (12)	// the highest 'defined' valid scope bit-position (note, the <ga> scope is internal and not considered)
 #define NUM_ACL_SCOPES    (16)	// the number of scopes in the array
 
 /**

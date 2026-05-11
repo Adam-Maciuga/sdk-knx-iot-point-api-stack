@@ -565,14 +565,19 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
   const oc_device_info_t* const  device = oc_core_get_device_info();
 
   /*
-    KNX 2.5.9.1: plain GET (no observe) and first observe notification both return only {4: <ia>}
+    KNX 2.5.9.1: FIRST GET and no observe option (a) or with observe option (b) return both only the notification of {4: <ia>}
     
+    (b)
     - subsequent observe notifications with full s-mode payload are handled by coap_notify_k_observers
     - handling of 'Observe' ?lt=86400 or ?non=true is done in 'oc_ri_invoke_coap_entity_handler'
       
       GET coap://[fd00::1]/k?lt=3600&non=true
       Token: 0xA1B2C3D4
       Observe: 0  (register)
+
+    (a)
+    - only the first GET without observe option is supported, subsequent GETs without observe option return a bad request response
+       GET coap://[fd00::1]/k Token: 0xA1B2C3D4
 
   */
 
@@ -1112,12 +1117,9 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   // notify /k observers with the received s-mode data (KNX clause 2.5.9.1)
-  if (summary_handler_status == OC_STATUS_CHANGED &&
-      request->_payload && request->_payload_len > 0)
+  if (summary_handler_status == OC_STATUS_CHANGED && request->_payload && request->_payload_len > 0)
   {
-    coap_notify_k_observers(&core_resource_knx_k,
-                            request->_payload,
-                            request->_payload_len);
+    coap_notify_k_observers(&core_resource_knx_k, request->_payload, request->_payload_len);
   }
 
   PRINT("oc_core_knx_k_post_handler - end");

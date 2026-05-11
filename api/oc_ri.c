@@ -2,7 +2,7 @@
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2021 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
- *            
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -39,9 +39,9 @@
 
 #ifdef OC_SERVER
 OC_LIST(app_resources);                // list root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
-OC_LIST(observe_callbacks);            // list root node for callback handlers 
-OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource 
-OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource runtime modifiable data 
+OC_LIST(observe_callbacks);            // list root node for callback handlers
+OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);           // a tmp memory container to story a resource
+OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource runtime modifiable data
 #endif
 
 #ifdef OC_CLIENT
@@ -59,7 +59,7 @@ OC_PROCESS(timed_callback_events, "OC timed callbacks");
 oc_event_callback_retval_t oc_remove_ping_handler(void* data);
 #endif
 
-static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] = 
+static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 {
   CONTENT_2_05,                        // mapped from OC_STATUS_OK
   CREATED_2_01,                        // mapped from OC_STATUS_CREATED
@@ -85,10 +85,9 @@ static int oc_coap_status_codes[NUMBER_OF_OC_STATUS_CODES] =
 
 oc_process_event_t oc_events[NUM_OC_EVENT_TYPES];
 
-static const char* scope_string_name[NUM_ACL_SCOPES] = 
+static const char* scope_string_name[NUM_ACL_SCOPES] =
 {
-  // starts with OC_ACL_NONE,
-  // names are shared between scopes and interfaces AND MUST be in the same order
+  // starts with OC_ACL_NONE, names are shared between scopes and interfaces AND MUST be in the same order
   "",
   "if.i",
   "if.o",
@@ -107,10 +106,9 @@ static const char* scope_string_name[NUM_ACL_SCOPES] =
   "<ga>"
 };
 
-static const char* interface_string_short_urn[NUM_INTERFACES] = 
+static const char* interface_string_short_urn[NUM_INTERFACES] =
 {
-  // starts with OC_IF_NONE,
-  // urns are shared between scopes and interfaces AND MUST be in the same order
+  // starts with OC_IF_NONE, urns are shared between scopes and interfaces AND MUST be in the same order
   "",
   ":if.i",
   ":if.o",
@@ -128,10 +126,9 @@ static const char* interface_string_short_urn[NUM_INTERFACES] =
   ":if.m.x"
 };
 
-static const char* interface_string_full_urn[NUM_INTERFACES] = 
+static const char* interface_string_full_urn[NUM_INTERFACES] =
 {
-  // starts with OC_IF_NONE,
-  // urns are shared between scopes and interfaces AND MUST be in the same order
+  // starts with OC_IF_NONE, urns are shared between scopes and interfaces AND MUST be in the same order
   "",
   "urn:knx:if.i",
   "urn:knx:if.o",
@@ -151,9 +148,11 @@ static const char* interface_string_full_urn[NUM_INTERFACES] =
 
 const char* get_interface_string_full_urn(int index)
 {
-  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  /*
+    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  */
 
   return interface_string_full_urn[index];
 }
@@ -162,7 +161,7 @@ oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
 {
   for (oc_status_t i = OC_STATUS_OK; i < NUMBER_OF_OC_STATUS_CODES; i++)
   {
-    // number 0...n (19) of array is needed, not the actual coap code 
+    // number 0...n (19) of array is needed, not the actual coap code
     if (oc_coap_status_codes[i] == coap_code)
     {
       return i;
@@ -176,13 +175,12 @@ oc_status_t get_oc_status_code_from_coap_code(const int coap_code)
 unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes)
 {
   unsigned int total_masks = 0;
+  unsigned int mask = (unsigned int)scopes;
 
-  while (scopes)
+  while (mask)
   {
-    // add the LSB (=0/1)
-    total_masks += scopes & 1;
-    // right shift
-    scopes >>= 1;
+    total_masks += mask & 1;  // add the LSB (=0/1)
+    mask >>= 1;               // right shift
   }
 
   return total_masks;
@@ -191,28 +189,29 @@ unsigned int oc_count_total_scopes_in_mask(oc_acl_mask_t scopes)
 unsigned int oc_count_total_interfaces_in_mask(oc_interface_mask_t interfaces)
 {
   unsigned int total_masks = 0;
+  unsigned int mask = (unsigned int)interfaces;
 
-  while (interfaces)
+  while (mask)
   {
-    // add the LSB (=0/1)
-    total_masks += interfaces & 1;
-    // right shift
-    interfaces >>= 1;
+    total_masks += mask & 1;  // add the LSB (=0/1)
+    mask >>= 1;               // right shift
   }
 
   return total_masks;
 }
 
-void oc_put_all_access_scope_names_from_a_mask_in_string_array(
-  oc_acl_mask_t scopes, oc_string_array_t scopes_array)
+void oc_put_all_access_scope_names_from_a_mask_in_string_array(oc_acl_mask_t scopes, oc_string_array_t scopes_array)
 {
-  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  /*
+    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  */
 
-  for (int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, scopes >>= 1)
+  unsigned int mask = (unsigned int)scopes;
+  for (int i = 0; i <= MAX_ACL_SCOPE_BIT; i++, mask >>= 1)
   {
-    if (scopes & 1)
+    if (mask & 1)
     {
       // returning the pure scope type names
       oc_string_array_add_item(scopes_array, scope_string_name[i]);
@@ -220,16 +219,18 @@ void oc_put_all_access_scope_names_from_a_mask_in_string_array(
   }
 }
 
-void oc_put_all_interface_short_urns_from_a_mask_in_string_array(
-  oc_interface_mask_t interfaces, oc_string_array_t scopes_array)
+void oc_put_all_interface_short_urns_from_a_mask_in_string_array(oc_interface_mask_t interfaces, oc_string_array_t scopes_array)
 {
-  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  /*
+    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  */
 
-  for (int i = 0; i <= MAX_INTERFACE_BIT; i++, interfaces >>= 1)
+  unsigned int mask = (unsigned int)interfaces;
+  for (int i = 0; i <= MAX_INTERFACE_BIT; i++, mask >>= 1)
   {
-    if (interfaces & 1)
+    if (mask & 1)
     {
       // returning the pure interface type names, not the short URN format
       oc_string_array_add_item(scopes_array, interface_string_short_urn[i]);
@@ -239,9 +240,11 @@ void oc_put_all_interface_short_urns_from_a_mask_in_string_array(
 
 int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool truncate)
 {
-  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  /*
+    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  */
 
   // used to check if something was framed
   int total_size = 0;
@@ -278,20 +281,20 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
   return total_size;
 }
 
-oc_interface_mask_t oc_ri_get_interface_mask(
-  const char* interface_name, size_t interface_name_len)
+oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
 {
   oc_interface_mask_t interface = OC_IF_NONE;
 
-  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  /*
+    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  */
 
   // get name from FULL array
   for (int i = 0; i <= MAX_INTERFACE_BIT; i++)
   {
-    // urn = urn:knx:if.i;   i = 1 ;  1 << 1  = 2
-    // urn = urn:knx:if.swu; i = 11;  1 << 11 = 4096
+    // urn = urn:knx:if.i; i = 1; 1 << 1 = 2 -- urn = urn:knx:if.swu; i = 11; 1 << 11 = 4096
 
     const char* n = interface_string_full_urn[i];
 
@@ -308,15 +311,16 @@ oc_interface_mask_t oc_ri_get_interface_mask(
 
 oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
 {
-  // 32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-  // 32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-  // 32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  /*
+    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
+    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
+    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
+  */
 
   // get name from FULL array
   for (int i = 0; i <= MAX_ACL_SCOPE_BIT; i++)
   {
-    // scope = if.i;   i = 1 ;  1 << 1  = 2
-    // scope = if.swu; i = 11;  1 << 11 = 4096
+    // scope = if.i; i = 1; 1 << 1 = 2 -- scope = if.swu; i = 11; 1 << 11 = 4096
 
     const char* n = scope_string_name[i];
 
@@ -424,7 +428,7 @@ static void oc_ri_delete_all_app_resources(void)
 
 bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
 {
-  // hope request is not null 
+  // hope request is not null
   if (request->accept == accept || request->accept == CONTENT_NONE)
   {
     return true;
@@ -440,12 +444,11 @@ int oc_status_code(oc_status_t key)
   return oc_coap_status_codes[key];
 }
 
-int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key,
-                                  size_t* key_len, char** value, size_t* value_len, size_t n)
+int oc_ri_get_query_nth_key_value(const char* query, size_t query_len, char** key, size_t* key_len, char** value, size_t* value_len, size_t n)
 {
   int next_pos = -1;
 
-  // number of scanned independent query fragments with '&' 
+  // number of scanned independent query fragments with '&'
   size_t i = 0;
 
   const char* start = query;
@@ -610,7 +613,7 @@ int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, 
       current = end;
     }
 
-    // there is no value 
+    // there is no value
     *key = start;
     *key_len = current - start;
     next_pos = (int)(*key_len + 1);
@@ -731,19 +734,19 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void)
   return oc_memb_alloc(&app_resource_datas_s);
 }
 
-/**
- * Remove a resource from the stack and delete the resource.
- *
- * Any resource observers will automatically be removed.
- *
- * This will free the memory associated with the resource.
- *
- * @param[in] _resource the resource to delete
- *
- * @return
- *  - true: when the resource has been deleted and memory freed.
- *  - false: there was an issue deleting the resource.
- */
+/*
+  Remove a resource from the stack and delete the resource.
+
+  Any resource observers will automatically be removed.
+
+  This will free the memory associated with the resource.
+
+  @param[in] _resource the resource to delete
+
+  @return
+   - true: when the resource has been deleted and memory freed.
+   - false: there was an issue deleting the resource.
+*/
 bool oc_ri_delete_resource(const oc_resource_t* _resource)
 {
   if (!_resource)
@@ -759,12 +762,12 @@ bool oc_ri_delete_resource(const oc_resource_t* _resource)
 
   oc_resource_t* resource = (oc_resource_t*)_resource;
 
-  /**
-  * Prevent double deallocation: oc_rt_factory_free_created_resource
-  * called below will invoke the delete handler of the resource which will
-  * invoke this function again. We use the list of resources to check
-  * whether the resource exists and when it doesn't we assume that
-  * a deallocation of the resource was already invoked and skip this one.
+  /*
+    Prevent double deallocation: oc_rt_factory_free_created_resource
+    called below will invoke the delete handler of the resource which will
+    invoke this function again. We use the list of resources to check
+    whether the resource exists and when it doesn't we assume that
+    a deallocation of the resource was already invoked and skip this one.
   */
   if (oc_list_remove2(app_resources, resource) == NULL)
   {
@@ -800,12 +803,12 @@ bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
     return false;
   }
 
-  /**
-  * Prevent double deallocation: oc_rt_factory_free_created_resource
-  * called below will invoke the delete handler of the resource which will
-  * invoke this function again. We use the list of resources to check
-  * whether the resource exists and when it doesn't we assume that
-  * a deallocation of the resource was already invoked and skip this one.
+  /*
+    Prevent double deallocation: oc_rt_factory_free_created_resource
+    called below will invoke the delete handler of the resource which will
+    invoke this function again. We use the list of resources to check
+    whether the resource exists and when it doesn't we assume that
+    a deallocation of the resource was already invoked and skip this one.
   */
   if (oc_list_remove_block2(app_resources, (void*)_resource,
                             (void*)dummy_resource) == NULL)
@@ -916,24 +919,26 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
     return;
   }
 
-  // Here wa are on an application resource, frees PROPERTIES:
-  //
-  // - uri (static)
-  //   In oc_new_resource method simply assigned (resource MUST be already present). 
-  //   No need to free it with oc_free_string(&(resource->uri)) -> Caller must do that if heap allocated.
-  //
-  // - types (allocated)
-  //   Must be de allocated.
-  //
-  // - properties (static)
-  //   In oc_new_resource method simply assigned.
-  //
-  // - handler (static)
-  //   In oc_resource_set_request_handler method simply assigned (resource MUST be already present).
-  //   No need to free it -> Caller must do that if heap allocated.
-  // 
-  // - runtime_data
-  //   Not released here, will ONLY be deallocated in 'oc_memb_free'.
+  /*
+    Here wa are on an application resource, frees PROPERTIES:
+
+    - uri (static)
+      In oc_new_resource method simply assigned (resource MUST be already present).
+      No need to free it with oc_free_string(&(resource->uri)) -> Caller must do that if heap allocated.
+
+    - types (allocated)
+      Must be de allocated.
+
+    - properties (static)
+      In oc_new_resource method simply assigned.
+
+    - handler (static)
+      In oc_resource_set_request_handler method simply assigned (resource MUST be already present).
+      No need to free it -> Caller must do that if heap allocated.
+
+    - runtime_data
+      Not released here, will ONLY be deallocated in 'oc_memb_free'.
+  */
 
   // types (allocated)
   if (oc_string_array_get_allocated_size(resource->types) > 0)
@@ -952,8 +957,7 @@ const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource)
   do
   {
     resource = resource->next;
-    // Note:
-    // next == NULL means dummy resource (MUST BE IN RAM)
+    // Note: next == NULL means dummy resource (MUST BE IN RAM)
   }
   while (resource && resource->next == NULL);
 
@@ -1012,7 +1016,7 @@ static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
     {
       if (event_cb->callback(event_cb->data) == OC_EVENT_DONE)
       {
-        // remove callback 
+        // remove callback
         oc_list_remove(list, event_cb);
         oc_memb_free(cb_pool, event_cb);
         event_cb = (oc_event_callback_t*)oc_list_head(list);
@@ -1152,13 +1156,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                       oc_blockwise_state_t** response_state,
                                       uint16_t block2_size, oc_endpoint_t* endpoint)
 {
-  #else
-  bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
-                                        uint8_t* buffer,
-                                        oc_endpoint_t* endpoint)
-  {
- 
-  #endif
+#else
+bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* buffer, oc_endpoint_t* endpoint)
+{
+#endif
 
   // flags that capture status along various stages of processing the request.
   bool method_impl = true, bad_request = false, success = false, forbidden = false, entity_too_large = false;
@@ -1170,9 +1171,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   coap_method_t method = (coap_method_t)packet->code;
 
   // each app. callback handler gets a new copy from org. req, the response buffer is a 1:1 pointer copy from org. req
-  oc_request_t new_request = {0}; // partiality filled later on, hence init with '0'
-  oc_response_t response_obj; // filled completely later on, hence no init with '0'
-  oc_response_buffer_t response_buffer = {0}; // partiality filled later on, hence init with '0'
+  oc_request_t new_request = {0};              // partiality filled later on, hence init with '0'
+  oc_response_t response_obj;                   // filled completely later on, hence no init with '0'
+  oc_response_buffer_t response_buffer = {0};   // partiality filled later on, hence init with '0'
 
   #ifdef OC_BLOCK_WISE
   #ifndef OC_SERVER
@@ -1180,14 +1181,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   #endif
   #endif
 
-  // postpone allocating response_state right after calling oc_parse_rep()
-  // in order to reducing peak memory in OC_BLOCK_WISE & OC_DYNAMIC_ALLOCATION
+  // postpone allocating response_state right after calling oc_parse_rep() in order to reducing peak memory in OC_BLOCK_WISE & OC_DYNAMIC_ALLOCATION
 
   // init response object (sets all data)
   response_obj.separate_response = NULL;
   response_obj.response_buffer = &response_buffer;
 
-  // init request with non '0' data, later filled with core/ app. resource 
+  // init request with non '0' data, later filled with core/ app. resource
   new_request.response = &response_obj;
   new_request.origin = endpoint;
   new_request.request_method = method;
@@ -1256,11 +1256,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
   if (payload_len > 0 && (content_format == APPLICATION_CBOR || content_format == APPLICATION_OSCORE))
   {
-    // Attempt to parse request payload using tinyCBOR via oc_rep helper
-    // functions. The result of this parse is a tree of oc_rep_t structures
-    // which will reflect the schema of the payload.
-    // Any failures while parsing the payload is viewed as an erroneous
-    // request and results in a 4.00 response being sent.
+    /*
+      Attempt to parse request payload using tinyCBOR via oc_rep helper functions. The result of this parse is a
+      tree of oc_rep_t structures which will reflect the schema of the payload. Any failures while parsing the
+      payload is viewed as an erroneous request and results in a 4.00 response being sent.
+    */
     int parse_error = oc_parse_rep(payload, (int)payload_len, &new_request.request_payload);
     if (parse_error != 0)
     {
@@ -1277,8 +1277,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   // default, no matching resource found
   const oc_resource_t* matching_resource = NULL;
 
-  // If there were no errors thus far, attempt to locate the specific
-  // declared core/application resources that will handle the request using the request uri.
+  /*
+    If there were no errors thus far, attempt to locate the specific declared core/application resources
+    that will handle the request using the request uri.
+  */
   if (!bad_request)
   {
     const oc_resource_t* tmp_core_resource;
@@ -1289,10 +1291,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       tmp_core_resource = oc_core_get_core_resource_by_index(i);
       size_t tmp_core_resource_len = oc_string_len(tmp_core_resource->uri);
 
-      // incoming URL fits to a core resource by len and content, such as:
-      // request  : uri_path = '.well-known/core'  without '/' (uri path len = 16, no string end char)
-      // resource : res path = '/.well-known/core' with '/' (string size = 18, res path len = 17)
-      // see core resource definitions!
+      /*
+        incoming URL fits to a core resource by len and content, such as:
+        request  : uri_path = '.well-known/core'  without '/' (uri path len = 16, no string end char)
+        resource : res path = '/.well-known/core' with '/' (string size = 18, res path len = 17)
+        see core resource definitions!
+      */
 
       // need at least one identifier after, 'dev/sn' + 1 >= '/dev/sn' -> 7 >= 7
       if (uri_path_len + 1 == tmp_core_resource_len &&
@@ -1306,12 +1310,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
       if (oc_uri_contains_wildcard(oc_string(tmp_core_resource->uri)))
       {
-        // incoming URL should be equal or larger than the one with the wildcard,
-        // comparison should match to what ever is in front of the last char
-        // request  : uri_path = 'fp/r/25'  without '/' (uri path len = 7, no string end char)
-        // resource : res path = '/fp/r/\*' with '/' (string size = 8, res path len = 7)
-        //
-        // see core resource definitions!
+        /*
+          incoming URL should be equal or larger than the one with the wildcard,
+          comparison should match to what ever is in front of the last char
+          request  : uri_path = 'fp/r/25'  without '/' (uri path len = 7, no string end char)
+          resource : res path = '/fp/r/\*' with '/' (string size = 8, res path len = 7)
+          see core resource definitions!
+        */
 
         // need at least one identifier after, 'fp/r/2' + 1 >= '/fp/r/*' -> 7 >= 7
         if (uri_path_len + 1 >= tmp_core_resource_len &&
@@ -1360,7 +1365,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         // should be the same type in response as in the request
         (*response_state)->return_content_type = accept;
 
-        // here the response buffer is assigned 
+        // here the response buffer is assigned
         response_buffer.buffer = (*response_state)->buffer;
         response_buffer.buffer_size = OC_MAX_APP_DATA_SIZE;
       }
@@ -1375,10 +1380,12 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   {
     // core/application resource found, process request
 
-    // - Init CBOR response buffer, core or application callback handler will fill this buffer
-    //   with 'oc_rep_i_set_boolean' or similar calls.
-    // - The buffer points to (local call stack) memory, allocated for the "CoAP Transaction"
-    //   to service this request.
+    /*
+      - Init CBOR response buffer, core or application callback handler will fill this buffer
+        with 'oc_rep_i_set_boolean' or similar calls.
+      - The buffer points to (local call stack) memory, allocated for the "CoAP Transaction"
+        to service this request.
+    */
     oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
 
     // check access, use as payload the CBOR data
@@ -1389,9 +1396,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
     }
     else
     #ifdef OC_SECURITY	// TODO 12 FIXME NOW this is the only place where this looks like not to be TLS related!
-    // If matching_resource is a coaps:// resource, then query ACL to check if
-    // the requester (the subject) is authorized to issue this request to
-    // the resource.
+    /*
+      If matching_resource is a coaps:// resource, then query ACL to check if the requester (the subject)
+      is authorized to issue this request to the resource.
+    */
     if (!oc_sec_check_acl(method, matching_resource, endpoint))
     {
       authorized = false;
@@ -1412,14 +1420,14 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       }
       else if (method == COAP_POST && matching_resource->post_handler.cb)
       {
-        // entry point, such as for POST /p with a collection or POST /k with an item 
+        // entry point, such as for POST /p with a collection or POST /k with an item
         matching_resource->post_handler.cb(&new_request,
                                            matching_resource->post_handler.interface_mask,
                                            matching_resource->post_handler.user_data);
       }
       else if (method == COAP_PUT && matching_resource->put_handler.cb)
       {
-        // entry point, such as for PUT /p/{property-path} with an item 
+        // entry point, such as for PUT /p/{property-path} with an item
         matching_resource->put_handler.cb(&new_request,
                                           matching_resource->put_handler.interface_mask,
                                           matching_resource->put_handler.user_data);
@@ -1443,16 +1451,16 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 
   if (new_request.request_payload)
   {
-    // To the extent that the request payload was parsed, free the
-    // payload structure (and return its memory to the pool).
+    // to the extent that the request payload was parsed, free the payload structure (and return its memory to the pool).
     oc_free_rep(new_request.request_payload);
   }
 
   if (forbidden)
   {
-    // If the requestor (subject) does not have access granted via an
-    // access control entry in the ACL, then it is not authorized to
-    // access the resource Table 40, KNX specification.
+    /*
+      If the requestor (subject) does not have access granted via an access control entry in the ACL,
+      then it is not authorized to access the resource Table 40, KNX specification.
+    */
 
     OC_WRN("forbidden request");
     response_buffer.response_length = 0;
@@ -1507,7 +1515,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         */
 
         int observe_result;
-        
+
         #ifdef OC_BLOCK_WISE
         observe_result = coap_observe_handler(request, response, matching_resource, block2_size, endpoint);
         #else
@@ -1532,7 +1540,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
           if (matching_resource->properties & OC_PERIODIC)
           {
             if (!add_periodic_observe_callback(matching_resource))
-            { // error adding periodic observe callback, so remove observer
+            {
+              // error adding periodic observe callback, so remove observer
               coap_remove_observer_by_token(endpoint, packet->token, packet->token_len);
             }
           }
@@ -1541,19 +1550,18 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       else if (observe == OC_OBSERVE_DEREGISTER)
       {
         /*
-          If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the requesting
-          client from the list of observers. In addition, remove the resource from the list periodic GET callbacks
-          if it is periodic observable.
+          If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the
+          requesting client from the list of observers. In addition, remove the resource from the list periodic
+          GET callbacks if it is periodic observable.
         */
 
         #ifdef OC_BLOCK_WISE
         if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint) > 0)
         {
-          #else
-          if (coap_observe_handler(request, response, matching_resource, endpoint) > 0)
-          {
- 
-          #endif
+        #else
+        if (coap_observe_handler(request, response, matching_resource, endpoint) > 0)
+        {
+        #endif
           if (matching_resource->properties & OC_PERIODIC)
           {
             remove_periodic_observe_callback(matching_resource);
@@ -1571,24 +1579,26 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   }
 
   #ifdef OC_SERVER
-  
   // the presence of a separate response handle here indicates a successful handling of the request by a slow resource.
   if (response_obj.separate_response)
   {
     /*
-      Attempt to register a client request to the separate response tracker and pass in the observe option (if present) or the value 2 as
-      determined by the code block above. Values 0 and 1 result in their expected behaviors whereas 2 indicates an absence of an observe
-      option and hence a one-off request. Following a successful registration, the separate response tracker is flagged as "active". In this way, 
-      the function that later executes out-of-band upon availability of the resource state knows it must send out a response with it.
+      Attempt to register a client request to the separate response tracker and pass in the observe option
+      (if present) or the value 2 as determined by the code block above. Values 0 and 1 result in their
+      expected behaviors whereas 2 indicates an absence of an observe option and hence a one-off request.
+      Following a successful registration, the separate response tracker is flagged as "active". In this way,
+      the function that later executes out-of-band upon availability of the resource state knows it must send
+      out a response with it.
     */
-    
+
     #ifdef OC_BLOCK_WISE
     // note, observe may also 'error'
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe, block2_size) == 1)
     {
-      #else
-      if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe) == 1) { 
-      #endif
+    #else
+    if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe) == 1)
+    {
+    #endif
       response_obj.separate_response->active = true;
     }
   }
@@ -1596,17 +1606,19 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
   #endif
     if (response_buffer.code == OC_IGNORE)
     {
-      // If the server-side logic chooses to reject a request, it sends
-      // below a response code of IGNORE, which results in the messaging
-      // layer freeing the CoAP transaction associated with the request.
+      /*
+        If the server-side logic chooses to reject a request, it sends below a response code of IGNORE,
+        which results in the messaging layer freeing the CoAP transaction associated with the request.
+      */
       coap_status_code = CLEAR_TRANSACTION;
     }
     else
     {
       #ifdef OC_SERVER
-      // If the recently handled request was a PUT/POST, it conceivably
-      // altered the resource state, so attempt to notify all observers
-      // of that resource with the change.
+      /*
+        If the recently handled request was a PUT/POST, it conceivably altered the resource state,
+        so attempt to notify all observers of that resource with the change.
+      */
       if (matching_resource && (method == COAP_PUT || method == COAP_POST) &&
         response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
       {
@@ -1632,7 +1644,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
         #else
         coap_set_payload(response, response_buffer.buffer, response_buffer.response_length);
         #endif
-        
+
         if (response_buffer.content_format > 0)
         {
           // with payload, set response header format from request 1:1 in response if it is > 0 (means initialized)
@@ -1641,7 +1653,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
       }
       else
       {
-        // for EITT test 5.1.1.4 & 5.2.3.1b -> for an empty payload we mirror the inbound content (CBOR/LINK) format back to the response 
+        // for EITT test 5.1.1.4 & 5.2.3.1b -> for an empty payload we mirror the inbound content (CBOR/LINK) format back to the response
         if (response_buffer.content_format == APPLICATION_LINK_FORMAT || response_buffer.content_format == APPLICATION_CBOR)
         {
           // sets header format in cases LINK/CBOR
@@ -1800,11 +1812,12 @@ bool oc_ri_is_client_cb_valid(oc_client_cb_t* client_cb)
 }
 
 #ifdef OC_BLOCK_WISE
-bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t* * response_state, oc_client_cb_t* cb, oc_endpoint_t* endpoint)
+bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_state, oc_client_cb_t* cb, oc_endpoint_t* endpoint)
 {
-  #else
-  bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* endpoint) { 
-  #endif
+#else
+bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* endpoint)
+{
+#endif
   // to be checked, default is CBOR
   oc_content_format_t cf = APPLICATION_CBOR;
   coap_get_header_content_format(response, &cf);
@@ -1899,8 +1912,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t* * response_sta
     else
     {
       int err = 0;
-      // Do not parse an incoming payload when the Content-Format option
-      // has not been set to the CBOR encoding.
+      // Do not parse an incoming payload when the Content-Format option has not been set to the CBOR encoding.
       if (cf == APPLICATION_CBOR)
       {
         err = oc_parse_rep(payload, payload_len, &client_response.payload);
@@ -2041,7 +2053,7 @@ static void free_all_client_cbs(void)
   }
 }
 
-oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, coap_method_t method, const char* query, 
+oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, coap_method_t method, const char* query,
                                       oc_client_handler_t handler, oc_qos_t qos, void* user_data)
 {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
