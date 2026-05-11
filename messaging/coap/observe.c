@@ -56,8 +56,12 @@
 // RFC 7641 Section 3.4: Observe option is at most 3 bytes (0 to 2^24-1)
 #define OBSERVE_COUNTER_MASK 0x00FFFFFF
 
-// used to seed each new observer with a unique starting sequence number (0,1 reserved ...)
-static uint32_t observe_counter = 3;
+/* 
+ - used to seed each new (individual) observer with its notification response with a unique starting sequence number
+ - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
+*/
+static uint32_t observe_counter = 0;
+uint32_t get_observe_counter(void) { return observe_counter; }
 
 OC_LIST(observers_list);
 OC_MEMB(observers_memb, coap_observer_t, COAP_MAX_OBSERVERS);

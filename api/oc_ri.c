@@ -1398,7 +1398,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       {
         /*
           Register: attempt to add the requesting client as an observer.
-          coap_observe_handler parses "lt" and "non" query parameters (KNX 2.5.9.3/4)
+          'coap_observe_handler' below parses "lt" and "non" query parameters (KNX 2.5.9.3/4)
           and returns -2 if "lt" is missing (observer is removed internally).
         */
 
@@ -1417,8 +1417,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
         }
         else if (observe_result >= 0)
         {
-          // set observe option in response (RFC 7641 Section 3.1)
-          coap_set_header_observe(response, 0);
+          // set observe option in response (RFC 7641 Section 3.1, first observe value starts with a global incremented value, not with '0')
+          coap_set_header_observe(response, get_observe_counter());
 
           /*
             If the resource is marked as periodic observable it means it must be polled internally for updates

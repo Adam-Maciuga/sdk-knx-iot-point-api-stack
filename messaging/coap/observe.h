@@ -105,6 +105,9 @@ int coap_remove_observers_on_dos_change(bool reset);
  */
 void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* payload, size_t payload_len);
 
+// get current observe counter value (will be incremented on each new observer and each notification)
+uint32_t get_observe_counter(void);
+
 #ifdef __cplusplus
 }
 #endif
