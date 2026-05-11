@@ -44,6 +44,7 @@
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
+#include "port/oc_random.h"
 
 #ifdef KNX_TCP_TLS
 #include "oc_tls.h"
