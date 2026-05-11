@@ -281,18 +281,13 @@ static void coap_send_response_with_empty_application_payload_with_delay(const c
     - unicast, no delay
   */
   const uint16_t max_delay_ms = get_oscore_osn_delay_ms();
-  
-  uint16_t delay_ms = 0;
-  if (src_ctx->endpoint.flags & MULTICAST)
-  {
-    delay_ms = max_delay_ms > 0 ? (uint16_t)(oc_random_value() % max_delay_ms) : 0;
-  }
+  const bool is_multicast = src_ctx->endpoint.flags & MULTICAST;
+  const uint16_t delay_ms = is_multicast && max_delay_ms > 0 ? (uint16_t)(oc_random_value() % max_delay_ms) : 0;
 
   // shallow copy
   *dst_ctx = *src_ctx;
 
-  OC_DBG("sending uc echo response to inbound %s msg with delay of %u ms (range 0ms ... %ums)", 
-         src_ctx->endpoint.flags & MULTICAST ? "'mc'" : "'uc'", delay_ms, max_delay_ms);
+  OC_DBG("sending uc echo response to inbound %s msg with delay of %u ms (0ms ... %ums)", is_multicast ? "'mc'" : "'uc'", delay_ms, max_delay_ms);
 
   oc_set_delayed_callback_ms(dst_ctx, coap_send_delayed_echo_response, delay_ms);
 }
