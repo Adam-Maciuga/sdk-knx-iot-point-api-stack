@@ -14,6 +14,8 @@
 #include "oc_client_state.h"
 #include "oc_oscore_context.h"
 #include "oc_oscore_crypto.h"
+#include "conf.h"
+
 #ifdef KNX_TCP_TLS
 #include "oc_tls.h"
 #endif

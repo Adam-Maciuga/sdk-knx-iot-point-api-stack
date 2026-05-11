@@ -34,6 +34,7 @@
 
 #include "oc_config.h"
 #include "separate.h"
+#include "conf.h"
 
 #ifdef OC_SERVER
 #include "observe.h"

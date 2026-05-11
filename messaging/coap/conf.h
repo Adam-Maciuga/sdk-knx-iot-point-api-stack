@@ -49,6 +49,7 @@
 #define CONF_H
 
 #include "constants.h"
+
 #include "oc_config.h"
 
 #ifdef __cplusplus

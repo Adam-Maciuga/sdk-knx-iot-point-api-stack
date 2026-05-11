@@ -36,14 +36,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "coap.h"
-#include "transactions.h"
+#include "conf.h"
+#include "oc_ri.h"
 
 #ifdef OC_TCP
 #include "coap_signal.h"
 #include "security/oc_tls.h"
 #endif
 
-#include "oc_ri.h"
 
 // variables 
 static uint16_t current_mid = 0;

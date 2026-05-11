@@ -20,10 +20,7 @@
 #include "oc_knx.h"
 #include "oc_knx_dev.h"
 #include "oc_knx_fp.h"
-
-#ifdef OC_MEMORY_TRACE
-#include "util/oc_mem_trace.h"
-#endif
+#include "conf.h"
 #include "oc_main.h"
 
 #ifdef OC_DYNAMIC_ALLOCATION
@@ -232,10 +229,6 @@ int oc_main_init(const oc_handler_t* handler)
   // set application handlers
   app_callbacks = handler;
 
-  #ifdef OC_MEMORY_TRACE
-  oc_mem_trace_init();
-  #endif
-
   oc_ri_init();
   oc_network_event_handler_mutex_init();
 
@@ -375,10 +368,6 @@ void oc_main_shutdown(void)
   #endif
 
   app_callbacks = NULL;
-
-  #ifdef OC_MEMORY_TRACE
-  oc_mem_trace_shutdown();
-  #endif 
 }
 
 bool oc_main_initialized(void)
