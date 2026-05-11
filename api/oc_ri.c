@@ -755,11 +755,9 @@ bool oc_ri_delete_resource(const oc_resource_t* _resource)
   oc_resource_t* resource = (oc_resource_t*)_resource;
 
   /*
-    Prevent double deallocation: oc_rt_factory_free_created_resource
-    called below will invoke the delete handler of the resource which will
-    invoke this function again. We use the list of resources to check
-    whether the resource exists and when it doesn't we assume that
-    a deallocation of the resource was already invoked and skip this one.
+    Guard against re-entrant double-free: a DELETE request handler (delete_handler.cb) may itself call oc_ri_delete_resource on the same resource. 
+    By removing the resource from the list first, any re-entrant call will find it absent (oc_list_remove2 returns NULL) and exit early,
+    preventing a double oc_memb_free.
   */
   if (oc_list_remove2(app_resources, resource) == NULL)
   {

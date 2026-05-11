@@ -238,8 +238,7 @@ void oc_list_remove(oc_list_t list, void *item)
 }
 /*---------------------------------------------------------------------------*/
 /**
- * Remove a specific element from a list and return a pointer to the removed
- * item.
+ * Remove a specific element from a list and return a pointer to the removed item.
  *
  * This function removes a specified element from the list.
  *
