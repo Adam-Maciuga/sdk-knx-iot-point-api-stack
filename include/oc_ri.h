@@ -377,8 +377,8 @@ typedef struct oc_request_t
   size_t query_len;                    /**< query length */
   const char* uri_path;                /**< path (as string) */
   size_t uri_path_len;                 /**< path length */
-  oc_rep_t* request_payload;           /**< request payload structure as CBOR data */
-  const uint8_t* _payload;             /**< request payload structure as BYTE stream */
+  oc_rep_t* request_payload;           /**< request payload as structured CBOR (linked list) objects */
+  const uint8_t* _payload;             /**< request payload as unstructured BYTE stream */
   size_t _payload_len;                 /**< payload size */
   oc_content_format_t content_format;  /**< content format (of the payload in the request) */
   oc_content_format_t  accept;         /**< accept header, e.g. the format to be returned on the request */

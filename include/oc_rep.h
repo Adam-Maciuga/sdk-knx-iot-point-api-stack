@@ -1667,7 +1667,8 @@ typedef struct oc_rep_s
   struct oc_rep_s *next;    // next in list
   oc_string_t name;         // tag name string (CBOR name)
   int iname;                // tag name related identifier (CBOR identifier)
-  union oc_rep_value {
+  union oc_rep_value 
+  {
     int64_t integer;
     bool boolean;
     float float_p;
@@ -1677,7 +1678,7 @@ typedef struct oc_rep_s
     struct oc_rep_s *object;
     struct oc_rep_s *object_array;
     struct oc_rep_s *mixed_array;
-  } value; // the value as union
+  } value;                  // the value as union
 } oc_rep_t;
 
 // internal function
