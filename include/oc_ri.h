@@ -534,10 +534,10 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
  * @param event_callback the callback
  * @param seconds time in seconds
  */
-#define oc_ri_add_timed_event_callback_seconds(cb_data, event_callback, seconds) \
-do { \
-  oc_ri_add_timed_event_callback_ticks(cb_data, event_callback, \
-          (oc_clock_time_t)(seconds) * (oc_clock_time_t)OC_CLOCK_SECOND); \
+#define oc_ri_add_timed_event_callback_seconds(cb_data, event_callback, seconds)  \
+do {                                                                              \
+          oc_ri_add_timed_event_callback_ticks(cb_data, event_callback,           \
+          (oc_clock_time_t)(seconds) * (oc_clock_time_t)OC_CLOCK_SECOND);         \
 } while (0)
 
 /**
@@ -611,16 +611,6 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void);
 bool oc_ri_add_resource(oc_resource_t* resource);
 
 /**
- * @brief add resource block to the system
- *
- * @param resource the resource block to be added to the list of application
- * resources
- * @return true success
- * @return false failure
- */
-bool oc_ri_add_resource_block(const oc_resource_t* resource);
-
-/**
  * @brief remove the resource from the list of application resources
  *
  * @param resource the resource to be removed from the list of application
@@ -629,17 +619,7 @@ bool oc_ri_add_resource_block(const oc_resource_t* resource);
  * @return false failure
  */
 bool oc_ri_delete_resource(const oc_resource_t* resource);
-
-/**
- * @brief remove the resource block from the list of application resources
- *
- * @param resource the resource block to be removed from the list of application
- * resources
- * @return true success
- * @return false failure
- */
-bool oc_ri_delete_resource_block(const oc_resource_t* resource);
-#endif /* OC_SERVER */
+#endif 
 
 /**
  * @brief free the properties of the resource
@@ -647,15 +627,6 @@ bool oc_ri_delete_resource_block(const oc_resource_t* resource);
  * @param resource the resource
  */
 void oc_ri_free_resource_properties(oc_resource_t* resource);
-
-/**
- * @brief get the next resource
- *
- * @param resource current resource
- * @return next resource or NULL if at end
- * skips over dummy resources
- */
-const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource);
 
 /**
  * @brief retrieve the query value at the nth position
@@ -757,9 +728,8 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
  * @param response_obj the response object
  *
  */
-void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
-        const oc_request_t* inbound_request, 
-        oc_response_buffer_t* response_buffer, oc_response_t* response_obj);
+void oc_ri_new_request_from_inbound_request(oc_request_t* new_request, const oc_request_t* inbound_request, 
+                                            oc_response_buffer_t* response_buffer, oc_response_t* response_obj);
 
 void allocate_events(void);
 

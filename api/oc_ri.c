@@ -406,17 +406,9 @@ static void oc_ri_delete_all_app_resources(void)
   const oc_resource_t* res = oc_ri_get_app_resources();
   while (res)
   {
-    if (oc_ri_delete_resource(res) == true)
+    if (!oc_ri_delete_resource(res))
     {
-      ;
-    }
-    else if (oc_ri_delete_resource_block(res) == true)
-    {
-      ;
-    }
-    else
-    {
-      // we'll get stuck in an infinite loop!
+      // we'll get stuck in an infinite loop if we would not return here!
       return;
     }
 
@@ -428,13 +420,13 @@ static void oc_ri_delete_all_app_resources(void)
 
 bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
 {
-  // hope request is not null
-  if (request->accept == accept || request->accept == CONTENT_NONE)
+  if (request && (request->accept == accept || request->accept == CONTENT_NONE))
   {
+    // CONTENT_NONE, see header note
     return true;
   }
 
-  // prepare response as bad request
+  // prepare response as bad request (request NULL is checked inside ...)
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
   return false;
 }
@@ -785,63 +777,6 @@ bool oc_ri_delete_resource(const oc_resource_t* _resource)
   return true;
 }
 
-bool oc_ri_delete_resource_block(const oc_resource_t* _resource)
-{
-  if (!_resource)
-  {
-    return false;
-  }
-
-  const oc_resource_t* dummy_resource = _resource;
-  while (dummy_resource && dummy_resource->next)
-  {
-    dummy_resource = dummy_resource->next;
-  }
-
-  if (!dummy_resource)
-  {
-    // dummy was not NULL, next was NULL, but dummy itself is NULL -> invalid resource block
-    return false;
-  }
-
-  /*
-    Prevent double deallocation: oc_rt_factory_free_created_resource
-    called below will invoke the delete handler of the resource which will
-    invoke this function again. We use the list of resources to check
-    whether the resource exists and when it doesn't we assume that
-    a deallocation of the resource was already invoked and skip this one.
-  */
-  if (oc_list_remove_block2(app_resources, (void*)_resource, (void*)dummy_resource) == NULL)
-  {
-    return true;
-  }
-
-  while (_resource != dummy_resource)
-  {
-    // tmp copy of next pointer, as we will free the resource and thus cannot access its next pointer anymore
-    const oc_resource_t* next = _resource->next;
-
-    if (_resource->is_const)
-    {
-      _resource = next;
-      continue;
-    }
-
-    if (_resource->runtime_data->num_observers > 0)
-    {
-      coap_remove_observer_by_resource((oc_resource_t*)_resource);
-    }
-
-    oc_ri_free_resource_properties((oc_resource_t*)_resource);
-    oc_memb_free(&app_resources_s, (oc_resource_t*)_resource);
-
-    // restore tmp copy of next pointer for next loop iteration
-    _resource = next;
-  }
-
-  return true;
-}
-
 bool oc_ri_add_resource(oc_resource_t* resource)
 {
   if (!resource)
@@ -876,39 +811,6 @@ bool oc_ri_add_resource(oc_resource_t* resource)
   return valid;
 }
 
-bool oc_ri_add_resource_block(const oc_resource_t* resource)
-{
-  const oc_resource_t* it = resource;
-  if (!resource)
-  {
-    return false;
-  }
-
-  bool valid = true;
-
-  do
-  {
-    if (!resource->get_handler.cb && !resource->put_handler.cb &&
-      !resource->post_handler.cb && !resource->delete_handler.cb)
-    {
-      valid = false;
-    }
-
-    if (resource->properties & OC_PERIODIC &&
-      resource->observe_period_seconds == 0)
-    {
-      valid = false;
-    }
-  }
-  while (it = oc_ri_resource_next(it));
-
-  if (valid)
-  {
-    oc_list_add_block(app_resources, (void*)resource);
-  }
-
-  return valid;
-}
 #endif
 
 void oc_ri_free_resource_properties(oc_resource_t* resource)
@@ -950,23 +852,6 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
   {
     oc_free_string_array(&resource->types);
   }
-}
-
-const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource)
-{
-  if (resource == NULL)
-  {
-    return NULL;
-  }
-
-  do
-  {
-    resource = resource->next;
-    // Note: next == NULL means dummy resource (MUST BE IN RAM)
-  }
-  while (resource && resource->next == NULL);
-
-  return resource;
 }
 
 void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
