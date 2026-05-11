@@ -276,14 +276,24 @@ static void coap_send_response_with_empty_application_payload_with_delay(const c
     return;
   }
 
-  // adjust between 0 and max configured delay, note 0 means no delay and the response will be sent soon on next callback check
+  /* 
+    - adjust between 0 and up to max configured delay, note 0 means no delay and the response will be sent soon on next callback check
+    - unicast, no delay
+  */
   const uint16_t max_delay_ms = get_oscore_osn_delay_ms();
-  const uint16_t delay_ms = max_delay_ms > 0 ? (uint16_t)(oc_random_value() % max_delay_ms) : 0;
   
-  // shallow copy, all data in the context copied but no data behind a pointer (there are no ones)
+  uint16_t delay_ms = 0;
+  if (src_ctx->endpoint.flags & MULTICAST)
+  {
+    delay_ms = max_delay_ms > 0 ? (uint16_t)(oc_random_value() % max_delay_ms) : 0;
+  }
+
+  // shallow copy
   *dst_ctx = *src_ctx;
 
-  OC_DBG("sending echo response by delay, %u ms", delay_ms);
+  OC_DBG("sending uc echo response to inbound %s msg with delay of %u ms (range 0ms ... %ums)", 
+         src_ctx->endpoint.flags & MULTICAST ? "'mc'" : "'uc'", delay_ms, max_delay_ms);
+
   oc_set_delayed_callback_ms(dst_ctx, coap_send_delayed_echo_response, delay_ms);
 }
 
@@ -603,9 +613,10 @@ int coap_receive(oc_message_t* incoming_message)
             {
               /*
                 send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload, echo option + 4.01
-                -> multicast : send, there can be many responses from many receivers
-                -> unicast   : send
-                spread sending over 0 ... osndelay ms to avoid bursts of echo responses, see RFC 9175 clause 2.3 or KNX IoT specification 3.6.4.1.3
+                -> multicast : send with delay, there can be many responses from many receivers, spread sending over 0 ... osndelay ms to avoid 
+                               bursts of echo responses, see RFC 9175 clause 2.3 or KNX IoT specification 3.6.4.1.3
+                -> unicast   : send without delay, since it is only one receiver that returns an echo ...
+                
               */
 
               echo_ctx.code = UNAUTHORIZED_4_01;
