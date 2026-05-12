@@ -57,8 +57,8 @@
 #define OBSERVE_COUNTER_MASK 0x00FFFFFF
 
 /* 
- - used to seed each new (individual) observer with its notification response with a unique starting sequence number
- - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
+  - used to seed each new (individual) observer with its notification response with a unique starting sequence number
+  - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
 */
 static uint32_t observe_counter = 0;
 uint32_t get_observe_counter(void) { return observe_counter; }
@@ -480,10 +480,8 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
               goto leave_notify_observers;
             }
 
-            memcpy(response_state->buffer, response_buf->buffer,
-                   response_buf->response_length);
-            response_state->payload_size =
-              (uint32_t)response_buf->response_length;
+            memcpy(response_state->buffer, response_buf->buffer, response_buf->response_length);
+            response_state->payload_size = (uint32_t)response_buf->response_length;
             uint32_t payload_size = 0;
             const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
             if (payload)
@@ -593,7 +591,10 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
       { // register
 
         #ifdef OC_BLOCK_WISE
-        result = add_observer(resource, block2_size, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
+        result = add_observer(
+           resource, block2_size, endpoint, coap_req->token, coap_req->token_len, 
+           coap_req->uri_path, coap_req->uri_path_len);
+
         #else
         result = add_observer(resource, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
         #endif

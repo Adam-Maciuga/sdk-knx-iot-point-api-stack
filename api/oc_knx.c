@@ -1378,9 +1378,11 @@ static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
   // on '0' don't continue to decrement and unblock (note the callback is still active)
   if (failed_handshake_count > 0)
-  if (--failed_handshake_count == 0)
   {
-    is_blocked = false;
+    if (--failed_handshake_count == 0)
+    {
+      is_blocked = false;
+    }
   }
   return OC_EVENT_CONTINUE;
 }
@@ -1390,9 +1392,11 @@ static void increment_spake_request_counter(void)
 {
   // on '60' don't continue to increment
   if (failed_handshake_count < 60)
-  if (++failed_handshake_count > 10)
   {
-    is_blocked = true;
+    if (++failed_handshake_count > 10)
+    {
+      is_blocked = true;
+    }
   }
 }
 

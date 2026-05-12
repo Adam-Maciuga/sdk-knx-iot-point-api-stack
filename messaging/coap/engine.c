@@ -449,7 +449,7 @@ int coap_receive(oc_message_t* incoming_message)
     .type           = is_con ? COAP_TYPE_ACK : COAP_TYPE_NON,
     .mid            = is_con ? inbound_coap_pkt->mid : coap_get_next_mid(),
     .endpoint       = incoming_message->endpoint,     // shallow copy - no owning pointers in oc_endpoint_t
-    .echo.timestamp = oc_clock_time(),
+    .echo.timestamp = oc_clock_time(), 
     .echo_len       = sizeof(oc_clock_time_t),
     .token_len      = inbound_coap_pkt->token_len < COAP_TOKEN_LEN ? inbound_coap_pkt->token_len : COAP_TOKEN_LEN
   };
