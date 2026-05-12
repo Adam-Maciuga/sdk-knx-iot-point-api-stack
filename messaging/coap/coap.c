@@ -1665,7 +1665,7 @@ size_t coap_set_header_location_query(void* packet, const char* query) {
 }
 
 // true if observe option is set and observe value is stored in observe ptr, false otherwise
-bool coap_get_header_observe(void* packet, uint32_t* observe) 
+bool coap_get_header_observe(void* packet, oc_client_observe_t* observe) 
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 

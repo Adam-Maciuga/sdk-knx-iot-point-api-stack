@@ -78,7 +78,7 @@ typedef struct coap_observer_t
 } coap_observer_t;
 
 	int coap_remove_observer_by_client(const oc_endpoint_t* endpoint);
-	int coap_remove_observer_by_token(const oc_endpoint_t* endpoint, uint8_t* token, size_t token_len);
+	int coap_remove_observer_by_token(const oc_endpoint_t* endpoint, const uint8_t* token, size_t token_len);
 	int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid);
 	int coap_remove_observer_by_resource(const oc_resource_t* rsc);
 	void coap_free_all_observers(void);

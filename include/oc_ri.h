@@ -28,8 +28,8 @@ typedef enum
 {
   OC_OBSERVE_REGISTER = 0, 
   OC_OBSERVE_DEREGISTER = 1, 
-  OC_OBSERVE_ERROR = 2,
-} oc_observe_t;
+  OC_OBSERVE_UNDEFINED = 2,
+} oc_client_observe_t;
 
 /**
  * @brief resource properties (bit mask)

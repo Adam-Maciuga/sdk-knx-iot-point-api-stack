@@ -1387,37 +1387,42 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   // if a GET request was successfully processed, then check its observe option
 
   // init with error
-  uint32_t observe = OC_OBSERVE_ERROR;
+  oc_client_observe_t observe_value_by_client = OC_OBSERVE_UNDEFINED;
 
-  if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe))
+  if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe_value_by_client))
   {
     // process all < 4.00 and observe option is set, check if the resource is OBSERVABLE
     if (matching_resource->properties & OC_OBSERVABLE)
     {
-      if (observe == OC_OBSERVE_REGISTER)
+      if (observe_value_by_client == OC_OBSERVE_REGISTER)
       {
         /*
           Register: attempt to add the requesting client as an observer.
-          'coap_observe_handler' below parses "lt" and "non" query parameters (KNX 2.5.9.3/4)
-          and returns -2 if "lt" is missing (observer is removed internally).
+          'coap_observe_handler' below parses "lt" and "non" query parameters (KNX 2.5.9.3/4).
+          
+          (a) returns -2 if 'lt' is missing or 'lt' value is not in range (observer is removed internally)
+          (b) returns -1 on invalid request/response codes, no memory, or other error (observer is not added)
+          (c) returns 0 on adding NEW / FRESH observe 
+          (d) returns 1 on add REFRESHED observe (from an existing (and before deleted) observe)
+          
+
         */
 
-        int observe_result;
-
         #ifdef OC_BLOCK_WISE
-        observe_result = coap_observe_handler(request, response, matching_resource, block2_size, endpoint);
+        int observe_result = coap_observe_handler(request, response, matching_resource, block2_size, endpoint);
         #else
-        observe_result = coap_observe_handler(request, response, matching_resource, endpoint);
+        int observe_result = coap_observe_handler(request, response, matching_resource, endpoint);
         #endif
 
         if (observe_result == -2)
-        {
-          // "lt" query missing -- observer was rejected and removed
+        { // (a)
+          
           response_buffer.code = oc_status_code(OC_STATUS_BAD_REQUEST);
         }
         else if (observe_result >= 0)
-        {
-          // set observe option in response (RFC 7641 Section 3.1, first observe value starts with a global incremented value, not with '0')
+        { // (c) or (d) added new or refreshed observer 
+          
+          // set observe option in response to the observer's assigned sequence number (RFC 7641 Section 3.1, 4.4 - not ness. a '0' must be the first value)
           coap_set_header_observe(response, get_observe_counter());
 
           /*
@@ -1435,20 +1440,23 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
           }
         }
       }
-      else if (observe == OC_OBSERVE_DEREGISTER)
+      else if (observe_value_by_client == OC_OBSERVE_DEREGISTER)
       {
         /*
           If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the
           requesting client from the list of observers. In addition, remove the resource from the list periodic
           GET callbacks if it is periodic observable.
+          
+          (e) returns 1 on removed PRESENT observe 
+
         */
 
         #ifdef OC_BLOCK_WISE
         if (coap_observe_handler(request, response, matching_resource, block2_size, endpoint) > 0)
-        {
+        { // (e) 
         #else
         if (coap_observe_handler(request, response, matching_resource, endpoint) > 0)
-        {
+        { // (e) 
         #endif
           if (matching_resource->properties & OC_PERIODIC)
           {
@@ -1481,10 +1489,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
 
     #ifdef OC_BLOCK_WISE
     // note, observe may also 'error'
-    if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe, block2_size) == 1)
+    if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client, block2_size) == 1)
     {
     #else
-    if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe) == 1)
+    if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client) == 1)
     {
     #endif
       response_obj.separate_response->active = true;
@@ -1507,8 +1515,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
         If the recently handled request was a PUT/POST, it conceivably altered the resource state,
         so attempt to notify all observers of that resource with the change.
       */
-      if (matching_resource && (method == COAP_PUT || method == COAP_POST) &&
-        response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
+      if (matching_resource && (method == COAP_PUT || method == COAP_POST) && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
       {
         // check this with s-mode
         if (endpoint->flags & MULTICAST)

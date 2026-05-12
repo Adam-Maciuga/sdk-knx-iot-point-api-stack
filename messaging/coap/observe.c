@@ -69,10 +69,10 @@ OC_MEMB(observers_memb, coap_observer_t, COAP_MAX_OBSERVERS);
 static void coap_remove_observer(coap_observer_t* o);
 static void coap_remove_expired_observers(void);
 
-static int coap_remove_observer_handle_by_uri(oc_endpoint_t* endpoint, const char* uri, int uri_len)
+// removes ONE existing observer for the given client endpoint and resource URI, if any, and returns 1 if found and removed, 0 if not found
+static int coap_remove_observer_handle_by_uri(const oc_endpoint_t* endpoint, const char* uri, int uri_len)
 {
-  int removed = 0;
-  coap_observer_t *obs = (coap_observer_t*)oc_list_head(observers_list);
+  coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list);
 
   while (obs)
   {
@@ -83,20 +83,21 @@ static int coap_remove_observer_handle_by_uri(oc_endpoint_t* endpoint, const cha
         && memcmp(oc_string(obs->url), uri, uri_len) == 0)
     {
       coap_remove_observer(obs);
-      removed++;
-      break;
+      OC_DBG("removed 1 observer");
+      return 1;
     }
 
     obs = next;
   }
 
-  return removed;
+  OC_DBG("removed 0 observer");
+  return 0;
 }
 
 
 #ifdef OC_BLOCK_WISE
 static int add_observer(const oc_resource_t* resource, uint16_t block2_size,
-                        oc_endpoint_t* endpoint, const uint8_t* token, size_t token_len,
+                        const oc_endpoint_t* endpoint, const uint8_t* token, size_t token_len,
                         const char* uri, size_t uri_len)
 #else
 static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
@@ -104,8 +105,7 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
                         size_t uri_len)
 #endif
 {
-  // remove existing observe relationship, if any
-  const int dup = coap_remove_observer_handle_by_uri(endpoint, uri, (int)uri_len);
+  const int duplicate = coap_remove_observer_handle_by_uri(endpoint, uri, (int)uri_len);
 
   coap_observer_t* o = (coap_observer_t*)oc_memb_alloc(&observers_memb);
 
@@ -116,8 +116,11 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
     o->token_len = (uint8_t)token_len;
     memcpy(o->token, token, token_len);
     o->last_mid = 0;
-    o->obs_counter = observe_counter++ & OBSERVE_COUNTER_MASK;
+    
+    // pre inc and init counter for THIS observation from global counter
+    o->obs_counter = ++observe_counter & OBSERVE_COUNTER_MASK;
     o->resource = resource;
+
     #ifdef OC_BLOCK_WISE
     o->block2_size = block2_size;
     #endif
@@ -137,7 +140,7 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
     #endif
     
     oc_list_add(observers_list, o);
-    return dup;
+    return duplicate;
   }
 
   OC_WRN("insufficient memory to add new observer");
@@ -176,6 +179,7 @@ void coap_free_all_observers(void)
   }
 }
 
+// removes ALL observers for the given client endpoint, and returns the amount of removed observers
 int coap_remove_observer_by_client(const oc_endpoint_t* endpoint)
 {
   int removed = 0;
@@ -199,10 +203,10 @@ int coap_remove_observer_by_client(const oc_endpoint_t* endpoint)
   return removed;
 }
 
-int coap_remove_observer_by_token(const oc_endpoint_t* endpoint, uint8_t* token, size_t token_len)
+// removes ONE observer for the given client endpoint and request token, and returns 1 if found and removed, 0 if not found
+int coap_remove_observer_by_token(const oc_endpoint_t* endpoint, const uint8_t* token, size_t token_len)
 {
-  int removed = 0;
-  OC_DBG("unregistering observers for request token 0x%02X%02X ...", token[0], token[1]);
+  OC_DBG("unregistering observer for request token 0x%02X%02X ...", token[0], token[1]);
 
   for (coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list); obs; obs = obs->next)
   {
@@ -211,18 +215,18 @@ int coap_remove_observer_by_token(const oc_endpoint_t* endpoint, uint8_t* token,
         && memcmp(obs->token, token, token_len) == 0)
     {
       coap_remove_observer(obs);
-      removed++;
-      break;
+      OC_DBG("removed 1 observer");
+      return 1;
     }
   }
 
-  OC_DBG("removed %d observers", removed);
-  return removed;
+  OC_DBG("removed 0 observer");
+  return 0;
 }
 
+// removes ONE observer for the given client endpoint and request MID, and returns 1 if found and removed, 0 if not found
 int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid)
 {
-  int removed = 0;
   OC_DBG("unregistering observers for request MID %u", mid);
 
   for (coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list); obs; obs = obs->next)
@@ -231,15 +235,16 @@ int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid)
         && obs->last_mid == mid)
     {
       coap_remove_observer(obs);
-      removed++;
-      break;
+      OC_DBG("removed 1 observer");
+      return 1;
     }
   }
 
-  OC_DBG("removed %d observers", removed);
-  return removed;
+  OC_DBG("removed 0 observer");
+  return 0;
 }
 
+// removes ALL observers for the given resource, and returns the amount of removed observers
 int coap_remove_observer_by_resource(const oc_resource_t* rsc)
 {
   int removed = 0;
@@ -266,9 +271,6 @@ int coap_remove_observer_by_resource(const oc_resource_t* rsc)
   return removed;
 }
 
-/*---------------------------------------------------------------------------*/
-/*- Notification ------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
 #ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
 int coap_remove_observers_on_dos_change(bool reset)
 {
@@ -324,15 +326,15 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     return 0;
   }
 
-#ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
+  #ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
   oc_sec_pstat_t *ps = oc_sec_get_pstat();
-  if (ps->s != OC_DOS_RFNOP) {
+  if (ps->s != OC_DOS_RFNOP) 
+  {
     OC_WRN("coap_notify_observers: device not in RFNOP; skipping notification");
     return 0;
   }
-#endif
+  #endif
 
-  // bool resource_is_collection = false;
   coap_observer_t* obs = NULL;
   if (resource->runtime_data->num_observers > 0)
   {
@@ -377,7 +379,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       }
     }
 
-    // Iterate over observers.
+    // iterate over observers
     obs = (coap_observer_t*)oc_list_head(observers_list);
     while (obs != NULL)
     {
@@ -493,23 +495,22 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
                 (oc_blockwise_response_state_t*)response_state;
               coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
             }
-          } // blockwise transfer
+          } 
           else
           #endif
           {
             #ifdef OC_TCP
-            if (!(obs->endpoint.flags & TCP) &&
-              obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0) { 
+            if (!(obs->endpoint.flags & TCP) && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
+            { 
             #else
             if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
             {
-              #endif
+            #endif
               OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
               notification->type = COAP_TYPE_CON;
             }
 
-            coap_set_payload(notification, response_buf->buffer,
-                             response_buf->response_length);
+            coap_set_payload(notification, response_buf->buffer, response_buf->response_length);
           }
 
           coap_set_status_code(notification, response_buf->code);
@@ -519,6 +520,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
           }
 
           coap_set_token(notification, obs->token, obs->token_len);
+          
           transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
           if (transaction)
           {
@@ -530,7 +532,12 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
             }
             else
             {
-              coap_set_header_observe(notification, 1);
+              /* 
+                 notification with error response code or no more observers for this resource, 
+                 do not set Observe option to avoid client confusion and unnecessary retransmissions
+                 -> de-register
+              */
+              coap_set_header_observe(notification, OC_OBSERVE_DEREGISTER);
             }
             
             obs->last_mid = mid;
@@ -545,10 +552,10 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
               coap_clear_transaction(transaction);
             }
           }
-        } // response_buf != NULL
-      } //! separate response
+        } 
+      } 
       obs = obs->next;
-    } // iterate over observers
+    } 
   leave_notify_observers:;
     #ifdef OC_DYNAMIC_ALLOCATION
     if (buffer)
@@ -559,7 +566,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
   } 
   else
   {
-    OC_WRN("coap_notify_observers: no observers");
+    OC_INF("coap_notify_observers: no observers");
   }
 
   return resource->runtime_data->num_observers;
@@ -574,7 +581,8 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
   coap_packet_t* const coap_req = (coap_packet_t*)request;
   coap_packet_t* const coap_res = (coap_packet_t*)response;
 
-  int dup = -1;
+  // registration/ de-registration  result
+  int result = -1;
 
   if (coap_req->code == COAP_GET && coap_res->code < BAD_REQUEST_4_00)
   {
@@ -585,17 +593,18 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
       { // register
 
         #ifdef OC_BLOCK_WISE
-        dup = add_observer(resource, block2_size, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
+        result = add_observer(resource, block2_size, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
         #else
-        dup = add_observer(resource, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
+        result = add_observer(resource, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
         #endif
 
         /*
           KNX IoT clause 2.5.9.3/4: parse "lt" and "non" query parameters.
           The observer was just added as the last entry in the list.
+
         */
-        if (dup >= 0)
-        {
+        if (result >= 0)
+        { // added new or refreshed observe relationship
           coap_observer_t* obs = (coap_observer_t*)oc_list_tail(observers_list);
           if (obs)
           {
@@ -636,11 +645,11 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
       }
       else if (coap_req->observe == OC_OBSERVE_DEREGISTER)
       { // deregister
-        dup = coap_remove_observer_by_token(endpoint, coap_req->token, coap_req->token_len);
+        result = coap_remove_observer_by_token(endpoint, coap_req->token, coap_req->token_len);
       }
     }
   }
-  return dup;
+  return result;
 }
 
 static void coap_remove_expired_observers(void)
@@ -720,10 +729,15 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
     coap_transaction_t* transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
     if (transaction)
     {
+      // use current seq. number
       coap_set_header_observe(notification, obs->obs_counter);
+      
+      // increment seq. number, each observation relationship has its own counter (was init from global counter)
       obs->obs_counter++;
       obs->obs_counter &= OBSERVE_COUNTER_MASK;
+
       obs->last_mid = mid;
+      
       transaction->message->length = coap_serialize_message(notification, transaction->message->data);
       if (transaction->message->length > 0)
       {
