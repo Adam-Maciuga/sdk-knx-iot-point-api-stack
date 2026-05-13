@@ -8,11 +8,12 @@
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
 #ifdef OC_BLOCK_WISE
-  #include "oc_blockwise.h"
-  #include "oc_endpoint.h"
-  #include "port/oc_log.h"
-  #include "util/oc_list.h"
-  #include "util/oc_memb.h"
+#include "oc_blockwise.h"
+#include "oc_endpoint.h"
+#include "port/oc_log.h"
+#include "port/oc_random.h"
+#include "util/oc_list.h"
+ #include "util/oc_memb.h"
 
 OC_MEMB(oc_blockwise_request_states_s, oc_blockwise_request_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_MEMB(oc_blockwise_response_states_s, oc_blockwise_response_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);

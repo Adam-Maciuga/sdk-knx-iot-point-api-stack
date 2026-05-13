@@ -40,6 +40,7 @@
 #include "util/oc_memb.h"
 #include <inttypes.h>
 #include <string.h>
+#include "port/oc_random.h"
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"

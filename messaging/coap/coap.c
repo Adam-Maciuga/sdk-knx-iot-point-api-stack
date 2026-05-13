@@ -38,6 +38,7 @@
 #include "coap.h"
 #include "conf.h"
 #include "oc_ri.h"
+#include "port/oc_random.h"
 
 #ifdef OC_TCP
 #include "coap_signal.h"

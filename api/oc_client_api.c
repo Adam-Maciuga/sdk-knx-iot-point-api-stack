@@ -9,6 +9,7 @@
 #include "messaging/coap/coap.h"
 #include "oc_api.h"
 #include "conf.h"
+#include "port/oc_random.h"
 
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
