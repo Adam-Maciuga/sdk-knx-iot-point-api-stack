@@ -47,6 +47,7 @@
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
+#include <errno.h>
 #endif
 #include "oc_coap.h"
 #include "oc_endpoint.h"
