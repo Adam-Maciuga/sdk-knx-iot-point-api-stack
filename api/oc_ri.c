@@ -932,12 +932,6 @@ static void check_event_callbacks(void)
 }
 
 #ifdef OC_SERVER
-static oc_event_callback_retval_t oc_observe_notification_delayed(void* data)
-{
-  (void)data;
-  coap_notify_observers((oc_resource_t*)data, NULL, NULL);
-  return OC_EVENT_DONE;
-}
 
 static oc_event_callback_retval_t periodic_observe_handler(void* data)
 {
@@ -1398,14 +1392,14 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       {
         /*
           Register: attempt to add the requesting client as an observer.
-          'coap_observe_handler' below parses "lt" and "non" query parameters (KNX 2.5.9.3/4).
+          'coap_observe_handler' below parses "lt" and "non" query parameters 
+          (KNX 2.5.9.3/4 + 2.5.11.6 -- applies to ALL KNX IoT observe registrations, not just /k).
           
           (a) returns -2 if 'lt' is missing or 'lt' value is not in range (observer is removed internally)
           (b) returns -1 on invalid request/response codes, no memory, or other error (observer is not added)
           (c) returns 0 on adding NEW / FRESH observe 
           (d) returns 1 on add REFRESHED observe (from an existing (and before deleted) observe)
-          
-
+        
         */
 
         #ifdef OC_BLOCK_WISE
@@ -1503,8 +1497,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     if (response_buffer.code == OC_IGNORE)
     {
       /*
-        If the server-side logic chooses to reject a request, it sends below a response code of IGNORE,
-        which results in the messaging layer freeing the CoAP transaction associated with the request.
+        - freeing the CoAP transaction associated with the request
+        - preferred for multicast requests, since it avoids unnecessary CoAP traffic on the network
       */
       coap_status_code = CLEAR_TRANSACTION;
     }
@@ -1512,23 +1506,18 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     {
       #ifdef OC_SERVER
       /*
-        If the recently handled request was a PUT/POST, it conceivably altered the resource state,
-        so attempt to notify all observers of that resource with the change.
+        If the recently handled request was a PUT/POST, it conceivably altered the resource state, so attempt to notify all observers
+        of that resource with the change. Multicast PUT/POST is only used for s-mode via /k; /k always calls oc_ignore_request which
+        sets response_buffer.code = OC_IGNORE, routing execution to CLEAR_TRANSACTION above -- so this block is only reached for unicast PUT/POST.
       */
       if (matching_resource && (method == COAP_PUT || method == COAP_POST) && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
       {
-        // check this with s-mode
-        if (endpoint->flags & MULTICAST)
-        {
-          // multicast, handle observe
-          PRINT("adding a callback");
-          oc_ri_add_timed_event_callback_ticks((void*)matching_resource, &oc_observe_notification_delayed, 0);
-        }
-        else
-        {
-          // unicast, skip
-          PRINT("not adding a callback");
-        }
+        /*
+          Unicast PUT/POST: notify observers acc. to clause 2.5.3.6 - if.o resources
+          - must notify observers when their value changes via a unicast PUT
+          - immediately, no delay (on unicast there are not other devices firing notifications, so no need to delay for batching)
+        */
+        coap_notify_observers(matching_resource, NULL, NULL);
       }
       #endif
 

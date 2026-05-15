@@ -323,7 +323,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
 {
   if (!resource)
   {
-    OC_WRN("coap_notify_observers: no resource passed; returning");
+    OC_WRN("no resource passed; returning");
     return 0;
   }
 
@@ -331,242 +331,249 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
   oc_sec_pstat_t *ps = oc_sec_get_pstat();
   if (ps->s != OC_DOS_RFNOP) 
   {
-    OC_WRN("coap_notify_observers: device not in RFNOP; skipping notification");
+    OC_WRN("device not in RFNOP; skipping notification");
     return 0;
   }
   #endif
 
-  coap_observer_t* obs = NULL;
-  if (resource->runtime_data->num_observers > 0)
+  if (resource->runtime_data->num_observers == 0)
   {
-    #ifdef OC_BLOCK_WISE
-    oc_blockwise_state_t* response_state = NULL;
-    #endif
+    OC_INF("no observers present");
+    return 0;
+  }
+
+  coap_observer_t* obs = NULL;
+
+  #ifdef OC_BLOCK_WISE
+  oc_blockwise_state_t* response_state = NULL;
+  #endif
+
+  // .buffer is init with 0, on free no problem
+  oc_response_buffer_t response_buffer = {.buffer_size = OC_MAX_OBSERVE_SIZE};
+
+  // .separate_response may be overwritten in GET handler, but response buffer is only used if separate_response is NULL, so it's ok to set it here already
+  oc_response_t response = {.response_buffer = &response_buffer}; 
+  
+  if (!response_buf)
+  { /* 
+       no response buffer passed (resource is NOT NULL), so we will create a temporary response buffer and populate
+       it by calling the resource's GET handler, and then use this buffer for notifications to observers
+    */
+    
+    OC_DBG("issue GET request to resource %s", oc_string_checked(resource->uri));
 
     #ifndef OC_DYNAMIC_ALLOCATION
-    uint8_t buffer[OC_MAX_OBSERVE_SIZE];
+    uint8_t stack_buffer[OC_MAX_OBSERVE_SIZE];
+    response_buffer.buffer = stack_buffer;
     #else
-    uint8_t* buffer = (uint8_t*)malloc(OC_MAX_OBSERVE_SIZE);
-    if (!buffer)
+    response_buffer.buffer = (uint8_t*)malloc(OC_MAX_OBSERVE_SIZE);
+    if (!response_buffer.buffer)
     {
-      OC_WRN("coap_notify_observers: out of memory allocating buffer");
-      goto leave_notify_observers;
+      OC_WRN("out of memory allocating buffer");
+      return resource->runtime_data->num_observers;
     }
     #endif
 
-    oc_request_t request = {0};
-    oc_response_t response;
-    response.separate_response = 0;
-    oc_response_buffer_t response_buffer;
+    // init 
+    oc_request_t request = {.resource = resource, .response = &response};
 
-    if (!response_buf && resource)
+    // init CBOR data stream
+    oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
+
+    // call handler
+    resource->get_handler.cb(&request, resource->get_handler.interface_mask, resource->get_handler.user_data);
+
+    if (response_buffer.code == OC_IGNORE)
     {
-      OC_DBG("coap_notify_observers: Issue GET request to resource %s", oc_string_checked(resource->uri));
-      response_buffer.buffer = buffer;
-      response_buffer.buffer_size = OC_MAX_OBSERVE_SIZE;
-      response.response_buffer = &response_buffer;
-      request.resource = resource;
-      request.response = &response;
-      request.request_payload = NULL;
-      oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
-
-      resource->get_handler.cb(&request, resource->get_handler.interface_mask, resource->get_handler.user_data);
-
-      response_buf = &response_buffer;
-      if (response_buf->code == OC_IGNORE)
-      {
-        OC_DBG("coap_notify_observers: Resource ignored request");
-        goto leave_notify_observers;
-      }
+      OC_DBG("resource ignored request");
+      #ifdef OC_DYNAMIC_ALLOCATION
+      free(response_buffer.buffer);
+      #endif
+      return resource->runtime_data->num_observers;
     }
 
-    // iterate over observers
-    obs = (coap_observer_t*)oc_list_head(observers_list);
-    while (obs != NULL)
-    {
-      
-      if (obs->resource != resource || (endpoint && oc_endpoint_compare(&obs->endpoint, endpoint) != 0))
-      {
-        obs = obs->next;
-        continue;
-      } 
+    // set since it was NULL before, but needed later on notification (see below)
+    response_buf = &response_buffer;
+  }
 
-      // it will be a separate CON response
-      if (response.separate_response)
+  // iterate over observers
+  obs = (coap_observer_t*)oc_list_head(observers_list);
+  while (obs)
+  {
+    if (obs->resource != resource || (endpoint && oc_endpoint_compare(&obs->endpoint, endpoint) != 0))
+    {
+      obs = obs->next;
+      continue;
+    }
+
+    // it will be a separate CON response (CAN be overwritten from NULL ONLY in GET handler)
+    if (response.separate_response)
+    {
+      coap_packet_t req[1];
+
+      #ifdef OC_TCP
+      if (obs->endpoint.flags & TCP)
       {
-        coap_packet_t req[1];
-        
-        #ifdef OC_TCP
-        if (obs->endpoint.flags & TCP)
+        coap_tcp_init_message(req, COAP_GET);
+      }
+      else
+      #endif
+      {
+        coap_udp_init_message(req, COAP_TYPE_NON, COAP_GET, 0);
+      }
+      memcpy(req->token, obs->token, obs->token_len);
+      req->token_len = obs->token_len;
+
+      coap_set_header_uri_path(req, oc_string(resource->uri), oc_string_len(resource->uri));
+
+      OC_DBG("creating separate response for notification");
+
+      #ifdef OC_BLOCK_WISE
+      if (coap_separate_accept(req, response.separate_response, &obs->endpoint, obs->obs_counter, obs->block2_size) == 1)
+      {
+      #else
+      if (coap_separate_accept(req, response.separate_response, &obs->endpoint, obs->obs_counter) == 1) {
+      #endif
+        response.separate_response->active = true;
+      }
+    } // separate response
+    else
+    { // response_buf is always non-NULL here: either passed by caller or set above after calling GET handler
+      OC_DBG("notifying observer");
+      
+      coap_transaction_t* transaction = NULL;
+      coap_packet_t notification[1];
+      uint8_t status_code = CONTENT_2_05;
+      const uint16_t mid = coap_get_next_mid();
+
+      #ifdef OC_TCP
+      if (obs->endpoint.flags & TCP)
+      {
+        coap_tcp_init_message(notification, status_code);
+      }
+      else
+      #endif
+      {
+        coap_udp_init_message(notification, COAP_TYPE_NON, status_code, mid);
+      }
+
+      #ifdef OC_BLOCK_WISE
+      #ifdef OC_TCP
+      if (!(obs->endpoint.flags & TCP) &&
+        response_buf->response_length > obs->block2_size) {
+      #else
+      if (response_buf->response_length > obs->block2_size)
+      {
+        #endif
+        notification->type = COAP_TYPE_CON;
+        response_state = oc_blockwise_find_response_buffer(
+          oc_string(obs->resource->uri) + 1,
+          oc_string_len(obs->resource->uri) - 1,
+          &obs->endpoint, COAP_GET,
+          NULL, 0, OC_BLOCKWISE_SERVER);
+        if (response_state)
         {
-          coap_tcp_init_message(req, COAP_GET);
+          if (response_state->payload_size ==
+            response_state->next_block_offset)
+          {
+            oc_blockwise_free_response_buffer(response_state);
+            response_state = NULL;
+          }
+          else
+          {
+            continue;
+          }
+        }
+
+        response_state = oc_blockwise_alloc_response_buffer(
+          oc_string(obs->resource->uri) + 1,
+          oc_string_len(obs->resource->uri) - 1,
+          &obs->endpoint, COAP_GET,
+          OC_BLOCKWISE_SERVER);
+
+        if (!response_state)
+        {
+          break;
+        }
+
+        memcpy(response_state->buffer, response_buf->buffer, response_buf->response_length);
+        response_state->payload_size = (uint32_t)response_buf->response_length;
+        uint32_t payload_size = 0;
+        const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
+        if (payload)
+        {
+          coap_set_payload(notification, payload, payload_size);
+          coap_set_header_block2(notification, 0, 1, obs->block2_size);
+          coap_set_header_size2(notification, response_state->payload_size);
+          oc_blockwise_response_state_t* bwt_res_state =
+            (oc_blockwise_response_state_t*)response_state;
+          coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
+        }
+      }
+      else
+      #endif
+      {
+        #ifdef OC_TCP
+        if (!(obs->endpoint.flags & TCP) && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
+        {
+        #else
+        if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
+        {
+        #endif
+          OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
+          notification->type = COAP_TYPE_CON;
+        }
+
+        coap_set_payload(notification, response_buf->buffer, response_buf->response_length);
+      }
+
+      coap_set_status_code(notification, response_buf->code);
+      if (response_buf->content_format > 0)
+      {
+        coap_set_header_content_format(notification, response_buf->content_format);
+      }
+
+      coap_set_token(notification, obs->token, obs->token_len);
+
+      transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
+      if (transaction)
+      {
+        if (notification->code < BAD_REQUEST_4_00 && obs->resource->runtime_data->num_observers)
+        {
+          coap_set_header_observe(notification, obs->obs_counter);
+          obs->obs_counter++;
+          obs->obs_counter &= OBSERVE_COUNTER_MASK;
         }
         else
-        #endif
         {
-          coap_udp_init_message(req, COAP_TYPE_NON, COAP_GET, 0);
+          /*
+             notification with error response code or no more observers for this resource,
+             do not set Observe option to avoid client confusion and unnecessary retransmissions
+             -> de-register
+          */
+          coap_set_header_observe(notification, OC_OBSERVE_DEREGISTER);
         }
-        memcpy(req->token, obs->token, obs->token_len);
-        req->token_len = obs->token_len;
 
-        coap_set_header_uri_path(req, oc_string(resource->uri), oc_string_len(resource->uri));
+        obs->last_mid = mid;
 
-        OC_DBG("creating separate response for notification");
-        
-        #ifdef OC_BLOCK_WISE
-        if (coap_separate_accept(req, response.separate_response, &obs->endpoint, obs->obs_counter, obs->block2_size) == 1)
+        transaction->message->length = coap_serialize_message(notification, transaction->message->data);
+        if (transaction->message->length > 0)
         {
-          #else
-          if (coap_separate_accept(req, response.separate_response, &obs->endpoint, obs->obs_counter) == 1) { 
-          #endif
-          response.separate_response->active = true;
+          coap_send_transaction(transaction);
         }
-      } // separate response
-      else
-      {
-        OC_DBG("coap_notify_observers: notifying observer");
-        coap_transaction_t* transaction = NULL;
-        if (response_buf)
+        else
         {
-          coap_packet_t notification[1];
-          uint8_t status_code = CONTENT_2_05;
-          const uint16_t mid = coap_get_next_mid();
-          #ifdef OC_TCP
-          if (obs->endpoint.flags & TCP)
-          {
-            coap_tcp_init_message(notification, status_code);
-          }
-          else
-          #endif
-          {
-            coap_udp_init_message(notification, COAP_TYPE_NON, status_code, mid);
-          }
-
-          #ifdef OC_BLOCK_WISE
-          #ifdef OC_TCP
-          if (!(obs->endpoint.flags & TCP) &&
-            response_buf->response_length > obs->block2_size) { 
-          #else
-          if (response_buf->response_length > obs->block2_size)
-          {
-            #endif
-            notification->type = COAP_TYPE_CON;
-            response_state = oc_blockwise_find_response_buffer(
-              oc_string(obs->resource->uri) + 1,
-              oc_string_len(obs->resource->uri) - 1,
-              &obs->endpoint, COAP_GET,
-              NULL, 0, OC_BLOCKWISE_SERVER);
-            if (response_state)
-            {
-              if (response_state->payload_size ==
-                response_state->next_block_offset)
-              {
-                oc_blockwise_free_response_buffer(response_state);
-                response_state = NULL;
-              }
-              else
-              {
-                continue;
-              }
-            }
-
-            response_state = oc_blockwise_alloc_response_buffer(
-              oc_string(obs->resource->uri) + 1,
-              oc_string_len(obs->resource->uri) - 1,
-              &obs->endpoint, COAP_GET,
-              OC_BLOCKWISE_SERVER);
-
-            if (!response_state)
-            {
-              goto leave_notify_observers;
-            }
-
-            memcpy(response_state->buffer, response_buf->buffer, response_buf->response_length);
-            response_state->payload_size = (uint32_t)response_buf->response_length;
-            uint32_t payload_size = 0;
-            const uint8_t* payload = oc_blockwise_dispatch_block(response_state, 0, obs->block2_size, &payload_size);
-            if (payload)
-            {
-              coap_set_payload(notification, payload, payload_size);
-              coap_set_header_block2(notification, 0, 1, obs->block2_size);
-              coap_set_header_size2(notification, response_state->payload_size);
-              oc_blockwise_response_state_t* bwt_res_state =
-                (oc_blockwise_response_state_t*)response_state;
-              coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
-            }
-          } 
-          else
-          #endif
-          {
-            #ifdef OC_TCP
-            if (!(obs->endpoint.flags & TCP) && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
-            { 
-            #else
-            if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
-            {
-            #endif
-              OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
-              notification->type = COAP_TYPE_CON;
-            }
-
-            coap_set_payload(notification, response_buf->buffer, response_buf->response_length);
-          }
-
-          coap_set_status_code(notification, response_buf->code);
-          if (response_buf->content_format > 0)
-          {
-            coap_set_header_content_format(notification, response_buf->content_format);
-          }
-
-          coap_set_token(notification, obs->token, obs->token_len);
-          
-          transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
-          if (transaction)
-          {
-            if (notification->code < BAD_REQUEST_4_00 && obs->resource->runtime_data->num_observers)
-            {
-              coap_set_header_observe(notification, obs->obs_counter);
-              obs->obs_counter++;
-              obs->obs_counter &= OBSERVE_COUNTER_MASK;
-            }
-            else
-            {
-              /* 
-                 notification with error response code or no more observers for this resource, 
-                 do not set Observe option to avoid client confusion and unnecessary retransmissions
-                 -> de-register
-              */
-              coap_set_header_observe(notification, OC_OBSERVE_DEREGISTER);
-            }
-            
-            obs->last_mid = mid;
-            
-            transaction->message->length = coap_serialize_message(notification, transaction->message->data);
-            if (transaction->message->length > 0)
-            {
-              coap_send_transaction(transaction);
-            }
-            else
-            {
-              coap_clear_transaction(transaction);
-            }
-          }
-        } 
-      } 
-      obs = obs->next;
-    } 
-  leave_notify_observers:;
-    #ifdef OC_DYNAMIC_ALLOCATION
-    if (buffer)
-    {
-      free(buffer);
+          coap_clear_transaction(transaction);
+        }
+      }
+      
     }
-    #endif
-  } 
-  else
-  {
-    OC_INF("coap_notify_observers: no observers");
+    obs = obs->next;
   }
+
+  #ifdef OC_DYNAMIC_ALLOCATION
+  free(response_buffer.buffer);
+  #endif
 
   return resource->runtime_data->num_observers;
 }
@@ -600,17 +607,20 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
         result = add_observer(resource, endpoint, coap_req->token, coap_req->token_len, coap_req->uri_path, coap_req->uri_path_len);
         #endif
 
-        /*
-          KNX IoT clause 2.5.9.3/4: parse "lt" and "non" query parameters.
-          The observer was just added as the last entry in the list.
-
-        */
         if (result >= 0)
         { // added new or refreshed observe relationship
           coap_observer_t* obs = (coap_observer_t*)oc_list_tail(observers_list);
           if (obs)
           {
-            // parse "lt" (lifetime) -- KNX spec 2.5.9.3: REQUIRED, reject without it
+            /*
+              /k, clause 2.5.9.3: "lt" SHALL + "non" MAY query parameters apply to KNX IoT CoAP Observe registrations. 
+              "lt" is REQUIRED; reject without it.
+
+              /p/ clause 2.5.11.6: "lt" SHALL + "non" MAY (= assumed, no specification hint) query parameters apply KNX IoT CoAP Observe registrations. 
+              "lt" is REQUIRED; reject without it.
+            */
+
+            // parse "lt" (lifetime) -- KNX spec 2.5.11.6: REQUIRED for all observe registrations
             const char* lt_value = NULL;
             const int lt_len = coap_get_query_variable(request, "lt", &lt_value);
 
@@ -621,10 +631,10 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
               return -2;
             }
 
-            errno = 0; 
+            errno = 0;
             const uint32_t lifetime = (uint32_t)strtoul(lt_value, NULL, 10);
             /*
-              KNX spec 2.5.9.3: device SHALL support a minimum lifetime of 86400s (24h).
+              KNX spec 2.5.11.6: device SHALL support a minimum lifetime of 86400s (24h).
               This means any value up to 86400 is valid; reject values above the supported maximum.
             */
             if (errno || lifetime == 0 || lifetime > 86400)
@@ -636,11 +646,11 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
 
             obs->lifetime = lifetime;
 
-            // parse "non" (non-confirmable) -- KNX spec 2.5.9.4
+            // parse "non" (non-confirmable) -- KNX spec 2.5.11.6
             const char* non_value = NULL;
             const int non_len = coap_get_query_variable(request, "non", &non_value);
-            
-            // default is CON (use_con = true); only set to 'false'(=NON) when "non=true" (4 chars)
+
+            // default is CON (use_con = true); only set NON when "non=true" (4 chars)
             obs->use_con = !(non_len == 4 && strncmp(non_value, "true", 4) == 0);
           }
         }
