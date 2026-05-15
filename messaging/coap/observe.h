@@ -56,7 +56,6 @@ typedef struct coap_observer_t
 	const oc_resource_t* resource;
 	oc_string_t url;               // observed resource URI
 	oc_endpoint_t endpoint;        // client endpoint (IP + port)
-  struct oc_etimer retrans_timer;// time to next retransmission (for CON notifications)
 	oc_clock_time_t created;       // timestamp when observer was created (for lifetime expiry)
 
 	// --- 4-byte aligned: uint32_t, int32_t, enums ---
@@ -72,7 +71,6 @@ typedef struct coap_observer_t
 	// --- 1-byte: uint8_t, bool ---
 	uint8_t token_len;
 	uint8_t token[COAP_TOKEN_LEN];
-	uint8_t retrans_counter;
 	bool use_con;                  // true = CON (default per KNX), false = NON (when "non=true" query present)
 	bool first_sent;               // will become true after the registration response (= first notification = { 4/'sia' : <ia> }) has been sent
 } coap_observer_t;
