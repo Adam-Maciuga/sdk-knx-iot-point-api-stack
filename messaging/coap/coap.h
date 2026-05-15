@@ -123,7 +123,7 @@ typedef struct coap_packet_t
   // --- 4-byte aligned: uint32_t and enums ---
   coap_transport_type_t transport_type;   // UDP or TCP
   coap_message_type_t   type;             // CON, NON, ACK, ...
-  uint32_t max_age;
+  uint32_t max_age;                       // defines the maximum time in seconds that a response can be cached before it is considered "not fresh"
   uint32_t observe;                       /* RFC 7641: CoAP Observe option value (0..2^24-1)
                                              - client request:  0 = register (OC_OBSERVE_REGISTER), 1 = deregister (OC_OBSERVE_DEREGISTER)
                                              - server response: monotonically increasing sequence number for notifications

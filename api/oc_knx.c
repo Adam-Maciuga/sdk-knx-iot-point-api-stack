@@ -629,7 +629,6 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
   - Access token table 
   
 */
-extern const oc_resource_t core_resource_knx_k;
 static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)iface_mask;

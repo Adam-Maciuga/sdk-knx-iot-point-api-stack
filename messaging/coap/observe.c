@@ -409,8 +409,14 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     }
 
     /*
-         first notification will be the registration response with , mark as sent,
-         the payload {4: <ia>} is already prepared in 'GET /k' handler
+      RFC 7641 3.1: the registration GET response itself serves as the first notification.
+
+      For if.o resources (/p/X) the piggybacked registration GET response already contains the current
+      datapoint value, e.g.:
+        { 1: true }   -- current value of the datapoint (boolean 'on'), prepared by get_handler.cb
+
+      Skipping here prevents an immediate duplicate notification right after registration (the newly created registration is then part of this list).
+      Subsequent notifications will call get_handler.cb again to read the latest value.
     */
     if (!obs->first_sent)
     {
@@ -732,9 +738,14 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
 
     if (!obs->first_sent)
     {
-      /* 
-         first notification will be the registration response with , mark as sent,
-         the payload {4: <ia>} is already prepared in 'GET /k' handler 
+      /*
+        RFC 7641 3.1: the registration GET response itself serves as the first notification.
+
+        For /k the piggybacked registration GET response contains only the device individual address:
+          { 4: 1234 }   -- where 4 = 'ia' key, 1234 = individual address of this device
+
+        The actual s-mode payload (sia + s:{st,ga,value}) is only forwarded in subsequent notifications.
+        Skip and mark as sent so the next s-mode frame triggers the first real payload notification.
       */
       obs->first_sent = true;
       obs = next;
