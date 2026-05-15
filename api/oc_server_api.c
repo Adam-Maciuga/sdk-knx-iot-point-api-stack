@@ -582,7 +582,7 @@ static void oc_send_separate_response_with_length(
 
     if (current->observe < 3)
     {
-      // not more than 3 observers per endpoint at a time
+      // TODO what is meant here observe registration REQ vs observe counter RESPONSE ?
       coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(),
                                                    current->token, current->token_len, &current->endpoint);
       if (t)

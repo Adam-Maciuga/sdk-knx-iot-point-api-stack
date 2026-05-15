@@ -584,8 +584,10 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
       Observe: 0  (register)
 
     (a)
-    - only the first GET without observe option is supported, subsequent GETs without observe option return a bad request response
-       GET coap://[fd00::1]/k Token: 0xA1B2C3D4
+    - no subsequent notifications are sent; this is a plain GET (no Observe option), so only the one-shot {4: <ia>} response is sent, no observation
+      relationship is created
+       GET coap://[fd00::1]/k 
+       Token: 0xA1B2C3D4
 
   */
 
@@ -1124,7 +1126,11 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     oc_prepare_no_format_response_no_payload(request, summary_handler_status);
   }
 
-  // notify /k observers with the received s-mode data (KNX clause 2.5.9.1)
+  /*
+    notify /k observers with the received s-mode data (KNX clause 2.5.9.1)
+    - only forward if the frame was successfully processed (OC_STATUS_CHANGED)
+    - if GA is not in GO table (OC_STATUS_NOT_FOUND) there is no local value change, so nothing to forward
+  */
   if (summary_handler_status == OC_STATUS_CHANGED && request->_payload && request->_payload_len > 0)
   {
     coap_notify_k_observers(&core_resource_knx_k, request->_payload, request->_payload_len);

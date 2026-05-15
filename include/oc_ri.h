@@ -46,6 +46,8 @@ typedef enum
  * 
  * - Specify that a resource should notify clients when a property has been modified.
  * - A cyclic notification time can be set with 'oc_resource_set_periodic_observable'.
+ * - usually resources with if.o/ if.g.s interface are observable (others are a vendor/ application decision).
+ * - if.o AND if.i SHALL not be used together
  */
 typedef enum {
   OC_NO_PROPERTIES = 0,		       /**< no properties are set at all, means that all other properties are false */
