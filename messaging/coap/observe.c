@@ -342,6 +342,9 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     return 0;
   }
 
+  // remove expired observers before sending notifications (clause 2.5.11.6 lifetime enforcement)
+  coap_remove_expired_observers();
+
   coap_observer_t* obs = NULL;
 
   #ifdef OC_BLOCK_WISE
