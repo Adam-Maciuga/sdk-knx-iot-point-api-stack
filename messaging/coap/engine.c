@@ -64,11 +64,12 @@
 
 OC_PROCESS(coap_engine, "CoAP Engine");
 
+// use either w/wo blockwise transfer version
 #ifdef OC_BLOCK_WISE
-extern bool oc_ri_invoke_coap_entity_handler(
-  void* request, void* response, oc_blockwise_state_t** request_state,
-  oc_blockwise_state_t** response_state, uint16_t block2_size,
-  oc_endpoint_t* endpoint);
+extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response, 
+                                             oc_blockwise_state_t** request_state,
+                                             oc_blockwise_state_t** response_state, 
+                                             uint16_t block2_size, oc_endpoint_t* endpoint);
 #else
 extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                              uint8_t* buffer, oc_endpoint_t* endpoint);
