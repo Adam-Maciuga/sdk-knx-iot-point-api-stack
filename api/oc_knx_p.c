@@ -23,7 +23,10 @@
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 
-// add application datapoint's to the response and return true if at least one was added
+// forward declaration for the resource chain (core_resource_knx_f is defined in oc_knx_fb.c)
+extern const oc_resource_t core_resource_knx_f;
+
+// add application datapoint's to the response
 static bool oc_was_adding_data_points_to_response(oc_request_t* request, const oc_resource_t* resource,
                                                   size_t* response_length, const int page_size)
 {
@@ -293,9 +296,9 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_knx_f;
-PRAGMA_IN oc_resource_data_t core_resource_knx_p_data;
-const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
+static oc_resource_data_t core_resource_knx_p_data;
+PRAGMA_IN
+const oc_resource_t core_resource_knx_p = {&core_resource_knx_f,
                                            {NULL, sizeof("/p"), "/p"},
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
