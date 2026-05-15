@@ -74,7 +74,13 @@ set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in second
 # - the devices are running on the same PC (e.g. for testing with EITT)
 # - a network router does not allow to send multicast messages with scope 5 (site local)
 # the scope is used by stack (discovery) and application (push button demo) messages
-set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) (stack) s-mode messages" FORCE)
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages" FORCE)
+
+# IPv6 unicast port
+# Specified in clause 2.6.3.1 with COAP_DEFAULT_PORT and shall be used for unicast messages
+# - the optional put /dev/port is NOT implemented, the chosen port is used all the time
+# - if the port is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
+set(KNX_UNICAST_PORT "0" CACHE STRING "IPv6 unicast port, used on snd/rcv (uc) stack and s-mode messages" FORCE)
 
 ## Hidden Variables
 # Note:
@@ -233,3 +239,6 @@ add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
 # IPv6 multicast scope
 add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
+
+# IPv6 unicast port
+add_compile_definitions(KNX_UNICAST_PORT=${KNX_UNICAST_PORT})

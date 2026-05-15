@@ -1354,7 +1354,8 @@ static void register_multicasts(oc_interface_event_t event) {
   }
 }
 
-static uint16_t g_unicast_port = COAP_PORT_UNSECURED;
+static uint16_t g_multicast_port = COAP_PORT_UNSECURED;
+static uint16_t g_unicast_port = 0; // on '0' -> let OS assign ephemeral port - value is set by oc_connectivity_set_port() 
 
 int oc_connectivity_set_port(uint16_t port) {
   g_unicast_port = port;
@@ -1391,13 +1392,13 @@ int oc_connectivity_init(void) {
 
   struct sockaddr_in6 *m = (struct sockaddr_in6 *)&dev->mcast;
   m->sin6_family = AF_INET6;
-  m->sin6_port = htons(g_unicast_port);
+  m->sin6_port = htons(g_multicast_port);
   m->sin6_addr = in6addr_any;
 
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
   l->sin6_family = AF_INET6;
+  l->sin6_port = htons(g_unicast_port);   
   l->sin6_addr = in6addr_any;
-  l->sin6_port = 0;
 
 #ifdef KNX_UDP_DTLS
   memset(&dev->secure, 0, sizeof(struct sockaddr_storage));
