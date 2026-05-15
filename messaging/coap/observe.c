@@ -60,8 +60,9 @@
 /* 
   - used to seed each new (individual) observer with its notification response with a unique starting sequence number
   - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
+  - starts with 3 , see 
 */
-static uint32_t observe_counter = 0;
+static uint32_t observe_counter = 3;
 uint32_t get_observe_counter(void) { return observe_counter; }
 
 OC_LIST(observers_list);
@@ -342,10 +343,8 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     return 0;
   }
 
-  // remove expired observers before sending notifications (clause 2.5.11.6 lifetime enforcement)
+  // remove expired observers before sending notifications 
   coap_remove_expired_observers();
-
-  coap_observer_t* obs = NULL;
 
   #ifdef OC_BLOCK_WISE
   oc_blockwise_state_t* response_state = NULL;
@@ -400,7 +399,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
   }
 
   // iterate over observers
-  obs = (coap_observer_t*)oc_list_head(observers_list);
+  coap_observer_t*  obs = (coap_observer_t*)oc_list_head(observers_list);
   while (obs)
   {
     if (obs->resource != resource || (endpoint && oc_endpoint_compare(&obs->endpoint, endpoint) != 0))
@@ -443,27 +442,28 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     else
     { // response_buf is always non-NULL here: either passed by caller or set above after calling GET handler
       OC_DBG("notifying observer");
-      
-      coap_transaction_t* transaction = NULL;
+
+      // build notification with the raw inbound CBOR payload
       coap_packet_t notification[1];
-      uint8_t status_code = CONTENT_2_05;
+      const coap_message_type_t msg_type = obs->use_con ? COAP_TYPE_CON : COAP_TYPE_NON;
       const uint16_t mid = coap_get_next_mid();
 
       #ifdef OC_TCP
       if (obs->endpoint.flags & TCP)
       {
-        coap_tcp_init_message(notification, status_code);
+        coap_tcp_init_message(notification, CONTENT_2_05);
       }
       else
       #endif
       {
-        coap_udp_init_message(notification, COAP_TYPE_NON, status_code, mid);
+        // KNX spec 2.5.9.4: use CON by default; NON when observer registered with "non=true"
+        coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
       }
 
       #ifdef OC_BLOCK_WISE
       #ifdef OC_TCP
-      if (!(obs->endpoint.flags & TCP) &&
-        response_buf->response_length > obs->block2_size) {
+      if (!(obs->endpoint.flags & TCP) && response_buf->response_length > obs->block2_size) 
+      {
       #else
       if (response_buf->response_length > obs->block2_size)
       {
@@ -515,14 +515,17 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       }
       else
       #endif
-      {
+      { // payload fits
+
         #ifdef OC_TCP
-        if (!(obs->endpoint.flags & TCP) && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
+        if (!(obs->endpoint.flags & TCP) && obs->use_con && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
         {
         #else
-        if (obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
+        if (obs->use_con && obs->obs_counter % COAP_OBSERVE_REFRESH_INTERVAL == 0)
         {
         #endif
+          
+          // RFC 7641 4.5: periodic CON to verify client is still alive; skip for NON observers
           OC_DBG("coap_observe_notify: forcing CON notification to check for client liveness");
           notification->type = COAP_TYPE_CON;
         }
@@ -530,7 +533,10 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         coap_set_payload(notification, response_buf->buffer, response_buf->response_length);
       }
 
+      // final code from GET handler, may be changed by separate response handler if separate_response is set above
       coap_set_status_code(notification, response_buf->code);
+      
+      // set only if a valid value is present, otherwise leave it out when '0' e.g; not initialized in GET handler 
       if (response_buf->content_format > 0)
       {
         coap_set_header_content_format(notification, response_buf->content_format);
@@ -538,12 +544,15 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
 
       coap_set_token(notification, obs->token, obs->token_len);
 
-      transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
+      coap_transaction_t* transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
       if (transaction)
       {
         if (notification->code < BAD_REQUEST_4_00 && obs->resource->runtime_data->num_observers)
         {
+          // use current seq. number
           coap_set_header_observe(notification, obs->obs_counter);
+
+          // increment seq. number, each observation relationship has its own counter (was init from global counter)
           obs->obs_counter++;
           obs->obs_counter &= OBSERVE_COUNTER_MASK;
         }
@@ -571,6 +580,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       }
       
     }
+    
     obs = obs->next;
   }
 
@@ -695,7 +705,7 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
     return;
   }
 
-  // remove expired observers first
+  // remove expired observers before sending notifications 
   coap_remove_expired_observers();
 
   coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list);
@@ -709,7 +719,6 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
       continue;
     }
 
-    
     if (!obs->first_sent)
     {
       /* 
@@ -721,7 +730,7 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
       continue;
     }
 
-    // build notification with the raw inbound s-mode CBOR payload
+    // build notification with the raw inbound CBOR payload
     coap_packet_t notification[1];
     const coap_message_type_t msg_type = obs->use_con ? COAP_TYPE_CON : COAP_TYPE_NON;
     const uint16_t mid = coap_get_next_mid();
@@ -734,6 +743,7 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
     else
     #endif
     {
+      // KNX spec 2.5.9.4: use CON by default; NON when observer registered with "non=true"
       coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
     }
 
