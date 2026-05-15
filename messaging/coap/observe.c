@@ -408,6 +408,17 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       continue;
     }
 
+    /*
+         first notification will be the registration response with , mark as sent,
+         the payload {4: <ia>} is already prepared in 'GET /k' handler
+    */
+    if (!obs->first_sent)
+    {
+      obs->first_sent = true;
+      obs = obs->next;
+      continue;
+    }
+
     // it will be a separate CON response (CAN be overwritten from NULL ONLY in GET handler)
     if (response.separate_response)
     {
