@@ -343,7 +343,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     return 0;
   }
 
-  // remove expired observers before sending notifications 
+  // remove expired observers before sending notifications (stale notifications are only deleted here, no cyclic check)
   coap_remove_expired_observers();
 
   #ifdef OC_BLOCK_WISE
@@ -382,7 +382,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     // init CBOR data stream
     oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
 
-    // call handler
+    // call handler, request is empty so no interface mask by request
     resource->get_handler.cb(&request, resource->get_handler.interface_mask, resource->get_handler.user_data);
 
     if (response_buffer.code == OC_IGNORE)
@@ -690,7 +690,7 @@ static void coap_remove_expired_observers(void)
       const oc_clock_time_t elapsed = now - obs->created;
       if (elapsed > (oc_clock_time_t)obs->lifetime * OC_CLOCK_SECOND)
       {
-        OC_DBG("coap_remove_expired_observers: removing expired observer for /%s", oc_string_checked(obs->url));
+        OC_DBG("removing expired observer for /%s", oc_string_checked(obs->url));
         coap_remove_observer(obs);
       }
     }
@@ -705,7 +705,7 @@ void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* paylo
     return;
   }
 
-  // remove expired observers before sending notifications 
+  // remove expired observers before sending notifications (stale notifications are only deleted here, no cyclic check)
   coap_remove_expired_observers();
 
   coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list);
