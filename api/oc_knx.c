@@ -984,6 +984,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
+            
+            // notify 'binding' if.o observers on a successful /k update (clause 2.5.3.6)
+            if (new_request.response->response_buffer->code < oc_status_code(OC_STATUS_BAD_REQUEST))
+            {
+              coap_notify_observers(application_resource_with_href_match, NULL, NULL);
+            }
           }
           if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
           {
@@ -1013,6 +1019,12 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
+            
+            // notify 'binding' if.o observers on a successful /k update (clause 2.5.3.6)
+            if (new_request.response->response_buffer->code < oc_status_code(OC_STATUS_BAD_REQUEST))
+            {
+              coap_notify_observers(application_resource_with_href_match, NULL, NULL);
+            }
           }
           if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
           {
