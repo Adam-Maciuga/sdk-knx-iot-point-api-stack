@@ -1245,12 +1245,15 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   }
 
   /*
-    Store the observe option.
-    - keep/backup the inner observe option value for observe registrations and cancellations
-    - use an empty value for notifications
+    Store the observe option, handle acc. to RFC 8613 4.1.3.5 
+    - keep/backup the inner observe option value for observe registrations and cancellations RFC 8613 4.1.3.5.1
+    - use an empty value for notifications, RFC 8613 4.1.3.5.2
+
   */
-  uint32_t observe_option = coap_pkt->observe;
-  if (coap_pkt->observe > 1)
+
+  // backup
+  uint32_t observe_option = coap_pkt->observe;  
+  if (coap_pkt->observe > OC_OBSERVE_DEREGISTER)
   {
     coap_pkt->observe = 0;
     OC_DBG("response is a notification; making inner 'Observe' option empty");
@@ -1313,7 +1316,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   */
   coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
 
-  // reflects the 'observe' option (if present in the CoAP packet)
+  // restore, reflects the former inner 'observe' option (see above)
   coap_pkt->observe = observe_option;
 
   // serialize OSCORE message
