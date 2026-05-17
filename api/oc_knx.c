@@ -644,6 +644,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
     - sia + w/a + ga + value  : write/update ga with value (see example above)
     - sia                     : sync message
     - sia + r + + ga          : read ga
+
+    NOTE: init with default values, such as st=0 for 'undefined', to be able to check later if a value was set or not in the payload
   */
   oc_group_object_notification_t received_notification = {0};
 
@@ -700,11 +702,10 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             case OC_REP_STRING:
             {
               // st (6), optional
-              if (object->iname == 6)
+              if (object->iname == 6 && oc_string_len(object->value.string) > 0)
               {
-                // frees any already assigned 'st' (would be an error in request payload)
-                oc_free_string(&received_notification.st);
-                oc_new_string(&received_notification.st, oc_string(object->value.string), oc_string_len(object->value.string));
+                // catch the FIRST char from the string ('w' or 'a' or 'r' )
+                received_notification.st = oc_string(object->value.string)[0];
               }
               break;
             }
@@ -747,31 +748,23 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
   // handle the request loop over the group addresses of the /fp/r (recipient table)
-  PRINT("/k : sia: %u ga: %04x st: %s origin: %s", 
+  PRINT("/k : sia: %u ga: %04x st: %c origin: %s", 
         received_notification.sia, 
         received_notification.ga,
-        oc_string_checked(received_notification.st), 
+        received_notification.st, 
         ip_address);
 
   #endif
 
-  // set default request-flags, only one out of a/w/r is possible
-  oc_cflag_mask_t service_type_from_request = OC_CFLAG_NONE;
+  // map service type char to cflag, only one out of w/a/r is possible
+  oc_cflag_mask_t service_type_from_request;
 
-  if (strcmp(oc_string_checked(received_notification.st), "w") == 0)
+  switch (received_notification.st)
   {
-    // write, any ga => cflags = w -> overwrite object value
-    service_type_from_request = OC_CFLAG_WRITE;
-  }
-  else if (strcmp(oc_string_checked(received_notification.st), "a") == 0)
-  {
-    // update, any ga => cflags = w -> overwrite object value
-    service_type_from_request = OC_CFLAG_UPDATE;
-  }
-  else if (strcmp(oc_string_checked(received_notification.st), "r") == 0)
-  {
-    /// read, any ga => cflags = r -> read object value (group speaker principle, one 'r' flag should be set ...)
-    service_type_from_request = OC_CFLAG_READ;
+    case 'w': service_type_from_request = OC_CFLAG_WRITE;  break; // write -> overwrite object value
+    case 'a': service_type_from_request = OC_CFLAG_UPDATE; break; // response -> update object value
+    case 'r': service_type_from_request = OC_CFLAG_READ;   break; // read -> read object value
+    default : service_type_from_request = OC_CFLAG_NONE;   break; // not set or unknown char, will be handled as error later on
   }
 
   /*

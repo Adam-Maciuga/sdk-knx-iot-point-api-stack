@@ -146,7 +146,7 @@ extern "C"
   {
     oc_rep_t* value_object; // pointer to CBOR value object, see notes above
     uint32_t sia;           // source individual address
-    oc_string_t st;         // service type code (write=w, read=r, response=a)
+    char st;                // service type code (write='w', read='r', response='a')
     uint32_t ga;            // group address
   } oc_group_object_notification_t;
 
