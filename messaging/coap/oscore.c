@@ -143,35 +143,6 @@ int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn)
   return 0;
 }
 
-/**
- * @brief get for a OSCORE request/ response the OUTER CoAp code for the CoAp message
- *
- * @note a request uses always POST a response always 2.04 Changed,
- *       except on a present observe option (FETCH, 2.05 OK)
- *
- * @param packet the CoAp packet to be scanned
- *
- */
-uint8_t oscore_get_outer_code(void* packet) 
-{
-  coap_packet_t const* coap_pkt = (coap_packet_t*) packet;
-
-  const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
-
-  if (coap_pkt->code >= COAP_GET && coap_pkt->code <= COAP_FETCH
-  #ifdef OC_TCP
-          || (coap_pkt->code == PING_7_02 || coap_pkt->code == ABORT_7_05 || coap_pkt->code == CSM_7_01)
-  #endif 
-  ) 
-  { 
-    // requests
-    return observe ? COAP_FETCH : COAP_POST;
-  }
-	
-  // responses
-  return observe ? (uint8_t)oc_status_code(OC_STATUS_OK) : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
-}
-
 int coap_set_header_oscore(void* packet, uint8_t* piv, uint8_t piv_len, uint8_t* kid, uint8_t kid_len, uint8_t* kid_ctx, uint8_t kid_ctx_len) 
 {
   coap_packet_t* const coap_pkt = (coap_packet_t *)packet;

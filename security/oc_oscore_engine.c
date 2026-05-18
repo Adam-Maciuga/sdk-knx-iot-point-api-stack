@@ -1249,11 +1249,14 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     - keep/backup the inner observe option value for observe registrations and cancellations RFC 8613 4.1.3.5.1
     - use an empty value for notifications, RFC 8613 4.1.3.5.2
 
+    NOTE: a response mirrors back the code from the 'registration/cancellation' request in the response,
+          hence we need to check req/resp + observe value > OC_OBSERVE_DEREGISTER
+
   */
 
   // backup
-  uint32_t observe_option = coap_pkt->observe;  
-  if (coap_pkt->observe > OC_OBSERVE_DEREGISTER)
+  uint32_t observe_option = coap_pkt->observe;
+  if (is_outbound_response && coap_pkt->observe > OC_OBSERVE_DEREGISTER)
   {
     coap_pkt->observe = 0;
     OC_DBG("response is a notification; making inner 'Observe' option empty");
@@ -1287,18 +1290,30 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // adjust payload length to include the size of the authentication tag
   coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
 
-  // set the OUTER code for the OSCORE packet (on uc request = POST/FETCH, response = 2.04/2.05)
-  coap_pkt->code = oscore_get_outer_code(coap_pkt);
-
-  // If outer code is 2.05 (OBSERVE option was set), then set the Max-Age option
-  if (coap_pkt->code == CONTENT_2_05)
+  /*
+     set for a OSCORE request/ response the OUTER CoAp code and Max-Age option for the
+     CoAp message in relation of a present observe option.
+   
+     NOTE: no observe option (POST, 2.04 Changed), observe option (FETCH, 2.05 OK)
+  */
+  const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
+  if (observe)
   {
-    // no max age = no caching by client
+    coap_pkt->code = is_outbound_request ? COAP_FETCH : (uint8_t)oc_status_code(OC_STATUS_OK);
+
+    // set max age = no caching by client
     coap_set_header_max_age(coap_pkt, 0);
   }
+  else
+  {
+    coap_pkt->code = is_outbound_request ? COAP_POST : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
+  }
+
+  // restore, reflects the former inner 'observe' option (see above)
+  coap_pkt->observe = observe_option;
 
   /*
-      set the OSCORE option, note that checks uses the original (inner) CoAP code, not the outer code
+      set the OSCORE option
 
       8.1
 
@@ -1315,9 +1330,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   */
   coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
-
-  // restore, reflects the former inner 'observe' option (see above)
-  coap_pkt->observe = observe_option;
 
   // serialize OSCORE message
   from_org_msg_cloned_outgoing_msg->length = oscore_serialize_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data);

@@ -24,8 +24,6 @@ extern "C"
   // store 64-bit ssn (src) to piv (dst), piv is cleared first and result is converted by little/big endian
   int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
 
-  uint8_t oscore_get_outer_code(void* packet);
-
   bool oscore_is_oscore_message(oc_message_t* msg);
 
   int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t option_length);
