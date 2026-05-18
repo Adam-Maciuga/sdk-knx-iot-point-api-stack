@@ -1007,7 +1007,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   /*
     outbound_piv defaults to NULL/0: RFC 8613 §8.3 states the Sender Sequence Number is not used
     when the response does not carry a Partial IV. SSN is only consumed for outbound requests (8.1)
-    and echo responses that explicitly carry a PIV.
+    and echo responses that explicitly carry a PIV and observe notifications.
   */
   uint8_t *outbound_piv = NULL,
           *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv,
@@ -1034,13 +1034,21 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       nonce      : AEAD_nonce(sender_id, outbound_piv, common_iv)
       AAD        : compose_AAD(sender_id, outbound_piv)
 
-    (8.3) Normal response (is_outbound_response, no echo flag)
+    (8.3) Normal response (is_outbound_response, no echo flag, no observe notification)
       Context    : Recipient Context (found by kid+kid_context from inbound request)
       kid        : recipient_id
       key        : sender_key
       PIV        : none (outbound_piv = NULL / 0)
       nonce      : AEAD_nonce(recipient_id, inbound_piv, common_iv)
       AAD        : compose_AAD(recipient_id, inbound_piv)
+
+    (8.3 + 4.1.3.5) Observe notification (is_outbound_response, observe > DEREGISTER)
+      Context    : Sender Context
+      kid        : sender_id
+      key        : sender_key
+      PIV        : SSN (converted, then incremented; kept on CON retransmissions)
+      nonce      : AEAD_nonce(sender_id, outbound_piv, common_iv)
+      AAD        : compose_AAD(sender_id, outbound_piv)
 
     (x0) Echo response caused by inbound s-mode multicast (ECHO_CAUSED_BY_MC_SRC)
       Context    : NEW temp Sender Context (ssn=0, 10-byte random kid_context, freed after use)
@@ -1202,20 +1210,49 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       outbound_piv = inbound_piv;
       outbound_piv_len = inbound_piv_len;
     }
+    else if (coap_pkt->observe > OC_OBSERVE_DEREGISTER)
+    {
+      /*
+        RFC 8613 4.1.3.5.2 + KNX IoT 3.6.5: observe notification (from the 2nd onward)
+        - use sender SSN as Partial IV
+        - generate AEAD nonce with sender_id + new PIV + common_iv
+        - include PIV in the outbound OSCORE option
+      */
+      kid = oscore_ctx->sender_id;
+      kid_len = oscore_ctx->sender_id_len;
+
+      // use context SSN as Partial IV (before increment)
+      oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
+
+      // increment SSN; CON retransmissions reuse the same SSN
+      if (!is_a_con_repetition)
+        increment_ssn_in_context(oscore_ctx);
+
+      outbound_piv = piv;
+      outbound_piv_len = piv_len;
+
+      oc_oscore_AEAD_nonce(kid, kid_len, outbound_piv, outbound_piv_len,
+                           oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
+
+      oc_oscore_compose_AAD(kid, kid_len, outbound_piv, outbound_piv_len, aad, &aad_len);
+
+      OC_DBG("sending observe notification, using SSN as Partial IV with len = %u :", outbound_piv_len);
+      OC_LOGbytes(outbound_piv, outbound_piv_len);
+    }
     else
     {
       // set for response
       kid = oscore_ctx->recipient_id;
       kid_len = oscore_ctx->recipient_id_len;
-      
-      // RFC 8613, 8.3, point 3 upper *, 2.0x/4.0x response -> reuse the inbound SSN and Recipient ID 
+
+      // RFC 8613, 8.3, point 3 upper *, 2.0x/4.0x response -> reuse the inbound SSN and Recipient ID
       // (= Sender ID from the request) to compute the same AEAD nonce as for the inbound request
       oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
                            oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
       // Recipient ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
       oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
-      
+
       // debugging
       OC_DBG("sending common response, using PIV with len = %u : ", inbound_piv_len);
       OC_LOGbytes(inbound_piv, inbound_piv_len);
