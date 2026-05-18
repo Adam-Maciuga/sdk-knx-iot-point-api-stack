@@ -272,7 +272,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   */
   if (oc_coap_check_if_loopback_message(msg))
   {
-    // ignore duplicate request
+    // ignore 
     oc_message_unref(msg);
     return -1;
   }
@@ -349,13 +349,19 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   uint8_t request_piv_len = 0, request_kid_len = 0, nonce_piv_len = 0, nonce_kid_len = 0;
 
   #ifdef OC_REQUEST_HISTORY
-  // a check here removes unnecessary decryption and a throw later in coap layer
+
+  /*
+     check duplicate before process any message
+     - two level : -> oscore (secured) -> coap
+  */
   if (oc_coap_check_if_duplicate_and_if_not_add_to_history(coap_pkt, &msg->endpoint))
   {
     // ignore duplicate request
     oc_message_unref(msg);
+    OC_DBG("drop duplicate message, counter is %d", msg->ref_count);
     return -1;
   }
+
   #endif
 
   if (is_inbound_request)

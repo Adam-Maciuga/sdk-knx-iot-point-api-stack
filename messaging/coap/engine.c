@@ -398,7 +398,7 @@ int coap_receive(oc_message_t* incoming_message)
   */
   if (oc_coap_check_if_loopback_message(incoming_message))
   {
-    // ignore duplicate request
+    // ignore 
     oc_message_unref(incoming_message);
     return -1;
   }
@@ -422,8 +422,6 @@ int coap_receive(oc_message_t* incoming_message)
   #ifdef OC_CLIENT
   oc_client_cb_t* client_cb = NULL;
   #endif
-
- 
 
   #ifdef OC_TCP
   if (incoming_message->endpoint.flags & TCP)
@@ -469,15 +467,23 @@ int coap_receive(oc_message_t* incoming_message)
     bool block1 = false;
 
     #ifdef OC_REQUEST_HISTORY
-    // skip duplicate check for messages already checked by OSCORE layer, check only inbound plain CoAP messages
+    
+    
+    /*
+     check duplicate before process any message
+     - two level : -> oscore (secured) -> coap : skip duplicate check for messages already checked by OSCORE layer
+     - one level : -> coap (unsecured, others) : check only inbound plain CoAP messages 
+  */
     if (!(incoming_message->endpoint.flags & OSCORE_DECRYPTED))
     {
       if (oc_coap_check_if_duplicate_and_if_not_add_to_history(inbound_coap_pkt, &incoming_message->endpoint))
       {
         oc_message_unref(incoming_message);
+        OC_DBG("drop duplicate message, counter is %d", incoming_message->ref_count);
         return -1;
       }
     }
+
     #endif
 
     #ifdef OC_DEBUG
