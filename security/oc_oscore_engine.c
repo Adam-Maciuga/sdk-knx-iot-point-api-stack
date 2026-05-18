@@ -273,6 +273,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   if (oc_coap_check_if_loopback_message(msg))
   {
     // ignore 
+    OC_DBG("drop loopback message, counter is %d", msg->ref_count);
     oc_message_unref(msg);
     return -1;
   }
@@ -301,6 +302,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     }
 
     // (x) + (y)
+    OC_DBG("drop OSCORE error message, counter is %d", msg->ref_count);
     oc_message_unref(msg);
     return -1;
   }
@@ -322,6 +324,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
          but if it appears here, it is not a valid OSCORE carrier — drop silently
     */
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
+    OC_DBG("drop unexpected OSCORE message, counter is %d", msg->ref_count);  
     oc_message_unref(msg);
     return -1;
   }
@@ -403,6 +406,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
             OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound unicast 's-mode' request message, return unsecured 4.01");
             oscore_send_error(coap_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
           }
+          OC_DBG("drop no at entry message, counter is %d", msg->ref_count);
           oc_message_unref(msg);
           return -1;
         }
@@ -1330,9 +1334,9 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
     oc_message_unref(from_org_msg_cloned_outgoing_msg);
     return -1;
-    }
+  }
 
-    OC_DBG("encrypting OSCORE payload : success (0)");
+  OC_DBG("encrypting OSCORE payload : success (0)");
 
   // adjust payload length to include the size of the authentication tag
   coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;

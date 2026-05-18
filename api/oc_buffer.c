@@ -119,6 +119,7 @@ void oc_message_add_ref(oc_message_t* message)
   {
     message->ref_count++;
   }
+  OC_DBG("increase message counter, counter is %d", message->ref_count);
 }
 
 void oc_message_unref(oc_message_t* message) 
@@ -126,6 +127,7 @@ void oc_message_unref(oc_message_t* message)
   if (message) 
   {
     message->ref_count--;
+    OC_DBG("decrease message counter, counter is %d", message->ref_count);
     if (message->ref_count == 0) {
       #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
       if (message->data) 

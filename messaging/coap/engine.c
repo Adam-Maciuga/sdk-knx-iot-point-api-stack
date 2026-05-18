@@ -111,8 +111,21 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
     {
       if (history[i].mid == mid && history[i].port == port && memcmp(history[i].address, address, 16) == 0)
       {
+        #ifdef OC_DEBUG 
+
         OC_DBG("checking on coap retransmission duplicates (mid/port/ipv6) -> message dropped MID: %d, PORT: %d, ADR: ", mid, port);
         oc_char_print_hex(address, 16);
+
+        for (size_t k = 0; k < OC_REQUEST_HISTORY_SIZE; k++)
+        {
+
+          OC_DBG("MID: %d, PORT: %d, ADR: ", history[k].mid, history[k].port);
+          oc_char_print_hex(history[k].address, 16);  
+          
+        }
+
+        #endif
+
         return true;
       }
     }
@@ -399,6 +412,7 @@ int coap_receive(oc_message_t* incoming_message)
   if (oc_coap_check_if_loopback_message(incoming_message))
   {
     // ignore 
+    OC_DBG("drop loopback message, counter is %d", incoming_message->ref_count);
     oc_message_unref(incoming_message);
     return -1;
   }
