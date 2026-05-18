@@ -111,7 +111,8 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
     {
       if (history[i].mid == mid && history[i].port == port && memcmp(history[i].address, address, 16) == 0)
       {
-        OC_DBG("checking on coap retransmission duplicates (mid/port/ipv6) -> message dropped (MID: %d)", mid);
+        OC_DBG("checking on coap retransmission duplicates (mid/port/ipv6) -> message dropped MID: %d, PORT: %d, ADR: ", mid, port);
+        oc_char_print_hex(address, 16);
         return true;
       }
     }
@@ -139,13 +140,13 @@ bool oc_coap_check_if_loopback_message(const oc_message_t* msg)
     {
       if (msg->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port)
       {
-        OC_DBG("checking loopback duplicates (endpoint/port) -> duplicate message - ignored : ");
+        OC_DBG("checking loopback duplicates (endpoint/port) -> own loopback message - ignored from : ");
         PRINTipaddr(*ep_i);
         return true;
       }
     }
   }
-  OC_DBG("checking loopback duplicates (endpoint/port) -> fresh message, - accepted");
+  OC_DBG("checking loopback duplicates (endpoint/port) -> fresh extern message - accepted from : ");
   PRINTipaddr(msg->endpoint);
   return false;
 }
@@ -390,7 +391,11 @@ int coap_receive(oc_message_t* incoming_message)
 
   #endif
 
-  // check loop back first before process any message
+  /*
+     check loop back first before process any message,
+     - two level : -> oscore (secured) -> coap 
+     - one level : -> coap (unsecured, others)  
+  */
   if (oc_coap_check_if_loopback_message(incoming_message))
   {
     // ignore duplicate request

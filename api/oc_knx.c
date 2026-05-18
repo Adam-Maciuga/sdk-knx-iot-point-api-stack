@@ -1787,17 +1787,11 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_send_empty_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
 
     // handshake completed successfully - clear state
-    memset(&spake_data, 0, sizeof(spake_data));
+    spake_data = (spake_data_t){0};
 
-    // reset pase object, except id (it holds an allocated oc_string stack memory)
-    memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
-    memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
-    memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
-    memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
-    memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
-    memset(g_pase.salt, 0, sizeof(g_pase.salt));
-
-    g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
+    // reset entire pase object after freeing the id string (it holds an allocated oc_string stack memory), init with iterations only, rest = 0;
+    oc_free_string(&g_pase.id);
+    g_pase = (oc_pase_t){.it = KNX_IOT_SPAKE2PLUS_ITERATIONS};
 
     return OC_EVENT_DONE;
   }
@@ -1806,19 +1800,13 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
   PRINT("oc_core_knx_spake_separate_post_handler - error");
 
-  // be paranoid: wipe all global data after an error
-  memset(&spake_data, 0, sizeof(spake_data));
+  // handshake error - clear state
+  spake_data = (spake_data_t){0};
 
-  // reset pase object
-  memset(g_pase.shareP, 0, sizeof(g_pase.shareP));
-  memset(g_pase.shareV, 0, sizeof(g_pase.shareV));
-  memset(g_pase.confirmP, 0, sizeof(g_pase.confirmP));
-  memset(g_pase.confirmV, 0, sizeof(g_pase.confirmV));
-  memset(g_pase.rnd, 0, sizeof(g_pase.rnd));
-  memset(g_pase.salt, 0, sizeof(g_pase.salt));
+  // reset entire pase object after freeing the id string (it holds an allocated oc_string stack memory), init with iterations only, rest = 0;
+  oc_free_string(&g_pase.id);
+  g_pase = (oc_pase_t){.it = KNX_IOT_SPAKE2PLUS_ITERATIONS};
 
-
-  g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
   increment_spake_request_counter();
 
   oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_BAD_REQUEST);

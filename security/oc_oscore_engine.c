@@ -265,7 +265,11 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   bool is_non;
   bool is_ack;
 
-  // check loop back first before process any message, removes also unnecessary decryption and a throw later in coap layer
+  /* 
+     check loop back first before process any message, removes also unnecessary decryption
+     and a throw later in coap layer
+     - two level : -> oscore (secured) -> coap 
+  */
   if (oc_coap_check_if_loopback_message(msg))
   {
     // ignore duplicate request
