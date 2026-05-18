@@ -19,6 +19,7 @@
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
 #include "observe.h"
+#include "engine.h"
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
@@ -165,6 +166,9 @@ static oc_event_callback_retval_t reset(void* context)
 
   // delete data
   oc_knx_device_storage_reset(cached_erase_code_value);
+
+  // clear the CoAP request history (duplicate detection buffer)
+  oc_coap_clear_request_history();
 
   // application reset callback handler
   const oc_reset_t* my_reset_cb = oc_get_reset_cb();

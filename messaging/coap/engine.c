@@ -88,40 +88,58 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 #define OC_ECHO_FRESHNESS_TIME (10 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 #endif
 
-bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint)
-{
-  // current history entry index (auto init with 0)
-  static uint8_t idx;
+// file-scope statics for request history (duplicate detection)
+// each entry is 20 bytes: 2(mid) + 2(port) + 16(address), compared as a single stream
+#define OC_REQUEST_HISTORY_ENTRY_SIZE (2 + 2 + 16)
 
-  static struct
+typedef union
+{
+  uint8_t raw[OC_REQUEST_HISTORY_ENTRY_SIZE];
+  struct
   {
     uint16_t mid;
     uint16_t port;
     uint8_t address[16];
-  } history[OC_REQUEST_HISTORY_SIZE];
+  } fields;
+} oc_request_history_entry_t;
 
-  const uint16_t mid = coap->mid;
-  const uint8_t* address = endpoint->addr.ipv6.address;
-  const uint16_t port = endpoint->addr.ipv6.port;
+static uint8_t g_history_idx;
+static oc_request_history_entry_t g_history[OC_REQUEST_HISTORY_SIZE];
+
+void oc_coap_clear_request_history(void)
+{
+  memset(g_history, 0, sizeof(g_history));
+  g_history_idx = 0;
+  OC_DBG("wipe history buffer");
+}
+
+bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint)
+{
+  // build key entry
+  oc_request_history_entry_t key = 
+  {
+    .fields.mid = coap->mid, 
+    .fields.port = endpoint->addr.ipv6.port
+  };
+  
+  memcpy(key.fields.address, endpoint->addr.ipv6.address, 16);
 
   // the type is initialized in relation of the use of UDP/TCP
   if (coap->transport_type == COAP_TRANSPORT_UDP)
   {
-    for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
+    for (const oc_request_history_entry_t* h = g_history; h < g_history + OC_REQUEST_HISTORY_SIZE; h++)
     {
-      if (history[i].mid == mid && history[i].port == port && memcmp(history[i].address, address, 16) == 0)
+      if (memcmp(h->raw, key.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0)
       {
-        #ifdef OC_DEBUG 
+        #ifdef OC_DEBUG
 
-        OC_DBG("checking on coap retransmission duplicates (mid/port/ipv6) -> message dropped MID: %d, PORT: %d, ADR: ", mid, port);
-        oc_char_print_hex(address, 16);
+        OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", key.fields.mid, key.fields.port);
+        oc_char_print_hex((char*)key.fields.address, 16);
 
-        for (size_t k = 0; k < OC_REQUEST_HISTORY_SIZE; k++)
+        for (const oc_request_history_entry_t* d = g_history; d < g_history + OC_REQUEST_HISTORY_SIZE; d++)
         {
-
-          OC_DBG("MID: %d, PORT: %d, ADR: ", history[k].mid, history[k].port);
-          oc_char_print_hex(history[k].address, 16);  
-          
+          OC_DBG("MID: %d, PORT: %d, ADR: ", d->fields.mid, d->fields.port);
+          oc_char_print_hex((const char*)d->fields.address, 16);
         }
 
         #endif
@@ -131,14 +149,14 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
     }
 
     // no duplicate, it is usually the first received message, update the history entry
-    history[idx].mid = mid;
-    history[idx].port = port;
-    memcpy(history[idx].address, address, 16);
+    g_history[g_history_idx] = key;
 
     // roll over id from 0...74
-    idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
+    g_history_idx = (g_history_idx + 1) % OC_REQUEST_HISTORY_SIZE;
 
-    OC_DBG("checking retransmission duplicates (mid/port/ipv6) -> fresh message (MID: %d)", mid);
+    OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> fresh message MID: %d, PORT: %d, ADR: ", key.fields.mid, key.fields.port);
+    oc_char_print_hex((char*)key.fields.address, 16);
+
   }
   return false;
 }
