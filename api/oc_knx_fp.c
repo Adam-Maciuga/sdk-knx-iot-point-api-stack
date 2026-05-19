@@ -3023,40 +3023,43 @@ void oc_unregister_group_multicasts(void)
   #endif
 }
 
-void oc_init_datapoints_at_initialization(void)
-{
-  PRINT("scan datapoints for a possible cflag read on 'init' initialization ...");
+// global index for staggered "read on init" -- also used as cb_data for removal
+static int g_roi_got_idx;
 
-  for (int i = 0; i < GOT_MAX_ENTRIES; i++)
+static oc_event_callback_retval_t oc_init_read_next(void* data)
+{
+  (void)data;
+
+  /*
+    (a)
+      check first on init flag
+      1. skip all invalid GO entries, + without init flag
+         (find later for a path the sending GA and no init flag is set -> runs again over all GO's, timing ...)
+
+    (b)
+      it must be checked for the sending ga, it may be that the current GO entry is not that one that has the ga in position '0'
+      1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href 
+      2. test again the INIT flag, it may be that the (other) found GO entry does not have it -> would be MaC configuration error
+
+    // TODO 4 Low Priority -> b.1, in case of 2...n GO entries with same href its send 2...n-time the read (note MaC ETS does not split entries)
+  */
+
+  // starts from last callback that increments the counter by 1
+  while (g_roi_got_idx < GOT_MAX_ENTRIES)
   {
-    if (g_got[i].id > -1 && g_got[i].cflags & OC_CFLAG_INIT)
-    {
-      /*
-        (a)
-          check first on init flag 
-          1. skip all GO entries without init flag 
-             (find later for a path the sending GA and no init flag is set runs again over all GO's -> timing  
-          
-        (b)
-          it must be checked for the sending ga, it may be that the current GO entry is not that one that has the ga in position '0'
-          1. in case tha GA array was split by a MaC over more than one GO entry with different ID's but the same href (note MaC ETS does not split entries)
-          2. test again the INIT flag, it may be that the (other) found GO entry does not have it -> would be MaC configuration error
-      */
-      // TODO 4 Low Priority -> b.1, in case of 2...n GO entries with same href its send 2...n-time the read   
-      // TODO 5 Hi Priority -> spread the init over a time period of x seconds, see specification 
-      
-      oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[i].href));
+    if (g_got[g_roi_got_idx].id >= 0 && g_got[g_roi_got_idx].cflags & OC_CFLAG_INIT)
+    {// (a)
+
+      // (b)
+      oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[g_roi_got_idx].href));
+
       if (go_entry && go_entry->cflags & OC_CFLAG_INIT)
-      { // read on init cflags is set, fire (such as after a device restart, load complete, ...)
-        
+      {
         // sending ga is always in position zero
         const uint32_t sending_ga = go_entry->ga[0];
-
         const oc_device_info_t* const device = oc_core_get_device_info();
-        const uint16_t sia = device->ia;
-        const uint64_t iid = device->iid;
 
-        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 "", sending_ga, sia, iid);
+        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi_got_idx);
 
         // find recipient entry (contains both grpid and non flag)
         oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
@@ -3065,7 +3068,6 @@ void oc_init_datapoints_at_initialization(void)
         {
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
-
             oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, recipient->grpid, sending_ga, 'r', NULL, 0);
           }
           else
@@ -3073,7 +3075,29 @@ void oc_init_datapoints_at_initialization(void)
             oc_send_s_mode_unicast_message(sending_ga, 'r', NULL, 0, recipient, go_entry);
           }
         }
+
+        // advance and schedule the next GOT entry after a delay
+        g_roi_got_idx++;
+        oc_ri_add_timed_event_callback_ticks(NULL, oc_init_read_next, KNX_READ_ON_INIT_DELAY_MILLISECONDS);
+        return OC_EVENT_DONE;
       }
     }
+    // scan next GOT entry
+    g_roi_got_idx++;
   }
+
+  OC_INF("init datapoints : done (all entries processed)");
+  return OC_EVENT_DONE;
+}
+
+void oc_init_datapoints_at_initialization(void)
+{
+  OC_INF("scan datapoints : for a possible cflag read on 'init' initialization ...");
+
+  // remove any pending callback from a previous run such as on two resets in a short time period  (only one callback can be pending at a time)
+  oc_ri_remove_timed_event_callback(NULL, oc_init_read_next);
+
+  // start staggered processing from the first GO table entry
+  g_roi_got_idx = 0;
+  oc_ri_add_timed_event_callback_ticks(NULL, oc_init_read_next, KNX_READ_ON_INIT_DELAY_MILLISECONDS);
 }

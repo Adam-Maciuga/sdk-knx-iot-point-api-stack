@@ -69,6 +69,9 @@ set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterati
 # KNX reset "Process Time" in seconds
 set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
 
+# KNX read on init delay time betwwen to read on init requests (ms)
+set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init delay time between to subsequent read on init requests (milliseconds)")
+
 # IPv6 multicast scope
 # Scope 2 MAY be needed for the virtual DEMO applications when:
 # - the devices are running on the same PC (e.g. for testing with EITT)
@@ -236,6 +239,9 @@ add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server def
 
 # KNX reset Process Time (seconds)
 add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
+
+# KNX read on init delay time between to subsequent read requests (milliseconds)
+add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS})
 
 # IPv6 multicast scope
 add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
