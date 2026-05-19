@@ -64,6 +64,7 @@ void coap_init_engine(void);
 /**
  * @brief Check if a coap inbound replayed message is pending, if not the inbound message is registered
  *        as a new message in the history buffer and passed through to the 'upper' layers. 
+ *        Outdated entries are wiped out from history with OC_REQUEST_HISTORY_TIMEOUT.  
  *        More details read the 'note'
  *
  * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 address,
@@ -78,7 +79,7 @@ void coap_init_engine(void);
 */
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint);
 
-// clear the request history buffer (e.g. on device reset with erase code 2 or 7)
+// clear the request history buffer (ONLY on device reset with erase code 2)
 void oc_coap_clear_request_history(void);
 
 /**

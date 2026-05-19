@@ -44,6 +44,7 @@
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
+#include "timestamp.h"
 #include "port/oc_random.h"
 
 #ifdef KNX_TCP_TLS
@@ -78,29 +79,36 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 #ifdef OC_REQUEST_HISTORY
 /*
   The size of the array used to de-duplicate CoAP messages.
-  A value of 25 means that the message ID & device counter are compared to the
+  A value of 25 means that the message ID & device IP adr/port are compared to the
   ones in the last 25 messages. If a match is found, the message is dropped as
   it must be a duplicate.
+
+  NOTE: The check runs always through the entire array when receiving a msg, 
+        hence choose smaller numbers if possible. 
 */
-#define OC_REQUEST_HISTORY_SIZE (75)
+#define OC_REQUEST_HISTORY_SIZE (32) // MUST use only values of 2 power n 
+#define OC_REQUEST_HISTORY_TIMEOUT (247 * OC_CLOCK_CONF_TICKS_PER_SECOND) // RFC 7252
 
 #ifndef OC_ECHO_FRESHNESS_TIME
 #define OC_ECHO_FRESHNESS_TIME (10 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 #endif
 
-// file-scope statics for request history (duplicate detection)
-// each entry is 20 bytes: 2(mid) + 2(port) + 16(address), compared as a single stream
 #define OC_REQUEST_HISTORY_ENTRY_SIZE (2 + 2 + 16)
 
-typedef union
+typedef struct
 {
-  uint8_t raw[OC_REQUEST_HISTORY_ENTRY_SIZE];
-  struct
+  union // C99 extension
   {
-    uint16_t mid;
-    uint16_t port;
-    uint8_t address[16];
-  } fields;
+    // each entry is 20 bytes: 2(mid) + 2(port) + 16(address), compared as a single (raw) stream
+    uint8_t raw[OC_REQUEST_HISTORY_ENTRY_SIZE];
+    struct
+    {
+      uint16_t mid;
+      uint16_t port;
+      uint8_t address[16];
+    } fields;
+  };
+  oc_clock_time_t timestamp;  // time of message received with this MID;
 } oc_request_history_entry_t;
 
 static uint8_t g_history_idx;
@@ -115,47 +123,46 @@ void oc_coap_clear_request_history(void)
 
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint)
 {
-  // build key entry
-  oc_request_history_entry_t key = 
+  // build key entry from inbound message 
+  oc_request_history_entry_t his = 
   {
-    .fields.mid = coap->mid, 
-    .fields.port = endpoint->addr.ipv6.port
+    {
+      .fields.mid = coap->mid,    // first mid, so that cmp exits early on a mismatch, then port and address
+      .fields.port = endpoint->addr.ipv6.port},
+    .timestamp = oc_clock_time()  // now
   };
   
-  memcpy(key.fields.address, endpoint->addr.ipv6.address, 16);
+  memcpy(his.fields.address, endpoint->addr.ipv6.address, 16);
 
   // the type is initialized in relation of the use of UDP/TCP
   if (coap->transport_type == COAP_TRANSPORT_UDP)
   {
     for (const oc_request_history_entry_t* h = g_history; h < g_history + OC_REQUEST_HISTORY_SIZE; h++)
     {
-      if (memcmp(h->raw, key.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0)
-      {
-        #ifdef OC_DEBUG
+      /* 
+        match and not timed out ? 
+        NOTE: if timed out and match; 
+              - treat as no duplicate, 
+              - don't delete history entry, 
+              - will be overwritten on roll over of counter
+      */
+      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 && his.timestamp - h->timestamp < OC_REQUEST_HISTORY_TIMEOUT)
+      { // not timed out and match 
 
-        OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", key.fields.mid, key.fields.port);
-        oc_char_print_hex((char*)key.fields.address, 16);
-
-        for (const oc_request_history_entry_t* d = g_history; d < g_history + OC_REQUEST_HISTORY_SIZE; d++)
-        {
-          OC_DBG("MID: %d, PORT: %d, ADR: ", d->fields.mid, d->fields.port);
-          oc_char_print_hex((const char*)d->fields.address, 16);
-        }
-
-        #endif
-
+        OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
+        oc_char_print_hex((char*)his.fields.address, 16);
         return true;
       }
     }
 
-    // no duplicate, it is usually the first received message, update the history entry
-    g_history[g_history_idx] = key;
+    // no duplicate, update the history entry
+    g_history[g_history_idx] = his;
 
-    // roll over id from 0...74
-    g_history_idx = (g_history_idx + 1) % OC_REQUEST_HISTORY_SIZE;
+    // roll over id from 0...n-1 (31) (use only 2 power n max size) -> 32 & 0b00111111 = 0, 1 & 0b00111111 = 1, ... 
+    g_history_idx = (g_history_idx + 1) & (OC_REQUEST_HISTORY_SIZE - 1);
 
-    OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> fresh message MID: %d, PORT: %d, ADR: ", key.fields.mid, key.fields.port);
-    oc_char_print_hex((char*)key.fields.address, 16);
+    OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> fresh message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
+    oc_char_print_hex((char*)his.fields.address, 16);
 
   }
   return false;

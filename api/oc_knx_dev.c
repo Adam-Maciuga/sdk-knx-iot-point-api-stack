@@ -10,6 +10,8 @@
 #include <inttypes.h>
 #include "oc_api.h"
 #include "oc_knx_dev.h"
+
+#include "engine.h"
 #include "include/oc_helpers.h"
 #include "oc_knx_fp.h"
 #include "oc_knx_helpers.h"
@@ -1226,6 +1228,9 @@ void oc_knx_device_storage_reset(int reset_mode) {
     oc_delete_group_object_table();
     oc_delete_group_tables();
     oc_delete_at_table();
+
+    // clear the CoAP request history (duplicate detection buffer)
+    oc_coap_clear_request_history();
 
     // writing all above reset values to storage (LSM already written)
     // Note:
