@@ -25,9 +25,6 @@ if(MSVC)
   add_compile_options(/W4 /WX-)
 endif()
 
-# Add preprocessor definitions for the current CMakeLists file.
-add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
-
 ### KNX-IoT Stack compilation variables ###
 
 ## Stack variables vs device application variables 

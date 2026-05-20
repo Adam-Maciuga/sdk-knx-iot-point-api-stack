@@ -134,12 +134,7 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
     o->first_sent = false;                    // first notification NOT send out 
     resource->runtime_data->num_observers++;  // increase number of current observers for this resource
 
-    #ifdef OC_DYNAMIC_ALLOCATION
     OC_DBG("adding observer (%i) for /%s [0x%02X%02X]", oc_list_length(observers_list) + 1, oc_string_checked(o->url), o->token[0], o->token[1]);
-    #else
-    OC_DBG("adding observer (%i/%i) for /%s [0x%02X%02X]",
-           oc_list_length(observers_list) + 1, COAP_MAX_OBSERVERS, oc_string_checked(o->url), o->token[0], o->token[1]);
-    #endif
     
     oc_list_add(observers_list, o);
     return duplicate;
@@ -364,17 +359,12 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     
     OC_DBG("issue GET request to resource %s", oc_string_checked(resource->uri));
 
-    #ifndef OC_DYNAMIC_ALLOCATION
-    uint8_t stack_buffer[OC_MAX_OBSERVE_SIZE];
-    response_buffer.buffer = stack_buffer;
-    #else
     response_buffer.buffer = (uint8_t*)malloc(OC_MAX_OBSERVE_SIZE);
     if (!response_buffer.buffer)
     {
       OC_WRN("out of memory allocating buffer");
       return resource->runtime_data->num_observers;
     }
-    #endif
 
     // init 
     oc_request_t request = {.resource = resource, .response = &response};
@@ -388,9 +378,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     if (response_buffer.code == OC_IGNORE)
     {
       OC_DBG("resource ignored request");
-      #ifdef OC_DYNAMIC_ALLOCATION
       free(response_buffer.buffer);
-      #endif
       return resource->runtime_data->num_observers;
     }
 
@@ -607,9 +595,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     obs = obs->next;
   }
 
-  #ifdef OC_DYNAMIC_ALLOCATION
   free(response_buffer.buffer);
-  #endif
 
   return resource->runtime_data->num_observers;
 }

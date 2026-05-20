@@ -11,9 +11,7 @@
 #include "messaging/coap/separate.h"
 #include "oc_api.h"
 
-#ifdef OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
-#endif
 
 #include "oc_core_res.h"
 

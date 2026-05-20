@@ -83,7 +83,6 @@ extern "C" {
  * \param num The total number of memory chunks in the block.
  *
  */
-#ifdef OC_DYNAMIC_ALLOCATION
 #ifdef __cplusplus
 }
 #endif
@@ -106,20 +105,6 @@ extern "C" {
   static struct oc_memb name = { sizeof(structure), num,                       \
                                  CC_CONCAT(name, _memb_count),                 \
                                  (void *)CC_CONCAT(name, _memb_mem), 0 }
-#else 
-/*
-   allocates a memory block with 'name' and sizeof 'structure',
-   'num' is only used on static allocation, on dynamic allocation its one
-   structure element whereas all other 'oc_memb' block properties
-   (num, count, ...) are ignored
-*/
-#define OC_MEMB(name, structure, num)                                          \
-  static char CC_CONCAT(name, _memb_count)[num];                               \
-  static structure CC_CONCAT(name, _memb_mem)[num];                            \
-  static struct oc_memb name = { sizeof(structure), num,                       \
-                                 CC_CONCAT(name, _memb_count),                 \
-                                 (void *)CC_CONCAT(name, _memb_mem), 0 }
-#endif
 
 typedef void (*oc_memb_buffers_avail_callback_t)(int);
 

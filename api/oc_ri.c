@@ -1063,7 +1063,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   #endif
   #endif
 
-  // postpone allocating response_state right after calling oc_parse_rep() in order to reducing peak memory in OC_BLOCK_WISE & OC_DYNAMIC_ALLOCATION
+  // postpone allocating response_state right after calling oc_parse_rep() in order to reducing peak memory in OC_BLOCK_WISE 
 
   // init response object (sets all data)
   response_obj.separate_response = NULL;
@@ -1120,19 +1120,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   new_request.uri_path = uri_path;
   new_request.uri_path_len = uri_path_len;
 
-  #ifndef OC_DYNAMIC_ALLOCATION
-  char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-  oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-  memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-  memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-  struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                OC_MAX_NUM_REP_OBJECTS,
-                                rep_objects_alloc,
-                                (void*)rep_objects_pool,
-                                0};
-  #else
   struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-  #endif
 
   oc_rep_set_pool(&rep_objects);
 
@@ -1763,19 +1751,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   client_response._payload = payload;
   client_response._payload_len = (size_t)payload_len;
 
-  #ifndef OC_DYNAMIC_ALLOCATION
-  char rep_objects_alloc[OC_MAX_NUM_REP_OBJECTS];
-  oc_rep_t rep_objects_pool[OC_MAX_NUM_REP_OBJECTS];
-  memset(rep_objects_alloc, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(char));
-  memset(rep_objects_pool, 0, OC_MAX_NUM_REP_OBJECTS * sizeof(oc_rep_t));
-  struct oc_memb rep_objects = {sizeof(oc_rep_t),
-                                OC_MAX_NUM_REP_OBJECTS,
-                                rep_objects_alloc,
-                                (void*)rep_objects_pool,
-                                0};
-  #else
   struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-  #endif
   oc_rep_set_pool(&rep_objects);
   if (payload_len)
   {
