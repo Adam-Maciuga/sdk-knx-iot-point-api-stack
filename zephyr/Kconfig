@@ -28,13 +28,6 @@ config KNXIOT_TINYCBOR_BUILTIN
 
 # ── Protocol ───────────────────────────────────────────────────────────────────
 
-config KNXIOT_DYNAMIC_ALLOCATION
-    bool "Dynamic memory allocation"
-    default y
-    help
-      Corresponds to CMake: OC_DYNAMIC_ALLOCATION.
-      Required for the current stack implementation.  # TODO FIXME: make optional
-
 config KNXIOT_CLIENT
     bool "KNX-IoT client mode support"
     default y

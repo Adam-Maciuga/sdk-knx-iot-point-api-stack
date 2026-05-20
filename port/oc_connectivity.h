@@ -13,65 +13,13 @@
 #ifndef OC_CONNECTIVITY_H
 #define OC_CONNECTIVITY_H
 #include "oc_config.h"
+
+#include "oc_buffer_settings.h"
 #include "oc_endpoint.h"
 #include "oc_network_events.h"
 #include "oc_session_events.h"
 #include "port/oc_log.h"
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifndef OC_DYNAMIC_ALLOCATION
-
-#ifndef OC_MAX_APP_DATA_SIZE
-#error "Set OC_MAX_APP_DATA_SIZE in oc_config.h"
-#endif
-
-#ifdef OC_BLOCK_WISE_SET_MTU
-#define OC_BLOCK_WISE
-#if OC_BLOCK_WISE_SET_MTU < (COAP_MAX_HEADER_SIZE + 16)
-#error "OC_BLOCK_WISE_SET_MTU must be >= (COAP_MAX_HEADER_SIZE + 2^4)"
-#endif
-#define OC_MAX_BLOCK_SIZE (OC_BLOCK_WISE_SET_MTU - COAP_MAX_HEADER_SIZE)
-#define OC_BLOCK_SIZE                                                          \
-  (OC_MAX_BLOCK_SIZE < 32                                                      \
-     ? 16                                                                      \
-     : (OC_MAX_BLOCK_SIZE < 64                                                 \
-          ? 32                                                                 \
-          : (OC_MAX_BLOCK_SIZE < 128                                           \
-               ? 64                                                            \
-               : (OC_MAX_BLOCK_SIZE < 256                                      \
-                    ? 128                                                      \
-                    : (OC_MAX_BLOCK_SIZE < 512                                 \
-                         ? 256                                                 \
-                         : (OC_MAX_BLOCK_SIZE < 1024                           \
-                              ? 512                                            \
-                              : (OC_MAX_BLOCK_SIZE < 2048 ? 1024 : 2048)))))))
-#else
-#define OC_BLOCK_SIZE (OC_MAX_APP_DATA_SIZE)
-#endif
-
-enum {
-#ifdef OC_TCP // TODO 15 Need to check about TLS packet.
-  OC_PDU_SIZE = (OC_MAX_APP_DATA_SIZE + 2 * COAP_MAX_HEADER_SIZE)
-#else
-#ifdef OC_SECURITY // TODO 15 FIXME NOW this makes no sense OC_SECURITY is now OC_TCP_TLS, but here it is in the else path of if TCP!
-  OC_PDU_SIZE = (OC_BLOCK_SIZE + 2 * COAP_MAX_HEADER_SIZE)
-#else
-  OC_PDU_SIZE = (OC_BLOCK_SIZE + COAP_MAX_HEADER_SIZE)
-#endif
-#endif
-};
-
-#else 
-
-#ifdef __cplusplus
-}
-#endif
-
-#include "oc_buffer_settings.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,8 +34,6 @@ extern "C" {
 #define OC_BLOCK_SIZE (oc_get_block_size())
 #define OC_MAX_APP_DATA_SIZE (oc_get_max_app_data_size())
 
-#endif 
-
 struct oc_message_s
 {
   struct oc_message_s *next;
@@ -96,14 +42,10 @@ struct oc_message_s
   oc_ipv6_addr_t mcast_dest;
   size_t length;            // total message length (includes header, options and payload from message->data 'stream')
   uint8_t ref_count;        // check how message is used (allocated = 1 , tracked > 1)
-  #ifdef OC_DYNAMIC_ALLOCATION
   #ifdef OC_INOUT_BUFFER_SIZE
   uint8_t data[OC_INOUT_BUFFER_SIZE];
   #else  
   uint8_t *data;            // points to an allocated buffer containing the coap packet (= binary data with no structure, hence not necessarily a CoAP packet)  
-  #endif 
-  #else  
-  uint8_t data[OC_PDU_SIZE];
   #endif 
   #ifdef OC_TCP
   size_t read_offset;

@@ -39,55 +39,11 @@ typedef uint64_t oc_clock_time_t;
 #define OC_DNS_CACHE
 //#define OC_DNS_LOOKUP_IPV6
 
-// If we selected support for dynamic memory allocation.
-#ifdef OC_DYNAMIC_ALLOCATION
+// Dynamic memory allocation.
 #define OC_BLOCK_WISE
 
 // The maximum size of a response to an OBSERVE request, in bytes.
 #define OC_MAX_OBSERVE_SIZE 512
-
-#else /* OC_DYNAMIC_ALLOCATION */
-// List of constraints below for a build that does not employ dynamic
-// memory allocation.
-*
-// Memory pool sizes.
-#define OC_BYTES_POOL_SIZE (1800)
-#define OC_INTS_POOL_SIZE (100)
-#define OC_DOUBLES_POOL_SIZE (4)
-
-/* Server-side parameters */
-// Maximum number of server resources.
-#define OC_MAX_APP_RESOURCES (4)
-
-#define OC_MAX_NUM_COLLECTIONS (1)
-
-/* Common parameters */
-// Prescriptive lower layers MTU size, enable block-wise transfers.
-#define OC_BLOCK_WISE_SET_MTU (700)
-
-// Maximum number of concurrent requests.
-#define OC_MAX_NUM_CONCURRENT_REQUESTS (20)
-
-// Maximum number of nodes in a payload tree structure.
-#define OC_MAX_NUM_REP_OBJECTS (150)
-
-// Number of devices on the platform.
-#define OC_MAX_NUM_DEVICES (1)
-
-// Maximum number of endpoints.
-#define OC_MAX_NUM_ENDPOINTS (20)
-
-/* Security layer */
-// Maximum number of authorized clients.
-#define OC_MAX_NUM_SUBJECTS (2)
-
-// Maximum number of concurrent (D)TLS sessions.
-#define OC_MAX_TLS_PEERS (1)
-
-// Maximum number of peer for TCP channel.
-#define OC_MAX_TCP_PEERS (2)
-
-#endif /* !OC_DYNAMIC_ALLOCATION */
 
 // Maximum number of interfaces for IP adapter.
 #define OC_MAX_IP_INTERFACES (3)
