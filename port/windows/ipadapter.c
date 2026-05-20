@@ -22,9 +22,8 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 // clang-format on
-#ifdef OC_DYNAMIC_ALLOCATION
 #include <malloc.h>
-#endif
+
 #ifdef OC_TCP
 #include "tcpadapter.h"
 #endif
@@ -59,11 +58,7 @@ OVERLAPPED ifchange_event;
 static LPFN_WSARECVMSG PWSARecvMsg;
 static LPFN_WSASENDMSG PWSASendMsg;
 
-#ifdef OC_DYNAMIC_ALLOCATION
 OC_LIST(ip_contexts);
-#else
-static ip_context_t device;
-#endif
 
 OC_MEMB(device_eps, oc_endpoint_t, 1);
 
@@ -178,11 +173,7 @@ void oc_network_event_handler_mutex_destroy(void) {
 }
 
 ip_context_t *get_ip_context_for_device() {
-#ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = oc_list_head(ip_contexts);
-#else
-  ip_context_t *dev = &device;
-#endif
 
   return dev;
 }
@@ -1337,15 +1328,12 @@ int oc_connectivity_init(void) {
   }
 
   OC_DBG("Initializing connectivity");
-#ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = (ip_context_t *)calloc(1, sizeof(ip_context_t));
   if (!dev) {
     oc_abort("Insufficient memory");
   }
+
   oc_list_add(ip_contexts, dev);
-#else
-  ip_context_t *dev = &device;
-#endif
   OC_LIST_STRUCT_INIT(dev, eps);
   memset(&dev->mcast, 0, sizeof(dev->mcast));
   memset(&dev->server, 0, sizeof(dev->server));
@@ -1550,11 +1538,8 @@ void oc_connectivity_shutdown() {
 #endif
 
   free_endpoints_list(dev);
-
-#ifdef OC_DYNAMIC_ALLOCATION
   oc_list_remove(ip_contexts, dev);
   free(dev);
-#endif
 
   OC_DBG("oc_connectivity_shutdown");
 }

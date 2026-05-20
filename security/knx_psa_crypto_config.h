@@ -26,8 +26,8 @@
 #ifndef PSA_CRYPTO_CONFIG_H
 #define PSA_CRYPTO_CONFIG_H
 
-#include <stdio.h>         /* snprintf — required for MBEDTLS_PLATFORM_STD_SNPRINTF */
-#include <oc_config.h>     /* OC_DYNAMIC_ALLOCATION */
+#include <stdio.h>          /* snprintf — required for MBEDTLS_PLATFORM_STD_SNPRINTF */
+#include <stdlib.h>         /* calloc, free */
 #include "port/oc_assert.h" /* oc_exit — required for MBEDTLS_PLATFORM_STD_EXIT */
 
 /* ── Algorithms ──────────────────────────────────────────────────────────────
@@ -124,13 +124,10 @@
  * config file), not in MBEDTLS_CONFIG_FILE.
  */
 
-#ifdef OC_DYNAMIC_ALLOCATION                        // TODO looks like this needs to be undefined for Zephyr
-#include <stdlib.h>
-#define MBEDTLS_PLATFORM_STD_CALLOC calloc          // TODO FIXME not in Zephyr config
-#define MBEDTLS_PLATFORM_STD_FREE free              // TODO FIXME not in Zephyr config
-#else /* OC_DYNAMIC_ALLOCATION */
-#define MBEDTLS_MEMORY_BUFFER_ALLOC_C               // TODO FIXME hmm, this is set on Zephyr
-#endif /* !OC_DYNAMIC_ALLOCATION */
+#define MBEDTLS_PLATFORM_STD_CALLOC calloc          // TODO AB FIXME not in Zephyr config, Zephyr uses MBEDTLS_MEMORY_BUFFER_ALLOC_C instead, compare
+#define MBEDTLS_PLATFORM_STD_FREE free              // TODO AB FIXME not in Zephyr config, Zephyr uses MBEDTLS_MEMORY_BUFFER_ALLOC_C instead, compare 
+
+//#define MBEDTLS_MEMORY_BUFFER_ALLOC_C             // TODO AB FIXME hmm, this is set on Zephyr
 
 /* ── Platform options ────────────────────────────────────────────────────────
  *

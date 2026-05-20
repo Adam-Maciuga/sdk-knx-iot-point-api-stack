@@ -789,12 +789,10 @@ psa_generate_random(rnd, sizeof(rnd));
 
 ### 1. Stack includes in the PSA config file
 
-`knx_psa_crypto_config.h` includes KNX-IoT stack headers:
+`knx_mbedtls_config.h` includes KNX-IoT stack config header:
 
 ```c
-#include <stdio.h>          /* snprintf */
-#include <oc_config.h>      /* OC_DYNAMIC_ALLOCATION */
-#include "port/oc_assert.h" /* oc_exit */
+#include <oc_config.h>      /* OC_PKI */
 ```
 
 This works because `port/CMakeLists.txt` adds the stack's include directories to all

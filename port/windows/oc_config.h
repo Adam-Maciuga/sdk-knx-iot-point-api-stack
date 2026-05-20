@@ -42,13 +42,8 @@ typedef uint64_t oc_clock_time_t;
 // The maximum size of a response to an OBSERVE request, in bytes.
 #define OC_MAX_OBSERVE_SIZE 512
 
-#if !defined(OC_DYNAMIC_ALLOCATION)
-#define OC_DYNAMIC_ALLOCATION
-#endif 
-
-#if !defined(OC_BLOCK_WISE)
+// Dynamic memory allocation.
 #define OC_BLOCK_WISE
-#endif 
 
 // Maximum number of callbacks for Network interface event monitoring.
 #define OC_MAX_NETWORK_INTERFACE_CBS (2)
