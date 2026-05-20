@@ -39,8 +39,7 @@
 #include <string.h>
 #include "oc_clock_util.h"
 
-// For clock function in debug output, maybe used for debugging in release 
-// builds, hence included globally.
+// For clock function in debug output, maybe used for debugging in release builds, hence included globally.
 #include "oc_clock.h"
 
 #ifdef __ZEPHYR__
