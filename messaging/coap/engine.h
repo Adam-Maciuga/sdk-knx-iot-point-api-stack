@@ -111,6 +111,19 @@ bool oc_coap_check_if_loopback_message(const oc_message_t* msg);
  */
 bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint);
 
+/**
+ * @brief Store an outbound ACK response in the response cache for CON retransmission handling.
+ *
+ * When a client retransmits a CON request (because the ACK response was lost),
+ * the cached response is re-sent instead of silently dropping the duplicate.
+ * Only ACK responses (CoAP type 2) are cached. (Piggybacked responses are cached, but no empty ACKs, neither Separate responses.)
+ *
+ * The message is kept alive via oc_message_add_ref(); no data copy is made.
+ *
+ * @param message the outgoing message (wire-ready bytes + endpoint)
+ */
+void oc_coap_response_cache_store(oc_message_t* message);
+
 #ifdef __cplusplus
 }
 #endif
