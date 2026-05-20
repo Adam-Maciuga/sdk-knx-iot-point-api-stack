@@ -285,7 +285,7 @@ zephyr_include_directories(
 
 # ── Compile definitions ────────────────────────────────────────────────────────
 # Note: the internal compile definition names differ from the CMake variable
-# names (e.g. OC_PRINT_ENABLED → OC_PRINT, OC_REPLAY_PROTECTION_ENABLED → OC_REPLAY_PROTECTION).
+# names (e.g. OC_PRINT_ENABLED → OC_PRINT).
 #
 # zephyr_compile_definitions() (not zephyr_library_compile_definitions()) is
 # used so that definitions propagate to ALL targets, including the application.

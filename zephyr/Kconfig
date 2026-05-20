@@ -142,15 +142,6 @@ config KNXIOT_SPAKE2PLUS_ITERATIONS
       key exchange during device enrollment. Higher values increase
       resistance to brute-force attacks at the cost of enrollment time.
 
-config KNXIOT_REPLAY_PROTECTION
-    bool "Replay protection"
-    default y
-    help
-      Corresponds to CMake: OC_REPLAY_PROTECTION_ENABLED.
-      Enables security replay protection using the CoAP Echo option.
-      Prevents an attacker from re-sending previously captured valid
-      requests to trigger unintended actions on the device.
-
 config KNXIOT_TLS_PKI
     bool "TLS PKI support"
     default n
