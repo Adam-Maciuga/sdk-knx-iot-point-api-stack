@@ -1595,7 +1595,7 @@ int oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags fl
   freeaddrinfo(result);
   return ret;
 }
-#endif /* OC_DNS_LOOKUP */
+#endif 
 
 void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address) {
   ip_context_t *dev = get_ip_context_for_device();

@@ -44,9 +44,9 @@ typedef uint64_t oc_clock_time_t;
 // memory allocation.
 
 // Memory pool sizes.
-#define OC_BYTES_POOL_SIZE (1800)
-#define OC_INTS_POOL_SIZE (100)
-#define OC_DOUBLES_POOL_SIZE (4)
+#define OC_BYTES_POOL_SIZE (1800) -> DONE AH
+#define OC_INTS_POOL_SIZE (100) -> DONE AH
+#define OC_DOUBLES_POOL_SIZE (4) -> DONE AH
 
 /* Server-side parameters */
 // Maximum number of server resources.

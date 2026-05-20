@@ -1,6 +1,7 @@
 /* 
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2021 Cascoda Ltd
+ * Copyright (c) 2025 KNX Association
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -34,7 +35,7 @@ typedef uint64_t oc_clock_time_t;
 
 // Add support for dns lookup to the endpoint.
 #define OC_DNS_LOOKUP
-//#define OC_DNS_LOOKUP_IPV6
+
 
 // Add request history for deduplicate UDP/DTLS messages.
 #define OC_REQUEST_HISTORY
@@ -55,4 +56,4 @@ typedef uint64_t oc_clock_time_t;
 }
 #endif
 
-#endif /* OC_CONFIG_H */
+#endif

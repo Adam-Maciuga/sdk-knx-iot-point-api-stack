@@ -28,8 +28,7 @@ typedef uint64_t oc_clock_time_t;
 
 // Add support for passing network up/down events to the application.
 #define OC_NETWORK_MONITOR
-// Add support for passing TCP/TLS/DTLS session connection events to the
-// application.
+// Add support for passing TCP/TLS/DTLS session connection events to the application.
 #define OC_SESSION_EVENTS
 // Add request history for deduplicate UDP/DTLS messages.
 #define OC_REQUEST_HISTORY
@@ -37,7 +36,7 @@ typedef uint64_t oc_clock_time_t;
 // Add support for dns lookup to the endpoint.
 #define OC_DNS_LOOKUP
 #define OC_DNS_CACHE
-//#define OC_DNS_LOOKUP_IPV6
+
 
 // Dynamic memory allocation.
 #define OC_BLOCK_WISE
@@ -58,4 +57,4 @@ typedef uint64_t oc_clock_time_t;
 }
 #endif
 
-#endif /* OC_CONFIG_H */
+#endif

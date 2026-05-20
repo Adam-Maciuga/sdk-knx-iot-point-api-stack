@@ -49,7 +49,6 @@ typedef uint64_t oc_clock_time_t;
 // Add support for dns lookup to the endpoint.
 #define OC_DNS_LOOKUP
 #define OC_DNS_CACHE
-//#define OC_DNS_LOOKUP_IPV6
 
 // Dynamic memory allocation.
 #define OC_BLOCK_WISE
@@ -70,4 +69,4 @@ typedef uint64_t oc_clock_time_t;
 }
 #endif
 
-#endif /* OC_CONFIG_H */
+#endif 
