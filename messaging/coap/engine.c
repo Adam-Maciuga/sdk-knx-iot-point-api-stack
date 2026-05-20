@@ -171,7 +171,7 @@ static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* h
 
 void oc_coap_response_cache_store(oc_message_t* message)
 {
-  //dont cache messages length < 4, that includes empty ACKs
+  //don't cache messages length < 4, that includes empty ACKs
   if (!message || message->length < 4)
     return;
 
@@ -729,7 +729,6 @@ int coap_receive(oc_message_t* incoming_message)
         }
       }
 
-      #ifdef OC_REPLAY_PROTECTION
       if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
       {
         uint64_t ssn = 0;
@@ -846,7 +845,6 @@ int coap_receive(oc_message_t* incoming_message)
         */
 
       }
-      #endif
 
       /* 
         TODO 8 on server side , how answer on a re-request from client (see spec figure 26, (3) -> (4))
