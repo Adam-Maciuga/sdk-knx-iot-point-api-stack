@@ -130,7 +130,12 @@ void oc_coap_clear_request_history(void)
 #define OC_RESPONSE_CACHE_SIZE (4) // MUST use only values of 2 power n
 #endif
 
-// Cache entry lifetime — CoAP MAX_TRANSMIT_SPAN is ~45s.
+/*
+The retransmissions use binary exponential backoff: 
+~2-3s, ~4-6s, ~8-12s, ~16-24s (4 retries total). 
+The last retransmit arrives at most 45 seconds after the original 
+— which is why the cache TTL is set to 45 * OC_CLOCK_CONF_TICKS_PER_SECOND
+*/
 #define OC_RESPONSE_CACHE_TTL (45 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 
 typedef struct
@@ -144,9 +149,10 @@ static uint8_t response_cache_idx;
 
 /**
  * @brief Look up the response cache for a matching MID+endpoint and re-send.
+ * @param his the history entry key (mid + port + address + timestamp) to match against
  * @return true if a cached response was found and re-sent.
  */
-static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his, const oc_endpoint_t* endpoint)
+static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his)
 {
   for (size_t i = 0; i < OC_RESPONSE_CACHE_SIZE; i++)
   {
@@ -232,7 +238,7 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
         oc_char_print_hex((char*)his.fields.address, 16);
 
         // RFC 7252 section 4.5: re-send cached response if available
-        if (response_cache_lookup_and_resend(&his, endpoint))
+        if (response_cache_lookup_and_resend(&his))
         {
           OC_DBG("duplicate CON: cached response re-sent for MID %d", his.fields.mid);
         }
