@@ -7,6 +7,7 @@
 
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
+#include "port/oc_random.h"
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
 #include "oc_endpoint.h"
