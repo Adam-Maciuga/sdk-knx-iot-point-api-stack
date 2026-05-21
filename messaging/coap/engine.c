@@ -145,6 +145,7 @@ typedef struct
 {
   oc_request_history_entry_t key;  // mid + port + address + timestamp (reuses history key layout)
   oc_message_t* message;           // referenced, outgoing message (wire-ready bytes)
+  uint8_t retries_left;            // number of re-sends allowed before eviction (prevent DDOS attack via repeated retransmissions)
 } oc_response_cache_entry_t;
 
 static oc_response_cache_entry_t response_cache[OC_RESPONSE_CACHE_SIZE];
@@ -157,15 +158,23 @@ static uint8_t response_cache_idx;
  */
 static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his)
 {
-  for (const oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
+  for (oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
   {
     if (h->message 
         && memcmp(h->key.raw, his->raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
         // cmp just received history entry with former send out response
         && his->timestamp - h->key.timestamp <= OC_RESPONSE_CACHE_TTL) 
     {
+      if (h->retries_left == 0)
+      {
+        OC_DBG("response cache: retries exhausted for MID %u", his->fields.mid);
+        return false;
+      }
+
+      h->retries_left--;
+      
       // cache hit — re-send the same message directly to IP layer
-      OC_DBG("response cache hit: re-sending cached ACK for MID %u", his->fields.mid);
+      OC_DBG("response cache hit: re-sending cached ACK for MID %u (%u retries left)", his->fields.mid, h->retries_left);
       oc_send_buffer(h->message);
       return true;
     }
@@ -193,6 +202,7 @@ void oc_coap_response_cache_store(oc_message_t* message)
         .fields.port = message->endpoint.addr.ipv6.port
       },
       .timestamp = oc_clock_time()};
+    
     memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
 
     /* release the current entry in this slot
@@ -205,7 +215,8 @@ void oc_coap_response_cache_store(oc_message_t* message)
     oc_message_add_ref(message);
 
     response_cache[response_cache_idx].key = key;
-    response_cache[response_cache_idx].message = message;
+    response_cache[response_cache_idx].message = message; // cache message (only ptr)
+    response_cache[response_cache_idx].retries_left = 4;  // regular CoAP RFC retransmission count
 
     OC_DBG("response cache: stored ACK for MID %u (slot %u)", key.fields.mid, response_cache_idx);
 
