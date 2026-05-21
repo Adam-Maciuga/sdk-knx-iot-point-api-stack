@@ -121,27 +121,30 @@ void oc_coap_clear_request_history(void)
   OC_DBG("wipe history buffer");
 }
 
-// Response cache for CON retransmission handling (RFC 7252 section 4.5).
-// When a piggybacked ACK response is lost and the client retransmits the CON
-// request, the server re-sends the cached response instead of dropping it.
-// Only ACK responses (type=2) are cached, since CON responses have their
-// own retransmission via the transaction layer.
+/* 
+   Response cache for CON retransmission handling (RFC 7252 section 4.5).
+   When a piggybacked ACK response is lost and the client retransmits the CON
+   request, the server re-sends the cached response instead of dropping it.
+   Only ACK responses (type=2) are cached, since CON responses have their
+   own retransmission via the transaction layer.
+*/
 #ifndef OC_RESPONSE_CACHE_SIZE
 #define OC_RESPONSE_CACHE_SIZE (4) // MUST use only values of 2 power n
 #endif
 
 /*
-The retransmissions use binary exponential backoff: 
-~2-3s, ~4-6s, ~8-12s, ~16-24s (4 retries total). 
-The last retransmit arrives at most 45 seconds after the original 
-— which is why the cache TTL is set to 45 * OC_CLOCK_CONF_TICKS_PER_SECOND
+  The retransmissions use binary exponential backoff: 
+  ~2-3s, ~4-6s, ~8-12s, ~16-24s (4 retries total). 
+
+  The last retransmit arrives at most 45 seconds after the original 
+  which is why the cache TTL is set to 45 * OC_CLOCK_CONF_TICKS_PER_SECOND
 */
 #define OC_RESPONSE_CACHE_TTL (45 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 
 typedef struct
 {
   oc_request_history_entry_t key;  // mid + port + address + timestamp (reuses history key layout)
-  oc_message_t* message;           // ref'd outgoing message (wire-ready bytes)
+  oc_message_t* message;           // referenced, outgoing message (wire-ready bytes)
 } oc_response_cache_entry_t;
 
 static oc_response_cache_entry_t response_cache[OC_RESPONSE_CACHE_SIZE];
@@ -154,15 +157,16 @@ static uint8_t response_cache_idx;
  */
 static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his)
 {
-  for (size_t i = 0; i < OC_RESPONSE_CACHE_SIZE; i++)
+  for (const oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
   {
-    if (response_cache[i].message &&
-        memcmp(response_cache[i].key.raw, his->raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 &&
-        (his->timestamp - response_cache[i].key.timestamp) <= OC_RESPONSE_CACHE_TTL)
+    if (h->message 
+        && memcmp(h->key.raw, his->raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
+        // cmp just received history entry with former send out response
+        && his->timestamp - h->key.timestamp <= OC_RESPONSE_CACHE_TTL) 
     {
       // cache hit — re-send the same message directly to IP layer
       OC_DBG("response cache hit: re-sending cached ACK for MID %u", his->fields.mid);
-      oc_send_buffer(response_cache[i].message);
+      oc_send_buffer(h->message);
       return true;
     }
   }
@@ -171,39 +175,43 @@ static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* h
 
 void oc_coap_response_cache_store(oc_message_t* message)
 {
-  //don't cache messages length < 4, that includes empty ACKs
-  if (!message || message->length < 4)
-    return;
-
-  // only cache ACK responses (CoAP type = 2, bits 4-5 of byte 0)
-  uint8_t coap_type = (message->data[0] >> 4) & 0x03;
-  if (coap_type != COAP_TYPE_ACK)
-    return;
-
-  // build key from the outgoing message's wire bytes + endpoint (same layout as history)
-  oc_request_history_entry_t key =
+  /* don't cache
+    - empty ACKs (4 bytes = header only, no payload/token) 
+    - NON msg (no retransmission, no need to cache)
+    - malformed packets (< 4 bytes, > 4 bytes no ack)
+   
+    only cache (piggybacked) ACK responses (CoAP type = 2, bits 4-5 of byte 0)
+  */
+  const bool is_piggybacked_ack = message->length > 4 && ((message->data[0] >> 4) & 0x03) == COAP_TYPE_ACK;
+ 
+  if (message && is_piggybacked_ack)
   {
-    {
-      .fields.mid  = (uint16_t)((message->data[2] << 8) | message->data[3]),
-      .fields.port = message->endpoint.addr.ipv6.port
-    },
-    .timestamp = oc_clock_time()
-  };
-  memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
+    // build key from the outgoing message's wire bytes + endpoint (same layout as history)
+    oc_request_history_entry_t key = {
+      {
+        .fields.mid = (uint16_t)((message->data[2] << 8) | message->data[3]),
+        .fields.port = message->endpoint.addr.ipv6.port
+      },
+      .timestamp = oc_clock_time()};
+    memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
 
-  // evict current entry in this slot, may overwrite an old entry or a still valid entry (if the same slot is used multiple times within the TTL, necessary with rolling buffer->limited buffer capabilities)
-  oc_message_unref(response_cache[response_cache_idx].message);
+    /* release the current entry in this slot
+     * - this may overwrite an old entry or a still valid entry if the same slot is used multiple times within the TTL
+     * - necessary with rolling buffer->limited buffer capabilities
+     */
+    oc_message_unref(response_cache[response_cache_idx].message);
 
-  // keep the message alive by adding a ref
-  oc_message_add_ref(message);
+    // keep the CURRENT send out/ outbound new message alive by adding a ref
+    oc_message_add_ref(message);
 
-  response_cache[response_cache_idx].key = key;
-  response_cache[response_cache_idx].message = message;
+    response_cache[response_cache_idx].key = key;
+    response_cache[response_cache_idx].message = message;
 
-  OC_DBG("response cache: stored ACK for MID %u (slot %u)", key.fields.mid, response_cache_idx);
+    OC_DBG("response cache: stored ACK for MID %u (slot %u)", key.fields.mid, response_cache_idx);
 
-  // roll over id from 0...n-1 (3) (use only 2 power n max size) -> 4 & 0b00000011 = 0, 1 & 0b00000011 = 1, ...
-  response_cache_idx = (response_cache_idx + 1) & (OC_RESPONSE_CACHE_SIZE - 1);
+    // roll over id from 0...n-1 (3) (use only 2 power n max size) -> 4 & 0b00000011 = 0, 1 & 0b00000011 = 1, ...
+    response_cache_idx = (response_cache_idx + 1) & (OC_RESPONSE_CACHE_SIZE - 1);
+  }
 }
 
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint)
@@ -231,21 +239,18 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
               - don't delete history entry, 
               - will be overwritten on roll over of counter
       */
-      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 && his.timestamp - h->timestamp < OC_REQUEST_HISTORY_TIMEOUT)
+      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
+          // cmp just received inbound msg with history entries
+          && his.timestamp - h->timestamp <= OC_REQUEST_HISTORY_TIMEOUT)
       { // not timed out and match 
 
         OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
         oc_char_print_hex((char*)his.fields.address, 16);
 
         // RFC 7252 section 4.5: re-send cached response if available
-        if (response_cache_lookup_and_resend(&his))
-        {
-          OC_DBG("duplicate CON: cached response re-sent for MID %d", his.fields.mid);
-        }
-        else
-        {
-          OC_DBG("duplicate CON: no cached response, message dropped (MID: %d)", his.fields.mid);
-        }
+        const bool resend = response_cache_lookup_and_resend(&his);
+        
+        OC_DBG("duplicate CON: cached response %s for MID %d", resend ? "re-sent" : "ignored", his.fields.mid);
         return true;
       }
     }

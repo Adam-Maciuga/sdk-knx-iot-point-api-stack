@@ -67,13 +67,9 @@ void coap_init_engine(void);
  *        Outdated entries are wiped out from history with OC_REQUEST_HISTORY_TIMEOUT.  
  *        More details read the 'note'
  *
- * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 address,
- *       port and MID). A server receiving the same message again with this MID does echo back a cached response. 
- *       
- *       CON scenario
+ * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 adr, port. MID). 
+ *       A server receiving a msg with this MID again may need to echo back a cached response.   
  *       - client -> CON -> server ->  (piggybacked) ACK -> x -> client = CON message repeated by client with SAME MID due to not received (piggybacked) ACK
- *
- *       NON scenario
  *       - client -> NON -> server ->  network duplication -> NON -> server = rejected
  *
 */
