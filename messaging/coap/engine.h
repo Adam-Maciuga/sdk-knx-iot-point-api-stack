@@ -68,13 +68,13 @@ void coap_init_engine(void);
  *        More details read the 'note'
  *
  * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 address,
- *       port and MID). A server receiving the same message again with this MID does not accept it. 
- *       CON
- *       (client -> CON ->  x server = CON message repeated by client with SAME MID)
- *       (server -> ACK ->  x client = ACK message repeated by server with SAME MID)
- *       NON 
- *       (client -> NON -> server = accepted)
- *       (network duplication -> NON -> server = rejected)
+ *       port and MID). A server receiving the same message again with this MID does echo back a cached response. 
+ *       
+ *       CON scenario
+ *       - client -> CON -> server ->  (piggybacked) ACK -> x -> client = CON message repeated by client with SAME MID due to not received (piggybacked) ACK
+ *
+ *       NON scenario
+ *       - client -> NON -> server ->  network duplication -> NON -> server = rejected
  *
 */
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint);
