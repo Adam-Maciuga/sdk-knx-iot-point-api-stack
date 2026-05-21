@@ -202,11 +202,7 @@ void oc_concat_strings(oc_string_t* concat, const char* str1, const char* str2);
 #define oc_double_array(ocdoublearray) (oc_cast(ocdoublearray, double))
 #define oc_string_array(ocstringarray) ((char(*)[STRING_ARRAY_ITEM_MAX_LEN])(OC_MMEM_PTR(&(ocstringarray))))
 
-#ifdef OC_DYNAMIC_ALLOCATION
 #define STRING_ARRAY_ITEM_MAX_LEN 32
-#else 
-#define STRING_ARRAY_ITEM_MAX_LEN 32
-#endif 
 
 bool oc_copy_string_to_array_internal(oc_string_array_t* ocstringarray, const char str[], size_t index);
 bool oc_string_array_add_item_internal(oc_string_array_t* ocstringarray, const char str[]);

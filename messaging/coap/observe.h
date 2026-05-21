@@ -1,20 +1,9 @@
 /*
-// Copyright (c) 2016 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
-/*
+ * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2024-2026 KNX Association
  *
+ * SPDX-License-Identifier: Apache-2.0
+ * 
  * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
  * All rights reserved.
  *
@@ -50,66 +39,75 @@
 
 #include "coap.h"
 #include "oc_ri.h"
-#include "transactions.h"
-#include "util/oc_list.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-	typedef struct coap_observer
-	{
-		struct coap_observer* next; /* for LIST */
+/*
+	Observer entry -- fields ordered by descending alignment to minimize padding.
+	Used by the CoAP observe mechanism (RFC 7641) and KNX IoT subscriptions (clause 2.5.9).
+*/
+typedef struct coap_observer_t
+{
+	struct coap_observer_t* next;    // linked list pointer (for LIST)
 
-		const oc_resource_t* resource;
+	// --- 8-byte aligned: pointers, oc_string_t, ... ---
+	const oc_resource_t* resource;
+	oc_string_t url;               // observed resource URI
+	oc_endpoint_t endpoint;        // client endpoint (IP + port)
+	oc_clock_time_t created;       // timestamp when observer was created (for lifetime expiry)
 
-		oc_string_t url;
-		oc_endpoint_t endpoint;
-		uint8_t token_len;
-		uint8_t token[COAP_TOKEN_LEN];
-		uint16_t last_mid;
+	// --- 4-byte aligned: uint32_t, int32_t, enums ---
+	uint32_t obs_counter;          // RFC 7641: 24-bit sequence number for notifications (masked on increment)
+	uint32_t lifetime;             // "lt" query parameter in seconds, 0 = not set
 
+	// --- 2-byte aligned: uint16_t ---
+	uint16_t last_mid;
 	#ifdef OC_BLOCK_WISE
-		uint16_t block2_size;
-	#endif /* OC_BLOCK_WISE */
+	uint16_t block2_size;
+	#endif 
 
-		int32_t obs_counter;
-		oc_interface_mask_t iface_mask;
-		struct oc_etimer retrans_timer;
-		uint8_t retrans_counter;
-	} coap_observer_t;
+	// --- 1-byte: uint8_t, bool ---
+	uint8_t token_len;
+	uint8_t token[COAP_TOKEN_LEN];
+	bool use_con;                  // true = CON (default per KNX), false = NON (when "non=true" query present)
+	bool first_sent;               // will become true after the registration response (= first notification = { 4/'sia' : <ia> }) has been sent
+} coap_observer_t;
 
-	oc_list_t coap_get_observers(void);
-	void coap_remove_observer(coap_observer_t* o);
-	int coap_remove_observer_by_client(oc_endpoint_t* endpoint);
-	int coap_remove_observer_by_token(oc_endpoint_t* endpoint, uint8_t* token,
-																		size_t token_len);
-	int coap_remove_observer_by_mid(oc_endpoint_t* endpoint, uint16_t mid);
+	int coap_remove_observer_by_client(const oc_endpoint_t* endpoint);
+	int coap_remove_observer_by_token(const oc_endpoint_t* endpoint, const uint8_t* token, size_t token_len);
+	int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid);
 	int coap_remove_observer_by_resource(const oc_resource_t* rsc);
 	void coap_free_all_observers(void);
-
-	int coap_notify_observers(const oc_resource_t* resource,
-														oc_response_buffer_t* response_buf,
-														oc_endpoint_t* endpoint);
-	void notify_resource_defaults_observer(const oc_resource_t* resource,
-																				 oc_interface_mask_t iface_mask,
-																				 oc_response_buffer_t* response_buf);
+	int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* response_buf, const oc_endpoint_t* endpoint);
 
 #ifdef OC_BLOCK_WISE
-int coap_observe_handler(void *request, void *response,
-                         const oc_resource_t *resource, uint16_t block2_size,
-                         oc_endpoint_t *endpoint,
-                         oc_interface_mask_t iface_mask);
-#else  /* OC_BLOCK_WISE */
-int coap_observe_handler(void *request, void *response,
-                         const oc_resource_t *resource, oc_endpoint_t *endpoint,
-                         oc_interface_mask_t iface_mask);
-#endif /* !OC_BLOCK_WISE */
+int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, uint16_t block2_size, oc_endpoint_t* endpoint);
+#else
+int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, oc_endpoint_t* endpoint);
+#endif
 
-	int coap_remove_observers_on_dos_change(bool reset);
+int coap_remove_observers_on_dos_change(bool reset);
+
+/**
+ * @brief notify /k observers with raw s-mode CBOR payload (KNX clause 2.5.9.1)
+ *
+ * Called from the /k POST handler after processing an inbound s-mode message.
+ * Each observer gets the original raw CBOR payload forwarded as a notification.
+ * Expired observers are removed before sending.
+ *
+ * @param resource the /k resource
+ * @param payload raw inbound CBOR payload bytes
+ * @param payload_len length of payload
+ */
+void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* payload, size_t payload_len);
+
+// get current observe counter value (will be incremented on each new observer and each notification)
+uint32_t get_observe_counter(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OBSERVE_H */
+#endif 

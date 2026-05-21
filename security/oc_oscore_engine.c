@@ -265,10 +265,15 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   bool is_non;
   bool is_ack;
 
-  // check loop back first before process any message, removes also unnecessary decryption and a throw later in coap layer
+  /* 
+     check loop back first before process any message, removes also unnecessary decryption
+     and a throw later in coap layer
+     - two level : -> oscore (secured) -> coap 
+  */
   if (oc_coap_check_if_loopback_message(msg))
   {
-    // ignore duplicate request
+    // ignore 
+    OC_DBG("drop loopback message, counter is %d", msg->ref_count);
     oc_message_unref(msg);
     return -1;
   }
@@ -297,6 +302,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     }
 
     // (x) + (y)
+    OC_DBG("drop OSCORE error message, counter is %d", msg->ref_count);
     oc_message_unref(msg);
     return -1;
   }
@@ -318,6 +324,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
          but if it appears here, it is not a valid OSCORE carrier — drop silently
     */
     OC_WRN("unexpected CoAP type/code combination (type=%i code=%u), not a valid OSCORE message, ignore", coap_pkt->type, coap_pkt->code);
+    OC_DBG("drop unexpected OSCORE message, counter is %d", msg->ref_count);  
     oc_message_unref(msg);
     return -1;
   }
@@ -345,13 +352,19 @@ static int oc_oscore_receive_message(oc_message_t* msg)
   uint8_t request_piv_len = 0, request_kid_len = 0, nonce_piv_len = 0, nonce_kid_len = 0;
 
   #ifdef OC_REQUEST_HISTORY
-  // a check here removes unnecessary decryption and a throw later in coap layer
+
+  /*
+     check duplicate before process any message
+     - two level : -> oscore (secured) -> coap
+  */
   if (oc_coap_check_if_duplicate_and_if_not_add_to_history(coap_pkt, &msg->endpoint))
   {
     // ignore duplicate request
     oc_message_unref(msg);
+    OC_DBG("drop duplicate message, counter is %d", msg->ref_count);
     return -1;
   }
+
   #endif
 
   if (is_inbound_request)
@@ -393,6 +406,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
             OC_ERR("could not find an access token (8.2 step 2) for 'kid' from inbound unicast 's-mode' request message, return unsecured 4.01");
             oscore_send_error(coap_pkt, UNAUTHORIZED_4_01, &msg->endpoint, false);
           }
+          OC_DBG("drop no at entry message, counter is %d", msg->ref_count);
           oc_message_unref(msg);
           return -1;
         }
@@ -1007,7 +1021,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   /*
     outbound_piv defaults to NULL/0: RFC 8613 §8.3 states the Sender Sequence Number is not used
     when the response does not carry a Partial IV. SSN is only consumed for outbound requests (8.1)
-    and echo responses that explicitly carry a PIV.
+    and echo responses that explicitly carry a PIV and observe notifications.
   */
   uint8_t *outbound_piv = NULL,
           *inbound_piv = from_org_msg_cloned_outgoing_msg->endpoint.piv,
@@ -1034,13 +1048,21 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       nonce      : AEAD_nonce(sender_id, outbound_piv, common_iv)
       AAD        : compose_AAD(sender_id, outbound_piv)
 
-    (8.3) Normal response (is_outbound_response, no echo flag)
+    (8.3) Normal response (is_outbound_response, no echo flag, no observe notification)
       Context    : Recipient Context (found by kid+kid_context from inbound request)
       kid        : recipient_id
       key        : sender_key
       PIV        : none (outbound_piv = NULL / 0)
       nonce      : AEAD_nonce(recipient_id, inbound_piv, common_iv)
       AAD        : compose_AAD(recipient_id, inbound_piv)
+
+    (8.3 + 4.1.3.5) Observe notification (is_outbound_response, observe > DEREGISTER)
+      Context    : Sender Context
+      kid        : sender_id
+      key        : sender_key
+      PIV        : SSN (converted, then incremented; kept on CON retransmissions)
+      nonce      : AEAD_nonce(sender_id, outbound_piv, common_iv)
+      AAD        : compose_AAD(sender_id, outbound_piv)
 
     (x0) Echo response caused by inbound s-mode multicast (ECHO_CAUSED_BY_MC_SRC)
       Context    : NEW temp Sender Context (ssn=0, 10-byte random kid_context, freed after use)
@@ -1202,20 +1224,49 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       outbound_piv = inbound_piv;
       outbound_piv_len = inbound_piv_len;
     }
+    else if (coap_pkt->observe > OC_OBSERVE_DEREGISTER)
+    {
+      /*
+        RFC 8613 4.1.3.5.2 + KNX IoT 3.6.5: observe notification (from the 2nd onward)
+        - use sender SSN as Partial IV
+        - generate AEAD nonce with sender_id + new PIV + common_iv
+        - include PIV in the outbound OSCORE option
+      */
+      kid = oscore_ctx->sender_id;
+      kid_len = oscore_ctx->sender_id_len;
+
+      // use context SSN as Partial IV (before increment)
+      oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
+
+      // increment SSN; CON retransmissions reuse the same SSN
+      if (!is_a_con_repetition)
+        increment_ssn_in_context(oscore_ctx);
+
+      outbound_piv = piv;
+      outbound_piv_len = piv_len;
+
+      oc_oscore_AEAD_nonce(kid, kid_len, outbound_piv, outbound_piv_len,
+                           oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
+
+      oc_oscore_compose_AAD(kid, kid_len, outbound_piv, outbound_piv_len, aad, &aad_len);
+
+      OC_DBG("sending observe notification, using SSN as Partial IV with len = %u :", outbound_piv_len);
+      OC_LOGbytes(outbound_piv, outbound_piv_len);
+    }
     else
     {
       // set for response
       kid = oscore_ctx->recipient_id;
       kid_len = oscore_ctx->recipient_id_len;
-      
-      // RFC 8613, 8.3, point 3 upper *, 2.0x/4.0x response -> reuse the inbound SSN and Recipient ID 
+
+      // RFC 8613, 8.3, point 3 upper *, 2.0x/4.0x response -> reuse the inbound SSN and Recipient ID
       // (= Sender ID from the request) to compute the same AEAD nonce as for the inbound request
       oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
                            oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
       // Recipient ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
       oc_oscore_compose_AAD(kid, kid_len, inbound_piv, inbound_piv_len, aad, &aad_len);
-      
+
       // debugging
       OC_DBG("sending common response, using PIV with len = %u : ", inbound_piv_len);
       OC_LOGbytes(inbound_piv, inbound_piv_len);
@@ -1245,12 +1296,18 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   }
 
   /*
-    Store the observe option.
-    - keep/backup the inner observe option value for observe registrations and cancellations
-    - use an empty value for notifications
+    Store the observe option, handle acc. to RFC 8613 4.1.3.5 
+    - keep/backup the inner observe option value for observe registrations and cancellations RFC 8613 4.1.3.5.1
+    - use an empty value for notifications, RFC 8613 4.1.3.5.2
+
+    NOTE: a response mirrors back the code from the 'registration/cancellation' request in the response,
+          hence we need to check req/resp + observe value > OC_OBSERVE_DEREGISTER
+
   */
+
+  // backup
   uint32_t observe_option = coap_pkt->observe;
-  if (coap_pkt->observe > 1)
+  if (is_outbound_response && coap_pkt->observe > OC_OBSERVE_DEREGISTER)
   {
     coap_pkt->observe = 0;
     OC_DBG("response is a notification; making inner 'Observe' option empty");
@@ -1277,25 +1334,37 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     OC_ERR("encrypting OSCORE payload : error (%d), ignore message", ret);
     oc_message_unref(from_org_msg_cloned_outgoing_msg);
     return -1;
-    }
+  }
 
-    OC_DBG("encrypting OSCORE payload : success (0)");
+  OC_DBG("encrypting OSCORE payload : success (0)");
 
   // adjust payload length to include the size of the authentication tag
   coap_pkt->payload_len += OSCORE_AEAD_TAG_LEN;
 
-  // set the OUTER code for the OSCORE packet (on uc request = POST/FETCH, response = 2.04/2.05)
-  coap_pkt->code = oscore_get_outer_code(coap_pkt);
-
-  // If outer code is 2.05 (OBSERVE option was set), then set the Max-Age option
-  if (coap_pkt->code == CONTENT_2_05)
+  /*
+     set for a OSCORE request/ response the OUTER CoAp code and Max-Age option for the
+     CoAp message in relation of a present observe option.
+   
+     NOTE: no observe option (POST, 2.04 Changed), observe option (FETCH, 2.05 OK)
+  */
+  const bool observe = IS_OPTION(coap_pkt, COAP_OPTION_OBSERVE);
+  if (observe)
   {
-    // no max age = no caching by client
+    coap_pkt->code = is_outbound_request ? COAP_FETCH : (uint8_t)oc_status_code(OC_STATUS_OK);
+
+    // set max age = no caching by client
     coap_set_header_max_age(coap_pkt, 0);
   }
+  else
+  {
+    coap_pkt->code = is_outbound_request ? COAP_POST : (uint8_t)oc_status_code(OC_STATUS_CHANGED);
+  }
+
+  // restore, reflects the former inner 'observe' option (see above)
+  coap_pkt->observe = observe_option;
 
   /*
-      set the OSCORE option, note that checks uses the original (inner) CoAP code, not the outer code
+      set the OSCORE option
 
       8.1
 
@@ -1312,9 +1381,6 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
   */
   coap_set_header_oscore(coap_pkt, outbound_piv, outbound_piv_len, kid, kid_len, kid_context, kid_context_len);
-
-  // reflects the 'observe' option (if present in the CoAP packet)
-  coap_pkt->observe = observe_option;
 
   // serialize OSCORE message
   from_org_msg_cloned_outgoing_msg->length = oscore_serialize_message(coap_pkt, from_org_msg_cloned_outgoing_msg->data);

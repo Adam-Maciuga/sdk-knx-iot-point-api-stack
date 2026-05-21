@@ -32,8 +32,6 @@
  * support is added.
  *
  * OC flags used in this file:
- * OC_DYNAMIC_ALLOCATION
- * OC_PDU_SIZE     // TODO what is it? often used, looks like message size?
  * OC_PKI          // TODO => KNX_TLS_PKI, OC_PKI is only used with TLS.
  */
 
@@ -46,8 +44,6 @@
 #define MBEDTLS_CONFIG_VERSION 0x04000000
 
 #include <oc_config.h>
-#include "port/oc_assert.h"
-#include "port/oc_connectivity.h"
 
 #ifdef OC_PKI
 #if defined(_WIN64) || defined(_WIN32) || defined(__APPLE__) || \
@@ -126,18 +122,6 @@
 
 // Kconfig: CONFIG_MBEDTLS_SSL_EXTENDED_MASTER_SECRET  // TODO hmm, this is NOT an automatic dependency, is it?
 #define MBEDTLS_SSL_EXTENDED_MASTER_SECRET
-
-/*
- * Limit the maximum TLS record payload to the CoAP PDU size when using static
- * allocation. Reduces RAM usage; adjust if larger records are needed.
- * Note: In Mbed TLS 4.x MBEDTLS_SSL_MAX_CONTENT_LEN was split into separate
- * in/out macros. Both are set to OC_PDU_SIZE; adjust independently if needed.
- * Kconfig: CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN  // TODO is OC_PDU_SIZE enough for all Zephyr modules?
- */
-#ifndef OC_DYNAMIC_ALLOCATION
-#define MBEDTLS_SSL_IN_CONTENT_LEN  (OC_PDU_SIZE)
-#define MBEDTLS_SSL_OUT_CONTENT_LEN (OC_PDU_SIZE)
-#endif /* !OC_DYNAMIC_ALLOCATION */
 
 /* ── X.509 and PKI (OC_PKI only) ────────────────────────────────────────────
  *

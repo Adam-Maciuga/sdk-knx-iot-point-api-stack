@@ -8,11 +8,12 @@
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
 #ifdef OC_BLOCK_WISE
-  #include "oc_blockwise.h"
-  #include "oc_endpoint.h"
-  #include "port/oc_log.h"
-  #include "util/oc_list.h"
-  #include "util/oc_memb.h"
+#include "oc_blockwise.h"
+#include "oc_endpoint.h"
+#include "port/oc_log.h"
+#include "port/oc_random.h"
+#include "util/oc_list.h"
+ #include "util/oc_memb.h"
 
 OC_MEMB(oc_blockwise_request_states_s, oc_blockwise_request_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_MEMB(oc_blockwise_response_states_s, oc_blockwise_response_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
@@ -36,7 +37,6 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, cons
   oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_memb_alloc(pool);
   if (buffer)
   {
-  #ifdef OC_DYNAMIC_ALLOCATION
     #ifdef OC_APP_DATA_BUFFER_POOL
     oc_app_data_buffer_t* app_buffer = (oc_app_data_buffer_t*)oc_memb_alloc(&oc_app_data_s);
     if (app_buffer)
@@ -44,7 +44,7 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, cons
       buffer->block = app_buffer;
       buffer->buffer = app_buffer->buffer;
     }
-    #endif 
+    #endif
     if (!buffer->buffer)
     {
       buffer->buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
@@ -54,7 +54,6 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, cons
       oc_memb_free(pool, buffer);
       return NULL;
     }
-  #endif 
     buffer->next_block_offset = 0;
     buffer->payload_size = 0;
     buffer->ref_count = 1;
@@ -86,20 +85,18 @@ static void oc_blockwise_free_buffer(oc_list_t list, struct oc_memb* pool, oc_bl
   oc_free_string(&buffer->uri_query);
   oc_free_string(&buffer->href);
   oc_list_remove(list, buffer);
-  #ifdef OC_DYNAMIC_ALLOCATION
-    #ifdef OC_APP_DATA_BUFFER_POOL
+  #ifdef OC_APP_DATA_BUFFER_POOL
   if (buffer->block)
   {
     oc_memb_free(&oc_app_data_s, buffer->block);
     buffer->buffer = NULL;
   }
-    #endif 
+  #endif
   if (buffer->buffer)
   {
     free(buffer->buffer);
   }
   buffer->buffer = NULL;
-  #endif
   oc_memb_free(pool, buffer);
 }
 

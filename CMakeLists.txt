@@ -26,11 +26,16 @@ if(MSVC)
 endif()
 
 # Add preprocessor definitions for the current CMakeLists file.
-add_compile_definitions(OC_DYNAMIC_ALLOCATION OC_CLIENT OC_SERVER)
+add_compile_definitions(OC_CLIENT OC_SERVER)
 
 ### KNX-IoT Stack compilation variables ###
-# - each build configuration (Debug, Release,...) needs to set the values as part of 'CmakePresets.json'
-# - in dependence of a variables value a specific compile flag is set (see cmake 'target_compile_definitions')
+
+## Stack variables vs device application variables 
+#   Each build configuration (Debug, Release,...) needs to set the 'values' as part of 'CmakePresets.json', 
+#   in dependence of such a variable 'value' a specific compile flag is set (see cmake 'target_compile_definitions').
+#   HENCE, 
+#   - stack 'values' that MAY be overwritten by device application don't use FORCE = the stack uses this value as a default 'value'
+#   - stack 'values' that SHALL NOT be overwritten by device application uses FORCE = fixed stack 'value'
 
 ## Common
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
@@ -56,25 +61,35 @@ set(OC_PRINT_ENABLED OFF CACHE BOOL "Enables print messages for the stack (and a
 set(OC_DEBUG_ENABLED OFF CACHE BOOL "Enables common debug messages for the stack (and application; if used).")
 set(OC_DEBUG_OSCORE_ENABLED OFF CACHE BOOL "Enables security debug messages for the stack.")
 set(USE_CONSOLE ON CACHE BOOL "Enables the console as a logging output also for the GUI applications, typically used for debugging reasons.")
-set(OC_REPLAY_PROTECTION_ENABLED ON CACHE BOOL "Enables security replay protection using the Echo option.")
 
-## KNX-IoT device specific resource variables
+### Device ###
+# KNX-IoT device specific resource variables 
 set(KNX_GOT_MAX_ENTRIES "50" CACHE STRING "Maximum number of group object table entries")
 set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher table entries")
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
-set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake")
+
+set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake" FORCE)
 
 # KNX reset "Process Time" in seconds
 set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
+
+# KNX read on init delay time betwwen to read on init requests (ms)
+set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init delay time between to subsequent read on init requests (milliseconds)")
 
 # IPv6 multicast scope
 # Scope 2 MAY be needed for the virtual DEMO applications when:
 # - the devices are running on the same PC (e.g. for testing with EITT)
 # - a network router does not allow to send multicast messages with scope 5 (site local)
 # the scope is used by stack (discovery) and application (push button demo) messages
-set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) (stack) s-mode messages" FORCE)
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages")
+
+# IPv6 unicast port
+# Specified in clause 2.6.3.1 with COAP_DEFAULT_PORT and shall be used for unicast messages
+# - the optional put /dev/port is NOT implemented, the chosen port is used all the time
+# - if the port is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
+set(KNX_UNICAST_PORT "0" CACHE STRING "IPv6 unicast port, used on snd/rcv (uc) stack and s-mode messages")
 
 ## Hidden Variables
 # Note:
@@ -172,10 +187,6 @@ if(OC_DEBUG_OSCORE_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_DEBUG_OSCORE)
 endif()
 
-if(OC_REPLAY_PROTECTION_ENABLED)
-    target_compile_definitions(kis-common INTERFACE OC_REPLAY_PROTECTION)
-endif()
-
 if(OC_DNS_SD_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_DNS_SD)
 endif()
@@ -231,5 +242,11 @@ add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server def
 # KNX reset Process Time (seconds)
 add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 
+# KNX read on init delay time between to subsequent read requests (milliseconds)
+add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS})
+
 # IPv6 multicast scope
 add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
+
+# IPv6 unicast port
+add_compile_definitions(KNX_UNICAST_PORT=${KNX_UNICAST_PORT})

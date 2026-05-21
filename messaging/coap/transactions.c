@@ -40,6 +40,7 @@
 #include "util/oc_memb.h"
 #include <inttypes.h>
 #include <string.h>
+#include "port/oc_random.h"
 
 #ifdef OC_BLOCK_WISE
 #include "oc_blockwise.h"
@@ -326,7 +327,10 @@ void coap_check_transactions(void)
 
       const int before = oc_list_length(transactions_list);
 
-      OC_DBG("retransmitting MID %u with attempt (%u)", t->mid, t->retransmit_counter);
+      OC_DBG("%s  MID (%u) COUNTER (%u)", t->message->endpoint.flags & S_MODE_NON_REQUEST 
+             ? "s-mode echo cache will be released    :" 
+             : "confirmable msg will be retransmitted :", 
+             t->mid, t->retransmit_counter);
       coap_send_transaction(t);
 
       const int after  = oc_list_length(transactions_list);

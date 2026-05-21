@@ -285,17 +285,16 @@ zephyr_include_directories(
 
 # ── Compile definitions ────────────────────────────────────────────────────────
 # Note: the internal compile definition names differ from the CMake variable
-# names (e.g. OC_PRINT_ENABLED → OC_PRINT, OC_REPLAY_PROTECTION_ENABLED → OC_REPLAY_PROTECTION).
+# names (e.g. OC_PRINT_ENABLED → OC_PRINT).
 #
 # zephyr_compile_definitions() (not zephyr_library_compile_definitions()) is
 # used so that definitions propagate to ALL targets, including the application.
-# This is necessary because the stack headers use #ifdef OC_DYNAMIC_ALLOCATION
-# etc. to control their API, so any source file that includes a stack header
-# must be compiled with the same set of definitions.
+# This is necessary because the stack headers use those to control their API, 
+# so any source file that includes a stack header must be compiled with the same 
+# set of definitions.
 
 ## Protocol
 zephyr_compile_definitions(
-    $<$<BOOL:${CONFIG_KNXIOT_DYNAMIC_ALLOCATION}>:OC_DYNAMIC_ALLOCATION>
     $<$<BOOL:${CONFIG_KNXIOT_CLIENT}>:OC_CLIENT>
     $<$<BOOL:${CONFIG_KNXIOT_SERVER}>:OC_SERVER>
     $<$<BOOL:${CONFIG_KNXIOT_PUBLISHER_TABLE}>:OC_PUBLISHER_TABLE>
@@ -320,7 +319,6 @@ zephyr_compile_definitions(
 ## Security
 zephyr_compile_definitions(
     KNX_IOT_SPAKE2PLUS_ITERATIONS=${CONFIG_KNXIOT_SPAKE2PLUS_ITERATIONS}
-    $<$<BOOL:${CONFIG_KNXIOT_REPLAY_PROTECTION}>:OC_REPLAY_PROTECTION>
     $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>
 )
 

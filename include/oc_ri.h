@@ -28,8 +28,8 @@ typedef enum
 {
   OC_OBSERVE_REGISTER = 0, 
   OC_OBSERVE_DEREGISTER = 1, 
-  OC_OBSERVE_ERROR = 2,
-} oc_observe_t;
+  OC_OBSERVE_UNDEFINED = 2,
+} oc_client_observe_t;
 
 /**
  * @brief resource properties (bit mask)
@@ -46,6 +46,8 @@ typedef enum
  * 
  * - Specify that a resource should notify clients when a property has been modified.
  * - A cyclic notification time can be set with 'oc_resource_set_periodic_observable'.
+ * - usually resources with if.o/ if.g.s interface are observable (others are a vendor/ application decision).
+ * - if.o AND if.i SHALL not be used together
  */
 typedef enum {
   OC_NO_PROPERTIES = 0,		       /**< no properties are set at all, means that all other properties are false */
@@ -201,16 +203,16 @@ typedef enum {
   OC_ACL_D = OC_IF_D,                  /**< if.d (diagnostic) */
   OC_ACL_A = OC_IF_A,                  /**< if.a (HW actuator) */
   OC_ACL_S = OC_IF_S,                  /**< if.s (HW sensor) */
-		                       /* if.ll (is not a scope) */
-		                       /* if.b  (is not a scope) */
+		                                   /* if.ll (is not a scope) */
+		                                   /* if.b  (is not a scope) */
   OC_ACL_SEC = OC_IF_SEC,              /**< if.sec  */
   OC_ACL_SWU = OC_IF_SWU,              /**< if.swu  */
-	                               /* if.pm (is not a scope) */
-		                       /* if.m.x (is not a scope) */
+	                                     /* if.pm (is not a scope) */
+		                                   /* if.m.x (is not a scope) */
   OC_ACL_GA = OC_IF_M << 1             /**< <ga> ([owl]some ga's are allowed, see oc_knx_sec_check_acl), is ONLY an INTERNAL scope and has no corr. interface */
 } oc_acl_mask_t;
 
-#define MAX_ACL_SCOPE_BIT (12)	// the highest 'defined' valid scope bit-position (mote, the <ga> scope is internal and not considered)
+#define MAX_ACL_SCOPE_BIT (12)	// the highest 'defined' valid scope bit-position (note, the <ga> scope is internal and not considered)
 #define NUM_ACL_SCOPES    (16)	// the number of scopes in the array
 
 /**
@@ -377,8 +379,8 @@ typedef struct oc_request_t
   size_t query_len;                    /**< query length */
   const char* uri_path;                /**< path (as string) */
   size_t uri_path_len;                 /**< path length */
-  oc_rep_t* request_payload;           /**< request payload structure as CBOR data */
-  const uint8_t* _payload;             /**< request payload structure as BYTE stream */
+  oc_rep_t* request_payload;           /**< request payload as structured CBOR (linked list) objects */
+  const uint8_t* _payload;             /**< request payload as unstructured BYTE stream */
   size_t _payload_len;                 /**< payload size */
   oc_content_format_t content_format;  /**< content format (of the payload in the request) */
   oc_content_format_t  accept;         /**< accept header, e.g. the format to be returned on the request */
@@ -450,7 +452,7 @@ typedef struct oc_resource_data_t {
  *
  */
 struct oc_resource {
-  struct oc_resource* next;             /**< link to next res. (can't be const, application res. changes data + ptr) */
+  struct oc_resource* next;             /**< link to next res. (can't be const since an application resources have volatile pointers */
   oc_string_t uri;                      /**< resource path (e.g. '/p/lsab/soo') */
   oc_string_array_t types;              /**< resource type array (for a DPA such as 'urn:knx:dpa.0.58' -> dev/da, for an FB such as 'fb.0' -> dev/) */
   oc_string_t dpt;                      /**< resource datapoint type */
@@ -534,10 +536,10 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
  * @param event_callback the callback
  * @param seconds time in seconds
  */
-#define oc_ri_add_timed_event_callback_seconds(cb_data, event_callback, seconds) \
-do { \
-  oc_ri_add_timed_event_callback_ticks(cb_data, event_callback, \
-          (oc_clock_time_t)(seconds) * (oc_clock_time_t)OC_CLOCK_SECOND); \
+#define oc_ri_add_timed_event_callback_seconds(cb_data, event_callback, seconds)  \
+do {                                                                              \
+          oc_ri_add_timed_event_callback_ticks(cb_data, event_callback,           \
+          (oc_clock_time_t)(seconds) * (oc_clock_time_t)OC_CLOCK_SECOND);         \
 } while (0)
 
 /**
@@ -611,16 +613,6 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void);
 bool oc_ri_add_resource(oc_resource_t* resource);
 
 /**
- * @brief add resource block to the system
- *
- * @param resource the resource block to be added to the list of application
- * resources
- * @return true success
- * @return false failure
- */
-bool oc_ri_add_resource_block(const oc_resource_t* resource);
-
-/**
  * @brief remove the resource from the list of application resources
  *
  * @param resource the resource to be removed from the list of application
@@ -629,17 +621,7 @@ bool oc_ri_add_resource_block(const oc_resource_t* resource);
  * @return false failure
  */
 bool oc_ri_delete_resource(const oc_resource_t* resource);
-
-/**
- * @brief remove the resource block from the list of application resources
- *
- * @param resource the resource block to be removed from the list of application
- * resources
- * @return true success
- * @return false failure
- */
-bool oc_ri_delete_resource_block(const oc_resource_t* resource);
-#endif /* OC_SERVER */
+#endif 
 
 /**
  * @brief free the properties of the resource
@@ -647,15 +629,6 @@ bool oc_ri_delete_resource_block(const oc_resource_t* resource);
  * @param resource the resource
  */
 void oc_ri_free_resource_properties(oc_resource_t* resource);
-
-/**
- * @brief get the next resource
- *
- * @param resource current resource
- * @return next resource or NULL if at end
- * skips over dummy resources
- */
-const oc_resource_t* oc_ri_resource_next(const oc_resource_t* resource);
 
 /**
  * @brief retrieve the query value at the nth position
@@ -757,9 +730,8 @@ oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_
  * @param response_obj the response object
  *
  */
-void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
-        const oc_request_t* inbound_request, 
-        oc_response_buffer_t* response_buffer, oc_response_t* response_obj);
+void oc_ri_new_request_from_inbound_request(oc_request_t* new_request, const oc_request_t* inbound_request, 
+                                            oc_response_buffer_t* response_buffer, oc_response_t* response_obj);
 
 void allocate_events(void);
 

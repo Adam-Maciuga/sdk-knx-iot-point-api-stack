@@ -19,23 +19,29 @@
 #include "oc_ri.h"
 #include "oc_core_res.h"
 #include "oc_api.h"
+#include "messaging/coap/observe.h"
 
-static void
-oc_core_sub_delete_handler(oc_request_t *request,
-                           oc_interface_mask_t iface_mask, void *data)
+// forward declaration for the resource chain (core_resource_a_sen is defined in oc_knx_sec.c)
+extern const oc_resource_t core_resource_a_sen;
+
+static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
-
   (void)iface_mask;
   (void)data;
+
+  // remove ALL CoAP observe subscriptions for all clients (KNX IoT spec /sub DELETE)
+  coap_free_all_observers();
+  OC_DBG("oc_core_sub_delete_handler: all observers removed");
+
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 }
 
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_a_sen;
-PRAGMA_IN oc_resource_data_t core_resource_sub_data;
+static oc_resource_data_t core_resource_sub_data;
+PRAGMA_IN
 const oc_resource_t core_resource_sub = {
-  (oc_resource_t*)&core_resource_a_sen,
+  &core_resource_a_sen,
   { NULL, sizeof("/sub"), "/sub" },
   { NULL, 0, NULL },
   { NULL, 0, NULL },

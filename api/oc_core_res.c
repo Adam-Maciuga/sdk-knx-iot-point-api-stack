@@ -181,7 +181,13 @@ void oc_core_set_device(const char* serialnumber, const char* app_friendly_name)
 	oc_create_knx_sec_resources();
 	oc_create_knx_swu_resources();
 
-	// init connectivity ip addresses
+	/*
+	  init connectivity ip addresses
+	  - SHOULD use the default unicast port as specified in clause 2.6.3.1 with COAP_DEFAULT_PORT = 5683
+	  - NOTE: the optional put /dev/port is not implemented, the chosen port is used all the time
+		- NOTE: if the port below is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
+	*/
+  oc_connectivity_set_port(KNX_UNICAST_PORT);
 	if (oc_connectivity_init() < 0)
 	{
 		oc_abort("error initializing connectivity for device");

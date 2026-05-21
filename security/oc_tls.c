@@ -92,12 +92,6 @@ OC_LIST(identity_certs);
 mbedtls_x509_crt trust_anchors;
 #endif /* OC_PKI */
 
-#ifndef OC_DYNAMIC_ALLOCATION
-#define MBEDTLS_ALLOC_BUF_SIZE (20000)
-#include "mbedtls/memory_buffer_alloc.h"
-static unsigned char alloc_buf[MBEDTLS_ALLOC_BUF_SIZE];
-#endif
-
 #define PERSONALIZATION_DATA "IoTivity-Lite-TLS"
 
 #define CCM_MAC_KEY_LENGTH (0)
@@ -396,7 +390,7 @@ static int ssl_send(void *ctx, const unsigned char *buf, size_t len)
   oc_tls_peer_t *peer = (oc_tls_peer_t *)ctx;
   peer->timestamp = oc_clock_time();
   oc_message_t message;
-#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+#ifndef OC_INOUT_BUFFER_SIZE
   message.data = malloc(OC_PDU_SIZE);
   if (!message.data)
     return 0;
@@ -407,7 +401,7 @@ static int ssl_send(void *ctx, const unsigned char *buf, size_t len)
   message.length = send_len;
   message.encrypted = 1;
   int ret = oc_send_buffer(&message);
-#if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+#ifndef OC_INOUT_BUFFER_SIZE
   free(message.data);
 #endif
   return ret;
@@ -1257,10 +1251,6 @@ void oc_tls_shutdown(void)
 
 int oc_tls_init_context(void)
 {
-#ifndef OC_DYNAMIC_ALLOCATION
-  mbedtls_memory_buffer_alloc_init(alloc_buf, sizeof(alloc_buf));
-#endif
-
 #ifdef OC_DEBUG
 #if defined(_WIN32) || defined(_WIN64)
   // mbedtls debug logs fail if snprintf is not specified

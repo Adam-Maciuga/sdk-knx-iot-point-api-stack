@@ -9,6 +9,7 @@
 #include "messaging/coap/coap.h"
 #include "oc_api.h"
 #include "conf.h"
+#include "port/oc_random.h"
 
 #ifdef OC_TCP
 #include "messaging/coap/coap_signal.h"
@@ -17,7 +18,7 @@
 #ifdef OC_CLIENT
 
 // used to send out a coap (uc/mc) s-mode message and a well-known (mc) message
-coap_packet_t udp_coap_request[1];
+static coap_packet_t udp_coap_request[1];
 
 //#define OC_BLOCK_WISE_REQUEST
 
@@ -28,7 +29,7 @@ static oc_blockwise_state_t *request_buffer = NULL;
 // a static pointer, used like a 2-state state machine, to allocate/release an outgoing
 // - uc/mc s-mode message
 // - well-known message
-oc_message_t* udp_message_update = NULL;
+static oc_message_t* udp_message_update = NULL;
 
 bool oc_do_s_mode_message_update(void) 
 {
@@ -253,12 +254,16 @@ bool oc_send_ping(bool custody, oc_endpoint_t *endpoint,
 }
 #endif 
 
-void oc_close_session(oc_endpoint_t *endpoint) {
-  if (endpoint->flags & SECURED) {
+void oc_close_session(oc_endpoint_t *endpoint) 
+{
+  if (endpoint->flags & SECURED) 
+  {
     #ifdef KNX_TCP_TLS
     oc_tls_close_connection(endpoint);
     #endif 
-  } else if (endpoint->flags & TCP) {
+  }
+  else if (endpoint->flags & TCP)
+  {
     #ifdef OC_TCP
     oc_connectivity_end_session(endpoint);
     #endif

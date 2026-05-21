@@ -829,7 +829,7 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 
 
 PRAGMA_IN																																										 		// compiler specific
-oc_resource_data_t core_resource_well_known_core_data;																			 		// at runtime modifiable (RAM) data for th endpoint
+static oc_resource_data_t core_resource_well_known_core_data;
 const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition 
 { 
 	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource

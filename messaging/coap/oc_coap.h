@@ -39,7 +39,7 @@ struct oc_response_buffer_s
   size_t response_length;   // the actual response length (which is usually less than the buffer size)
   int code;                 // coap code
   oc_content_format_t content_format;
-  uint32_t max_age;
+  uint32_t max_age;         // defines the maximum time in seconds that a response can be cached before it is considered "not fresh"
 };
 
 #ifdef __cplusplus

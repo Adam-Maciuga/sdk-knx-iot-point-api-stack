@@ -11,9 +11,7 @@
 #include "messaging/coap/separate.h"
 #include "oc_api.h"
 
-#ifdef OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
-#endif
 
 #include "oc_core_res.h"
 
@@ -105,7 +103,7 @@ void oc_prepare_linkformat_response(oc_request_t* request,
   }
 }
 
-void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code)
+void oc_prepare_no_format_response_no_payload(const oc_request_t* request, oc_status_t response_code)
 {
   /* 
     note that on a not present response and/or buffer the code below is skipped,
@@ -563,8 +561,7 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
   #endif
 }
 
-static void oc_send_separate_response_with_length(
-  oc_separate_response_t* handle, oc_status_t response_code, size_t length)
+static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
 {
   oc_response_buffer_t response_buffer;
 
@@ -582,9 +579,8 @@ static void oc_send_separate_response_with_length(
 
     if (current->observe < 3)
     {
-      // not more than 3 observers per endpoint at a time
-      coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(),
-                                                   current->token, current->token_len, &current->endpoint);
+      // TODO what is meant here with < 3 ; observe registration REQ vs observe counter RESPONSE ?
+      coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), current->token, current->token_len, &current->endpoint);
       if (t)
       {
         coap_packet_t response[1];

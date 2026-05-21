@@ -22,9 +22,8 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 // clang-format on
-#ifdef OC_DYNAMIC_ALLOCATION
 #include <malloc.h>
-#endif
+
 #ifdef OC_TCP
 #include "tcpadapter.h"
 #endif
@@ -59,11 +58,7 @@ OVERLAPPED ifchange_event;
 static LPFN_WSARECVMSG PWSARecvMsg;
 static LPFN_WSASENDMSG PWSASendMsg;
 
-#ifdef OC_DYNAMIC_ALLOCATION
 OC_LIST(ip_contexts);
-#else
-static ip_context_t device;
-#endif
 
 OC_MEMB(device_eps, oc_endpoint_t, 1);
 
@@ -178,11 +173,7 @@ void oc_network_event_handler_mutex_destroy(void) {
 }
 
 ip_context_t *get_ip_context_for_device() {
-#ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = oc_list_head(ip_contexts);
-#else
-  ip_context_t *dev = &device;
-#endif
 
   return dev;
 }
@@ -1323,7 +1314,8 @@ void handle_session_event_callback(const oc_endpoint_t *endpoint,
 }
 #endif /* OC_SESSION_EVENTS */
 
-static uint16_t g_unicast_port = COAP_PORT_UNSECURED;
+static uint16_t g_multicast_port = COAP_PORT_UNSECURED;
+static uint16_t g_unicast_port = 0; // on '0' -> let OS assign ephemeral port - value is set by oc_connectivity_set_port() 
 
 int oc_connectivity_set_port(uint16_t port) {
   g_unicast_port = port;
@@ -1337,28 +1329,27 @@ int oc_connectivity_init(void) {
   }
 
   OC_DBG("Initializing connectivity");
-#ifdef OC_DYNAMIC_ALLOCATION
   ip_context_t *dev = (ip_context_t *)calloc(1, sizeof(ip_context_t));
   if (!dev) {
     oc_abort("Insufficient memory");
   }
+
   oc_list_add(ip_contexts, dev);
-#else
-  ip_context_t *dev = &device;
-#endif
   OC_LIST_STRUCT_INIT(dev, eps);
   memset(&dev->mcast, 0, sizeof(dev->mcast));
   memset(&dev->server, 0, sizeof(dev->server));
 
   struct sockaddr_in6 *m = (struct sockaddr_in6 *)&dev->mcast;
   m->sin6_family = AF_INET6;
-  m->sin6_port = htons(g_unicast_port);
+  m->sin6_port = htons(g_multicast_port);
   m->sin6_addr = in6addr_any;
 
   struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
   l->sin6_family = AF_INET6;
+  l->sin6_port = htons(g_unicast_port);
   l->sin6_addr = in6addr_any;
-  l->sin6_port = 0;  // Let OS assign ephemeral port - will be consistent for this process
+  
+  
 
 #ifdef KNX_UDP_DTLS
   memset(&dev->secure, 0, sizeof(dev->secure));
@@ -1550,11 +1541,8 @@ void oc_connectivity_shutdown() {
 #endif
 
   free_endpoints_list(dev);
-
-#ifdef OC_DYNAMIC_ALLOCATION
   oc_list_remove(ip_contexts, dev);
   free(dev);
-#endif
 
   OC_DBG("oc_connectivity_shutdown");
 }
@@ -1607,7 +1595,7 @@ int oc_dns_lookup(const char *domain, oc_string_t *addr, enum transport_flags fl
   freeaddrinfo(result);
   return ret;
 }
-#endif /* OC_DNS_LOOKUP */
+#endif 
 
 void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address) {
   ip_context_t *dev = get_ip_context_for_device();

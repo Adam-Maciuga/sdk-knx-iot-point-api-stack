@@ -89,13 +89,11 @@ void* _oc_memb_alloc(
       memset(ptr, 0, m->size);
     }
   }
-  #ifdef OC_DYNAMIC_ALLOCATION
   else 
   {
     // dynamic allocation, allocate block with m->size and wipe it with '0'
     ptr = calloc(1, m->size);
   }
-  #endif
 
   if (!ptr) 
   {
@@ -146,13 +144,11 @@ char _oc_memb_free(
       ptr2 += m->size;
     }
   }
-#ifdef OC_DYNAMIC_ALLOCATION
   else 
   {
     // dynamic allocation, free block
     free(ptr);
   }
-#endif 
   if (m->buffers_avail_cb) 
   {
     m->buffers_avail_cb(oc_memb_numfree(m));

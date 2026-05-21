@@ -38,6 +38,7 @@
 #include "coap.h"
 #include "conf.h"
 #include "oc_ri.h"
+#include "port/oc_random.h"
 
 #ifdef OC_TCP
 #include "coap_signal.h"
@@ -317,41 +318,44 @@ static void coap_merge_multi_option(char** dst, size_t* dst_len,
   }
 }
 
-#if 0
-static int coap_get_variable(const char* buffer, size_t length, 
-        const char* name, const char** output) {
-  const char* start = NULL;
-  const char* end = NULL;
-  const char* value_end = NULL;
-  size_t name_len = 0;
+
+// returns the length of the variable value, and sets *output to point to the start of the value in the buffer
+static int coap_get_variable(const char* buffer, size_t length, const char* name, const char** output) 
+{
+  
+  const char* end = buffer + length;
+  const size_t name_len = strlen(name);
 
   // initialize the output buffer first
   *output = 0;
 
-  name_len = strlen(name);
-  end = buffer + length;
+  for (const char* start = buffer; start + name_len < end; start++) 
+  {
+    if ((start == buffer || start[-1] == '&') 
+        && start[name_len] == '='
+        && strncmp(name, start, name_len) == 0) 
+    {
 
-  for (start = buffer; start + name_len < end; ++start) {
-    if ((start == buffer || start[-1] == '&') && start[name_len] == '='
-            && strncmp(name, start, name_len) == 0) {
-
-      // Point start to variable value.
+      // point start to variable value
       start += name_len + 1;
 
-      // Point end to the end of the value.
-      value_end = (const char*) memchr(start, '&', end - start);
-      if (value_end == NULL) {
+      // point end to the end of the value
+      const char* value_end = (const char*)memchr(start, '&', end - start);
+      
+      if (value_end == NULL) 
+      {
+        // no hit, value ends at the end of the buffer
         value_end = end;
       }
 
       *output = start;
-      return value_end - start;
+      return (int)(value_end - start);
     }
   }
 
   return 0;
 }
-#endif
+
 
 #ifdef OC_TCP
 // TCP
@@ -1348,17 +1352,20 @@ coap_status_t coap_tcp_parse_message(void* packet, uint8_t* data, uint32_t data_
 }
 #endif 
 
-#if 0
-int coap_get_query_variable(void* packet, const char* name, const char** output) {
+
+int coap_get_query_variable(void* packet, const char* name, const char** output) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (IS_OPTION(coap_pkt, COAP_OPTION_URI_QUERY)) {
+  if (IS_OPTION(coap_pkt, COAP_OPTION_URI_QUERY)) 
+  {
     return coap_get_variable(coap_pkt->uri_query, coap_pkt->uri_query_len, name, output);
   }
 
   return 0;
 }
 
+#if 0
 int coap_get_post_variable(void* packet, const char* name, const char** output) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
@@ -1659,7 +1666,7 @@ size_t coap_set_header_location_query(void* packet, const char* query) {
 }
 
 // true if observe option is set and observe value is stored in observe ptr, false otherwise
-bool coap_get_header_observe(void* packet, uint32_t* observe) 
+bool coap_get_header_observe(void* packet, oc_client_observe_t* observe) 
 {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 

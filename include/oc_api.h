@@ -918,7 +918,7 @@ extern "C"
    * @param request the request being responded to
    * @param response_code the to be used response code
    */
-  void oc_prepare_no_format_response_no_payload(oc_request_t* request, oc_status_t response_code);
+  void oc_prepare_no_format_response_no_payload(const oc_request_t* request, oc_status_t response_code);
 
   /**
    * @brief retrieve the response payload, without processing
@@ -987,8 +987,6 @@ extern "C"
    * @param[in] handle instance of an internal struct that is used to track the
    *                     state of the separate response.
    *
-   * @see oc_set_separate_response_buffer
-   * @see oc_send_separate_response
    */
   void oc_prepare_separate_response(oc_request_t* request, oc_separate_response_t* handle);
 
@@ -1002,44 +1000,30 @@ extern "C"
    * @param[in] handle instance of the oc_separate_response_t that was passed to
    *                   the oc_prepare_separate_response() function
    *
-   * @see oc_prepare_separate_response
-   * @see oc_send_separate_response
    */
   void oc_set_separate_response_buffer(oc_separate_response_t* handle);
 
   /**
    * Called to send the deferred response to a GET, PUT, POST or DELETE request.
    *
-   * The function oc_send_separate_response is called to initiate transfer of the
-   * response.
+   * The function is called to initiate transfer of the response.
    *
    * @param[in] handle instance of the internal struct that was passed to
                        oc_indicate_separate_response()
    * @param[in] response_code the status of the response
    *
-   * @see oc_indicate_separate_response
-   * @see oc_send_separate_response
-   * @see oc_send_response
-   * @see oc_ignore_request
    */
   void oc_send_separate_response(oc_separate_response_t* handle, oc_status_t response_code);
 
   /**
-   * Called to send the deferred response to a GET, PUT, POST or DELETE request,
-   * with an empty payload.
+   * Called to send the deferred response to a GET, PUT, POST or DELETE request, with an empty payload.
    *
-   * The function oc_send_empty_separate_response is called to initiate transfer
-   of the
-   * response.
+   * The function is called to initiate transfer of the response.
    *
    * @param[in] handle instance of the internal struct that was passed to
                        oc_indicate_separate_response()
    * @param[in] response_code the status of the response
    *
-   * @see oc_indicate_separate_response
-   * @see oc_send_separate_response
-   * @see oc_send_response
-   * @see oc_ignore_request
    */
   void oc_send_empty_separate_response(oc_separate_response_t* handle, oc_status_t response_code);
 

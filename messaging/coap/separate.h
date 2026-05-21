@@ -24,7 +24,11 @@ typedef struct coap_separate
   uint8_t token_len;
   uint8_t token[COAP_TOKEN_LEN];
   uint16_t block2_size;
-  uint32_t observe;           // 1:register; 0:de-register, 2:error
+  uint32_t observe;           /* RFC 7641: CoAP Observe option value (0..2^24-1)
+                                 - client request:  0 = register (OC_OBSERVE_REGISTER), 1 = deregister (OC_OBSERVE_DEREGISTER)
+                                 - server response: monotonically increasing sequence number for notifications
+                                 - only valid when IS_OPTION(pkt, COAP_OPTION_OBSERVE) is true 
+                              */
   oc_endpoint_t endpoint;
   coap_method_t method;
   oc_string_t uri;

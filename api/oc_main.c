@@ -23,12 +23,8 @@
 #include "conf.h"
 #include "oc_main.h"
 
-#ifdef OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
 static bool* drop_commands;
-#else 
-static bool drop_commands;
-#endif
 
 // marker if init was done, to handle a shutdown without init
 static bool initialized = false;  
@@ -119,7 +115,6 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
   return &app_loadstate;
 }
 
-#ifdef OC_DYNAMIC_ALLOCATION
 #include "oc_buffer_settings.h"
 #ifdef OC_INOUT_BUFFER_SIZE
 static size_t _OC_MTU_SIZE = OC_INOUT_BUFFER_SIZE;
@@ -179,39 +174,6 @@ long oc_get_block_size(void)
   return (long) _OC_BLOCK_SIZE;
 }
 
-#else
-int oc_set_mtu_size(size_t mtu_size)
-{
-  (void) mtu_size;
-  OC_WRN("Dynamic memory not available");
-  return -1;
-}
-
-long oc_get_mtu_size(void)
-{
-  OC_WRN("Dynamic memory not available");
-  return -1;
-}
-
-void oc_set_max_app_data_size(size_t size)
-{
-  (void) size;
-  OC_WRN("Dynamic memory not available");
-}
-
-long oc_get_max_app_data_size(void)
-{
-  OC_WRN("Dynamic memory not available");
-  return -1;
-}
-
-long oc_get_block_size(void)
-{
-  OC_WRN("Dynamic memory not available");
-  return -1;
-}
-#endif
-
 static void oc_shutdown_device(void)
 {
   oc_connectivity_shutdown();
@@ -253,13 +215,11 @@ int oc_main_init(const oc_handler_t* handler)
     
   }
 
-  #ifdef OC_DYNAMIC_ALLOCATION
   drop_commands = (bool*) calloc(1, sizeof(bool));
   if (!drop_commands)
   {
     oc_abort("Insufficient stack memory");
   }
-  #endif
 
   #ifdef KNX_TCP_TLS
   ret = oc_tls_init_context();
@@ -360,12 +320,8 @@ void oc_main_shutdown(void)
 
   oc_shutdown_device();
 
-  #ifdef OC_DYNAMIC_ALLOCATION
   free(drop_commands);
   drop_commands = NULL;
-  #else
-  drop_commands = false;
-  #endif
 
   app_callbacks = NULL;
 }
@@ -385,18 +341,10 @@ void _oc_signal_event_loop(void)
 
 void oc_set_drop_commands(bool drop)
 {
-#ifdef OC_DYNAMIC_ALLOCATION
   *drop_commands = drop;
-#else
-  drop_commands = drop;
-#endif
 }
 
 bool oc_drop_command(void)
 {
-#ifdef OC_DYNAMIC_ALLOCATION
   return *drop_commands;
-#else
-  return drop_commands;
-#endif
 }

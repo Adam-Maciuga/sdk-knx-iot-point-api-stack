@@ -44,6 +44,7 @@
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
+#include "timestamp.h"
 #include "port/oc_random.h"
 
 #ifdef KNX_TCP_TLS
@@ -64,11 +65,12 @@
 
 OC_PROCESS(coap_engine, "CoAP Engine");
 
+// use either w/wo blockwise transfer version
 #ifdef OC_BLOCK_WISE
-extern bool oc_ri_invoke_coap_entity_handler(
-  void* request, void* response, oc_blockwise_state_t** request_state,
-  oc_blockwise_state_t** response_state, uint16_t block2_size,
-  oc_endpoint_t* endpoint);
+extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response, 
+                                             oc_blockwise_state_t** request_state,
+                                             oc_blockwise_state_t** response_state, 
+                                             uint16_t block2_size, oc_endpoint_t* endpoint);
 #else
 extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
                                              uint8_t* buffer, oc_endpoint_t* endpoint);
@@ -77,53 +79,186 @@ extern bool oc_ri_invoke_coap_entity_handler(void* request, void* response,
 #ifdef OC_REQUEST_HISTORY
 /*
   The size of the array used to de-duplicate CoAP messages.
-  A value of 25 means that the message ID & device counter are compared to the
+  A value of 25 means that the message ID & device IP adr/port are compared to the
   ones in the last 25 messages. If a match is found, the message is dropped as
   it must be a duplicate.
+
+  NOTE: The check runs always through the entire array when receiving a msg, 
+        hence choose smaller numbers if possible. 
 */
-#define OC_REQUEST_HISTORY_SIZE (75)
+#define OC_REQUEST_HISTORY_SIZE (32) // MUST use only values of 2 power n 
+#define OC_REQUEST_HISTORY_TIMEOUT (247 * OC_CLOCK_CONF_TICKS_PER_SECOND) // RFC 7252
 
 #ifndef OC_ECHO_FRESHNESS_TIME
 #define OC_ECHO_FRESHNESS_TIME (10 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 #endif
 
+#define OC_REQUEST_HISTORY_ENTRY_SIZE (2 + 2 + 16)
+
+typedef struct
+{
+  union // C99 extension
+  {
+    // each entry is 20 bytes: 2(mid) + 2(port) + 16(address), compared as a single (raw) stream
+    uint8_t raw[OC_REQUEST_HISTORY_ENTRY_SIZE];
+    struct
+    {
+      uint16_t mid;
+      uint16_t port;
+      uint8_t address[16];
+    } fields;
+  };
+  oc_clock_time_t timestamp;  // time of message received with this MID;
+} oc_request_history_entry_t;
+
+static uint8_t g_history_idx;
+static oc_request_history_entry_t g_history[OC_REQUEST_HISTORY_SIZE];
+
+void oc_coap_clear_request_history(void)
+{
+  memset(g_history, 0, sizeof(g_history));
+  g_history_idx = 0;
+  OC_DBG("wipe history buffer");
+}
+
+// Response cache for CON retransmission handling (RFC 7252 section 4.5).
+// When a piggybacked ACK response is lost and the client retransmits the CON
+// request, the server re-sends the cached response instead of dropping it.
+// Only ACK responses (type=2) are cached, since CON responses have their
+// own retransmission via the transaction layer.
+#ifndef OC_RESPONSE_CACHE_SIZE
+#define OC_RESPONSE_CACHE_SIZE (4) // MUST use only values of 2 power n
+#endif
+
+/*
+The retransmissions use binary exponential backoff: 
+~2-3s, ~4-6s, ~8-12s, ~16-24s (4 retries total). 
+The last retransmit arrives at most 45 seconds after the original 
+— which is why the cache TTL is set to 45 * OC_CLOCK_CONF_TICKS_PER_SECOND
+*/
+#define OC_RESPONSE_CACHE_TTL (45 * OC_CLOCK_CONF_TICKS_PER_SECOND)
+
+typedef struct
+{
+  oc_request_history_entry_t key;  // mid + port + address + timestamp (reuses history key layout)
+  oc_message_t* message;           // ref'd outgoing message (wire-ready bytes)
+} oc_response_cache_entry_t;
+
+static oc_response_cache_entry_t response_cache[OC_RESPONSE_CACHE_SIZE];
+static uint8_t response_cache_idx;
+
+/**
+ * @brief Look up the response cache for a matching MID+endpoint and re-send.
+ * @param his the history entry key (mid + port + address + timestamp) to match against
+ * @return true if a cached response was found and re-sent.
+ */
+static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his)
+{
+  for (size_t i = 0; i < OC_RESPONSE_CACHE_SIZE; i++)
+  {
+    if (response_cache[i].message &&
+        memcmp(response_cache[i].key.raw, his->raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 &&
+        (his->timestamp - response_cache[i].key.timestamp) <= OC_RESPONSE_CACHE_TTL)
+    {
+      // cache hit — re-send the same message directly to IP layer
+      OC_DBG("response cache hit: re-sending cached ACK for MID %u", his->fields.mid);
+      oc_send_buffer(response_cache[i].message);
+      return true;
+    }
+  }
+  return false;
+}
+
+void oc_coap_response_cache_store(oc_message_t* message)
+{
+  //don't cache messages length < 4, that includes empty ACKs
+  if (!message || message->length < 4)
+    return;
+
+  // only cache ACK responses (CoAP type = 2, bits 4-5 of byte 0)
+  uint8_t coap_type = (message->data[0] >> 4) & 0x03;
+  if (coap_type != COAP_TYPE_ACK)
+    return;
+
+  // build key from the outgoing message's wire bytes + endpoint (same layout as history)
+  oc_request_history_entry_t key =
+  {
+    {
+      .fields.mid  = (uint16_t)((message->data[2] << 8) | message->data[3]),
+      .fields.port = message->endpoint.addr.ipv6.port
+    },
+    .timestamp = oc_clock_time()
+  };
+  memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
+
+  // evict current entry in this slot, may overwrite an old entry or a still valid entry (if the same slot is used multiple times within the TTL, necessary with rolling buffer->limited buffer capabilities)
+  oc_message_unref(response_cache[response_cache_idx].message);
+
+  // keep the message alive by adding a ref
+  oc_message_add_ref(message);
+
+  response_cache[response_cache_idx].key = key;
+  response_cache[response_cache_idx].message = message;
+
+  OC_DBG("response cache: stored ACK for MID %u (slot %u)", key.fields.mid, response_cache_idx);
+
+  // roll over id from 0...n-1 (3) (use only 2 power n max size) -> 4 & 0b00000011 = 0, 1 & 0b00000011 = 1, ...
+  response_cache_idx = (response_cache_idx + 1) & (OC_RESPONSE_CACHE_SIZE - 1);
+}
+
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint)
 {
-  // current history entry index (auto init with 0)
-  static uint8_t idx;
-
-  static struct
+  // build key entry from inbound message 
+  oc_request_history_entry_t his = 
   {
-    uint16_t mid;
-    uint16_t port;
-    uint8_t address[16];
-  } history[OC_REQUEST_HISTORY_SIZE];
-
-  const uint16_t mid = coap->mid;
-  const uint8_t* address = endpoint->addr.ipv6.address;
-  const uint16_t port = endpoint->addr.ipv6.port;
+    {
+      .fields.mid = coap->mid,    // first mid, so that cmp exits early on a mismatch, then port and address
+      .fields.port = endpoint->addr.ipv6.port},
+    .timestamp = oc_clock_time()  // now
+  };
+  
+  memcpy(his.fields.address, endpoint->addr.ipv6.address, 16);
 
   // the type is initialized in relation of the use of UDP/TCP
   if (coap->transport_type == COAP_TRANSPORT_UDP)
   {
-    for (size_t i = 0; i < OC_REQUEST_HISTORY_SIZE; i++)
+    for (const oc_request_history_entry_t* h = g_history; h < g_history + OC_REQUEST_HISTORY_SIZE; h++)
     {
-      if (history[i].mid == mid && history[i].port == port && memcmp(history[i].address, address, 16) == 0)
-      {
-        OC_DBG("checking on coap retransmission duplicates (mid/port/ipv6) -> message dropped (MID: %d)", mid);
+      /* 
+        match and not timed out ? 
+        NOTE: if timed out and match; 
+              - treat as no duplicate, 
+              - don't delete history entry, 
+              - will be overwritten on roll over of counter
+      */
+      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 && his.timestamp - h->timestamp < OC_REQUEST_HISTORY_TIMEOUT)
+      { // not timed out and match 
+
+        OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
+        oc_char_print_hex((char*)his.fields.address, 16);
+
+        // RFC 7252 section 4.5: re-send cached response if available
+        if (response_cache_lookup_and_resend(&his))
+        {
+          OC_DBG("duplicate CON: cached response re-sent for MID %d", his.fields.mid);
+        }
+        else
+        {
+          OC_DBG("duplicate CON: no cached response, message dropped (MID: %d)", his.fields.mid);
+        }
         return true;
       }
     }
 
-    // no duplicate, it is usually the first received message, update the history entry
-    history[idx].mid = mid;
-    history[idx].port = port;
-    memcpy(history[idx].address, address, 16);
+    // no duplicate, update the history entry
+    g_history[g_history_idx] = his;
 
-    // roll over id from 0...74
-    idx = (idx + 1) % OC_REQUEST_HISTORY_SIZE;
+    // roll over id from 0...n-1 (31) (use only 2 power n max size) -> 32 & 0b00111111 = 0, 1 & 0b00111111 = 1, ... 
+    g_history_idx = (g_history_idx + 1) & (OC_REQUEST_HISTORY_SIZE - 1);
 
-    OC_DBG("checking retransmission duplicates (mid/port/ipv6) -> fresh message (MID: %d)", mid);
+    OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> fresh message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
+    oc_char_print_hex((char*)his.fields.address, 16);
+
   }
   return false;
 }
@@ -138,13 +273,13 @@ bool oc_coap_check_if_loopback_message(const oc_message_t* msg)
     {
       if (msg->endpoint.addr.ipv6.port == ep_i->addr.ipv6.port)
       {
-        OC_DBG("checking loopback duplicates (endpoint/port) -> duplicate message - ignored : ");
+        OC_DBG("checking loopback duplicates (endpoint/port) -> own loopback message - ignored from : ");
         PRINTipaddr(*ep_i);
         return true;
       }
     }
   }
-  OC_DBG("checking loopback duplicates (endpoint/port) -> fresh message, - accepted");
+  OC_DBG("checking loopback duplicates (endpoint/port) -> fresh extern message - accepted from : ");
   PRINTipaddr(msg->endpoint);
   return false;
 }
@@ -389,10 +524,15 @@ int coap_receive(oc_message_t* incoming_message)
 
   #endif
 
-  // check loop back first before process any message
+  /*
+     check loop back first before process any message,
+     - two level : -> oscore (secured) -> coap 
+     - one level : -> coap (unsecured, others)  
+  */
   if (oc_coap_check_if_loopback_message(incoming_message))
   {
-    // ignore duplicate request
+    // ignore 
+    OC_DBG("drop loopback message, counter is %d", incoming_message->ref_count);
     oc_message_unref(incoming_message);
     return -1;
   }
@@ -416,8 +556,6 @@ int coap_receive(oc_message_t* incoming_message)
   #ifdef OC_CLIENT
   oc_client_cb_t* client_cb = NULL;
   #endif
-
- 
 
   #ifdef OC_TCP
   if (incoming_message->endpoint.flags & TCP)
@@ -449,7 +587,7 @@ int coap_receive(oc_message_t* incoming_message)
     .type           = is_con ? COAP_TYPE_ACK : COAP_TYPE_NON,
     .mid            = is_con ? inbound_coap_pkt->mid : coap_get_next_mid(),
     .endpoint       = incoming_message->endpoint,     // shallow copy - no owning pointers in oc_endpoint_t
-    .echo.timestamp = oc_clock_time(),
+    .echo.timestamp = oc_clock_time(), 
     .echo_len       = sizeof(oc_clock_time_t),
     .token_len      = inbound_coap_pkt->token_len < COAP_TOKEN_LEN ? inbound_coap_pkt->token_len : COAP_TOKEN_LEN
   };
@@ -463,15 +601,23 @@ int coap_receive(oc_message_t* incoming_message)
     bool block1 = false;
 
     #ifdef OC_REQUEST_HISTORY
-    // skip duplicate check for messages already checked by OSCORE layer, check only inbound plain CoAP messages
+    
+    
+    /*
+     check duplicate before process any message
+     - two level : -> oscore (secured) -> coap : skip duplicate check for messages already checked by OSCORE layer
+     - one level : -> coap (unsecured, others) : check only inbound plain CoAP messages 
+  */
     if (!(incoming_message->endpoint.flags & OSCORE_DECRYPTED))
     {
       if (oc_coap_check_if_duplicate_and_if_not_add_to_history(inbound_coap_pkt, &incoming_message->endpoint))
       {
         oc_message_unref(incoming_message);
+        OC_DBG("drop duplicate message, counter is %d", incoming_message->ref_count);
         return -1;
       }
     }
+
     #endif
 
     #ifdef OC_DEBUG
@@ -583,7 +729,6 @@ int coap_receive(oc_message_t* incoming_message)
         }
       }
 
-      #ifdef OC_REPLAY_PROTECTION
       if (incoming_message->endpoint.flags & OSCORE_DECRYPTED)
       {
         uint64_t ssn = 0;
@@ -700,7 +845,6 @@ int coap_receive(oc_message_t* incoming_message)
         */
 
       }
-      #endif
 
       /* 
         TODO 8 on server side , how answer on a re-request from client (see spec figure 26, (3) -> (4))
@@ -1143,7 +1287,7 @@ int coap_receive(oc_message_t* incoming_message)
             (b) destination from inbound 4.01 'echo response'
             (c) type 'unicast'
             (d) it will be no new s-mode transaction with a new timeout and kept transaction,
-                send it as a standard CoAP CON/NON message (CON with poss. reps, NON fire and drop after sending)
+                send it as a standard CoAP CON/NON message (CON with poss. reps, NO fire and drop after sending)
 
             All (1...n) later, additionally received inbound 'echo responses' from other devices uses the
             coap token from the original (transaction'ized) s-mode message that we need to match with. In this case

@@ -64,6 +64,7 @@ void coap_init_engine(void);
 /**
  * @brief Check if a coap inbound replayed message is pending, if not the inbound message is registered
  *        as a new message in the history buffer and passed through to the 'upper' layers. 
+ *        Outdated entries are wiped out from history with OC_REQUEST_HISTORY_TIMEOUT.  
  *        More details read the 'note'
  *
  * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 address,
@@ -78,13 +79,16 @@ void coap_init_engine(void);
 */
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint);
 
+// clear the request history buffer (ONLY on device reset with erase code 2)
+void oc_coap_clear_request_history(void);
+
 /**
- * @brief Check if the inbound message is a 1:1 mirrored (loopback) message by myself, by checking the endpoint 
- *        IPv6 address and port (yes : return true, no : return false). More details read the 'note'.
- *
+ * @brief Check if the inbound message is a 1:1 mirrored (loopback) message send by myself, 
+ *        by checking the endpoint IPv6 address and port (yes : return true, no : return false). 
+ *      
  * @note 
- *       - Many 'message payload' identical requests may pop up here on a used loopback/localhost adapter. 
- *         The amount depends also on how many endpoints (IP addresses) are registered by the device.
+ *       - Loopback messages may pop up here on a used loopback/localhost adapter. 
+ *         The total amount depends on how many endpoints (IP addresses) are registered by the device.
  *
  *       - When sending an uc/mc 'write' request, the internal update of other linked GO's is NOT done with
  *         the 1:1 replayed IPv6 message. The updates are performed internally on the write method, see 
@@ -106,6 +110,19 @@ bool oc_coap_check_if_loopback_message(const oc_message_t* msg);
  *
  */
 bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint);
+
+/**
+ * @brief Store an outbound ACK response in the response cache for CON retransmission handling.
+ *
+ * When a client retransmits a CON request (because the ACK response was lost),
+ * the cached response is re-sent instead of silently dropping the duplicate.
+ * Only ACK responses (CoAP type 2) are cached. (Piggybacked responses are cached, but no empty ACKs, neither Separate responses.)
+ *
+ * The message is kept alive via oc_message_add_ref(); no data copy is made.
+ *
+ * @param message the outgoing message (wire-ready bytes + endpoint)
+ */
+void oc_coap_response_cache_store(oc_message_t* message);
 
 #ifdef __cplusplus
 }

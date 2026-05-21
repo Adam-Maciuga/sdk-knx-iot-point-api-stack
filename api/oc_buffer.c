@@ -13,9 +13,7 @@
 #include "messaging/coap/coap.h"
 #include <stdint.h>
 #include <stdio.h>
-#ifdef OC_DYNAMIC_ALLOCATION
 #include <stdlib.h>
-#endif 
 
 #ifdef OC_TCP_TLS
 #include "security/oc_tls.h"
@@ -43,7 +41,7 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
   
   if (message) 
   {
-    #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+    #ifndef OC_INOUT_BUFFER_SIZE
     message->data = (uint8_t*)malloc(OC_PDU_SIZE);
     if (!message->data) 
     {
@@ -58,7 +56,7 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
     message->ref_count = 1;
     message->endpoint.interface_index = -1;
     
-    #if !defined(OC_DYNAMIC_ALLOCATION) || defined(OC_INOUT_BUFFER_SIZE)
+    #ifdef OC_INOUT_BUFFER_SIZE
     OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));
     #endif 
   } 
@@ -119,6 +117,7 @@ void oc_message_add_ref(oc_message_t* message)
   {
     message->ref_count++;
   }
+  OC_DBG("increase message counter, counter is %d", message->ref_count);
 }
 
 void oc_message_unref(oc_message_t* message) 
@@ -126,8 +125,9 @@ void oc_message_unref(oc_message_t* message)
   if (message) 
   {
     message->ref_count--;
+    OC_DBG("decrease message counter, counter is %d", message->ref_count);
     if (message->ref_count == 0) {
-      #if defined(OC_DYNAMIC_ALLOCATION) && !defined(OC_INOUT_BUFFER_SIZE)
+      #ifndef OC_INOUT_BUFFER_SIZE
       if (message->data) 
       {
         free(message->data);
@@ -226,6 +226,9 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         else
         {
           OC_DBG("Outbound plain unicast message, forwarding to IP layer");
+#ifdef OC_REQUEST_HISTORY
+          oc_coap_response_cache_store(message);
+#endif
           oc_send_buffer(message);
           oc_message_unref(message);
         }
@@ -237,6 +240,9 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         if (message->endpoint.flags & OSCORE)
         {
           OC_DBG("Outbound OSCORE %s message, forwarding to IP layer", message->endpoint.flags & MULTICAST ? "multicast" : "unicast");
+#ifdef OC_REQUEST_HISTORY
+          oc_coap_response_cache_store(message);
+#endif
           oc_send_buffer(message);
           oc_message_unref(message);
         }

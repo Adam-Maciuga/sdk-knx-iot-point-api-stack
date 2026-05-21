@@ -35,11 +35,9 @@
 #include "oc_process.h"
 #include "oc_buffer.h"
 #include <stdio.h>
-#ifdef OC_DYNAMIC_ALLOCATION
 #include "port/oc_assert.h"
 #include <stdlib.h>
 #include <string.h>
-#endif 
 
 /*
  * Pointer to the currently running process structure.
@@ -59,18 +57,10 @@ struct event_data
   struct oc_process* p;
 };
 
-#ifdef OC_DYNAMIC_ALLOCATION
 static unsigned long OC_PROCESS_NUMEVENTS = 10;
-#else 
-#define OC_PROCESS_NUMEVENTS 10
-#endif 
 
 static oc_process_num_events_t nevents, fevent;
-#ifdef OC_DYNAMIC_ALLOCATION
 static struct event_data* events;
-#else  
-static struct event_data events[OC_PROCESS_NUMEVENTS];
-#endif 
 
 #if OC_PROCESS_CONF_STATS
 oc_process_num_events_t process_maxevents;
@@ -195,20 +185,16 @@ void oc_process_exit(struct oc_process* p)
 
 void oc_process_shutdown(void)
 {
-  #ifdef OC_DYNAMIC_ALLOCATION
   free(events);
-  #endif 
 }
 
 void oc_process_init(void)
 {
-  #ifdef OC_DYNAMIC_ALLOCATION
   events = (struct event_data*)calloc(OC_PROCESS_NUMEVENTS, sizeof(struct event_data));
   if (!events)
   {
     oc_abort("Insufficient memory");
   }
-  #endif 
 
   lastevent = OC_PROCESS_EVENT_MAX;
 
@@ -332,23 +318,22 @@ int oc_process_post(struct oc_process* p, oc_process_event_t ev, oc_process_data
 
   if (nevents == OC_PROCESS_NUMEVENTS)
   {
-    #ifdef OC_DYNAMIC_ALLOCATION
     OC_PROCESS_NUMEVENTS <<= 1;
-    
+
     // check this with s-mode
     struct event_data* new_event = (struct event_data*)realloc(events, (OC_PROCESS_NUMEVENTS) * sizeof(struct event_data));
-    
+
     if (!new_event)
     {
       free(events);
     }
-    
+
     events = new_event;
     if (!events)
     {
       oc_abort("Insufficient memory");
     }
-    
+
     oc_process_num_events_t i = fevent, n = nevents - fevent, j = 0;
     while (i < (OC_PROCESS_NUMEVENTS - n))
     {
@@ -362,9 +347,6 @@ int oc_process_post(struct oc_process* p, oc_process_event_t ev, oc_process_data
       i++;
     }
     fevent = OC_PROCESS_NUMEVENTS - n;
-    #else 
-    return OC_PROCESS_ERR_FULL;
-    #endif 
   }
 
   snum = (oc_process_num_events_t)(fevent + nevents) % OC_PROCESS_NUMEVENTS;

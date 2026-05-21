@@ -38,25 +38,7 @@
 #include "port/oc_log.h"
 #include <stdint.h>
 #include <string.h>
-#ifndef OC_DYNAMIC_ALLOCATION
-#if !defined(OC_BYTES_POOL_SIZE) || !defined(OC_INTS_POOL_SIZE) ||             \
-  !defined(OC_DOUBLES_POOL_SIZE)
-#error "Please define byte, int, double pool sizes in oc_config.h"
-#endif /* ...POOL_SIZE */
-
-static float floats[OC_FLOATS_POOL_SIZE];
-static double doubles[OC_DOUBLES_POOL_SIZE];
-static int64_t ints[OC_INTS_POOL_SIZE];
-static unsigned char bytes[OC_BYTES_POOL_SIZE];
-static unsigned int avail_bytes, avail_ints, avail_doubles, avail_floats;
-
-OC_LIST(bytes_list);
-OC_LIST(ints_list);
-OC_LIST(floats_list);
-OC_LIST(doubles_list);
-#else
 #include <stdlib.h>
-#endif
 
 size_t oc_mmem_alloc(struct oc_mmem* m, size_t size, pool pool_type)
 {
@@ -72,70 +54,22 @@ size_t oc_mmem_alloc(struct oc_mmem* m, size_t size, pool pool_type)
   {
   case BYTE_POOL:
     bytes_allocated += size * sizeof(uint8_t);
-    #ifdef OC_DYNAMIC_ALLOCATION
     m->ptr = malloc(size);
     m->size = size;
-    #else
-    if (avail_bytes < size)
-    {
-      OC_WRN("byte pool exhausted");
-      return 0;
-    }
-    oc_list_add(bytes_list, m);
-    m->ptr = &bytes[OC_BYTES_POOL_SIZE - avail_bytes];
-    m->size = size;
-    avail_bytes -= size;
-    #endif
     break;
   case INT_POOL:
     bytes_allocated += size * sizeof(int64_t);
-    #ifdef OC_DYNAMIC_ALLOCATION
     m->ptr = malloc(size * sizeof(int64_t));
     m->size = size;
-    #else
-    if (avail_ints < size)
-    {
-      OC_WRN("int pool exhausted");
-      return 0;
-    }
-    oc_list_add(ints_list, m);
-    m->ptr = &ints[OC_INTS_POOL_SIZE - avail_ints];
-    m->size = size;
-    avail_ints -= size;
-    #endif
     break;
   case FLOAT_POOL:
     bytes_allocated += size * sizeof(float);
-    #ifdef OC_DYNAMIC_ALLOCATION
     m->ptr = malloc(size * sizeof(float));
     m->size = size;
-    #else
-    if (avail_floats < size)
-    {
-      OC_WRN("float pool exhausted");
-      return 0;
-    }
-    oc_list_add(floats_list, m);
-    m->ptr = &floats[OC_FLOAT_POOL_SIZE - avail_floats];
-    m->size = size;
-    avail_floats -= size;
-    #endif
   case DOUBLE_POOL:
     bytes_allocated += size * sizeof(double);
-    #ifdef OC_DYNAMIC_ALLOCATION
     m->ptr = malloc(size * sizeof(double));
     m->size = size;
-    #else
-    if (avail_doubles < size)
-    {
-      OC_WRN("double pool exhausted");
-      return 0;
-    }
-    oc_list_add(doubles_list, m);
-    m->ptr = &doubles[OC_DOUBLES_POOL_SIZE - avail_doubles];
-    m->size = size;
-    avail_doubles -= size;
-    #endif
     break;
   default:
     break;
@@ -152,79 +86,11 @@ void oc_mmem_free(struct oc_mmem* m, pool pool_type)
     return;
   }
 
-  #ifndef OC_DYNAMIC_ALLOCATION
-  struct oc_mmem* n;
-
-  if (m->next != NULL)
-  {
-    switch (pool_type)
-    {
-    case BYTE_POOL:
-      memmove(m->ptr, m->next->ptr,
-              &bytes[OC_BYTES_POOL_SIZE - avail_bytes] -
-              (unsigned char*)m->next->ptr);
-
-      break;
-    case INT_POOL:
-      memmove(m->ptr, m->next->ptr,
-              &ints[OC_INTS_POOL_SIZE - avail_ints] - (int64_t*)m->next->ptr);
-      break;
-    case FLOAT_POOL:
-      memmove(m->ptr, m->next->ptr,
-              &floats[OC_FLOATS_POOL_SIZE - avail_floats] -
-              (float*)m->next->ptr);
-      break;
-    case DOUBLE_POOL:
-      memmove(m->ptr, m->next->ptr,
-              &doubles[OC_DOUBLES_POOL_SIZE - avail_doubles] -
-              (double*)m->next->ptr);
-      break;
-    default:
-      return;
-      break;
-    }
-    for (n = m->next; n != NULL; n = n->next)
-    {
-      n->ptr = (void*)((char*)n->ptr - m->size);
-    }
-  }
-
-  switch (pool_type)
-  {
-  case BYTE_POOL:
-    avail_bytes += m->size;
-    oc_list_remove(bytes_list, m);
-    break;
-  case INT_POOL:
-    avail_ints += m->size;
-    oc_list_remove(ints_list, m);
-    break;
-  case DOUBLE_POOL:
-    avail_doubles += m->size;
-    oc_list_remove(doubles_list, m);
-    break;
-  }
-  #else
   (void)pool_type;
   free(m->ptr);
   m->size = 0;
-  #endif
 }
 
 void oc_mmem_init(void)
 {
-  #ifndef OC_DYNAMIC_ALLOCATION
-  static int inited = 0;
-  if (inited)
-  {
-    return;
-  }
-  oc_list_init(bytes_list);
-  oc_list_init(ints_list);
-  oc_list_init(doubles_list);
-  avail_bytes = OC_BYTES_POOL_SIZE;
-  avail_ints = OC_INTS_POOL_SIZE;
-  avail_doubles = OC_DOUBLES_POOL_SIZE;
-  inited = 1;
-  #endif
 }

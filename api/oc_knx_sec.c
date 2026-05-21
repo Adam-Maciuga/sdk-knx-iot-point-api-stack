@@ -20,6 +20,15 @@
 #include "messaging/coap/oscore_constants.h"
 #include "port/oc_storage.h"
 
+// forward declarations for the resource chain
+extern const oc_resource_t core_resource_knx_auth_o;
+extern const oc_resource_t core_resource_knx_auth_o_replwdo;
+extern const oc_resource_t core_resource_a_sen;
+extern const oc_resource_t core_resource_knx_auth_at;
+extern const oc_resource_t core_resource_knx_auth_at_x;
+extern const oc_resource_t core_resource_knx_auth;
+extern const oc_resource_t core_resource_well_known_core;
+
 // AT storage data
 #define AT_STORE "at_store"
 #define AT_SIZE (sizeof(AT_STORE) + 6) // support of '_99999' at FILE entries
@@ -198,10 +207,10 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_knx_auth_o;
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
+static oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
+PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
-  (oc_resource_t*)&core_resource_knx_auth_o,
+  &core_resource_knx_auth_o,
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt:timePeriodMsec"), "urn:knx:dpt:timePeriodMsec"},
@@ -238,9 +247,10 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
+static oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
+PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
-  (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
+  &core_resource_knx_auth_o_osndelay,
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.value2UCount"), "urn:knx:dpt.value2UCount"},
@@ -339,10 +349,10 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_knx_auth_at;
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_o_data;
+static oc_resource_data_t core_resource_knx_auth_o_data;
+PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_o = {
-  (oc_resource_t*)&core_resource_knx_auth_at,
+  &core_resource_knx_auth_at,
   {NULL, sizeof("/auth/o"), "/auth/o"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -425,9 +435,10 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-PRAGMA_IN oc_resource_data_t core_resource_a_sen_data;
+static oc_resource_data_t core_resource_a_sen_data;
+PRAGMA_IN
 const oc_resource_t core_resource_a_sen = {
-  (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
+  &core_resource_knx_auth_o_replwdo,
   {NULL, sizeof("/a/sen"), "/a/sen"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1077,10 +1088,10 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_knx_auth_at_x;
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_data;
+static oc_resource_data_t core_resource_knx_auth_at_data;
+PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_at = {
-  (oc_resource_t*)&core_resource_knx_auth_at_x,
+  &core_resource_knx_auth_at_x,
   {NULL, sizeof("/auth/at"), "/auth/at"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1269,10 +1280,10 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_knx_auth;
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_at_x_data;
+static oc_resource_data_t core_resource_knx_auth_at_x_data;
+PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_at_x = {
-  (oc_resource_t*)&core_resource_knx_auth,
+  &core_resource_knx_auth,
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1373,10 +1384,10 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
-extern const oc_resource_t core_resource_well_known_core;
-PRAGMA_IN oc_resource_data_t core_resource_knx_auth_data;
+static oc_resource_data_t core_resource_knx_auth_data;
+PRAGMA_IN
 const oc_resource_t core_resource_knx_auth = {
-  (oc_resource_t*)&core_resource_well_known_core,
+  &core_resource_well_known_core,
   {NULL, sizeof("/auth"), "/auth"},
   {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.auth"}},
   {NULL, 0, NULL},

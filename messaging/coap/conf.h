@@ -56,9 +56,6 @@
 extern "C" {
 #endif
 
-// features that can be disabled to achieve smaller memory footprint
-#define COAP_LINK_FORMAT_FILTERING 0
-#define COAP_PROXY_OPTION_PROCESSING 0
 
 // the number of concurrent messages that can be stored for retransmission in the transaction layer
 #ifndef COAP_MAX_OPEN_TRANSACTIONS
@@ -71,16 +68,17 @@ extern "C" {
 */
 #ifndef COAP_MAX_HEADER_SIZE // Hdr CoF  If-Match  Obs Blo strings 
 
-#ifdef OC_BLOCK_WISE
-#define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + COAP_ETAG_LEN + 4 + 4 + 150)
-#else 
-#define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + 4 + 4 + 100)
-#endif 
+  #ifdef OC_BLOCK_WISE
+    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + 4 + 4 + 150 + COAP_ETAG_LEN)
+  #else 
+    #define COAP_MAX_HEADER_SIZE (4 + COAP_TOKEN_LEN + 3 + 4 + 4 + 100)
+  #endif 
+
 #endif 
 
 // number of observer slots (each takes about xxx bytes)
 #ifndef COAP_MAX_OBSERVERS
-#define COAP_MAX_OBSERVERS  (OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS)
+  #define COAP_MAX_OBSERVERS  (OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS)
 #endif 
 
 // interval in notifies in which NON notifies are changed to CON notifies to check client
