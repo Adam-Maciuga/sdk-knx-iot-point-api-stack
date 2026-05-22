@@ -512,8 +512,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 
             // copy in CBOR object the CBOR encoded resource data from original write request
             oc_rep_t* cbor_object_ptr;
-            struct oc_memb cbor_object = {sizeof(oc_rep_t), 0};
-            oc_rep_set_pool(&cbor_object);
+            // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
             oc_parse_rep(resource_value_buffer, resource_value_size, &cbor_object_ptr);
 
             // prepare new request from "void" with data needed for the callback PUT (no response object/buffer is needed)

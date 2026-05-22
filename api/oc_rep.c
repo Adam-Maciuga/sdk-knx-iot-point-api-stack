@@ -19,20 +19,12 @@
 #include "oc_config.h"
 #include "port/oc_assert.h"
 #include "port/oc_log.h"
-#include "util/oc_memb.h"
-
 #include <inttypes.h>
+#include <stdlib.h>
 
-static struct oc_memb *rep_objects;
 static uint8_t *g_buf;
 CborEncoder g_encoder, root_map, links_array;
 CborError g_err;
-
-void
-oc_rep_set_pool(struct oc_memb *rep_objects_pool)
-{
-  rep_objects = rep_objects_pool;
-}
 
 void
 oc_rep_new(uint8_t *out_payload, int size)
@@ -106,7 +98,7 @@ oc_rep_get_encoded_payload_size(void)
 static oc_rep_t *
 _alloc_rep(void)
 {
-  oc_rep_t *rep = oc_memb_alloc(rep_objects);
+  oc_rep_t *rep = calloc(1, sizeof(oc_rep_t));
   if (rep != NULL) {
     rep->name.size = 0;
     rep->iname = -1;
@@ -120,7 +112,7 @@ _alloc_rep(void)
 static void
 _free_rep(oc_rep_t *rep_value)
 {
-  oc_memb_free(rep_objects, rep_value);
+  free(rep_value);
 }
 
 void

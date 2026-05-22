@@ -23,7 +23,6 @@
 
 #include "cbor.h"
 #include "oc_helpers.h"
-#include "util/oc_memb.h"
 #include <oc_config.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -1680,9 +1679,6 @@ typedef struct oc_rep_s
     struct oc_rep_s *mixed_array;
   } value;                  // the value as union
 } oc_rep_t;
-
-// internal function
-void oc_rep_set_pool(struct oc_memb *rep_objects_pool);
 
 // internal function
 int oc_parse_rep(const uint8_t* in_payload, int in_payload_size, oc_rep_t** out_rep);
