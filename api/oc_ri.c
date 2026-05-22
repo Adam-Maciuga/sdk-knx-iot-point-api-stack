@@ -1120,7 +1120,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   new_request.uri_path = uri_path;
   new_request.uri_path_len = uri_path_len;
 
-  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
+  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0};
 
   oc_rep_set_pool(&rep_objects);
 
@@ -1739,7 +1739,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   client_response._payload = payload;
   client_response._payload_len = (size_t)payload_len;
 
-  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
+  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0};
   oc_rep_set_pool(&rep_objects);
   if (payload_len)
   {

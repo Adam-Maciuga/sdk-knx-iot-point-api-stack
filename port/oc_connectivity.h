@@ -37,7 +37,6 @@ extern "C" {
 struct oc_message_s
 {
   struct oc_message_s *next;
-  struct oc_memb *pool;     // used to alloc/free the message as such
   oc_endpoint_t endpoint;
   oc_ipv6_addr_t mcast_dest;
   size_t length;            // total message length (includes header, options and payload from message->data 'stream')
