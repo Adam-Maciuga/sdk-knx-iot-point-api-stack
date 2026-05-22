@@ -5,8 +5,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
+#ifdef __GNUC__
 #include <strings.h>          /* strncasecmp */
+#else /* MSVC */
+#include <string.h>          /* strncasecmp */
+#endif
 #include "util/oc_etimer.h"
 #include "util/oc_list.h"
 #include "util/oc_memb.h"
