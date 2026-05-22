@@ -15,7 +15,6 @@
 #include "port/oc_log.h"
 
 OC_LIST(contexts);
-OC_MEMB(ctx_s, oc_oscore_context_t, 20);
 
 static void oc_context_print_all(void);
 
@@ -260,7 +259,7 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
     // removes entry fom linked list
     oc_list_remove(contexts, ctx);
     // use global variable for the removal
-    oc_memb_free(&ctx_s, ctx);
+    free(ctx);
   }
 }
 
@@ -364,7 +363,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
 {
 
   //get a free sender context
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_memb_alloc(&ctx_s);
+  oc_oscore_context_t* ctx = calloc(1, sizeof(oc_oscore_context_t));
 
   if (!ctx)
   {
@@ -495,7 +494,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
 
 add_oscore_context_error:
   OC_DBG_OSCORE("Encountered error while adding new context!");
-  oc_memb_free(&ctx_s, ctx);
+  free(ctx);
   return NULL;
 }
 

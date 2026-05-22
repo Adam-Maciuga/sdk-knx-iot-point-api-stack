@@ -42,7 +42,6 @@
 #include "oc_oscore.h"
 
 OC_PROCESS(oc_tls_handler, "TLS Process");
-OC_MEMB(tls_peers_s, oc_tls_peer_t, OC_MAX_TLS_PEERS);
 OC_LIST(tls_peers);
 
 static mbedtls_entropy_context entropy_ctx;
@@ -73,7 +72,6 @@ typedef struct oc_x509_cacrt_t
   mbedtls_x509_crt *cert;
 } oc_x509_cacrt_t;
 
-OC_MEMB(ca_certs_s, oc_x509_cacrt_t, 1);
 OC_LIST(ca_certs);
 
 typedef struct oc_x509_crt_t
@@ -86,7 +84,6 @@ typedef struct oc_x509_crt_t
 } oc_x509_crt_t;
 
 #include "oc_certs.h"
-OC_MEMB(identity_certs_s, oc_x509_crt_t, 2);
 OC_LIST(identity_certs);
 
 mbedtls_x509_crt trust_anchors;
@@ -228,7 +225,7 @@ static void oc_tls_free_invalid_peer(oc_tls_peer_t *peer)
 #endif
   mbedtls_ssl_config_free(&peer->ssl_conf);
   oc_etimer_stop(&peer->timer.fin_timer);
-  oc_memb_free(&tls_peers_s, peer);
+  free(peer);
 }
 #endif /* OC_CLIENT */
 
@@ -285,7 +282,7 @@ static void oc_tls_free_peer(oc_tls_peer_t *peer, bool inactivity_cb)
 #endif
   mbedtls_ssl_config_free(&peer->ssl_conf);
   oc_etimer_stop(&peer->timer.fin_timer);
-  oc_memb_free(&tls_peers_s, peer);
+  free(peer);
 }
 
 oc_tls_peer_t * oc_tls_get_peer(oc_endpoint_t *endpoint)
@@ -615,7 +612,7 @@ next_cred_in_chain:
 
 static void add_new_identity_cert(oc_sec_cred_t *cred)
 {
-  oc_x509_crt_t *cert = oc_memb_alloc(&identity_certs_s);
+  oc_x509_crt_t *cert = calloc(1, sizeof(oc_x509_crt_t));
   if (!cert) {
     OC_WRN("could not allocate memory for identity cert");
     return;
@@ -669,7 +666,7 @@ add_new_identity_cert_error:
   OC_ERR("error adding identity cert");
   mbedtls_x509_crt_free(&cert->cert);
   mbedtls_pk_free(&cert->pk);
-  oc_memb_free(&identity_certs_s, cert);
+  free(cert);
 }
 
 void oc_tls_refresh_identity_certs(void)
@@ -689,7 +686,7 @@ void oc_tls_remove_identity_cert(oc_sec_cred_t *cred)
     oc_list_remove(identity_certs, cert);
     mbedtls_x509_crt_free(&cert->cert);
     mbedtls_pk_free(&cert->pk);
-    oc_memb_free(&identity_certs_s, cert);
+    free(cert);
   }
 }
 
@@ -701,7 +698,7 @@ void oc_tls_remove_trust_anchor(oc_sec_cred_t *cred)
   }
   if (cert) {
     oc_list_remove(ca_certs, cert);
-    oc_memb_free(&ca_certs_s, cert);
+    free(cert);
   }
   mbedtls_x509_crt_free(&trust_anchors);
   mbedtls_x509_crt_init(&trust_anchors);
@@ -766,7 +763,7 @@ static void add_new_trust_anchor(oc_sec_cred_t *cred)
     return;
   }
 
-  oc_x509_cacrt_t *cert = oc_memb_alloc(&ca_certs_s);
+  oc_x509_cacrt_t *cert = calloc(1, sizeof(oc_x509_cacrt_t));
   if (!cert) {
     OC_WRN("could not allocate memory for new trust anchor");
     return;
@@ -1148,7 +1145,7 @@ static oc_tls_peer_t * oc_tls_add_peer(oc_endpoint_t *endpoint, int role)
       }
     }
     */
-    peer = oc_memb_alloc(&tls_peers_s);
+    peer = calloc(1, sizeof(oc_tls_peer_t));
     if (peer) {
       OC_DBG("oc_tls: Allocating new peer");
       memcpy(&peer->endpoint, endpoint, sizeof(oc_endpoint_t));
@@ -1233,12 +1230,12 @@ void oc_tls_shutdown(void)
   while (cert != NULL) {
     mbedtls_x509_crt_free(&cert->cert);
     mbedtls_pk_free(&cert->pk);
-    oc_memb_free(&identity_certs_s, cert);
+    free(cert);
     cert = (oc_x509_crt_t *)oc_list_pop(identity_certs);
   }
   oc_x509_cacrt_t *ca = (oc_x509_cacrt_t *)oc_list_pop(ca_certs);
   while (ca) {
-    oc_memb_free(&ca_certs_s, ca);
+    free(ca);
     ca = (oc_x509_cacrt_t *)oc_list_pop(ca_certs);
   }
   mbedtls_x509_crt_free(&trust_anchors);

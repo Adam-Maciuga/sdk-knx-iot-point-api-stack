@@ -13,21 +13,17 @@
 #include "port/oc_log.h"
 #include "port/oc_random.h"
 #include "util/oc_list.h"
- #include "util/oc_memb.h"
-
-OC_MEMB(oc_blockwise_request_states_s, oc_blockwise_request_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-OC_MEMB(oc_blockwise_response_states_s, oc_blockwise_response_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_LIST(oc_blockwise_requests);
 OC_LIST(oc_blockwise_responses);
 
 
-static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, const char* href, size_t href_len, oc_endpoint_t* endpoint,
+static oc_blockwise_state_t* oc_blockwise_init_buffer(size_t size, const char* href, size_t href_len, oc_endpoint_t* endpoint,
                                                       coap_method_t method, oc_blockwise_role_t role)
 {
   if (href_len == 0)
     return NULL;
 
-  oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_memb_alloc(pool);
+  oc_blockwise_state_t* buffer = calloc(1, size);
   if (buffer)
   {
     if (!buffer->buffer)
@@ -36,7 +32,7 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, cons
     }
     if (!buffer->buffer)
     {
-      oc_memb_free(pool, buffer);
+      free(buffer);
       return NULL;
     }
     buffer->next_block_offset = 0;
@@ -58,9 +54,8 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, cons
   return NULL;
 }
 
-static void oc_blockwise_free_buffer(oc_list_t list, struct oc_memb* pool, oc_blockwise_state_t* buffer)
+static void oc_blockwise_free_buffer(oc_list_t list, oc_blockwise_state_t* buffer)
 {
-
   if (!buffer)
   {
     OC_WRN("buffer is NULL");
@@ -75,18 +70,18 @@ static void oc_blockwise_free_buffer(oc_list_t list, struct oc_memb* pool, oc_bl
     free(buffer->buffer);
   }
   buffer->buffer = NULL;
-  oc_memb_free(pool, buffer);
+  free(buffer);
 }
 
 static oc_event_callback_retval_t oc_blockwise_request_timeout(void* data)
 {
-  oc_blockwise_free_buffer(oc_blockwise_requests, &oc_blockwise_request_states_s, data);
+  oc_blockwise_free_buffer(oc_blockwise_requests, data);
   return OC_EVENT_DONE;
 }
 
 static oc_event_callback_retval_t oc_blockwise_response_timeout(void* data)
 {
-  oc_blockwise_free_buffer(oc_blockwise_responses, &oc_blockwise_response_states_s, data);
+  oc_blockwise_free_buffer(oc_blockwise_responses, data);
   return OC_EVENT_DONE;
 }
 
@@ -94,7 +89,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_request_buffer(const char* href, size_t
                                                         oc_blockwise_role_t role)
 {
   oc_blockwise_request_state_t* buffer =
-    (oc_blockwise_request_state_t*)oc_blockwise_init_buffer(&oc_blockwise_request_states_s, href, href_len, endpoint, method, role);
+    (oc_blockwise_request_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_request_state_t), href, href_len, endpoint, method, role);
   if (buffer)
   {
     oc_ri_add_timed_event_callback_seconds(buffer, oc_blockwise_request_timeout, OC_EXCHANGE_LIFETIME);
@@ -107,7 +102,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
                                                          oc_blockwise_role_t role)
 {
   oc_blockwise_response_state_t* buffer =
-    (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(&oc_blockwise_response_states_s, href, href_len, endpoint, method, role);
+    (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_response_state_t), href, href_len, endpoint, method, role);
   if (buffer)
   {
     int i = COAP_ETAG_LEN;
