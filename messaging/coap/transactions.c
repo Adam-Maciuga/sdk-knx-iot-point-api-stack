@@ -71,7 +71,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uin
   if (t)
   {
     // cleared buffers
-    t->message = oc_internal_allocate_outgoing_message();
+    t->message = oc_allocate_message();
     if (t->message)
     {
       OC_DBG("created new transaction with mid %u", mid);

@@ -22,7 +22,6 @@
 #define OC_BUFFER_H
 
 #include "port/oc_connectivity.h"
-#include "util/oc_memb.h"
 #include "util/oc_process.h"
 #include <stdbool.h>
 
@@ -38,21 +37,6 @@ OC_PROCESS_NAME(message_buffer_handler);
  * @return oc_message_t* the allocated message
  */
 oc_message_t *oc_allocate_message(void);
-
-/**
- * @brief set callback for memory availability
- *
- * @param cb the callback
- */
-void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb);
-
-/**
- * @brief allocate a message from the message pool with allocated 'message->data' 
- *        buffer (of MTU size) and clears this 'message->data' with '0' (ref_count is init with 1)
- *
- * @return oc_message_t* the CoAP message
- */
-oc_message_t *oc_internal_allocate_outgoing_message(void);
 
 /**
  * @brief add (increase) reference (for tracking in use)

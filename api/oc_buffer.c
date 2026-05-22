@@ -9,7 +9,6 @@
 #include "messaging/coap/engine.h"
 #include "oc_signal_event_loop.h"
 #include "port/oc_network_events_mutex.h"
-#include "util/oc_memb.h"
 #include "messaging/coap/coap.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -25,53 +24,33 @@
 #include "oc_events.h"
 
 OC_PROCESS(message_buffer_handler, "OC Message Buffer Handler");
-OC_MEMB(oc_incoming_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 
-static oc_message_t* allocate_message(struct oc_memb* pool) 
+oc_message_t* oc_allocate_message(void)
 {
   oc_network_event_handler_mutex_lock();
-  oc_message_t* message = (oc_message_t*)oc_memb_alloc(pool);
+  oc_message_t* message = calloc(1, sizeof(oc_message_t));
   oc_network_event_handler_mutex_unlock();
-  
-  if (message) 
+
+  if (message)
   {
     message->data = (uint8_t*)malloc(OC_PDU_SIZE);
     if (!message->data)
     {
       OC_ERR("Out of memory, cannot allocate message data!");
-      oc_memb_free(pool, message);
+      free(message);
       return NULL;
     }
 
     // allocated memory is wiped with '0' on allocation, hence do only others on init
-    message->pool = pool;
     message->ref_count = 1;
     message->endpoint.interface_index = -1;
-    
   }
   else
   {
     OC_WRN("buffer: No free TX/RX buffers!");
-    message = NULL;
   }
 
   return message;
-}
-
-void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb) 
-{
-  oc_memb_set_buffers_avail_cb(&oc_incoming_buffers, cb);
-}
-
-oc_message_t* oc_allocate_message(void) 
-{
-  return allocate_message(&oc_incoming_buffers);
-}
-
-oc_message_t* oc_internal_allocate_outgoing_message(void) 
-{
-  return allocate_message(&oc_outgoing_buffers);
 }
 
 void oc_message_add_ref(oc_message_t* message) 
@@ -89,17 +68,14 @@ void oc_message_unref(oc_message_t* message)
   {
     message->ref_count--;
     OC_DBG("decrease message counter, counter is %d", message->ref_count);
-    if (message->ref_count == 0) {
+    if (message->ref_count == 0)
+    {
       if (message->data)
       {
         free(message->data);
       }
 
-      struct oc_memb* pool = message->pool;
-      if (pool) 
-      {
-        oc_memb_free(pool, message);
-      }
+      free(message);
     }
   }
 }

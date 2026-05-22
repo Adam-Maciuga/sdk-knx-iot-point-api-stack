@@ -734,7 +734,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   OC_DBG_OSCORE("process outbound multicast OSCORE message");
 
   // new msg, send and release after sending -> the original message may be still needed for echos (NON messages)
-  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {
     return -1;
@@ -894,7 +894,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   OC_DBG_OSCORE("process outbound unicast OSCORE message");
 
   // new msg, send and release after sending -> the original message may be still needed for reps (tracked or CON messages)
-  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {
     return -1;
