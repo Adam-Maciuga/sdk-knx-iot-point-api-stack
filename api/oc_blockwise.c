@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
 #ifdef OC_BLOCK_WISE

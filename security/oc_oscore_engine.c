@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <inttypes.h>
+#include <stdlib.h>
 #include "psa/crypto.h"
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"

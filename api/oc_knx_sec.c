@@ -9,6 +9,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "api/oc_knx_sec.h"
 #include "oc_api.h"
 #include "oc_core_res.h"

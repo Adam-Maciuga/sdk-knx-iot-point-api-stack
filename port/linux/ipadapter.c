@@ -6,6 +6,25 @@
  */
 
 #define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <fcntl.h>
+#include <ifaddrs.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <net/if.h>
+#include <sys/select.h>
+#include <sys/un.h>
+
 #include "ipadapter.h"
 #include "ipcontext.h"
 #include "oc_config.h"
@@ -22,22 +41,6 @@
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_network_interface.h"
-#include <arpa/inet.h>
-#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <ifaddrs.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
-#include <net/if.h>
-#include <netdb.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/select.h>
-#include <sys/un.h>
-#include <unistd.h>
 
 // Some outdated toolchains do not define IFA_FLAGS.
 // Note:
@@ -60,9 +63,6 @@ int ifchange_sock;
 bool ifchange_initialized;
 
 OC_LIST(ip_contexts);
-OC_MEMB(ip_context_s, ip_context_t, 1);
-
-OC_MEMB(device_eps, oc_endpoint_t, 8); // simplified for single device
 
 #ifdef OC_NETWORK_MONITOR
 /**
@@ -74,11 +74,8 @@ typedef struct ip_interface {
 } ip_interface_t;
 
 OC_LIST(ip_interface_list);
-OC_MEMB(ip_interface_s, ip_interface_t, OC_MAX_IP_INTERFACES);
 
 OC_LIST(oc_network_interface_cb_list);
-OC_MEMB(oc_network_interface_cb_s, oc_network_interface_cb_t,
-        OC_MAX_NETWORK_INTERFACE_CBS);
 
 static ip_interface_t * get_ip_interface(int target_index) {
   ip_interface_t *if_item = oc_list_head(ip_interface_list);
@@ -94,7 +91,7 @@ static bool add_ip_interface(int target_index) {
     return false;
   }
 
-  ip_interface_t *new_if = oc_memb_alloc(&ip_interface_s);
+  ip_interface_t *new_if = calloc(1, sizeof(ip_interface_t));
   if (!new_if) {
     OC_ERR("interface item alloc failed");
     return false;
@@ -138,7 +135,7 @@ static bool remove_ip_interface(int target_index) {
   }
 
   oc_list_remove(ip_interface_list, if_item);
-  oc_memb_free(&ip_interface_s, if_item);
+  free(if_item);
   OC_DBG("Removed from ip interface list: %d", target_index);
   return true;
 }
@@ -148,7 +145,7 @@ static void remove_all_ip_interface(void) {
   while (if_item != NULL) {
     next = if_item->next;
     oc_list_remove(ip_interface_list, if_item);
-    oc_memb_free(&ip_interface_s, if_item);
+    free(if_item);
     if_item = next;
   }
 }
@@ -160,7 +157,7 @@ static void remove_all_network_interface_cbs(void) {
   while (cb_item != NULL) {
     next = cb_item->next;
     oc_list_remove(oc_network_interface_cb_list, cb_item);
-    oc_memb_free(&oc_network_interface_cb_s, cb_item);
+    free(cb_item);
     cb_item = next;
   }
 }
@@ -168,7 +165,6 @@ static void remove_all_network_interface_cbs(void) {
 
 #ifdef OC_SESSION_EVENTS
 OC_LIST(oc_session_event_cb_list);
-OC_MEMB(oc_session_event_cb_s, oc_session_event_cb_t, OC_MAX_SESSION_EVENT_CBS);
 
 static void remove_all_session_event_cbs(void) {
   oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list),
@@ -176,7 +172,7 @@ static void remove_all_session_event_cbs(void) {
   while (cb_item != NULL) {
     next = cb_item->next;
     oc_list_remove(oc_session_event_cb_list, cb_item);
-    oc_memb_free(&oc_session_event_cb_s, cb_item);
+    free(cb_item);
     cb_item = next;
   }
 }
@@ -475,7 +471,7 @@ static void get_interface_addresses(ip_context_t *dev, unsigned char family,
 #else
         (void)tcp;
 #endif
-        oc_endpoint_t *new_ep = oc_memb_alloc(&device_eps);
+        oc_endpoint_t *new_ep = calloc(1, sizeof(oc_endpoint_t));
         if (!new_ep) {
           close(nl_sock);
           return;
@@ -497,7 +493,7 @@ static void free_endpoints_list(ip_context_t *dev) {
   oc_endpoint_t *ep = oc_list_pop(dev->eps);
 
   while (ep != NULL) {
-    oc_memb_free(&device_eps, ep);
+    free(ep);
     ep = oc_list_pop(dev->eps);
   }
 }
@@ -1253,7 +1249,7 @@ int oc_add_network_interface_event_callback(interface_event_handler_t cb) {
   }
 
   oc_network_interface_cb_t *cb_item =
-          oc_memb_alloc(&oc_network_interface_cb_s);
+          calloc(1, sizeof(oc_network_interface_cb_t));
   if (!cb_item) {
     OC_ERR("network interface callback item alloc failed");
     return -1;
@@ -1281,7 +1277,7 @@ int oc_remove_network_interface_event_callback(interface_event_handler_t cb) {
   }
 
   oc_list_remove(oc_network_interface_cb_list, cb_item);
-  oc_memb_free(&oc_network_interface_cb_s, cb_item);
+  free(cb_item);
 
   return 0;
 }
@@ -1304,7 +1300,7 @@ int oc_add_session_event_callback(session_event_handler_t cb) {
     return -1;
   }
 
-  oc_session_event_cb_t *cb_item = oc_memb_alloc(&oc_session_event_cb_s);
+  oc_session_event_cb_t *cb_item = calloc(1, sizeof(oc_session_event_cb_t));
   if (!cb_item) {
     OC_ERR("session event callback item alloc failed");
     return -1;
@@ -1331,7 +1327,7 @@ int oc_remove_session_event_callback(session_event_handler_t cb) {
   }
 
   oc_list_remove(oc_session_event_cb_list, cb_item);
-  oc_memb_free(&oc_session_event_cb_s, cb_item);
+  free(cb_item);
 
   return 0;
 }
@@ -1365,7 +1361,7 @@ int oc_connectivity_set_port(uint16_t port) {
 int oc_connectivity_init(void) {
   OC_DBG("Initializing connectivity.");
 
-  ip_context_t *dev = (ip_context_t *)oc_memb_alloc(&ip_context_s);
+  ip_context_t *dev = calloc(1, sizeof(ip_context_t));
   if (!dev) {
     oc_abort("Insufficient memory!");
   }
@@ -1604,7 +1600,7 @@ void oc_connectivity_shutdown() {
   free_endpoints_list(dev);
 
   oc_list_remove(ip_contexts, dev);
-  oc_memb_free(&ip_context_s, dev);
+  free(dev);
 
   OC_DBG("oc_connectivity_shutdown");
 }
@@ -1628,7 +1624,6 @@ typedef struct oc_dns_cache_t {
   union dev_addr addr;
 } oc_dns_cache_t;
 
-OC_MEMB(dns_s, oc_dns_cache_t, 1);
 OC_LIST(dns_cache);
 
 static oc_dns_cache_t * oc_dns_lookup_cache(const char *domain) {
@@ -1650,7 +1645,7 @@ static oc_dns_cache_t * oc_dns_lookup_cache(const char *domain) {
 }
 
 static int oc_dns_cache_domain(const char *domain, union dev_addr *addr) {
-  oc_dns_cache_t *c = (oc_dns_cache_t *)oc_memb_alloc(&dns_s);
+  oc_dns_cache_t *c = calloc(1, sizeof(oc_dns_cache_t));
   if (c) {
     oc_new_string(&c->domain, domain, strlen(domain));
     memcpy(&c->addr, addr, sizeof(union dev_addr));
@@ -1665,7 +1660,7 @@ void oc_dns_clear_cache(void) {
   oc_dns_cache_t *c = (oc_dns_cache_t *)oc_list_pop(dns_cache);
   while (c) {
     oc_free_string(&c->domain);
-    oc_memb_free(&dns_s, c);
+    free(c);
     c = (oc_dns_cache_t *)oc_list_pop(dns_cache);
   }
 }

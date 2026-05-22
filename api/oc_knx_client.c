@@ -13,10 +13,11 @@
 #include "security/spake2plus.h"
 
 #include "oc_core_res.h"
+#include <errno.h>
+#include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
-#include <inttypes.h>
-#include <errno.h>
 
 /**
     @brief checks the current IPv6 resolving status 

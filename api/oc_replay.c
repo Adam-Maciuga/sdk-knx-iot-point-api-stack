@@ -4,8 +4,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <stdbool.h>
 #include <inttypes.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include "oc_replay.h"
 #include "port/oc_clock.h"

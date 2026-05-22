@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include "messaging/coap/coap.h"
 #include "oc_api.h"
 #include "conf.h"

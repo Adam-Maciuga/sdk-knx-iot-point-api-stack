@@ -7,6 +7,7 @@
 */
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include "oc_oscore_context.h"
 #include "messaging/coap/transactions.h"
 #include "oc_client_state.h"

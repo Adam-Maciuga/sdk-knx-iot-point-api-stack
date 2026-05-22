@@ -15,6 +15,8 @@
  // limitations under the License.
  */
 
+#include <stdarg.h>
+#include <stdlib.h>
 #include "oc_core_res.h"
 #include "oc_api.h"
 #include "messaging/coap/oc_coap.h"
@@ -29,7 +31,6 @@
 #include "oc_knx_sec.h"
 #include "oc_knx_sub.h"
 #include "port/oc_assert.h"
-#include <stdarg.h>
 #include "port/oc_storage.h"
 
 static oc_device_info_t oc_device_info;	// common device 0 data pointer - cannot be NULL

@@ -15,6 +15,10 @@
  // limitations under the License.
  */
 
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
 #include "oc_knx_swu.h"
 #include "include/oc_helpers.h"
 #include "include/oc_ri.h"
@@ -24,9 +28,6 @@
 #include "oc_knx_helpers.h"
 #include "oc_main.h"
 #include "port/oc_storage.h"
-#include <errno.h>
-#include <limits.h>
-#include <string.h>
 
 // forward declarations for the resource chain
 extern const oc_resource_t core_resource_knx_swu_maxdefer;

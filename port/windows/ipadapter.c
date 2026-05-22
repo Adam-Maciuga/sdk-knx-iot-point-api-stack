@@ -23,6 +23,7 @@
 #include <ws2tcpip.h>
 // clang-format on
 #include <malloc.h>
+#include <stdlib.h>
 
 #ifdef OC_TCP
 #include "tcpadapter.h"
@@ -60,15 +61,10 @@ static LPFN_WSASENDMSG PWSASendMsg;
 
 OC_LIST(ip_contexts);
 
-OC_MEMB(device_eps, oc_endpoint_t, 1);
-
 #ifdef OC_NETWORK_MONITOR
 OC_LIST(ip_interface_list);
-OC_MEMB(ip_interface_s, ifaddr_t, OC_MAX_IP_INTERFACES);
 
 OC_LIST(oc_network_interface_cb_list);
-OC_MEMB(oc_network_interface_cb_s, oc_network_interface_cb_t,
-        OC_MAX_NETWORK_INTERFACE_CBS);
 static HANDLE oc_network_interface_cb_mutex;
 
 static ifaddr_t * find_ip_interface(ifaddr_t *if_list, DWORD target_index) {
@@ -85,7 +81,7 @@ static bool add_ip_interface(DWORD target_index) {
     return false;
   }
 
-  ifaddr_t *new_if = oc_memb_alloc(&ip_interface_s);
+  ifaddr_t *new_if = calloc(1, sizeof(ifaddr_t));
   if (!new_if) {
     OC_ERR("interface item alloc failed");
     return false;
@@ -105,7 +101,7 @@ static bool remove_ip_interface(DWORD target_index) {
   }
 
   oc_list_remove(ip_interface_list, if_item);
-  oc_memb_free(&ip_interface_s, if_item);
+  free(if_item);
   OC_DBG("Removed from ip interface list: %d", target_index);
 
   return true;
@@ -116,7 +112,7 @@ static void remove_all_ip_interface(void) {
   while (if_item != NULL) {
     next = if_item->next;
     oc_list_remove(ip_interface_list, if_item);
-    oc_memb_free(&ip_interface_s, if_item);
+    free(if_item);
     if_item = next;
   }
 }
@@ -126,7 +122,7 @@ static void remove_all_network_interface_cbs(void) {
   while (cb_item != NULL) {
     next = cb_item->next;
     oc_list_remove(oc_network_interface_cb_list, cb_item);
-    oc_memb_free(&oc_network_interface_cb_s, cb_item);
+    free(cb_item);
     cb_item = next;
   }
 }
@@ -345,7 +341,7 @@ static void free_endpoints_list(ip_context_t *dev) {
   oc_endpoint_t *ep = oc_list_pop(dev->eps);
 
   while (ep != NULL) {
-    oc_memb_free(&device_eps, ep);
+    free(ep);
     ep = oc_list_pop(dev->eps);
   }
 }
@@ -378,7 +374,7 @@ static void get_interface_addresses(ifaddr_t *ifaddr_list, ip_context_t *dev,
       ep.flags |= IPV6;
       ep.addr.ipv6.port = port;
       ep.addr.ipv6.scope = (uint8_t)addr->sin6_scope_id;
-      oc_endpoint_t *new_ep = oc_memb_alloc(&device_eps);
+      oc_endpoint_t *new_ep = calloc(1, sizeof(oc_endpoint_t));
       if (!new_ep) {
         return;
       }
@@ -1210,7 +1206,7 @@ int oc_add_network_interface_event_callback(interface_event_handler_t cb) {
 
   mutex_lock(oc_network_interface_cb_mutex);
   oc_network_interface_cb_t *cb_item =
-    oc_memb_alloc(&oc_network_interface_cb_s);
+    calloc(1, sizeof(oc_network_interface_cb_t));
   if (!cb_item) {
     mutex_unlock(oc_network_interface_cb_mutex);
     OC_ERR("network interface callback item alloc failed");
@@ -1238,7 +1234,7 @@ int oc_remove_network_interface_event_callback(interface_event_handler_t cb) {
     return -1;
   }
   oc_list_remove(oc_network_interface_cb_list, cb_item);
-  oc_memb_free(&oc_network_interface_cb_s, cb_item);
+  free(cb_item);
   mutex_unlock(oc_network_interface_cb_mutex);
   return 0;
 }
@@ -1257,7 +1253,6 @@ void handle_network_interface_event_callback(oc_interface_event_t event) {
 
 #ifdef OC_SESSION_EVENTS
 OC_LIST(oc_session_event_cb_list);
-OC_MEMB(oc_session_event_cb_s, oc_session_event_cb_t, OC_MAX_SESSION_EVENT_CBS);
 
 static void remove_all_session_event_cbs(void) {
   oc_session_event_cb_t *cb_item = oc_list_head(oc_session_event_cb_list),
@@ -1265,7 +1260,7 @@ static void remove_all_session_event_cbs(void) {
   while (cb_item != NULL) {
     next = cb_item->next;
     oc_list_remove(oc_session_event_cb_list, cb_item);
-    oc_memb_free(&oc_session_event_cb_s, cb_item);
+    free(cb_item);
     cb_item = next;
   }
 }
@@ -1274,7 +1269,7 @@ int oc_add_session_event_callback(session_event_handler_t cb) {
   if (!cb)
     return -1;
 
-  oc_session_event_cb_t *cb_item = oc_memb_alloc(&oc_session_event_cb_s);
+  oc_session_event_cb_t *cb_item = calloc(1, sizeof(oc_session_event_cb_t));
   if (!cb_item) {
     OC_ERR("session event callback item alloc failed");
     return -1;
@@ -1298,7 +1293,7 @@ int oc_remove_session_event_callback(session_event_handler_t cb) {
   }
   oc_list_remove(oc_session_event_cb_list, cb_item);
 
-  oc_memb_free(&oc_session_event_cb_s, cb_item);
+  free(cb_item);
   return 0;
 }
 

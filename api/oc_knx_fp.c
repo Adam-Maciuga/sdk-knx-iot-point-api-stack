@@ -7,6 +7,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"

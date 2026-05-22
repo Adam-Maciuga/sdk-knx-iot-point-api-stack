@@ -6,6 +6,7 @@
  */
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include "oc_knx.h"
 #include "api/oc_knx_helpers.h"
 #include "oc_api.h"
