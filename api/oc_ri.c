@@ -1265,18 +1265,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       forbidden = true;
     }
     else
-    #ifdef OC_SECURITY	// TODO 12 FIXME NOW this is the only place where this looks like not to be TLS related!
-    /*
-      If matching_resource is a coaps:// resource, then query ACL to check if the requester (the subject)
-      is authorized to issue this request to the resource.
-    */
-    if (!oc_sec_check_acl(method, matching_resource, endpoint))
-    {
-      authorized = false;
-      // oc_ri_audit_log(method, matching_resource, endpoint);
-    }
-    else
-    #endif
     {
       // access scope ok
 

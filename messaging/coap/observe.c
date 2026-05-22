@@ -268,53 +268,6 @@ int coap_remove_observer_by_resource(const oc_resource_t* rsc)
   return removed;
 }
 
-#ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
-int coap_remove_observers_on_dos_change(bool reset)
-{
-  // Iterate over observers.
-  coap_observer_t* obs = (coap_observer_t*)oc_list_head(observers_list);
-  while (obs != NULL)
-  {
-    if (reset || !oc_sec_check_acl(COAP_GET, obs->resource, &obs->endpoint))
-    {
-      coap_observer_t* o = obs;
-      coap_packet_t notification[1];
-      const uint16_t mid = coap_get_next_mid();
-#ifdef OC_TCP
-if (obs->endpoint.flags& TCP) {
-        coap_tcp_init_message(notification, SERVICE_UNAVAILABLE_5_03);
-      } else
-#endif
-{
-              coap_udp_init_message(notification, COAP_TYPE_NON,
-                        SERVICE_UNAVAILABLE_5_03, mid);
-              }
-
-        coap_set_token(notification, obs->token, obs->token_len);
-        coap_transaction_t* transaction = coap_new_transaction(mid, obs->token, obs->token_len, &obs->endpoint);
-        if (transaction)
-        {
-          transaction->message->length = coap_serialize_message(notification, transaction->message->data);
-          if (transaction->message->length > 0)
-          {
-            coap_send_transaction(transaction);
-          }
-          else
-          {
-            coap_clear_transaction(transaction);
-          }
-        }
-
-obs = obs->next;
-coap_remove_observer(o);
-      continue;
-    }
-obs = obs->next;
-  }
-  return 0;
-}
-#endif
-
 int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* response_buf, const oc_endpoint_t* endpoint)
 {
   if (!resource)
@@ -322,15 +275,6 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
     OC_WRN("no resource passed; returning");
     return 0;
   }
-
-  #ifdef OC_SECURITY	// TODO 12 FIXME this is NOT TCP only!
-  oc_sec_pstat_t *ps = oc_sec_get_pstat();
-  if (ps->s != OC_DOS_RFNOP) 
-  {
-    OC_WRN("device not in RFNOP; skipping notification");
-    return 0;
-  }
-  #endif
 
   if (resource->runtime_data->num_observers == 0)
   {
