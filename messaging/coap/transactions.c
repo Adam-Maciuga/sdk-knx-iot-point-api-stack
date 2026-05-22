@@ -37,8 +37,8 @@
 #include "observe.h"
 #include "oc_buffer.h"
 #include "util/oc_list.h"
-#include "util/oc_memb.h"
 #include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
 #include "port/oc_random.h"
 
@@ -54,8 +54,7 @@
 #include "security/oc_tls.h"
 #endif
 
-// coap + smode transactions 
-OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
+// coap + smode transactions
 OC_LIST(transactions_list);
 
 static struct oc_process *transaction_handler_process = NULL;
@@ -67,7 +66,7 @@ void coap_register_as_transaction_handler(void)
 
 coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
 {
-  coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
+  coap_transaction_t* t = calloc(1, sizeof(coap_transaction_t));
   if (t)
   {
     // cleared buffers
@@ -90,7 +89,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uin
     }
     else
     {
-      oc_memb_free(&transactions_memb, t);
+      free(t);
       t = NULL;
     }
   }
@@ -255,7 +254,7 @@ void coap_clear_transaction(coap_transaction_t *t)
     oc_etimer_stop(&t->retransmit_timer);
     oc_message_unref(t->message);
     oc_list_remove(transactions_list, t);
-    oc_memb_free(&transactions_memb, t);
+    free(t);
   }
 }
 

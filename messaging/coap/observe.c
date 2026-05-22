@@ -38,7 +38,6 @@
 
 #ifdef OC_SERVER
 #include "observe.h"
-#include "util/oc_memb.h"
 #include <stdio.h>
 #include <string.h>
 #include "oc_buffer.h"
@@ -66,7 +65,6 @@ static uint32_t observe_counter = 3;
 uint32_t get_observe_counter(void) { return observe_counter; }
 
 OC_LIST(observers_list);
-OC_MEMB(observers_memb, coap_observer_t, COAP_MAX_OBSERVERS);
 
 static void coap_remove_observer(coap_observer_t* o);
 static void coap_remove_expired_observers(void);
@@ -109,7 +107,7 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
 {
   const int duplicate = coap_remove_observer_handle_by_uri(endpoint, uri, (int)uri_len);
 
-  coap_observer_t* o = (coap_observer_t*)oc_memb_alloc(&observers_memb);
+  coap_observer_t* o = calloc(1, sizeof(coap_observer_t));
 
   if (o)
   {
@@ -161,7 +159,7 @@ static void coap_remove_observer(coap_observer_t* o)
   o->resource->runtime_data->num_observers--;
   oc_free_string(&o->url);
   oc_list_remove(observers_list, o);
-  oc_memb_free(&observers_memb, o);
+  free(o);
 }
 
 void coap_free_all_observers(void)

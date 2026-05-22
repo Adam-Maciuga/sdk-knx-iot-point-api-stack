@@ -12,11 +12,9 @@
 #include "oc_buffer.h"
 #include "separate.h"
 #include "engine.h"
-#include "util/oc_memb.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-OC_MEMB(separate_requests, coap_separate_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 
 
 /**
@@ -63,7 +61,7 @@ coap_separate_accept(void* request, oc_separate_response_t* separate_response, o
   if (!separate_store)
   { // nothing found, allocate new separate response store for this request
 
-    separate_store = (coap_separate_t*)oc_memb_alloc(&separate_requests);
+    separate_store = calloc(1, sizeof(coap_separate_t));
 
     if (!separate_store)
     {
@@ -136,7 +134,7 @@ void coap_separate_clear(oc_separate_response_t* handle, coap_separate_t* separa
   oc_free_string(&separate_store->uri);
   #endif
   oc_list_remove(handle->requests, separate_store);
-  oc_memb_free(&separate_requests, separate_store);
+  free(separate_store);
 }
 
 #endif
