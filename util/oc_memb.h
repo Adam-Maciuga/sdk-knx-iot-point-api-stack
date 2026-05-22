@@ -21,8 +21,6 @@
 #ifndef OC_MEMB_H
 #define OC_MEMB_H
 
-#include "oc_config.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -64,12 +62,6 @@ struct oc_memb
   oc_memb_buffers_avail_callback_t buffers_avail_cb;
 };
 
-/**
- * Initialize a memory block that was declared with MEMB().
- *
- * \param m A memory block previously declared with MEMB().
- */
-void oc_memb_init(struct oc_memb* m);
 
 /**
  * Allocate a memory block from a block of memory declared with MEMB() and init it with '0'.
@@ -90,7 +82,6 @@ char oc_memb_free(struct oc_memb* m, void* ptr);
 
 void oc_memb_set_buffers_avail_cb(struct oc_memb* m, oc_memb_buffers_avail_callback_t cb);
 
-int oc_memb_inmemb(struct oc_memb* m, void* ptr);
 
 int oc_memb_numfree(struct oc_memb* m);
 

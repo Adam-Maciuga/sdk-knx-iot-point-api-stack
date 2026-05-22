@@ -8,10 +8,6 @@
 #include "oc_memb.h"
 #include "port/oc_log.h"
 
-void oc_memb_init(struct oc_memb* m)
-{
-  (void)m;
-}
 
 void* oc_memb_alloc(struct oc_memb* m)
 {
@@ -49,12 +45,6 @@ char oc_memb_free(struct oc_memb* m, void* ptr)
   return 0;
 }
 
-int oc_memb_inmemb(struct oc_memb* m, void* ptr)
-{
-  (void)m;
-  (void)ptr;
-  return 0;
-}
 
 int oc_memb_numfree(struct oc_memb* m)
 {
