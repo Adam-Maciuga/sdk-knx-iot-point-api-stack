@@ -336,31 +336,36 @@ const oc_resource_t core_resource_dev_hostname = {
         &core_resource_dev_hostname_data};
 PRAGMA_OUT
 
-static void oc_core_dev_iid_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_rep_t* rep = request->request_payload;
 
-  while (rep) {
-    if (rep->type == OC_REP_INT) {
-      if (rep->iname == 1) {
+  while (rep) 
+  {
+    if (rep->type == OC_REP_INT) 
+    {
+      if (rep->iname == 1) 
+      {
         PRINT("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer); // TODO 3 LOG make this depending on log level
 
-        if (oc_core_set_and_store_device_iid(rep->value.integer)) {
-          if (oc_is_device_in_runtime()) { 
+        if (oc_core_set_and_store_device_iid(rep->value.integer)) 
+        {
+          if (oc_is_device_in_runtime()) 
+          { 
             oc_register_group_multicasts();
             oc_init_datapoints_at_initialization();
 
             PRINT("Re-register DNS-SD service after writing IID)"); // TODO 3 LOG make this depending on log level
             const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
-                    device->ia, device->pm);
+            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
           }
 
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);

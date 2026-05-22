@@ -41,6 +41,8 @@ static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
 
 #ifdef OC_PUBLISHER_TABLE
 static oc_group_table_t g_gpt[GPT_MAX_ENTRIES];         // pub table (to receive)
+static bool g_gpt_contains_no_iid = true;               // to check if the pub table contains foreign 'iid' entries
+bool pub_table_contains_no_iid(void) {return g_gpt_contains_no_iid;} 
 #endif
 
 // -externals -
@@ -55,7 +57,7 @@ static int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, 
 
 static int find_empty_slot_in_table(const oc_group_table_t* table, int max_size);
 
-static uint32_t oc_find_grpid_in_table(const oc_group_table_t* table, int max_size, uint32_t group_address);
+static oc_group_table_t* oc_find_table_entry_from_ga(oc_group_table_t* table, int max_size, uint32_t group_address);
 
 // ------------
 
@@ -830,9 +832,15 @@ int oc_core_find_index_in_publisher_table_from_id(int id)
   return oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
 }
 
-uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address)
+
+oc_group_table_t*  oc_find_entry_in_publisher_table(uint32_t group_address)
 {
-  return oc_find_grpid_in_table(g_gpt, GPT_MAX_ENTRIES, group_address);
+  return oc_find_table_entry_from_ga(g_gpt, GPT_MAX_ENTRIES, group_address);
+}
+
+oc_group_table_t* oc_find_entry_in_recipient_table(uint32_t group_address)
+{
+  return oc_find_table_entry_from_ga(g_grt, GRT_MAX_ENTRIES, group_address);
 }
 
 /*
@@ -2207,6 +2215,7 @@ void oc_load_group_object_table_entry(int entry)
           // href (11)
           if (rep->iname == 11)
           {
+            // free ignores NULL ptr
             oc_free_string(&g_got[entry].href);
             oc_new_string(&g_got[entry].href, oc_string(rep->value.string), oc_string_len(rep->value.string));
           }
@@ -2508,6 +2517,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
           // at (14)
           if (rep->iname == 14)
           {
+            // free ignores NULL ptr
             oc_free_string(&table[entry].at);
             oc_new_string(&table[entry].at, oc_string(rep->value.string), oc_string_len(rep->value.string));
           }
@@ -2571,7 +2581,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
   return 0;
 }
 
-static void oc_load_object_table(void)
+static void oc_load_object_tables(void)
 {
   PRINT("Loading Recipient table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
@@ -2580,14 +2590,14 @@ static void oc_load_object_table(void)
     oc_print_group_table_entry(i, GRT_STORE, g_grt);
   }
 
-#ifdef OC_PUBLISHER_TABLE
+  #ifdef OC_PUBLISHER_TABLE
   PRINT("Loading Publisher table from persistent storage");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
     oc_print_group_table_entry(i, GPT_STORE, g_gpt);
   }
-#endif
+  #endif
 }
 
 static void oc_free_group_table_entry(const int entry, oc_group_table_t* table)
@@ -2602,7 +2612,7 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table)
   // clear resolver status and callback
   table[entry].ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
   table[entry].ipv6_res.callback = NULL;
-  
+
   // clear IPv6 address data
   memset(&table[entry].ipv6_adr, 0, sizeof(oc_ipv6_adr_t));
 
@@ -2744,7 +2754,7 @@ void oc_create_knx_table_resources(void)
 {
   oc_init_tables();
   oc_load_group_object_table();
-  oc_load_object_table();
+  oc_load_object_tables();
 }
 
 void oc_free_knx_table_resources(void)
@@ -2850,7 +2860,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   return in;
 }
 
-oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t in, const oc_group_table_t* recipient)
+oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const oc_group_table_t* recipient)
 {
 
   // flags, uc is always secure ...
@@ -2875,103 +2885,75 @@ oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t 
   return in;
 }
 
-void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port)
+static oc_group_table_t* oc_find_table_entry_from_ga(oc_group_table_t* table, int max_size, uint32_t group_address)
 {
-  // create the multicast address from group and scope and port
-  oc_endpoint_t group_mcast_endpoint = {0};
-
-  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, port);
-
-  // subscribe
-  oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
-}
-
-void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope)
-{
-  // FF3X::30: <ULA-routing-prefix>::<group id>
-  //
-  // create the multicast address from group and scope
-  oc_endpoint_t group_mcast_endpoint = {0};
-
-  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, COAP_DEFAULT_PORT);
-
-  // subscribe
-  oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
-}
-
-void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port)
-{
-  // create the multicast address from group and scope
-  oc_endpoint_t group_mcast_endpoint = {0};
-
-  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, port);
-
-  // un subscribe
-  oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
-}
-
-void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope)
-{
-  // FF35::30: <ULA-routing-prefix>::<group id>
-  
-  // create the multicast address from group and scope
-  oc_endpoint_t group_mcast_endpoint = {0};
-
-  group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, group_nr, iid, scope, COAP_DEFAULT_PORT);
-
-  // un subscribe
-  oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
-}
-
-static uint32_t oc_find_grpid_in_table(const oc_group_table_t* table, int max_size, uint32_t group_address)
-{
-  for (int i = 0; i < max_size; i++)
+  for (oc_group_table_t* entry = table; entry < table + max_size; entry++)
   {
-    if (is_in_array(group_address, table[i].ga, table[i].ga_len))
-    {
-      // break immediately, if incorrect configured with a '0', ... returns also '0'
-      return table[i].grpid;
+    if (entry && entry->id >=0 && is_in_array(group_address, entry->ga, entry->ga_len))
+    {// entry must be present and initialized
+
+      // break immediately, if incorrectly configured with a '0', ... returns also '0'
+      return entry;
     }
   }
   // not found
-  return 0;
+  return NULL;
 }
 
-uint32_t oc_find_grpid_in_recipient_table(const uint32_t group_address)
-{
-  return oc_find_grpid_in_table(g_grt, GRT_MAX_ENTRIES, group_address);
-}
-
-void oc_register_group_multicasts(void)
+static void oc_handle_group_multicasts(bool subscribe)
 {
   #ifdef OC_PUBLISHER_TABLE
 
-  // register only if publisher is active, iid will be used as ULA prefix
-  const oc_device_info_t* const  device = oc_core_get_device_info();
+  const oc_device_info_t* const device = oc_core_get_device_info();
 
-  PRINT("multicast port %i", COAP_DEFAULT_PORT);
+  // (re)set for new check
+  g_gpt_contains_no_iid = true;
 
-  // register via grpid
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
     const oc_cflag_mask_t cflags = g_got[index].cflags;
 
-    // check if the GA is used for any receiving action, e.g. one of r/w/u
     if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
     {
       for (int i = 0; i < g_got[index].ga_len; i++)
       {
-        // check if a 'receiving' GA (0...n) from the GO table entry is in the publisher table (device wants to receive it)
-        const uint32_t grpid = oc_find_grpid_in_publisher_table(g_got[index].ga[i]);
+        const oc_group_table_t* entry = oc_find_entry_in_publisher_table(g_got[index].ga[i]);
 
-        PRINT("register group multicasts from publisher table index=%d i=%d grpid: %u ga: %04X cflags=", index, i, grpid, g_got[index].ga[i]);
-        oc_print_cflags(cflags);
+        // (un)register the grpid/iid from the PUB table (if present) or with defaults
+        uint32_t grpid = 0;
+        uint64_t iid = device->iid;
+
+        if (entry)
+        {
+          grpid = entry->grpid;
+
+          if (entry->iid >= 0)
+          {
+            // one single hit is enough to set the bool globally
+            g_gpt_contains_no_iid = false;
+            iid = entry->iid;
+          }
+        }
 
         if (grpid > 0)
-        { // found, note -> if for different ga's from above the same group id will be found it will be registered again here
-          subscribe_group_to_multicast_with_port(grpid, device->iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
+        {
+          // FF3X::30: <ULA-routing-prefix>::<group id>, create the multicast address from group and scope
+          oc_endpoint_t group_mcast_endpoint = {0};
+          group_mcast_endpoint = oc_create_multicast_group_address_with_port(group_mcast_endpoint, grpid, iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
+
+          if (subscribe)
+          {
+            // if for different ga's from above the same group id will be found it will be registered here again
+            oc_connectivity_subscribe_mcast_ipv6(&group_mcast_endpoint);
+
+            // note, unicast will be "resolved" on trigger an own r/w s-mode msg or receive a msg + auto resolve
+          }
+          else
+          {
+            // if for different ga's from above the same group id will be found it will be unregistered here again
+            oc_connectivity_unsubscribe_mcast_ipv6(&group_mcast_endpoint);
+          }
         }
-        // note , unicast will be "resolved" on trigger an r/w s-mode message
       }
     }
   }
@@ -2979,30 +2961,17 @@ void oc_register_group_multicasts(void)
   #endif
 }
 
+void oc_register_group_multicasts(void)
+{
+  #ifdef OC_PUBLISHER_TABLE
+  oc_handle_group_multicasts(true);
+  #endif
+}
+
 void oc_unregister_group_multicasts(void)
 {
   #ifdef OC_PUBLISHER_TABLE
-
-  const oc_device_info_t* const device = oc_core_get_device_info();
-
-  for (int index = 0; index < GOT_MAX_ENTRIES; index++)
-  {
-    const oc_cflag_mask_t cflags = g_got[index].cflags;
-
-    if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
-    {
-      for (int i = 0; i < g_got[index].ga_len; i++)
-      {
-        const uint32_t grpid = oc_find_grpid_in_publisher_table(g_got[index].ga[i]);
-
-        if (grpid > 0)
-        {
-          unsubscribe_group_to_multicast_with_port(grpid, device->iid, KNX_MULTICAST_SCOPE, COAP_DEFAULT_PORT);
-        }
-      }
-    }
-  }
-
+  oc_handle_group_multicasts(false);
   #endif
 }
 
@@ -3044,14 +3013,14 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
 
         OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi_got_idx);
 
-        // find recipient entry (contains both grpid and non flag)
-        oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+        // find recipient entry for sending ga, contains both grpid and non flag
+        oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);
 
         if (recipient)
         {
           if (recipient->grpid > 0)
           { // grpid is set in case of multicast in RCP table (configured by MaC)
-            oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, recipient->grpid, sending_ga, 'r', NULL, 0);
+            oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, sending_ga, 'r', NULL, 0, recipient);
           }
           else
           { // uc: read request -> ia is used from RCP table (configured by MaC)

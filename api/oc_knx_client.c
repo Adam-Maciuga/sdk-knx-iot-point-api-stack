@@ -181,7 +181,7 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
         - 'ga' is set
   */
   oc_endpoint_t group_ucast_endpoint = {0};
-  group_ucast_endpoint = oc_create_unicast_group_address_with_port_interface(group_ucast_endpoint, recipient);
+  group_ucast_endpoint = oc_create_unicast_group_address_with_port(group_ucast_endpoint, recipient);
 
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
@@ -193,11 +193,16 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
 }
 
-void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, uint32_t group_address,
-                                      char service_type, const uint8_t* value_data, int value_size)
+void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, char service_type,
+                                      const uint8_t* value_data, int value_size, const oc_group_table_t* recipient)
 {
-  // get local device info (iid) -> always the same
-  const uint64_t iid = oc_core_get_device_info()->iid;
+  /* 
+    iid from specification, table 21 for multicast (only) is determined as follows:
+    if not configured by MaC as part of the recipient table entry (= different installation), 
+    use device.iid (same installation)
+  */
+  const uint32_t grpid = recipient->grpid;
+  const uint64_t iid = recipient->iid > 0 ? recipient->iid : oc_core_get_device_info()->iid;
 
   /*
     create multicast endpoint from grpid/iid and coap default + port
@@ -392,7 +397,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           PRINT("grpid > 0, send mc via sending ga");
 
           // multicast read, NO value data needed
-          oc_send_s_mode_multicast_message(scope, recipient->grpid, sending_ga, srv_type, NULL, 0);
+          oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, NULL, 0, recipient);
         }
         else
         {
@@ -428,8 +433,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
           // mc: request -> grpid is used from RCP table (configured by MaC)
 
           // multicast write, value data needed
-          oc_send_s_mode_multicast_message(scope, recipient->grpid, sending_ga,
-                                           srv_type, resource_value_buffer, resource_value_size);
+          oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, resource_value_buffer, resource_value_size, recipient);
         }
         else
         {

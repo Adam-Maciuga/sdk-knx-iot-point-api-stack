@@ -497,8 +497,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
         oc_delete_group_tables();
         oc_delete_group_object_table();
       }
-      else
-      if (oc_is_device_in_runtime() && old_lsm_state != LSM_S_LOADED)
+      else if (oc_is_device_in_runtime() && old_lsm_state != LSM_S_LOADED)
       { // extra task on entering LOADED with iid = ok
 
         // task 1
@@ -1059,29 +1058,33 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                   if (recipient->grpid > 0)
                   { // multicast: read response uses grpid from RCP table (configured by MaC)
 
-                    oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, recipient->grpid,
-                                                                     sending_ga, 'a', 
-                                                                     new_request.response->response_buffer->buffer,
-                                                                     (int)new_request.response->response_buffer->response_length);
+                    oc_send_s_mode_multicast_message(KNX_MULTICAST_SCOPE, sending_ga, 'a',
+                                                     new_request.response->response_buffer->buffer, 
+                                                     (int)new_request.response->response_buffer->response_length, 
+                                                     recipient);
                   }
                   else
                   { // unicast: read response uses ia from RCP table (configured by MaC)
 
                     /*
                      
-                      A unicast read request usually results in a unicast read response, the unicast sender IPv6 is known at this point.
-                      For the inbound 'sia' check the RCP table entry if it is the same 'sia' as from inbound request, 
-                      1. IoT device with ia 1234 -> IoT device with ia 2345 AND RCP table entry with sia 1234 = IPV6 'resolved'
-                      2. KNX device with ia 1234 -> IoT Router with ia 5678 -> IoT device with ia 2345 AND RCP table entry with 
-                         sia 5678 (from IoT Router) = IPV6 NOT 'resolved' (the IoT device sees the KNX device ia 1234, 
-                         not the 5678 from the IoT Router) 
+                      A unicast read request usually results in a unicast read response, the unicast (read request) sender IPv6 is known at this point.
+                      
+                      1. Check for the inbound 'sia' the RCP table entry if it is the same 'sia' as from inbound request.
 
-                      TODO 1 in case of a second installation the iid in GO table would be filled, 
-                             we would need also to check THIS recipient iid with the inbound iid from multicast address 
+                         - IoT (sender) device with ia 1234 -> IoT (this) device with ia 2345 AND RCP table entry with sia 1234 = IPV6 'resolved'
+                         - KNX (sender) device with ia 1234 -> IoT Router with ia 5678 -> IoT (this) device with ia 2345 AND RCP table entry with 
+                           sia 5678 (from IoT Router) = IPV6 NOT 'resolved' 
+                           (the IoT (this) device sees the KNX device ia 1234, not the 5678 from the IoT Router) 
+
+                      2. If the PUB table has no individual 'iid' entry then the 'sia' from below belongs always to the same installation.
+                         Why? The inbound message with its IPv6 address would not have been received here since it was NOT registered at startup 
+                         as a 'listener' with a foreign 'iid' from the PUB table (register multicast) 
+                         ==> below shortcut is ok, otherwise skip shortcut and do a regular discovery 
                     */
                     
-                    if (received_notification.sia == (uint32_t)recipient->ia)
-                    {// 1 (all ia's are accepted, regardless of inbound iid from mc message) 
+                    if (received_notification.sia == (uint32_t)recipient->ia && pub_table_contains_no_iid())
+                    {// 2 
 
                       // set as auto resolved...
                       recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVED;
@@ -1095,7 +1098,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                     
                     oc_send_s_mode_unicast_message(sending_ga, 'a', 
                                                    new_request.response->response_buffer->buffer,
-                                                   (int)new_request.response->response_buffer->response_length, recipient, go_entry);
+                                                   (int)new_request.response->response_buffer->response_length, 
+                                                   recipient, go_entry);
                   }
                 }
               }
