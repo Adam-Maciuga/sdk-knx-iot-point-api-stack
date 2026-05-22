@@ -21,14 +21,6 @@ extern "C" {
 #endif
 
 /**
-  @brief find a group address within a recipient table entry including a group address array.
-
-  @param ga the to be found group address
-   
-*/
-oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
-
-/**
  * @defgroup doc_module_tag_s_mode_server s-mode server
  * S-mode server side support functions.
  *

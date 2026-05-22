@@ -1052,7 +1052,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
                 uint32_t sending_ga = go_entry->ga[0];
                 
                 // find recipient entry for sending ga, contains both grpid and non flag
-                oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+                oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);
                 
                 if (recipient)
                 {

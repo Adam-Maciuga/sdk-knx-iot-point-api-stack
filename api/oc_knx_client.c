@@ -122,29 +122,6 @@ static void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path,
                                     uint32_t group_address, char service_type, const uint8_t* value_data,
                                     int value_size, bool non_confirmable);
 
-
-oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga)
-{
-  const int total = oc_core_get_recipient_table_size();
-  for (int i = 0; i < total; i++)
-  {
-    oc_group_table_t* entry = oc_core_get_recipient_table_entry(i);
-
-    if (entry && entry->id >= 0)
-    {
-      for (int j = 0; j < entry->ga_len; j++)
-      {
-        if (entry->ga[j] == ga)
-        {
-          return entry;
-        }
-      }
-    }
-  }
-
-  return NULL;
-}
-
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
   if (!request || request->uri_path_len == 0)
@@ -399,9 +376,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
     // sending ga is always in position zero
     const uint32_t sending_ga = go_entry->ga[0];
 
-    // Find recipient entry for sending ga (is always in  position zero), 
-    // contains both grpid and non flag.
-    oc_group_table_t* recipient = oc_find_recipient_by_ga(sending_ga);
+    // find recipient entry for sending ga, contains both grpid and non flag
+    oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);
 
     if (srv_type == 'r')
     {
