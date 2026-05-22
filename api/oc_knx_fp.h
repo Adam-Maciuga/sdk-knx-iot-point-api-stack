@@ -436,7 +436,7 @@ extern "C"
    * @brief frees a Group Object Table entry (from RAM)
    *
    */
-  void oc_free_group_object_table_entry(int entry, bool init);
+  void oc_free_group_object_table_entry(int entry);
 
 
   /**

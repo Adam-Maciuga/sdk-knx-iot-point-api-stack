@@ -35,7 +35,7 @@ extern const oc_resource_t core_resource_knx_p;
 #define TABLE_AT_REF (GO_HREF)  // identifier for pub/rcp table access token ref property
 #define TABLE_GAS (1 << 1)      // identifier for pub/rcp/go table ga list ref property
 
-// note static variables are initialized with '0' first time
+// note static variables are initialized with '0' first time on device startup
 static oc_group_object_table_t g_got[GOT_MAX_ENTRIES];  // go table
 static oc_group_table_t g_grt[GRT_MAX_ENTRIES];         // rcp table (to send)
 
@@ -2281,18 +2281,12 @@ void oc_load_group_object_table(void)
   }
 }
 
-void oc_free_group_object_table_entry(int entry, bool init)
+void oc_free_group_object_table_entry(int entry)
 {
   g_got[entry].id = -1;
 
-  // free "string" memory only if already initialized, assumption : don't release uninitialized/random table string data
-  if (init == false)
-  {
-    oc_free_string(&g_got[entry].href);
-    free(g_got[entry].ga); // NULL ptr is handled
-  }
-
-  // calling with init = true AND allocated GA array keeps memory leak open, so be careful on use of init flag
+  oc_free_string(&g_got[entry].href); // safe on zero-initialized (size == 0) oc_string_t
+  free(g_got[entry].ga);              // safe on NULL pointer
   g_got[entry].ga = NULL;
   g_got[entry].ga_len = 0;
   g_got[entry].cflags = OC_CFLAG_NONE;
@@ -2338,7 +2332,7 @@ int oc_delete_group_object_table_entry(int entry)
   (void)snprintf(filename, TAB_SIZE, "%s_%d", GOT_STORE, entry);
   oc_storage_erase(filename);
 
-  oc_free_group_object_table_entry(entry, false);
+  oc_free_group_object_table_entry(entry);
 
   return 0;
 }
@@ -2358,7 +2352,7 @@ static void oc_free_group_object_table(void)
   PRINT("Free Group Object table from RAM");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    oc_free_group_object_table_entry(i, false);
+    oc_free_group_object_table_entry(i);
   }
 }
 
@@ -2596,7 +2590,7 @@ static void oc_load_object_table(void)
 #endif
 }
 
-static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, const bool init)
+static void oc_free_group_table_entry(const int entry, oc_group_table_t* table)
 {
   table[entry].id = -1; // init value, used also in code to check on its validity
   table[entry].ia = -1; // init value, used also in code to check on its validity
@@ -2612,16 +2606,8 @@ static void oc_free_group_table_entry(const int entry, oc_group_table_t* table, 
   // clear IPv6 address data
   memset(&table[entry].ipv6_adr, 0, sizeof(oc_ipv6_adr_t));
 
-  // free "string" data memory only if already initialized
-  // assumes in table uninitialized/random string data - don't release it ...
-  if (init == false)
-  {
-    oc_free_string(&table[entry].at);
-    free(table[entry].ga);
-  }
-
-  // calling with init = true AND allocated GA array keeps memory leak open ...
-  // so careful on use of init flag ...
+  oc_free_string(&table[entry].at); // safe on zero-initialized (size == 0) oc_string_t
+  free(table[entry].ga);            // safe on NULL pointer
   table[entry].ga = NULL;
   table[entry].ga_len = 0;
 }
@@ -2646,7 +2632,7 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
     (void)snprintf(filename, TAB_SIZE, "%s_%d", store, entry);
     oc_storage_erase(filename);
 
-    oc_free_group_table_entry(entry, table, false);
+    oc_free_group_table_entry(entry, table);
     return 0;
   }
   return -1;
@@ -2676,14 +2662,14 @@ static void oc_free_group_tables(void)
   PRINT("Free Recipient table from RAM");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    oc_free_group_table_entry(i, g_grt, false);
+    oc_free_group_table_entry(i, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
   PRINT("Free Publisher table from RAM");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    oc_free_group_table_entry(i, g_gpt, false);
+    oc_free_group_table_entry(i, g_gpt);
   }
   #endif
 }
@@ -2739,21 +2725,18 @@ static void oc_init_tables(void)
 
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
-    // init Publisher table, true = assumes in PUB table uninitialized/random string data - don't release it ...
-    oc_free_group_table_entry(i, g_gpt, true);
+    oc_free_group_table_entry(i, g_gpt);
   }
   #endif
 
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
-    // init Recipient table, true = assumes in RCP table uninitialized/random string data - don't release it ...
-    oc_free_group_table_entry(i, g_grt, true);
+    oc_free_group_table_entry(i, g_grt);
   }
 
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
-    // init GO table, assumes in GO table uninitialized/random string data - don't release it ...
-    oc_free_group_object_table_entry(i, true);
+    oc_free_group_object_table_entry(i);
   }
 }
 
