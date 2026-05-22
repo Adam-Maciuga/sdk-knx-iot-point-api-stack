@@ -116,24 +116,13 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
 }
 
 #include "oc_buffer_settings.h"
-#ifdef OC_INOUT_BUFFER_SIZE
-static size_t _OC_MTU_SIZE = OC_INOUT_BUFFER_SIZE;
-#else  
 static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
-#endif 
-#ifdef OC_APP_DATA_BUFFER_SIZE
-static size_t _OC_MAX_APP_DATA_SIZE = 7168; // TODO 6 FIXME replace of those with parameters in global stack config.h
-#else                                
 static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define TODO 6 FIXME replace of those with parameters in global stack config.h
-#endif                               
 static size_t _OC_BLOCK_SIZE = 1024;        // a static runtime variable (only get), no #define
 
 int oc_set_mtu_size(size_t mtu_size)
 {
   (void) mtu_size;
-#ifdef OC_INOUT_BUFFER_SIZE
-  return -1;
-#endif 
 #ifdef OC_BLOCK_WISE
   if (mtu_size < (COAP_MAX_HEADER_SIZE + 16))
     return -1;
@@ -154,9 +143,6 @@ long oc_get_mtu_size(void)
 
 void oc_set_max_app_data_size(size_t size)
 {
-#ifdef OC_APP_DATA_BUFFER_SIZE
-  return;
-#endif 
   _OC_MAX_APP_DATA_SIZE = size;
 #ifndef OC_BLOCK_WISE
   _OC_BLOCK_SIZE = size;

@@ -49,9 +49,6 @@ typedef struct oc_blockwise_state_s
   uint32_t payload_size;      /**< the payload size in bytes */
   uint32_t next_block_offset; /**< offset in buffer to the next block */
   uint8_t ref_count;          /**< reference counter, e.g. indicator if the block is still in use */
-#ifdef OC_APP_DATA_BUFFER_POOL
-  void *block;
-#endif 
   uint8_t *buffer;
   oc_string_t uri_query;                   /**< the query */
   oc_content_format_t return_content_type; /**< the content type */

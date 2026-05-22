@@ -25,13 +25,8 @@
 #include "oc_events.h"
 
 OC_PROCESS(message_buffer_handler, "OC Message Buffer Handler");
-#ifdef OC_INOUT_BUFFER_POOL
-OC_MEMB_STATIC(oc_incoming_buffers, oc_message_t, OC_INOUT_BUFFER_POOL);
-OC_MEMB_STATIC(oc_outgoing_buffers, oc_message_t, OC_INOUT_BUFFER_POOL);
-#else  
 OC_MEMB(oc_incoming_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-#endif 
 
 static oc_message_t* allocate_message(struct oc_memb* pool) 
 {
@@ -41,54 +36,22 @@ static oc_message_t* allocate_message(struct oc_memb* pool)
   
   if (message) 
   {
-    #ifndef OC_INOUT_BUFFER_SIZE
     message->data = (uint8_t*)malloc(OC_PDU_SIZE);
-    if (!message->data) 
+    if (!message->data)
     {
-      OC_ERR("Out of memory, cannot allocate message");
+      OC_ERR("Out of memory, cannot allocate message data!");
       oc_memb_free(pool, message);
       return NULL;
     }
-    #endif 
 
     // allocated memory is wiped with '0' on allocation, hence do only others on init
     message->pool = pool;
     message->ref_count = 1;
     message->endpoint.interface_index = -1;
     
-    #ifdef OC_INOUT_BUFFER_SIZE
-    OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));
-    #endif 
-  } 
-  else 
+  }
+  else
   {
-    
-    /*
-     No unused buffers, so go through buffers with soft references and
-     free one (with the lowest ref count 1). Said buffer can no longer be
-     used for e.g. retransmitting requests when challenged with an Echo option.
-
-     - However, freeing up one of these means that it can no longer be used for
-       its original purpose.
-     - Additionally an auto release method must be defined for the message itself.
-    
-    */
-
-    for (int i = 0; i < pool->num; i++) 
-    {
-      const int offset = pool->size * i;
-      message = (oc_message_t*) ((uint8_t*) pool->mem + offset);
-
-			if (message->ref_count == 1 && message->soft_ref_cb)
-			{
-				// call auto 'release' method to release a message
-			  message->soft_ref_cb(message);
-
-        // was the last reference (=1), so now we can allocate a new message successfully
-        return allocate_message(pool);
-      }
-    }
-
     OC_WRN("buffer: No free TX/RX buffers!");
     message = NULL;
   }
@@ -127,12 +90,10 @@ void oc_message_unref(oc_message_t* message)
     message->ref_count--;
     OC_DBG("decrease message counter, counter is %d", message->ref_count);
     if (message->ref_count == 0) {
-      #ifndef OC_INOUT_BUFFER_SIZE
-      if (message->data) 
+      if (message->data)
       {
         free(message->data);
       }
-      #endif 
 
       struct oc_memb* pool = message->pool;
       if (pool) 
