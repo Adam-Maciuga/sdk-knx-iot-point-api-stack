@@ -1124,7 +1124,7 @@ extern "C"
    *
    * @param s_mode_message_ep the endpoint to be used
    * @param uri the uri to be used
-   * @param non_confirmable non confirmable (true) or confirmable (false) message, used by mc (true) or uc 
+   * @param non_confirmable non-confirmable (true) or confirmable (false) message, used by mc (true) or uc 
    * 
    * @return true
    * @return false

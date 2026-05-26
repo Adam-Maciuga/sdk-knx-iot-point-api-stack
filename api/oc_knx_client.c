@@ -202,7 +202,7 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
     use device.iid (same installation)
   */
   const uint32_t grpid = recipient->grpid;
-  const uint64_t iid = recipient->iid > 0 ? recipient->iid : oc_core_get_device_info()->iid;
+  const uint64_t iid = recipient->iid >= 0 ? recipient->iid : oc_core_get_device_info()->iid;
 
   /*
     create multicast endpoint from grpid/iid and coap default + port
@@ -597,14 +597,18 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
   {
     bool ia_and_iid_valid_and_present = false;
 
-    // check if the response matches the beforehand request IA/IID 
     if (data->_payload)
     {
       /*
-        same principle as inbound discovery on well-known request
+        - check if the response matches the beforehand requested IA/IID
+          (same tests as on inbound discovery on well-known request)
 
         response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
         the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
+
+        - iid can only be from same installation, unicast does not allow resolving of several 'iid', 
+          see specification, table 21 
+        
       */
 
       #define LEN_SN (12)              // 00fa12345678
@@ -630,7 +634,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
         // IID can be of 1..10 chars (valid) or > 10 (attack/error)
         // Note: -1 for the '.' before the ia
-        size_t iid_len = ia_start_pos - 1 - iid_start_pos;
+        const size_t iid_len = ia_start_pos - 1 - iid_start_pos;
 
         // copy IID size 0..10 , but don't copy > 10 chars
         strncpy(iid_str, iid_start_pos, iid_len > IID_STR_LEN_MAX ? IID_STR_LEN_MAX : iid_len);
@@ -640,7 +644,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
         // have IID = 0 -> ignores request.
         const uint64_t iid = strtoull(iid_str, NULL, 16);
 
-        // test IID first since many devices will have the same IID
+        // test device IID first since many devices (from same installation) will have the same IID
         if (errno == 0 && iid == device->iid)
         {
           // empty max len IA + string termination '\0'
