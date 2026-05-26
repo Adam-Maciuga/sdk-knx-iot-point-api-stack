@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include "oc_api.h"
 #include "oc_knx_helpers.h"
 

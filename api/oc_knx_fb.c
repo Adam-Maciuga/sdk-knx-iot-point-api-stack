@@ -15,14 +15,15 @@
  // limitations under the License.
  */
 
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "oc_api.h"
 #include "api/oc_knx_fb.h"
 #include "api/oc_knx_fp.h"
 #include "oc_knx_helpers.h"
-#include <stdio.h>
 #include "oc_core_res.h"
 #include "oc_discovery.h"
-#include <errno.h>
 
 // forward declarations for the resource chain
 extern const oc_resource_t core_resource_knx_swu_protocol;

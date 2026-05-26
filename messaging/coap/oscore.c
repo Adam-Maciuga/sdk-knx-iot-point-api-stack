@@ -36,7 +36,7 @@ void oscore_send_error(void* packet, uint8_t code, oc_endpoint_t* endpoint, bool
   }
 
   // note, this message is not the same as a coap packet from above
-  oc_message_t* message = oc_internal_allocate_outgoing_message();
+  oc_message_t* message = oc_allocate_message();
   if (message)
   {
     

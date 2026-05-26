@@ -16,7 +16,6 @@
 #include "oc_endpoint.h"
 #include "oc_session_events.h"
 #include "port/oc_assert.h"
-#include "util/oc_memb.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -51,7 +50,6 @@ typedef struct tcp_session
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 OC_LIST(session_list);
 OC_LIST(free_session_list_async);
-OC_MEMB(tcp_session_s, tcp_session_t, OC_MAX_TCP_PEERS);
 
 static void signal_network_thread(ip_context_t *dev);
 
@@ -158,7 +156,7 @@ static void free_tcp_session(tcp_session_t *session)
 
   close(session->sock);
 
-  oc_memb_free(&tcp_session_s, session);
+  free(session);
 
   OC_DBG("Freed TCP session.");
 }
@@ -177,7 +175,7 @@ static void process_free_tcp_session_locked()
 static int add_new_session(int sock, ip_context_t *dev, oc_endpoint_t *endpoint,
         tcp_csm_state_t state)
 {
-  tcp_session_t *session = oc_memb_alloc(&tcp_session_s);
+  tcp_session_t *session = calloc(1, sizeof(tcp_session_t));
   if (!session) {
     OC_ERR("Could not allocate new TCP session object!");
     return -1;

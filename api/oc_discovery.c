@@ -16,6 +16,9 @@
 // limitations under the License.
 */
 
+#include <errno.h>
+#include <inttypes.h>
+#include <stdlib.h>
 #include "oc_client_state.h"
 #include "oc_api.h"
 #include "oc_discovery.h"
@@ -24,9 +27,7 @@
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
 #include "oc_knx_helpers.h"
-#include <inttypes.h>
 #include "oc_knx_dev.h"
-#include <errno.h>
 
 /*
  * - below resources must be in the uc/mc response for well-known/core,

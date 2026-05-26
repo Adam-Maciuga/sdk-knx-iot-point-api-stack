@@ -196,7 +196,6 @@ set(API_SOURCES
 set(CORE_SOURCES
     ${STACK_ROOT}/util/oc_etimer.c
     ${STACK_ROOT}/util/oc_list.c
-    ${STACK_ROOT}/util/oc_memb.c
     ${STACK_ROOT}/util/oc_mem_trace.c
     ${STACK_ROOT}/util/oc_mmem.c
     ${STACK_ROOT}/util/oc_process.c

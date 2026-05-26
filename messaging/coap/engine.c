@@ -345,7 +345,7 @@ typedef struct
 */
 static void coap_send_response_with_empty_application_payload(const coap_echo_ctx_t* ctx)
 {
-  oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* outgoing_msg = oc_allocate_message();
   if (outgoing_msg)
   {
     // shallow copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...)
@@ -446,7 +446,7 @@ static void coap_send_response_with_empty_application_payload_with_delay(const c
 
 bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint)
 {
-  oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* outgoing_msg = oc_allocate_message();
   if (outgoing_msg)
   {
     // shallow copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...)

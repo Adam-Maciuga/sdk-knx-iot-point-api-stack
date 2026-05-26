@@ -14,6 +14,7 @@
 // limitations under the License.
 */
 
+#include <stdlib.h>
 #include "oc_knx_sub.h"
 #include "oc_helpers.h"
 #include "oc_ri.h"

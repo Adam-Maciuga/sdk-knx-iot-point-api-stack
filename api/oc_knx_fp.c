@@ -7,6 +7,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "oc_api.h"
 #include "oc_core_res.h"
 #include "oc_discovery.h"
@@ -2183,9 +2184,7 @@ void oc_load_group_object_table_entry(int entry)
   {
     OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
     
-    struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-    oc_rep_set_pool(&rep_objects);
-
+    // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     const int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
     if (err == 0)
@@ -2478,9 +2477,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
   {
     OC_INF("Reading from %s , bytes : %ld", filename, bytes_to_read);
     
-    struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-    oc_rep_set_pool(&rep_objects);
-
+    // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     const int err = oc_parse_rep(buf, bytes_to_read, &rep);
     oc_rep_t* head = rep;
 

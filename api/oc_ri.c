@@ -6,10 +6,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include <string.h>          /* strncasecmp */
 #include "util/oc_etimer.h"
 #include "util/oc_list.h"
-#include "util/oc_memb.h"
 #include "util/oc_process.h"
 #include "messaging/coap/constants.h"
 #include "messaging/coap/engine.h"
@@ -40,18 +40,14 @@
 #ifdef OC_SERVER
 OC_LIST(app_resources);                // list root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
 OC_LIST(observe_callbacks);            // list root node for callback handlers
-OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);           // a tmp memory container to story a resource
-OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource runtime modifiable data
 #endif
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
 OC_LIST(client_cbs);
-OC_MEMB(client_cbs_s, oc_client_cb_t, OC_MAX_NUM_CONCURRENT_REQUESTS + 1);
 #endif
 
 OC_LIST(timed_callbacks);
-OC_MEMB(event_callbacks_s, oc_event_callback_t, 1 + WELLKNOWNCORE + OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS * 2);
 
 OC_PROCESS(timed_callback_events, "OC timed callbacks");
 
@@ -718,12 +714,12 @@ void oc_ri_init(void)
 #ifdef OC_SERVER
 oc_resource_t* oc_ri_alloc_resource(void)
 {
-  return oc_memb_alloc(&app_resources_s);
+  return calloc(1, sizeof(oc_resource_t));
 }
 
 oc_resource_data_t* oc_ri_alloc_resource_data(void)
 {
-  return oc_memb_alloc(&app_resource_datas_s);
+  return calloc(1, sizeof(oc_resource_data_t));
 }
 
 /*
@@ -757,20 +753,22 @@ bool oc_ri_delete_resource(const oc_resource_t* _resource)
   /*
     Guard against re-entrant double-free: a DELETE request handler (delete_handler.cb) may itself call oc_ri_delete_resource on the same resource. 
     By removing the resource from the list first, any re-entrant call will find it absent (oc_list_remove returns NULL) and exit early,
-    preventing a double oc_memb_free.
+    preventing a double free.
   */
   if (oc_list_remove(app_resources, resource) == NULL)
   {
     return true;
   }
 
-  if (resource->runtime_data->num_observers > 0)
+  if (resource->runtime_data && resource->runtime_data->num_observers > 0)
   {
     coap_remove_observer_by_resource(resource);
   }
 
   oc_ri_free_resource_properties(resource);
-  oc_memb_free(&app_resources_s, resource);
+  // runtime_data is runtime state (not a resource property), so it is not freed in oc_ri_free_resource_properties.
+  free(resource->runtime_data);
+  free(resource);
 
   return true;
 }
@@ -842,7 +840,7 @@ void oc_ri_free_resource_properties(oc_resource_t* resource)
       No need to free it -> Caller must do that if heap allocated.
 
     - runtime_data
-      Not released here, will ONLY be deallocated in 'oc_memb_free'.
+      Not released here. It is runtime state, not a property. Freed by the caller (oc_ri_delete_resource).
   */
 
   // types (allocated)
@@ -864,7 +862,7 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
       oc_etimer_stop(&event_cb->timer);
       OC_PROCESS_CONTEXT_END(&timed_callback_events);
       oc_list_remove(timed_callbacks, event_cb);
-      oc_memb_free(&event_callbacks_s, event_cb);
+      free(event_cb);
       break;
     }
 
@@ -874,7 +872,7 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
 
 void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_callback, oc_clock_time_t ticks)
 {
-  oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_memb_alloc(&event_callbacks_s);
+  oc_event_callback_t* event_cb = calloc(1, sizeof(oc_event_callback_t));
 
   if (event_cb)
   {
@@ -891,7 +889,7 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
   }
 }
 
-static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
+static void poll_event_callback_timers(oc_list_t list)
 {
   oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_list_head(list);
 
@@ -906,7 +904,7 @@ static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
       {
         // remove callback
         oc_list_remove(list, event_cb);
-        oc_memb_free(cb_pool, event_cb);
+        free(event_cb);
         event_cb = (oc_event_callback_t*)oc_list_head(list);
         continue;
       }
@@ -926,9 +924,9 @@ static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
 static void check_event_callbacks(void)
 {
   #ifdef OC_SERVER
-  poll_event_callback_timers(observe_callbacks, &event_callbacks_s);
+  poll_event_callback_timers(observe_callbacks);
   #endif
-  poll_event_callback_timers(timed_callbacks, &event_callbacks_s);
+  poll_event_callback_timers(timed_callbacks);
 }
 
 #ifdef OC_SERVER
@@ -976,7 +974,7 @@ static void remove_periodic_observe_callback(const oc_resource_t* resource)
   {
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(observe_callbacks, event_cb);
-    oc_memb_free(&event_callbacks_s, event_cb);
+    free(event_cb);
   }
 }
 
@@ -986,7 +984,7 @@ static bool add_periodic_observe_callback(const oc_resource_t* resource)
 
   if (!event_cb)
   {
-    event_cb = (oc_event_callback_t*)oc_memb_alloc(&event_callbacks_s);
+    event_cb = calloc(1, sizeof(oc_event_callback_t));
 
     if (!event_cb)
     {
@@ -1016,7 +1014,7 @@ static void free_all_event_timers(void)
   {
     oc_etimer_stop(&obs_cb->timer);
     oc_list_remove(observe_callbacks, obs_cb);
-    oc_memb_free(&event_callbacks_s, obs_cb);
+    free(obs_cb);
     obs_cb = oc_list_pop(observe_callbacks);
   }
   #endif
@@ -1027,7 +1025,7 @@ static void free_all_event_timers(void)
   {
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(timed_callbacks, event_cb);
-    oc_memb_free(&event_callbacks_s, event_cb);
+    free(event_cb);
     event_cb = oc_list_pop(timed_callbacks);
   }
 }
@@ -1120,16 +1118,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   new_request.uri_path = uri_path;
   new_request.uri_path_len = uri_path_len;
 
-  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-
-  oc_rep_set_pool(&rep_objects);
-
   if (payload_len > 0 && (content_format == APPLICATION_CBOR || content_format == APPLICATION_OSCORE))
   {
     /*
       Attempt to parse request payload using tinyCBOR via oc_rep helper functions. The result of this parse is a
       tree of oc_rep_t structures which will reflect the schema of the payload. Any failures while parsing the
       payload is viewed as an erroneous request and results in a 4.00 response being sent.
+      oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     */
     int parse_error = oc_parse_rep(payload, (int)payload_len, &new_request.request_payload);
     if (parse_error != 0)
@@ -1265,18 +1260,6 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       forbidden = true;
     }
     else
-    #ifdef OC_SECURITY	// TODO 12 FIXME NOW this is the only place where this looks like not to be TLS related!
-    /*
-      If matching_resource is a coaps:// resource, then query ACL to check if the requester (the subject)
-      is authorized to issue this request to the resource.
-    */
-    if (!oc_sec_check_acl(method, matching_resource, endpoint))
-    {
-      authorized = false;
-      // oc_ri_audit_log(method, matching_resource, endpoint);
-    }
-    else
-    #endif
     {
       // access scope ok
 
@@ -1559,7 +1542,7 @@ static void free_client_cb(oc_client_cb_t* cb)
   #endif
   oc_free_string(&cb->uri);
   oc_free_string(&cb->query);
-  oc_memb_free(&client_cbs_s, cb);
+  free(cb);
 }
 
 oc_event_callback_retval_t oc_ri_remove_client_cb(void* data)
@@ -1751,8 +1734,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   client_response._payload = payload;
   client_response._payload_len = (size_t)payload_len;
 
-  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-  oc_rep_set_pool(&rep_objects);
   if (payload_len)
   {
     if (cb->discovery)
@@ -1775,6 +1756,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
       // Do not parse an incoming payload when the Content-Format option has not been set to the CBOR encoding.
       if (cf == APPLICATION_CBOR)
       {
+        // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
         err = oc_parse_rep(payload, payload_len, &client_response.payload);
       }
 
@@ -1916,7 +1898,7 @@ static void free_all_client_cbs(void)
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, coap_method_t method, const char* query,
                                       oc_client_handler_t handler, oc_qos_t qos, void* user_data)
 {
-  oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
+  oc_client_cb_t* cb = calloc(1, sizeof(oc_client_cb_t));
   if (!cb)
   {
     OC_WRN("insufficient memory to add client callback");

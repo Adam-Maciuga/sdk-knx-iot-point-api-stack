@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include "messaging/coap/coap.h"
 #include "oc_api.h"
 #include "conf.h"
@@ -114,7 +115,7 @@ bool oc_do_well_known_message_update(void)
 bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable) 
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_s_mode_message_update)
-  udp_message_update = oc_internal_allocate_outgoing_message();
+  udp_message_update = oc_allocate_message();
 
   if (!udp_message_update) 
   {
@@ -159,7 +160,7 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
 bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable, oc_client_cb_t* callback)
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_well_known_message_update)
-  udp_message_update = oc_internal_allocate_outgoing_message();
+  udp_message_update = oc_allocate_message();
 
   if (!udp_message_update)
   {
