@@ -570,7 +570,7 @@ int oc_status_code(oc_status_t key);
  * @return true content type is ok
  * @return false content type is not ok => response payload is prepared with BAD REQUEST, NO CONTENT, NO PAYLOAD
  */
-bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
+bool oc_accept_header_is_ok(const oc_request_t* request, oc_content_format_t accept);
 
 /**
  * @brief retrieve the application resource that fits to the given uri
@@ -586,7 +586,7 @@ const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resourc
  *
  * @return oc_resource_t* the resource list
  */
-const oc_resource_t* oc_ri_get_app_resources(void);
+oc_resource_t* oc_ri_get_app_resources(void);
 
 #ifdef OC_SERVER
 /**
@@ -620,15 +620,8 @@ bool oc_ri_add_resource(oc_resource_t* resource);
  * @return true success
  * @return false failure
  */
-bool oc_ri_delete_resource(const oc_resource_t* resource);
+bool oc_ri_delete_resource(oc_resource_t* resource);
 #endif 
-
-/**
- * @brief free the properties of the resource
- *
- * @param resource the resource
- */
-void oc_ri_free_resource_properties(oc_resource_t* resource);
 
 /**
  * @brief retrieve the query value at the nth position

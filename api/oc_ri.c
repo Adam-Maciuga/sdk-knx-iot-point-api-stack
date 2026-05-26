@@ -365,7 +365,7 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
 }
 
 #ifdef OC_SERVER
-const oc_resource_t* oc_ri_get_app_resources(void)
+oc_resource_t* oc_ri_get_app_resources(void)
 {
   return (oc_resource_t*)oc_list_head(app_resources);
 }
@@ -397,24 +397,24 @@ const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resourc
   return NULL;
 }
 
-static void oc_ri_delete_all_app_resources(void)
+// deletes all application resources, used during device shutdown, so no double call of freeing the same resource here
+static void oc_ri_delete_all_application_resources(void)
 {
-  const oc_resource_t* res = oc_ri_get_app_resources();
-  while (res)
-  {
-    if (!oc_ri_delete_resource(res))
-    {
-      // we'll get stuck in an infinite loop if we would not return here!
-      return;
-    }
+  oc_resource_t* res;
 
-    // removed an item from list, start all over again ...
-    res = oc_ri_get_app_resources();
+  /*
+    runs until list is NULL, which is the end of the list, which means all application resources have been deleted
+    - application resources cant be const
+    - used during device shutdown(so no double call of freeing the same resource here)
+  */
+  while ((res = oc_ri_get_app_resources()))
+  {
+    oc_ri_delete_resource(res);
   }
 }
 #endif
 
-bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
+bool oc_accept_header_is_ok(const oc_request_t* request, oc_content_format_t accept)
 {
   if (request && (request->accept == accept || request->accept == CONTENT_NONE))
   {
@@ -722,52 +722,74 @@ oc_resource_data_t* oc_ri_alloc_resource_data(void)
   return calloc(1, sizeof(oc_resource_data_t));
 }
 
-/*
-  Remove a resource from the stack and delete the resource.
+/**
+  Removes a resource from the list and deletes the resource (deallocation).
 
-  Any resource observers will automatically be removed.
+  @param[in] resource the resource to delete
 
-  This will free the memory associated with the resource.
-
-  @param[in] _resource the resource to delete
-
+  @note 
+  - Any resource observers will automatically be removed.
+  - The memory associated with the resource will be freed.
+  - The list of resources will be updated to reflect the deletion.
+  
   @return
    - true: when the resource has been deleted and memory freed.
    - false: there was an issue deleting the resource.
 */
-bool oc_ri_delete_resource(const oc_resource_t* _resource)
+bool oc_ri_delete_resource(oc_resource_t* resource)
 {
-  if (!_resource)
+  if (!resource)
   {
     return false;
   }
 
-  if (_resource->is_const)
+  if (resource->is_const)
   {
     OC_ERR("oc_ri_delete_resource: resource is const!");
     return false;
   }
 
-  oc_resource_t* resource = (oc_resource_t*)_resource;
+  oc_list_remove(app_resources, resource);
 
   /*
-    Guard against re-entrant double-free: a DELETE request handler (delete_handler.cb) may itself call oc_ri_delete_resource on the same resource. 
-    By removing the resource from the list first, any re-entrant call will find it absent (oc_list_remove returns NULL) and exit early,
-    preventing a double free.
-  */
-  if (oc_list_remove(app_resources, resource) == NULL)
-  {
-    return true;
-  }
+     Here wa are on a (dynamically allocated) application resource, frees in one go at the end
+     of device SHUT DOWN (so no double call of freeing the same resource here)
 
+     - properties (static)
+       In 'oc_resource_set_properties' method simply assigned.
+
+     - handler (static)
+       In 'oc_resource_set_request_handler' method simply assigned.
+
+     - uri (static)
+       In 'oc_new_resource' method simply assigned by adding the (handed over) pointer to
+       the oc_string.ptr, hence the actual (handed over) resource MUST be already present.
+       No need to free it with oc_free_string(&(resource->uri)) -> The application caller must do that if it was
+       heap allocated.
+
+     Must be deallocated in stack code (see below).
+     - runtime_data (allocated)
+     - DPA types (allocated)
+     - DPT types (allocated)
+
+   */
+
+  // present observers must be removed first
   if (resource->runtime_data && resource->runtime_data->num_observers > 0)
   {
     coap_remove_observer_by_resource(resource);
   }
 
-  oc_ri_free_resource_properties(resource);
-  // runtime_data is runtime state (not a resource property), so it is not freed in oc_ri_free_resource_properties.
+  // dpa types (allocated), can handle NULL
+  oc_free_string_array(&resource->types);
+
+  // dpt types (allocated), can handle NULL
+  oc_free_string(&resource->dpt);
+  
+  // runtime_data (allocated), can handle NULL
   free(resource->runtime_data);
+
+  // free resource as such, can handle NULL 
   free(resource);
 
   return true;
@@ -808,47 +830,6 @@ bool oc_ri_add_resource(oc_resource_t* resource)
 }
 
 #endif
-
-void oc_ri_free_resource_properties(oc_resource_t* resource)
-{
-  if (resource == NULL)
-  {
-    return;
-  }
-
-  if (resource->is_const)
-  {
-    OC_ERR("oc_ri_free_resource_properties: resource is const");
-    return;
-  }
-
-  /*
-    Here wa are on an application resource, frees PROPERTIES:
-
-    - uri (static)
-      In oc_new_resource method simply assigned (resource MUST be already present).
-      No need to free it with oc_free_string(&(resource->uri)) -> Caller must do that if heap allocated.
-
-    - types (allocated)
-      Must be de allocated.
-
-    - properties (static)
-      In oc_new_resource method simply assigned.
-
-    - handler (static)
-      In oc_resource_set_request_handler method simply assigned (resource MUST be already present).
-      No need to free it -> Caller must do that if heap allocated.
-
-    - runtime_data
-      Not released here. It is runtime state, not a property. Freed by the caller (oc_ri_delete_resource).
-  */
-
-  // types (allocated)
-  if (oc_string_array_get_allocated_size(resource->types) > 0)
-  {
-    oc_free_string_array(&resource->types);
-  }
-}
 
 void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
 {
@@ -1962,7 +1943,7 @@ void oc_ri_shutdown(void)
   oc_process_shutdown();
 
   #ifdef OC_SERVER
-  oc_ri_delete_all_app_resources();
+  oc_ri_delete_all_application_resources();
   #endif
 
   oc_random_destroy();

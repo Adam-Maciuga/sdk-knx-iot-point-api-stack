@@ -92,8 +92,7 @@ void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code)
   }
 }
 
-void oc_prepare_linkformat_response(oc_request_t* request,
-                                    oc_status_t response_code, size_t response_length)
+void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length)
 {
   if (request && request->response && request->response->response_buffer)
   {
@@ -222,11 +221,14 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
       resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
       resource->delete_handler.interface_mask = OC_IF_NONE;
 
-      // observe + functional block instance + is_const are '0', cleared by (c)alloc
+      /* 
+         dpt + observe + functional block instance + is_const are '0', cleared by (c)alloc
 
-      // resource->is_const = false; 
-      // resource->observe_period_seconds = 0;
-      // resource->fb_data = 0;
+         - resource->is_const = false; 
+         - resource->observe_period_seconds = 0;
+         - resource->fb_data = 0;
+         - resource->DPT = {NULL, NULL, 0}
+      */
 
       // runtime modifiable data
       resource->runtime_data = data;
@@ -273,6 +275,7 @@ void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt)
     return;
   }
 
+  // can handle NULL
   oc_free_string(&resource->dpt);
 
   if (dpt)
@@ -448,8 +451,7 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
   }
 }
 
-bool oc_resource_get_all_interfaces_for_a_resource(
-  const oc_resource_t* resource, oc_interface_mask_t* interfaces)
+bool oc_resource_get_all_interfaces_for_a_resource(const oc_resource_t* resource, oc_interface_mask_t* interfaces)
 {
   bool at_least_one_handler_defined = false;
 
