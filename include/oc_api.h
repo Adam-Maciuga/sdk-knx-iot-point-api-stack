@@ -1149,10 +1149,12 @@ extern "C"
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
    *        an s-mode request message by creating an s-mode transaction and sending it out ny 'send_transaction'
    *
+   * @param recipient optional recipient pointer (oc_group_table_t*) to attach to the transaction for response tracking
+   *
    * @return true
    * @return false
    */
-  bool oc_do_s_mode_message_update(void);
+  bool oc_do_s_mode_message_update(void* recipient);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out

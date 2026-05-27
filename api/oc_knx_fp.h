@@ -151,6 +151,7 @@ extern "C"
   typedef struct oc_resolver_t
   {
     uint8_t attempts;                       // number of resolver attempts in case of no response 
+    uint8_t missing_response_count;         // number of consecutive missing 2.04 responses for unicast messages
     char service_type;                      // service type as 'w', 'r', or 'a'
     oc_ip_status_t resolve_status;          // initialization status with multiple states
     oc_group_object_table_t* group_object;  // the GO table entry that hosts the sending ga and href
@@ -212,11 +213,11 @@ extern "C"
     int32_t ia;             // individual address specification demands of 16 bit (see note above)
     int64_t iid;            // installation id of recipient (not used in case recipient is within the same installation, then device.iid is used)
     int64_t fid;            // fabric id of recipient (not used in case recipient is within the same installation, then device.fid is used)
-    uint32_t grpid;         // group id, specification demands 32 bit (in ULA/IANA format style)
+    uint32_t grpid;         // group id, specification demands 32 bit (in ULA/IANA format style, both MUST be > 0, see specification clause 2.6.5)
     oc_string_t at;         // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
-    bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = true (always) uc = false (default), except a MaC overwrites it)
+    bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = SHALL be true (always) uc = false (default except a MaC overwrites it explicitely))
     oc_ipv6_adr_t ipv6_adr; // IPv6 address, port, interface 
     oc_resolver_t ipv6_res; // IPV6 unicast address resolver 
   } oc_group_table_t;

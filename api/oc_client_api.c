@@ -124,7 +124,7 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
 
   // no callback is possible to this (outbound) s-mode POST message, the message needs to generate its own token/mid
   memcpy(&udp_message_update->endpoint, s_mode_message_ep, sizeof(oc_endpoint_t));
-  
+
   // s-mode message MAY carry a payload, this step is needed
   oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
 

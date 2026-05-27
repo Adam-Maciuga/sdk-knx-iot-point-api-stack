@@ -41,6 +41,7 @@
 #include "api/oc_main.h"
 #include "api/oc_replay.h"
 #include "api/oc_knx_sec.h"
+#include "api/oc_knx_fp.h"
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
@@ -1378,6 +1379,16 @@ int coap_receive(oc_message_t* incoming_message)
       {
         OC_DBG("empty ack + piggybacked ack + non response (non response = the 'wait for possible inbound echo' transaction ...)");
         coap_status_code = CLEAR_TRANSACTION;
+
+        // s-mode unicast: reset missing response counter on successful 2.04 response
+        if (transaction && inbound_coap_pkt->code == CHANGED_2_04
+            && (transaction->message->endpoint.flags & (S_MODE_CON_REQUEST | S_MODE_NON_REQUEST))
+            && transaction->user_data)
+        {
+          oc_group_table_t* recipient = (oc_group_table_t*)transaction->user_data;
+          recipient->ipv6_res.missing_response_count = 0;
+          OC_DBG("S-mode unicast: 2.04 received, reset missing count (IA: 0x%04x)", (uint16_t)recipient->ia);
+        }
       }
       else if (is_reset)
       {
