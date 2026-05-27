@@ -78,14 +78,16 @@ extern "C" {
  */
 typedef struct coap_transaction
 {
-  struct coap_transaction *next; 
-  
+  struct coap_transaction* next; 
+
   oc_message_t* message;
   uint8_t token[COAP_TOKEN_LEN];      // coap AL level: a client matches a request with a response 
   struct oc_etimer retransmit_timer; 
+  struct oc_group_table_t* recipient; // optional recipient pointer for outbound s-mode unicast messages (oc_group_table_t*)
   uint8_t token_len;
-  uint8_t retransmit_counter;         // 0 = initial message, no retransmission started 
+  uint8_t retransmit_counter;         // 0 = initial message, no retransmission started
   uint16_t mid;                       // coap TL level: a client relates an out CON msg with an in ACK msg, a receiver ignores already received msg
+
 } coap_transaction_t, transaction_t;
 
 void coap_register_as_transaction_handler(void);

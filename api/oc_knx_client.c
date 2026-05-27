@@ -44,11 +44,11 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
       recipient->ipv6_res.group_object = group_object;
       recipient->ipv6_res.service_type = service_type;
 
+      // set RESOLVING immediately so rapid re-calls are debounced here until the deferred 'discovery handler' is fired
+      recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
+
       // defer discovery to ensure a possible empty ACK is sent BEFORE the discovery request
       oc_set_delayed_callback_ms(recipient, knx_add_ipv6_address_coap_discovery_handler, 10);
-
-      // set RESOLVING immediately so rapid re-calls debounce until the deferred 'discovery handler' fired, handler my sets another status
-      recipient->ipv6_res.resolve_status = OC_IP_STATUS_RESOLVING;
 
     OC_DBG("Resolve ipv6 address: UNRESOLVED -> count %d", recipient->ipv6_res.attempts);
 
@@ -94,9 +94,7 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
     break;
 
     case OC_IP_STATUS_RESOLVED:
-    
-    // TODO 2 AH how to re-resolve when not getting any answer later with a resolved IP address? 
-    
+
     OC_DBG("Resolve ipv6 address: RESOLVED -> remaining attempts %i", recipient->ipv6_res.attempts);
       
       // is resolved 
@@ -119,9 +117,9 @@ static bool ipv6_for_ia_is_resolved(char service_type, oc_group_table_t* recipie
   return false;
 }
 
-static void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path,
+static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* path,
                                     uint32_t group_address, char service_type, const uint8_t* value_data,
-                                    int value_size, bool non_confirmable);
+                                    int value_size, oc_group_table_t* recipient);
 
 int oc_is_redirected_request_from(const oc_request_t* request)
 {
@@ -189,21 +187,38 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   PRINT("Sending s-mode unicast %c", service_type);
 
-  // send unicast message (confirmable or non-confirmable)
-  oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient->non);
+  // send unicast message, confirmable or non-confirmable by 'non' flag in recipient table entry
+  oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient);
 
 }
 
 void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, char service_type,
-                                      const uint8_t* value_data, int value_size, const oc_group_table_t* recipient)
+                                      const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
 {
+  
+  if (!recipient)
+  {
+    OC_ERR("Cannot send multicast: recipient is NULL");
+    return;
+  }
+
+  if (recipient->grpid == 0)
+  {
+    OC_ERR("Cannot send multicast: invalid GRPID in recipient table for GA %u", group_address);
+    return;
+  }
+  
   /* 
-    iid from specification, table 21 for multicast (only) is determined as follows:
-    if not configured by MaC as part of the recipient table entry (= different installation), 
-    use device.iid (same installation)
+    - iid from specification, table 21 for multicast (only) is determined as follows:
+      if not configured by MaC as part of the recipient table entry (= different installation), 
+      use device.iid (same installation)
+
+    - send multicast message, non-confirmable by default (see specification, table 21), all calls to this
+      method are guarded by grpid > 0, hence multicast, hence non-confirmable = true
   */
   const uint32_t grpid = recipient->grpid;
   const uint64_t iid = recipient->iid >= 0 ? recipient->iid : oc_core_get_device_info()->iid;
+  recipient->non = true;
 
   /*
     create multicast endpoint from grpid/iid and coap default + port
@@ -219,22 +234,21 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
 
   PRINT("Sending s-mode multicast %c", service_type);
 
-  // send non-confirmable message
-  oc_issue_s_mode_message(&group_mcast_endpoint, "/k", group_address, service_type, value_data, value_size, true);
+  oc_issue_s_mode_message(&group_mcast_endpoint, "/k", group_address, service_type, value_data, value_size, (oc_group_table_t*)recipient);
 }
 
-// sends a mc (non) or uc (con/non) s-mode message
-void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group_address, char service_type, const uint8_t* value_data,
-                             int value_size, bool non_confirmable)
+// sends a mc (non) or uc (con/non) s-mode message ('non' flag is set by caller in case of mc)
+static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* path, uint32_t group_address, char service_type,
+                                    const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
 {
-  // get local device info (sia) -> always the same
-  const uint16_t sia = oc_core_get_device_info()->ia;
-
-  // convert the single char into a string with '\0' for the cbor encoder
-  const char service[] = {service_type, '\0'};
-
-  if (oc_init_s_mode_message_update(endpoint, path, non_confirmable))
+  if (oc_init_s_mode_message_update(endpoint, path, recipient->non))
   {
+    // get local device info (sia) -> always the same
+    const uint16_t sia = oc_core_get_device_info()->ia;
+
+    // convert the single char into a string with '\0' for the cbor encoder
+    const char service[] = {service_type, '\0'};
+    
     // { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }
 
     oc_rep_begin_root_object();                       // BF (1st level)
@@ -262,7 +276,7 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
          (a) [0] = open object = BF (not extra copied, see above 'value_map')
          (b) [1...size - 1] = payload data (1: xxx)  -> size - 2 , exclude BF/FF
          (c) [size] = close object = FF
-         
+
       */
 
       // (b)
@@ -285,7 +299,7 @@ void oc_issue_s_mode_message(oc_endpoint_t* endpoint, char* path, uint32_t group
     #endif
 
     // called only in case the static buffer was allocated 
-    oc_do_s_mode_message_update();
+    oc_do_s_mode_message_update(recipient);
   }
 }
 
@@ -603,8 +617,8 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
         - check if the response matches the beforehand requested IA/IID
           (same tests as on inbound discovery on well-known request)
 
-        response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
-        the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
+          response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
+          the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
 
         - iid can only be from same installation, unicast does not allow resolving of several 'iid', 
           see specification, table 21 
@@ -645,7 +659,7 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
         const uint64_t iid = strtoull(iid_str, NULL, 16);
 
         // test device IID first since many devices (from same installation) will have the same IID
-        if (errno == 0 && iid == device->iid)
+        if (errno == 0 && iid == device->iid) 
         {
           // empty max len IA + string termination '\0'
           char ia_str[IA_STR_LEN_MAX + 1] = "";

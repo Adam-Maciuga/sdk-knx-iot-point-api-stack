@@ -34,6 +34,7 @@
 
 #include "transactions.h"
 #include "api/oc_main.h"
+#include "api/oc_knx_fp.h"
 #include "observe.h"
 #include "oc_buffer.h"
 #include "util/oc_list.h"
@@ -148,16 +149,24 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #endif
 
+  // need to use raw data since pure stack responses are not init with any set of s-mode flags (as for an app. outbound s-mode msg)
   const uint8_t type = (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION;
   
   // confirmable s-mode or confirmable non s-mode messages ... 
-  const bool confirmable_all_types = type == COAP_TYPE_CON;
-  const bool non_confirmable_smode = t->message->endpoint.flags & S_MODE_NON_REQUEST;
+  const bool con_type = type == COAP_TYPE_CON;
+  const bool multicast = t->message->endpoint.flags & MULTICAST;
+  
+  const bool smode_non = t->message->endpoint.flags & S_MODE_NON_REQUEST;
+  const bool smode_con = t->message->endpoint.flags & S_MODE_CON_REQUEST;
+
+  const bool smode_non_uc = smode_non && !multicast;
+  const bool smode_con_uc = smode_con && !multicast;
 
   #ifdef OC_TCP
-  if (!(t->message->endpoint.flags & TCP) && confirmable_all_types) {
+  if (!(t->message->endpoint.flags & TCP) && con_type) 
+  {
   #else 
-  if (confirmable_all_types) 
+  if (con_type) 
   {
   #endif
 
@@ -194,7 +203,24 @@ void coap_send_transaction(coap_transaction_t *t)
 
       #ifdef OC_CLIENT
       oc_ri_free_client_cbs_by_mid(t->mid);
-      #endif 
+
+      // s-mode unicast CON: increment missing response counter on timeout
+      if (smode_con_uc && t->recipient)
+      {
+        oc_group_table_t* rec = t->recipient;
+        rec->ipv6_res.missing_response_count++;
+
+        OC_WRN("CON s-mode: missing count %d (IA: 0x%04x)", rec->ipv6_res.missing_response_count, (uint16_t)rec->ia);
+
+        if (rec->ipv6_res.missing_response_count >= 4)
+        {
+          rec->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+          rec->ipv6_res.missing_response_count = 0;
+
+          OC_WRN("CON s-mode: 4 consecutive failures, transitioning to UNRESOLVED (IA: 0x%04x)", (uint16_t)rec->ia);
+        }
+      }
+      #endif
 
       #ifdef OC_BLOCK_WISE
       oc_blockwise_scrub_buffers(false);
@@ -209,7 +235,7 @@ void coap_send_transaction(coap_transaction_t *t)
       }
     }
   }
-  else if (non_confirmable_smode)
+  else if (smode_non)
   {
     if (t->retransmit_counter < 1)
     { // keep transaction + init timeout
@@ -231,6 +257,26 @@ void coap_send_transaction(coap_transaction_t *t)
     else
     { // delete transaction (after timeout)
       OC_DBG("removing NON s-mode message transaction - timed out (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+
+      #ifdef OC_CLIENT
+      // s-mode unicast NON: increment missing response counter on timeout
+      if (smode_non_uc && t->recipient)
+      {
+        oc_group_table_t* rec = t->recipient;
+        rec->ipv6_res.missing_response_count++;
+
+        OC_WRN("NON s-mode: missing count %d (IA: 0x%04x)", rec->ipv6_res.missing_response_count, (uint16_t)rec->ia);
+
+        if (rec->ipv6_res.missing_response_count >= 4)
+        {
+          rec->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+          rec->ipv6_res.missing_response_count = 0;
+
+          OC_WRN("NON s-mode: 4 consecutive failures, transitioning to UNRESOLVED (IA: 0x%04x)", (uint16_t)rec->ia);
+        }
+      }
+      #endif
+
       coap_clear_transaction(t);
     }
   } 
