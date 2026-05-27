@@ -207,7 +207,7 @@ extern "C"
    *                         - not stored / loaded as part of the storage
    *
    */
-  typedef struct oc_group_table
+  typedef struct oc_group_table_t
   {
     int32_t id;             // id, specification demands a range of 0 ... 65535 (see note above)
     int32_t ia;             // individual address specification demands of 16 bit (see note above)

@@ -1303,8 +1303,8 @@ int coap_receive(oc_message_t* incoming_message)
             (a) echo option from inbound 4.01 'echo response', new mid and new token,
             (b) destination from inbound 4.01 'echo response'
             (c) type 'unicast'
-            (d) it will be no new s-mode transaction with a new timeout and kept transaction,
-                send it as a standard CoAP CON/NON message (CON with poss. reps, NO fire and drop after sending)
+            (d) it will be no new s-mode transaction (in case of NON with a new timeout and kept transaction),
+                send it as a standard CoAP CON/NON message based on coap type (CON with poss. reps, NO with fire and drop after sending)
 
             All (1...n) later, additionally received inbound 'echo responses' from other devices uses the
             coap token from the original (transaction'ized) s-mode message that we need to match with. In this case
@@ -1326,7 +1326,7 @@ int coap_receive(oc_message_t* incoming_message)
               coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
 
             // (c) + (d)
-            UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST + S_MODE_NON_REQUEST);
+            UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST + S_MODE_NON_REQUEST + S_MODE_CON_REQUEST);
 
             // (b) 
             new_transaction->message->endpoint.addr = incoming_message->endpoint.addr;
@@ -1380,14 +1380,19 @@ int coap_receive(oc_message_t* incoming_message)
         OC_DBG("empty ack + piggybacked ack + non response (non response = the 'wait for possible inbound echo' transaction ...)");
         coap_status_code = CLEAR_TRANSACTION;
 
-        // s-mode unicast: reset missing response counter on successful 2.04 response
-        if (transaction && inbound_coap_pkt->code == CHANGED_2_04
-            && (transaction->message->endpoint.flags & (S_MODE_CON_REQUEST | S_MODE_NON_REQUEST))
-            && transaction->user_data)
+        /* 
+           s-mode unicast: reset missing response counter on successful 2.04 response
+           (responses to multicast are not allowed by spec, but guard anyway)
+        */
+        if (inbound_coap_pkt->code == CHANGED_2_04 
+            && transaction 
+            && transaction->recipient
+            && transaction->message->endpoint.flags & (S_MODE_CON_REQUEST | S_MODE_NON_REQUEST)
+            && !(transaction->message->endpoint.flags & MULTICAST))
         {
-          oc_group_table_t* recipient = (oc_group_table_t*)transaction->user_data;
+          oc_group_table_t* recipient = (oc_group_table_t*)transaction->recipient;
           recipient->ipv6_res.missing_response_count = 0;
-          OC_DBG("S-mode unicast: 2.04 received, reset missing count (IA: 0x%04x)", (uint16_t)recipient->ia);
+          OC_DBG("CON/NON s-mode unicast: 2.04 received, reset missing count (IA: 0x%04x)", (uint16_t)recipient->ia);
         }
       }
       else if (is_reset)

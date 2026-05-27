@@ -32,7 +32,7 @@ static oc_blockwise_state_t *request_buffer = NULL;
 // - well-known message
 static oc_message_t* udp_message_update = NULL;
 
-bool oc_do_s_mode_message_update(void) 
+bool oc_do_s_mode_message_update(void* recipient)
 {
   const int payload_size = oc_rep_get_encoded_payload_size();
   bool ret = false;
@@ -70,9 +70,11 @@ bool oc_do_s_mode_message_update(void)
 
       if (s_mode_transaction)
       {
-        OC_INF("sent (uc/mc) s-mode message - OK");
+        s_mode_transaction->recipient = recipient; // for IPv6 re-resolving (unicast/ia)
         coap_send_transaction(s_mode_transaction);
         ret = true;
+
+        OC_INF("sent (uc/mc) s-mode message - OK");
       }
       else
       {
