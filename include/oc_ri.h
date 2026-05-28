@@ -577,7 +577,7 @@ bool oc_accept_header_is_ok(const oc_request_t* request, oc_content_format_t acc
  *
  * @param resource_path the resource path
  * @param resource_path_len the length of the resource path
- * @return oc_resource_t* the resource structure or NULL (request was NULL or no resource found)
+ * @return oc_resource_t* the resource structure or NULL (request was NULL, request len was 0 or no resource found)
  */
 const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len);
 

@@ -577,7 +577,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
     KNX 2.5.9.1: FIRST GET and no observe option (a) or with observe option (b) return both only the notification of {4: <ia>}
     
     (b)
-    - subsequent observe notifications with full s-mode payload are handled by coap_notify_k_observers
+    - subsequent observe notifications with full s-mode payload are handled by 'coap_notify_k_observers'
     - handling of 'Observe' ?lt=86400 or ?non=true is done in 'oc_ri_invoke_coap_entity_handler'
       
       GET coap://[fd00::1]/k?lt=3600&non=true
@@ -585,10 +585,18 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
       Observe: 0  (register)
 
     (a)
-    - no subsequent notifications are sent; this is a plain GET (no Observe option), so only the one-shot {4: <ia>} response is sent, no observation
-      relationship is created
+    - no subsequent notifications are sent; this is a plain GET (no Observe option), so only the one-shot {4: <ia>} response is sent, 
+      no observation relationship is created
        GET coap://[fd00::1]/k 
        Token: 0xA1B2C3D4
+
+       Better spec text would be in 2.5.9.1: 
+
+       If a KNX IoT device (client) sends a simple GET request to 'k' without the CoAP Observe Option, 
+       then the device SHALL return a '2.05 Content' response with a Group Notification Resource Object 
+       payload containing only the 'sia' object and no 's' object: { 'sia': <ia> }. Because no observation 
+       relationship is established, the device SHALL NOT send any unsolicited follow-up messages on this 
+       request - the single response completes the exchange.
 
   */
 
@@ -981,7 +989,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             // notify 'binding' if.o observers on a successful /k update (clause 2.5.3.6)
             if (new_request.response->response_buffer->code < oc_status_code(OC_STATUS_BAD_REQUEST))
             {
-              coap_notify_observers(application_resource_with_href_match, NULL, NULL);
+              oc_notify_observers(application_resource_with_href_match);
             }
           }
           if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
@@ -1016,7 +1024,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             // notify 'binding' if.o observers on a successful /k update (clause 2.5.3.6)
             if (new_request.response->response_buffer->code < oc_status_code(OC_STATUS_BAD_REQUEST))
             {
-              coap_notify_observers(application_resource_with_href_match, NULL, NULL);
+              oc_notify_observers(application_resource_with_href_match);
             }
           }
           if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
@@ -1137,9 +1145,8 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   }
 
   /*
-    notify /k observers with the received s-mode data (KNX clause 2.5.9.1)
-    - only forward if the frame was successfully processed (OC_STATUS_CHANGED)
-    - if GA is not in GO table (OC_STATUS_NOT_FOUND) there is no local value change, so nothing to forward
+    DO NOT notify /k observers when receiving an s-mode message, 
+    only notify observers on a self triggered CoV of the application resources 
   */
   if (summary_handler_status == OC_STATUS_CHANGED && request->_payload && request->_payload_len > 0)
   {

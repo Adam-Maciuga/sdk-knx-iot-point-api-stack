@@ -1030,7 +1030,7 @@ extern "C"
   /**
    * Notify all observers of a change to a given resource's property
    *
-   * @note no need to call oc_notify_observers about resource changes that
+   * @note no need to call on resource changes that
    *       result from a PUT, or POST oc_request_callback_t.
    *
    * @param[in] resource the oc_resource_t that has a modified property
