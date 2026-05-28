@@ -297,8 +297,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_p_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_p = {&core_resource_knx_f,
+const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
                                            {NULL, sizeof("/p"), "/p"},
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
@@ -308,10 +307,9 @@ const oc_resource_t core_resource_knx_p = {&core_resource_knx_f,
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {oc_core_p_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {NULL, NULL},
-                                           {NULL, NULL},
+                                           {{NULL}, NULL},
+                                           {{NULL}, NULL},
                                            0,
                                            0,
                                            1,
                                            &core_resource_knx_p_data};
-PRAGMA_OUT

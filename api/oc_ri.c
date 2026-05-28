@@ -7,7 +7,10 @@
  */
 
 #include <stdlib.h>
-#include <string.h>          /* strncasecmp */
+#include <string.h>
+#ifndef _MSC_VER
+#include <strings.h>         /* strncasecmp */
+#endif
 #include "util/oc_etimer.h"
 #include "util/oc_list.h"
 #include "util/oc_process.h"

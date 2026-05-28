@@ -112,16 +112,38 @@ config KNXIOT_DNS_SD
       Corresponds to CMake: OC_DNS_SD_ENABLED.
       Enables DNS-SD based discovery in addition to CoAP multicast discovery.
 
-config KNXIOT_SENDER_MULTICAST_SCOPE
-    int "IPv6 multicast scope for outgoing S-mode messages"
+config KNX_UNICAST_PORT
+    int "IPv6 unicast port for KNX S-mode messages"
+    default 0
+    help
+      Corresponds to CMake: KNX_UNICAST_PORT.
+      IPv6 unicast port used for sending and receiving unicast CoAP messages
+      and KNX S-mode messages (clause 2.6.3.1, COAP_DEFAULT_PORT).
+      The chosen port is used for all unicast traffic.
+      Set to 0 to let the OS assign an ephemeral port.
+
+config KNX_MULTICAST_SCOPE
+    int "IPv6 multicast scope for KNX S-mode messages"
     default 5
     help
       Corresponds to CMake: KNX_MULTICAST_SCOPE.
-      This is the IPv6 multicast scope used when sending KNX S-mode messages.
-      Scope 2 (link-local) is suitable for single-segment networks and
-      same-host testing. Scope 5 (site-local) is used in routed deployments.
+      This is the IPv6 multicast scope used for sending and receiving KNX
+      S-mode messages. Scope 2 (link-local) is appropriate for isolated
+      single-segment networks or when the router blocks site-local multicast.
+      Scope 5 (site-local) is the default for routed deployments.
 
-config KNXIOT_RESET_PROCESS_TIME
+config KNX_READ_ON_INIT_DELAY_MS
+    int "Read-on-init inter-request delay (milliseconds)"
+    default 100
+    help
+      Corresponds to CMake: KNX_READ_ON_INIT_DELAY_MILLISECONDS.
+      Delay in milliseconds between consecutive S-mode read requests sent
+      during the read-on-init sequence at device startup. Group objects
+      with the INIT flag set are read one at a time with this delay between
+      each request to avoid flooding the network. Increase on slow or
+      congested networks such as Thread.
+
+config KNX_RESET_PROCESS_TIME_S
     int "KNX reset process time (seconds)"
     default 2
     help
@@ -132,15 +154,6 @@ config KNXIOT_RESET_PROCESS_TIME
       follow-up requests while the device is resetting locally.
 
 # ── Security ───────────────────────────────────────────────────────────────────
-
-config KNXIOT_SPAKE2PLUS_ITERATIONS
-    int "SPAKE2+ iteration count"
-    default 50000
-    help
-      Corresponds to CMake: KNX_IOT_SPAKE2PLUS_ITERATIONS.
-      Number of SHA-256 iterations used in the SPAKE2+ password-based
-      key exchange during device enrollment. Higher values increase
-      resistance to brute-force attacks at the cost of enrollment time.
 
 config KNXIOT_TLS_PKI
     bool "TLS PKI support"
