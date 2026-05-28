@@ -244,8 +244,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_f_x_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_f_x = {&core_resource_knx_swu_protocol,
+const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_swu_protocol,
                                              {NULL, sizeof("/f/*"), "/f/*"},
                                              {NULL, 0, NULL},
                                              {NULL, 0, NULL},
@@ -255,13 +254,12 @@ const oc_resource_t core_resource_knx_f_x = {&core_resource_knx_swu_protocol,
                                              {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                              {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                              {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                             {NULL, NULL},
-                                             {NULL, NULL},
+                                             {{NULL}, NULL},
+                                             {{NULL}, NULL},
                                              0,
                                              0,
                                              1,
                                              &core_resource_knx_f_x_data};
-PRAGMA_OUT
 
 int oc_count_functional_blocks_from_application(void)
 {
@@ -502,8 +500,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_f_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_f = {&core_resource_knx_f_x,
+const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_x,
                                            {NULL, sizeof("/f"), "/f"},
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
@@ -513,10 +510,9 @@ const oc_resource_t core_resource_knx_f = {&core_resource_knx_f_x,
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {NULL, NULL},
-                                           {NULL, NULL},
+                                           {{NULL}, NULL},
+                                           {{NULL}, NULL},
                                            0,
                                            0,
                                            1,
                                            &core_resource_knx_f_data};
-PRAGMA_OUT

@@ -70,26 +70,27 @@ set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient tab
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
 
-set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake" FORCE)
-
-# KNX reset "Process Time" in seconds
-set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
-
-# KNX read on init delay time betwwen to read on init requests (ms)
-set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init delay time between to subsequent read on init requests (milliseconds)")
-
-# IPv6 multicast scope
-# Scope 2 MAY be needed for the virtual DEMO applications when:
-# - the devices are running on the same PC (e.g. for testing with EITT)
-# - a network router does not allow to send multicast messages with scope 5 (site local)
-# the scope is used by stack (discovery) and application (push button demo) messages
-set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages")
-
+# Network
 # IPv6 unicast port
 # Specified in clause 2.6.3.1 with COAP_DEFAULT_PORT and shall be used for unicast messages
 # - the optional put /dev/port is NOT implemented, the chosen port is used all the time
 # - if the port is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
 set(KNX_UNICAST_PORT "0" CACHE STRING "IPv6 unicast port, used on snd/rcv (uc) stack and s-mode messages")
+
+# IPv6 multicast scope (used for sending and receiving multicast messages).
+# Scope 2 (link-local) is appropriate for isolated single-segment networks
+# or when the router blocks site-local multicast.
+# Scope 5 (site-local) is the default for routed deployments.
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages")
+
+# KNX read on init delay time between two subsequent read on init requests (ms)
+set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init delay time between two subsequent read on init requests (milliseconds)")
+
+# KNX reset "Process Time" in seconds
+set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
+
+# Security
+set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake" FORCE)
 
 ## Hidden Variables
 # Note:
@@ -238,14 +239,15 @@ add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient 
 add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size
 add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
 
-# KNX reset Process Time (seconds)
-add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
-
-# KNX read on init delay time between to subsequent read requests (milliseconds)
-add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS})
+## Network
+# IPv6 unicast port
+add_compile_definitions(KNX_UNICAST_PORT=${KNX_UNICAST_PORT})
 
 # IPv6 multicast scope
 add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
 
-# IPv6 unicast port
-add_compile_definitions(KNX_UNICAST_PORT=${KNX_UNICAST_PORT})
+# KNX read on init delay time between to subsequent read requests (milliseconds)
+add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS})
+
+# KNX reset Process Time (seconds)
+add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})

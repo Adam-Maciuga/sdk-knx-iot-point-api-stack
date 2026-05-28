@@ -822,7 +822,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // serialize OSCORE plain text 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, application payload) by using the 'moved' payload location ptr
     const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
-    OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
+    OC_DBG("serialized OSCORE plaintext: %zu bytes", plaintext_size);
 
     // set the OSCORE packet pointer to location of the serialized inner message (inner code, inner options, payload)
     coap_pkt->payload = dst1;
@@ -1317,7 +1317,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // serialize OSCORE plaintext 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
   size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
-  OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
+  OC_DBG("serialized OSCORE plaintext: %zu bytes", plaintext_size);
 
   // set the OSCORE packet pointer to location of the serialized inner message (inner code, inner options, payload)
   coap_pkt->payload = dst1;
