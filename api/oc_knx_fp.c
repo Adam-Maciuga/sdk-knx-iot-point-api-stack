@@ -130,8 +130,8 @@ int oc_core_find_first_go_table_index_with_ga(uint32_t group_address)
 
 int oc_core_find_next_go_table_index_with_ga(uint32_t group_address, int current_index)
 {
-  if (current_index > -2) // don't allow to access array outside bounds ( > -2 = at least -1, + 1 = 0)
-  for (int i = current_index + 1; i < GOT_MAX_ENTRIES; i++)
+  // don't allow to access array outside bounds ( current_index must be at least -1)
+  for (int i = current_index + 1; i >= 0 && i < GOT_MAX_ENTRIES; i++)
   {
     if (g_got[i].id > -1)
     {
