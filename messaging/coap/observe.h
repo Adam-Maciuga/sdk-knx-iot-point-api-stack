@@ -71,8 +71,7 @@ typedef struct coap_observer_t
 	// --- 1-byte: uint8_t, bool ---
 	uint8_t token_len;
 	uint8_t token[COAP_TOKEN_LEN];
-	bool use_con;                  // true = CON (default per KNX), false = NON (when "non=true" query present)
-	bool first_sent;               // will become true after the registration response (= first notification = { 4/'sia' : <ia> }) has been sent
+	bool use_con;                  // true = CON (default per KNX), false = NON (when "non=true" is present in registration request)
 } coap_observer_t;
 
 	int coap_remove_observer_by_client(const oc_endpoint_t* endpoint);
@@ -80,7 +79,7 @@ typedef struct coap_observer_t
 	int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid);
 	int coap_remove_observer_by_resource(const oc_resource_t* rsc);
 	void coap_free_all_observers(void);
-	int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* response_buf, const oc_endpoint_t* endpoint);
+	
 
 #ifdef OC_BLOCK_WISE
 int coap_observe_handler(void* request, void* response, const oc_resource_t* resource, uint16_t block2_size, oc_endpoint_t* endpoint);
@@ -91,17 +90,41 @@ int coap_observe_handler(void* request, void* response, const oc_resource_t* res
 int coap_remove_observers_on_dos_change(bool reset);
 
 /**
- * @brief notify /k observers with raw s-mode CBOR payload (KNX clause 2.5.9.1)
+ * @brief Notify /k observers (KNX clause 2.5.9.1)
+ *        Each observer gets the original CBOR payload forwarded as a notification.
+ *        Expired observers are removed before sending.
  *
- * Called from the /k POST handler after processing an inbound s-mode message.
- * Each observer gets the original raw CBOR payload forwarded as a notification.
- * Expired observers are removed before sending.
- *
- * @param resource the /k resource
- * @param payload raw inbound CBOR payload bytes
+ * @param payload inbound CBOR payload bytes
  * @param payload_len length of payload
- */
-void coap_notify_k_observers(const oc_resource_t* resource, const uint8_t* payload, size_t payload_len);
+ *
+
+  @note  
+   - notifies on /k observers on self-triggered outbound application s-mode POST 'w' request 
+   - does not notify on /k for inbound POST s-mode request
+   - does not notify on /k for inbound POST/PUT request
+*/
+void coap_notify_k_observers(const uint8_t* payload, size_t payload_len);
+
+
+/**
+ * @brief Notify /p and 'core res.' observers (KNX clause 2.5.9.1).
+ *        Each observer gets the fetched resource original raw CBOR payload forwarded as a notification.
+ *        Expired observers are removed before sending.
+ *
+ * @param resource the notification resource
+ * @param response_buf inbound CBOR payload bytes in the response buffer for the notification, 
+ *                     if NULL an internal buffer will be used/filled by calling the GET handler of the resource, 
+ *                     so the notification will contain the current state of the resource
+ * @param endpoint the client endpoint to notify, if NULL , all observers of the resource will be notified
+ *
+
+  @note
+   - notifies on /p observers on self-triggered outbound application s-mode PUT/POST 'w' request
+   - notifies on /p on inbound PUT/POST request
+   - does not notify on /p on inbound POST s-mode request
+
+*/
+int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* response_buf, const oc_endpoint_t* endpoint);
 
 // get current observe counter value (will be incremented on each new observer and each notification)
 uint32_t get_observe_counter(void);

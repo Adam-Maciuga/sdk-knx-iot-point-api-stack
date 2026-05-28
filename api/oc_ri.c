@@ -349,7 +349,7 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
                                             oc_response_buffer_t* response_buffer,
                                             oc_response_t* response_obj)
 {
-  // copy inbound request content to new request content
+  // shallow copy inbound request content to new request content
   memcpy(new_request, inbound_request, sizeof(oc_request_t));
 
   // init response buffer, buffer + size are 'taken over' from inbound request (same buffer is used as allocated for org. request)
@@ -914,9 +914,9 @@ static void check_event_callbacks(void)
 
 static oc_event_callback_retval_t periodic_observe_handler(void* data)
 {
-  oc_resource_t* resource = (oc_resource_t*)data;
+  const oc_resource_t* resource = (oc_resource_t*)data;
 
-  if (coap_notify_observers(resource, NULL, NULL))
+  if (oc_notify_observers(resource))
   {
     return OC_EVENT_CONTINUE;
   }
@@ -1242,9 +1242,9 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     }
     else
     {
-      // access scope ok
+      // access scope ok, invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
 
-      // invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
+
       if (method == COAP_GET && matching_resource->get_handler.cb)
       {
         // entry point, such as for GET /k
@@ -1457,19 +1457,20 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     else
     {
       #ifdef OC_SERVER
-      /*
-        If the recently handled request was a PUT/POST, it conceivably altered the resource state, so attempt to notify all observers
-        of that resource with the change. Multicast PUT/POST is only used for s-mode via /k; /k always calls oc_ignore_request which
-        sets response_buffer.code = OC_IGNORE, routing execution to CLEAR_TRANSACTION above -- so this block is only reached for unicast PUT/POST.
-      */
       if (matching_resource && (method == COAP_PUT || method == COAP_POST) && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
       {
         /*
-          Unicast PUT/POST: notify observers acc. to clause 2.5.3.6 - if.o resources
-          - must notify observers when their value changes via a unicast PUT
-          - immediately, no delay (on unicast there are not other devices firing notifications, so no need to delay for batching)
+          If the recently handled inbound request was a PUT/POST, it MAY have altered the resource state, 
+          so attempt to notify all /p observers of that resource. 
+          NOTE: 
+          
+          - Unicast PUT/POST: notify observers acc. to clause 2.5.3.6 - if.o resources
+          - Multicast POST on /k always calls 'oc_ignore_request' which sets OC_IGNORE, not caught here.
+          - must notify observers when their value changes via a unicast PUT/POST
+          - immediately, no delay (on unicast there are not other devices firing notifications, 
+            so no need to delay for batching)
         */
-        coap_notify_observers(matching_resource, NULL, NULL);
+        oc_notify_observers(matching_resource);
       }
       #endif
 
