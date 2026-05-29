@@ -985,12 +985,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-            
-            // notify 'binding' if.o observers on a successful /k update (clause 2.5.3.6)
-            if (new_request.response->response_buffer->code < oc_status_code(OC_STATUS_BAD_REQUEST))
-            {
-              oc_notify_observers(application_resource_with_href_match);
-            }
           }
           if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
           {
@@ -1020,12 +1014,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
-            
-            // notify 'binding' if.o observers on a successful /k update (clause 2.5.3.6)
-            if (new_request.response->response_buffer->code < oc_status_code(OC_STATUS_BAD_REQUEST))
-            {
-              oc_notify_observers(application_resource_with_href_match);
-            }
           }
           if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
           {
@@ -1142,15 +1130,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
     PRINT("unicast - sending response");
     oc_prepare_no_format_response_no_payload(request, summary_handler_status);
-  }
-
-  /*
-    DO NOT notify /k observers when receiving an s-mode message, 
-    only notify observers on a self triggered CoV of the application resources 
-  */
-  if (summary_handler_status == OC_STATUS_CHANGED && request->_payload && request->_payload_len > 0)
-  {
-    coap_notify_k_observers(&core_resource_knx_k, request->_payload, request->_payload_len);
   }
 
   PRINT("oc_core_knx_k_post_handler - end");
