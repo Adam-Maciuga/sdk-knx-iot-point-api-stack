@@ -579,9 +579,9 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
     // get next
     coap_separate_t* next = current->next;
 
-    if (current->observe < 3)
-    {
-      // TODO what is meant here with < 3 ; observe registration REQ vs observe counter RESPONSE ?
+    if (current->observe <= OC_OBSERVE_DEREGISTER)
+    { // observe (de)registration response
+      
       coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), current->token, current->token_len, &current->endpoint);
       if (t)
       {

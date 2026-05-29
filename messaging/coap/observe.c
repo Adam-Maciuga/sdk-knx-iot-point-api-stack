@@ -59,9 +59,9 @@
 /* 
   - used to seed each new (individual) observer with its notification response with a unique starting sequence number
   - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
-  - starts with 3 , see 
+  - starts with 2 (post increment on adding resource, more as de-registration, to avoid confusion with the registering values)
 */
-static uint32_t observe_counter = 3;
+static uint32_t observe_counter = OC_OBSERVE_DEREGISTER;
 uint32_t get_observe_counter(void) { return observe_counter; }
 
 OC_LIST(observers_list);
