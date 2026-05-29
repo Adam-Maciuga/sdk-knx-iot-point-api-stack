@@ -677,8 +677,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_g_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_g = {&core_resource_knx_fp_g_x,
+const oc_resource_t core_resource_knx_fp_g = {(oc_resource_t*)&core_resource_knx_fp_g_x,
                                               {NULL, sizeof("/fp/g"), "/fp/g"},
                                               {NULL, 0, NULL},
                                               {NULL, 0, NULL},
@@ -688,13 +687,12 @@ const oc_resource_t core_resource_knx_fp_g = {&core_resource_knx_fp_g_x,
                                               {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                               {oc_core_fp_g_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B},
                                               {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                              {NULL, NULL},
-                                              {NULL, NULL},
+                                              {{NULL}, NULL},
+                                              {{NULL}, NULL},
                                               0,
                                               0,
                                               1,
                                               &core_resource_knx_fp_g_data};
-PRAGMA_OUT
 
 static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -782,8 +780,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_g_x_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_p,
+const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_p,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
@@ -793,19 +790,17 @@ const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_p,
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {oc_core_fp_g_x_del_handler, NULL, OC_ACL_C, OC_IF_C},
-                                                {NULL, NULL},
-                                                {NULL, NULL},
+                                                {{NULL}, NULL},
+                                                {{NULL}, NULL},
                                                 0,
                                                 0,
                                                 1,
                                                 &core_resource_knx_fp_g_x_data};
-PRAGMA_OUT
 #else
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_g_x_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_r,
+const oc_resource_t core_resource_knx_fp_g_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 {NULL, sizeof("/fp/g/*"), "/fp/g/*"},
                                                 {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
@@ -815,13 +810,12 @@ const oc_resource_t core_resource_knx_fp_g_x = {&core_resource_knx_fp_r,
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {oc_core_fp_g_x_del_handler, NULL, OC_ACL_C, OC_IF_C},
-                                                {NULL, NULL},
-                                                {NULL, NULL},
+                                                {{NULL}, NULL},
+                                                {{NULL}, NULL},
                                                 0,
                                                 0,
                                                 1,
                                                 &core_resource_knx_fp_g_x_data};
-PRAGMA_OUT
 #endif
 
 // -PUBLISHER-
@@ -1269,8 +1263,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_p_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_p = {&core_resource_knx_fp_p_x,
+const oc_resource_t core_resource_knx_fp_p = {(oc_resource_t*)&core_resource_knx_fp_p_x,
                                               {NULL, sizeof("/fp/p"), "/fp/p"},
                                               {NULL, 0, NULL},
                                               {NULL, 0, NULL},
@@ -1280,13 +1273,12 @@ const oc_resource_t core_resource_knx_fp_p = {&core_resource_knx_fp_p_x,
                                               {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                               {oc_core_fp_p_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B},
                                               {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                              {NULL, NULL},
-                                              {NULL, NULL},
+                                              {{NULL}, NULL},
+                                              {{NULL}, NULL},
                                               0,
                                               0,
                                               1,
                                               &core_resource_knx_fp_p_data};
-PRAGMA_OUT
 
 static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1404,8 +1396,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_p_x_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_p_x = {&core_resource_knx_fp_r,
+const oc_resource_t core_resource_knx_fp_p_x = {(oc_resource_t*)&core_resource_knx_fp_r,
                                                 {NULL, sizeof("/fp/p/*"), "/fp/p/*"},
                                                 {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
@@ -1415,13 +1406,12 @@ const oc_resource_t core_resource_knx_fp_p_x = {&core_resource_knx_fp_r,
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {oc_core_fp_p_x_del_handler, NULL, OC_ACL_C, OC_IF_C},
-                                                {NULL, NULL},
-                                                {NULL, NULL},
+                                                {{NULL}, NULL},
+                                                {{NULL}, NULL},
                                                 0,
                                                 0,
                                                 1,
                                                 &core_resource_knx_fp_p_x_data};
-PRAGMA_OUT
 #endif
 
 // -RECIPIENT-
@@ -1875,8 +1865,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_r_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_r = {&core_resource_knx_fp_r_x,
+const oc_resource_t core_resource_knx_fp_r = {(oc_resource_t*)&core_resource_knx_fp_r_x,
                                               {NULL, sizeof("/fp/r"), "/fp/r"},
                                               {NULL, 0, NULL},
                                               {NULL, 0, NULL},
@@ -1886,13 +1875,12 @@ const oc_resource_t core_resource_knx_fp_r = {&core_resource_knx_fp_r_x,
                                               {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                               {oc_core_fp_r_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B},
                                               {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                              {NULL, NULL},
-                                              {NULL, NULL},
+                                              {{NULL}, NULL},
+                                              {{NULL}, NULL},
                                               0,
                                               0,
                                               1,
                                               &core_resource_knx_fp_r_data};
-PRAGMA_OUT
 
 static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -2011,8 +1999,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fp_r_x_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fp_r_x = {&core_resource_knx_p,
+const oc_resource_t core_resource_knx_fp_r_x = {(oc_resource_t*)&core_resource_knx_p,
                                                 {NULL, sizeof("/fp/r/*"), "/fp/r/*"},
                                                 {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
@@ -2022,13 +2009,12 @@ const oc_resource_t core_resource_knx_fp_r_x = {&core_resource_knx_p,
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {oc_core_fp_r_x_del_handler, NULL, OC_ACL_C, OC_IF_C},
-                                                {NULL, NULL},
-                                                {NULL, NULL},
+                                                {{NULL}, NULL},
+                                                {{NULL}, NULL},
                                                 0,
                                                 0,
                                                 1,
                                                 &core_resource_knx_fp_r_x_data};
-PRAGMA_OUT
 
 // -utilities -
 
@@ -2910,7 +2896,7 @@ static void oc_handle_group_multicasts(bool subscribe)
   {
     const oc_cflag_mask_t cflags = g_got[index].cflags;
 
-    if (cflags & OC_CFLAG_WRITE + OC_CFLAG_UPDATE + OC_CFLAG_READ)
+    if (cflags & (OC_CFLAG_WRITE | OC_CFLAG_UPDATE | OC_CFLAG_READ))
     {
       for (int i = 0; i < g_got[index].ga_len; i++)
       {

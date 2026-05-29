@@ -323,8 +323,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx = {&core_resource_knx_fp_g,
+const oc_resource_t core_resource_knx = {(oc_resource_t*)&core_resource_knx_fp_g,
                                          {NULL, sizeof("/.well-known/knx"), "/.well-known/knx"},
                                          {NULL, 0, NULL},
                                          {NULL, 0, NULL},
@@ -334,13 +333,12 @@ const oc_resource_t core_resource_knx = {&core_resource_knx_fp_g,
                                          {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                          {oc_core_knx_post_handler, NULL, OC_ACL_C | OC_ACL_SEC, OC_IF_C | OC_IF_SEC},
                                          {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                         {NULL, NULL},
-                                         {NULL, NULL},
+                                         {{NULL}, NULL},
+                                         {{NULL}, NULL},
                                          0,
                                          0,
                                          true,
                                          &core_resource_knx_data};
-PRAGMA_OUT
 
 oc_lsm_state_t oc_knx_get_lsm(void)
 {
@@ -540,8 +538,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_a_lsm_data;
-PRAGMA_IN
-const oc_resource_t core_resource_a_lsm = {&core_resource_knx_spake,
+const oc_resource_t core_resource_a_lsm = {(oc_resource_t*)&core_resource_knx_spake,
                                            {NULL, sizeof("/a/lsm"), "/a/lsm"},
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
@@ -551,13 +548,12 @@ const oc_resource_t core_resource_a_lsm = {&core_resource_knx_spake,
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {oc_core_a_lsm_post_handler, NULL, OC_ACL_C, OC_IF_C},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {NULL, NULL},
-                                           {NULL, NULL},
+                                           {{NULL}, NULL},
+                                           {{NULL}, NULL},
                                            0,
                                            0,
                                            true,
                                            &core_resource_a_lsm_data};
-PRAGMA_OUT
 
 static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1137,8 +1133,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_k_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_k = {&core_resource_knx_fingerprint,
+const oc_resource_t core_resource_knx_k = {(oc_resource_t*)&core_resource_knx_fingerprint,
                                            {NULL, sizeof("/k"), "/k"},
                                            {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:if.g.s"}},
                                            {NULL, 0, NULL},
@@ -1148,8 +1143,8 @@ const oc_resource_t core_resource_knx_k = {&core_resource_knx_fingerprint,
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {oc_core_knx_k_post_handler, NULL, OC_ACL_G | OC_ACL_GA, OC_IF_G},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {NULL, NULL},
-                                           {NULL, NULL},
+                                           {{NULL}, NULL},
+                                           {{NULL}, NULL},
                                            0,
                                            0,
                                            true,
@@ -1187,8 +1182,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_fingerprint_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_fingerprint = {&core_resource_knx_ia,
+const oc_resource_t core_resource_knx_fingerprint = {(oc_resource_t*)&core_resource_knx_ia,
                                                      {NULL, sizeof("/.well-known/knx/f"), "/.well-known/knx/f"},
                                                      {NULL, 0, NULL},
                                                      {NULL, 0, NULL},
@@ -1198,13 +1192,12 @@ const oc_resource_t core_resource_knx_fingerprint = {&core_resource_knx_ia,
                                                      {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                      {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                      {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                     {NULL, NULL},
-                                                     {NULL, NULL},
+                                                     {{NULL}, NULL},
+                                                     {{NULL}, NULL},
                                                      0,
                                                      0,
                                                      true,
                                                      &core_resource_knx_fingerprint_data};
-PRAGMA_OUT
 
 // ----------------------------------------------------------------------------
 
@@ -1275,8 +1268,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_ia_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_ia = {&core_resource_knx,
+const oc_resource_t core_resource_knx_ia = {(oc_resource_t*)&core_resource_knx,
                                             {NULL, sizeof("/.well-known/knx/ia"), "/.well-known/knx/ia"},
                                             {NULL, 0, NULL},
                                             {NULL, 0, NULL},
@@ -1286,13 +1278,12 @@ const oc_resource_t core_resource_knx_ia = {&core_resource_knx,
                                             {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                             {oc_core_knx_ia_post_handler, NULL, OC_ACL_C | OC_ACL_SEC, OC_IF_C | OC_IF_SEC},
                                             {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                            {NULL, NULL},
-                                            {NULL, NULL},
+                                            {{NULL}, NULL},
+                                            {{NULL}, NULL},
                                             0,
                                             0,
                                             true,
                                             &core_resource_knx_ia_data};
-PRAGMA_OUT
 
 static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1318,8 +1309,7 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_ldevid_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_ldevid = {&core_resource_knx_k,
+const oc_resource_t core_resource_knx_ldevid = {(oc_resource_t*)&core_resource_knx_k,
                                                 {NULL, sizeof("/.well-known/knx/ldevid"), "/.well-known/knx/ldevid"},
                                                 {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
@@ -1329,13 +1319,12 @@ const oc_resource_t core_resource_knx_ldevid = {&core_resource_knx_k,
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {NULL, NULL},
-                                                {NULL, NULL},
+                                                {{NULL}, NULL},
+                                                {{NULL}, NULL},
                                                 0,
                                                 0,
                                                 true,
                                                 &core_resource_knx_ldevid_data};
-PRAGMA_OUT
 
 static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1361,8 +1350,7 @@ static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_m
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_idevid_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_idevid = {&core_resource_knx_ldevid,
+const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_knx_ldevid,
                                                 {NULL, sizeof("/.well-known/knx/idevid"), "/.well-known/knx/idevid"},
                                                 {NULL, 0, NULL},
                                                 {NULL, 0, NULL},
@@ -1372,13 +1360,12 @@ const oc_resource_t core_resource_knx_idevid = {&core_resource_knx_ldevid,
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                 {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                                {NULL, NULL},
-                                                {NULL, NULL},
+                                                {{NULL}, NULL},
+                                                {{NULL}, NULL},
                                                 0,
                                                 0,
                                                 true,
                                                 &core_resource_knx_idevid_data};
-PRAGMA_OUT
 
 
 static spake_data_t spake_data = {0};
@@ -1763,9 +1750,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
 
     // debugging
-    PRINT("set id : (%" PRIu64 ") ", oc_byte_string_len(g_pase.id));
+    PRINT("set id : (%zu) ", oc_byte_string_len(g_pase.id));
     oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
-    PRINT("set ms : (%" PRIu64 ") ", sizeof(shared_key));
+    PRINT("set ms : (%zu) ", sizeof(shared_key));
     oc_char_println_hex(shared_key, sizeof(shared_key));
 
     /*
@@ -1807,8 +1794,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_spake_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_spake = {&core_resource_knx_idevid,
+const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_knx_idevid,
                                                {NULL, sizeof("/.well-known/knx/spake"), "/.well-known/knx/spake"},
                                                {NULL, 0, NULL},
                                                {NULL, 0, NULL},
@@ -1818,13 +1804,12 @@ const oc_resource_t core_resource_knx_spake = {&core_resource_knx_idevid,
                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                {oc_core_knx_spake_post_handler, NULL, OC_ACL_NONE, OC_IF_NONE},
                                                {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                               {NULL, NULL},
-                                               {NULL, NULL},
+                                               {{NULL}, NULL},
+                                               {{NULL}, NULL},
                                                0,
                                                0,
                                                true,
                                                &core_resource_knx_spake_data};
-PRAGMA_OUT
 
 int oc_spake2plus_init_data(void)
 {

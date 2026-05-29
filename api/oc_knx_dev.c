@@ -64,9 +64,8 @@ extern const oc_resource_t core_resource_a_lsm;
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_sn_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_sn = {
-        &core_resource_dev_hwv,
+        (oc_resource_t*)&core_resource_dev_hwv,
         {NULL, sizeof("/dev/sn"), "/dev/sn"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa:0.11"}},
         {NULL, sizeof("urn:knx:dpt.serNum"), "urn:knx:dpt.serNum"},
@@ -76,13 +75,12 @@ const oc_resource_t core_resource_dev_sn = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_sn_data};
-PRAGMA_OUT
 
 static void oc_core_dev_hwv_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -108,9 +106,8 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hwv_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_hwv = {
-        &core_resource_dev_fwv,
+        (oc_resource_t*)&core_resource_dev_fwv,
         {NULL, sizeof("/dev/hwv"), "/dev/hwv"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.version"), "urn:knx:dpt.version"},
@@ -120,13 +117,12 @@ const oc_resource_t core_resource_dev_hwv = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_hwv_data};
-PRAGMA_OUT
 
 static void oc_core_dev_fwv_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -151,9 +147,8 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_fwv_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_fwv = {
-        &core_resource_dev_hwt,
+        (oc_resource_t*)&core_resource_dev_hwt,
         {NULL, sizeof("/dev/fwv"), "/dev/fwv"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.25"}},
         {NULL, sizeof("urn:knx:dpt.version"), "urn:knx:dpt.version"},
@@ -163,13 +158,12 @@ const oc_resource_t core_resource_dev_fwv = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_fwv_data};
-PRAGMA_OUT
 
 static void oc_core_dev_hwt_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -191,9 +185,8 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hwt_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_hwt = {
-        &core_resource_dev_model,
+        (oc_resource_t*)&core_resource_dev_model,
         {NULL, sizeof("/dev/hwt"), "/dev/hwt"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -203,13 +196,12 @@ const oc_resource_t core_resource_dev_hwt = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_hwt_data};
-PRAGMA_OUT
 
 static void oc_core_dev_model_get_handler(oc_request_t* request, 
        oc_interface_mask_t iface_mask, void* data) {
@@ -231,9 +223,8 @@ static void oc_core_dev_model_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_model_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_model = {
-        &core_resource_dev_hostname,
+        (oc_resource_t*)&core_resource_dev_hostname,
         {NULL, sizeof("/dev/model"), "/dev/model"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.15"}},
         {NULL, sizeof("urn:knx:dpt.utf8"), "urn:knx:dpt.utf8"},
@@ -243,13 +234,12 @@ const oc_resource_t core_resource_dev_model = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_model_data};
-PRAGMA_OUT
 
 static void oc_core_dev_hostname_put_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -316,9 +306,8 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hostname_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_hostname = {
-        &core_resource_dev_iid,
+        (oc_resource_t*)&core_resource_dev_iid,
         {NULL, sizeof("/dev/hname"), "/dev/hname"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -328,13 +317,12 @@ const oc_resource_t core_resource_dev_hostname = {
         {oc_core_dev_hostname_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_hostname_data};
-PRAGMA_OUT
 
 static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
 {
@@ -400,9 +388,8 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_iid_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_iid = {
-        &core_resource_dev_pm,
+        (oc_resource_t*)&core_resource_dev_pm,
         {NULL, sizeof("/dev/iid"), "/dev/iid"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value8Ucount"), "urn:knx:dpt.value8Ucount"},
@@ -412,13 +399,12 @@ const oc_resource_t core_resource_dev_iid = {
         {oc_core_dev_iid_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_iid_data};
-PRAGMA_OUT
 
 static void oc_core_dev_ipv6_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -505,9 +491,8 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_ipv6_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_ipv6 = {
-        &core_resource_dev_sna,
+        (oc_resource_t*)&core_resource_dev_sna,
         {NULL, sizeof("/dev/ipv6"), "/dev/ipv6"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.ipv6"), "urn:knx:dpt.ipv6"},
@@ -517,13 +502,12 @@ const oc_resource_t core_resource_dev_ipv6 = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_ipv6_data};
-PRAGMA_OUT
 
 static void oc_core_dev_pm_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -592,9 +576,8 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_pm_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_pm = {
-        &core_resource_dev_ipv6,
+        (oc_resource_t*)&core_resource_dev_ipv6,
         {NULL, sizeof("/dev/pm"), "/dev/pm"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.54"}},
         {NULL, sizeof("urn:knx:dpt.binaryValue"), "urn:knx:dpt.binaryValue"},
@@ -604,13 +587,12 @@ const oc_resource_t core_resource_dev_pm = {
         {oc_core_dev_pm_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_pm_data};
-PRAGMA_OUT
 
 static void oc_core_dev_dev_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -680,9 +662,8 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev = {
-        &core_resource_app,
+        (oc_resource_t*)&core_resource_app,
         {NULL, sizeof("/dev"), "/dev"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.0"}},
         {NULL, 0, NULL},
@@ -692,13 +673,12 @@ const oc_resource_t core_resource_dev = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_data};
-PRAGMA_OUT
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
 static void oc_core_dev_sa_get_handler(oc_request_t* request, 
@@ -722,9 +702,8 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_sna_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_sna = {
-        &core_resource_dev_da,
+        (oc_resource_t*)&core_resource_dev_da,
         {NULL, sizeof("/dev/sna"), "/dev/sna"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.57"}},
         {NULL, sizeof("urn:knx:dpt.value1Ucount"), "urn:knx:dpt.value1Ucount"},
@@ -734,13 +713,12 @@ const oc_resource_t core_resource_dev_sna = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_sna_data};
-PRAGMA_OUT
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
 static void oc_core_dev_da_get_handler(oc_request_t* request, 
@@ -764,9 +742,8 @@ static void oc_core_dev_da_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_da_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_da = {
-        &core_resource_dev_fid,
+        (oc_resource_t*)&core_resource_dev_fid,
         {NULL, sizeof("/dev/da"), "/dev/da"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.58"}},
         {NULL, sizeof("urn:knx:dpt.value1Ucount"), "urn:knx:dpt.value1Ucount"},
@@ -776,13 +753,12 @@ const oc_resource_t core_resource_dev_da = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_da_data};
-PRAGMA_OUT
 
 static void oc_core_dev_fid_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -833,9 +809,8 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_fid_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_fid = {
-        &core_resource_dev_port,
+        (oc_resource_t*)&core_resource_dev_port,
         {NULL, sizeof("/dev/fid"), "/dev/fid"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value8Ucount"), "urn:knx:dpt.value8Ucount"},
@@ -845,13 +820,12 @@ const oc_resource_t core_resource_dev_fid = {
         {oc_core_dev_fid_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_fid_data};
-PRAGMA_OUT
 
 static void oc_core_dev_port_get_handler(oc_request_t* request, 
        oc_interface_mask_t iface_mask, void* data) {
@@ -872,9 +846,8 @@ static void oc_core_dev_port_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_port_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_port = {
-        &core_resource_dev_mport,
+        (oc_resource_t*)&core_resource_dev_mport,
         {NULL, sizeof("/dev/port"), "/dev/port"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -884,13 +857,12 @@ const oc_resource_t core_resource_dev_port = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_dev_port_data};
-PRAGMA_OUT
 
 static void oc_core_dev_mport_get_handler(oc_request_t* request, 
 oc_interface_mask_t iface_mask, void* data) {
@@ -910,9 +882,8 @@ oc_interface_mask_t iface_mask, void* data) {
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_mport_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_mport = {
-        &core_resource_dev_mid,
+        (oc_resource_t*)&core_resource_dev_mid,
         {NULL, sizeof("/dev/mport"), "/dev/mport"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -922,13 +893,12 @@ const oc_resource_t core_resource_dev_mport = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_dev_mport_data};
-PRAGMA_OUT
 
 static void oc_core_ap_x_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -985,9 +955,8 @@ static void oc_core_ap_x_put_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_app_x_data;
-PRAGMA_IN
 const oc_resource_t core_resource_app_pv = {
-        &core_resource_a_lsm,
+        (oc_resource_t*)&core_resource_a_lsm,
         {NULL, sizeof("/ap/pv"), "/ap/pv"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.3.13"}},
         {NULL, sizeof("urn:knx:dpt.programVersion"), "urn:knx:dpt.programVersion"},
@@ -997,13 +966,12 @@ const oc_resource_t core_resource_app_pv = {
         {oc_core_ap_x_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_app_x_data};
-PRAGMA_OUT
 
 static void oc_core_ap_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -1073,9 +1041,8 @@ static void oc_core_ap_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_app_data;
-PRAGMA_IN
 const oc_resource_t core_resource_app = {
-       &core_resource_app_pv,
+       (oc_resource_t*)&core_resource_app_pv,
        {NULL, sizeof("/ap"), "/ap"},
        {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.3"}},
        {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -1085,13 +1052,12 @@ const oc_resource_t core_resource_app = {
        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-       {NULL, NULL},
-       {NULL, NULL},
+       {{NULL}, NULL},
+       {{NULL}, NULL},
        0,
        0,
        1,
        &core_resource_app_data};
-PRAGMA_OUT
 
 static void oc_core_dev_mid_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -1114,9 +1080,8 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_mid_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_mid = {
-        &core_resource_dev,
+        (oc_resource_t*)&core_resource_dev,
         {NULL, sizeof("/dev/mid"), "/dev/mid"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.12"}},
         {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -1126,13 +1091,12 @@ const oc_resource_t core_resource_dev_mid = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_dev_mid_data};
-PRAGMA_OUT
 
 void oc_knx_load_device(void) {
   PRINT("Loading device configuration from persistent storage"); // TODO 3 LOG make this depending on log level

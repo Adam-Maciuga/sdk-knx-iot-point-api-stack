@@ -190,7 +190,7 @@ void coap_send_transaction(coap_transaction_t *t)
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
       // send message and keep transaction
-      OC_DBG("sending CON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      OC_DBG("sending CON message transaction (len: %zu , mid %u)", t->message->length, t->mid);
       oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
       coap_send_message(t->message);
     }
@@ -250,13 +250,13 @@ void coap_send_transaction(coap_transaction_t *t)
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
       // send message and keep transaction
-      OC_DBG("sending NON s-mode message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      OC_DBG("sending NON s-mode message transaction (len: %zu , mid %u)", t->message->length, t->mid);
       oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
       coap_send_message(t->message);
     }
     else
     { // delete transaction (after timeout)
-      OC_DBG("removing NON s-mode message transaction - timed out (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      OC_DBG("removing NON s-mode message transaction - timed out (len: %zu , mid %u)", t->message->length, t->mid);
 
       #ifdef OC_CLIENT
       // s-mode unicast NON: increment missing response counter on timeout
@@ -284,7 +284,7 @@ void coap_send_transaction(coap_transaction_t *t)
   { // empty ACK/RST, other NON application messages, ...
     
     // send message and clear transaction
-    OC_DBG("sending NON coap message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+    OC_DBG("sending NON coap message transaction (len: %zu , mid %u)", t->message->length, t->mid);
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
     coap_send_message(t->message);
     coap_clear_transaction(t);

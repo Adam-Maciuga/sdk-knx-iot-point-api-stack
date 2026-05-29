@@ -209,9 +209,8 @@ static void oc_core_knx_auth_o_osndelay_put_handler(oc_request_t* request, oc_in
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_o_osndelay_data;
-PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_o_osndelay = {
-  &core_resource_knx_auth_o,
+  (oc_resource_t*)&core_resource_knx_auth_o,
   {NULL, sizeof("/auth/o/osndelay"), "/auth/o/osndelay"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt:timePeriodMsec"), "urn:knx:dpt:timePeriodMsec"},
@@ -221,13 +220,12 @@ const oc_resource_t core_resource_knx_auth_o_osndelay = {
   {oc_core_knx_auth_o_osndelay_put_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_knx_auth_o_osndelay_data};
-PRAGMA_OUT
 
 static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -249,9 +247,8 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_o_replwdo_data;
-PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_o_replwdo = {
-  &core_resource_knx_auth_o_osndelay,
+  (oc_resource_t*)&core_resource_knx_auth_o_osndelay,
   {NULL, sizeof("/auth/o/replwdo"), "/auth/o/replwdo"},
   {NULL, 0, NULL},
   {NULL, sizeof("urn:knx:dpt.value2UCount"), "urn:knx:dpt.value2UCount"},
@@ -261,13 +258,12 @@ const oc_resource_t core_resource_knx_auth_o_replwdo = {
   {NULL, NULL, OC_ACL_NONE, OC_ACL_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_knx_auth_o_replwdo_data};
-PRAGMA_OUT
 
 static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -351,9 +347,8 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_o_data;
-PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_o = {
-  &core_resource_knx_auth_at,
+  (oc_resource_t*)&core_resource_knx_auth_at,
   {NULL, sizeof("/auth/o"), "/auth/o"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -363,13 +358,12 @@ const oc_resource_t core_resource_knx_auth_o = {
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_knx_auth_o_data};
-PRAGMA_OUT
 
 #define LDEVID_RENEW 1
 #define LDEVID_STOP  2
@@ -437,9 +431,8 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_a_sen_data;
-PRAGMA_IN
 const oc_resource_t core_resource_a_sen = {
-  &core_resource_knx_auth_o_replwdo,
+  (oc_resource_t*)&core_resource_knx_auth_o_replwdo,
   {NULL, sizeof("/a/sen"), "/a/sen"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -449,13 +442,12 @@ const oc_resource_t core_resource_a_sen = {
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {oc_core_a_sen_post_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_a_sen_data};
-PRAGMA_OUT
 
 // empty ... when 'id' string is an empty string "" 
 static oc_auth_at_t* find_empty_at_entry(void)
@@ -1090,9 +1082,8 @@ static void oc_core_auth_at_delete_handler(oc_request_t* request, oc_interface_m
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_at_data;
-PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_at = {
-  &core_resource_knx_auth_at_x,
+  (oc_resource_t*)&core_resource_knx_auth_at_x,
   {NULL, sizeof("/auth/at"), "/auth/at"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1102,13 +1093,12 @@ const oc_resource_t core_resource_knx_auth_at = {
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {oc_core_auth_at_post_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
   {oc_core_auth_at_delete_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_knx_auth_at_data};
-PRAGMA_OUT
 
 static void oc_core_auth_at_x_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1282,9 +1272,8 @@ static void oc_core_auth_at_x_delete_handler(oc_request_t* request, oc_interface
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_at_x_data;
-PRAGMA_IN
 const oc_resource_t core_resource_knx_auth_at_x = {
-  &core_resource_knx_auth,
+  (oc_resource_t*)&core_resource_knx_auth,
   {NULL, sizeof("/auth/at/*"), "/auth/at/*"},
   {NULL, 0, NULL},
   {NULL, 0, NULL},
@@ -1294,13 +1283,12 @@ const oc_resource_t core_resource_knx_auth_at_x = {
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {oc_core_auth_at_x_delete_handler, NULL, OC_ACL_SEC, OC_IF_SEC},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_knx_auth_at_x_data};
-PRAGMA_OUT
 
 static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
@@ -1386,9 +1374,8 @@ static void oc_core_knx_auth_get_handler(oc_request_t* request, oc_interface_mas
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_auth_data;
-PRAGMA_IN
 const oc_resource_t core_resource_knx_auth = {
-  &core_resource_well_known_core,
+  (oc_resource_t*)&core_resource_well_known_core,
   {NULL, sizeof("/auth"), "/auth"},
   {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.auth"}},
   {NULL, 0, NULL},
@@ -1398,13 +1385,12 @@ const oc_resource_t core_resource_knx_auth = {
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
   {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-  {NULL, NULL},
-  {NULL, NULL},
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_knx_auth_data};
-PRAGMA_OUT
 
 void oc_print_auth_at_entry(const oc_auth_at_t* entry)
 {
@@ -1957,7 +1943,7 @@ bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, o
   OC_DBG("method allowed flags : ");
   PRINTipaddr_flags(*endpoint);
 
-  if ((endpoint->flags & OSCORE + OSCORE_DECRYPTED) != OSCORE + OSCORE_DECRYPTED)
+  if ((endpoint->flags & (OSCORE | OSCORE_DECRYPTED)) != (OSCORE | OSCORE_DECRYPTED))
   {
     // not a OSCORE message that was able to decrypt with given security context (CCM, MAC)
     OC_DBG_OSCORE("access denied for: %s with flags: %d",
