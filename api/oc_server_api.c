@@ -627,15 +627,19 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
           response_state->payload_size = (uint32_t)response_buffer.response_length;
 
           uint32_t payload_size = 0;
-          const void* payload = oc_blockwise_dispatch_block(
-            response_state, 0, current->block2_size, &payload_size);
+          const uint8_t* payload = oc_blockwise_dispatch_block(
+            response_state,
+            0,
+            current->block2_size,
+            &payload_size);
+
           if (payload)
           {
             coap_set_payload(response, payload, payload_size);
             coap_set_header_block2(response, 0, 1, current->block2_size);
             coap_set_header_size2(response, response_state->payload_size);
-            oc_blockwise_response_state_t* bwt_res_state =
-              (oc_blockwise_response_state_t*)response_state;
+
+            const oc_blockwise_response_state_t* bwt_res_state = (oc_blockwise_response_state_t*)response_state;
             coap_set_header_etag(response, bwt_res_state->etag, COAP_ETAG_LEN);
           }
         }
@@ -659,17 +663,23 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
       }
     }
     else
-    {
+    {// observe notification 
+
       const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(
-        oc_string(current->uri), oc_string_len(current->uri));
+        oc_string(current->uri),
+        oc_string_len(current->uri));
+      
       if (resource)
       {
+        // notifies only the current endpoint
         coap_notify_observers(resource, &response_buffer, &current->endpoint);
       }
     }
+    
     #ifdef OC_BLOCK_WISE
-  next_separate_request:
+    next_separate_request:
     #endif
+    
     coap_separate_clear(handle, current);
 
     // restore next
