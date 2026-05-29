@@ -123,6 +123,7 @@ static int cached_erase_code_value;
 
 static oc_event_callback_retval_t reset(void* context)
 {
+  (void)context;
   PRINT("reset device: %d", cached_erase_code_value);
 
   /* Specification demands
@@ -1376,6 +1377,8 @@ static bool is_blocked = false;
 // called every 10 seconds, if zero -> unblock the client
 static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
+  (void)data;
+
   // on '0' don't continue to decrement and unblock (note the callback is still active)
   if (failed_handshake_count > 0)
   {

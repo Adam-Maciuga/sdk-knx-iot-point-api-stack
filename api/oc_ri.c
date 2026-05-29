@@ -282,7 +282,7 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
 
 oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
 {
-  oc_interface_mask_t interface = OC_IF_NONE;
+  oc_interface_mask_t interfaces = OC_IF_NONE;
 
   /*
     32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
@@ -300,12 +300,12 @@ oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t 
     if (interface_name_len == strlen(n) && strncmp(interface_name, n, interface_name_len) == 0)
     {
       // on a hit return immediately
-      interface |= 1 << i;
-      return interface;
+      interfaces |= 1 << i;
+      return interfaces;
     }
   }
 
-  return interface;
+  return interfaces;
 }
 
 oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
