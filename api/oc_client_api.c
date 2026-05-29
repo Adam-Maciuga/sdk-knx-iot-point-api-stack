@@ -37,11 +37,7 @@ bool oc_do_s_mode_message_update(void* recipient)
   const int payload_size = oc_rep_get_encoded_payload_size();
   bool ret = false;
 
-  if (payload_size == 0)
-  {
-    OC_WRN("sent (uc/mc) s-mode message - ERROR (application payload len = 0)");
-  }
-  else
+  if (payload_size > 0)
   {
     // udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
     coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, payload_size);
