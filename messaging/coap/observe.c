@@ -287,12 +287,24 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
   oc_blockwise_state_t* response_state = NULL;
   #endif
 
-  // .buffer is init with 0, on free no problem
-  oc_response_buffer_t response_buffer = {.buffer_size = OC_MAX_OBSERVE_SIZE};
+  /*
+      prepare request from "void" with data needed for the application callback GET to retrieve the 
+      current state of the resource, which will be used for notifications to observers
+      NOTE:
+      - set only data that are not zero, C99 ensures the rest is '0'/'NULL'
+  */
 
-  // .separate_response may be overwritten in GET handler, but response buffer is only used if separate_response is NULL, so it's ok to set it here already
-  oc_response_t response = {.response_buffer = &response_buffer}; 
-  
+  oc_response_buffer_t response_buffer = {.buffer_size = OC_MAX_OBSERVE_SIZE};
+  oc_response_t response_obj = {.response_buffer = &response_buffer};
+  oc_request_t request =
+  {
+    .response = &response_obj,
+    .resource = resource,
+    .request_method = COAP_GET,
+    .content_format = APPLICATION_CBOR,
+    .accept = APPLICATION_CBOR,
+  };
+
   if (!response_buf)
   { /* 
        no response buffer passed (resource is NOT NULL), so we will create a temporary response buffer and populate
@@ -308,10 +320,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       return resource->runtime_data->num_observers;
     }
 
-    // init 
-    oc_request_t request = {.resource = resource, .response = &response};
-
-    // init CBOR data stream
+    // init CBOR data stream, callback handler will fill this buffer with 'oc_rep_i_set_boolean' or similar calls
     oc_rep_new(response_buffer.buffer, (int)response_buffer.buffer_size);
 
     // call handler, request is empty so no interface mask by request
