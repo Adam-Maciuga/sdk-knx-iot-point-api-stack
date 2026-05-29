@@ -17,6 +17,8 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "observe.h"
 #define __STDC_FORMAT_MACROS  // defined to use format specifiers also in C++
 
 /**
@@ -264,7 +266,7 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
     oc_rep_i_set_text_string(value, 6, service);      // 'r/w/a'
 
     /* 
-       - on value data && value size > 2 it is a write request / read response with data
+       - on value data && value size > 2 it is a self triggered write request / read response with data
        - otherwise a read request without data
        - other combinations = error (no value data and size > 2, ...)
     */
@@ -291,15 +293,22 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
 
     #ifdef OC_DEBUG
 
-    OC_INF("send s-mode to ipv6 address : ");
+    OC_INF("send s-mode to ipv6 address   : ");
     PRINTipaddr(*endpoint);
-    OC_INF("send s-mode (%d) with CBOR payload : ", oc_rep_get_encoded_payload_size());
+
+    OC_INF("send s-mode CBOR payload (%d) : ", oc_rep_get_encoded_payload_size());
     OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
 
     #endif
 
     // called only in case the static buffer was allocated 
     oc_do_s_mode_message_update(recipient);
+
+    // notify /k observers ONLY on s-mode write 
+    if (service_type == 'w')
+    {
+      coap_notify_k_observers(value_data, value_size);
+    }
   }
 }
 
@@ -317,48 +326,39 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
     return 0;
   }
 
-  const oc_resource_t* app_resource_with_href_match = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
-  if (!app_resource_with_href_match)
+  const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
+  if (!resource)
   {
     PRINT("error, application resource path not found %s", resource_path);
     return 0;
   }
 
-  // prepare request from "void" with data needed for the application callback GET
-  oc_request_t new_request = {0};
-  // note, response_obj will be filled completely later on, hence no init with '0'
-  oc_response_t response_obj;
-  // note, response_buffer will be filled partiality later on, hence init with '0'
-  oc_response_buffer_t response_buffer = {0};
+  /*
+    prepare request from "void" with data needed for the application callback GET
+    NOTE:
+    - s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/update
+    - set only data that are not zero, C99 ensures the rest is '0'/'NULL'
+  */
+ 
+  oc_response_buffer_t response_buffer = {.buffer = buffer, .buffer_size = buffer_size};
+  oc_response_t response_obj = {.response_buffer = &response_buffer};
+  oc_request_t new_request = 
+  {
+    .response = &response_obj, 
+    .resource = resource, 
+    .request_method = COAP_POST,
+    .content_format = APPLICATION_CBOR,
+    .accept = APPLICATION_CBOR,
+    .uri_path = resource_path,
+    .uri_path_len = strlen(resource_path) 
+  };
 
-  //- same initialization as oc_ri.c (oc_ri_new_request_from_inbound_request), set only data that are not '0' from above
-  response_buffer.buffer = buffer;
-  response_buffer.buffer_size = buffer_size;
 
-  // init response object (sets all data)
-  response_obj.separate_response = NULL;
-  response_obj.response_buffer = &response_buffer;
-
-  // link new response object
-  new_request.response = &response_obj;
-  // allow (a generic) application callback to identify the caller
-  new_request.resource = app_resource_with_href_match;
-  // note, s-mode messaging via /k uses only POST, w/r/a flags define if it is a read/write/update
-  new_request.request_method = COAP_POST;
-  new_request.content_format = APPLICATION_CBOR;
-  // a GET handler WILL check this
-  new_request.accept = APPLICATION_CBOR;
-  // allow (a generic) application callback to identify the caller
-  new_request.uri_path = resource_path;
-  new_request.uri_path_len = strlen(resource_path);
-
-  // callback handler will fill this buffer with 'oc_rep_i_set_boolean' or similar calls
+  // init CBOR data stream, callback handler will fill this buffer with 'oc_rep_i_set_boolean' or similar calls
   oc_rep_new(buffer, buffer_size);
 
   // call application handler GET with own interface/ user data, it makes no sense to call it with a fix value
-  app_resource_with_href_match->get_handler.cb(&new_request,
-                                               app_resource_with_href_match->get_handler.interface_mask,
-                                               app_resource_with_href_match->get_handler.user_data);
+  resource->get_handler.cb(&new_request, resource->get_handler.interface_mask, resource->get_handler.user_data);
 
   // return the filled data size 
   return oc_rep_get_encoded_payload_size();
@@ -383,8 +383,8 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
   }
 
   // find application resource by resource path
-  const oc_resource_t* my_resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
-  if (!my_resource)
+  const oc_resource_t* org_resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
+  if (!org_resource)
   {
     PRINT("error application callback with resource path %s not found", resource_path);
     return -1;
@@ -471,75 +471,75 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
       {
         // for all GOs with the GA included -> update the values
         const oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
-        const oc_resource_t* application_resource_with_href_match =
+        const oc_resource_t* tmp_resource =
           oc_ri_get_app_resource_by_resource_path(oc_string(go_href), oc_string_len(go_href));
 
-        if (!application_resource_with_href_match)
-        {
-          /*
-            - group object table and application resource definition see above
-            - POST /k with write on GA 39
-            - if the first GO href entry does not have a matching application resource
-              option 1 :
-              1. first GO is GO5 -> no application resource
-              2. stop and return
-              option 2 (used):
-              1. first GO is GO5 -> no application resource
-              2. search GO table for next href with GA included -> GO6 -> AR3
-              3. update AR3
-              4. return
-          */
-
-          // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
-          go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
-          continue;
-        }
-
-        // device EP present, sanity check, GO without href is usually a product problem or MAC configuration error
-        if (oc_string_len(go_href) > 0)
+        // NULL also if res. len = 0, so no need to test this in addition
+        if (tmp_resource)
+        /*
+          - group object table and application resource definition see above
+          - POST /k with write on GA 39
+          - if the first GO href entry does not have a matching application resource
+            option 1 :
+            1. first GO is GO5 -> no application resource
+            2. stop and return
+            option 2 (used):
+            1. first GO is GO5 -> no application resource
+            2. search GO table for next href with GA included -> GO6 -> AR3
+            3. update AR3
+            4. return
+        */
         {
           // get GO c-flags
           const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-          if (cflags & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
-          {
-            // update the resource internally, BUT only all GOs with w-cflag set
-
+          if (cflags & OC_CFLAG_WRITE && tmp_resource->put_handler.cb)
+          { // update the resource internally, BUT only all GOs with w-cflag set
+            
             // copy in CBOR object the CBOR encoded resource data from original write request
             oc_rep_t* cbor_object_ptr;
+            
             // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
             oc_parse_rep(resource_value_buffer, resource_value_size, &cbor_object_ptr);
 
-            // prepare new request from "void" with data needed for the callback PUT (no response object/buffer is needed)
-            oc_request_t new_request = {0};
-
-            // init request with non '0' data place CBOR payload pointer for PUT
-            new_request.request_payload = cbor_object_ptr;
-            // allows (a generic) application callback to identify the caller
-            new_request.resource = application_resource_with_href_match;
-            // a PUT handler MAY check the request method
-            new_request.request_method = COAP_PUT;
-            new_request.content_format = APPLICATION_CBOR;
-            // a PUT MAY need APPLICATION_CBOR for response payload with 2.04
-            new_request.accept = APPLICATION_CBOR;
-            // Allow (a generic) app. Callback to identify the caller resource path.
-            new_request.uri_path = oc_string(go_href);
-            new_request.uri_path_len = oc_string_len(go_href);
+            /*
+              prepare request from "void" with data needed for the application callback PUT
+              NOTE:
+              - no response object/buffer is needed
+              - set only data that are not zero, C99 ensures the rest is '0'/'NULL'
+            */  
+            
+            oc_request_t new_request = 
+            {
+              .request_payload = cbor_object_ptr,
+              .resource = tmp_resource,
+              .request_method = COAP_PUT,
+              .content_format = APPLICATION_CBOR,
+              .accept = APPLICATION_CBOR,
+              .uri_path = oc_string(go_href),
+              .uri_path_len = oc_string_len(go_href)
+            };
 
             // call application handler with own interface/user data (it makes no sense to call it with a fix vale)
-            application_resource_with_href_match->put_handler.cb(&new_request,
-                                                                 application_resource_with_href_match->put_handler.interface_mask,
-                                                                 application_resource_with_href_match->put_handler.user_data);
+            tmp_resource->put_handler.cb(&new_request,
+                                                                 tmp_resource->put_handler.interface_mask,
+                                                                 tmp_resource->put_handler.user_data);
 
             oc_free_rep(cbor_object_ptr);
           }
-
-          go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
         }
+
+        // get NEXT GO array index (NOT GO table id) with the GA included (out of last...max GO table entries)
+        go_table_index_where_ga_is_used = oc_core_find_next_go_table_index_with_ga(sending_ga, go_table_index_where_ga_is_used);
       }
 
-      // notify on a (write) change on the original resource (not the internal updated resources)
-      oc_notify_observers(my_resource);
+      /* 
+        /p notification - send possible notification to subscribers of the original 
+                          resource, forward path on application triggered write requests 
+                          (/k notification - see 'coap_notify_k_observers')
+       
+      */
+      oc_notify_observers(org_resource);
 
       // release value buffer, free ignores NULL ptr
       free(resource_value_buffer);
