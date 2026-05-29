@@ -580,8 +580,17 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
     // get next
     coap_separate_t* next = current->next;
 
-    if (current->observe <= OC_OBSERVE_DEREGISTER)
-    { // observe (de)registration response
+    if (current->observe < OC_OBSERVE_FIRST_NOTIFICATION_VALUE)
+    { /* 
+         any normal 'separate response' message, identified by the observe notification counter, 
+         - spake handshake responses
+         - observe registration/ deregistration responses
+         - ...
+
+         Note: the observe 'invalid state' is also passed here and treated 
+               as a normal separate response 
+               
+      */
       
       coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), current->token, current->token_len, &current->endpoint);
       if (t)
@@ -651,6 +660,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
           }
 
         coap_set_status_code(response, response_buffer.code);
+
         t->message->length = coap_serialize_message(response, t->message->data);
         if (t->message->length > 0)
         {
@@ -663,7 +673,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
       }
     }
     else
-    {// observe notification 
+    {// prepare and send observe notification 
 
       const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(
         oc_string(current->uri),
@@ -680,6 +690,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
     next_separate_request:
     #endif
     
+    // current is NULLed after the call 
     coap_separate_clear(handle, current);
 
     // restore next

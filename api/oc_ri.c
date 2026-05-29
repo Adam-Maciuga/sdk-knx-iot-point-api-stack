@@ -1332,8 +1332,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   #ifdef OC_SERVER
   // if a GET request was successfully processed, then check its observe option
 
-  // init with error
-  oc_client_observe_t observe_value_by_client = OC_OBSERVE_UNDEFINED;
+  // init 
+  oc_client_observe_t observe_value_by_client = OC_OBSERVE_INVALID;
 
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe_value_by_client))
   {
@@ -1386,7 +1386,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
           }
         }
       }
-      else if (observe_value_by_client == OC_OBSERVE_DEREGISTER)
+      else 
+      if (observe_value_by_client == OC_OBSERVE_DEREGISTER)
       {
         /*
           If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the
@@ -1421,7 +1422,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   }
 
   #ifdef OC_SERVER
-  // the presence of a separate response handle here indicates a successful handling of the request by a slow resource.
+  // the presence of a separate response handle here indicates a successful handling of the request by a slow resource
   if (response_obj.separate_response)
   {
     /*
@@ -1434,7 +1435,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     */
 
     #ifdef OC_BLOCK_WISE
-    // note, observe may also 'error'
+    // note, observe value may also be 'invalid'
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client, block2_size) == 1)
     {
     #else

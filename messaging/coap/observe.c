@@ -59,9 +59,9 @@
 /* 
   - used to seed each new (individual) observer with its notification response with a unique starting sequence number
   - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
-  - starts with 2 (post increment on adding resource, more as de-registration, to avoid confusion with the registering values)
+  - starts with 3 (to avoid confusion with the registering values)
 */
-static uint32_t observe_counter = OC_OBSERVE_DEREGISTER;
+static uint32_t observe_counter = OC_OBSERVE_FIRST_NOTIFICATION_VALUE;
 uint32_t get_observe_counter(void) { return observe_counter; }
 
 OC_LIST(observers_list);
@@ -117,8 +117,14 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
     memcpy(o->token, token, token_len);
     o->last_mid = 0;
     
-    // pre inc and init counter for THIS observation from global counter
-    o->obs_counter = ++observe_counter & OBSERVE_COUNTER_MASK;
+    // init counter 
+    o->obs_counter = observe_counter;
+    
+    // ensure unique counter for next observer, with wrap-around handling according to RFC 7641 Section 3.4
+    observe_counter = (observe_counter + 1) & OBSERVE_COUNTER_MASK;
+    // on wrap around start again at init 
+    observe_counter = observe_counter == 0 ? OC_OBSERVE_FIRST_NOTIFICATION_VALUE : observe_counter;
+
     o->resource = resource;
 
     #ifdef OC_BLOCK_WISE
@@ -377,11 +383,10 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         #ifdef OC_BLOCK_WISE
         if (coap_separate_accept(req, response_obj.separate_response, &obs->endpoint, obs->obs_counter, obs->block2_size) == 1)
         {
-          #else
-          if (coap_separate_accept(req, response_obj.separate_response, &obs->endpoint, obs->obs_counter) == 1)
-          {
-
-          #endif
+        #else
+        if (coap_separate_accept(req, response_obj.separate_response, &obs->endpoint, obs->obs_counter) == 1)
+        {
+        #endif
           response_obj.separate_response->active = true;
         }
       }

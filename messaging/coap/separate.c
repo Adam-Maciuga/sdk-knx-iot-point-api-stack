@@ -17,11 +17,12 @@
 #include <string.h>
 
 
+#ifdef OC_BLOCK_WISE
 /**
-  @brief Initiate a separate response with an empty ACK
+  @brief Initiate a separate response with an (in between send out) empty ACK
   
   @param request The request to accept.
-  @param separate_store A pointer to the data structure that will store the relevant information for the response.
+  @param handle A pointer to the data structure that will store the relevant information for the response.
   @param endpoint The endpoint information for the request.
   @param observe The observe option value for the request.
   @param block2_size The block2 size for block-wise transfers (only used if OC_BLOCK_WISE is defined).
@@ -30,18 +31,16 @@
   When the server does not have enough resources left to store the information for a separate response or otherwise cannot execute the 
   resource handler, this function will respond with 5.03 Service Unavailable. The client can then retry later.
 
- */
-#ifdef OC_BLOCK_WISE
+*/
 int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc_endpoint_t* endpoint, uint32_t observe, uint16_t block2_size)
 #else
-int
-coap_separate_accept(void* request, oc_separate_response_t* separate_response, oc_endpoint_t* endpoint, uint32_t observe)
+int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc_endpoint_t* endpoint, uint32_t observe)
 #endif
 {
   coap_status_code = CLEAR_TRANSACTION;
 
   if (handle->active == false)
-  {
+  { // first separate response for this request, initialize the separate response store list
     OC_LIST_STRUCT_INIT(handle, requests);
   }
 
@@ -50,10 +49,14 @@ coap_separate_accept(void* request, oc_separate_response_t* separate_response, o
  
   for (separate_store = (coap_separate_t*)oc_list_head(handle->requests); separate_store; separate_store = separate_store->next)
   {
-    if (separate_store->token_len == coap_req->token_len &&
-        memcmp(separate_store->token, coap_req->token, separate_store->token_len) == 0 &&
-        separate_store->observe == observe)
+    if (separate_store->token_len == coap_req->token_len 
+        && memcmp(separate_store->token, coap_req->token, separate_store->token_len) == 0 
+        && separate_store->observe == observe)
     {
+      /* 
+         found already a separate response store for this request, e.g. from a previous request with the same token and 
+         observe option value that is still pending (e.g. due to block-wise transfer or retransmissions)
+      */
       break;
     }
   }
@@ -72,7 +75,7 @@ coap_separate_accept(void* request, oc_separate_response_t* separate_response, o
     // add to list of separate responses for later use in the response phase, e.g. to find the correct token, uri and method for the response
     oc_list_add(handle->requests, separate_store);
 
-    // store correct response type, token, uri and method for later use in the separate response
+    // store correct response type (separate response = CON), token, uri and method for later use in the separate response
     separate_store->type = COAP_TYPE_CON;
     
     memcpy(separate_store->token, coap_req->token, coap_req->token_len);
@@ -80,6 +83,7 @@ coap_separate_accept(void* request, oc_separate_response_t* separate_response, o
 
     oc_new_string(&separate_store->uri, coap_req->uri_path, coap_req->uri_path_len);
 
+    // code 
     separate_store->method = (coap_method_t)coap_req->code;
 
     #ifdef OC_BLOCK_WISE
@@ -89,10 +93,16 @@ coap_separate_accept(void* request, oc_separate_response_t* separate_response, o
 
   // save endpoint and observe option for later use in the separate response
   memcpy(&separate_store->endpoint, endpoint, sizeof(oc_endpoint_t));
+  
+  // (de)/registration separate response, or > 1 for a normal observe notification separate response
   separate_store->observe = observe;
 
   if (coap_req->type == COAP_TYPE_CON)
-  { // send separate EMPTY ACK for a CON request 
+  { /* 
+      - send separate EMPTY ACK for a CON request
+      - if the original request was NON, no empty ACK is needed the server just sends the separate CON
+        response later (CON type set above ...) 
+    */
     
     const bool success = coap_send_response_with_empty_ack(coap_req->mid, &separate_store->endpoint);
 

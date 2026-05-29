@@ -9,6 +9,7 @@
 #ifndef OC_RI_H
 #define OC_RI_H
 
+#include "ipadapter.h"
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
@@ -28,7 +29,9 @@ typedef enum
 {
   OC_OBSERVE_REGISTER = 0, 
   OC_OBSERVE_DEREGISTER = 1, 
-  OC_OBSERVE_UNDEFINED = 2,
+  OC_OBSERVE_INVALID = 2, // needed to separate between valid registration/de-registration and notification 
+  OC_OBSERVE_FIRST_NOTIFICATION_VALUE = 3, 
+  
 } oc_client_observe_t;
 
 /**

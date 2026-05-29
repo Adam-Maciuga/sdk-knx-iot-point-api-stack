@@ -59,7 +59,7 @@ typedef struct coap_observer_t
 	oc_clock_time_t created;       // timestamp when observer was created (for lifetime expiry)
 
 	// --- 4-byte aligned: uint32_t, int32_t, enums ---
-	uint32_t obs_counter;          // RFC 7641: 24-bit sequence number for notifications (masked on increment)
+	uint32_t obs_counter;          // RFC 7641: 24-bit sequence number for notifications 
 	uint32_t lifetime;             // "lt" query parameter in seconds, 0 = not set
 
 	// --- 2-byte aligned: uint16_t ---
