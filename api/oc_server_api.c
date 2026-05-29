@@ -565,12 +565,13 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 
 static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
 {
-  oc_response_buffer_t response_buffer;
-
-  response_buffer.buffer = handle->response_state->buffer;
-  response_buffer.response_length = length;
-  response_buffer.code = oc_status_code(response_code);
-  response_buffer.content_format = length > 0 ? APPLICATION_CBOR : CONTENT_NONE;
+  oc_response_buffer_t response_buffer = 
+  {
+    .buffer = handle->response_state->buffer,
+    .response_length = length, 
+    .code = oc_status_code(response_code),
+    .content_format = length > 0 ? APPLICATION_CBOR : CONTENT_NONE
+  };
 
   coap_separate_t* current = (coap_separate_t*)oc_list_head(handle->requests);
 
