@@ -87,6 +87,10 @@ extern "C" {
 	/**
 	 * @brief Set device serial number, mfg name and some default data, init then device (/dev, ...) resources 
 	 *
+   * @note Must be called before any other initialization of the device resources, 
+   *       otherwise the device resources will not be properly initialized
+           and may cause errors when accessed.
+	 * 
 	 * @param serialnumber the serial number of the device, MUST be in ASCII lower case, MUST be exactly 12 SN chars (+ '\')
 	 * @param app_friendly_name the user-friendly name of the application
 
@@ -176,6 +180,17 @@ extern "C" {
 	 * @return int error status, 0 = OK
 	 */
 	int oc_core_set_device_hostname(const char* host_name);
+
+   /**
+   * @brief reads the hostname (string) from storage and sets it for the device 
+   *
+   * @note if the read fails the default host name is used, 
+   *       leading 'knx-' + (lower case) serial number (12 x char + /0)  = 17, such as "knx-00fa10020700", 
+   *       (leading header is defined by specification)
+   *
+   * @return int error status, 0 = OK
+   */
+  int oc_core_read_and_set_device_hostname(void);
 
 	/**
 	 * @brief sets the installation identifier (iid) and store it

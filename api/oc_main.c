@@ -223,7 +223,7 @@ int oc_main_init(const oc_handler_t* handler)
   #ifdef KNX_TCP_TLS
   oc_sec_load_unique_ids(0);
   #ifdef OC_PKI
-    OC_DBG("oc_main_init(): loading ECDSA keypair");
+    OC_DBG("loading ECDSA keypair");
     oc_sec_load_ecdsa_keypair(0);
   #endif
   #endif
@@ -256,9 +256,11 @@ int oc_main_init(const oc_handler_t* handler)
   oc_init_datapoints_at_initialization();
   #endif
 
-  /* Synchronously populate the endpoint list so the mDNS announcement
+  /* 
+     Synchronously populate the endpoint list so the mDNS announcement
      can include AAAA records.  oc_connectivity_init() only starts the
-     network thread; the endpoints are not yet enumerated at this point. */
+     network thread; the endpoints are not yet enumerated at this point. 
+  */
   oc_network_refresh_endpoints();
 
   PRINT("Re-register DNS-SD service after stack initialization)");
@@ -289,11 +291,11 @@ void oc_main_shutdown(void)
   /* Stop DNS-SD/mDNS service before tearing down networking.
    * On Zephyr: suppresses DNS-SD advertisements (mDNS responder keeps running).
    * On Linux/Windows: sends goodbye, stops listener thread, closes socket. */
-#ifdef __ZEPHYR__
+  #ifdef __ZEPHYR__
   knx_dns_sd_stop();
-#else
+  #else
   knx_mdns_stop();
-#endif
+  #endif
 
   /* Send MLD leave messages for all registered multicast groups */
   oc_unregister_group_multicasts();

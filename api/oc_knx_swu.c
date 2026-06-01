@@ -479,11 +479,11 @@ const oc_resource_t core_resource_knx_swu_state = {(oc_resource_t*)&core_resourc
                                                    true,
                                                    &core_resource_knx_swu_state_data};
 
-// Callback infrastructure for upgrade trigger
-// Allows application to implement device-specific upgrade logic
-typedef struct oc_swu_upgrade_t {
+// Callback infrastructure for upgrade trigger, allows application to implement device-specific upgrade logic
+typedef struct oc_swu_upgrade_t 
+{
   oc_swu_upgrade_cb_t cb;   // Application callback for upgrade trigger
-  void* data;                // User context passed to callback
+  void* data;               // User context passed to callback
 } oc_swu_upgrade_t;
 
 static oc_swu_upgrade_t g_swu_upgrade_handler = {NULL, NULL};
