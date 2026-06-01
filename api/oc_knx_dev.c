@@ -241,35 +241,38 @@ const oc_resource_t core_resource_dev_model = {
         true,
         &core_resource_dev_model_data};
 
-static void oc_core_dev_hostname_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
-  while (rep) {
-    if (rep->type == OC_REP_STRING) {
+  while (rep) 
+  {
+    if (rep->type == OC_REP_STRING) 
+    {
       // value (1)
-      if (rep->iname == 1) {
-        PRINT("oc_core_dev_hostname_put_handler received : %s", 
-                oc_string_checked(rep->value.string));	// TODO 3 LOG make this depending on log level
+      if (rep->iname == 1) 
+      {
+        OC_INF("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));	
 
-        // set hostname for the device
-        oc_core_set_device_hostname(oc_string_checked(rep->value.string));
-
-        // update storage
-        oc_storage_write(KNX_STORAGE_HOSTNAME, 
-                (uint8_t*)oc_string_checked(rep->value.string), 
-                oc_string_len(rep->value.string));
+        char* hname = oc_string_checked(rep->value.string);
+        const uint8_t hname_size = oc_string_len(rep->value.string);
+        
+        // set hostname for the device and update storage
+        oc_core_set_device_hostname(hname);
+        oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)hname, hname_size);
 
         // call host name application callback handler
         const oc_hostname_t* my_hostname = oc_get_hostname_cb();
-        if (my_hostname && my_hostname->cb) {
+        if (my_hostname && my_hostname->cb) 
+        {
           my_hostname->cb(rep->value.string, my_hostname->data);
         }
 
@@ -284,14 +287,15 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request,
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-static void oc_core_dev_hostname_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_dev_hostname_get_handler - start");	// TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_hostname_get_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -1098,79 +1102,71 @@ const oc_resource_t core_resource_dev_mid = {
         1,
         &core_resource_dev_mid_data};
 
-void oc_knx_load_device(void) {
-  PRINT("Loading device configuration from persistent storage"); // TODO 3 LOG make this depending on log level
+void oc_knx_load_device(void) 
+{
+  OC_INF("Loading device configuration from persistent storage");
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
   // read IA from storage (on error = 0xFFFF)
   uint16_t ia;
   device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
-  PRINT("ia (storage) %04X", ia); // TODO 3 LOG make this depending on log level
+  OC_INF("ia (storage) %04X", ia);
 
   // read iid name from storage (on error = 0)
   uint64_t iid;
   device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
-  PRINT("iid (storage) %" PRIu64, device->iid); // TODO 3 LOG make this depending on log level
+  OC_INF("iid (storage) %" PRIu64, device->iid); 
 
   // read fid name from storage (on error = 0)
   uint64_t fid;
   device->fid = oc_storage_read(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
-  PRINT("fid (storage) %" PRIu64, device->fid); // TODO 3 LOG make this depending on log level
+  OC_INF("fid (storage) %" PRIu64, device->fid); 
 
   // read prg mode from storage (on error = false)
   bool pm;
   device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*)&pm, sizeof(pm)) > 0 ? pm : false;
-  PRINT("pm (storage) %d", pm); // TODO 3 LOG make this depending on log level
+  OC_INF("pm (storage) %d", pm); 
 
-  // set default host name to device serial number and leading
-  // 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
-  // header defined by specification
-  char hname[HNAME_SIZE];
-  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
-
-  // read host name from storage (on error = default host name, otherwise stored host name)
-  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, 128);
-  oc_core_set_device_hostname(hname);
-  PRINT("hostname (storage) %s", oc_string(device->iot_hostname)); // TODO 3 LOG make this depending on log level
+  // read host name from storage (on error = the default host name is used, otherwise stored host name)
+  oc_core_read_and_set_device_hostname();
+  OC_INF("hostname (storage) %s", oc_string(device->iot_hostname)); 
 
   // read application version from storage (on error = '0.0.0')
   uint16_t value;
-  device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, 
-          sizeof(value)) > 0 ? value : 0;
-  device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, 
-          sizeof(value)) > 0 ? value : 0;
-  device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, 
-          sizeof(value)) > 0 ? value : 0;
-  PRINT("app ver (storage) %d.%d.%d", 
-          device->apv.major, device->apv.minor, device->apv.patch); // TODO 3 LOG make this depending on log level
+  device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  OC_INF("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch); 
 
   // read firmware version from storage (on error = '0.0.0')
   device->fwv.major = oc_storage_read(KNX_STORAGE_FW_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->fwv.minor = oc_storage_read(KNX_STORAGE_FW_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->fwv.patch = oc_storage_read(KNX_STORAGE_FW_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  PRINT("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
+  OC_INF("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
 
   // read lsm mode from storage (on error = unloaded)
   oc_lsm_state_t lsm;
   device->lsm_s = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*)&lsm, sizeof(lsm)) > 0 ? lsm : LSM_S_UNLOADED;
-  PRINT("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm)); // TODO 3 LOG make this depending on log level
+  OC_INF("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm));
 
   // load security related variables
   uint16_t osc;
-  uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc, 
-          sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
+  const uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc,
+                                          sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
 
   set_oscore_osn_delay_ms(d_size);
-  PRINT("oscore (storage) osn delay (%u) ms ", d_size); // TODO 3 LOG make this depending on log level
+  OC_INF("oscore (storage) osn delay (%u) ms ", d_size);
 
-  // Note:
-  // - The used uc port will be advertised with each mDNS such as on every 
-  //   startup, so no need to store and read here.
-  // - The used mc port for discovery is fixed, so no need to store and read here.
+  /* NOTE:
+     - The used uc port will be advertised with each mDNS such as on every 
+       startup, so no need to store and read here.
+     - The used mc port for discovery is fixed, so no need to store and read here.
+  */
 }
 
-void oc_knx_device_storage_reset(int reset_mode) {
+void oc_knx_device_storage_reset(int reset_mode) 
+{
   oc_device_info_t* const device = oc_core_get_device_info();
 
   if (reset_mode == RESET_TO_DEFAULT_STATE) {
@@ -1183,9 +1179,7 @@ void oc_knx_device_storage_reset(int reset_mode) {
     device->iid = 0;
     device->fid = 0;
 
-    // Set the default host name to device serial number and leading 
-    // 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
-    // header defined by specification.
+    // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
     char hname[HNAME_SIZE];
     (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
     oc_core_set_device_hostname(hname);
@@ -1198,8 +1192,11 @@ void oc_knx_device_storage_reset(int reset_mode) {
     oc_delete_group_tables();
     oc_delete_at_table();
 
-    // clear the CoAP request history (duplicate detection buffer)
+    // clear the CoAP request cache 
     oc_coap_clear_request_history();
+
+    // clear the CoAP response cache
+    oc_coap_clear_response_history();
 
     // writing all above reset values to storage (LSM already written)
     // Note:
@@ -1209,9 +1206,7 @@ void oc_knx_device_storage_reset(int reset_mode) {
     oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
-    oc_storage_write(KNX_STORAGE_HOSTNAME, 
-            (uint8_t*)oc_string(device->iot_hostname), 
-            oc_string_len(device->iot_hostname));
+    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname), oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;
