@@ -583,7 +583,7 @@ int coap_receive(oc_message_t* incoming_message)
 
   // block options
   uint32_t block1_num = 0, block1_offset = 0, block2_num = 0, block2_offset = 0;
-  uint32_t block1_size = OC_BLOCK_SIZE, block2_size = OC_BLOCK_SIZE;
+  uint16_t block1_size = OC_BLOCK_SIZE, block2_size = OC_BLOCK_SIZE;
   uint8_t  block1_more = 0, block2_more = 0;
 
   #ifdef OC_BLOCK_WISE
@@ -1459,7 +1459,7 @@ int coap_receive(oc_message_t* incoming_message)
           uint32_t peer_mtu = 0;
           if (coap_get_header_size1(inbound_coap_pkt, (uint32_t*)&peer_mtu) == 1)
           {
-            block1_size = MIN(peer_mtu, OC_BLOCK_SIZE);
+            block1_size = (uint16_t) MIN(peer_mtu, OC_BLOCK_SIZE);
           }
           else
           {

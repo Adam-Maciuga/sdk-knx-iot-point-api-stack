@@ -116,7 +116,7 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
 }
 
 static uint32_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE; // a static runtime variable (set/get)
-static uint32_t _OC_BLOCK_SIZE = 1024;                      // a static runtime variable (only get)
+static uint16_t _OC_BLOCK_SIZE = 1024;                      // a static runtime variable (only get)
 
 int oc_set_mtu_size(uint32_t mtu_size)
 {
@@ -138,7 +138,7 @@ int oc_set_mtu_size(uint32_t mtu_size)
   {
   }
 
-  _OC_BLOCK_SIZE = 1 << i;
+  _OC_BLOCK_SIZE = (uint16_t)(1 << i);
 
   #endif 
 
@@ -155,7 +155,7 @@ uint32_t oc_get_max_app_data_size(void)
   return KNX_PAYLOAD_SIZE;
 }
 
-uint32_t oc_get_block_size(void) 
+uint16_t oc_get_block_size(void) 
 {
   return  _OC_BLOCK_SIZE;
 }

@@ -53,9 +53,9 @@ uint32_t oc_get_max_app_data_size(void);
 /**
  * @brief retrieve the block size
  *
- * @return uint32_t the block size in bytes
+ * @return uint16_t the block size in bytes
  */
-uint32_t oc_get_block_size(void);
+uint16_t oc_get_block_size(void);
 
 #ifdef __cplusplus
 }

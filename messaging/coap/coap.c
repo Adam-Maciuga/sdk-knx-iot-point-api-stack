@@ -853,8 +853,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         coap_pkt->block2_num = coap_parse_int_option(current_options, option_length);
-        coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;
-        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
+        coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;               // can only be 0 or 1
+        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));  // can't be more than 16 bit
         coap_pkt->block2_offset = (coap_pkt->block2_num & ~0x0000000F) << (coap_pkt->block2_num & 0x07);
         coap_pkt->block2_num >>= 4;
         OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num, coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
@@ -868,8 +868,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         coap_pkt->block1_num = coap_parse_int_option(current_options, option_length);
-        coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;
-        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
+        coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;               // can only be 0 or 1
+        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));  // can't be more than 16 bit
         coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << (coap_pkt->block1_num & 0x07);
         coap_pkt->block1_num >>= 4;
         OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num, coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
@@ -1715,7 +1715,19 @@ int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t*
   return 1;
 }
 
-int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size) {
+/*
+  Set the Block2 option on an outgoing CoAP packet (RFC 7959).
+  Block2 controls blockwise response transfers.
+
+  Parameters:
+  - num:  block number (20-bit max, 0x0FFFFF)
+  - more: M-bit (1 = more blocks follow, 0 = last block)
+  - size: block size in bytes (power-of-2, valid range 16..2048)
+
+  Returns 1 on success, 0 if parameters are out of range.
+*/
+int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   if (size < 16) {
@@ -1731,40 +1743,57 @@ int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t si
   }
 
   coap_pkt->block2_num = num;
-  coap_pkt->block2_more = more ? 1 : 0;
+  coap_pkt->block2_more = more;
   coap_pkt->block2_size = size;
 
   SET_OPTION(coap_pkt, COAP_OPTION_BLOCK2);
   return 1;
 }
 
-int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
+int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK1)) {
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK1)) 
+  {
     return 0;
   }
 
   // pointers may be NULL to get only specific block parameters
-  if (num != NULL) {
+  if (num != NULL) 
+  {
     *num = coap_pkt->block1_num;
   }
 
-  if (more != NULL) {
+  if (more != NULL) 
+  {
     *more = coap_pkt->block1_more;
   }
 
-  if (size != NULL) {
+  if (size != NULL) 
+  {
     *size = coap_pkt->block1_size;
   }
 
-  if (offset != NULL) {
+  if (offset != NULL) 
+  {
     *offset = coap_pkt->block1_offset;
   }
 
   return 1;
 }
 
+/*
+  Set the Block1 option on an outgoing CoAP packet (RFC 7959).
+  Block1 controls blockwise request transfers.
+
+  Parameters:
+  - num:  block number (20-bit max, 0x0FFFFF)
+  - more: M-bit (1 = more blocks follow, 0 = last block)
+  - size: block size in bytes (power-of-2, valid range 16..2048)
+
+  Returns 1 on success, 0 if parameters are out of range.
+*/
 int coap_set_header_block1(void* packet, uint32_t num, uint8_t more, uint16_t size) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
