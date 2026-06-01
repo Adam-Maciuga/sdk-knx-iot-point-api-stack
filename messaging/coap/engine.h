@@ -78,6 +78,9 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
 // clear the request history buffer (ONLY on device reset with erase code 2)
 void oc_coap_clear_request_history(void);
 
+// clear the response cache buffer (ONLY on device reset with erase code 2)
+void oc_coap_clear_response_history(void);
+
 /**
  * @brief Check if the inbound message is a 1:1 mirrored (loopback) message send by myself, 
  *        by checking the endpoint IPv6 address and port (yes : return true, no : return false). 

@@ -119,7 +119,7 @@ void oc_coap_clear_request_history(void)
 {
   memset(g_history, 0, sizeof(g_history));
   g_history_idx = 0;
-  OC_DBG("wipe history buffer");
+  OC_DBG("wipe inbound request history buffer");
 }
 
 /* 
@@ -151,6 +151,24 @@ typedef struct
 
 static oc_response_cache_entry_t response_cache[OC_RESPONSE_CACHE_SIZE];
 static uint8_t response_cache_idx;
+
+void oc_coap_clear_response_history(void)
+{
+  // release all pending messages in the response cache
+  for (const oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
+  {
+    // reset ref count to 1 to ensure proper (forced) release of message when unref
+    if (h->message)
+    { // in case a msg exits, usually only on reset/power down
+      h->message->ref_count = 1;
+      oc_message_unref(h->message);
+    }
+  }
+  
+  memset(response_cache, 0, sizeof(response_cache));
+  response_cache_idx = 0;
+  OC_DBG("wipe outbound response cache buffer");
+}
 
 /**
   @brief Look up the response cache for a matching MID+endpoint and re-send.
