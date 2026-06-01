@@ -6,11 +6,10 @@
  */
 
 #include <direct.h>
-
+#include <io.h>
 #include "oc_config.h"
 #include "port/oc_storage.h"
 #include "port/oc_log.h"
-
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -26,20 +25,24 @@ static bool path_set = false;
 
 int oc_storage_config(const char* store)
 {
-    if (!store || !*store) {
+    if (!store || !*store) 
+    {
         return -EINVAL;
     }
 
     store_path_len = strlen(store);
-    if (store_path_len >= STORE_PATH_SIZE) {
+    if (store_path_len >= STORE_PATH_SIZE) 
+    {
         return -ENOENT;
     }
 
     strncpy(store_path, store, store_path_len);
-    if (store_path[store_path_len - 1] != '/' &&
-            store_path[store_path_len - 1] != '\\') {
+
+    if (store_path[store_path_len - 1] != '/' && store_path[store_path_len - 1] != '\\') 
+    {
         ++store_path_len;
-        if (store_path_len >= STORE_PATH_SIZE) {
+        if (store_path_len >= STORE_PATH_SIZE) 
+        {
             return -ENOENT;
         }
 
@@ -47,31 +50,35 @@ int oc_storage_config(const char* store)
     }
 
     path_set = true;
-    char temp_dir[60];	// TODO FIXME this depends on STORE_PATH_SIZE!
+    char temp_dir[STORE_PATH_SIZE]; 
     strcpy(temp_dir, store);
-    if ((strlen(store) > 2) && (store[0] == '.') && (store[1] == '/')) {
+
+    // remove leading "./" and trailing "/" from store path
+    if (store_path_len > 2 && store[0] == '.' && store[1] == '/') 
+    {
         strcpy(temp_dir, &store[2]);
     }
 
     const size_t dir_len = strlen(temp_dir);
-    if (temp_dir[dir_len - 1] == '/') {
+    if (temp_dir[dir_len - 1] == '/') 
+    { // remove trailing "/"
         temp_dir[dir_len - 1] = '\0';
     }
 
-    PRINT("Creating storage directory at %s", temp_dir);
+    OC_INF("Creating storage directory at %s", temp_dir);
     #ifdef __GNUC__
     int ret_val = mkdir(temp_dir);
     #else
-    int ret_val = _mkdir(temp_dir);
+    const int ret_val = _mkdir(temp_dir);
     #endif
-    PRINT("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
+    OC_DBG("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
 
-    return 0;
+    return ret_val;
 }
 
 long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 {
-    size_t store_len = strlen(store);
+    const size_t store_len = strlen(store);
 
     if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE)) {
         return -ENOENT;
@@ -81,8 +88,9 @@ long oc_storage_read(const char* store, uint8_t* buf, size_t size)
     store_path[store_path_len + store_len] = '\0';
 
     FILE* fp = fopen(store_path, "rb");
-    if (!fp) {
-        OC_ERR("Missing (or invalid) storage path: %s", store_path);	// TODO either error messages for all errors (prefered) or for none
+    if (!fp) 
+    {
+        OC_ERR("Error on open file: %s", store_path);
         return -EINVAL;
     }
 
@@ -94,9 +102,10 @@ long oc_storage_read(const char* store, uint8_t* buf, size_t size)
 
 long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
-    size_t store_len = strlen(store);
+    const size_t store_len = strlen(store);
 
-    if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE)) {
+    if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE)) 
+    {
         return -ENOENT;
     }
 
@@ -104,21 +113,26 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
     store_path[store_path_len + store_len] = '\0';
 
     FILE* fp = fopen(store_path, "wb");
-    if (!fp) {
-        OC_ERR("Missing (or invalid) storage path: %s", store_path);
+    if (!fp) 
+    {
+        OC_ERR("Error on open file: %s", store_path);	
         return -EINVAL;
     }
 
     size = fwrite(buf, 1, size, fp);
-    (void) fclose(fp);	// TODO add fflush() and fsync(), check if fileno is implemented on Windows?
+    (void) fflush(fp);
+    (void) _commit(_fileno(fp));
+    (void) fclose(fp);
+
     return (long) size;
 }
 
 int oc_storage_erase(const char* store)
 {
-    size_t store_len = strlen(store);
+    const size_t store_len = strlen(store);
 
-    if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE)) {
+    if (!path_set || store_len + store_path_len >= STORE_PATH_SIZE)
+    {
         return -ENOENT;
     }
 

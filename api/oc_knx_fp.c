@@ -76,7 +76,7 @@ int32_t oc_table_find_id_from_payload_and_check_if_in_16_bit_range(const oc_rep_
           const int32_t id = (int32_t)object->value.integer;
           const bool id_out_of_range = id < 0 || id > 65535; // see KNX specification
           
-          PRINT("find id from request: %d ", id);
+          OC_INF("find id from request: %d ", id);
           return id_out_of_range ? -2 : id;
         }
       }
@@ -88,7 +88,7 @@ int32_t oc_table_find_id_from_payload_and_check_if_in_16_bit_range(const oc_rep_
     object = object->next;
   }
 
-  PRINT("no id found (error)");
+  OC_ERR("no id found (error)");
   return -1;
 }
 
@@ -287,7 +287,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_fp_g_get_handler - start");
+  OC_INF("oc_core_fp_g_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -363,7 +363,7 @@ static void oc_core_fp_g_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_fp_g_get_handler - end");
+  OC_INF("oc_core_fp_g_get_handler - end");
 }
 
 static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -374,7 +374,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   // default assumption
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  PRINT("oc_core_fp_g_post_handler - start");
+  OC_INF("oc_core_fp_g_post_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -518,7 +518,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
                   new_array[i] = (uint32_t)array[i];
                 }
 
-                PRINT("ga size %d", new_array_size);
+                OC_INF("ga size %d", new_array_size);
 
                 // assign GA array in tmp copy (org ptr still valid in org entry)
                 tmp_go_entry.ga_len = new_array_size;
@@ -583,7 +583,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
         { // c
 
           // no tmp elements allocated ...
-          PRINT("only found id in request, deleting entry at index: %d", entry);
+          OC_INF("only found id in request, deleting entry at index: %d", entry);
           oc_delete_group_object_table_entry(entry);
         }
         else
@@ -592,7 +592,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           { // a
 
             // id + ga (filled or empty) AND at least one of ia, grpid or url must be present
-            PRINT("mandatory items missing, no entry created at index: %d", entry);
+            OC_ERR("mandatory items missing, no entry created at index: %d", entry);
 
             // on error: free PUB tmp entry (all heap allocations)
             oc_free_allocated_group_object_table_elements(&tmp_go_entry, allocator);
@@ -639,7 +639,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
           }
 
           // here all ok, set new GO entry
-          PRINT("storing GO table entry at %d", entry);
+          OC_INF("storing GO table entry at %d", entry);
 
           /*
             Free - on stack allocated -  live GO table entry elements that will be overwritten next.
@@ -672,7 +672,7 @@ static void oc_core_fp_g_post_handler(oc_request_t* request, oc_interface_mask_t
   // the last return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
-  PRINT("oc_core_fp_g_post_handler - end");
+  OC_INF("oc_core_fp_g_post_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -698,7 +698,7 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_g_x_get_handler - start");
+  OC_INF("oc_core_fp_g_x_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -739,14 +739,14 @@ static void oc_core_fp_g_x_get_handler(oc_request_t* request, oc_interface_mask_
   oc_rep_end_root_object();
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_fp_g_x_get_handler - end");
+  OC_INF("oc_core_fp_g_x_get_handler - end");
 }
 
 static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_g_x_del_handler - start");
+  OC_INF("oc_core_fp_g_x_del_handler - start");
 
 
   if (oc_knx_get_lsm() != LSM_S_LOADING)
@@ -773,7 +773,7 @@ static void oc_core_fp_g_x_del_handler(oc_request_t* request, oc_interface_mask_
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
-  PRINT("oc_core_fp_g_x_del_handler - end");
+  OC_INF("oc_core_fp_g_x_del_handler - end");
 }
 
 #ifdef OC_PUBLISHER_TABLE
@@ -866,7 +866,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_fp_p_get_handler - start");
+  OC_INF("oc_core_fp_p_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -941,7 +941,7 @@ static void oc_core_fp_p_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_fp_p_get_handler - end");
+  OC_INF("oc_core_fp_p_get_handler - end");
 }
 
 static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -952,7 +952,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   // default assumption
   oc_status_t return_status = OC_STATUS_BAD_REQUEST;
 
-  PRINT("oc_core_fp_p_post_handler - start");
+  OC_INF("oc_core_fp_p_post_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1116,7 +1116,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
                 new_array[i] = (uint32_t)array[i];
               }
 
-              PRINT("ga size %d", array_size);
+              OC_DBG("ga size %d", array_size);
 
               // assign GA array in tmp copy (org ptr still valid in org entry)
               tmp_gpt_entry.ga_len = array_size;
@@ -1193,7 +1193,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
       { // c
 
         // no tmp elements will be allocated ...
-        PRINT("only found id in request, deleting entry at index: %d", index);
+        OC_INF("only found id in request, deleting entry at index: %d", index);
         oc_delete_group_table_entry(index, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
       }
       else
@@ -1202,7 +1202,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         { // a0
 
           // see details on constant
-          PRINT("mandatory items missing, no entry created at index: %d", index);
+          OC_ERR("mandatory items missing, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
@@ -1215,7 +1215,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         { // a1
 
           // see details on constant
-          PRINT("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
+          OC_ERR("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_group_table_elements(&tmp_gpt_entry, allocator);
@@ -1225,7 +1225,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
         }
 
         // b + d, here all ok, set new PUB entry
-        PRINT("storing PUB table at %d", index);
+        OC_INF("storing PUB table at %d", index);
 
         /*
           Free - on stack allocated -  live PUB table entry elements that will be overwritten next.
@@ -1258,7 +1258,7 @@ static void oc_core_fp_p_post_handler(oc_request_t* request, oc_interface_mask_t
   // the last (positive) return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
-  PRINT("oc_core_fp_p_post_handler - end");
+  OC_INF("oc_core_fp_p_post_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1284,7 +1284,7 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_p_x_get_handler - start");
+  OC_INF("oc_core_fp_p_x_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1299,7 +1299,7 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   const int index = oc_core_find_index_in_table_from_id(id, g_gpt, GPT_MAX_ENTRIES);
 
-  PRINT("id:%d index = %d", id, index);
+  OC_DBG("id:%d index = %d", id, index);
 
   if (index == -1)
   {
@@ -1356,14 +1356,14 @@ static void oc_core_fp_p_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_fp_p_x_get_handler - end");
+  OC_INF("oc_core_fp_p_x_get_handler - end");
 }
 
 static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_p_x_del_handler - start");
+  OC_INF("oc_core_fp_p_x_del_handler - start");
 
 
   if (oc_knx_get_lsm() != LSM_S_LOADING)
@@ -1391,7 +1391,7 @@ static void oc_core_fp_p_x_del_handler(oc_request_t* request, oc_interface_mask_
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
-  PRINT("oc_core_fp_p_x_del_handler - end");
+  OC_INF("oc_core_fp_p_x_del_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1426,7 +1426,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_fp_r_get_handler - start");
+  OC_INF("oc_core_fp_r_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -1502,7 +1502,7 @@ static void oc_core_fp_r_get_handler(oc_request_t* request, oc_interface_mask_t 
   }
   oc_prepare_linkformat_response(request, OC_STATUS_OK, response_length);
 
-  PRINT("oc_core_fp_r_get_handler - end");
+  OC_INF("oc_core_fp_r_get_handler - end");
 }
 
 static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -1676,7 +1676,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
                 new_array[i] = (uint32_t)array[i];
               }
 
-              PRINT("ga size %d", new_array_size);
+              OC_DBG("ga size %d", new_array_size);
 
               // assign GA array in tmp copy (org ptr still valid in org entry)
               tmp_grt_entry.ga_len = new_array_size;
@@ -1795,7 +1795,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
       { // c
 
         // no tmp elements will be allocated ...
-        PRINT("only found id in request, deleting entry at index: %d", index);
+        OC_INF("only found id in request, deleting entry at index: %d", index);
         oc_delete_group_table_entry(index, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
       }
       else
@@ -1804,7 +1804,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         { // a0
 
           // see details on constant
-          PRINT("mandatory items missing, no entry created at index: %d", index);
+          OC_ERR("mandatory items missing, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
@@ -1817,7 +1817,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         { // a1
 
           // see details on constant
-          PRINT("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
+          OC_ERR("ia and grpid cannot be in the same table entry, no entry created at index: %d", index);
 
           // on error: free PUB tmp entry (all heap allocations)
           oc_free_allocated_group_table_elements(&tmp_grt_entry, allocator);
@@ -1827,7 +1827,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
         }
 
         // b + d, here all ok, set new PUB entry
-        PRINT("storing RCP table at %d", index);
+        OC_DBG("storing RCP table at %d", index);
 
         /*
           Free - on stack allocated -  live RCP table entry elements that will be overwritten next.
@@ -1860,7 +1860,7 @@ static void oc_core_fp_r_post_handler(oc_request_t* request, oc_interface_mask_t
   // the last (positive) return status from a collection with 'n' POST elements is responded (CREATED/CHANGED)
   oc_prepare_no_format_response_no_payload(request, return_status);
 
-  PRINT("oc_core_fp_r_post_handler - end");
+  OC_INF("oc_core_fp_r_post_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1887,7 +1887,7 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_fp_r_x_get_handler - start");
+  OC_INF("oc_core_fp_r_x_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1902,7 +1902,7 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   const int index = oc_core_find_index_in_table_from_id(id, g_grt, GRT_MAX_ENTRIES);
 
-  PRINT("id:%d index = %d", id, index);
+  OC_DBG("id:%d index = %d", id, index);
 
   if (index == -1)
   {
@@ -1959,14 +1959,14 @@ static void oc_core_fp_r_x_get_handler(oc_request_t* request, oc_interface_mask_
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_fp_r_x_get_handler - end");
+  OC_INF("oc_core_fp_r_x_get_handler - end");
 }
 
 static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_fp_r_x_del_handler");
+  OC_INF("oc_core_fp_r_x_del_handler");
 
 
   if (oc_knx_get_lsm() != LSM_S_LOADING)
@@ -1994,7 +1994,7 @@ static void oc_core_fp_r_x_del_handler(oc_request_t* request, oc_interface_mask_
 
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_DELETED);
 
-  PRINT("oc_core_fp_r_x_del_handler - end");
+  OC_INF("oc_core_fp_r_x_del_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -2091,23 +2091,27 @@ void oc_print_cflags(const oc_cflag_mask_t cflags)
 
 void oc_print_group_object_table_entry(int entry)
 {
-#ifdef OC_PRINT
+  #ifdef OC_PRINT
+
   if (g_got[entry].id == -1)
   {
     return;
   }
 
-  PRINT("id (0)     : %d", g_got[entry].id);
-  PRINT("href (11)  : %s", oc_string_checked(g_got[entry].href));
-  PRINT("cflags (8) : %d string: ", g_got[entry].cflags);
+  OC_INF("id (0)     : %d", g_got[entry].id);
+  OC_INF("href (11)  : %s", oc_string_checked(g_got[entry].href));
+  OC_INF("cflags (8) : %d string: ", g_got[entry].cflags);
   oc_print_cflags(g_got[entry].cflags);
-  PRINT("ga (7)     : [");
+  
+  // print entire array in one line 
+  OC_INF("ga (7)     : [");
   for (int i = 0; i < g_got[entry].ga_len; i++)
   {
     PRINTF(" %u ", g_got[entry].ga[i]);
   }
   PRINTF("]");
-#endif
+
+  #endif
 }
 
 void oc_store_group_object_table_entry(int entry)
@@ -2142,10 +2146,10 @@ void oc_store_group_object_table_entry(int entry)
   if (size > 0)
   {
     OC_DBG("oc_dump_GO_table_entry: [%s] [%d]: size %d", filename, entry, size);
-    long written_size = oc_storage_write(filename, buf, size);
+    const long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long)size)
     {
-      PRINT("written %d != %d (to be written)", (int)written_size, size);
+      OC_ERR("written %d != %d (to be written)", (int)written_size, size);
     }
   }
   free(buf);
@@ -2267,7 +2271,7 @@ void oc_load_group_object_table_entry(int entry)
 
 void oc_load_group_object_table(void)
 {
-  PRINT("Loading Group Object table from persistent storage");
+  OC_INF("Loading Group Object table from persistent storage");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     oc_load_group_object_table_entry(i);
@@ -2333,7 +2337,7 @@ int oc_delete_group_object_table_entry(int entry)
 
 void oc_delete_group_object_table(void)
 {
-  PRINT("Deleting Group Object table from storage (file) system and RAM");
+  OC_INF("Deleting Group Object table from storage (file) system and RAM");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     oc_delete_group_object_table_entry(i);
@@ -2343,7 +2347,7 @@ void oc_delete_group_object_table(void)
 
 static void oc_free_group_object_table(void)
 {
-  PRINT("Free Group Object table from RAM");
+  OC_INF("Free Group Object table from RAM");
   for (int i = 0; i < GOT_MAX_ENTRIES; i++)
   {
     oc_free_group_object_table_entry(i);
@@ -2364,31 +2368,29 @@ int oc_core_find_index_in_table_from_id(int id, oc_group_table_t* table, int max
 
 static void oc_print_group_table_entry(int entry, char* store, oc_group_table_t* table)
 {
-#ifdef OC_PRINT
+  #ifdef OC_PRINT
 
   if (table[entry].id == -1)
   {
     return;
   }
-  PRINT("%s [%d] --> [%d]", store, entry, table[entry].ga_len);
-  PRINT("id (0)     : %d", table[entry].id);
-  PRINT("ia (12)    : %d", table[entry].ia);
-  PRINT("iid (26)   : %" PRIi64 "", table[entry].iid);
-  PRINT("fid (25)   : %" PRIi64 "", table[entry].fid);
-  PRINT("grpid (13) : %u", table[entry].grpid);
+  OC_INF("%s [%d] --> [%d]", store, entry, table[entry].ga_len);
+  OC_INF("id (0)     : %d", table[entry].id);
+  OC_INF("ia (12)    : %d", table[entry].ia);
+  OC_INF("iid (26)   : %" PRIi64 "", table[entry].iid);
+  OC_INF("fid (25)   : %" PRIi64 "", table[entry].fid);
+  OC_INF("grpid (13) : %u", table[entry].grpid);
+  OC_INF("at (14)    : %s", oc_string_checked(table[entry].at));
 
-  if (oc_string_len(table[entry].at) > 0)
-  {
-    PRINT("at (14) : %s", oc_string_checked(table[entry].at));
-  }
-  PRINT("ga (7)     : [");
+  // print an array in one line 
+  OC_INF("ga (7)     : [");
   for (int i = 0; i < table[entry].ga_len; i++)
   {
     PRINTF("%04X ", table[entry].ga[i]);
   }
   PRINTF("]");
 
-#endif
+  #endif
 }
 
 // store RCP/PUB table data in CBOR (hex stream data)
@@ -2430,10 +2432,10 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   if (size > 0)
   {
     OC_DBG("oc_dump_PUB/RCV_table_entry: [%s] [%s] [%d]: size %d", filename, store, entry, size);
-    long written_size = oc_storage_write(filename, buf, size);
+    const long written_size = oc_storage_write(filename, buf, size);
     if (written_size != (long)size)
     {
-      PRINT("written %d != %d (to be written)", (int)written_size, size);
+      OC_ERR("written %d != %d (to be written)", (int)written_size, size);
     }
   }
 
@@ -2552,7 +2554,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
           }
           break;
         default:
-          PRINT("invalid object type detected");
+          OC_ERR("invalid object type detected");
           break;
         }
         rep = rep->next;
@@ -2566,7 +2568,7 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
 
 static void oc_load_object_tables(void)
 {
-  PRINT("Loading Recipient table from persistent storage");
+  OC_INF("Loading Recipient table from persistent storage");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_load_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
@@ -2574,7 +2576,7 @@ static void oc_load_object_tables(void)
   }
 
   #ifdef OC_PUBLISHER_TABLE
-  PRINT("Loading Publisher table from persistent storage");
+  OC_INF("Loading Publisher table from persistent storage");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_load_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
@@ -2633,7 +2635,7 @@ static int oc_delete_group_table_entry(int entry, char* store, oc_group_table_t*
 
 void oc_delete_group_tables(void)
 {
-  PRINT("Deleting Recipient table from RAM and storage (file system)");
+  OC_INF("Deleting Recipient table from RAM and storage (file system)");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GRT_STORE, g_grt, GRT_MAX_ENTRIES);
@@ -2641,7 +2643,7 @@ void oc_delete_group_tables(void)
   }
 
   #ifdef OC_PUBLISHER_TABLE
-  PRINT("Deleting Publisher table from RAM and storage (file system)");
+  OC_INF("Deleting Publisher table from RAM and storage (file system)");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_delete_group_table_entry(i, GPT_STORE, g_gpt, GPT_MAX_ENTRIES);
@@ -2652,14 +2654,14 @@ void oc_delete_group_tables(void)
 
 static void oc_free_group_tables(void)
 {
-  PRINT("Free Recipient table from RAM");
+  OC_INF("Free Recipient table from RAM");
   for (int i = 0; i < GRT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_grt);
   }
 
   #ifdef OC_PUBLISHER_TABLE
-  PRINT("Free Publisher table from RAM");
+  OC_INF("Free Publisher table from RAM");
   for (int i = 0; i < GPT_MAX_ENTRIES; i++)
   {
     oc_free_group_table_entry(i, g_gpt);
@@ -2769,7 +2771,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
 {
   bool return_value = false;
 
-  PRINT("oc_add_points_from_group_object_table_to_response %04X", group_address);
+  OC_INF("oc_add_points_from_group_object_table_to_response %04X", group_address);
 
   for (int index = 0; index < GOT_MAX_ENTRIES; index++)
   {
@@ -2778,7 +2780,7 @@ bool oc_add_points_from_group_object_table_to_response(oc_request_t* request, ui
       if (is_in_array(group_address, g_got[index].ga, g_got[index].ga_len))
       {
         // add the resource to response, note, it is not checked if the resource is already there...
-        PRINT("oc_add_points_from_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
+        OC_INF("oc_add_points_from_group_object_table_to_response [%d] %s", index, oc_string_checked(g_got[index].href));
 
         // called from GET /p handler so always truncate resources URN's
         oc_add_resource_to_response_payload(
@@ -2834,7 +2836,7 @@ oc_endpoint_t oc_create_multicast_group_address_with_port(oc_endpoint_t in, uint
   // uses all interfaces --> cleared above to '0'
   
   // debug
-  PRINT("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
+  OC_INF("scope=%d iid=%" PRIu64 " group id=%u B4=%02x B3=%02x B2=%02x B1=%02x :", scope, iid, group_id, byte_4, byte_3, byte_2, byte_1);
   PRINTipaddr(group_mcast_endpoint);
 
   // copy all from local data to (return) pointer

@@ -139,7 +139,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_fb_x_get_handler - start");
+  OC_INF("oc_core_fb_x_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -239,7 +239,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
 
-  PRINT("oc_core_fb_x_get_handler - end");
+  OC_INF("oc_core_fb_x_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -447,7 +447,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   int query_ps = PAGE_SIZE;
   
 
-  PRINT("oc_core_fb_get_handler");
+  OC_INF("oc_core_fb_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -495,7 +495,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
 
-  PRINT("oc_core_fb_get_handler - end");
+  OC_INF("oc_core_fb_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'

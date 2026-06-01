@@ -176,7 +176,7 @@ static void rx_thread(void *p1, void *p2, void *p3)
 
             OC_INF("Incoming CoAP message of size %d bytes from ", (int)message->length);
             PRINTipaddr(message->endpoint);
-            PRINT("\r\n");
+            PRINTF("\r\n");
 
             oc_network_event(message);
         }
@@ -360,7 +360,7 @@ int oc_send_buffer(oc_message_t *message)
 #ifdef OC_DEBUG
     OC_DBG("Outgoing CoAP message of size %d bytes to ", (int)message->length);
     PRINTipaddr(message->endpoint);
-    PRINT("\r\n");
+    PRINTF("\r\n");
 #endif
 
     to.sin6_port = htons(message->endpoint.addr.ipv6.port);

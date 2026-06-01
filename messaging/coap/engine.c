@@ -737,8 +737,8 @@ int coap_receive(oc_message_t* incoming_message)
 
       print_coap_service(inbound_coap_pkt->code, "inbound request");
 
-      PRINT("URL\t: %.*s", (int)inbound_coap_pkt->uri_path_len, inbound_coap_pkt->uri_path_len > 0 ? inbound_coap_pkt->uri_path : "-");
-      PRINT("QUERY\t: %.*s", (int)inbound_coap_pkt->uri_query_len, inbound_coap_pkt->uri_query_len > 0 ? inbound_coap_pkt->uri_query : "-");
+      OC_DBG("URL\t: %.*s", (int)inbound_coap_pkt->uri_path_len, inbound_coap_pkt->uri_path_len > 0 ? inbound_coap_pkt->uri_path : "-");
+      OC_DBG("QUERY\t: %.*s", (int)inbound_coap_pkt->uri_query_len, inbound_coap_pkt->uri_query_len > 0 ? inbound_coap_pkt->uri_query : "-");
       // no payload printing ... to long ...
 
       #endif

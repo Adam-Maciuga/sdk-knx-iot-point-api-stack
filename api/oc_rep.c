@@ -1532,7 +1532,7 @@ void oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print)
   const size_t json_size = oc_rep_to_json(rep, NULL, 0, pretty_print);
   char* json = (char*)malloc(json_size + 1);
   oc_rep_to_json(rep, json, json_size + 1, pretty_print);
-  PRINT("cbor as json: %s", json);
+  OC_DBG("cbor as json: %s", json);
   free(json);
   
   #endif

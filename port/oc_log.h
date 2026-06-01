@@ -10,7 +10,7 @@
  *
  *  Generic logging functions:
  *  - OC_INF
- *    prints information as Info level, used by PRINT
+ *    prints information as Info level
  *  - OC_WRN
  *    prints information as Warning level
  *  - OC_ERR
@@ -29,7 +29,7 @@
  *    disables output of OC_LOGbytes logging function
  *    if OC_DEBUG is enabled.
  *  - KNX_LOG_TO_FILE
- *    logs the PRINT statements to file
+ *    logs the OC_INF, OC_WRN, OC_ERR, and OC_DBG statements to file
  */
 #ifndef OC_LOG_H
 #define OC_LOG_H
@@ -183,8 +183,7 @@ extern "C" {
   (data)[8], (data)[9], (data)[10],(data)[11],  \
   (data)[12]
 
-// Note:
-// It is recommended to use a console for the output that allows a 'no word wrap'
+// Note: it is recommended to use a console for the output that allows a 'no word wrap'
 
 #ifdef OC_PRINT
   #ifdef __ZEPHYR__

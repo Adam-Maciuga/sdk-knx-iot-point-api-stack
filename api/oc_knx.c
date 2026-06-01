@@ -124,7 +124,7 @@ static int cached_erase_code_value;
 static oc_event_callback_retval_t reset(void* context)
 {
   (void)context;
-  PRINT("reset device: %d", cached_erase_code_value);
+  OC_DBG("reset device: %d", cached_erase_code_value);
 
   /* Specification demands
      - reset a possible PRG mode
@@ -162,7 +162,7 @@ static oc_event_callback_retval_t reset(void* context)
   const oc_factory_presets_t* my_preset_cb = oc_get_factory_presets_cb();
   if (my_preset_cb && my_preset_cb->cb)
   {
-    PRINT("Factory PRESET callback handler is called");
+    OC_INF("Factory PRESET callback handler is called");
     my_preset_cb->cb(my_preset_cb->data);
   }
 
@@ -173,11 +173,11 @@ static oc_event_callback_retval_t reset(void* context)
   const oc_reset_t* my_reset_cb = oc_get_reset_cb();
   if (my_reset_cb && my_reset_cb->cb)
   {
-    PRINT("Factory RESET callback handler is called");
+    OC_INF("Factory RESET callback handler is called");
     my_reset_cb->cb(cached_erase_code_value, my_reset_cb->data);
   }
 
-  PRINT("Re-register DNS-SD service after a reset with erase code 2 or 7");
+  OC_INF("Re-register DNS-SD service after a reset with erase code 2 or 7");
   const oc_device_info_t* const  device = oc_core_get_device_info();
   knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
@@ -217,7 +217,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
   int erase_code_value = -1; // JSON key
   int cmd = -1; // JSON key
 
-  PRINT("oc_core_knx_post_handler - start");
+  OC_INF("oc_core_knx_post_handler - start");
   oc_print_rep_as_json(request->request_payload, false);
 
   oc_rep_t* rep = request->request_payload;
@@ -250,7 +250,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     rep = rep->next;
   }
 
-  PRINT("cmd: %d value: %d", cmd, erase_code_value);
+  OC_DBG("cmd: %d value: %d", cmd, erase_code_value);
 
   if (cmd == RESTART_DEVICE)
   {
@@ -261,7 +261,7 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
     oc_set_delayed_callback_ms(NULL, restart, 75);
 
     // send NO response back
-    PRINT("oc_core_knx_post_handler - end, restart");
+    OC_INF("oc_core_knx_post_handler - end, restart");
     oc_ignore_request(request);
     return;
   }
@@ -314,11 +314,11 @@ static void oc_core_knx_post_handler(oc_request_t* request, oc_interface_mask_t 
 
     // send response
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
-    PRINT("oc_core_knx_post_handler - end, reset");
+    OC_INF("oc_core_knx_post_handler - end, reset");
     return;
   }
 
-  PRINT("invalid command");
+  OC_ERR("invalid command");
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
@@ -419,7 +419,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_a_lsm_get_handler - start");
+  OC_INF("oc_core_a_lsm_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -434,7 +434,7 @@ static void oc_core_a_lsm_get_handler(oc_request_t* request, oc_interface_mask_t
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_a_lsm_get_handler - end");
+  OC_INF("oc_core_a_lsm_get_handler - end");
 }
 
 static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data)
@@ -442,7 +442,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_lsm_post_handler - start");
+  OC_INF("oc_core_lsm_post_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -469,7 +469,7 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
     rep = rep->next;
   }
 
-  PRINT("load event %d [%s]", event, oc_core_get_lsm_event_as_string(event));
+  OC_DBG("load event %d [%s]", event, oc_core_get_lsm_event_as_string(event));
 
   /*
      - no event outside table/ specification, keep old state
@@ -504,12 +504,12 @@ static void oc_core_a_lsm_post_handler(oc_request_t* request, oc_interface_mask_
         oc_register_group_multicasts();
         oc_init_datapoints_at_initialization();
 
-        PRINT("Re-register DNS-SD service after a LSM went to loaded");
+        OC_INF("Re-register DNS-SD service after a LSM went to loaded");
         knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
         // task 2
         oc_knx_increase_fingerprint();
-        PRINT("Increase fingerprint after a LSM went to loaded");
+        OC_INF("Increase fingerprint after a LSM went to loaded");
 
       }
 
@@ -561,7 +561,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_knx_k_get_handler");
+  OC_INF("oc_core_knx_k_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -604,7 +604,7 @@ static void oc_core_knx_k_get_handler(oc_request_t* request, oc_interface_mask_t
 
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_knx_k_get_handler - done");
+  OC_INF("oc_core_knx_k_get_handler - done");
 }
 
 /**
@@ -655,10 +655,10 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   */
   oc_group_object_notification_t received_notification = {0};
 
-  PRINT("oc_core_knx_k_post_handler - start");
+  OC_INF("oc_core_knx_k_post_handler - start");
 
   // debugging
-  PRINT("decoded payload size : %d", (int)request->_payload_len);
+  OC_DBG("decoded payload size : %d", (int)request->_payload_len);
   oc_print_rep_as_json(request->request_payload, true);
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
@@ -741,7 +741,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
   if (!oc_is_device_in_runtime())
   {
-    PRINT("device not in runtime state:%d - ignore message", device->lsm_s);
+    OC_WRN("device not in runtime state:%d - ignore message", device->lsm_s);
     oc_ignore_request(request);
     return;
   }
@@ -754,7 +754,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   SNPRINTFipaddr(ip_address, 100 - 1, *request->origin);
 
   // handle the request loop over the group addresses of the /fp/r (recipient table)
-  PRINT("/k : sia: %u ga: %04x st: %c origin: %s", 
+  OC_DBG("/k : sia: %u ga: %04x st: %c origin: %s", 
         received_notification.sia, 
         received_notification.ga,
         received_notification.st, 
@@ -780,7 +780,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   */
   int go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(received_notification.ga);
 
-  PRINT("/k : GO table index = %d", go_table_index_where_ga_is_used);
+  OC_DBG("/k : GO table index = %d", go_table_index_where_ga_is_used);
 
   if (go_table_index_where_ga_is_used != -1)
   { // index found
@@ -905,7 +905,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
       // get href from the GO table index
       oc_string_t go_href = oc_core_get_href_from_group_object_table_index(go_table_index_where_ga_is_used);
 
-      PRINT("/k : GO table resource path = %s", oc_string_checked(go_href));
+      OC_DBG("/k : GO table resource path = %s", oc_string_checked(go_href));
 
       // device EP present (sanity check, GO without href is usually a product problem or MAC configuration error)
       if (oc_string_len(go_href) > 0)
@@ -946,7 +946,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
           if (service & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
           {
-            PRINT("/k : write with GOT index %d handled due to write flag enabled %d", go_table_index_where_ga_is_used, cflags);
+            OC_DBG("/k : write with GOT index %d handled due to write flag enabled %d", go_table_index_where_ga_is_used, cflags);
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
@@ -985,7 +985,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           }
           if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
           {
-            PRINT("/k : response with GOT index %d handled due to update on response flag enabled %d", go_table_index_where_ga_is_used, cflags);
+            OC_DBG("/k : response with GOT index %d handled due to update on response flag enabled %d", go_table_index_where_ga_is_used, cflags);
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
@@ -1014,7 +1014,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           }
           if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
           {
-            PRINT("/k : read with GO table index %d handled due to read flags enabled 0x%x", go_table_index_where_ga_is_used, (uint32_t)cflags);
+            OC_DBG("/k : read with GO table index %d handled due to read flags enabled 0x%x", go_table_index_where_ga_is_used, (uint32_t)cflags);
 
             /*
               here we have a GO with a resource path (href) and application resource with the SAME resource path (href)
@@ -1119,17 +1119,17 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
   if (request->origin && request->origin->flags & MULTICAST)
   { // multicast request: don't send anything back (no uc, no mc response), if configured in PUB table a read was answered beforehand
 
-    PRINT("multicast - not sending response");
+    OC_INF("multicast - not sending response");
     oc_ignore_request(request);
   }
   else
   { // unicast request: send status back as unicast, if configured in PUB table a read was answered beforehand
 
-    PRINT("unicast - sending response");
+    OC_INF("unicast - sending response");
     oc_prepare_no_format_response_no_payload(request, summary_handler_status);
   }
 
-  PRINT("oc_core_knx_k_post_handler - end");
+  OC_INF("oc_core_knx_k_post_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1155,7 +1155,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
 {
   (void)data;
   (void)iface_mask;
-  PRINT("oc_core_knx_fingerprint_get_handler");
+  OC_INF("oc_core_knx_fingerprint_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1177,7 +1177,7 @@ static void oc_core_knx_fingerprint_get_handler(oc_request_t* request, oc_interf
   oc_rep_i_set_int(root, 1, g_fingerprint);
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_fingerprint_get_handler - done");
+  OC_INF("oc_core_knx_fingerprint_get_handler - done");
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -1224,17 +1224,17 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 12)
       {
-        PRINT("received 12 (ia) : %" PRIi64, rep->value.integer);
+        OC_DBG("received 12 (ia) : %" PRIi64, rep->value.integer);
         ia_ok = oc_core_set_and_store_device_ia(rep->value.integer);
       }
       else if (rep->iname == 25)
       {
-        PRINT("received 25 (fid): %" PRIi64, rep->value.integer);
+        OC_DBG("received 25 (fid): %" PRIi64, rep->value.integer);
         fid_ok = oc_core_set_and_store_device_fid(rep->value.integer);
       }
       else if (rep->iname == 26)
       {
-        PRINT("received 26 (iid): %" PRIi64, rep->value.integer);
+        OC_DBG("received 26 (iid): %" PRIi64, rep->value.integer);
         iid_ok = oc_core_set_and_store_device_iid(rep->value.integer);
       }
     }
@@ -1255,7 +1255,7 @@ static void oc_core_knx_ia_post_handler(oc_request_t* request, oc_interface_mask
       The conformance tests expect an announcement and query-response for the new IA subtype
       even when the device is not yet in loaded/runtime state.
     */
-    PRINT("Re-register mDNS after writing iid + ia)");
+    OC_DBG("Re-register mDNS after writing iid + ia)");
     const oc_device_info_t* const  device = oc_core_get_device_info();
     knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
@@ -1292,7 +1292,7 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
   (void)iface_mask;
   size_t response_length = 0;
 
-  PRINT("oc_core_knx_ldevid_get_handler");
+  OC_INF("oc_core_knx_ldevid_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
   {
@@ -1305,7 +1305,7 @@ static void oc_core_knx_ldevid_get_handler(oc_request_t* request, oc_interface_m
   request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
   request->response->response_buffer->response_length = response_length;
 
-  PRINT("oc_core_knx_ldevid_get_handler- done");
+  OC_INF("oc_core_knx_ldevid_get_handler- done");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1333,7 +1333,7 @@ static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_m
   (void)iface_mask;
   size_t response_length = 0;
 
-  PRINT("oc_core_knx_idevid_get_handler");
+  OC_INF("oc_core_knx_idevid_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_PKCS7_CMC_REQUEST))
   {
@@ -1346,7 +1346,7 @@ static void oc_core_knx_idevid_get_handler(oc_request_t* request, oc_interface_m
   request->response->response_buffer->code = oc_status_code(OC_STATUS_OK);
   request->response->response_buffer->response_length = response_length;
 
-  PRINT("oc_core_knx_idevid_get_handler- done");
+  OC_INF("oc_core_knx_idevid_get_handler- done");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1419,7 +1419,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_knx_spake_post_handler - start");
+  OC_INF("oc_core_knx_spake_post_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -1449,7 +1449,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   // check if the AT table is empty (see above)
   if (oc_core_items_used_in_auth_at_table() > 0)
   {
-    OC_ERR("device is not in the 'default configuration state'");
+    OC_WRN("device is not in the 'default configuration state'");
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
     return;
   }
@@ -1589,7 +1589,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
             // free possible old spake token id
             oc_free_string(&g_pase.id);
             oc_new_byte_string(&g_pase.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
-            PRINT("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
+            OC_DBG("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
           }
         }
       break;
@@ -1599,7 +1599,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     rep = rep->next;
   }
 
-  PRINT("pase_step: %d", pase_step);
+  OC_DBG("pase_step: %d", pase_step);
 
   oc_prepare_separate_response(request, &delayed_separate_response_for_a_spake_request);
   oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);
@@ -1609,7 +1609,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p)
 {
   (void)req_p;
-  PRINT("oc_core_knx_spake_separate_post_handler - start");
+  OC_INF("oc_core_knx_spake_separate_post_handler - start");
 
   // previous device response is fired and no longer active ...
   if (!delayed_separate_response_for_a_spake_request.active)
@@ -1753,9 +1753,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
 
     // debugging
-    PRINT("set id : (%zu) ", oc_byte_string_len(g_pase.id));
+    OC_DBG("set id : (%zu) ", oc_byte_string_len(g_pase.id));
     oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
-    PRINT("set ms : (%zu) ", sizeof(shared_key));
+    OC_DBG("set ms : (%zu) ", sizeof(shared_key));
     oc_char_println_hex(shared_key, sizeof(shared_key));
 
     /*
@@ -1780,7 +1780,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
   error:
 
-  PRINT("oc_core_knx_spake_separate_post_handler - error");
+  OC_ERR("oc_core_knx_spake_separate_post_handler - error");
 
   // handshake error - clear state
   spake_data = (spake_data_t){0};

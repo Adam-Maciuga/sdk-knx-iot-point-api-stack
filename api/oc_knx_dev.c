@@ -91,7 +91,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request,
     return;
   }
 
-  PRINT("oc_core_dev_hwv_get_handler");	// TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_hwv_get_handler");
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
  
@@ -133,7 +133,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request,
     return;
   }
 
-  PRINT("oc_core_dev_fwv_get_handler - start");	// TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_fwv_get_handler - start");
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   // cbor with payload: [ major, minor, patch ]
@@ -346,7 +346,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
     {
       if (rep->iname == 1) 
       {
-        PRINT("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer); // TODO 3 LOG make this depending on log level
+        OC_INF("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer);
 
         if (oc_core_set_and_store_device_iid(rep->value.integer)) 
         {
@@ -355,7 +355,7 @@ static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask
             oc_register_group_multicasts();
             oc_init_datapoints_at_initialization();
 
-            PRINT("Re-register DNS-SD service after writing IID)"); // TODO 3 LOG make this depending on log level
+            OC_INF("Re-register DNS-SD service after writing IID)");
             const oc_device_info_t* const device = oc_core_get_device_info();
             knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
           }
@@ -420,7 +420,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
   int query_pn = PAGE_NUMBER;
   int query_ps = BATCH_SIZE;
 
-  PRINT("oc_core_dev_ipv6_get_handler - start"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_ipv6_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
     return;
@@ -490,7 +490,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
   // (otherwise no comm. is possible)
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_dev_ipv6_get_handler - end"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_ipv6_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -518,7 +518,7 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request,
   (void)data;
   (void)iface_mask;
 
-  PRINT("calling dev/pm GET handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("calling dev/pm GET handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
     return;
@@ -539,7 +539,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
   (void)data;
   (void)iface_mask;
 
-  PRINT("calling dev/pm PUT handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("calling dev/pm PUT handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
     return;
@@ -552,7 +552,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
   while (rep) {
     if (rep->type == OC_REP_BOOL) {
       if (rep->iname == 1) {
-        PRINT("oc_core_dev_pm_put_handler received : %d", (int)rep->value.boolean); // TODO 3 LOG make this depending on log level
+        OC_INF("oc_core_dev_pm_put_handler received : %d", (int)rep->value.boolean);
 
         // application programming mode callback handler, 
         // if not present PM it is set directly
@@ -562,7 +562,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
           device->pm = rep->value.boolean;
         }
 
-        PRINT("Re-register DNS-SD service after writing PROG mode)"); // TODO 3 LOG make this depending on log level
+        OC_INF("Re-register DNS-SD service after writing PROG mode)");
         knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
                 device->ia, device->pm);
         oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&rep->value.boolean, 1);
@@ -613,7 +613,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_dev_dev_get_handler - start"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_dev_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) {
     return;
@@ -661,7 +661,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_dev_dev_get_handler - end"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_dev_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -796,7 +796,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request,
   while (rep) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer); // TODO 3 LOG make this depending on log level
+        OC_INF("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer);
 
         if (oc_core_set_and_store_device_fid(rep->value.integer)) {
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -992,7 +992,7 @@ static void oc_core_ap_get_handler(oc_request_t* request,
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_ap_get_handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_ap_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) {
     return;
@@ -1040,7 +1040,7 @@ static void oc_core_ap_get_handler(oc_request_t* request,
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_ap_get_handler - end"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_ap_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
@@ -1258,7 +1258,7 @@ void oc_knx_device_restart(void) {
   // - send read requests for all GO's with i-flag
   // - call individual application restart callback handler
 
-  PRINT("restart device"); // TODO 3 LOG make this depending on log level
+  OC_INF("restart device");
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
@@ -1276,7 +1276,7 @@ void oc_knx_device_restart(void) {
 
   // Re-publish DNS-SD service after restart to reflect updated state
   // (e.g. PM=false, changed IA/IID from prior POST).
-  PRINT("Re-register DNS-SD service after device restart)");
+  OC_INF("Re-register DNS-SD service after device restart)");
   knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   // application restart callback handler

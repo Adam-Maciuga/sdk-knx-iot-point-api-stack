@@ -41,7 +41,7 @@ void oc_oscore_free_all_replay_records(void)
 
 	  rec->in_use = false;
 	}
-	PRINT("Cleared all replay window records");
+	OC_DBG("Cleared all replay window records");
 }
 
 // find empty record in queue, if queue is full ... free oldest record

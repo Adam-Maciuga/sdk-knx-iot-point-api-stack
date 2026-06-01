@@ -162,7 +162,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_knx_auth_o_osndelay_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -173,7 +173,7 @@ static void oc_core_knx_auth_o_osndelay_get_handler(oc_request_t* request, oc_in
   oc_rep_i_set_uint(root, 1, get_oscore_osn_delay_ms());
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_auth_o_osndelay_get_handler - done"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_knx_auth_o_osndelay_get_handler - done");
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -241,7 +241,7 @@ static void oc_core_knx_auth_o_replwdo_get_handler(oc_request_t* request, oc_int
   oc_rep_i_set_uint(root, 1, g_oscore_replay_window_size); // use direct access
   oc_rep_end_root_object();
 
-  PRINT("oc_core_knx_auth_o_replwdo_get_handler - done"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_knx_auth_o_replwdo_get_handler - done");
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
@@ -280,7 +280,7 @@ static void oc_core_knx_auth_o_get_handler(oc_request_t* request, oc_interface_m
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_auth_o_get_handler - start"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_auth_o_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -399,7 +399,7 @@ static void oc_core_a_sen_post_handler(oc_request_t* request, oc_interface_mask_
   const oc_rep_t* rep = request->request_payload;
   while (rep)
   {
-    PRINT("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name)); // TODO 3 LOG make this depending on log level
+    OC_DBG("oc_core_a_sen_post_handler: key: (check) %s ", oc_string_checked(rep->name));
     if (rep->type == OC_REP_STRING)
     {
       if (rep->iname == 2)
@@ -1397,40 +1397,41 @@ void oc_print_auth_at_entry(const oc_auth_at_t* entry)
   #ifdef OC_PRINT
   if (entry && oc_string_len(entry->id) > 0)
   {
-    PRINT("at index      : %d", (int)(entry - g_at_entries));
-    PRINT("id (0)        : %s", oc_string_checked(entry->id));
-    PRINT("scope (9)     : %d", entry->scope);
-    PRINT("profile (38)  : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
+    OC_DBG("at index      : %d", (int)(entry - g_at_entries));
+    OC_DBG("id (0)        : %s", oc_string_checked(entry->id));
+    OC_DBG("scope (9)     : %d", entry->scope);
+    OC_DBG("profile (38)  : %d (%s)", entry->profile, oc_at_profile_to_string(entry->profile));
 
     if (entry->profile == OC_PROFILE_COAP_OSCORE || entry->profile == OC_PROFILE_COAP_PASE)
     {
       if (oc_string_len(entry->osc_ms) > 0)
       {
-        PRINT("osc:ms (h)    : (%d) ", (int)oc_byte_string_len(entry->osc_ms));
+        OC_DBG("osc:ms (h)    : (%d) ", (int)oc_byte_string_len(entry->osc_ms));
         oc_string_println_hex(entry->osc_ms);
       }
 
       if (oc_string_len(entry->osc_salt) > 0)
       {
-        PRINT("osc:salt (h)  : (%d) ", (int)oc_byte_string_len(entry->osc_salt));
+        OC_DBG("osc:salt (h)  : (%d) ", (int)oc_byte_string_len(entry->osc_salt));
         oc_string_println_hex(entry->osc_salt);
       }
 
       if (oc_string_len(entry->osc_contextid) > 0)
       {
-        PRINT("osc:ctx_id (h): (%d) ", (int)oc_byte_string_len(entry->osc_contextid));
+        OC_DBG("osc:ctx_id (h): (%d) ", (int)oc_byte_string_len(entry->osc_contextid));
         oc_string_println_hex(entry->osc_contextid);
       }
 
       if (oc_string_len(entry->osc_id) > 0)
       {
-        PRINT("osc:id (h)    : (%d) ", (int)oc_byte_string_len(entry->osc_id));
+        OC_DBG("osc:id (h)    : (%d) ", (int)oc_byte_string_len(entry->osc_id));
         oc_string_println_hex(entry->osc_id);
       }
 
       if (entry->scope == OC_ACL_GA)
       {
-        PRINT("osc:ga        : [");
+        // print entire array in one line
+        OC_DBG("osc:ga        : [");
         for (int i = 0; i < entry->ga_len; i++)
         {
           PRINTF("%" PRIu64 " ", (uint64_t)entry->ga[i]);
@@ -1685,7 +1686,7 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
 
             break;
           default:
-            PRINT("invalid object type detected");
+            OC_ERR("invalid object type detected");
             break;
           }
 
@@ -1706,9 +1707,9 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
   {
     if (entry->profile == OC_PROFILE_COAP_PASE)
     {
-      oc_delete_at_table_entry(entry);      // delete entry from AT table
+      oc_delete_at_table_entry(entry); // delete entry from AT table
       oc_oscore_free_contexts_at_id(entry); // removes possible references
-      PRINT("PASE key found, invalidated...");
+      OC_DBG("PASE key found, invalidated...");
     }
   }
 }
@@ -1758,7 +1759,7 @@ void oc_delete_at_table(void)
 
 void oc_delete_at_table_except_sec_scope_entries(void)
 {
-  PRINT("deleting 'non if.sec' access token table entries from RAM and storage"); // TODO 3 LOG make this depending on log level
+  OC_INF("deleting 'non if.sec' access token table entries from RAM and storage");
 
   for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {

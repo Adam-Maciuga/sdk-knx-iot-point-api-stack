@@ -67,7 +67,7 @@ static void handle_srp_client_callback(otError aError, const otSrpClientHostInfo
         {
             otInstance * thrInstancePtr = openthread_get_default_instance();
 
-            PRINT("KNX IoT SRP service entry deleted, updating service entry.\n");
+            OC_DBG("KNX IoT SRP service entry deleted, updating service entry.\n");
             if (entry != NULL)
             {
                 otSrpClientAddService(thrInstancePtr, &entry->mService);
@@ -77,24 +77,23 @@ static void handle_srp_client_callback(otError aError, const otSrpClientHostInfo
         }
         else
         {
-            PRINT("KNX IoT SRP registration successful.\n");
+            OC_INF("KNX IoT SRP registration successful.\n");
         }
     }
     else
     {
-        PRINT("KNX IoT SRP registration failed: %d\n", aError);
+        OC_ERR("KNX IoT SRP registration failed: %d\n", aError);
     }
 }
 
 static void srp_client_cb(const otSockAddr *aServerSockAddr, void *aContext)
 {
-    PRINT("KNX IoT SRP client cb\n");
+    OC_INF("KNX IoT SRP client cb\n");
 }
 
 static void knx_set_srp_host(otInstance *thrInstancePtr, char *serial_no)
 {
-    char *stringBuffer;
-    uint16_t size;
+  uint16_t size;
 
     strncpy(serial_no_lowercase, serial_no, 19);
     for (int i = 0; i < strlen(serial_no_lowercase); ++i) {
@@ -126,7 +125,7 @@ static void knx_set_srp_host(otInstance *thrInstancePtr, char *serial_no)
     }
 
     /* This function returns a pointer to the string buffer for service name from a service entry */
-    stringBuffer = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
+    char* stringBuffer = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
 
     if(strlen(KNX_SRP_SERVICE_NAME) >= size)
     {
@@ -206,9 +205,9 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     (void)pm;
 
 #ifdef OC_DNS_SD
-    if (!otIp6IsEnabled(thrInstancePtr) || (device == NULL))
+    if (!otIp6IsEnabled(thrInstancePtr) || device == NULL)
     {
-        PRINT("Thread link is not yet up!\r\n");
+        OC_WRN("Thread link is not yet up!\r\n");
         return -1;
     }
 

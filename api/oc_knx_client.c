@@ -171,7 +171,7 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
 
   if (!ipv6_for_ia_is_resolved(service_type, recipient, group_object))
   {
-    OC_INF("Cannot send unicast: IPv6 address resolver still in progress for GA %u", group_address);
+    OC_WRN("Cannot send unicast: IPv6 address resolver still in progress for GA %u", group_address);
     return; 
   }
 
@@ -187,7 +187,7 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
   // set for the EP the sending group_address
   group_ucast_endpoint.group_address = group_address;
 
-  PRINT("Sending s-mode unicast %c", service_type);
+  OC_INF("Sending s-mode unicast %c", service_type);
 
   // send unicast message, confirmable or non-confirmable by 'non' flag in recipient table entry
   oc_issue_s_mode_message(&group_ucast_endpoint, "/k", group_address, service_type, value_data, value_size, recipient);
@@ -234,7 +234,7 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
   // set for the EP the sending group_address
   group_mcast_endpoint.group_address = group_address;
 
-  PRINT("Sending s-mode multicast %c", service_type);
+  OC_INF("Sending s-mode multicast %c", service_type);
 
   oc_issue_s_mode_message(&group_mcast_endpoint, "/k", group_address, service_type, value_data, value_size, (oc_group_table_t*)recipient);
 }
@@ -329,7 +329,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
   const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
   if (!resource)
   {
-    PRINT("error, application resource path not found %s", resource_path);
+    OC_ERR("error, application resource path not found %s", resource_path);
     return 0;
   }
 
@@ -366,7 +366,7 @@ static int oc_s_mode_get_resource_value(const char* resource_path, uint8_t* buff
 
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type)
 {
-  PRINT("scope = %d url = %s service type = %c", scope, resource_path, srv_type);
+  OC_DBG("scope = %d url = %s service type = %c", scope, resource_path, srv_type);
 
   if (!resource_path)
   {
@@ -378,7 +378,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
 
   if (!oc_is_device_in_runtime())
   {
-    PRINT("device is not running, load state is: %d", device->lsm_s);
+    OC_ERR("device is not running, load state is: %d", device->lsm_s);
     return -1;
   }
 
@@ -386,7 +386,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
   const oc_resource_t* org_resource = oc_ri_get_app_resource_by_resource_path(resource_path, strlen(resource_path));
   if (!org_resource)
   {
-    PRINT("error application callback with resource path %s not found", resource_path);
+    OC_ERR("error application callback with resource path %s not found", resource_path);
     return -1;
   }
 
@@ -409,7 +409,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         {
           // grpid is set in case of multicast in RCP table (configured by MaC)
 
-          PRINT("grpid > 0, send mc via sending ga");
+          OC_DBG("grpid > 0, send mc via sending ga");
 
           // multicast read, NO value data needed
           oc_send_s_mode_multicast_message(scope, sending_ga, srv_type, NULL, 0, recipient);
@@ -418,7 +418,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
         {
           // uc: request -> ia is used from RCP table (configured by MaC)
 
-          PRINT("grpid = 0, send uc via sending ga");
+          OC_DBG("grpid = 0, send uc via sending ga");
 
           // unicast read, NO value data needed
           oc_send_s_mode_unicast_message(sending_ga, srv_type, NULL, 0, recipient, go_entry);
@@ -462,7 +462,7 @@ int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, ch
       }
 
       // update internal GOs on any (uc/mc) write request
-      PRINT("checking & updating internal group objects");
+      OC_INF("checking & updating internal group objects");
 
       // get FIRST GO index with that GA included (one out of 0...max of GO array)
       int go_table_index_where_ga_is_used = oc_core_find_first_go_table_index_with_ga(sending_ga);

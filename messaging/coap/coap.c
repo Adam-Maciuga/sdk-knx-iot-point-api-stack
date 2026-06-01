@@ -70,34 +70,34 @@ void print_coap_service(uint8_t code, char* text)
   switch (code)
   {
   case COAP_GET:
-    PRINT("%s SRV\t: GET",text);
+    OC_DBG("%s SRV\t: GET",text);
     break;
   case COAP_PUT:
-    PRINT("%s SRV\t: PUT", text);
+    OC_DBG("%s SRV\t: PUT", text);
     break;
   case COAP_POST:
-    PRINT("%s SRV\t: POST", text);
+    OC_DBG("%s SRV\t: POST", text);
     break;
   case COAP_DELETE:
-    PRINT("%s SRV\t: DELETE", text);
+    OC_DBG("%s SRV\t: DELETE", text);
     break;
   case CREATED_2_01:
-    PRINT("%s SRV\t: 2.01 - CREATED", text);
+    OC_DBG("%s SRV\t: 2.01 - CREATED", text);
     break;
   case CHANGED_2_04:
-    PRINT("%s SRV\t: 2.04 - CHANGED", text);
+    OC_DBG("%s SRV\t: 2.04 - CHANGED", text);
     break;
   case CONTENT_2_05:
-    PRINT("%s SRV\t: 2.05 - OK", text);
+    OC_DBG("%s SRV\t: 2.05 - OK", text);
     break;
   case DELETED_2_02:
-    PRINT("%s SRV\t: 2.02 - DELETED", text);
+    OC_DBG("%s SRV\t: 2.02 - DELETED", text);
     break;
   case BAD_REQUEST_4_00:
-    PRINT("%s SRV\t: 4.00 - BAD REQUEST", text);
+    OC_DBG("%s SRV\t: 4.00 - BAD REQUEST", text);
     break;
   case UNAUTHORIZED_4_01:
-    PRINT("%s SRV\t: 4.01 - UNAUTHORIZED", text);
+    OC_DBG("%s SRV\t: 4.01 - UNAUTHORIZED", text);
     break;
   default:
     break;

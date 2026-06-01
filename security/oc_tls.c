@@ -178,7 +178,7 @@ static void oc_mbedtls_debug(void *ctx, int level, const char *file, int line,
 {
   (void)ctx;
   (void)level;
-  PRINT("mbedtls_log: %s:%04d: %s", file, line, str);
+  OC_DBG("mbedtls_log: %s:%04d: %s", file, line, str);
 }
 #endif
 

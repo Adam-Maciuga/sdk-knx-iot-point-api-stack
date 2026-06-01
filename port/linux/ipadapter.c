@@ -1110,11 +1110,11 @@ int oc_send_buffer(oc_message_t *message) {
 
   OC_INF("send_sock=%d server_sock=%d secure_sock=%d flags=0x%x",
           (int)send_sock, (int)dev->server_sock, 
-#ifdef KNX_UDP_DTLS          
+          #ifdef KNX_UDP_DTLS          
           (int)dev->secure_sock,
-#else
+          #else
           -1,
-#endif
+          #endif
           (unsigned int)message->endpoint.flags);
 
   // For multicast destinations not coming from oc_send_discovery_request
