@@ -115,49 +115,49 @@ oc_loadstate_t* oc_get_lsm_change_cb(void)
   return &app_loadstate;
 }
 
-#include "oc_buffer_settings.h"
-static size_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE;
-static size_t _OC_MAX_APP_DATA_SIZE = 7168; // a static runtime variable (set/get), no #define TODO 6 FIXME replace of those with parameters in global stack config.h
-static size_t _OC_BLOCK_SIZE = 1024;        // a static runtime variable (only get), no #define
+static uint32_t _OC_MTU_SIZE = 2048 + COAP_MAX_HEADER_SIZE; // a static runtime variable (set/get)
+static uint32_t _OC_BLOCK_SIZE = 1024;                      // a static runtime variable (only get)
 
-int oc_set_mtu_size(size_t mtu_size)
+int oc_set_mtu_size(uint32_t mtu_size)
 {
   (void) mtu_size;
-#ifdef OC_BLOCK_WISE
-  if (mtu_size < (COAP_MAX_HEADER_SIZE + 16))
+
+  #ifdef OC_BLOCK_WISE
+
+  // minimum MTU must accommodate at least one block (16 bytes) plus CoAP header
+  if (mtu_size < COAP_MAX_HEADER_SIZE + 16)
     return -1;
+
+  // store full PDU size (payload + header)
   _OC_MTU_SIZE = mtu_size + COAP_MAX_HEADER_SIZE;
   mtu_size -= COAP_MAX_HEADER_SIZE;
-  size_t i;
+
+  // derive block size SZX (RFC 7959 Section 2.2, Size Exponent) as largest power-of-2 that fits in the MTU (range: 1024..16 bytes, SZX 6..0)
+  uint16_t i;
   for (i = 10; i >= 4 && (mtu_size >> i) == 0; i--)
-    ;
-  _OC_BLOCK_SIZE = ((size_t) 1) << i;
-#endif 
+  {
+  }
+
+  _OC_BLOCK_SIZE = 1 << i;
+
+  #endif 
+
   return 0;
 }
 
-long oc_get_mtu_size(void)
+uint32_t oc_get_mtu_size(void)
 {
-  return (long) _OC_MTU_SIZE;
+  return _OC_MTU_SIZE;
 }
 
-void oc_set_max_app_data_size(size_t size)
+uint32_t oc_get_max_app_data_size(void)
 {
-  _OC_MAX_APP_DATA_SIZE = size;
-#ifndef OC_BLOCK_WISE
-  _OC_BLOCK_SIZE = size;
-  _OC_MTU_SIZE = size + COAP_MAX_HEADER_SIZE;
-#endif 
+  return KNX_PAYLOAD_SIZE;
 }
 
-long oc_get_max_app_data_size(void)
+uint32_t oc_get_block_size(void) 
 {
-  return (long) _OC_MAX_APP_DATA_SIZE;
-}
-
-long oc_get_block_size(void)
-{
-  return (long) _OC_BLOCK_SIZE;
+  return  _OC_BLOCK_SIZE;
 }
 
 static void oc_shutdown_device(void)

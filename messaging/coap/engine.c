@@ -583,7 +583,7 @@ int coap_receive(oc_message_t* incoming_message)
 
   // block options
   uint32_t block1_num = 0, block1_offset = 0, block2_num = 0, block2_offset = 0;
-  uint16_t block1_size = OC_BLOCK_SIZE, block2_size = OC_BLOCK_SIZE;
+  uint32_t block1_size = OC_BLOCK_SIZE, block2_size = OC_BLOCK_SIZE;
   uint8_t  block1_more = 0, block2_more = 0;
 
   #ifdef OC_BLOCK_WISE
@@ -703,8 +703,8 @@ int coap_receive(oc_message_t* incoming_message)
     }
 
     #ifdef OC_BLOCK_WISE
-    block1_size = MIN(block1_size, (uint16_t) OC_BLOCK_SIZE);
-    block2_size = MIN(block2_size, (uint16_t) OC_BLOCK_SIZE);
+    block1_size = MIN(block1_size, OC_BLOCK_SIZE);
+    block2_size = MIN(block2_size, OC_BLOCK_SIZE);
     #endif
 
     #ifdef OC_TCP
@@ -1094,7 +1094,7 @@ int coap_receive(oc_message_t* incoming_message)
 
         #ifdef OC_TCP
         if ((incoming_message->endpoint.flags & TCP &&
-            incoming_block_len <= (uint32_t)OC_MAX_APP_DATA_SIZE) ||
+            incoming_block_len <= OC_MAX_APP_DATA_SIZE) ||
           (!(incoming_message->endpoint.flags & TCP) &&
             incoming_block_len <= block1_size)) { 
         #else
@@ -1459,11 +1459,11 @@ int coap_receive(oc_message_t* incoming_message)
           uint32_t peer_mtu = 0;
           if (coap_get_header_size1(inbound_coap_pkt, (uint32_t*)&peer_mtu) == 1)
           {
-            block1_size = MIN((uint16_t) peer_mtu, (uint16_t) OC_BLOCK_SIZE);
+            block1_size = MIN(peer_mtu, OC_BLOCK_SIZE);
           }
           else
           {
-            block1_size = (uint16_t)OC_BLOCK_SIZE;
+            block1_size = OC_BLOCK_SIZE;
           }
 
           payload = oc_blockwise_dispatch_block(request_buffer, 0, block1_size, &payload_size);

@@ -602,14 +602,14 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
       if (coap_pkt->transport_type == COAP_TRANSPORT_UDP)
       {
-        if (coap_pkt->payload_len >= (uint32_t)OC_MAX_APP_DATA_SIZE)
+        if (coap_pkt->payload_len >= OC_MAX_APP_DATA_SIZE)
         {
           /* 
             if application payload is too big
             - cut payload at max size - 1, this allows to include the null-terminator 
             - don't care if the payload values then are NOT correct
           */
-          coap_pkt->payload_len = (uint32_t)OC_MAX_APP_DATA_SIZE - 1;
+          coap_pkt->payload_len = OC_MAX_APP_DATA_SIZE - 1;
         }
       }
 
@@ -1818,7 +1818,8 @@ int coap_get_header_size1(void* packet, uint32_t* size) {
   return 1;
 }
 
-int coap_set_header_size1(void* packet, uint32_t size) {
+int coap_set_header_size1(void* packet, uint32_t size) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   coap_pkt->size1 = size;
@@ -1861,12 +1862,14 @@ uint32_t coap_get_payload(void* packet, const uint8_t** payload) {
   return 0;
 }
 
-uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length) {
+uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
   coap_pkt->payload = payload;
   #ifdef OC_TCP
-  if (coap_pkt->transport_type == COAP_TRANSPORT_TCP) {
+  if (coap_pkt->transport_type == COAP_TRANSPORT_TCP) 
+  {
     coap_pkt->payload_len = (uint32_t) length;
   } else
   #endif 

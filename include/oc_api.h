@@ -268,10 +268,9 @@ extern "C"
    *
    * - oc_set_con_res_announced()
    * - oc_set_factory_presets_cb()
-   * - oc_set_max_app_data_size()
    * - oc_storage_config()
    *
-   * Not all of the listed functions must be called before calling oc_main_init.
+   * Not all the listed functions must be called before calling oc_main_init.
    *
    * @param[in] handler struct containing pointers callback handler functions
    *                    responsible for controlling the application
@@ -281,7 +280,6 @@ extern "C"
    *
    * @see oc_set_con_res_announced
    * @see oc_set_factory_presets_cb
-   * @see oc_set_max_app_data_size
    * @see oc_storage_config
    */
   int oc_main_init(const oc_handler_t* handler);

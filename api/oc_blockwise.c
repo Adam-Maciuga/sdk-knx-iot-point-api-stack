@@ -299,8 +299,9 @@ const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer, uint32_
 bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_block_offset, const uint8_t* incoming_block,
                                uint32_t incoming_block_size)
 {
-  if (incoming_block_offset >= (unsigned)OC_MAX_APP_DATA_SIZE || incoming_block_size > (OC_MAX_APP_DATA_SIZE - incoming_block_offset) ||
-      incoming_block_offset > buffer->next_block_offset)
+  if (incoming_block_offset >= OC_MAX_APP_DATA_SIZE 
+      || incoming_block_size > OC_MAX_APP_DATA_SIZE - incoming_block_offset 
+      || incoming_block_offset > buffer->next_block_offset)
   {
     return false;
   }

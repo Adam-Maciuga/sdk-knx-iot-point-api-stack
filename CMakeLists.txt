@@ -69,6 +69,7 @@ set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher tab
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
+set(KNX_PAYLOAD_SIZE "1024" CACHE STRING "Maximum payload bytes, allocated by stack/applications per default (see notes below on compile defintion)" FORCE)
 
 # Network
 # IPv6 unicast port
@@ -251,3 +252,12 @@ add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_D
 
 # KNX reset Process Time (seconds)
 add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
+
+## KNX payload size (bytes) 
+#  - defines the default value that is used for stack AND application 'malloc/calloc' calls
+#    such as for application read responses or stack discovery responses
+#  - must be carfully choosen since stack resources may need much more bytes than application datapoints
+#    (stack needs a minimum of 1k for discovery responses + extra buffer, 
+#     this depends on how many application resources are defined and responded)
+#  - cannot be overwritten at runtime by applications  
+add_compile_definitions(KNX_PAYLOAD_SIZE=${KNX_PAYLOAD_SIZE})
