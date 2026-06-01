@@ -153,10 +153,10 @@ static oc_response_cache_entry_t response_cache[OC_RESPONSE_CACHE_SIZE];
 static uint8_t response_cache_idx;
 
 /**
- * @brief Look up the response cache for a matching MID+endpoint and re-send.
- * @param his the history entry key (mid + port + address + timestamp) to match against
- * @return true if a cached response was found and re-sent.
- */
+  @brief Look up the response cache for a matching MID+endpoint and re-send.
+  @param his the history entry key (mid + port + address + timestamp) to match against
+  @return true if a cached response was found and re-sent.
+*/
 static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his)
 {
   for (oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
@@ -185,7 +185,8 @@ static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* h
 
 void oc_coap_response_cache_store(oc_message_t* message)
 {
-  /* don't cache
+  /* 
+    don't cache
     - empty ACKs (4 bytes = header only, no payload/token) 
     - NON msg (no retransmission, no need to cache)
     - malformed packets (< 4 bytes, > 4 bytes no ack)
@@ -206,10 +207,11 @@ void oc_coap_response_cache_store(oc_message_t* message)
     
     memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
 
-    /* release the current entry in this slot
-     * - this may overwrite an old entry or a still valid entry if the same slot is used multiple times within the TTL
-     * - necessary with rolling buffer->limited buffer capabilities
-     */
+    /* 
+      release the current entry in this slot
+      - this may overwrite an old entry or a still valid entry if the same slot is used multiple times within the TTL
+      - necessary with rolling buffer->limited buffer capabilities
+    */
     oc_message_unref(response_cache[response_cache_idx].message);
 
     // keep the CURRENT send out/ outbound new message alive by adding a ref
