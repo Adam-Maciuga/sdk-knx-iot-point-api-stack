@@ -590,8 +590,8 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
          - observe registration/ deregistration responses
          - ...
 
-         Note: the observe 'invalid state' is also passed here and treated 
-               as a normal separate response 
+         Note: the observe 'n/a state' is handled/treated here as a normal separate response,
+               such as when receiving a request with no observe option (n/a is the default state)
                
       */
       

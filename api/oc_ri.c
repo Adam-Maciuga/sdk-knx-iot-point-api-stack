@@ -1336,7 +1336,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   // if a GET request was successfully processed, then check its observe option
 
   // init 
-  oc_client_observe_t observe_value_by_client = OC_OBSERVE_INVALID;
+  oc_client_observe_t observe_value_by_client = OC_OBSERVE_NOT_APPLICABLE;
 
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe_value_by_client))
   {
