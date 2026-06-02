@@ -230,34 +230,34 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
 endif()
 target_link_libraries(kisClientServer PUBLIC kis-port)
 
-### TBD FIXME refactor this section  ###
-# Process individual stack/ (demo)application behavior 
+## Process individual stack/application behavior ##
+target_compile_definitions(kis-common INTERFACE
+    ## Sizes (tables, pagination, ...)
+    GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES}     # group object table size
+    GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES}     # publisher table size
+    GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES}     # recipient table size
+    G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES}    # access token table size
+    PAGE_SIZE=${KNX_PAGE_SIZE}                 # server default page size
 
-## Sizes (tables, pagination, ...)
-add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
-add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
-add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
-add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size
-add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
+    ## Network
+    # IPv6 unicast port
+    KNX_UNICAST_PORT=${KNX_UNICAST_PORT}
 
-## Network
-# IPv6 unicast port
-add_compile_definitions(KNX_UNICAST_PORT=${KNX_UNICAST_PORT})
+    # IPv6 multicast scope
+    KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE}
 
-# IPv6 multicast scope
-add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
+    # KNX read on init delay time between to subsequent read requests (milliseconds)
+    KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS}
 
-# KNX read on init delay time between to subsequent read requests (milliseconds)
-add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS})
+    # KNX reset Process Time (seconds)
+    KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS}
 
-# KNX reset Process Time (seconds)
-add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
-
-## KNX payload size (bytes) 
-#  - defines the default value that is used for stack AND application 'malloc/calloc' calls
-#    such as for application read responses or stack discovery responses
-#  - must be carfully choosen since stack resources may need much more bytes than application datapoints
-#    (stack needs a minimum of 1k for discovery responses + extra buffer, 
-#     this depends on how many application resources are defined and responded)
-#  - cannot be overwritten at runtime by applications  
-add_compile_definitions(KNX_PAYLOAD_SIZE=${KNX_PAYLOAD_SIZE})
+    ## KNX payload size (bytes)
+    #  - defines the default value that is used for stack AND application 'malloc/calloc' calls
+    #    such as for application read responses or stack discovery responses
+    #  - must be carfully choosen since stack resources may need much more bytes than application datapoints
+    #    (stack needs a minimum of 1k for discovery responses + extra buffer,
+    #     this depends on how many application resources are defined and responded)
+    #  - cannot be overwritten at runtime by applications
+    KNX_PAYLOAD_SIZE=${KNX_PAYLOAD_SIZE}
+)
