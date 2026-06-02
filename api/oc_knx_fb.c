@@ -22,12 +22,31 @@
 #include "api/oc_knx_fb.h"
 #include "api/oc_knx_fp.h"
 #include "oc_knx_helpers.h"
+#include <string.h>
 #include "oc_core_res.h"
 #include "oc_discovery.h"
 
 // forward declarations for the resource chain
 extern const oc_resource_t core_resource_knx_swu_protocol;
 extern const oc_resource_t core_resource_knx_f_x;
+
+/**
+ * Bounded substring search (like memmem but for C strings).
+ * Returns pointer to first occurrence of needle in haystack, or NULL.
+ * Unlike strstr, this does NOT require haystack to be null-terminated.
+ */
+static const char* bounded_strstr(const char* haystack, int haystack_len,
+                                  const char* needle)
+{
+  const int needle_len = (int)strlen(needle);
+  if (needle_len > haystack_len) return NULL;
+  for (int i = 0; i <= haystack_len - needle_len; i++)
+  {
+    if (memcmp(haystack + i, needle, needle_len) == 0)
+      return haystack + i;
+  }
+  return NULL;
+}
 
 /*
  - first field = fb number
@@ -325,7 +344,7 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
       // wildcard query parameter --> add FBs
       return true;
     }
-    if (strstr(rt_request, "fb") != NULL)
+    if (bounded_strstr(rt_request, rt_len, "fb") != NULL)
     {
       // '*fb*' query parameter value present
       // - string that contains *fb*, e.g; 'urn:knx:m.0001.fb.321' or 'urn:knx:fb.321'
@@ -340,7 +359,7 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
       // wildcard query parameter --> add FBs
       return true;
     }
-    if (strstr(if_request, "ll") != NULL)
+    if (bounded_strstr(if_request, if_len, "ll") != NULL)
     {
       // '*ll*' query parameter value present
       // - string that contains *ll*, e.g; 'urn:knx:if.ll'
