@@ -15,6 +15,7 @@
 extern "C" {
 #include "messaging/coap/engine.h"
 #include "messaging/coap/coap.h"
+#include "oc_buffer.h"
 }
 
 /* Helper: build a minimal coap_packet_t + oc_endpoint_t for duplicate checks */
@@ -155,5 +156,85 @@ TEST(ClearResponseHistory, SafeOnEmptyCache)
   oc_coap_clear_response_history();
   oc_coap_clear_response_history();
   SUCCEED();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_coap_response_cache_store
+ *
+ * Only piggybacked ACK responses are cached:
+ *   - length > 4 (header-only 4-byte empty ACKs are skipped)
+ *   - CoAP type field (bits 4-5 of byte 0) == COAP_TYPE_ACK (2)
+ * When cached, the message is kept alive via oc_message_add_ref()
+ * (ref_count 1 -> 2). Otherwise the function is a no-op.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Helper: fill a message's wire header. byte0 carries Ver|Type|TKL. */
+static void make_coap_message(oc_message_t *msg, uint8_t type_bits,
+                              uint16_t mid, size_t length)
+{
+  /* Ver=1 (01), Type in bits 4-5, TKL=0 */
+  msg->data[0] = (uint8_t)(0x40 | ((type_bits & 0x03) << 4));
+  msg->data[1] = 0x45; /* arbitrary code (2.05) */
+  msg->data[2] = (uint8_t)(mid >> 8);
+  msg->data[3] = (uint8_t)(mid & 0xFF);
+  msg->length = length;
+  msg->endpoint.addr.ipv6.port = 5683;
+  msg->endpoint.addr.ipv6.address[15] = 0x77;
+}
+
+TEST(ResponseCacheStore, PiggybackedAckIsCached)
+{
+  oc_message_t *msg = oc_allocate_message();
+  ASSERT_NE(msg, nullptr);
+  ASSERT_EQ(msg->ref_count, 1);
+
+  /* Piggybacked ACK: type=ACK and length > 4 */
+  make_coap_message(msg, COAP_TYPE_ACK, 40001, 8);
+  oc_coap_response_cache_store(msg);
+
+  /* Cached -> an extra reference was taken */
+  EXPECT_EQ(msg->ref_count, 2);
+
+  /* Clearing the cache force-releases the cached reference and frees msg */
+  oc_coap_clear_response_history();
+}
+
+TEST(ResponseCacheStore, EmptyAckIsNotCached)
+{
+  oc_message_t *msg = oc_allocate_message();
+  ASSERT_NE(msg, nullptr);
+
+  /* 4-byte header-only empty ACK must NOT be cached */
+  make_coap_message(msg, COAP_TYPE_ACK, 40002, 4);
+  oc_coap_response_cache_store(msg);
+
+  EXPECT_EQ(msg->ref_count, 1);
+  oc_message_unref(msg);
+}
+
+TEST(ResponseCacheStore, NonAckIsNotCached)
+{
+  oc_message_t *msg = oc_allocate_message();
+  ASSERT_NE(msg, nullptr);
+
+  /* CON message (type 0) with payload must NOT be cached */
+  make_coap_message(msg, COAP_TYPE_CON, 40003, 8);
+  oc_coap_response_cache_store(msg);
+
+  EXPECT_EQ(msg->ref_count, 1);
+  oc_message_unref(msg);
+}
+
+TEST(ResponseCacheStore, ShortMessageIsNotCached)
+{
+  oc_message_t *msg = oc_allocate_message();
+  ASSERT_NE(msg, nullptr);
+
+  /* Malformed/too-short message (< 4 bytes) must NOT be cached */
+  make_coap_message(msg, COAP_TYPE_ACK, 40004, 3);
+  oc_coap_response_cache_store(msg);
+
+  EXPECT_EQ(msg->ref_count, 1);
+  oc_message_unref(msg);
 }
 
