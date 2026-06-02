@@ -982,7 +982,13 @@ int coap_receive(oc_message_t* incoming_message)
               coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
               transaction->mid = outbound_coap_pkt->mid;
               coap_set_header_block1(outbound_coap_pkt, block1_num, block1_more, block1_size);
-              // TODO 10 coap_set_header_accept(response, APPLICATION_CBOR); NOT needed since these are binary data ? 
+
+              /*
+                No Accept option is set here: Accept is a request-only option (client -> server).
+                This is the outbound response; the response format is conveyed via Content-Format
+                (see block2 path) or falls back to the resource default per KNX IoT spec 2.2.4.
+
+              */
               request_buffer->payload_size = request_buffer->next_block_offset;
               request_buffer->ref_count = 0;
               goto request_handler;
@@ -1026,7 +1032,12 @@ int coap_receive(oc_message_t* incoming_message)
                 coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
                 transaction->mid = outbound_coap_pkt->mid;
 
-                // TODO 10 coap_set_header_accept(response, APPLICATION_CBOR); NOT needed since these are binary data ? 
+                /*
+                  No Accept option is set here: Accept is a request-only option (client -> server).
+                  This is the outbound response; the response format is conveyed via Content-Format
+                  (see block2 path) or falls back to the resource default per KNX IoT spec 2.2.4.
+
+                */ 
               }
               coap_set_header_content_format( outbound_coap_pkt, response_buffer->return_content_type);
               coap_set_payload(outbound_coap_pkt, payload, payload_size);
