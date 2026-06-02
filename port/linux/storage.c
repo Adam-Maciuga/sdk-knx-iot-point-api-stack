@@ -41,12 +41,13 @@ int oc_storage_config(const char* store)
     store_path[store_path_len] = '\0';
     path_set = true;
 
-    // remove leading "./" and trailing "/" from store path
+    
     char temp_dir[STORE_PATH_SIZE];
     strcpy(temp_dir, store);
     
+  // remove leading "./" from store path
     if (store_path_len > 2 && store[0] == '.' && store[1] == '/') 
-    { // remove leading "./"
+    { 
         strcpy(temp_dir, &store[2]);
     }
 
@@ -57,7 +58,7 @@ int oc_storage_config(const char* store)
     }
 
     OC_INF("Creating storage directory at %s", temp_dir);
-    const int ret_val = mkdir(temp_dir, 0664);
+    const int ret_val = mkdir(temp_dir, 0664); // rw-rw-r--
     OC_DBG("Result (0:ok; -1:EEXIST or ENOENT (path not found)) : %d", ret_val);
 
     return ret_val; 
@@ -92,7 +93,7 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
     const size_t store_len = strlen(store);
 
-    if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE)) 
+    if (!path_set || store_len + store_path_len >= STORE_PATH_SIZE) 
     {
         return -ENOENT;
     }

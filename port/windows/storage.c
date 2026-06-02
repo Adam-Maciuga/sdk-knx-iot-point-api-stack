@@ -38,6 +38,7 @@ int oc_storage_config(const char* store)
 
     strncpy(store_path, store, store_path_len);
 
+    // checks if store_path ends with / or \, if not, appends a / 
     if (store_path[store_path_len - 1] != '/' && store_path[store_path_len - 1] != '\\') 
     {
         ++store_path_len;
@@ -53,7 +54,7 @@ int oc_storage_config(const char* store)
     char temp_dir[STORE_PATH_SIZE]; 
     strcpy(temp_dir, store);
 
-    // remove leading "./" and trailing "/" from store path
+    // remove leading "./" from store path
     if (store_path_len > 2 && store[0] == '.' && store[1] == '/') 
     {
         strcpy(temp_dir, &store[2]);
@@ -104,7 +105,7 @@ long oc_storage_write(const char* store, uint8_t* buf, size_t size)
 {
     const size_t store_len = strlen(store);
 
-    if (!path_set || (store_len + store_path_len >= STORE_PATH_SIZE)) 
+    if (!path_set || store_len + store_path_len >= STORE_PATH_SIZE) 
     {
         return -ENOENT;
     }
