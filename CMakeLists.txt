@@ -261,3 +261,24 @@ add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
 #     this depends on how many application resources are defined and responded)
 #  - cannot be overwritten at runtime by applications  
 add_compile_definitions(KNX_PAYLOAD_SIZE=${KNX_PAYLOAD_SIZE})
+
+### Test Control Endpoints ###
+# Optional library that registers /test/restart, /test/factory-reset and
+# /test/trigger endpoints.  Link kisTestControl in any app that needs
+# automated testing (e.g. eitt_virtual_gui, runtime_test_server).
+add_library(kisTestControl STATIC ${PROJECT_SOURCE_DIR}/api/oc_test_control.c)
+target_include_directories(kisTestControl PUBLIC ${PROJECT_SOURCE_DIR}/api)
+target_link_libraries(kisTestControl PUBLIC kisClientServer)
+
+### Unit Tests ###
+option(BUILD_TESTING "Build unit tests (requires a C++ compiler)" OFF)
+option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(BUILD_TESTING)
+    enable_language(CXX)
+    enable_testing()
+    if(ENABLE_SANITIZERS AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+    add_subdirectory(tests)
+endif()

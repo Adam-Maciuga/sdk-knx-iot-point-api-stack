@@ -760,7 +760,15 @@ static void * network_event_thread(void *data) {
             continue;
           }
           message->length = count;
-          message->endpoint.flags = IPV6 | MULTICAST;
+          // Only set MULTICAST flag when the packet was actually addressed to a
+          // multicast destination.  The mcast_sock may also receive unicast
+          // traffic (e.g. from ::1 loopback); tagging those as MULTICAST
+          // causes the OSCORE engine to choose the wrong encryption path.
+          if (IN6_IS_ADDR_MULTICAST((struct in6_addr *)message->mcast_dest.address)) {
+            message->endpoint.flags = IPV6 | MULTICAST;
+          } else {
+            message->endpoint.flags = IPV6;
+          }
           goto common;
         }
 
