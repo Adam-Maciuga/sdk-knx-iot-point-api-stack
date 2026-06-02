@@ -527,22 +527,29 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data)
  
   S-MODE
   ======
-  clause 2.6.9.1 (read example)
 
-         -> CoAP NON s-mode multicast request         : STOP  
-         <- CoAP NON s-mode multicast request         : NEW server request (new token)
+  ## Write (st="w")
 
-         -> CoAP NON s-mode unicast request           : STOP
-         <- CoAP NON s-mode unicast request           : NEW server request (new token) - 'non' flag must be set in RCP table
- 
-  clause 2.6.9.2 (read example) 
+  | Delivery  | Transport | CoAP T-Ack  | Application Response          | Follow-up   | Notes                                   |
+  |-----------|-----------|-------------|-------------------------------|-------------|-----------------------------------------|
+  | Unicast   | CON       | ACK (shall) | 2.04 (no payload) - p* or s** | none        | Transport guarantees delivery           |
+  | Unicast   | NON       | none        | 2.04 (no payload)             | none        | Only app-level 2.04 confirms            |
+  | Multicast | CON       | n/a         | suppressed                    | none        | RFC 7252: no CON over multicast         |
+  | Multicast | NON       | none        | suppressed (no response)      | none        | Exception: seq-number sync -> 4.01 echo |
 
-          -> CoAP CON s-mode unicast request          : token a
-          <- 2.04 response w/o payload (shall)        : token a
-          <- CoAP CON s-mode unicast request          : NEW server request (new token b)  
-          -> 2.04 response w/o payload (shall)        : token b
+  ## Read (st="r")
 
-          
+  | Delivery  | Transport | CoAP T-Ack  | Application Response          | Follow-up   | Notes                                       |
+  |-----------|-----------|-------------|-------------------------------|-------------|---------------------------------------------|
+  | Unicast   | CON       | ACK (shall) | 2.04 (no payload) - p* or s** | new POST*** | Value comes in separate st="a", not in 2.04 |
+  | Unicast   | NON       | none        | 2.04 (no payload)             | new POST*** | st="a" is itself answered with 2.04         |
+  | Multicast | CON       | n/a         | suppressed                    | new POST*** | CON not used on multicast                   |
+  | Multicast | NON       | none        | suppressed                    | new POST*** | Read still triggers the st="a" response     |
+
+  *   ACK+2.04 w/o payload (shall)             : piggybacked response
+  **  ACK+0.00 + CON 2.04 w/o payload (shall)  : separate response
+  *** st="a" with value 
+
   https://datatracker.ietf.org/doc/html/rfc7252#section-2.2
   	
  */
@@ -884,15 +891,11 @@ int coap_receive(oc_message_t* incoming_message)
       }
 
       /* 
-        TODO 8 on server side , how answer on a re-request from client (see spec figure 26, (3) -> (4))
-        
-        WRITE
-        - on (1) MC = NON = echo re-request = NON = only 2.04 ? (not visible in picture)
-        - on (1) UC = NON or CON = echo rerequest = NON or CON = 2.04 or ACK  
-
-        READ 
-        - on (1) MC = NON = echo re-request = NON = only 2.04 ? (not visible in picture)
-        - on (1) UC = NON or CON = echo rerequest = NON or CON = 2.04 or empty ACK + separate response OR piggybacked ACK with payload 
+              
+        WRITE (figure 26, (1))
+        - MC (NON) -> UC echo response -> UC (NON) echo re-request -> 2.04 (no payload)  
+        - UC (CON) -> UC echo response -> UC (CON) echo re-request -> ACK+2.04 (piggybacked, no payload) OR ACK+0.00 + CON 2.04 (separate, no payload)
+        - UC (NON) -> UC echo response -> UC (NON) echo re-request -> 2.04 (no payload)
     
       */ 
 
