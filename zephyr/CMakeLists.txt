@@ -299,12 +299,16 @@ zephyr_compile_definitions(
 )
 
 ## Table sizes
+# Note:
+# KNX_PAYLOAD_SIZE is hardcoded here to mirror the FORCE behaviour
+# in the root CMakeLists.txt. It is intentionally not exposed via Kconfig.
 zephyr_compile_definitions(
     GOT_MAX_ENTRIES=${CONFIG_KNXIOT_GOT_MAX_ENTRIES}
     GPT_MAX_ENTRIES=${CONFIG_KNXIOT_GPT_MAX_ENTRIES}
     GRT_MAX_ENTRIES=${CONFIG_KNXIOT_GRT_MAX_ENTRIES}
     G_AT_MAX_ENTRIES=${CONFIG_KNXIOT_SEC_MAX_ENTRIES}
     PAGE_SIZE=${CONFIG_KNXIOT_PAGE_SIZE}
+    KNX_PAYLOAD_SIZE=1024
 )
 
 ## Network
