@@ -72,34 +72,34 @@ void print_coap_service(uint8_t code, char* text)
   switch (code)
   {
   case COAP_GET:
-    PRINT("%s SRV\t: GET",text);
+    OC_DBG("%s SRV\t: GET",text);
     break;
   case COAP_PUT:
-    PRINT("%s SRV\t: PUT", text);
+    OC_DBG("%s SRV\t: PUT", text);
     break;
   case COAP_POST:
-    PRINT("%s SRV\t: POST", text);
+    OC_DBG("%s SRV\t: POST", text);
     break;
   case COAP_DELETE:
-    PRINT("%s SRV\t: DELETE", text);
+    OC_DBG("%s SRV\t: DELETE", text);
     break;
   case CREATED_2_01:
-    PRINT("%s SRV\t: 2.01 - CREATED", text);
+    OC_DBG("%s SRV\t: 2.01 - CREATED", text);
     break;
   case CHANGED_2_04:
-    PRINT("%s SRV\t: 2.04 - CHANGED", text);
+    OC_DBG("%s SRV\t: 2.04 - CHANGED", text);
     break;
   case CONTENT_2_05:
-    PRINT("%s SRV\t: 2.05 - OK", text);
+    OC_DBG("%s SRV\t: 2.05 - OK", text);
     break;
   case DELETED_2_02:
-    PRINT("%s SRV\t: 2.02 - DELETED", text);
+    OC_DBG("%s SRV\t: 2.02 - DELETED", text);
     break;
   case BAD_REQUEST_4_00:
-    PRINT("%s SRV\t: 4.00 - BAD REQUEST", text);
+    OC_DBG("%s SRV\t: 4.00 - BAD REQUEST", text);
     break;
   case UNAUTHORIZED_4_01:
-    PRINT("%s SRV\t: 4.01 - UNAUTHORIZED", text);
+    OC_DBG("%s SRV\t: 4.01 - UNAUTHORIZED", text);
     break;
   default:
     break;
@@ -604,14 +604,14 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
       if (coap_pkt->transport_type == COAP_TRANSPORT_UDP)
       {
-        if (coap_pkt->payload_len >= (uint32_t)OC_MAX_APP_DATA_SIZE)
+        if (coap_pkt->payload_len >= OC_MAX_APP_DATA_SIZE)
         {
           /* 
             if application payload is too big
             - cut payload at max size - 1, this allows to include the null-terminator 
             - don't care if the payload values then are NOT correct
           */
-          coap_pkt->payload_len = (uint32_t)OC_MAX_APP_DATA_SIZE - 1;
+          coap_pkt->payload_len = OC_MAX_APP_DATA_SIZE - 1;
         }
       }
 
@@ -855,8 +855,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         coap_pkt->block2_num = coap_parse_int_option(current_options, option_length);
-        coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;
-        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
+        coap_pkt->block2_more = (coap_pkt->block2_num & 0x08) >> 3;               // can only be 0 or 1
+        coap_pkt->block2_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));  // can't be more than 16 bit
         coap_pkt->block2_offset = (coap_pkt->block2_num & ~0x0000000F) << (coap_pkt->block2_num & 0x07);
         coap_pkt->block2_num >>= 4;
         OC_DBG("  Block2 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block2_num, coap_pkt->block2_more ? "+" : "", coap_pkt->block2_size);
@@ -870,8 +870,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
         }
 
         coap_pkt->block1_num = coap_parse_int_option(current_options, option_length);
-        coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;
-        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07)); // can't be more than 16 bit
+        coap_pkt->block1_more = (coap_pkt->block1_num & 0x08) >> 3;               // can only be 0 or 1
+        coap_pkt->block1_size = (uint16_t)(16 << (coap_pkt->block2_num & 0x07));  // can't be more than 16 bit
         coap_pkt->block1_offset = (coap_pkt->block1_num & ~0x0000000F) << (coap_pkt->block1_num & 0x07);
         coap_pkt->block1_num >>= 4;
         OC_DBG("  Block1 [%lu%s (%u B/blk)]", (unsigned long) coap_pkt->block1_num, coap_pkt->block1_more ? "+" : "", coap_pkt->block1_size);
@@ -1717,7 +1717,19 @@ int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t*
   return 1;
 }
 
-int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size) {
+/*
+  Set the Block2 option on an outgoing CoAP packet (RFC 7959).
+  Block2 controls blockwise response transfers.
+
+  Parameters:
+  - num:  block number (20-bit max, 0x0FFFFF)
+  - more: M-bit (1 = more blocks follow, 0 = last block)
+  - size: block size in bytes (power-of-2, valid range 16..2048)
+
+  Returns 1 on success, 0 if parameters are out of range.
+*/
+int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t size) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   if (size < 16) {
@@ -1733,40 +1745,57 @@ int coap_set_header_block2(void* packet, uint32_t num, uint8_t more, uint16_t si
   }
 
   coap_pkt->block2_num = num;
-  coap_pkt->block2_more = more ? 1 : 0;
+  coap_pkt->block2_more = more;
   coap_pkt->block2_size = size;
 
   SET_OPTION(coap_pkt, COAP_OPTION_BLOCK2);
   return 1;
 }
 
-int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) {
+int coap_get_header_block1(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK1)) {
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_BLOCK1)) 
+  {
     return 0;
   }
 
   // pointers may be NULL to get only specific block parameters
-  if (num != NULL) {
+  if (num != NULL) 
+  {
     *num = coap_pkt->block1_num;
   }
 
-  if (more != NULL) {
+  if (more != NULL) 
+  {
     *more = coap_pkt->block1_more;
   }
 
-  if (size != NULL) {
+  if (size != NULL) 
+  {
     *size = coap_pkt->block1_size;
   }
 
-  if (offset != NULL) {
+  if (offset != NULL) 
+  {
     *offset = coap_pkt->block1_offset;
   }
 
   return 1;
 }
 
+/*
+  Set the Block1 option on an outgoing CoAP packet (RFC 7959).
+  Block1 controls blockwise request transfers.
+
+  Parameters:
+  - num:  block number (20-bit max, 0x0FFFFF)
+  - more: M-bit (1 = more blocks follow, 0 = last block)
+  - size: block size in bytes (power-of-2, valid range 16..2048)
+
+  Returns 1 on success, 0 if parameters are out of range.
+*/
 int coap_set_header_block1(void* packet, uint32_t num, uint8_t more, uint16_t size) {
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
@@ -1820,7 +1849,8 @@ int coap_get_header_size1(void* packet, uint32_t* size) {
   return 1;
 }
 
-int coap_set_header_size1(void* packet, uint32_t size) {
+int coap_set_header_size1(void* packet, uint32_t size) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet;
 
   coap_pkt->size1 = size;
@@ -1863,12 +1893,14 @@ uint32_t coap_get_payload(void* packet, const uint8_t** payload) {
   return 0;
 }
 
-uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length) {
+uint32_t coap_set_payload(void* packet, const uint8_t* payload, size_t length) 
+{
   coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
   coap_pkt->payload = payload;
   #ifdef OC_TCP
-  if (coap_pkt->transport_type == COAP_TRANSPORT_TCP) {
+  if (coap_pkt->transport_type == COAP_TRANSPORT_TCP) 
+  {
     coap_pkt->payload_len = (uint32_t) length;
   } else
   #endif 

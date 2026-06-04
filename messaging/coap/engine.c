@@ -41,6 +41,7 @@
 #include "api/oc_main.h"
 #include "api/oc_replay.h"
 #include "api/oc_knx_sec.h"
+#include "api/oc_knx_fp.h"
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
@@ -118,51 +119,82 @@ void oc_coap_clear_request_history(void)
 {
   memset(g_history, 0, sizeof(g_history));
   g_history_idx = 0;
-  OC_DBG("wipe history buffer");
+  OC_DBG("wipe inbound request history buffer");
 }
 
-// Response cache for CON retransmission handling (RFC 7252 section 4.5).
-// When a piggybacked ACK response is lost and the client retransmits the CON
-// request, the server re-sends the cached response instead of dropping it.
-// Only ACK responses (type=2) are cached, since CON responses have their
-// own retransmission via the transaction layer.
+/* 
+   Response cache for CON retransmission handling (RFC 7252 section 4.5).
+   When a piggybacked ACK response is lost and the client retransmits the CON
+   request, the server re-sends the cached response instead of dropping it.
+   Only ACK responses (type=2) are cached, since CON responses have their
+   own retransmission via the transaction layer.
+*/
 #ifndef OC_RESPONSE_CACHE_SIZE
 #define OC_RESPONSE_CACHE_SIZE (4) // MUST use only values of 2 power n
 #endif
 
 /*
-The retransmissions use binary exponential backoff: 
-~2-3s, ~4-6s, ~8-12s, ~16-24s (4 retries total). 
-The last retransmit arrives at most 45 seconds after the original 
-— which is why the cache TTL is set to 45 * OC_CLOCK_CONF_TICKS_PER_SECOND
+  The retransmissions use binary exponential backoff: 
+  ~2-3s, ~4-6s, ~8-12s, ~16-24s (4 retries total). 
+
+  The last retransmit arrives at most 45 seconds after the original 
+  which is why the cache TTL is set to 45 * OC_CLOCK_CONF_TICKS_PER_SECOND
 */
 #define OC_RESPONSE_CACHE_TTL (45 * OC_CLOCK_CONF_TICKS_PER_SECOND)
 
 typedef struct
 {
   oc_request_history_entry_t key;  // mid + port + address + timestamp (reuses history key layout)
-  oc_message_t* message;           // ref'd outgoing message (wire-ready bytes)
+  oc_message_t* message;           // referenced, outgoing message (wire-ready bytes)
+  uint8_t retries_left;            // number of re-sends allowed before eviction (prevent DDOS attack via repeated retransmissions)
 } oc_response_cache_entry_t;
 
 static oc_response_cache_entry_t response_cache[OC_RESPONSE_CACHE_SIZE];
 static uint8_t response_cache_idx;
 
+void oc_coap_clear_response_history(void)
+{
+  // release all pending messages in the response cache
+  for (const oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
+  {
+    // reset ref count to 1 to ensure proper (forced) release of message when unref
+    if (h->message)
+    { // in case a msg exits, usually only on reset/power down
+      h->message->ref_count = 1;
+      oc_message_unref(h->message);
+    }
+  }
+  
+  memset(response_cache, 0, sizeof(response_cache));
+  response_cache_idx = 0;
+  OC_DBG("wipe outbound response cache buffer");
+}
+
 /**
- * @brief Look up the response cache for a matching MID+endpoint and re-send.
- * @param his the history entry key (mid + port + address + timestamp) to match against
- * @return true if a cached response was found and re-sent.
- */
+  @brief Look up the response cache for a matching MID+endpoint and re-send.
+  @param his the history entry key (mid + port + address + timestamp) to match against
+  @return true if a cached response was found and re-sent.
+*/
 static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* his)
 {
-  for (size_t i = 0; i < OC_RESPONSE_CACHE_SIZE; i++)
+  for (oc_response_cache_entry_t* h = response_cache; h < response_cache + OC_RESPONSE_CACHE_SIZE; h++)
   {
-    if (response_cache[i].message &&
-        memcmp(response_cache[i].key.raw, his->raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 &&
-        (his->timestamp - response_cache[i].key.timestamp) <= OC_RESPONSE_CACHE_TTL)
+    if (h->message 
+        && memcmp(h->key.raw, his->raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
+        // cmp just received history entry with former send out response
+        && his->timestamp - h->key.timestamp <= OC_RESPONSE_CACHE_TTL) 
     {
+      if (h->retries_left == 0)
+      {
+        OC_DBG("response cache: retries exhausted for MID %u", his->fields.mid);
+        return false;
+      }
+
+      h->retries_left--;
+      
       // cache hit — re-send the same message directly to IP layer
-      OC_DBG("response cache hit: re-sending cached ACK for MID %u", his->fields.mid);
-      oc_send_buffer(response_cache[i].message);
+      OC_DBG("response cache hit: re-sending cached ACK for MID %u (%u retries left)", his->fields.mid, h->retries_left);
+      oc_send_buffer(h->message);
       return true;
     }
   }
@@ -171,39 +203,47 @@ static bool response_cache_lookup_and_resend(const oc_request_history_entry_t* h
 
 void oc_coap_response_cache_store(oc_message_t* message)
 {
-  //don't cache messages length < 4, that includes empty ACKs
-  if (!message || message->length < 4)
-    return;
-
-  // only cache ACK responses (CoAP type = 2, bits 4-5 of byte 0)
-  uint8_t coap_type = (message->data[0] >> 4) & 0x03;
-  if (coap_type != COAP_TYPE_ACK)
-    return;
-
-  // build key from the outgoing message's wire bytes + endpoint (same layout as history)
-  oc_request_history_entry_t key =
+  /* 
+    don't cache
+    - empty ACKs (4 bytes = header only, no payload/token) 
+    - NON msg (no retransmission, no need to cache)
+    - malformed packets (< 4 bytes, > 4 bytes no ack)
+   
+    only cache (piggybacked) ACK responses (CoAP type = 2, bits 4-5 of byte 0)
+  */
+  const bool is_piggybacked_ack = message->length > 4 && ((message->data[0] >> 4) & 0x03) == COAP_TYPE_ACK;
+ 
+  if (message && is_piggybacked_ack)
   {
-    {
-      .fields.mid  = (uint16_t)((message->data[2] << 8) | message->data[3]),
-      .fields.port = message->endpoint.addr.ipv6.port
-    },
-    .timestamp = oc_clock_time()
-  };
-  memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
+    // build key from the outgoing message's wire bytes + endpoint (same layout as history)
+    oc_request_history_entry_t key = {
+      {
+        .fields.mid = (uint16_t)((message->data[2] << 8) | message->data[3]),
+        .fields.port = message->endpoint.addr.ipv6.port
+      },
+      .timestamp = oc_clock_time()};
+    
+    memcpy(key.fields.address, message->endpoint.addr.ipv6.address, 16);
 
-  // evict current entry in this slot, may overwrite an old entry or a still valid entry (if the same slot is used multiple times within the TTL, necessary with rolling buffer->limited buffer capabilities)
-  oc_message_unref(response_cache[response_cache_idx].message);
+    /* 
+      release the current entry in this slot
+      - this may overwrite an old entry or a still valid entry if the same slot is used multiple times within the TTL
+      - necessary with rolling buffer->limited buffer capabilities
+    */
+    oc_message_unref(response_cache[response_cache_idx].message);
 
-  // keep the message alive by adding a ref
-  oc_message_add_ref(message);
+    // keep the CURRENT send out/ outbound new message alive by adding a ref
+    oc_message_add_ref(message);
 
-  response_cache[response_cache_idx].key = key;
-  response_cache[response_cache_idx].message = message;
+    response_cache[response_cache_idx].key = key;
+    response_cache[response_cache_idx].message = message; // cache message (only ptr)
+    response_cache[response_cache_idx].retries_left = 4;  // regular CoAP RFC retransmission count
 
-  OC_DBG("response cache: stored ACK for MID %u (slot %u)", key.fields.mid, response_cache_idx);
+    OC_DBG("response cache: stored ACK for MID %u (slot %u)", key.fields.mid, response_cache_idx);
 
-  // roll over id from 0...n-1 (3) (use only 2 power n max size) -> 4 & 0b00000011 = 0, 1 & 0b00000011 = 1, ...
-  response_cache_idx = (response_cache_idx + 1) & (OC_RESPONSE_CACHE_SIZE - 1);
+    // roll over id from 0...n-1 (3) (use only 2 power n max size) -> 4 & 0b00000011 = 0, 1 & 0b00000011 = 1, ...
+    response_cache_idx = (response_cache_idx + 1) & (OC_RESPONSE_CACHE_SIZE - 1);
+  }
 }
 
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint)
@@ -231,21 +271,18 @@ bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* c
               - don't delete history entry, 
               - will be overwritten on roll over of counter
       */
-      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0 && his.timestamp - h->timestamp < OC_REQUEST_HISTORY_TIMEOUT)
+      if (memcmp(h->raw, his.raw, OC_REQUEST_HISTORY_ENTRY_SIZE) == 0
+          // cmp just received inbound msg with history entries
+          && his.timestamp - h->timestamp <= OC_REQUEST_HISTORY_TIMEOUT)
       { // not timed out and match 
 
         OC_DBG("coap retransmission duplicates (mid/port/ipv6) -> drop message MID: %d, PORT: %d, ADR: ", his.fields.mid, his.fields.port);
         oc_char_print_hex((char*)his.fields.address, 16);
 
         // RFC 7252 section 4.5: re-send cached response if available
-        if (response_cache_lookup_and_resend(&his))
-        {
-          OC_DBG("duplicate CON: cached response re-sent for MID %d", his.fields.mid);
-        }
-        else
-        {
-          OC_DBG("duplicate CON: no cached response, message dropped (MID: %d)", his.fields.mid);
-        }
+        const bool resend = response_cache_lookup_and_resend(&his);
+        
+        OC_DBG("duplicate CON: cached response %s for MID %d", resend ? "re-sent" : "ignored", his.fields.mid);
         return true;
       }
     }
@@ -329,7 +366,7 @@ typedef struct
 */
 static void coap_send_response_with_empty_application_payload(const coap_echo_ctx_t* ctx)
 {
-  oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* outgoing_msg = oc_allocate_message();
   if (outgoing_msg)
   {
     // shallow copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...)
@@ -430,7 +467,7 @@ static void coap_send_response_with_empty_application_payload_with_delay(const c
 
 bool coap_send_response_with_empty_ack(uint16_t mid, const oc_endpoint_t* endpoint)
 {
-  oc_message_t* outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* outgoing_msg = oc_allocate_message();
   if (outgoing_msg)
   {
     // shallow copy incoming src EP to outgoing EP (IP address/port/data ptr/flags/...)
@@ -490,22 +527,29 @@ static oc_event_callback_retval_t close_all_tls_sessions_callback(void* data)
  
   S-MODE
   ======
-  clause 2.6.9.1 (read example)
 
-         -> CoAP NON s-mode multicast request         : STOP  
-         <- CoAP NON s-mode multicast request         : NEW server request (new token)
+  ## Write (st="w")
 
-         -> CoAP NON s-mode unicast request           : STOP
-         <- CoAP NON s-mode unicast request           : NEW server request (new token) - 'non' flag must be set in RCP table
- 
-  clause 2.6.9.2 (read example) 
+  | Delivery  | Transport | CoAP T-Ack  | Application Response          | Follow-up   | Notes                                   |
+  |-----------|-----------|-------------|-------------------------------|-------------|-----------------------------------------|
+  | Unicast   | CON       | ACK (shall) | 2.04 (no payload) - p* or s** | none        | Transport guarantees delivery           |
+  | Unicast   | NON       | none        | 2.04 (no payload)             | none        | Only app-level 2.04 confirms            |
+  | Multicast | CON       | n/a         | suppressed                    | none        | RFC 7252: no CON over multicast         |
+  | Multicast | NON       | none        | suppressed (no response)      | none        | Exception: seq-number sync -> 4.01 echo |
 
-          -> CoAP CON s-mode unicast request          : token a
-          <- 2.04 response w/o payload (shall)        : token a
-          <- CoAP CON s-mode unicast request          : NEW server request (new token b)  
-          -> 2.04 response w/o payload (shall)        : token b
+  ## Read (st="r")
 
-          
+  | Delivery  | Transport | CoAP T-Ack  | Application Response          | Follow-up   | Notes                                       |
+  |-----------|-----------|-------------|-------------------------------|-------------|---------------------------------------------|
+  | Unicast   | CON       | ACK (shall) | 2.04 (no payload) - p* or s** | new POST*** | Value comes in separate st="a", not in 2.04 |
+  | Unicast   | NON       | none        | 2.04 (no payload)             | new POST*** | st="a" is itself answered with 2.04         |
+  | Multicast | CON       | n/a         | suppressed                    | new POST*** | CON not used on multicast                   |
+  | Multicast | NON       | none        | suppressed                    | new POST*** | Read still triggers the st="a" response     |
+
+  *   ACK+2.04 w/o payload (shall)             : piggybacked response
+  **  ACK+0.00 + CON 2.04 w/o payload (shall)  : separate response
+  *** st="a" with value 
+
   https://datatracker.ietf.org/doc/html/rfc7252#section-2.2
   	
  */
@@ -666,8 +710,8 @@ int coap_receive(oc_message_t* incoming_message)
     }
 
     #ifdef OC_BLOCK_WISE
-    block1_size = MIN(block1_size, (uint16_t) OC_BLOCK_SIZE);
-    block2_size = MIN(block2_size, (uint16_t) OC_BLOCK_SIZE);
+    block1_size = MIN(block1_size, OC_BLOCK_SIZE);
+    block2_size = MIN(block2_size, OC_BLOCK_SIZE);
     #endif
 
     #ifdef OC_TCP
@@ -700,8 +744,8 @@ int coap_receive(oc_message_t* incoming_message)
 
       print_coap_service(inbound_coap_pkt->code, "inbound request");
 
-      PRINT("URL\t: %.*s", (int)inbound_coap_pkt->uri_path_len, inbound_coap_pkt->uri_path_len > 0 ? inbound_coap_pkt->uri_path : "-");
-      PRINT("QUERY\t: %.*s", (int)inbound_coap_pkt->uri_query_len, inbound_coap_pkt->uri_query_len > 0 ? inbound_coap_pkt->uri_query : "-");
+      OC_DBG("URL\t: %.*s", (int)inbound_coap_pkt->uri_path_len, inbound_coap_pkt->uri_path_len > 0 ? inbound_coap_pkt->uri_path : "-");
+      OC_DBG("QUERY\t: %.*s", (int)inbound_coap_pkt->uri_query_len, inbound_coap_pkt->uri_query_len > 0 ? inbound_coap_pkt->uri_query : "-");
       // no payload printing ... to long ...
 
       #endif
@@ -847,15 +891,11 @@ int coap_receive(oc_message_t* incoming_message)
       }
 
       /* 
-        TODO 8 on server side , how answer on a re-request from client (see spec figure 26, (3) -> (4))
-        
-        WRITE
-        - on (1) MC = NON = echo re-request = NON = only 2.04 ? (not visible in picture)
-        - on (1) UC = NON or CON = echo rerequest = NON or CON = 2.04 or ACK  
-
-        READ 
-        - on (1) MC = NON = echo re-request = NON = only 2.04 ? (not visible in picture)
-        - on (1) UC = NON or CON = echo rerequest = NON or CON = 2.04 or empty ACK + separate response OR piggybacked ACK with payload 
+              
+        WRITE (figure 26, (1))
+        - MC (NON) -> UC echo response -> UC (NON) echo re-request -> 2.04 (no payload)  
+        - UC (CON) -> UC echo response -> UC (CON) echo re-request -> ACK+2.04 (piggybacked, no payload) OR ACK+0.00 + CON 2.04 (separate, no payload)
+        - UC (NON) -> UC echo response -> UC (NON) echo re-request -> 2.04 (no payload)
     
       */ 
 
@@ -942,7 +982,13 @@ int coap_receive(oc_message_t* incoming_message)
               coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
               transaction->mid = outbound_coap_pkt->mid;
               coap_set_header_block1(outbound_coap_pkt, block1_num, block1_more, block1_size);
-              // TODO 10 coap_set_header_accept(response, APPLICATION_CBOR); NOT needed since these are binary data ? 
+
+              /*
+                No Accept option is set here: Accept is a request-only option (client -> server).
+                This is the outbound response; the response format is conveyed via Content-Format
+                (see block2 path) or falls back to the resource default per KNX IoT spec 2.2.4.
+
+              */
               request_buffer->payload_size = request_buffer->next_block_offset;
               request_buffer->ref_count = 0;
               goto request_handler;
@@ -986,7 +1032,12 @@ int coap_receive(oc_message_t* incoming_message)
                 coap_udp_init_message(outbound_coap_pkt, COAP_TYPE_CON, CONTENT_2_05, coap_get_next_mid());
                 transaction->mid = outbound_coap_pkt->mid;
 
-                // TODO 10 coap_set_header_accept(response, APPLICATION_CBOR); NOT needed since these are binary data ? 
+                /*
+                  No Accept option is set here: Accept is a request-only option (client -> server).
+                  This is the outbound response; the response format is conveyed via Content-Format
+                  (see block2 path) or falls back to the resource default per KNX IoT spec 2.2.4.
+
+                */ 
               }
               coap_set_header_content_format( outbound_coap_pkt, response_buffer->return_content_type);
               coap_set_payload(outbound_coap_pkt, payload, payload_size);
@@ -1057,7 +1108,7 @@ int coap_receive(oc_message_t* incoming_message)
 
         #ifdef OC_TCP
         if ((incoming_message->endpoint.flags & TCP &&
-            incoming_block_len <= (uint32_t)OC_MAX_APP_DATA_SIZE) ||
+            incoming_block_len <= OC_MAX_APP_DATA_SIZE) ||
           (!(incoming_message->endpoint.flags & TCP) &&
             incoming_block_len <= block1_size)) { 
         #else
@@ -1286,8 +1337,8 @@ int coap_receive(oc_message_t* incoming_message)
             (a) echo option from inbound 4.01 'echo response', new mid and new token,
             (b) destination from inbound 4.01 'echo response'
             (c) type 'unicast'
-            (d) it will be no new s-mode transaction with a new timeout and kept transaction,
-                send it as a standard CoAP CON/NON message (CON with poss. reps, NO fire and drop after sending)
+            (d) it will be no new s-mode transaction (in case of NON with a new timeout and kept transaction),
+                send it as a standard CoAP CON/NON message based on coap type (CON with poss. reps, NO with fire and drop after sending)
 
             All (1...n) later, additionally received inbound 'echo responses' from other devices uses the
             coap token from the original (transaction'ized) s-mode message that we need to match with. In this case
@@ -1309,7 +1360,7 @@ int coap_receive(oc_message_t* incoming_message)
               coap_oscore_serialize_message(re_request_coap_packet, new_transaction->message->data, true, true, true);
 
             // (c) + (d)
-            UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST + S_MODE_NON_REQUEST);
+            UNSET_BIT(new_transaction->message->endpoint.flags, MULTICAST + S_MODE_NON_REQUEST + S_MODE_CON_REQUEST);
 
             // (b) 
             new_transaction->message->endpoint.addr = incoming_message->endpoint.addr;
@@ -1362,6 +1413,21 @@ int coap_receive(oc_message_t* incoming_message)
       {
         OC_DBG("empty ack + piggybacked ack + non response (non response = the 'wait for possible inbound echo' transaction ...)");
         coap_status_code = CLEAR_TRANSACTION;
+
+        /* 
+           s-mode unicast: reset missing response counter on successful 2.04 response
+           (responses to multicast are not allowed by spec, but guard anyway)
+        */
+        if (inbound_coap_pkt->code == CHANGED_2_04 
+            && transaction 
+            && transaction->recipient
+            && transaction->message->endpoint.flags & (S_MODE_CON_REQUEST | S_MODE_NON_REQUEST)
+            && !(transaction->message->endpoint.flags & MULTICAST))
+        {
+          oc_group_table_t* recipient = (oc_group_table_t*)transaction->recipient;
+          recipient->ipv6_res.missing_response_count = 0;
+          OC_DBG("CON/NON s-mode unicast: 2.04 received, reset missing count (IA: 0x%04x)", (uint16_t)recipient->ia);
+        }
       }
       else if (is_reset)
       {
@@ -1407,11 +1473,11 @@ int coap_receive(oc_message_t* incoming_message)
           uint32_t peer_mtu = 0;
           if (coap_get_header_size1(inbound_coap_pkt, (uint32_t*)&peer_mtu) == 1)
           {
-            block1_size = MIN((uint16_t) peer_mtu, (uint16_t) OC_BLOCK_SIZE);
+            block1_size = (uint16_t) MIN(peer_mtu, OC_BLOCK_SIZE);
           }
           else
           {
-            block1_size = (uint16_t)OC_BLOCK_SIZE;
+            block1_size = OC_BLOCK_SIZE;
           }
 
           payload = oc_blockwise_dispatch_block(request_buffer, 0, block1_size, &payload_size);

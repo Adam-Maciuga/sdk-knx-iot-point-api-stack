@@ -69,27 +69,29 @@ set(KNX_GPT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group publisher tab
 set(KNX_GRT_MAX_ENTRIES "20" CACHE STRING "Maximum number of group recipient table entries")
 set(KNX_SEC_MAX_ENTRIES "20" CACHE STRING "Maximum number of access token table entries")
 set(KNX_PAGE_SIZE "20" CACHE STRING "Server default page size for pagination")
+set(KNX_PAYLOAD_SIZE "1024" CACHE STRING "Maximum payload bytes, allocated by stack/applications per default (see notes below on compile defintion)" FORCE)
 
-set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake" FORCE)
-
-# KNX reset "Process Time" in seconds
-set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
-
-# KNX read on init delay time betwwen to read on init requests (ms)
-set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init delay time between to subsequent read on init requests (milliseconds)")
-
-# IPv6 multicast scope
-# Scope 2 MAY be needed for the virtual DEMO applications when:
-# - the devices are running on the same PC (e.g. for testing with EITT)
-# - a network router does not allow to send multicast messages with scope 5 (site local)
-# the scope is used by stack (discovery) and application (push button demo) messages
-set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages")
-
+# Network
 # IPv6 unicast port
 # Specified in clause 2.6.3.1 with COAP_DEFAULT_PORT and shall be used for unicast messages
 # - the optional put /dev/port is NOT implemented, the chosen port is used all the time
 # - if the port is defined with '0' the OS assign an ephemeral port (useful for virtual apps on the same machine)
 set(KNX_UNICAST_PORT "0" CACHE STRING "IPv6 unicast port, used on snd/rcv (uc) stack and s-mode messages")
+
+# IPv6 multicast scope (used for sending and receiving multicast messages).
+# Scope 2 (link-local) is appropriate for isolated single-segment networks
+# or when the router blocks site-local multicast.
+# Scope 5 (site-local) is the default for routed deployments.
+set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages")
+
+# KNX read on init delay time between two subsequent read on init requests (ms)
+set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init delay time between two subsequent read on init requests (milliseconds)")
+
+# KNX reset "Process Time" in seconds
+set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
+
+# Security
+set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake" FORCE)
 
 ## Hidden Variables
 # Note:
@@ -145,7 +147,6 @@ set(CORE_SOURCES
     # Utilities that are used deep within the stack
     ${PROJECT_SOURCE_DIR}/util/oc_etimer.c
     ${PROJECT_SOURCE_DIR}/util/oc_list.c
-    ${PROJECT_SOURCE_DIR}/util/oc_memb.c
     ${PROJECT_SOURCE_DIR}/util/oc_mmem.c
     ${PROJECT_SOURCE_DIR}/util/oc_process.c
     ${PROJECT_SOURCE_DIR}/util/oc_timer.c
@@ -229,24 +230,56 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
 endif()
 target_link_libraries(kisClientServer PUBLIC kis-port)
 
-### TBD FIXME refactor this section  ###
-# Process individual stack/ (demo)application behavior 
+## Process individual stack/application behavior ##
+target_compile_definitions(kis-common INTERFACE
+    ## Sizes (tables, pagination, ...)
+    GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES}     # group object table size
+    GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES}     # publisher table size
+    GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES}     # recipient table size
+    G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES}    # access token table size
+    PAGE_SIZE=${KNX_PAGE_SIZE}                 # server default page size
 
-## Sizes (tables, pagination, ...)
-add_compile_definitions(GOT_MAX_ENTRIES=${KNX_GOT_MAX_ENTRIES})     # group object table size
-add_compile_definitions(GPT_MAX_ENTRIES=${KNX_GPT_MAX_ENTRIES})     # publisher table size
-add_compile_definitions(GRT_MAX_ENTRIES=${KNX_GRT_MAX_ENTRIES})     # recipient table size
-add_compile_definitions(G_AT_MAX_ENTRIES=${KNX_SEC_MAX_ENTRIES})    # access token table size
-add_compile_definitions(PAGE_SIZE=${KNX_PAGE_SIZE})                 # server default page size
+    ## Network
+    # IPv6 unicast port
+    KNX_UNICAST_PORT=${KNX_UNICAST_PORT}
 
-# KNX reset Process Time (seconds)
-add_compile_definitions(KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS})
+    # IPv6 multicast scope
+    KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE}
 
-# KNX read on init delay time between to subsequent read requests (milliseconds)
-add_compile_definitions(KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS})
+    # KNX read on init delay time between to subsequent read requests (milliseconds)
+    KNX_READ_ON_INIT_DELAY_MILLISECONDS=${KNX_READ_ON_INIT_DELAY_MILLISECONDS}
 
-# IPv6 multicast scope
-add_compile_definitions(KNX_MULTICAST_SCOPE=${KNX_MULTICAST_SCOPE})
+    # KNX reset Process Time (seconds)
+    KNX_RESPONSE_TIME_SECONDS=${KNX_RESPONSE_TIME_SECONDS}
 
-# IPv6 unicast port
-add_compile_definitions(KNX_UNICAST_PORT=${KNX_UNICAST_PORT})
+    
+    ## KNX payload size (bytes)
+    #  - defines the default value that is used for stack AND application 'malloc/calloc' calls
+    #    such as for application read responses or stack discovery responses
+    #  - must be carfully choosen since stack resources may need much more bytes than application datapoints
+    #    (stack needs a minimum of 1k for discovery responses + extra buffer,
+    #     this depends on how many application resources are defined and responded)
+    #  - cannot be overwritten at runtime by applications
+    KNX_PAYLOAD_SIZE=${KNX_PAYLOAD_SIZE}
+)
+
+### Test Control Endpoints ###
+# Optional library that registers /test/restart, /test/factory-reset and
+# /test/trigger endpoints.  Link kisTestControl in any app that needs
+# automated testing (e.g. eitt_virtual_gui, runtime_test_server).
+add_library(kisTestControl STATIC ${PROJECT_SOURCE_DIR}/api/oc_test_control.c)
+target_include_directories(kisTestControl PUBLIC ${PROJECT_SOURCE_DIR}/api)
+target_link_libraries(kisTestControl PUBLIC kisClientServer)
+
+### Unit Tests ###
+option(BUILD_TESTING "Build unit tests (requires a C++ compiler)" OFF)
+option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(BUILD_TESTING)
+    enable_language(CXX)
+    enable_testing()
+    if(ENABLE_SANITIZERS AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+    add_subdirectory(tests)
+endif()

@@ -16,6 +16,9 @@
 // limitations under the License.
 */
 
+#include <errno.h>
+#include <inttypes.h>
+#include <stdlib.h>
 #include "oc_client_state.h"
 #include "oc_api.h"
 #include "oc_discovery.h"
@@ -24,9 +27,7 @@
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
 #include "oc_knx_helpers.h"
-#include <inttypes.h>
 #include "oc_knx_dev.h"
-#include <errno.h>
 
 /*
  * - below resources must be in the uc/mc response for well-known/core,
@@ -828,13 +829,12 @@ void oc_well_known_core_discovery_handler(oc_request_t* request, oc_interface_ma
 */
 
 
-PRAGMA_IN																																										 		// compiler specific
 static oc_resource_data_t core_resource_well_known_core_data;
-const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition 
-{ 
+const oc_resource_t core_resource_well_known_core =																					 		// the actual resource definition
+{
 	(oc_resource_t*) NULL,																		 																		// ptr to next resource -> well-known is the last resource
 	{ NULL, sizeof("/.well-known/core"), "/.well-known/core" },							 		// Endpoint URI
-	{ NULL, 0, NULL },																														// resource types, see comment above 
+	{ NULL, 0, NULL },																														// resource types, see comment above
 	{ NULL, 0, NULL },																						 								// datapoint type, see comment above - if none => 3 x NULL
 	{ APPLICATION_LINK_FORMAT, CONTENT_NONE },																							 		// content formats (max 2)
 	OC_DISCOVERABLE,																																					 		// resource properties
@@ -842,14 +842,13 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// put callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// post callback, if not defined use if.none, to return 4.05 instead of 4.01
 	{ NULL, NULL, OC_ACL_NONE, OC_IF_NONE },											 		// delete callback, if not defined use if.none, to return 4.05 instead of 4.01
-	{ NULL, NULL },																										 		// property get callback
-	{ NULL, NULL },																										 		// property set callback 
+	{{NULL}, NULL},																										 		// property get callback
+	{{NULL}, NULL},																										 		// property set callback
 	0,																																												 		// observe period
 	0,																																												 		// FB instance
 	true,																																											 		// is static precompiled resource
-	&core_resource_well_known_core_data																												 		// ptr to user runtime data					
+	&core_resource_well_known_core_data																												 		// ptr to user runtime data
 };
-PRAGMA_OUT																																									 		// compiler specific
 
 oc_discovery_flags_t
 oc_ri_process_discovery_payload(const uint8_t* payload, const int len,

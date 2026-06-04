@@ -19,20 +19,12 @@
 #include "oc_config.h"
 #include "port/oc_assert.h"
 #include "port/oc_log.h"
-#include "util/oc_memb.h"
-
 #include <inttypes.h>
+#include <stdlib.h>
 
-static struct oc_memb *rep_objects;
 static uint8_t *g_buf;
 CborEncoder g_encoder, root_map, links_array;
 CborError g_err;
-
-void
-oc_rep_set_pool(struct oc_memb *rep_objects_pool)
-{
-  rep_objects = rep_objects_pool;
-}
 
 void
 oc_rep_new(uint8_t *out_payload, int size)
@@ -106,7 +98,7 @@ oc_rep_get_encoded_payload_size(void)
 static oc_rep_t *
 _alloc_rep(void)
 {
-  oc_rep_t *rep = oc_memb_alloc(rep_objects);
+  oc_rep_t *rep = calloc(1, sizeof(oc_rep_t));
   if (rep != NULL) {
     rep->name.size = 0;
     rep->iname = -1;
@@ -120,7 +112,7 @@ _alloc_rep(void)
 static void
 _free_rep(oc_rep_t *rep_value)
 {
-  oc_memb_free(rep_objects, rep_value);
+  free(rep_value);
 }
 
 void
@@ -255,14 +247,13 @@ oc_parse_single_entity(CborValue *value, oc_rep_t **rep, CborError *err)
 static void
 oc_parse_rep_value(CborValue *value, oc_rep_t **rep, CborError *err)
 {
-  size_t k, len;
-  CborValue map, array;
+  size_t len;
   *rep = _alloc_rep();
   if (*rep == NULL) {
     *err = CborErrorOutOfMemory;
     return;
   }
-  oc_rep_t *cur = *rep, **prev = 0;
+  oc_rep_t *cur = *rep;
   cur->next = 0;
   cur->value.object_array = 0;
 
@@ -316,7 +307,6 @@ oc_parse_rep_value_object(CborValue *value, oc_rep_t **rep, CborError *err)
     *err |= CborErrorIllegalType;
     return;
   }
-  size_t k, len;
   CborValue map;
   if (*rep == NULL)
     *rep = _alloc_rep();
@@ -324,7 +314,7 @@ oc_parse_rep_value_object(CborValue *value, oc_rep_t **rep, CborError *err)
     *err = CborErrorOutOfMemory;
     return;
   }
-  oc_rep_t *cur = *rep, **prev = 0;
+  oc_rep_t *cur = *rep;
   cur->next = 0;
   cur->value.object_array = 0;
 
@@ -1188,7 +1178,7 @@ static size_t oc_rep_to_json_format(oc_rep_t *rep, char *buf, size_t buf_size, i
       break;
     }
     case OC_REP_FLOAT: {
-      num_char_printed = snprintf(buf, buf_size, "%f", rep->value.float_p);
+      num_char_printed = snprintf(buf, buf_size, "%f", (double)rep->value.float_p);
       OC_JSON_UPDATE_BUFFER_AND_TOTAL;
       break;
     }
@@ -1542,7 +1532,7 @@ void oc_print_rep_as_json(oc_rep_t *rep, bool pretty_print)
   const size_t json_size = oc_rep_to_json(rep, NULL, 0, pretty_print);
   char* json = (char*)malloc(json_size + 1);
   oc_rep_to_json(rep, json, json_size + 1, pretty_print);
-  PRINT("cbor as json: %s", json);
+  OC_DBG("cbor as json: %s", json);
   free(json);
   
   #endif

@@ -151,6 +151,7 @@ extern "C"
   typedef struct oc_resolver_t
   {
     uint8_t attempts;                       // number of resolver attempts in case of no response 
+    uint8_t missing_response_count;         // number of consecutive missing 2.04 responses for unicast messages
     char service_type;                      // service type as 'w', 'r', or 'a'
     oc_ip_status_t resolve_status;          // initialization status with multiple states
     oc_group_object_table_t* group_object;  // the GO table entry that hosts the sending ga and href
@@ -206,17 +207,17 @@ extern "C"
    *                         - not stored / loaded as part of the storage
    *
    */
-  typedef struct oc_group_table
+  typedef struct oc_group_table_t
   {
     int32_t id;             // id, specification demands a range of 0 ... 65535 (see note above)
     int32_t ia;             // individual address specification demands of 16 bit (see note above)
     int64_t iid;            // installation id of recipient (not used in case recipient is within the same installation, then device.iid is used)
     int64_t fid;            // fabric id of recipient (not used in case recipient is within the same installation, then device.fid is used)
-    uint32_t grpid;         // group id, specification demands 32 bit (in ULA/IANA format style)
+    uint32_t grpid;         // group id, specification demands 32 bit (in ULA/IANA format style, both MUST be > 0, see specification clause 2.6.5)
     oc_string_t at;         // access token id, reference to the security credentials for unicast subscription encryption
     uint32_t* ga;           // group address value array, defines the GAs that belongs to the grpid (RCP | PUB table > construct outbound mc adr | accept inbound mc adr)  
     uint16_t ga_len;        // group address array len, specification demands at least 20 entries must be supported
-    bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = true (always) uc = false (default), except a MaC overwrites it)
+    bool non;               // non-confirmable req., checked in RCP table on sending a msg (mc = SHALL be true (always) uc = false (default except a MaC overwrites it explicitely))
     oc_ipv6_adr_t ipv6_adr; // IPv6 address, port, interface 
     oc_resolver_t ipv6_res; // IPV6 unicast address resolver 
   } oc_group_table_t;
@@ -286,29 +287,7 @@ extern "C"
    * so the OS sends proper MLD leave messages.
    */
   void oc_unregister_group_multicasts(void);
-
-  /**
-   * @brief find the grpid from the group_address in the publisher table
-   *
-   * @see oc_register_group_multicasts
-   *
-   * @param group_address The group_address from the group object table
-   * @return the grpid matching the group_address the table publisher table
-   *  or 0 if not found
-   */
-  uint32_t oc_find_grpid_in_publisher_table(uint32_t group_address);
-
-  /**
-   * @brief find the grpid from the group_address in the recipient table
-   *
-   * @see oc_register_group_multicasts
-   *
-   * @param group_address The group_address from the group object table
-   * @return the grpid matching the group_address the table publisher table
-   *  or 0 if not found
-   */
-  uint32_t oc_find_grpid_in_recipient_table(uint32_t group_address);
-
+  
   /**
    * @brief initializes the data points at initialization
    *        e.g. sends out a read s-mode message request when the 'read on init' I flag
@@ -436,7 +415,7 @@ extern "C"
    * @brief frees a Group Object Table entry (from RAM)
    *
    */
-  void oc_free_group_object_table_entry(int entry, bool init);
+  void oc_free_group_object_table_entry(int entry);
 
 
   /**
@@ -618,57 +597,32 @@ extern "C"
    * @param recipient the recipient to be sent out the message
    * @return oc_endpoint_t the modified endpoint, with flags IPv6 and OSCORE (if enabled)
    */
-  oc_endpoint_t oc_create_unicast_group_address_with_port_interface(oc_endpoint_t in, const oc_group_table_t* recipient);
+  oc_endpoint_t oc_create_unicast_group_address_with_port(oc_endpoint_t in, const oc_group_table_t* recipient);
+
+  
 
   /**
-   * @brief  subscribe to a multicast address, defined by group number and installation id
-   *         by using the default port 5683
+   * @brief find the table entry from the group_address in the recipient table
    *
-   * @see unsubscribe_group_to_multicast
-   *
-   * @param group_nr the group number (address)
-   * @param iid the installation id
-   * @param scope the address scope
+   * @param group_address The group_address from the group object table
+   * @return the table entry matching the group_address in the recipient table or NULL if not found
    */
-  void subscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope);
+  oc_group_table_t* oc_find_entry_in_recipient_table(uint32_t group_address);
 
   /**
-   * @brief subscribe to a multicast address, defined by group number and
-   * installation id
+   * @brief find the table entry from the group_address in the publisher table
    *
-   * @see unsubscribe_group_to_multicast_with_port
-   *
-   * @param group_nr the group number (address)
-   * @param iid the installation id
-   * @param scope the address scope
-   * @param port the port
+   * @param group_address The group_address from the group object table
+   * @return the table entry matching the group_address in the publisher table or NULL if not found
    */
-  void subscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port);
+  oc_group_table_t* oc_find_entry_in_publisher_table(uint32_t group_address);
 
   /**
-   * @brief unsubscribe to a multicast address, defined by group number and
-   * installation id
+   * @brief checks if the publisher table contains a foreign 'iid' for an entry
    *
-   * @see subscribe_group_to_multicast
-   *
-   * @param group_nr the group number (address)
-   * @param iid the installation id
-   * @param scope the address scope
+   * @return true if an 'iid' for an entry exists, false otherwise 
    */
-  void unsubscribe_group_to_multicast(uint32_t group_nr, uint64_t iid, uint8_t scope);
-
-  /**
-   * @brief unsubscribe to a multicast address, defined by group number and
-   * installation id and port
-   *
-   * @see subscribe_group_to_multicast_with_port
-   *
-   * @param group_nr the group number (address)
-   * @param iid the installation id
-   * @param scope the address scope
-   * @param port the port
-   */
-  void unsubscribe_group_to_multicast_with_port(uint32_t group_nr, uint64_t iid, uint8_t scope, uint16_t port);
+  bool pub_table_contains_no_iid(void);
 
 #ifdef __cplusplus
 }

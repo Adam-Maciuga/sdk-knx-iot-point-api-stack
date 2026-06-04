@@ -8,6 +8,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "mbedtls/ctr_drbg.h"
@@ -42,7 +43,6 @@
 #include "oc_oscore.h"
 
 OC_PROCESS(oc_tls_handler, "TLS Process");
-OC_MEMB(tls_peers_s, oc_tls_peer_t, OC_MAX_TLS_PEERS);
 OC_LIST(tls_peers);
 
 static mbedtls_entropy_context entropy_ctx;
@@ -73,7 +73,6 @@ typedef struct oc_x509_cacrt_t
   mbedtls_x509_crt *cert;
 } oc_x509_cacrt_t;
 
-OC_MEMB(ca_certs_s, oc_x509_cacrt_t, 1);
 OC_LIST(ca_certs);
 
 typedef struct oc_x509_crt_t
@@ -86,7 +85,6 @@ typedef struct oc_x509_crt_t
 } oc_x509_crt_t;
 
 #include "oc_certs.h"
-OC_MEMB(identity_certs_s, oc_x509_crt_t, 2);
 OC_LIST(identity_certs);
 
 mbedtls_x509_crt trust_anchors;
@@ -180,7 +178,7 @@ static void oc_mbedtls_debug(void *ctx, int level, const char *file, int line,
 {
   (void)ctx;
   (void)level;
-  PRINT("mbedtls_log: %s:%04d: %s", file, line, str);
+  OC_DBG("mbedtls_log: %s:%04d: %s", file, line, str);
 }
 #endif
 
@@ -228,7 +226,7 @@ static void oc_tls_free_invalid_peer(oc_tls_peer_t *peer)
 #endif
   mbedtls_ssl_config_free(&peer->ssl_conf);
   oc_etimer_stop(&peer->timer.fin_timer);
-  oc_memb_free(&tls_peers_s, peer);
+  free(peer);
 }
 #endif /* OC_CLIENT */
 
@@ -285,7 +283,7 @@ static void oc_tls_free_peer(oc_tls_peer_t *peer, bool inactivity_cb)
 #endif
   mbedtls_ssl_config_free(&peer->ssl_conf);
   oc_etimer_stop(&peer->timer.fin_timer);
-  oc_memb_free(&tls_peers_s, peer);
+  free(peer);
 }
 
 oc_tls_peer_t * oc_tls_get_peer(oc_endpoint_t *endpoint)
@@ -390,20 +388,19 @@ static int ssl_send(void *ctx, const unsigned char *buf, size_t len)
   oc_tls_peer_t *peer = (oc_tls_peer_t *)ctx;
   peer->timestamp = oc_clock_time();
   oc_message_t message;
-#ifndef OC_INOUT_BUFFER_SIZE
   message.data = malloc(OC_PDU_SIZE);
   if (!message.data)
+  {
     return 0;
-#endif
+  }
+
   memcpy(&message.endpoint, &peer->endpoint, sizeof(oc_endpoint_t));
   size_t send_len = (len < (unsigned)OC_PDU_SIZE) ? len : (unsigned)OC_PDU_SIZE;
   memcpy(message.data, buf, send_len);
   message.length = send_len;
   message.encrypted = 1;
   int ret = oc_send_buffer(&message);
-#ifndef OC_INOUT_BUFFER_SIZE
   free(message.data);
-#endif
   return ret;
 }
 
@@ -616,7 +613,7 @@ next_cred_in_chain:
 
 static void add_new_identity_cert(oc_sec_cred_t *cred)
 {
-  oc_x509_crt_t *cert = oc_memb_alloc(&identity_certs_s);
+  oc_x509_crt_t *cert = calloc(1, sizeof(oc_x509_crt_t));
   if (!cert) {
     OC_WRN("could not allocate memory for identity cert");
     return;
@@ -670,7 +667,7 @@ add_new_identity_cert_error:
   OC_ERR("error adding identity cert");
   mbedtls_x509_crt_free(&cert->cert);
   mbedtls_pk_free(&cert->pk);
-  oc_memb_free(&identity_certs_s, cert);
+  free(cert);
 }
 
 void oc_tls_refresh_identity_certs(void)
@@ -690,7 +687,7 @@ void oc_tls_remove_identity_cert(oc_sec_cred_t *cred)
     oc_list_remove(identity_certs, cert);
     mbedtls_x509_crt_free(&cert->cert);
     mbedtls_pk_free(&cert->pk);
-    oc_memb_free(&identity_certs_s, cert);
+    free(cert);
   }
 }
 
@@ -702,7 +699,7 @@ void oc_tls_remove_trust_anchor(oc_sec_cred_t *cred)
   }
   if (cert) {
     oc_list_remove(ca_certs, cert);
-    oc_memb_free(&ca_certs_s, cert);
+    free(cert);
   }
   mbedtls_x509_crt_free(&trust_anchors);
   mbedtls_x509_crt_init(&trust_anchors);
@@ -767,7 +764,7 @@ static void add_new_trust_anchor(oc_sec_cred_t *cred)
     return;
   }
 
-  oc_x509_cacrt_t *cert = oc_memb_alloc(&ca_certs_s);
+  oc_x509_cacrt_t *cert = calloc(1, sizeof(oc_x509_cacrt_t));
   if (!cert) {
     OC_WRN("could not allocate memory for new trust anchor");
     return;
@@ -1149,7 +1146,7 @@ static oc_tls_peer_t * oc_tls_add_peer(oc_endpoint_t *endpoint, int role)
       }
     }
     */
-    peer = oc_memb_alloc(&tls_peers_s);
+    peer = calloc(1, sizeof(oc_tls_peer_t));
     if (peer) {
       OC_DBG("oc_tls: Allocating new peer");
       memcpy(&peer->endpoint, endpoint, sizeof(oc_endpoint_t));
@@ -1234,12 +1231,12 @@ void oc_tls_shutdown(void)
   while (cert != NULL) {
     mbedtls_x509_crt_free(&cert->cert);
     mbedtls_pk_free(&cert->pk);
-    oc_memb_free(&identity_certs_s, cert);
+    free(cert);
     cert = (oc_x509_crt_t *)oc_list_pop(identity_certs);
   }
   oc_x509_cacrt_t *ca = (oc_x509_cacrt_t *)oc_list_pop(ca_certs);
   while (ca) {
-    oc_memb_free(&ca_certs_s, ca);
+    free(ca);
     ca = (oc_x509_cacrt_t *)oc_list_pop(ca_certs);
   }
   mbedtls_x509_crt_free(&trust_anchors);
@@ -1804,67 +1801,61 @@ static void read_application_data(oc_tls_peer_t *peer)
       return;
     }
 #endif
-#ifdef OC_INOUT_BUFFER_SIZE
-    oc_message_t message[1];
-#else
     oc_message_t *message = oc_allocate_message();
-    if (message) {
+    if (message)
+    {
+      memcpy(&message->endpoint, &peer->endpoint, sizeof(oc_endpoint_t));
+      int ret = mbedtls_ssl_read(&peer->ssl_ctx, message->data, OC_PDU_SIZE);
+      if (ret <= 0)
+      {
+        oc_message_unref(message);
+        if (ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ ||
+            ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+        {
+          OC_DBG("oc_tls: Received WantRead/WantWrite");
+          return;
+        }
+        if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
+        {
+          OC_DBG("oc_tls: Close-Notify received");
+        }
+        else if (ret == MBEDTLS_ERR_SSL_CLIENT_RECONNECT)
+        {
+          OC_DBG("oc_tls: Client wants to reconnect");
+        }
+        else
+        {
+#ifdef OC_DEBUG
+          // char buf[256];
+          // mbedtls_strerror(ret, buf, 256);
+          // OC_ERR("oc_tls: mbedtls_error: %s", buf);
 #endif
-    memcpy(&message->endpoint, &peer->endpoint, sizeof(oc_endpoint_t));
-    int ret = mbedtls_ssl_read(&peer->ssl_ctx, message->data, OC_PDU_SIZE);
-    if (ret <= 0) {
-#ifndef OC_INOUT_BUFFER_SIZE
-      oc_message_unref(message);
-#endif
-      if (ret == 0 || ret == MBEDTLS_ERR_SSL_WANT_READ ||
-          ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-        OC_DBG("oc_tls: Received WantRead/WantWrite");
+        }
+        if (peer->role == MBEDTLS_SSL_IS_SERVER &&
+            (peer->endpoint.flags & TCP) == 0)
+        {
+          mbedtls_ssl_close_notify(&peer->ssl_ctx);
+          mbedtls_ssl_close_notify(&peer->ssl_ctx);
+        }
+        oc_tls_free_peer(peer, false);
         return;
       }
-      if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-        OC_DBG("oc_tls: Close-Notify received");
-      } else if (ret == MBEDTLS_ERR_SSL_CLIENT_RECONNECT) {
-        OC_DBG("oc_tls: Client wants to reconnect");
-      } else {
-#ifdef OC_DEBUG
-        // char buf[256];
-        // mbedtls_strerror(ret, buf, 256);
-        // OC_ERR("oc_tls: mbedtls_error: %s", buf);
-#endif
+      message->length = ret;
+      message->encrypted = 0;
+      oc_message_t *msg = message;
+      memcpy(&msg->endpoint, &message->endpoint, sizeof(oc_endpoint_t));
+      // memcpy(&msg->endpoint.di.id, &peer->uuid.id, 16);
+      msg->length = message->length;
+      memcpy(msg->data, message->data, message->length);
+      if (oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT],
+              msg) == OC_PROCESS_ERR_FULL)
+      {
+        oc_message_unref(msg);
       }
-      if (peer->role == MBEDTLS_SSL_IS_SERVER &&
-          (peer->endpoint.flags & TCP) == 0) {
-        mbedtls_ssl_close_notify(&peer->ssl_ctx);
-        mbedtls_ssl_close_notify(&peer->ssl_ctx);
-      }
-      oc_tls_free_peer(peer, false);
-      return;
-    }
-    message->length = ret;
-    message->encrypted = 0;
-    oc_message_t *msg = message;
-#ifdef OC_INOUT_BUFFER_SIZE
-    msg = oc_allocate_message();
-    if (!msg) {
-      OC_WRN("oc_tls: could not allocate incoming message buffer");
-      return;
-    }
-#endif
-    memcpy(&msg->endpoint, &message->endpoint, sizeof(oc_endpoint_t));
-    // memcpy(&msg->endpoint.di.id, &peer->uuid.id, 16);
-    msg->length = message->length;
-    memcpy(msg->data, message->data, message->length);
-    if (oc_process_post(&oc_oscore_handler, oc_events[INBOUND_OSCORE_EVENT],
-            msg) == OC_PROCESS_ERR_FULL) {
-#ifndef OC_INOUT_BUFFER_SIZE
-      oc_message_unref(msg);
-#endif
     }
   }
   OC_DBG("oc_tls: Decrypted incoming message");
-#ifndef OC_INOUT_BUFFER_SIZE
 }
-#endif
 }
 
 static void oc_tls_recv_message(oc_message_t *message)

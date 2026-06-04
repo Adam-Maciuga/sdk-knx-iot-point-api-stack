@@ -36,32 +36,42 @@
  * Enabling fewer algorithms reduces code size and attack surface.
  */
 
-/* AES-CCM: OSCORE packet encryption and decryption. */
+/* AES-CCM
+ * OSCORE packet encryption and decryption.
+ */
 #define PSA_WANT_ALG_CCM                          1
 
-/* AES-CBC: TLS cipher suites (e.g. TLS_PSK_WITH_AES_128_CBC_SHA,
- * TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA). Not used by OSCORE or SPAKE2+.
+/* AES-CBC
+ * TLS cipher suites (e.g. TLS_PSK_WITH_AES_128_CBC_SHA, TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA).
+ * Not used by OSCORE or SPAKE2+.
  */
 #define PSA_WANT_ALG_CBC_PKCS7                    1
 
-/* SHA-256: SPAKE2+ transcript hash (K_main), base for HMAC and HKDF. */
+/* SHA-256
+ * SPAKE2+ transcript hash (K_main), base for HMAC and HKDF.
+ */
 #define PSA_WANT_ALG_SHA_256                      1
 
-/* HMAC-SHA256: SPAKE2+ key confirmations (confirmV, confirmP);
+/* HMAC-SHA256
+ * SPAKE2+ key confirmations (confirmV, confirmP).
  * OSCORE HKDF extract/expand steps (custom RFC 5869 implementation).
  */
 #define PSA_WANT_ALG_HMAC                         1
 
-/* HKDF-SHA256: SPAKE2+ key derivation (ConfirmationKeys, K_shared). */
+/* HKDF-SHA256
+ * SPAKE2+ key derivation (ConfirmationKeys, K_shared).
+ */
 #define PSA_WANT_ALG_HKDF                         1
 
-/* PBKDF2-HMAC-SHA256: SPAKE2+ password expansion (w0s || w1s from password + salt).
+/* PBKDF2-HMAC-SHA256
+ * SPAKE2+ password expansion (w0s || w1s from password + salt).
  * Replaces the deprecated mbedtls_pkcs5_pbkdf2_hmac() /
  * mbedtls_pkcs5_pbkdf2_hmac_ext() from Mbed TLS 3.x.
  */
 #define PSA_WANT_ALG_PBKDF2_HMAC                  1
 
-/* ECDH on P-256: SPAKE2+ ephemeral key generation and shared-secret computation
+/* ECDH on P-256
+ * SPAKE2+ ephemeral key generation and shared-secret computation
  * (Z = y*(shareP - w0*M), V = y*L, etc.).
  */
 #define PSA_WANT_ALG_ECDH                         1
@@ -84,37 +94,44 @@
 /* AES key: OSCORE AES-128-CCM. */
 #define PSA_WANT_KEY_TYPE_AES                     1
 
-/* ECC key pair — basic: required base for all key pair sub-features below. */
+/* ECC key pair basic
+ * Required base for all key pair sub-features below.
+ */
 #define PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_BASIC      1
 
-/* ECC key pair — generate: ephemeral P-256 keypairs (x, pub_x) and (y, pub_y)
- * in SPAKE2+.
+/* ECC key pair generate
+ * Ephemeral P-256 keypairs (x, pub_x) and (y, pub_y) in SPAKE2+.
  */
 #define PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE   1
 
-/* ECC key pair — import: import the w1 scalar to compute L = w1*G;
- * import L for responder verification.
+/* ECC key pair import
+ * Import the w1 scalar to compute L = w1*G, import L for responder verification.
  */
 #define PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_IMPORT     1
 
-/* ECC key pair — export: export public key (shareP, shareV) for transmission. */
+/* ECC key pair export
+ * Export public key (shareP, shareV) for transmission.
+ */
 #define PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT     1
 
-/* ECC public key: remote public key operations in SPAKE2+
- * (shareP, shareV point validation).
+/* ECC public key
+ * Remote public key operations in SPAKE2+ (shareP, shareV point validation).
  */
 #define PSA_WANT_KEY_TYPE_ECC_PUBLIC_KEY          1
 
-/* HMAC key: SPAKE2+ key confirmations (KcA, KcB derived from K_main);
+/* HMAC key
+ * SPAKE2+ key confirmations (KcA, KcB derived from K_main).
  * OSCORE HKDF HMAC extract and expand steps.
  */
 #define PSA_WANT_KEY_TYPE_HMAC                    1
 
-/* Derivation key: HKDF and PBKDF2 key derivation operations. */
+/* Derivation key
+ * HKDF and PBKDF2 key derivation operations.
+ */
 #define PSA_WANT_KEY_TYPE_DERIVE                  1
 
-/* Raw data key: symmetric key material
- * (e.g., K_shared used as the OSCORE master secret).
+/* Raw data key
+ * Symmetric key material (e.g., K_shared used as the OSCORE master secret).
  */
 #define PSA_WANT_KEY_TYPE_RAW_DATA                1
 
@@ -164,12 +181,12 @@
  * On Linux/Windows: OS entropy (getrandom / BCryptGenRandom).
  * On Zephyr: sys_csrand_get() routes to the hardware TRNG
  *   (Espressif ESP32-S3/C5/C6, Nordic nRF, etc.).
+ * Note: This is NOT used in Zephyr Kconfig.
  */
 #define MBEDTLS_PSA_BUILTIN_GET_ENTROPY
 
 /* MBEDTLS_PSA_CRYPTO_C requires either CTR-DRBG or HMAC-DRBG for its internal RNG.
- * CTR-DRBG (AES-based) is the standard choice; it is seeded from the platform entropy.
- * Kconfig: CONFIG_MBEDTLS_CTR_DRBG_C
+ * CTR-DRBG (AES-based) is the standard choice, it is seeded from the platform entropy.
  */
 #define MBEDTLS_CTR_DRBG_C
 

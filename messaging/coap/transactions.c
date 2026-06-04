@@ -34,12 +34,13 @@
 
 #include "transactions.h"
 #include "api/oc_main.h"
+#include "api/oc_knx_fp.h"
 #include "observe.h"
 #include "oc_buffer.h"
 #include "port/oc_random.h"
 #include "util/oc_list.h"
-#include "util/oc_memb.h"
 #include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
 #include "port/oc_random.h"
 
@@ -55,8 +56,7 @@
 #include "security/oc_tls.h"
 #endif
 
-// coap + smode transactions 
-OC_MEMB(transactions_memb, coap_transaction_t, COAP_MAX_OPEN_TRANSACTIONS);
+// coap + smode transactions
 OC_LIST(transactions_list);
 
 static struct oc_process *transaction_handler_process = NULL;
@@ -68,11 +68,11 @@ void coap_register_as_transaction_handler(void)
 
 coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uint8_t token_len, oc_endpoint_t* endpoint)
 {
-  coap_transaction_t* t = (coap_transaction_t*)oc_memb_alloc(&transactions_memb);
+  coap_transaction_t* t = calloc(1, sizeof(coap_transaction_t));
   if (t)
   {
     // cleared buffers
-    t->message = oc_internal_allocate_outgoing_message();
+    t->message = oc_allocate_message();
     if (t->message)
     {
       OC_DBG("created new transaction with mid %u", mid);
@@ -91,7 +91,7 @@ coap_transaction_t* coap_new_transaction(uint16_t mid, const uint8_t* token, uin
     }
     else
     {
-      oc_memb_free(&transactions_memb, t);
+      free(t);
       t = NULL;
     }
   }
@@ -150,16 +150,24 @@ void coap_send_transaction(coap_transaction_t *t)
 
   #endif
 
+  // need to use raw data since pure stack responses are not init with any set of s-mode flags (as for an app. outbound s-mode msg)
   const uint8_t type = (COAP_HEADER_TYPE_MASK & t->message->data[0]) >> COAP_HEADER_TYPE_POSITION;
   
   // confirmable s-mode or confirmable non s-mode messages ... 
-  const bool confirmable_all_types = type == COAP_TYPE_CON;
-  const bool non_confirmable_smode = t->message->endpoint.flags & S_MODE_NON_REQUEST;
+  const bool con_type = type == COAP_TYPE_CON;
+  const bool multicast = t->message->endpoint.flags & MULTICAST;
+  
+  const bool smode_non = t->message->endpoint.flags & S_MODE_NON_REQUEST;
+  const bool smode_con = t->message->endpoint.flags & S_MODE_CON_REQUEST;
+
+  const bool smode_non_uc = smode_non && !multicast;
+  const bool smode_con_uc = smode_con && !multicast;
 
   #ifdef OC_TCP
-  if (!(t->message->endpoint.flags & TCP) && confirmable_all_types) {
+  if (!(t->message->endpoint.flags & TCP) && con_type) 
+  {
   #else 
-  if (confirmable_all_types) 
+  if (con_type) 
   {
   #endif
 
@@ -183,7 +191,7 @@ void coap_send_transaction(coap_transaction_t *t)
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
       // send message and keep transaction
-      OC_DBG("sending CON message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      OC_DBG("sending CON message transaction (len: %zu , mid %u)", t->message->length, t->mid);
       oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
       coap_send_message(t->message);
     }
@@ -196,7 +204,24 @@ void coap_send_transaction(coap_transaction_t *t)
 
       #ifdef OC_CLIENT
       oc_ri_free_client_cbs_by_mid(t->mid);
-      #endif 
+
+      // s-mode unicast CON: increment missing response counter on timeout
+      if (smode_con_uc && t->recipient)
+      {
+        oc_group_table_t* rec = t->recipient;
+        rec->ipv6_res.missing_response_count++;
+
+        OC_WRN("CON s-mode: missing count %d (IA: 0x%04x)", rec->ipv6_res.missing_response_count, (uint16_t)rec->ia);
+
+        if (rec->ipv6_res.missing_response_count >= 4)
+        {
+          rec->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+          rec->ipv6_res.missing_response_count = 0;
+
+          OC_WRN("CON s-mode: 4 consecutive failures, transitioning to UNRESOLVED (IA: 0x%04x)", (uint16_t)rec->ia);
+        }
+      }
+      #endif
 
       #ifdef OC_BLOCK_WISE
       oc_blockwise_scrub_buffers(false);
@@ -211,7 +236,7 @@ void coap_send_transaction(coap_transaction_t *t)
       }
     }
   }
-  else if (non_confirmable_smode)
+  else if (smode_non)
   {
     if (t->retransmit_counter < 1)
     { // keep transaction + init timeout
@@ -226,13 +251,33 @@ void coap_send_transaction(coap_transaction_t *t)
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
       // send message and keep transaction
-      OC_DBG("sending NON s-mode message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      OC_DBG("sending NON s-mode message transaction (len: %zu , mid %u)", t->message->length, t->mid);
       oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
       coap_send_message(t->message);
     }
     else
     { // delete transaction (after timeout)
-      OC_DBG("removing NON s-mode message transaction - timed out (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+      OC_DBG("removing NON s-mode message transaction - timed out (len: %zu , mid %u)", t->message->length, t->mid);
+
+      #ifdef OC_CLIENT
+      // s-mode unicast NON: increment missing response counter on timeout
+      if (smode_non_uc && t->recipient)
+      {
+        oc_group_table_t* rec = t->recipient;
+        rec->ipv6_res.missing_response_count++;
+
+        OC_WRN("NON s-mode: missing count %d (IA: 0x%04x)", rec->ipv6_res.missing_response_count, (uint16_t)rec->ia);
+
+        if (rec->ipv6_res.missing_response_count >= 4)
+        {
+          rec->ipv6_res.resolve_status = OC_IP_STATUS_UNRESOLVED;
+          rec->ipv6_res.missing_response_count = 0;
+
+          OC_WRN("NON s-mode: 4 consecutive failures, transitioning to UNRESOLVED (IA: 0x%04x)", (uint16_t)rec->ia);
+        }
+      }
+      #endif
+
       coap_clear_transaction(t);
     }
   } 
@@ -240,7 +285,7 @@ void coap_send_transaction(coap_transaction_t *t)
   { // empty ACK/RST, other NON application messages, ...
     
     // send message and clear transaction
-    OC_DBG("sending NON coap message transaction (len: %" PRIu64 " , mid %u)", t->message->length, t->mid);
+    OC_DBG("sending NON coap message transaction (len: %zu , mid %u)", t->message->length, t->mid);
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
     coap_send_message(t->message);
     coap_clear_transaction(t);
@@ -256,7 +301,7 @@ void coap_clear_transaction(coap_transaction_t *t)
     oc_etimer_stop(&t->retransmit_timer);
     oc_message_unref(t->message);
     oc_list_remove(transactions_list, t);
-    oc_memb_free(&transactions_memb, t);
+    free(t);
   }
 }
 

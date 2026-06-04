@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include "messaging/coap/coap.h"
 #include "port/oc_random.h"
 #include "oc_api.h"
@@ -32,16 +33,12 @@ static oc_blockwise_state_t *request_buffer = NULL;
 // - well-known message
 static oc_message_t* udp_message_update = NULL;
 
-bool oc_do_s_mode_message_update(void) 
+bool oc_do_s_mode_message_update(void* recipient)
 {
   const int payload_size = oc_rep_get_encoded_payload_size();
   bool ret = false;
 
-  if (payload_size == 0)
-  {
-    OC_WRN("sent (uc/mc) s-mode message - ERROR (application payload len = 0)");
-  }
-  else
+  if (payload_size > 0)
   {
     // udp message is initialized, coap payload gets ptr from message data (but data are NOT copied)
     coap_set_payload(udp_coap_request, udp_message_update->data + COAP_MAX_HEADER_SIZE, payload_size);
@@ -70,9 +67,11 @@ bool oc_do_s_mode_message_update(void)
 
       if (s_mode_transaction)
       {
-        OC_INF("sent (uc/mc) s-mode message - OK");
+        s_mode_transaction->recipient = recipient; // for IPv6 re-resolving (unicast/ia)
         coap_send_transaction(s_mode_transaction);
         ret = true;
+
+        OC_INF("sent (uc/mc) s-mode message - OK");
       }
       else
       {
@@ -115,7 +114,7 @@ bool oc_do_well_known_message_update(void)
 bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const char* uri, bool non_confirmable) 
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_s_mode_message_update)
-  udp_message_update = oc_internal_allocate_outgoing_message();
+  udp_message_update = oc_allocate_message();
 
   if (!udp_message_update) 
   {
@@ -124,7 +123,7 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
 
   // no callback is possible to this (outbound) s-mode POST message, the message needs to generate its own token/mid
   memcpy(&udp_message_update->endpoint, s_mode_message_ep, sizeof(oc_endpoint_t));
-  
+
   // s-mode message MAY carry a payload, this step is needed
   oc_rep_new(udp_message_update->data + COAP_MAX_HEADER_SIZE, OC_BLOCK_SIZE);
 
@@ -160,7 +159,7 @@ bool oc_init_s_mode_message_update(const oc_endpoint_t* s_mode_message_ep, const
 bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, const char* uri, const char* query, bool non_confirmable, oc_client_cb_t* callback)
 {
   // at this point the handler is empty since it will be released in the same cycle (oc_do_well_known_message_update)
-  udp_message_update = oc_internal_allocate_outgoing_message();
+  udp_message_update = oc_allocate_message();
 
   if (!udp_message_update)
   {

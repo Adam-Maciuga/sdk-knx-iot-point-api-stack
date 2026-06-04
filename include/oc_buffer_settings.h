@@ -32,38 +32,33 @@ extern "C" {
  * @param mtu_size size in bytes
  * @return int 0-success
  */
-int oc_set_mtu_size(size_t mtu_size);
+int oc_set_mtu_size(uint32_t mtu_size);
 
 /**
  * @brief retrieve the currently used MTU size
  *
- * @return long the MTU size in bytes
+ * @return uint32_t the MTU size in bytes
  */
-long oc_get_mtu_size(void);
-
-/**
- * @brief set max application data size (e.g. buffer size of the messages)
- *
- * @param size size in bytes
- */
-void oc_set_max_app_data_size(size_t size);
+uint32_t oc_get_mtu_size(void);
 
 /**
  * @brief retrieve the max application data size
  *
- * @return long size in bytes
+ * @note value is defined in CMakeLists.txt
+ *
+ * @return uint32_t size in bytes
  */
-long oc_get_max_app_data_size(void);
+uint32_t oc_get_max_app_data_size(void);
 
 /**
  * @brief retrieve the block size
  *
- * @return long the block size in bytes
+ * @return uint16_t the block size in bytes
  */
-long oc_get_block_size(void);
+uint16_t oc_get_block_size(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* OC_BUFFER_SETTINGS_H */
+#endif

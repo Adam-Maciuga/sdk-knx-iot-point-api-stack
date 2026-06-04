@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <inttypes.h>
+#include <stdlib.h>
 #include "psa/crypto.h"
 #include "api/oc_events.h"
 #include "api/oc_knx_sec.h"
@@ -734,7 +735,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
   OC_DBG_OSCORE("process outbound multicast OSCORE message");
 
   // new msg, send and release after sending -> the original message may be still needed for echos (NON messages)
-  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {
     return -1;
@@ -821,7 +822,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // serialize OSCORE plain text 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, application payload) by using the 'moved' payload location ptr
     const size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
-    OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
+    OC_DBG("serialized OSCORE plaintext: %zu bytes", plaintext_size);
 
     // set the OSCORE packet pointer to location of the serialized inner message (inner code, inner options, payload)
     coap_pkt->payload = dst1;
@@ -894,7 +895,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   OC_DBG_OSCORE("process outbound unicast OSCORE message");
 
   // new msg, send and release after sending -> the original message may be still needed for reps (tracked or CON messages)
-  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_internal_allocate_outgoing_message();
+  oc_message_t* from_org_msg_cloned_outgoing_msg = oc_allocate_message();
   if (!from_org_msg_cloned_outgoing_msg)
   {
     return -1;
@@ -1125,9 +1126,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
 
     #endif
 
+    // when using an own PIV for request -> use fresh nonce
     oc_oscore_AEAD_nonce(kid, kid_len, outbound_piv, outbound_piv_len,
                          oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
+    // Sender ID + outbound PIV ->
     oc_oscore_compose_AAD(kid, kid_len, outbound_piv, outbound_piv_len, aad, &aad_len);
 
     // debugging
@@ -1156,15 +1159,18 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
                 - kid (oc_oscore_add_sender_context')
                 - kid_context (here, rnd)
                 - ms + salt from token (inside 'oc_oscore_add_context')
-                - ssn = 0, not used: outbound_piv is set directly from inbound_piv, context is freed after use
+                - ssn = 0, not used: outbound_piv is set directly from inbound_piv, 
+                - read_ssn_from_storage = false
+                
+                context is freed after use; C99 zero - initializes unnamed fields
         */
         oc_oscore_context_params_t oscore_params = 
         {
-          // .ssn = 0, not used: outbound_piv is set directly from inbound_piv, context is freed after use; C99 zero-initializes unnamed fields
+          // .ssn = 0 
           .id_context = rnd,
           .id_context_size = 10,
           .auth_at = at_entry, 
-          .read_ssn_from_storage = false // NO offset is added to SSN
+          // .read_ssn_from_storage = false
         };
         oscore_ctx = oc_oscore_add_sender_context(&oscore_params);
 
@@ -1183,7 +1189,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         kid_context = oscore_ctx->id_context;
         kid_context_len = oscore_ctx->id_context_len;
 
-        // RFC 8613, 8.3, point 3 lower *, echo response > reuse the inbound SSN and Sender ID to compute a new AEAD nonce
+        // RFC 8613, 8.3, point 3 lower *, echo response reuses the inbound SSN and Sender ID to compute a new AEAD nonce
         oc_oscore_AEAD_nonce(kid, kid_len, inbound_piv, inbound_piv_len,
                              oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
@@ -1227,13 +1233,11 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
     else if (coap_pkt->observe > OC_OBSERVE_DEREGISTER)
     {
       /*
-        RFC 8613 4.1.3.5.2 + KNX IoT 3.6.5: observe notification (from the 2nd onward)
-        - use sender SSN as Partial IV
-        - generate AEAD nonce with sender_id + new PIV + common_iv
-        - include PIV in the outbound OSCORE option
+        RFC 8613 8.3.1/ 4.1.3.5.2 + KNX IoT 3.6.5: observe notification
+        - use an own (server) sender SSN as PIV
+        - generate AEAD nonce with (server) sender_id + own PIV + common_iv
+        - include PIV in the outbound OSCORE option from first notification onwards (RFC 8613 = MAY)
       */
-      kid = oscore_ctx->sender_id;
-      kid_len = oscore_ctx->sender_id_len;
 
       // use context SSN as Partial IV (before increment)
       oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
@@ -1245,10 +1249,12 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       outbound_piv = piv;
       outbound_piv_len = piv_len;
 
+      // when using an own PIV for response -> use fresh nonce 
       oc_oscore_AEAD_nonce(kid, kid_len, outbound_piv, outbound_piv_len,
                            oscore_ctx->common_iv, nonce, OSCORE_AEAD_NONCE_LEN);
 
-      oc_oscore_compose_AAD(kid, kid_len, outbound_piv, outbound_piv_len, aad, &aad_len);
+      // Recipient ID + inbound PIV -> https://www.rfc-editor.org/rfc/rfc8613#section-5.4
+      oc_oscore_compose_AAD(oscore_ctx->recipient_id, oscore_ctx->recipient_id_len, inbound_piv, inbound_piv_len, aad, &aad_len);
 
       OC_DBG("sending observe notification, using SSN as Partial IV with len = %u :", outbound_piv_len);
       OC_LOGbytes(outbound_piv, outbound_piv_len);
@@ -1316,7 +1322,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   // serialize OSCORE plaintext 'at' offset COAP_MAX_HEADER_SIZE (inner code, inner options, payload) by using the 'moved' payload location ptr
   size_t plaintext_size = oscore_serialize_plaintext(coap_pkt, dst1);
 
-  OC_DBG("serialized OSCORE plaintext: %" PRIu64 " bytes", plaintext_size);
+  OC_DBG("serialized OSCORE plaintext: %zu bytes", plaintext_size);
 
   // set the OSCORE packet pointer to location of the serialized inner message (inner code, inner options, payload)
   coap_pkt->payload = dst1;

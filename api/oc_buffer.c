@@ -9,7 +9,6 @@
 #include "messaging/coap/engine.h"
 #include "oc_signal_event_loop.h"
 #include "port/oc_network_events_mutex.h"
-#include "util/oc_memb.h"
 #include "messaging/coap/coap.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -25,90 +24,33 @@
 #include "oc_events.h"
 
 OC_PROCESS(message_buffer_handler, "OC Message Buffer Handler");
-#ifdef OC_INOUT_BUFFER_POOL
-OC_MEMB_STATIC(oc_incoming_buffers, oc_message_t, OC_INOUT_BUFFER_POOL);
-OC_MEMB_STATIC(oc_outgoing_buffers, oc_message_t, OC_INOUT_BUFFER_POOL);
-#else  
-OC_MEMB(oc_incoming_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-OC_MEMB(oc_outgoing_buffers, oc_message_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-#endif 
 
-static oc_message_t* allocate_message(struct oc_memb* pool) 
+oc_message_t* oc_allocate_message(void)
 {
   oc_network_event_handler_mutex_lock();
-  oc_message_t* message = (oc_message_t*)oc_memb_alloc(pool);
+  oc_message_t* message = calloc(1, sizeof(oc_message_t));
   oc_network_event_handler_mutex_unlock();
-  
-  if (message) 
+
+  if (message)
   {
-    #ifndef OC_INOUT_BUFFER_SIZE
     message->data = (uint8_t*)malloc(OC_PDU_SIZE);
-    if (!message->data) 
+    if (!message->data)
     {
-      OC_ERR("Out of memory, cannot allocate message");
-      oc_memb_free(pool, message);
+      OC_ERR("Out of memory, cannot allocate message data!");
+      free(message);
       return NULL;
     }
-    #endif 
 
     // allocated memory is wiped with '0' on allocation, hence do only others on init
-    message->pool = pool;
     message->ref_count = 1;
     message->endpoint.interface_index = -1;
-    
-    #ifdef OC_INOUT_BUFFER_SIZE
-    OC_DBG("buffer: Allocated TX/RX buffer; num free: %d", oc_memb_numfree(pool));
-    #endif 
-  } 
-  else 
+  }
+  else
   {
-    
-    /*
-     No unused buffers, so go through buffers with soft references and
-     free one (with the lowest ref count 1). Said buffer can no longer be
-     used for e.g. retransmitting requests when challenged with an Echo option.
-
-     - However, freeing up one of these means that it can no longer be used for
-       its original purpose.
-     - Additionally an auto release method must be defined for the message itself.
-    
-    */
-
-    for (int i = 0; i < pool->num; i++) 
-    {
-      const int offset = pool->size * i;
-      message = (oc_message_t*) ((uint8_t*) pool->mem + offset);
-
-			if (message->ref_count == 1 && message->soft_ref_cb)
-			{
-				// call auto 'release' method to release a message
-			  message->soft_ref_cb(message);
-
-        // was the last reference (=1), so now we can allocate a new message successfully
-        return allocate_message(pool);
-      }
-    }
-
     OC_WRN("buffer: No free TX/RX buffers!");
-    message = NULL;
   }
 
   return message;
-}
-
-void oc_set_buffers_avail_cb(oc_memb_buffers_avail_callback_t cb) 
-{
-  oc_memb_set_buffers_avail_cb(&oc_incoming_buffers, cb);
-}
-
-oc_message_t* oc_allocate_message(void) 
-{
-  return allocate_message(&oc_incoming_buffers);
-}
-
-oc_message_t* oc_internal_allocate_outgoing_message(void) 
-{
-  return allocate_message(&oc_outgoing_buffers);
 }
 
 void oc_message_add_ref(oc_message_t* message) 
@@ -117,7 +59,7 @@ void oc_message_add_ref(oc_message_t* message)
   {
     message->ref_count++;
   }
-  OC_DBG("increase message counter, counter is %d", message->ref_count);
+  OC_DBG("increase message (%p) counter, counter is now %d", (void*)message, message->ref_count);
 }
 
 void oc_message_unref(oc_message_t* message) 
@@ -126,19 +68,14 @@ void oc_message_unref(oc_message_t* message)
   {
     message->ref_count--;
     OC_DBG("decrease message counter, counter is %d", message->ref_count);
-    if (message->ref_count == 0) {
-      #ifndef OC_INOUT_BUFFER_SIZE
-      if (message->data) 
+    if (message->ref_count == 0)
+    {
+      if (message->data)
       {
         free(message->data);
       }
-      #endif 
 
-      struct oc_memb* pool = message->pool;
-      if (pool) 
-      {
-        oc_memb_free(pool, message);
-      }
+      free(message);
     }
   }
 }
@@ -226,9 +163,11 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         else
         {
           OC_DBG("Outbound plain unicast message, forwarding to IP layer");
-#ifdef OC_REQUEST_HISTORY
+          
+          #ifdef OC_REQUEST_HISTORY
           oc_coap_response_cache_store(message);
-#endif
+          #endif
+          
           oc_send_buffer(message);
           oc_message_unref(message);
         }
@@ -240,9 +179,11 @@ OC_PROCESS_THREAD(message_buffer_handler, ev, data)
         if (message->endpoint.flags & OSCORE)
         {
           OC_DBG("Outbound OSCORE %s message, forwarding to IP layer", message->endpoint.flags & MULTICAST ? "multicast" : "unicast");
-#ifdef OC_REQUEST_HISTORY
+          
+          #ifdef OC_REQUEST_HISTORY
           oc_coap_response_cache_store(message);
-#endif
+          #endif
+          
           oc_send_buffer(message);
           oc_message_unref(message);
         }

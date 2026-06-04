@@ -16,7 +16,6 @@
 #include "oc_endpoint.h"
 #include "oc_session_events.h"
 #include "port/oc_assert.h"
-#include "util/oc_memb.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -46,7 +45,6 @@ typedef struct tcp_session
 
 OC_LIST(session_list);
 OC_LIST(free_session_list_async);
-OC_MEMB(tcp_session_s, tcp_session_t, OC_MAX_TCP_PEERS);
 
 static HANDLE mutex;
 
@@ -143,7 +141,7 @@ static void free_tcp_session_locked(tcp_session_t *session, oc_endpoint_t *endpo
            sizeof(session->endpoint));
   *sock = session->sock;
   *sock_event = session->sock_event;
-  oc_memb_free(&tcp_session_s, session);
+  free(session);
   oc_tcp_adapter_mutex_unlock();
 
   OC_DBG("Freed TCP session (locked).");
@@ -193,7 +191,7 @@ static int add_new_session_locked(SOCKET sock, ip_context_t *dev, oc_endpoint_t 
     OC_ERR("Unable to create socket session event (%d)!", WSAGetLastError());
     return SOCKET_ERROR;
   }
-  tcp_session_t *session = oc_memb_alloc(&tcp_session_s);
+  tcp_session_t *session = calloc(1, sizeof(tcp_session_t));
   if (!session) {
     WSACloseEvent(sock_event);
     OC_ERR("Could not allocate new TCP session object!");
@@ -267,13 +265,13 @@ static tcp_session_t * find_session_by_endpoint_locked(oc_endpoint_t *endpoint)
 
   if (!session) {
 #ifdef OC_DEBUG
-    PRINT("Could not find ongoing TCP session for endpoint:");
+    OC_WRN("Could not find ongoing TCP session for endpoint:");
     PRINTipaddr(*endpoint);
 #endif
     return NULL;
   }
 #ifdef OC_DEBUG
-  PRINT("Found TCP session for endpoint:");
+  OC_DBG("Found TCP session for endpoint:");
   PRINTipaddr(*endpoint);
 #endif
   return session;
@@ -550,7 +548,7 @@ static void recv_message(SOCKET s, void *ctx)
   }
 
 #ifdef OC_DEBUG
-  PRINT("Incoming message of size %zd bytes from endpoint:", message->length);
+  OC_DBG("Incoming message of size %zd bytes from endpoint:", message->length);
   PRINTipaddr(message->endpoint);
 #endif
   oc_network_event(message);

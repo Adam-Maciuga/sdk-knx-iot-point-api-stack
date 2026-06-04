@@ -5,14 +5,14 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#ifdef __GNUC__
-#include <strings.h>          /* strncasecmp */
-#else /* MSVC */
-#include <string.h>          /* strncasecmp */
+
+#include <stdlib.h>
+#include <string.h>
+#ifndef _MSC_VER
+#include <strings.h>         /* strncasecmp */
 #endif
 #include "util/oc_etimer.h"
 #include "util/oc_list.h"
-#include "util/oc_memb.h"
 #include "util/oc_process.h"
 #include "messaging/coap/constants.h"
 #include "messaging/coap/engine.h"
@@ -43,18 +43,14 @@
 #ifdef OC_SERVER
 OC_LIST(app_resources);                // list root node for application endpoint resources (not stack), used e.g. for datapoints with /p/lsab/...
 OC_LIST(observe_callbacks);            // list root node for callback handlers
-OC_MEMB(app_resources_s, oc_resource_t, OC_MAX_APP_RESOURCES);           // a tmp memory container to story a resource
-OC_MEMB(app_resource_datas_s, oc_resource_data_t, OC_MAX_APP_RESOURCES); // a tmp memory container to story a resource runtime modifiable data
 #endif
 
 #ifdef OC_CLIENT
 #include "oc_client_state.h"
 OC_LIST(client_cbs);
-OC_MEMB(client_cbs_s, oc_client_cb_t, OC_MAX_NUM_CONCURRENT_REQUESTS + 1);
 #endif
 
 OC_LIST(timed_callbacks);
-OC_MEMB(event_callbacks_s, oc_event_callback_t, 1 + WELLKNOWNCORE + OC_MAX_APP_RESOURCES + OC_MAX_NUM_CONCURRENT_REQUESTS * 2);
 
 OC_PROCESS(timed_callback_events, "OC timed callbacks");
 
@@ -286,7 +282,7 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
 
 oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
 {
-  oc_interface_mask_t interface = OC_IF_NONE;
+  oc_interface_mask_t interfaces = OC_IF_NONE;
 
   /*
     32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
@@ -304,12 +300,12 @@ oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t 
     if (interface_name_len == strlen(n) && strncmp(interface_name, n, interface_name_len) == 0)
     {
       // on a hit return immediately
-      interface |= 1 << i;
-      return interface;
+      interfaces |= 1 << i;
+      return interfaces;
     }
   }
 
-  return interface;
+  return interfaces;
 }
 
 oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
@@ -356,7 +352,7 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
                                             oc_response_buffer_t* response_buffer,
                                             oc_response_t* response_obj)
 {
-  // copy inbound request content to new request content
+  // shallow copy inbound request content to new request content
   memcpy(new_request, inbound_request, sizeof(oc_request_t));
 
   // init response buffer, buffer + size are 'taken over' from inbound request (same buffer is used as allocated for org. request)
@@ -372,7 +368,7 @@ void oc_ri_new_request_from_inbound_request(oc_request_t* new_request,
 }
 
 #ifdef OC_SERVER
-const oc_resource_t* oc_ri_get_app_resources(void)
+oc_resource_t* oc_ri_get_app_resources(void)
 {
   return (oc_resource_t*)oc_list_head(app_resources);
 }
@@ -404,24 +400,24 @@ const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resourc
   return NULL;
 }
 
-static void oc_ri_delete_all_app_resources(void)
+// deletes all application resources, used during device shutdown, so no double call of freeing the same resource here
+static void oc_ri_delete_all_application_resources(void)
 {
-  const oc_resource_t* res = oc_ri_get_app_resources();
-  while (res)
-  {
-    if (!oc_ri_delete_resource(res))
-    {
-      // we'll get stuck in an infinite loop if we would not return here!
-      return;
-    }
+  oc_resource_t* res;
 
-    // removed an item from list, start all over again ...
-    res = oc_ri_get_app_resources();
+  /*
+    runs until list is NULL, which is the end of the list, which means all application resources have been deleted
+    - application resources cant be const
+    - used during device shutdown(so no double call of freeing the same resource here)
+  */
+  while ((res = oc_ri_get_app_resources()))
+  {
+    oc_ri_delete_resource(res);
   }
 }
 #endif
 
-bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept)
+bool oc_accept_header_is_ok(const oc_request_t* request, oc_content_format_t accept)
 {
   if (request && (request->accept == accept || request->accept == CONTENT_NONE))
   {
@@ -721,59 +717,83 @@ void oc_ri_init(void)
 #ifdef OC_SERVER
 oc_resource_t* oc_ri_alloc_resource(void)
 {
-  return oc_memb_alloc(&app_resources_s);
+  return calloc(1, sizeof(oc_resource_t));
 }
 
 oc_resource_data_t* oc_ri_alloc_resource_data(void)
 {
-  return oc_memb_alloc(&app_resource_datas_s);
+  return calloc(1, sizeof(oc_resource_data_t));
 }
 
-/*
-  Remove a resource from the stack and delete the resource.
+/**
+  Removes a resource from the list and deletes the resource (deallocation).
 
-  Any resource observers will automatically be removed.
+  @param[in] resource the resource to delete
 
-  This will free the memory associated with the resource.
-
-  @param[in] _resource the resource to delete
-
+  @note 
+  - Any resource observers will automatically be removed.
+  - The memory associated with the resource will be freed.
+  - The list of resources will be updated to reflect the deletion.
+  
   @return
    - true: when the resource has been deleted and memory freed.
    - false: there was an issue deleting the resource.
 */
-bool oc_ri_delete_resource(const oc_resource_t* _resource)
+bool oc_ri_delete_resource(oc_resource_t* resource)
 {
-  if (!_resource)
+  if (!resource)
   {
     return false;
   }
 
-  if (_resource->is_const)
+  if (resource->is_const)
   {
     OC_ERR("oc_ri_delete_resource: resource is const!");
     return false;
   }
 
-  oc_resource_t* resource = (oc_resource_t*)_resource;
+  oc_list_remove(app_resources, resource);
 
   /*
-    Guard against re-entrant double-free: a DELETE request handler (delete_handler.cb) may itself call oc_ri_delete_resource on the same resource. 
-    By removing the resource from the list first, any re-entrant call will find it absent (oc_list_remove returns NULL) and exit early,
-    preventing a double oc_memb_free.
-  */
-  if (oc_list_remove(app_resources, resource) == NULL)
-  {
-    return true;
-  }
+     Here wa are on a (dynamically allocated) application resource, frees in one go at the end
+     of device SHUT DOWN (so no double call of freeing the same resource here)
 
-  if (resource->runtime_data->num_observers > 0)
+     - properties (static)
+       In 'oc_resource_set_properties' method simply assigned.
+
+     - handler (static)
+       In 'oc_resource_set_request_handler' method simply assigned.
+
+     - uri (static)
+       In 'oc_new_resource' method simply assigned by adding the (handed over) pointer to
+       the oc_string.ptr, hence the actual (handed over) resource MUST be already present.
+       No need to free it with oc_free_string(&(resource->uri)) -> The application caller must do that if it was
+       heap allocated.
+
+     Must be deallocated in stack code (see below).
+     - runtime_data (allocated)
+     - DPA types (allocated)
+     - DPT types (allocated)
+
+   */
+
+  // present observers must be removed first
+  if (resource->runtime_data && resource->runtime_data->num_observers > 0)
   {
     coap_remove_observer_by_resource(resource);
   }
 
-  oc_ri_free_resource_properties(resource);
-  oc_memb_free(&app_resources_s, resource);
+  // dpa types (allocated), can handle NULL
+  oc_free_string_array(&resource->types);
+
+  // dpt types (allocated), can handle NULL
+  oc_free_string(&resource->dpt);
+  
+  // runtime_data (allocated), can handle NULL
+  free(resource->runtime_data);
+
+  // free resource as such, can handle NULL 
+  free(resource);
 
   return true;
 }
@@ -814,47 +834,6 @@ bool oc_ri_add_resource(oc_resource_t* resource)
 
 #endif
 
-void oc_ri_free_resource_properties(oc_resource_t* resource)
-{
-  if (resource == NULL)
-  {
-    return;
-  }
-
-  if (resource->is_const)
-  {
-    OC_ERR("oc_ri_free_resource_properties: resource is const");
-    return;
-  }
-
-  /*
-    Here wa are on an application resource, frees PROPERTIES:
-
-    - uri (static)
-      In oc_new_resource method simply assigned (resource MUST be already present).
-      No need to free it with oc_free_string(&(resource->uri)) -> Caller must do that if heap allocated.
-
-    - types (allocated)
-      Must be de allocated.
-
-    - properties (static)
-      In oc_new_resource method simply assigned.
-
-    - handler (static)
-      In oc_resource_set_request_handler method simply assigned (resource MUST be already present).
-      No need to free it -> Caller must do that if heap allocated.
-
-    - runtime_data
-      Not released here, will ONLY be deallocated in 'oc_memb_free'.
-  */
-
-  // types (allocated)
-  if (oc_string_array_get_allocated_size(resource->types) > 0)
-  {
-    oc_free_string_array(&resource->types);
-  }
-}
-
 void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callback)
 {
   oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_list_head(timed_callbacks);
@@ -867,7 +846,7 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
       oc_etimer_stop(&event_cb->timer);
       OC_PROCESS_CONTEXT_END(&timed_callback_events);
       oc_list_remove(timed_callbacks, event_cb);
-      oc_memb_free(&event_callbacks_s, event_cb);
+      free(event_cb);
       break;
     }
 
@@ -877,7 +856,7 @@ void oc_ri_remove_timed_event_callback(void* cb_data, oc_trigger_t event_callbac
 
 void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_callback, oc_clock_time_t ticks)
 {
-  oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_memb_alloc(&event_callbacks_s);
+  oc_event_callback_t* event_cb = calloc(1, sizeof(oc_event_callback_t));
 
   if (event_cb)
   {
@@ -894,7 +873,7 @@ void oc_ri_add_timed_event_callback_ticks(void* cb_data, oc_trigger_t event_call
   }
 }
 
-static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
+static void poll_event_callback_timers(oc_list_t list)
 {
   oc_event_callback_t* event_cb = (oc_event_callback_t*)oc_list_head(list);
 
@@ -909,7 +888,7 @@ static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
       {
         // remove callback
         oc_list_remove(list, event_cb);
-        oc_memb_free(cb_pool, event_cb);
+        free(event_cb);
         event_cb = (oc_event_callback_t*)oc_list_head(list);
         continue;
       }
@@ -929,18 +908,18 @@ static void poll_event_callback_timers(oc_list_t list, struct oc_memb* cb_pool)
 static void check_event_callbacks(void)
 {
   #ifdef OC_SERVER
-  poll_event_callback_timers(observe_callbacks, &event_callbacks_s);
+  poll_event_callback_timers(observe_callbacks);
   #endif
-  poll_event_callback_timers(timed_callbacks, &event_callbacks_s);
+  poll_event_callback_timers(timed_callbacks);
 }
 
 #ifdef OC_SERVER
 
 static oc_event_callback_retval_t periodic_observe_handler(void* data)
 {
-  oc_resource_t* resource = (oc_resource_t*)data;
+  const oc_resource_t* resource = (oc_resource_t*)data;
 
-  if (coap_notify_observers(resource, NULL, NULL))
+  if (oc_notify_observers(resource))
   {
     return OC_EVENT_CONTINUE;
   }
@@ -979,7 +958,7 @@ static void remove_periodic_observe_callback(const oc_resource_t* resource)
   {
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(observe_callbacks, event_cb);
-    oc_memb_free(&event_callbacks_s, event_cb);
+    free(event_cb);
   }
 }
 
@@ -989,7 +968,7 @@ static bool add_periodic_observe_callback(const oc_resource_t* resource)
 
   if (!event_cb)
   {
-    event_cb = (oc_event_callback_t*)oc_memb_alloc(&event_callbacks_s);
+    event_cb = calloc(1, sizeof(oc_event_callback_t));
 
     if (!event_cb)
     {
@@ -1019,7 +998,7 @@ static void free_all_event_timers(void)
   {
     oc_etimer_stop(&obs_cb->timer);
     oc_list_remove(observe_callbacks, obs_cb);
-    oc_memb_free(&event_callbacks_s, obs_cb);
+    free(obs_cb);
     obs_cb = oc_list_pop(observe_callbacks);
   }
   #endif
@@ -1030,7 +1009,7 @@ static void free_all_event_timers(void)
   {
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(timed_callbacks, event_cb);
-    oc_memb_free(&event_callbacks_s, event_cb);
+    free(event_cb);
     event_cb = oc_list_pop(timed_callbacks);
   }
 }
@@ -1123,16 +1102,13 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   new_request.uri_path = uri_path;
   new_request.uri_path_len = uri_path_len;
 
-  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-
-  oc_rep_set_pool(&rep_objects);
-
   if (payload_len > 0 && (content_format == APPLICATION_CBOR || content_format == APPLICATION_OSCORE))
   {
     /*
       Attempt to parse request payload using tinyCBOR via oc_rep helper functions. The result of this parse is a
       tree of oc_rep_t structures which will reflect the schema of the payload. Any failures while parsing the
       payload is viewed as an erroneous request and results in a 4.00 response being sent.
+      oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
     */
     int parse_error = oc_parse_rep(payload, (int)payload_len, &new_request.request_payload);
     if (parse_error != 0)
@@ -1268,22 +1244,10 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
       forbidden = true;
     }
     else
-    #ifdef OC_SECURITY	// TODO 12 FIXME NOW this is the only place where this looks like not to be TLS related!
-    /*
-      If matching_resource is a coaps:// resource, then query ACL to check if the requester (the subject)
-      is authorized to issue this request to the resource.
-    */
-    if (!oc_sec_check_acl(method, matching_resource, endpoint))
     {
-      authorized = false;
-      // oc_ri_audit_log(method, matching_resource, endpoint);
-    }
-    else
-    #endif
-    {
-      // access scope ok
+      // access scope ok, invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
 
-      // invoke core or application callback handler, otherwise, return a 4.05 (method not allowed) response
+
       if (method == COAP_GET && matching_resource->get_handler.cb)
       {
         // entry point, such as for GET /k
@@ -1371,8 +1335,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   #ifdef OC_SERVER
   // if a GET request was successfully processed, then check its observe option
 
-  // init with error
-  oc_client_observe_t observe_value_by_client = OC_OBSERVE_UNDEFINED;
+  // init 
+  oc_client_observe_t observe_value_by_client = OC_OBSERVE_NOT_APPLICABLE;
 
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe_value_by_client))
   {
@@ -1425,7 +1389,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
           }
         }
       }
-      else if (observe_value_by_client == OC_OBSERVE_DEREGISTER)
+      else 
+      if (observe_value_by_client == OC_OBSERVE_DEREGISTER)
       {
         /*
           If the observe option is set to deregister (OC_OBSERVE_DEREGISTER), make an attempt to remove the
@@ -1460,7 +1425,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   }
 
   #ifdef OC_SERVER
-  // the presence of a separate response handle here indicates a successful handling of the request by a slow resource.
+  // the presence of a separate response handle here indicates a successful handling of the request by a slow resource
   if (response_obj.separate_response)
   {
     /*
@@ -1473,7 +1438,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     */
 
     #ifdef OC_BLOCK_WISE
-    // note, observe may also 'error'
+    // note, observe value may also be 'invalid'
     if (coap_separate_accept(request, response_obj.separate_response, endpoint, observe_value_by_client, block2_size) == 1)
     {
     #else
@@ -1496,19 +1461,20 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     else
     {
       #ifdef OC_SERVER
-      /*
-        If the recently handled request was a PUT/POST, it conceivably altered the resource state, so attempt to notify all observers
-        of that resource with the change. Multicast PUT/POST is only used for s-mode via /k; /k always calls oc_ignore_request which
-        sets response_buffer.code = OC_IGNORE, routing execution to CLEAR_TRANSACTION above -- so this block is only reached for unicast PUT/POST.
-      */
       if (matching_resource && (method == COAP_PUT || method == COAP_POST) && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST))
       {
         /*
-          Unicast PUT/POST: notify observers acc. to clause 2.5.3.6 - if.o resources
-          - must notify observers when their value changes via a unicast PUT
-          - immediately, no delay (on unicast there are not other devices firing notifications, so no need to delay for batching)
+          If the recently handled inbound request was a PUT/POST, it MAY have altered the resource state, 
+          so attempt to notify all /p observers of that resource. 
+          NOTE: 
+          
+          - Unicast PUT/POST: notify observers acc. to clause 2.5.3.6 - if.o resources
+          - Multicast POST on /k always calls 'oc_ignore_request' which sets OC_IGNORE, not caught here.
+          - must notify observers when their value changes via a unicast PUT/POST
+          - immediately, no delay (on unicast there are not other devices firing notifications, 
+            so no need to delay for batching)
         */
-        coap_notify_observers(matching_resource, NULL, NULL);
+        oc_notify_observers(matching_resource);
       }
       #endif
 
@@ -1562,7 +1528,7 @@ static void free_client_cb(oc_client_cb_t* cb)
   #endif
   oc_free_string(&cb->uri);
   oc_free_string(&cb->query);
-  oc_memb_free(&client_cbs_s, cb);
+  free(cb);
 }
 
 oc_event_callback_retval_t oc_ri_remove_client_cb(void* data)
@@ -1754,8 +1720,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   client_response._payload = payload;
   client_response._payload_len = (size_t)payload_len;
 
-  struct oc_memb rep_objects = {sizeof(oc_rep_t), 0, 0, 0, 0};
-  oc_rep_set_pool(&rep_objects);
   if (payload_len)
   {
     if (cb->discovery)
@@ -1778,6 +1742,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
       // Do not parse an incoming payload when the Content-Format option has not been set to the CBOR encoding.
       if (cf == APPLICATION_CBOR)
       {
+        // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
         err = oc_parse_rep(payload, payload_len, &client_response.payload);
       }
 
@@ -1919,7 +1884,7 @@ static void free_all_client_cbs(void)
 oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, coap_method_t method, const char* query,
                                       oc_client_handler_t handler, oc_qos_t qos, void* user_data)
 {
-  oc_client_cb_t* cb = (oc_client_cb_t*)oc_memb_alloc(&client_cbs_s);
+  oc_client_cb_t* cb = calloc(1, sizeof(oc_client_cb_t));
   if (!cb)
   {
     OC_WRN("insufficient memory to add client callback");
@@ -1983,7 +1948,7 @@ void oc_ri_shutdown(void)
   oc_process_shutdown();
 
   #ifdef OC_SERVER
-  oc_ri_delete_all_app_resources();
+  oc_ri_delete_all_application_resources();
   #endif
 
   oc_random_destroy();

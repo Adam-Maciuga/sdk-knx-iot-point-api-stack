@@ -196,8 +196,6 @@ set(API_SOURCES
 set(CORE_SOURCES
     ${STACK_ROOT}/util/oc_etimer.c
     ${STACK_ROOT}/util/oc_list.c
-    ${STACK_ROOT}/util/oc_memb.c
-    #${STACK_ROOT}/util/oc_mem_trace.c
     ${STACK_ROOT}/util/oc_mmem.c
     ${STACK_ROOT}/util/oc_process.c
     ${STACK_ROOT}/util/oc_timer.c
@@ -312,14 +310,19 @@ zephyr_compile_definitions(
 ## Network
 zephyr_compile_definitions(
     $<$<BOOL:${CONFIG_KNXIOT_DNS_SD}>:OC_DNS_SD>
-    KNX_MULTICAST_SCOPE=${CONFIG_KNXIOT_SENDER_MULTICAST_SCOPE}
-    KNX_RESPONSE_TIME_SECONDS=${CONFIG_KNXIOT_RESET_PROCESS_TIME}
+    KNX_UNICAST_PORT=${CONFIG_KNX_UNICAST_PORT}
+    KNX_MULTICAST_SCOPE=${CONFIG_KNX_MULTICAST_SCOPE}
+    KNX_READ_ON_INIT_DELAY_MILLISECONDS=${CONFIG_KNX_READ_ON_INIT_DELAY_MS}
+    KNX_RESPONSE_TIME_SECONDS=${CONFIG_KNX_RESET_PROCESS_TIME_S}
 )
 
 ## Security
+# Note:
+# KNX_IOT_SPAKE2PLUS_ITERATIONS is hardcoded here to mirror the FORCE behaviour
+# in the root CMakeLists.txt. It is intentionally not exposed via Kconfig.
 zephyr_compile_definitions(
-    KNX_IOT_SPAKE2PLUS_ITERATIONS=${CONFIG_KNXIOT_SPAKE2PLUS_ITERATIONS}
     $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>
+    KNX_IOT_SPAKE2PLUS_ITERATIONS=50000
 )
 
 ## Logging

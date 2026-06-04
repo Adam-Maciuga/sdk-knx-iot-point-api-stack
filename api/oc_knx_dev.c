@@ -64,9 +64,8 @@ extern const oc_resource_t core_resource_a_lsm;
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_sn_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_sn = {
-        &core_resource_dev_hwv,
+        (oc_resource_t*)&core_resource_dev_hwv,
         {NULL, sizeof("/dev/sn"), "/dev/sn"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa:0.11"}},
         {NULL, sizeof("urn:knx:dpt.serNum"), "urn:knx:dpt.serNum"},
@@ -76,13 +75,12 @@ const oc_resource_t core_resource_dev_sn = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_sn_data};
-PRAGMA_OUT
 
 static void oc_core_dev_hwv_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -93,7 +91,7 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request,
     return;
   }
 
-  PRINT("oc_core_dev_hwv_get_handler");	// TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_hwv_get_handler");
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
  
@@ -108,9 +106,8 @@ static void oc_core_dev_hwv_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hwv_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_hwv = {
-        &core_resource_dev_fwv,
+        (oc_resource_t*)&core_resource_dev_fwv,
         {NULL, sizeof("/dev/hwv"), "/dev/hwv"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.version"), "urn:knx:dpt.version"},
@@ -120,13 +117,12 @@ const oc_resource_t core_resource_dev_hwv = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_hwv_data};
-PRAGMA_OUT
 
 static void oc_core_dev_fwv_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -137,7 +133,7 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request,
     return;
   }
 
-  PRINT("oc_core_dev_fwv_get_handler - start");	// TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_fwv_get_handler - start");
   const oc_device_info_t* const  device = oc_core_get_device_info();
   
   // cbor with payload: [ major, minor, patch ]
@@ -151,9 +147,8 @@ static void oc_core_dev_fwv_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_fwv_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_fwv = {
-        &core_resource_dev_hwt,
+        (oc_resource_t*)&core_resource_dev_hwt,
         {NULL, sizeof("/dev/fwv"), "/dev/fwv"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.25"}},
         {NULL, sizeof("urn:knx:dpt.version"), "urn:knx:dpt.version"},
@@ -163,13 +158,12 @@ const oc_resource_t core_resource_dev_fwv = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_fwv_data};
-PRAGMA_OUT
 
 static void oc_core_dev_hwt_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -191,9 +185,8 @@ static void oc_core_dev_hwt_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hwt_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_hwt = {
-        &core_resource_dev_model,
+        (oc_resource_t*)&core_resource_dev_model,
         {NULL, sizeof("/dev/hwt"), "/dev/hwt"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -203,13 +196,12 @@ const oc_resource_t core_resource_dev_hwt = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_hwt_data};
-PRAGMA_OUT
 
 static void oc_core_dev_model_get_handler(oc_request_t* request, 
        oc_interface_mask_t iface_mask, void* data) {
@@ -231,9 +223,8 @@ static void oc_core_dev_model_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_model_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_model = {
-        &core_resource_dev_hostname,
+        (oc_resource_t*)&core_resource_dev_hostname,
         {NULL, sizeof("/dev/model"), "/dev/model"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.15"}},
         {NULL, sizeof("urn:knx:dpt.utf8"), "urn:knx:dpt.utf8"},
@@ -243,43 +234,45 @@ const oc_resource_t core_resource_dev_model = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_model_data};
-PRAGMA_OUT
 
-static void oc_core_dev_hostname_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_hostname_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
-  while (rep) {
-    if (rep->type == OC_REP_STRING) {
+  while (rep) 
+  {
+    if (rep->type == OC_REP_STRING) 
+    {
       // value (1)
-      if (rep->iname == 1) {
-        PRINT("oc_core_dev_hostname_put_handler received : %s", 
-                oc_string_checked(rep->value.string));	// TODO 3 LOG make this depending on log level
+      if (rep->iname == 1) 
+      {
+        OC_INF("oc_core_dev_hostname_put_handler received : %s", oc_string_checked(rep->value.string));	
 
-        // set hostname for the device
-        oc_core_set_device_hostname(oc_string_checked(rep->value.string));
-
-        // update storage
-        oc_storage_write(KNX_STORAGE_HOSTNAME, 
-                (uint8_t*)oc_string_checked(rep->value.string), 
-                oc_string_len(rep->value.string));
+        char* hname = oc_string_checked(rep->value.string);
+        const uint8_t hname_size = oc_string_len(rep->value.string);
+        
+        // set hostname for the device and update storage
+        oc_core_set_device_hostname(hname);
+        oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)hname, hname_size);
 
         // call host name application callback handler
         const oc_hostname_t* my_hostname = oc_get_hostname_cb();
-        if (my_hostname && my_hostname->cb) {
+        if (my_hostname && my_hostname->cb) 
+        {
           my_hostname->cb(rep->value.string, my_hostname->data);
         }
 
@@ -294,14 +287,15 @@ static void oc_core_dev_hostname_put_handler(oc_request_t* request,
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
 }
 
-static void oc_core_dev_hostname_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_hostname_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  PRINT("oc_core_dev_hostname_get_handler - start");	// TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_hostname_get_handler - start");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -316,9 +310,8 @@ static void oc_core_dev_hostname_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_hostname_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_hostname = {
-        &core_resource_dev_iid,
+        (oc_resource_t*)&core_resource_dev_iid,
         {NULL, sizeof("/dev/hname"), "/dev/hname"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.varString8859_1"), "urn:knx:dpt.varString8859_1"},
@@ -328,39 +321,43 @@ const oc_resource_t core_resource_dev_hostname = {
         {oc_core_dev_hostname_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_hostname_data};
-PRAGMA_OUT
 
-static void oc_core_dev_iid_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_iid_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_rep_t* rep = request->request_payload;
 
-  while (rep) {
-    if (rep->type == OC_REP_INT) {
-      if (rep->iname == 1) {
-        PRINT("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer); // TODO 3 LOG make this depending on log level
+  while (rep) 
+  {
+    if (rep->type == OC_REP_INT) 
+    {
+      if (rep->iname == 1) 
+      {
+        OC_INF("oc_core_dev_iid_put_handler received : %" PRIi64, rep->value.integer);
 
-        if (oc_core_set_and_store_device_iid(rep->value.integer)) {
-          if (oc_is_device_in_runtime()) { 
+        if (oc_core_set_and_store_device_iid(rep->value.integer)) 
+        {
+          if (oc_is_device_in_runtime()) 
+          { 
             oc_register_group_multicasts();
             oc_init_datapoints_at_initialization();
 
-            PRINT("Re-register DNS-SD service after writing IID)"); // TODO 3 LOG make this depending on log level
+            OC_INF("Re-register DNS-SD service after writing IID)");
             const oc_device_info_t* const device = oc_core_get_device_info();
-            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
-                    device->ia, device->pm);
+            knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
           }
 
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -395,9 +392,8 @@ static void oc_core_dev_iid_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_iid_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_iid = {
-        &core_resource_dev_pm,
+        (oc_resource_t*)&core_resource_dev_pm,
         {NULL, sizeof("/dev/iid"), "/dev/iid"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value8Ucount"), "urn:knx:dpt.value8Ucount"},
@@ -407,13 +403,12 @@ const oc_resource_t core_resource_dev_iid = {
         {oc_core_dev_iid_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_iid_data};
-PRAGMA_OUT
 
 static void oc_core_dev_ipv6_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -425,7 +420,7 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
   int query_pn = PAGE_NUMBER;
   int query_ps = BATCH_SIZE;
 
-  PRINT("oc_core_dev_ipv6_get_handler - start"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_ipv6_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
     return;
@@ -495,14 +490,13 @@ static void oc_core_dev_ipv6_get_handler(oc_request_t* request,
   // (otherwise no comm. is possible)
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 
-  PRINT("oc_core_dev_ipv6_get_handler - end"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_ipv6_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_ipv6_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_ipv6 = {
-        &core_resource_dev_sna,
+        (oc_resource_t*)&core_resource_dev_sna,
         {NULL, sizeof("/dev/ipv6"), "/dev/ipv6"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.ipv6"), "urn:knx:dpt.ipv6"},
@@ -512,20 +506,19 @@ const oc_resource_t core_resource_dev_ipv6 = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_ipv6_data};
-PRAGMA_OUT
 
 static void oc_core_dev_pm_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
   (void)data;
   (void)iface_mask;
 
-  PRINT("calling dev/pm GET handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("calling dev/pm GET handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
     return;
@@ -546,7 +539,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
   (void)data;
   (void)iface_mask;
 
-  PRINT("calling dev/pm PUT handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("calling dev/pm PUT handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
     return;
@@ -559,7 +552,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
   while (rep) {
     if (rep->type == OC_REP_BOOL) {
       if (rep->iname == 1) {
-        PRINT("oc_core_dev_pm_put_handler received : %d", (int)rep->value.boolean); // TODO 3 LOG make this depending on log level
+        OC_INF("oc_core_dev_pm_put_handler received : %d", (int)rep->value.boolean);
 
         // application programming mode callback handler, 
         // if not present PM it is set directly
@@ -569,7 +562,7 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
           device->pm = rep->value.boolean;
         }
 
-        PRINT("Re-register DNS-SD service after writing PROG mode)"); // TODO 3 LOG make this depending on log level
+        OC_INF("Re-register DNS-SD service after writing PROG mode)");
         knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
                 device->ia, device->pm);
         oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&rep->value.boolean, 1);
@@ -587,9 +580,8 @@ static void oc_core_dev_pm_put_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_pm_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_pm = {
-        &core_resource_dev_ipv6,
+        (oc_resource_t*)&core_resource_dev_ipv6,
         {NULL, sizeof("/dev/pm"), "/dev/pm"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.54"}},
         {NULL, sizeof("urn:knx:dpt.binaryValue"), "urn:knx:dpt.binaryValue"},
@@ -599,13 +591,12 @@ const oc_resource_t core_resource_dev_pm = {
         {oc_core_dev_pm_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_pm_data};
-PRAGMA_OUT
 
 static void oc_core_dev_dev_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -622,7 +613,7 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_dev_dev_get_handler - start"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_dev_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) {
     return;
@@ -670,14 +661,13 @@ static void oc_core_dev_dev_get_handler(oc_request_t* request,
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_dev_dev_get_handler - end"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_dev_dev_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev = {
-        &core_resource_app,
+        (oc_resource_t*)&core_resource_app,
         {NULL, sizeof("/dev"), "/dev"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.0"}},
         {NULL, 0, NULL},
@@ -687,13 +677,12 @@ const oc_resource_t core_resource_dev = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_data};
-PRAGMA_OUT
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
 static void oc_core_dev_sa_get_handler(oc_request_t* request, 
@@ -717,9 +706,8 @@ static void oc_core_dev_sa_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_sna_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_sna = {
-        &core_resource_dev_da,
+        (oc_resource_t*)&core_resource_dev_da,
         {NULL, sizeof("/dev/sna"), "/dev/sna"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.57"}},
         {NULL, sizeof("urn:knx:dpt.value1Ucount"), "urn:knx:dpt.value1Ucount"},
@@ -729,13 +717,12 @@ const oc_resource_t core_resource_dev_sna = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_sna_data};
-PRAGMA_OUT
 
 // 16 bit KNX ia = sa(8)+da(8), example Subnetwork Add. (sa) 0 + (da) Device Add. 1 = 0x0001
 static void oc_core_dev_da_get_handler(oc_request_t* request, 
@@ -759,9 +746,8 @@ static void oc_core_dev_da_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_da_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_da = {
-        &core_resource_dev_fid,
+        (oc_resource_t*)&core_resource_dev_fid,
         {NULL, sizeof("/dev/da"), "/dev/da"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.58"}},
         {NULL, sizeof("urn:knx:dpt.value1Ucount"), "urn:knx:dpt.value1Ucount"},
@@ -771,13 +757,12 @@ const oc_resource_t core_resource_dev_da = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_da_data};
-PRAGMA_OUT
 
 static void oc_core_dev_fid_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -811,7 +796,7 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request,
   while (rep) {
     if (rep->type == OC_REP_INT) {
       if (rep->iname == 1) {
-        PRINT("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer); // TODO 3 LOG make this depending on log level
+        OC_INF("oc_core_dev_fid_put_handler received : %" PRIi64, rep->value.integer);
 
         if (oc_core_set_and_store_device_fid(rep->value.integer)) {
           oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
@@ -828,9 +813,8 @@ static void oc_core_dev_fid_put_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_fid_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_fid = {
-        &core_resource_dev_port,
+        (oc_resource_t*)&core_resource_dev_port,
         {NULL, sizeof("/dev/fid"), "/dev/fid"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value8Ucount"), "urn:knx:dpt.value8Ucount"},
@@ -840,13 +824,12 @@ const oc_resource_t core_resource_dev_fid = {
         {oc_core_dev_fid_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         true,
         &core_resource_dev_fid_data};
-PRAGMA_OUT
 
 static void oc_core_dev_port_get_handler(oc_request_t* request, 
        oc_interface_mask_t iface_mask, void* data) {
@@ -867,9 +850,8 @@ static void oc_core_dev_port_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_port_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_port = {
-        &core_resource_dev_mport,
+        (oc_resource_t*)&core_resource_dev_mport,
         {NULL, sizeof("/dev/port"), "/dev/port"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -879,13 +861,12 @@ const oc_resource_t core_resource_dev_port = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_dev_port_data};
-PRAGMA_OUT
 
 static void oc_core_dev_mport_get_handler(oc_request_t* request, 
 oc_interface_mask_t iface_mask, void* data) {
@@ -905,9 +886,8 @@ oc_interface_mask_t iface_mask, void* data) {
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_mport_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_mport = {
-        &core_resource_dev_mid,
+        (oc_resource_t*)&core_resource_dev_mid,
         {NULL, sizeof("/dev/mport"), "/dev/mport"},
         {NULL, 0, NULL},
         {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -917,13 +897,12 @@ const oc_resource_t core_resource_dev_mport = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_dev_mport_data};
-PRAGMA_OUT
 
 static void oc_core_ap_x_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -980,9 +959,8 @@ static void oc_core_ap_x_put_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_app_x_data;
-PRAGMA_IN
 const oc_resource_t core_resource_app_pv = {
-        &core_resource_a_lsm,
+        (oc_resource_t*)&core_resource_a_lsm,
         {NULL, sizeof("/ap/pv"), "/ap/pv"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.3.13"}},
         {NULL, sizeof("urn:knx:dpt.programVersion"), "urn:knx:dpt.programVersion"},
@@ -992,13 +970,12 @@ const oc_resource_t core_resource_app_pv = {
         {oc_core_ap_x_put_handler, NULL, OC_ACL_P, OC_IF_P},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_app_x_data};
-PRAGMA_OUT
 
 static void oc_core_ap_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -1015,7 +992,7 @@ static void oc_core_ap_get_handler(oc_request_t* request,
   int total = last_entry - first_entry; // total entries of this resource
   bool more_request_needed = false;
 
-  PRINT("oc_core_ap_get_handler"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_ap_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT)) {
     return;
@@ -1063,14 +1040,13 @@ static void oc_core_ap_get_handler(oc_request_t* request,
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  PRINT("oc_core_ap_get_handler - end"); // TODO 3 LOG make this depending on log level
+  OC_INF("oc_core_ap_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_app_data;
-PRAGMA_IN
 const oc_resource_t core_resource_app = {
-       &core_resource_app_pv,
+       (oc_resource_t*)&core_resource_app_pv,
        {NULL, sizeof("/ap"), "/ap"},
        {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:fb.3"}},
        {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -1080,13 +1056,12 @@ const oc_resource_t core_resource_app = {
        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
        {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-       {NULL, NULL},
-       {NULL, NULL},
+       {{NULL}, NULL},
+       {{NULL}, NULL},
        0,
        0,
        1,
        &core_resource_app_data};
-PRAGMA_OUT
 
 static void oc_core_dev_mid_get_handler(oc_request_t* request, 
         oc_interface_mask_t iface_mask, void* data) {
@@ -1109,9 +1084,8 @@ static void oc_core_dev_mid_get_handler(oc_request_t* request,
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_dev_mid_data;
-PRAGMA_IN
 const oc_resource_t core_resource_dev_mid = {
-        &core_resource_dev,
+        (oc_resource_t*)&core_resource_dev,
         {NULL, sizeof("/dev/mid"), "/dev/mid"},
         {NULL, (size_t)1 * 32, (char[1][32]){"urn:knx:dpa.0.12"}},
         {NULL, sizeof("urn:knx:dpt.value2Ucount"), "urn:knx:dpt.value2Ucount"},
@@ -1121,87 +1095,78 @@ const oc_resource_t core_resource_dev_mid = {
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
         {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-        {NULL, NULL},
-        {NULL, NULL},
+        {{NULL}, NULL},
+        {{NULL}, NULL},
         0,
         0,
         1,
         &core_resource_dev_mid_data};
-PRAGMA_OUT
 
-void oc_knx_load_device(void) {
-  PRINT("Loading device configuration from persistent storage"); // TODO 3 LOG make this depending on log level
+void oc_knx_load_device(void) 
+{
+  OC_INF("Loading device configuration from persistent storage");
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
   // read IA from storage (on error = 0xFFFF)
   uint16_t ia;
   device->ia = oc_storage_read(KNX_STORAGE_IA, (uint8_t*)&ia, sizeof(ia)) > 0 ? ia : 0xFFFF;
-  PRINT("ia (storage) %04X", ia); // TODO 3 LOG make this depending on log level
+  OC_INF("ia (storage) %04X", ia);
 
   // read iid name from storage (on error = 0)
   uint64_t iid;
   device->iid = oc_storage_read(KNX_STORAGE_IID, (uint8_t*)&iid, sizeof(iid)) > 0 ? iid : 0;
-  PRINT("iid (storage) %" PRIu64, device->iid); // TODO 3 LOG make this depending on log level
+  OC_INF("iid (storage) %" PRIu64, device->iid); 
 
   // read fid name from storage (on error = 0)
   uint64_t fid;
   device->fid = oc_storage_read(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
-  PRINT("fid (storage) %" PRIu64, device->fid); // TODO 3 LOG make this depending on log level
+  OC_INF("fid (storage) %" PRIu64, device->fid); 
 
   // read prg mode from storage (on error = false)
   bool pm;
   device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*)&pm, sizeof(pm)) > 0 ? pm : false;
-  PRINT("pm (storage) %d", pm); // TODO 3 LOG make this depending on log level
+  OC_INF("pm (storage) %d", pm); 
 
-  // set default host name to device serial number and leading
-  // 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700",
-  // header defined by specification
-  char hname[HNAME_SIZE];
-  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
-
-  // read host name from storage (on error = default host name, otherwise stored host name)
-  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, 128);
-  oc_core_set_device_hostname(hname);
-  PRINT("hostname (storage) %s", oc_string(device->iot_hostname)); // TODO 3 LOG make this depending on log level
+  // read host name from storage (on error = the default host name is used, otherwise stored host name)
+  oc_core_read_and_set_device_hostname();
+  OC_INF("hostname (storage) %s", oc_string(device->iot_hostname)); 
 
   // read application version from storage (on error = '0.0.0')
   uint16_t value;
-  device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, 
-          sizeof(value)) > 0 ? value : 0;
-  device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, 
-          sizeof(value)) > 0 ? value : 0;
-  device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, 
-          sizeof(value)) > 0 ? value : 0;
-  PRINT("app ver (storage) %d.%d.%d", 
-          device->apv.major, device->apv.minor, device->apv.patch); // TODO 3 LOG make this depending on log level
+  device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  OC_INF("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch); 
 
   // read firmware version from storage (on error = '0.0.0')
   device->fwv.major = oc_storage_read(KNX_STORAGE_FW_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->fwv.minor = oc_storage_read(KNX_STORAGE_FW_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
   device->fwv.patch = oc_storage_read(KNX_STORAGE_FW_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  PRINT("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
+  OC_INF("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
 
   // read lsm mode from storage (on error = unloaded)
   oc_lsm_state_t lsm;
   device->lsm_s = oc_storage_read(KNX_STORAGE_LSM, (uint8_t*)&lsm, sizeof(lsm)) > 0 ? lsm : LSM_S_UNLOADED;
-  PRINT("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm)); // TODO 3 LOG make this depending on log level
+  OC_INF("lsm (storage) %s", oc_core_get_lsm_state_as_string(lsm));
 
   // load security related variables
   uint16_t osc;
-  uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc, 
-          sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
+  const uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc,
+                                          sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
 
   set_oscore_osn_delay_ms(d_size);
-  PRINT("oscore (storage) osn delay (%u) ms ", d_size); // TODO 3 LOG make this depending on log level
+  OC_INF("oscore (storage) osn delay (%u) ms ", d_size);
 
-  // Note:
-  // - The used uc port will be advertised with each mDNS such as on every 
-  //   startup, so no need to store and read here.
-  // - The used mc port for discovery is fixed, so no need to store and read here.
+  /* NOTE:
+     - The used uc port will be advertised with each mDNS such as on every 
+       startup, so no need to store and read here.
+     - The used mc port for discovery is fixed, so no need to store and read here.
+  */
 }
 
-void oc_knx_device_storage_reset(int reset_mode) {
+void oc_knx_device_storage_reset(int reset_mode) 
+{
   oc_device_info_t* const device = oc_core_get_device_info();
 
   if (reset_mode == RESET_TO_DEFAULT_STATE) {
@@ -1214,9 +1179,7 @@ void oc_knx_device_storage_reset(int reset_mode) {
     device->iid = 0;
     device->fid = 0;
 
-    // Set the default host name to device serial number and leading 
-    // 'knx-' + 12 x char + /0  = 17, such as "knx-00fa10020700"
-    // header defined by specification.
+    // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
     char hname[HNAME_SIZE];
     (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
     oc_core_set_device_hostname(hname);
@@ -1229,8 +1192,11 @@ void oc_knx_device_storage_reset(int reset_mode) {
     oc_delete_group_tables();
     oc_delete_at_table();
 
-    // clear the CoAP request history (duplicate detection buffer)
+    // clear the CoAP request cache 
     oc_coap_clear_request_history();
+
+    // clear the CoAP response cache
+    oc_coap_clear_response_history();
 
     // writing all above reset values to storage (LSM already written)
     // Note:
@@ -1240,9 +1206,7 @@ void oc_knx_device_storage_reset(int reset_mode) {
     oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
     oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
-    oc_storage_write(KNX_STORAGE_HOSTNAME, 
-            (uint8_t*)oc_string(device->iot_hostname), 
-            oc_string_len(device->iot_hostname));
+    oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname), oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
     uint16_t d_size = DEFAULT_OSN_DELAY;
@@ -1294,7 +1258,7 @@ void oc_knx_device_restart(void) {
   // - send read requests for all GO's with i-flag
   // - call individual application restart callback handler
 
-  PRINT("restart device"); // TODO 3 LOG make this depending on log level
+  OC_INF("restart device");
 
   oc_device_info_t* const device = oc_core_get_device_info();
 
@@ -1312,7 +1276,7 @@ void oc_knx_device_restart(void) {
 
   // Re-publish DNS-SD service after restart to reflect updated state
   // (e.g. PM=false, changed IA/IID from prior POST).
-  PRINT("Re-register DNS-SD service after device restart)");
+  OC_INF("Re-register DNS-SD service after device restart)");
   knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
   // application restart callback handler

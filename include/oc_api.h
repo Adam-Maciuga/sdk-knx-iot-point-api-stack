@@ -268,10 +268,9 @@ extern "C"
    *
    * - oc_set_con_res_announced()
    * - oc_set_factory_presets_cb()
-   * - oc_set_max_app_data_size()
    * - oc_storage_config()
    *
-   * Not all of the listed functions must be called before calling oc_main_init.
+   * Not all the listed functions must be called before calling oc_main_init.
    *
    * @param[in] handler struct containing pointers callback handler functions
    *                    responsible for controlling the application
@@ -281,7 +280,6 @@ extern "C"
    *
    * @see oc_set_con_res_announced
    * @see oc_set_factory_presets_cb
-   * @see oc_set_max_app_data_size
    * @see oc_storage_config
    */
   int oc_main_init(const oc_handler_t* handler);
@@ -1030,8 +1028,8 @@ extern "C"
   /**
    * Notify all observers of a change to a given resource's property
    *
-   * @note no need to call oc_notify_observers about resource changes that
-   *       result from a PUT, or POST oc_request_callback_t.
+   * @note the payload will be derived by calling the GET handler of the resource, 
+ *         so the notification will contain the current state of the resource.
    *
    * @param[in] resource the oc_resource_t that has a modified property
    *
@@ -1124,7 +1122,7 @@ extern "C"
    *
    * @param s_mode_message_ep the endpoint to be used
    * @param uri the uri to be used
-   * @param non_confirmable non confirmable (true) or confirmable (false) message, used by mc (true) or uc 
+   * @param non_confirmable non-confirmable (true) or confirmable (false) message, used by mc (true) or uc 
    * 
    * @return true
    * @return false
@@ -1149,10 +1147,12 @@ extern "C"
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out
    *        an s-mode request message by creating an s-mode transaction and sending it out ny 'send_transaction'
    *
+   * @param recipient optional recipient pointer (oc_group_table_t*) to attach to the transaction for response tracking
+   *
    * @return true
    * @return false
    */
-  bool oc_do_s_mode_message_update(void);
+  bool oc_do_s_mode_message_update(void* recipient);
 
   /**
    * @brief fills a PRESENT (beforehand allocated) static buffer to send out

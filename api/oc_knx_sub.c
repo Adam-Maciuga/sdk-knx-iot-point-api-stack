@@ -14,6 +14,7 @@
 // limitations under the License.
 */
 
+#include <stdlib.h>
 #include "oc_knx_sub.h"
 #include "oc_helpers.h"
 #include "oc_ri.h"
@@ -39,9 +40,8 @@ static void oc_core_sub_delete_handler(oc_request_t* request, oc_interface_mask_
 // resource definition, details/comments see on
 // 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_sub_data;
-PRAGMA_IN
 const oc_resource_t core_resource_sub = {
-  &core_resource_a_sen,
+  (oc_resource_t*)&core_resource_a_sen,
   { NULL, sizeof("/sub"), "/sub" },
   { NULL, 0, NULL },
   { NULL, 0, NULL },
@@ -51,11 +51,10 @@ const oc_resource_t core_resource_sub = {
   { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
   { NULL, NULL, OC_ACL_NONE, OC_IF_NONE },
   { oc_core_sub_delete_handler, NULL, OC_ACL_P, OC_IF_P },
-  { NULL, NULL },
-  { NULL, NULL },
+  {{NULL}, NULL},
+  {{NULL}, NULL},
   0,
   0,
   true,
   &core_resource_sub_data
 };
-PRAGMA_OUT

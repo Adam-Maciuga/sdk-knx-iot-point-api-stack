@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
 #include <oc_config.h>
 #include "port/oc_connectivity.h"
 #include "port/oc_random.h"
@@ -14,45 +15,26 @@
 #include "port/oc_log.h"
 #include "port/oc_random.h"
 #include "util/oc_list.h"
- #include "util/oc_memb.h"
-
-OC_MEMB(oc_blockwise_request_states_s, oc_blockwise_request_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
-OC_MEMB(oc_blockwise_response_states_s, oc_blockwise_response_state_t, OC_MAX_NUM_CONCURRENT_REQUESTS);
 OC_LIST(oc_blockwise_requests);
 OC_LIST(oc_blockwise_responses);
 
-  #ifdef OC_APP_DATA_BUFFER_POOL
-typedef struct oc_app_data_buffer_t
-{
-  uint8_t buffer[OC_APP_DATA_BUFFER_SIZE];
-} oc_app_data_buffer_t;
-OC_MEMB_STATIC(oc_app_data_s, oc_app_data_buffer_t, OC_APP_DATA_BUFFER_POOL);
-  #endif 
 
-static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, const char* href, size_t href_len, oc_endpoint_t* endpoint,
+static oc_blockwise_state_t* oc_blockwise_init_buffer(size_t size, const char* href, size_t href_len, oc_endpoint_t* endpoint,
                                                       coap_method_t method, oc_blockwise_role_t role)
 {
   if (href_len == 0)
     return NULL;
 
-  oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_memb_alloc(pool);
+  oc_blockwise_state_t* buffer = calloc(1, size);
   if (buffer)
   {
-    #ifdef OC_APP_DATA_BUFFER_POOL
-    oc_app_data_buffer_t* app_buffer = (oc_app_data_buffer_t*)oc_memb_alloc(&oc_app_data_s);
-    if (app_buffer)
-    {
-      buffer->block = app_buffer;
-      buffer->buffer = app_buffer->buffer;
-    }
-    #endif
     if (!buffer->buffer)
     {
       buffer->buffer = (uint8_t*)malloc(OC_MAX_APP_DATA_SIZE);
     }
     if (!buffer->buffer)
     {
-      oc_memb_free(pool, buffer);
+      free(buffer);
       return NULL;
     }
     buffer->next_block_offset = 0;
@@ -74,9 +56,8 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(struct oc_memb* pool, cons
   return NULL;
 }
 
-static void oc_blockwise_free_buffer(oc_list_t list, struct oc_memb* pool, oc_blockwise_state_t* buffer)
+static void oc_blockwise_free_buffer(oc_list_t list, oc_blockwise_state_t* buffer)
 {
-
   if (!buffer)
   {
     OC_WRN("buffer is NULL");
@@ -86,30 +67,23 @@ static void oc_blockwise_free_buffer(oc_list_t list, struct oc_memb* pool, oc_bl
   oc_free_string(&buffer->uri_query);
   oc_free_string(&buffer->href);
   oc_list_remove(list, buffer);
-  #ifdef OC_APP_DATA_BUFFER_POOL
-  if (buffer->block)
-  {
-    oc_memb_free(&oc_app_data_s, buffer->block);
-    buffer->buffer = NULL;
-  }
-  #endif
   if (buffer->buffer)
   {
     free(buffer->buffer);
   }
   buffer->buffer = NULL;
-  oc_memb_free(pool, buffer);
+  free(buffer);
 }
 
 static oc_event_callback_retval_t oc_blockwise_request_timeout(void* data)
 {
-  oc_blockwise_free_buffer(oc_blockwise_requests, &oc_blockwise_request_states_s, data);
+  oc_blockwise_free_buffer(oc_blockwise_requests, data);
   return OC_EVENT_DONE;
 }
 
 static oc_event_callback_retval_t oc_blockwise_response_timeout(void* data)
 {
-  oc_blockwise_free_buffer(oc_blockwise_responses, &oc_blockwise_response_states_s, data);
+  oc_blockwise_free_buffer(oc_blockwise_responses, data);
   return OC_EVENT_DONE;
 }
 
@@ -117,7 +91,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_request_buffer(const char* href, size_t
                                                         oc_blockwise_role_t role)
 {
   oc_blockwise_request_state_t* buffer =
-    (oc_blockwise_request_state_t*)oc_blockwise_init_buffer(&oc_blockwise_request_states_s, href, href_len, endpoint, method, role);
+    (oc_blockwise_request_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_request_state_t), href, href_len, endpoint, method, role);
   if (buffer)
   {
     oc_ri_add_timed_event_callback_seconds(buffer, oc_blockwise_request_timeout, OC_EXCHANGE_LIFETIME);
@@ -130,7 +104,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
                                                          oc_blockwise_role_t role)
 {
   oc_blockwise_response_state_t* buffer =
-    (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(&oc_blockwise_response_states_s, href, href_len, endpoint, method, role);
+    (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_response_state_t), href, href_len, endpoint, method, role);
   if (buffer)
   {
     int i = COAP_ETAG_LEN;
@@ -326,8 +300,9 @@ const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer, uint32_
 bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_block_offset, const uint8_t* incoming_block,
                                uint32_t incoming_block_size)
 {
-  if (incoming_block_offset >= (unsigned)OC_MAX_APP_DATA_SIZE || incoming_block_size > (OC_MAX_APP_DATA_SIZE - incoming_block_offset) ||
-      incoming_block_offset > buffer->next_block_offset)
+  if (incoming_block_offset >= OC_MAX_APP_DATA_SIZE 
+      || incoming_block_size > OC_MAX_APP_DATA_SIZE - incoming_block_offset 
+      || incoming_block_offset > buffer->next_block_offset)
   {
     return false;
   }

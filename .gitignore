@@ -12,7 +12,6 @@ CMakeUserPresets.json
 
 # VS Code setting files
 .vscode
-.claude/
 
 # VS setting files
 .vs
@@ -34,3 +33,20 @@ __pycache__/
 # Build system files
 build/
 install/
+
+# Integration test runtime storage
+integration_test_storage_*/
+runtime_test_storage_*/
+
+# DUT runtime data (persistent storage created by eitt_virtual)
+knx_iot_virtual_eitt_*/
+
+# Test output logs
+test_*.log
+test_*.txt
+
+# Generated temp scripts
+tests/runtime/.docker-run.sh
+
+# EITT reference traces (large, not tracked)
+EITT_REFERENCE_PROJECT/

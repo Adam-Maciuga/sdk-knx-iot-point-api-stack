@@ -15,6 +15,8 @@
  // limitations under the License.
  */
 
+#include <stdarg.h>
+#include <stdlib.h>
 #include "oc_core_res.h"
 #include "oc_api.h"
 #include "messaging/coap/oc_coap.h"
@@ -29,7 +31,6 @@
 #include "oc_knx_sec.h"
 #include "oc_knx_sub.h"
 #include "port/oc_assert.h"
-#include <stdarg.h>
 #include "port/oc_storage.h"
 
 static oc_device_info_t oc_device_info;	// common device 0 data pointer - cannot be NULL
@@ -107,6 +108,22 @@ int oc_core_set_device_hostname(const char* host_name)
   oc_new_string(&oc_device_info.iot_hostname, host_name, strlen(host_name));
 
 	return 0;
+}
+
+int oc_core_read_and_set_device_hostname(void)
+{
+
+  const oc_device_info_t* const device = oc_core_get_device_info();
+
+  // set default hostname as 'knx-' + serial number (12 x char + /0)  = 17, such as "knx-00fa10020700"
+  char hname[HNAME_SIZE];
+  (void)snprintf(hname, HNAME_SIZE, HNAME_TYPE, oc_string(device->serialnumber));
+
+  // read host name from storage (on error = the default host name from above is used, otherwise stored host name)
+  oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t*)&hname, 128);
+  oc_core_set_device_hostname(hname);
+
+  return 0;
 }
 
 uint64_t oc_core_get_device_iid(void)

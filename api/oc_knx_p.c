@@ -53,7 +53,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_p_get_handler - start");
+  OC_INF("oc_core_p_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -116,7 +116,7 @@ static void oc_core_p_get_handler(oc_request_t* request, oc_interface_mask_t ifa
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
 
-  PRINT("oc_core_p_get_handler - end");
+  OC_INF("oc_core_p_get_handler - end");
 }
 
 /**
@@ -147,7 +147,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
   bool error = false;
 
-  PRINT("oc_core_p_post_handler - start");
+  OC_INF("oc_core_p_post_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_CBOR))
   {
@@ -189,7 +189,7 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
 
   if (error)
   {
-    PRINT("oc_core_p_post_handler - end");
+    OC_INF("oc_core_p_post_handler - end");
 
     // no bad request since /p was ok, but not a single collection 'href' was found
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
@@ -292,13 +292,12 @@ static void oc_core_p_post_handler(oc_request_t* request, oc_interface_mask_t if
   }
 
   oc_prepare_no_format_response_no_payload(request, summary_handler_status);
-  PRINT("oc_core_p_post_handler - end");
+  OC_INF("oc_core_p_post_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_p_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_p = {&core_resource_knx_f,
+const oc_resource_t core_resource_knx_p = {(oc_resource_t*)&core_resource_knx_f,
                                            {NULL, sizeof("/p"), "/p"},
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
@@ -308,10 +307,9 @@ const oc_resource_t core_resource_knx_p = {&core_resource_knx_f,
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {oc_core_p_post_handler, NULL, OC_ACL_C, OC_IF_C | OC_IF_B},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {NULL, NULL},
-                                           {NULL, NULL},
+                                           {{NULL}, NULL},
+                                           {{NULL}, NULL},
                                            0,
                                            0,
                                            1,
                                            &core_resource_knx_p_data};
-PRAGMA_OUT

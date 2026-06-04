@@ -113,6 +113,41 @@
       "inherits": ["common-config", "mingw64-common-config", "release-common-config"],
       "displayName": "Windows Release (Cross-compile MinGW)",
       "description": "Cross-compile Windows binaries using MinGW from Linux."
+    },
+    {
+      "name": "test-common-config",
+      "hidden": true,
+      "cacheVariables": {
+        "BUILD_TESTING": true
+      }
+    },
+    {
+      "name": "windows-test-msvc",
+      "inherits": ["windows-debug-msvc", "test-common-config"],
+      "displayName": "Windows Test (MSVC)",
+      "description": "Debug build with unit tests enabled (MSVC)."
+    },
+    {
+      "name": "windows-test-gcc",
+      "inherits": ["windows-debug-gcc", "test-common-config"],
+      "displayName": "Windows Test (GCC)",
+      "description": "Debug build with unit tests enabled (GCC)."
+    },
+    {
+      "name": "linux-test-gcc",
+      "inherits": ["linux-debug-gcc", "test-common-config"],
+      "displayName": "Linux Test (GCC)",
+      "description": "Debug build with unit tests enabled (GCC)."
+    },
+    {
+      "name": "linux-test-asan",
+      "inherits": "linux-test-gcc",
+      "displayName": "Linux Test + Sanitizers (GCC)",
+      "description": "Debug build with ASan + UBSan enabled.",
+      "cacheVariables": {
+        "BUILD_TESTING": true,
+        "ENABLE_SANITIZERS": true
+      }
     }
   ],
   "buildPresets": [
@@ -179,6 +214,52 @@
       "name": "windows-cross-release",
       "displayName": "Windows Release (Cross-compile MinGW)",
       "configurePreset": "windows-cross-release"
+    },
+    {
+      "name": "windows-test-msvc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Test (MSVC)",
+      "configurePreset": "windows-test-msvc"
+    },
+    {
+      "name": "windows-test-gcc",
+      "inherits": "windows-common-config",
+      "displayName": "Windows Test (GCC)",
+      "configurePreset": "windows-test-gcc"
+    },
+    {
+      "name": "linux-test-gcc",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Test (GCC)",
+      "configurePreset": "linux-test-gcc"
+    },
+    {
+      "name": "linux-test-asan",
+      "inherits": "linux-common-config",
+      "displayName": "Linux Test + Sanitizers (GCC)",
+      "configurePreset": "linux-test-asan"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-test-msvc",
+      "configurePreset": "windows-test-msvc",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "windows-test-gcc",
+      "configurePreset": "windows-test-gcc",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-test-gcc",
+      "configurePreset": "linux-test-gcc",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-test-asan",
+      "configurePreset": "linux-test-asan",
+      "output": { "outputOnFailure": true }
     }
   ]
 }

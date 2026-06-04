@@ -15,18 +15,38 @@
  // limitations under the License.
  */
 
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "oc_api.h"
 #include "api/oc_knx_fb.h"
 #include "api/oc_knx_fp.h"
 #include "oc_knx_helpers.h"
-#include <stdio.h>
+#include <string.h>
 #include "oc_core_res.h"
 #include "oc_discovery.h"
-#include <errno.h>
 
 // forward declarations for the resource chain
 extern const oc_resource_t core_resource_knx_swu_protocol;
 extern const oc_resource_t core_resource_knx_f_x;
+
+/**
+ * Bounded substring search (like memmem but for C strings).
+ * Returns pointer to first occurrence of needle in haystack, or NULL.
+ * Unlike strstr, this does NOT require haystack to be null-terminated.
+ */
+static const char* bounded_strstr(const char* haystack, int haystack_len,
+                                  const char* needle)
+{
+  const int needle_len = (int)strlen(needle);
+  if (needle_len > haystack_len) return NULL;
+  for (int i = 0; i <= haystack_len - needle_len; i++)
+  {
+    if (memcmp(haystack + i, needle, needle_len) == 0)
+      return haystack + i;
+  }
+  return NULL;
+}
 
 /*
  - first field = fb number
@@ -138,7 +158,7 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
   int query_pn = PAGE_NUMBER;
   int query_ps = PAGE_SIZE;
 
-  PRINT("oc_core_fb_x_get_handler - start");
+  OC_INF("oc_core_fb_x_get_handler - start");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -238,13 +258,12 @@ static void oc_core_fb_x_get_handler(oc_request_t* request, oc_interface_mask_t 
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
 
-  PRINT("oc_core_fb_x_get_handler - end");
+  OC_INF("oc_core_fb_x_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_f_x_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_f_x = {&core_resource_knx_swu_protocol,
+const oc_resource_t core_resource_knx_f_x = {(oc_resource_t*)&core_resource_knx_swu_protocol,
                                              {NULL, sizeof("/f/*"), "/f/*"},
                                              {NULL, 0, NULL},
                                              {NULL, 0, NULL},
@@ -254,13 +273,12 @@ const oc_resource_t core_resource_knx_f_x = {&core_resource_knx_swu_protocol,
                                              {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                              {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                              {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                             {NULL, NULL},
-                                             {NULL, NULL},
+                                             {{NULL}, NULL},
+                                             {{NULL}, NULL},
                                              0,
                                              0,
                                              1,
                                              &core_resource_knx_f_x_data};
-PRAGMA_OUT
 
 int oc_count_functional_blocks_from_application(void)
 {
@@ -326,7 +344,7 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
       // wildcard query parameter --> add FBs
       return true;
     }
-    if (strstr(rt_request, "fb") != NULL)
+    if (bounded_strstr(rt_request, rt_len, "fb") != NULL)
     {
       // '*fb*' query parameter value present
       // - string that contains *fb*, e.g; 'urn:knx:m.0001.fb.321' or 'urn:knx:fb.321'
@@ -341,7 +359,7 @@ bool oc_check_if_functional_blocks_need_to_add(oc_request_t* request)
       // wildcard query parameter --> add FBs
       return true;
     }
-    if (strstr(if_request, "ll") != NULL)
+    if (bounded_strstr(if_request, if_len, "ll") != NULL)
     {
       // '*ll*' query parameter value present
       // - string that contains *ll*, e.g; 'urn:knx:if.ll'
@@ -448,7 +466,7 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
   int query_ps = PAGE_SIZE;
   
 
-  PRINT("oc_core_fb_get_handler");
+  OC_INF("oc_core_fb_get_handler");
 
   if (!oc_accept_header_is_ok(request, APPLICATION_LINK_FORMAT))
   {
@@ -496,13 +514,12 @@ static void oc_core_fb_get_handler(oc_request_t* request, oc_interface_mask_t if
     oc_prepare_no_format_response_no_payload(request, OC_STATUS_NOT_FOUND);
   }
 
-  PRINT("oc_core_fb_get_handler - end");
+  OC_INF("oc_core_fb_get_handler - end");
 }
 
 // resource definition, details/comments see on 'core_resource_well_known_core'
 static oc_resource_data_t core_resource_knx_f_data;
-PRAGMA_IN
-const oc_resource_t core_resource_knx_f = {&core_resource_knx_f_x,
+const oc_resource_t core_resource_knx_f = {(oc_resource_t*)&core_resource_knx_f_x,
                                            {NULL, sizeof("/f"), "/f"},
                                            {NULL, 0, NULL},
                                            {NULL, 0, NULL},
@@ -512,10 +529,9 @@ const oc_resource_t core_resource_knx_f = {&core_resource_knx_f_x,
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
                                            {NULL, NULL, OC_ACL_NONE, OC_IF_NONE},
-                                           {NULL, NULL},
-                                           {NULL, NULL},
+                                           {{NULL}, NULL},
+                                           {{NULL}, NULL},
                                            0,
                                            0,
                                            1,
                                            &core_resource_knx_f_data};
-PRAGMA_OUT

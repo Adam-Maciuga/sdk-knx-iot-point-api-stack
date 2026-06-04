@@ -56,7 +56,7 @@ static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessag
 
     OC_INF("Incoming message of size %d bytes from ", message->length);
     PRINTipaddr(message->endpoint);
-    PRINT("\r\n");
+    PRINTF("\r\n");
 
     oc_network_event(message);
 }

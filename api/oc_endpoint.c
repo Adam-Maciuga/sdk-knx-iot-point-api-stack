@@ -10,7 +10,6 @@
 #include "oc_core_res.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_network_events_mutex.h"
-#include "util/oc_memb.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,19 +22,16 @@
 #define OC_IPV6_ADDRSTRLEN (46)
 #define OC_IPV6_ADDRLEN (16)
 
-OC_MEMB(oc_endpoints_s, oc_endpoint_t, OC_MAX_NUM_ENDPOINTS);
-
 oc_endpoint_t* oc_new_endpoint(void)
 {
-  oc_endpoint_t* endpoint = oc_memb_alloc(&oc_endpoints_s);
-  return endpoint;
+  return calloc(1, sizeof(oc_endpoint_t));
 }
 
 void oc_free_endpoint(oc_endpoint_t* endpoint)
 {
   if (endpoint)
   {
-    oc_memb_free(&oc_endpoints_s, endpoint);
+    free(endpoint);
   }
 }
 
@@ -268,7 +264,7 @@ int oc_endpoint_compare(const oc_endpoint_t* ep1, const oc_endpoint_t* ep2)
   {
     return -1;
   }
-  // compare only same types (unicast/multicast and accepted don't care in comparison, means treated as same message)
+  // compare only same types (unicast/multicast and accepted don't care in comparison, means treated as the same)
   if ((ep1->flags & ~(MULTICAST | ACCEPTED)) != (ep2->flags & ~(MULTICAST | ACCEPTED)))
   {
     return -1;

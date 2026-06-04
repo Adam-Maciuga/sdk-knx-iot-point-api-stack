@@ -9,6 +9,7 @@
 #ifndef OC_RI_H
 #define OC_RI_H
 
+#include "ipadapter.h"
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"
@@ -28,7 +29,9 @@ typedef enum
 {
   OC_OBSERVE_REGISTER = 0, 
   OC_OBSERVE_DEREGISTER = 1, 
-  OC_OBSERVE_UNDEFINED = 2,
+  OC_OBSERVE_NOT_APPLICABLE = 2, // regular frames w/o any observe option (no registration/de-registration or notification)
+  OC_OBSERVE_FIRST_NOTIFICATION_VALUE = 3, 
+  
 } oc_client_observe_t;
 
 /**
@@ -570,14 +573,14 @@ int oc_status_code(oc_status_t key);
  * @return true content type is ok
  * @return false content type is not ok => response payload is prepared with BAD REQUEST, NO CONTENT, NO PAYLOAD
  */
-bool oc_accept_header_is_ok(oc_request_t* request, oc_content_format_t accept);
+bool oc_accept_header_is_ok(const oc_request_t* request, oc_content_format_t accept);
 
 /**
  * @brief retrieve the application resource that fits to the given uri
  *
  * @param resource_path the resource path
  * @param resource_path_len the length of the resource path
- * @return oc_resource_t* the resource structure or NULL (request was NULL or no resource found)
+ * @return oc_resource_t* the resource structure or NULL (request was NULL, request len was 0 or no resource found)
  */
 const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resource_path, size_t resource_path_len);
 
@@ -586,7 +589,7 @@ const oc_resource_t* oc_ri_get_app_resource_by_resource_path(const char* resourc
  *
  * @return oc_resource_t* the resource list
  */
-const oc_resource_t* oc_ri_get_app_resources(void);
+oc_resource_t* oc_ri_get_app_resources(void);
 
 #ifdef OC_SERVER
 /**
@@ -620,15 +623,8 @@ bool oc_ri_add_resource(oc_resource_t* resource);
  * @return true success
  * @return false failure
  */
-bool oc_ri_delete_resource(const oc_resource_t* resource);
+bool oc_ri_delete_resource(oc_resource_t* resource);
 #endif 
-
-/**
- * @brief free the properties of the resource
- *
- * @param resource the resource
- */
-void oc_ri_free_resource_properties(oc_resource_t* resource);
 
 /**
  * @brief retrieve the query value at the nth position

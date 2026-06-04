@@ -21,14 +21,6 @@ extern "C" {
 #endif
 
 /**
-  @brief find a group address within a recipient table entry including a group address array.
-
-  @param ga the to be found group address
-   
-*/
-oc_group_table_t* oc_find_recipient_by_ga(uint32_t ga);
-
-/**
  * @defgroup doc_module_tag_s_mode_server s-mode server
  * S-mode server side support functions.
  *
@@ -97,9 +89,9 @@ int oc_is_redirected_request_from(const oc_request_t *request);
  */
 int oc_send_s_mode_mc_or_uc_message(uint8_t scope, const char* resource_path, char srv_type);
 
-void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t grpid, 
-        uint32_t group_address, char service_type, 
-        const uint8_t* value_data, int value_size);
+void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, char service_type,
+                                      const uint8_t* value_data, int value_size,
+                                      oc_group_table_t* recipient);
 
 /**
  * @brief Send unicast s-mode message (confirmable or non-confirmable)

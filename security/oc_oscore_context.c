@@ -7,6 +7,7 @@
 */
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include "oc_oscore_context.h"
 #include "messaging/coap/transactions.h"
 #include "oc_client_state.h"
@@ -15,7 +16,6 @@
 #include "port/oc_log.h"
 
 OC_LIST(contexts);
-OC_MEMB(ctx_s, oc_oscore_context_t, 20);
 
 static void oc_context_print_all(void);
 
@@ -73,7 +73,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
         && memcmp(kid_ctx, ctx->id_context, kid_ctx_len) == 0) 
     {
 
-      PRINT("found OSCORE Recipient ID context");
+      OC_INF("found OSCORE Recipient ID context");
 
       // update time for a possible release of "last used" - if table is full
       ctx->last_used = oc_clock_time();
@@ -260,7 +260,7 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
     // removes entry fom linked list
     oc_list_remove(contexts, ctx);
     // use global variable for the removal
-    oc_memb_free(&ctx_s, ctx);
+    free(ctx);
   }
 }
 
@@ -280,8 +280,8 @@ void oc_context_print_all(void)
   size_t rid_len;
   size_t cid_len;
 
-  //     10        | 21                  | 21                  | 40                                     | 
-  PRINT("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
+  //      10        | 21                  | 21                  | 40                                     | 
+  OC_INF("AT index  | Sender ID           | Recipient ID        | ID Context                             | ssn");
         
   // print all present context entries
   while (ctx)
@@ -294,7 +294,7 @@ void oc_context_print_all(void)
     oc_conv_byte_array_to_hex_string(ctx->recipient_id, ctx->recipient_id_len, rid, &rid_len);
     oc_conv_byte_array_to_hex_string(ctx->id_context, ctx->id_context_len, cid, &cid_len);
 
-    PRINT("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",  
+    OC_INF("%-9.02d | (%d) %-15.14s | (%d) %-15.14s | (%02d) %-33.32s | %x",  
             get_at_index(ctx->auth_at), 
             ctx->sender_id_len, ctx->sender_id_len != 0 ? sid : "n/a", 
             ctx->recipient_id_len, ctx->recipient_id_len != 0 ? rid : "n/a", 
@@ -364,7 +364,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
 {
 
   //get a free sender context
-  oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_memb_alloc(&ctx_s);
+  oc_oscore_context_t* ctx = calloc(1, sizeof(oc_oscore_context_t));
 
   if (!ctx)
   {
@@ -495,7 +495,7 @@ oc_oscore_context_t* oc_oscore_add_context(const oc_oscore_context_params_t* par
 
 add_oscore_context_error:
   OC_DBG_OSCORE("Encountered error while adding new context!");
-  oc_memb_free(&ctx_s, ctx);
+  free(ctx);
   return NULL;
 }
 

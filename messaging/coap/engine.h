@@ -67,20 +67,19 @@ void coap_init_engine(void);
  *        Outdated entries are wiped out from history with OC_REQUEST_HISTORY_TIMEOUT.  
  *        More details read the 'note'
  *
- * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 address,
- *       port and MID). A server receiving the same message again with this MID does not accept it. 
- *       CON
- *       (client -> CON ->  x server = CON message repeated by client with SAME MID)
- *       (server -> ACK ->  x client = ACK message repeated by server with SAME MID)
- *       NON 
- *       (client -> NON -> server = accepted)
- *       (network duplication -> NON -> server = rejected)
+ * @note A replay is an inbound UDP coap telegram, addressing the same endpoint (IPv6 adr, port. MID). 
+ *       A server receiving a msg with this MID again may need to echo back a cached response.   
+ *       - client -> CON -> server ->  (piggybacked) ACK -> x -> client = CON message repeated by client with SAME MID due to not received (piggybacked) ACK
+ *       - client -> NON -> server ->  network duplication -> NON -> server = rejected
  *
 */
 bool oc_coap_check_if_duplicate_and_if_not_add_to_history(const coap_packet_t* coap, const oc_endpoint_t* endpoint);
 
 // clear the request history buffer (ONLY on device reset with erase code 2)
 void oc_coap_clear_request_history(void);
+
+// clear the response cache buffer (ONLY on device reset with erase code 2)
+void oc_coap_clear_response_history(void);
 
 /**
  * @brief Check if the inbound message is a 1:1 mirrored (loopback) message send by myself, 

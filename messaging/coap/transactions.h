@@ -56,16 +56,19 @@ extern "C" {
 #endif
 
 /*
- * Modulo mask (thus +1) for a random number to get the tick number for the
- * random
- * retransmission time between COAP_RESPONSE_TIMEOUT and
- * COAP_RESPONSE_TIMEOUT*COAP_RESPONSE_RANDOM_FACTOR.
+ * RFC 7252 §4.2 https://www.rfc-editor.org/rfc/rfc7252#section-4.2
+ * Initial retransmit timeout = random(TIMEOUT, TIMEOUT * RANDOM_FACTOR).
+ * BACKOFF_MASK is the modulo range (+1 for inclusive upper bound):
+ *   interval = COAP_RESPONSE_TIMEOUT_TICKS + oc_random_value() % BACKOFF_MASK
+ * yields a uniform random timeout in [TIMEOUT, TIMEOUT * RANDOM_FACTOR] seconds.
+ * The +0.5f rounds to nearest integer before the (long) truncation.
+ * float arithmetic avoids software-emulated 64-bit double on 32-bit targets.
  */
 #define COAP_RESPONSE_TIMEOUT_TICKS (OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT)
 #define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK                                     \
   (long)(((OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT *                           \
-           ((float)COAP_RESPONSE_RANDOM_FACTOR - 1.0)) +                       \
-          0.5) +                                                               \
+           ((float)COAP_RESPONSE_RANDOM_FACTOR - 1.0f)) +                     \
+          0.5f) +                                                              \
          1)
 
 /**
@@ -78,14 +81,16 @@ extern "C" {
  */
 typedef struct coap_transaction
 {
-  struct coap_transaction *next; 
-  
+  struct coap_transaction* next; 
+
   oc_message_t* message;
   uint8_t token[COAP_TOKEN_LEN];      // coap AL level: a client matches a request with a response 
   struct oc_etimer retransmit_timer; 
+  struct oc_group_table_t* recipient; // optional recipient pointer for outbound s-mode unicast messages (oc_group_table_t*)
   uint8_t token_len;
-  uint8_t retransmit_counter;         // 0 = initial message, no retransmission started 
+  uint8_t retransmit_counter;         // 0 = initial message, no retransmission started
   uint16_t mid;                       // coap TL level: a client relates an out CON msg with an in ACK msg, a receiver ignores already received msg
+
 } coap_transaction_t, transaction_t;
 
 void coap_register_as_transaction_handler(void);

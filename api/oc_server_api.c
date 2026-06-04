@@ -92,8 +92,7 @@ void oc_prepare_json_response(oc_request_t* request, oc_status_t response_code)
   }
 }
 
-void oc_prepare_linkformat_response(oc_request_t* request,
-                                    oc_status_t response_code, size_t response_length)
+void oc_prepare_linkformat_response(oc_request_t* request, oc_status_t response_code, size_t response_length)
 {
   if (request && request->response && request->response->response_buffer)
   {
@@ -222,11 +221,14 @@ oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
       resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
       resource->delete_handler.interface_mask = OC_IF_NONE;
 
-      // observe + functional block instance + is_const are '0', cleared by (c)alloc
+      /* 
+         dpt + observe + functional block instance + is_const are '0', cleared by (c)alloc
 
-      // resource->is_const = false; 
-      // resource->observe_period_seconds = 0;
-      // resource->fb_data = 0;
+         - resource->is_const = false; 
+         - resource->observe_period_seconds = 0;
+         - resource->fb_data = 0;
+         - resource->DPT = {NULL, NULL, 0}
+      */
 
       // runtime modifiable data
       resource->runtime_data = data;
@@ -273,6 +275,7 @@ void oc_resource_bind_dpt(oc_resource_t* resource, const char* dpt)
     return;
   }
 
+  // can handle NULL
   oc_free_string(&resource->dpt);
 
   if (dpt)
@@ -448,8 +451,7 @@ void oc_resource_set_request_handler(oc_resource_t* resource,
   }
 }
 
-bool oc_resource_get_all_interfaces_for_a_resource(
-  const oc_resource_t* resource, oc_interface_mask_t* interfaces)
+bool oc_resource_get_all_interfaces_for_a_resource(const oc_resource_t* resource, oc_interface_mask_t* interfaces)
 {
   bool at_least_one_handler_defined = false;
 
@@ -550,10 +552,13 @@ void oc_prepare_separate_response(oc_request_t* request, oc_separate_response_t*
 
 void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 {
-  coap_separate_t* cur = oc_list_head(handle->requests);
+  coap_separate_t* cur = (coap_separate_t*)oc_list_head(handle->requests);
+  
   handle->response_state = oc_blockwise_alloc_response_buffer(
-    oc_string(cur->uri), oc_string_len(cur->uri), &cur->endpoint,
+    oc_string(cur->uri), oc_string_len(cur->uri), 
+    &cur->endpoint,
     cur->method, OC_BLOCKWISE_SERVER);
+
   #ifdef OC_BLOCK_WISE
   oc_rep_new(handle->response_state->buffer, OC_MAX_APP_DATA_SIZE);
   #else
@@ -563,12 +568,13 @@ void oc_set_separate_response_buffer(oc_separate_response_t* handle)
 
 static void oc_send_separate_response_with_length(oc_separate_response_t* handle, oc_status_t response_code, size_t length)
 {
-  oc_response_buffer_t response_buffer;
-
-  response_buffer.buffer = handle->response_state->buffer;
-  response_buffer.response_length = length;
-  response_buffer.code = oc_status_code(response_code);
-  response_buffer.content_format = length > 0 ? APPLICATION_CBOR : CONTENT_NONE;
+  oc_response_buffer_t response_buffer = 
+  {
+    .buffer = handle->response_state->buffer,
+    .response_length = length, 
+    .code = oc_status_code(response_code),
+    .content_format = length > 0 ? APPLICATION_CBOR : CONTENT_NONE
+  };
 
   coap_separate_t* current = (coap_separate_t*)oc_list_head(handle->requests);
 
@@ -577,9 +583,18 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
     // get next
     coap_separate_t* next = current->next;
 
-    if (current->observe < 3)
-    {
-      // TODO what is meant here with < 3 ; observe registration REQ vs observe counter RESPONSE ?
+    if (current->observe < OC_OBSERVE_FIRST_NOTIFICATION_VALUE)
+    { /* 
+         any normal 'separate response' message, identified by the observe notification counter, 
+         - spake handshake responses
+         - observe registration/ deregistration responses
+         - ...
+
+         Note: the observe 'n/a state' is handled/treated here as a normal separate response,
+               such as when receiving a request with no observe option (n/a is the default state)
+               
+      */
+      
       coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), current->token, current->token_len, &current->endpoint);
       if (t)
       {
@@ -624,15 +639,19 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
           response_state->payload_size = (uint32_t)response_buffer.response_length;
 
           uint32_t payload_size = 0;
-          const void* payload = oc_blockwise_dispatch_block(
-            response_state, 0, current->block2_size, &payload_size);
+          const uint8_t* payload = oc_blockwise_dispatch_block(
+            response_state,
+            0,
+            current->block2_size,
+            &payload_size);
+
           if (payload)
           {
             coap_set_payload(response, payload, payload_size);
             coap_set_header_block2(response, 0, 1, current->block2_size);
             coap_set_header_size2(response, response_state->payload_size);
-            oc_blockwise_response_state_t* bwt_res_state =
-              (oc_blockwise_response_state_t*)response_state;
+
+            const oc_blockwise_response_state_t* bwt_res_state = (oc_blockwise_response_state_t*)response_state;
             coap_set_header_etag(response, bwt_res_state->etag, COAP_ETAG_LEN);
           }
         }
@@ -644,6 +663,7 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
           }
 
         coap_set_status_code(response, response_buffer.code);
+
         t->message->length = coap_serialize_message(response, t->message->data);
         if (t->message->length > 0)
         {
@@ -656,17 +676,24 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
       }
     }
     else
-    {
+    {// prepare and send observe notification 
+
       const oc_resource_t* resource = oc_ri_get_app_resource_by_resource_path(
-        oc_string(current->uri), oc_string_len(current->uri));
+        oc_string(current->uri),
+        oc_string_len(current->uri));
+      
       if (resource)
       {
+        // notifies only the current endpoint
         coap_notify_observers(resource, &response_buffer, &current->endpoint);
       }
     }
+    
     #ifdef OC_BLOCK_WISE
-  next_separate_request:
+    next_separate_request:
     #endif
+    
+    // current is NULLed after the call 
     coap_separate_clear(handle, current);
 
     // restore next
