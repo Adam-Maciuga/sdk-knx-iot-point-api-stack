@@ -39,12 +39,13 @@ void exit_impl(int status);
 static inline void oc_abort(const char *msg)
 {
   (void) msg;	// TODO 14 FIXME without compiler errors on second runs
-// TODO 14 FIXME KNX_LOG_TO_FILE is not set correctly when building mbedtls, fix this!
-#ifdef KNX_LOG_TO_FILE // TODO 14 FIXME is there a problem when we write to the file on abort?
+  // TODO 14 FIXME KNX_LOG_TO_FILE is not set correctly when building mbedtls, fix this!
+
+  #ifdef KNX_LOG_TO_FILE // TODO 14 FIXME is there a problem when we write to the file on abort?
   (void)msg;
-#else
-  //PRINTF("\n%s\nAbort.\n", msg); // TODO 14 FIXME shouldn't we always print a message on abort?
-#endif
+  #else
+  OC_ERR("%s", msg); 
+  #endif
   abort_impl();
 }
 
@@ -55,7 +56,7 @@ static inline void oc_abort(const char *msg)
 #define oc_assert(cond)                                                        \
   do {                                                                         \
     if (!(cond)) {                                                             \
-      oc_abort("Assertion (" #cond ") failed.");                               \
+      oc_abort("Assertion (" #cond ") failed");                                \
     }                                                                          \
   } while (0)
 
