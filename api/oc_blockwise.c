@@ -106,17 +106,14 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
     (oc_blockwise_response_state_t*)oc_blockwise_init_buffer(sizeof(oc_blockwise_response_state_t), href, href_len, endpoint, method, role);
   if (buffer)
   {
-    int i = COAP_ETAG_LEN;
-    uint32_t r = oc_random_value();
-    while (i > 0)
-    {
-      memcpy(buffer->etag, &r, MIN((int)sizeof(r), i));
-      i -= sizeof(r);
-      r = oc_random_value();
-    }
-  #ifdef OC_CLIENT
+
+    const uint32_t a = oc_random_value(); memcpy(buffer->etag + 0, &a, sizeof(a));
+    const uint32_t b = oc_random_value(); memcpy(buffer->etag + 4, &b, sizeof(b));
+
+    #ifdef OC_CLIENT
     buffer->observe_seq = -1;
-  #endif 
+    #endif 
+
     oc_ri_add_timed_event_callback_seconds(buffer, oc_blockwise_response_timeout, OC_EXCHANGE_LIFETIME);
     oc_list_add(oc_blockwise_responses, buffer);
   }

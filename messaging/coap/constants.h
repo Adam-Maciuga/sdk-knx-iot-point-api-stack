@@ -76,7 +76,7 @@ extern "C" {
 
 #define COAP_HEADER_LEN 4   /* | version:0xC0 type:0x30 tkl:0x0F | code | mid:0xFF00 | mid:0x00FF | */
 #define COAP_TOKEN_LEN 8    /* Token len (exactly, stack sends always this amount of token bytes) */
-#define COAP_ETAG_LEN 8     /* The maximum number of bytes for the ETag */
+#define COAP_ETAG_LEN 8     /* Etag len (exactly, stack sends always this amount of etag bytes) */
 #define COAP_ECHO_LEN 40    /* The maximum size of the Echo option */
 
 #define COAP_VERSION 1      /* current CoAP version is '1' (see RFC7252), don't allow other values on own sending  */
