@@ -36,28 +36,36 @@ void exit_impl(int status);
  *
  * @param msg the message to be printed
  */
-static inline void oc_abort(const char *msg)
+inline void oc_abort(const char* msg)
 {
-  (void) msg;	// TODO 14 FIXME without compiler errors on second runs
-  // TODO 14 FIXME KNX_LOG_TO_FILE is not set correctly when building mbedtls, fix this!
 
-  #ifdef KNX_LOG_TO_FILE // TODO 14 FIXME is there a problem when we write to the file on abort?
+  // must be voided since compile mbedtls with GCC defines unused variables as 'error'
   (void)msg;
+
+  #ifdef KNX_LOG_TO_FILE
+
+  // no file logging on abort call
+  (void)msg;
+
   #else
-  OC_ERR("%s", msg); 
-  #endif
+
+  OC_ERR("%s", msg);
+
   abort_impl();
+
+  #endif 
 }
 
 /**
  * @brief assert the condition and if it fails abort with message (reason)
  *
  */
-#define oc_assert(cond)                                                        \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      oc_abort("Assertion (" #cond ") failed");                                \
-    }                                                                          \
+#define oc_assert(cond)                                   \
+  do {                                                    \
+    if (!(cond))                                          \
+    {                                                     \
+      oc_abort("Assertion (" #cond ") failed");           \
+    }                                                     \
   } while (0)
 
 /**

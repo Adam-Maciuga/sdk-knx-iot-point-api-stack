@@ -217,23 +217,19 @@ extern "C" {
 #ifndef __ZEPHYR__
 #define OC_LOG(level, ...)                                      \
   do {                                                          \
-  oc_clock_time_t _current_time = oc_clock_time();              \
   \
-   char fileShort[20] = {0};                                    \
+  char fileShort[20] = "...................";                   \
   strncpy(fileShort, __FILENAME__, 15);                         \
-  strncat(fileShort, "...", sizeof("..."));                     \
   \
-  char funcShort[30] = {0};                                     \
+  char funcShort[30] = ".............................";         \
   strncpy(funcShort, __func__, 24);                             \
-  strncat(funcShort, "...", sizeof("..."));                     \
-  \
   PRINTF("\n"                                                   \
          "%-14" PRIu64 ": "                                     \
          "%-4s: "                                               \
          "%-20.18s"                                             \
          "%-5d: "                                               \
          "%-30.27s> ",                                          \
-         _current_time,                                         \
+         oc_clock_time(),                                       \
          level,                                                 \
          strlen(__FILENAME__) > 18 ? fileShort : __FILENAME__,  \
          __LINE__,                                              \
