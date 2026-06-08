@@ -111,17 +111,19 @@ oc_uuid_to_str(const oc_uuid_t *uuid, char *buffer, int buflen)
 void
 oc_gen_uuid(oc_uuid_t *uuid)
 {
-  int i;
+  
   uint32_t r;
 
-  for (i = 0; i < 4; i++) {
-    r = oc_random_value();
-    memcpy((uint8_t *)&uuid->id[i * 4], (uint8_t *)&r, sizeof(r));
-  }
+  // 16 byte fix
+  r = oc_random_value(); memcpy((uint8_t*)&uuid->id[0], &r, sizeof(r));
+  r = oc_random_value(); memcpy((uint8_t*)&uuid->id[4], &r, sizeof(r));
+  r = oc_random_value(); memcpy((uint8_t*)&uuid->id[8], &r, sizeof(r));
+  r = oc_random_value(); memcpy((uint8_t*)&uuid->id[12], &r, sizeof(r));
+  
 
   /*  From RFC 4122
       Set the two most significant bits of the
-      clock_seq_hi_and_reserved (8th octect) to
+      clock_seq_hi_and_reserved (8th octet) to
       zero and one, respectively.
   */
   uuid->id[8] &= 0x3f;

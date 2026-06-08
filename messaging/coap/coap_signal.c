@@ -26,13 +26,10 @@ static void
 coap_make_token(coap_packet_t *packet)
 {
   packet->token_len = COAP_TOKEN_LEN;
-  int i = 0;
-  uint32_t r;
-  while (i < packet->token_len) {
-    r = oc_random_value();
-    memcpy(packet->token + i, &r, sizeof(r));
-    i += sizeof(r);
-  }
+  const uint32_t a = oc_random_value();
+  memcpy(packet->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value();
+  memcpy(packet->token + 4, &b, sizeof(b));
 }
 
 static int
