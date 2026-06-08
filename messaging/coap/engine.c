@@ -666,11 +666,11 @@ int coap_receive(oc_message_t* incoming_message)
 
     #ifdef OC_DEBUG
 
-    OC_DBG("parsed: CoAP version: %u, token: 0x%02X%02X%02X%02X%02X%02X%02X%02X , mid: %u",
-           inbound_coap_pkt->version,
-           inbound_coap_pkt->token[0], inbound_coap_pkt->token[1], inbound_coap_pkt->token[2], inbound_coap_pkt->token[3],
-           inbound_coap_pkt->token[4], inbound_coap_pkt->token[5], inbound_coap_pkt->token[6], inbound_coap_pkt->token[7],
-           inbound_coap_pkt->mid);
+    OC_DBG("parsed\t: CoAP version: %u, mid: %u, token (len %u) : ", 
+           inbound_coap_pkt->version, 
+           inbound_coap_pkt->mid, 
+           inbound_coap_pkt->token_len);
+    OC_LOGbytes(inbound_coap_pkt->token, inbound_coap_pkt->token_len);
 
     switch (inbound_coap_pkt->type)
     {
