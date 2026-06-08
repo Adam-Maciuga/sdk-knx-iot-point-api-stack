@@ -11,17 +11,19 @@
 
 void oc_random_init(void)
 {
-  psa_status_t status = psa_crypto_init();
-  if (status != PSA_SUCCESS) {
+  const psa_status_t status = psa_crypto_init();
+  if (status != PSA_SUCCESS) 
+  {
     OC_ERR("PSA crypto initialization failed (status %d)!", (int)status);
   }
 }
 
-unsigned int oc_random_value(void)
+uint32_t oc_random_value(void)
 {
-  unsigned int val = 0;
-  psa_status_t status = psa_generate_random((uint8_t *)&val, sizeof(val));
-  if (status != PSA_SUCCESS) {
+  uint32_t val = 0;
+  const psa_status_t status = psa_generate_random((uint8_t *)&val, sizeof(val));
+  if (status != PSA_SUCCESS) 
+  {
     OC_ERR("Failed to generate random value (status %d)!", (int)status);
   }
 
@@ -30,8 +32,9 @@ unsigned int oc_random_value(void)
 
 int oc_random_fill(uint8_t *buf, size_t len)
 {
-  psa_status_t status = psa_generate_random(buf, len);
-  if (status != PSA_SUCCESS) {
+  const psa_status_t status = psa_generate_random(buf, len);
+  if (status != PSA_SUCCESS) 
+  {
     OC_ERR("Failed to fill random buffer (status %d)!", (int)status);
     return -1;
   }

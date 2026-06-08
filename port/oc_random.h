@@ -64,12 +64,15 @@ void oc_random_init(void);
 /**
  * @brief Return a cryptographically secure random number.
  *
+ * @note Strictly 32-bit random to not deal with 'unsigned' int on 64-bit platforms
+ *       (copies 8 byte, see usage for random on coap token/ etag)
+ *
  * Backed by the platform hardware TRNG via sys_csrand_get() on Zephyr,
  * or psa_generate_random() on Linux/Windows.
  *
- * @return A random unsigned int value.
+ * @return A random unsigned 32-bit unsigned integer value.
  */
-unsigned int oc_random_value(void);
+uint32_t oc_random_value(void);
 
 /**
  * @brief Destroy the random number generator.

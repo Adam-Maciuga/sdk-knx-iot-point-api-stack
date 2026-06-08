@@ -107,6 +107,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
   if (buffer)
   {
 
+    // copy 8 bytes of etag on outbound messages 
     const uint32_t a = oc_random_value(); memcpy(buffer->etag + 0, &a, sizeof(a));
     const uint32_t b = oc_random_value(); memcpy(buffer->etag + 4, &b, sizeof(b));
 

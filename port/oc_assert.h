@@ -34,9 +34,11 @@ void exit_impl(int status);
 /**
  * @brief abort with message
  *
+ * @note inline / static must be used together (otherwise error occurs in debug builds)
+ *
  * @param msg the message to be printed
  */
-inline void oc_abort(const char* msg)
+static inline void oc_abort(const char* msg)
 {
 
   // must be voided since compile mbedtls with GCC defines unused variables as 'error'
