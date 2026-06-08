@@ -1631,8 +1631,7 @@ static void oc_load_at_table_entry(oc_auth_at_t* entry)
             else if (rep->iname == 845)
             {
               oc_free_string(&entry->osc_salt);
-              oc_new_byte_string(&entry->osc_salt,
-                                 oc_string(rep->value.string), oc_string_len(rep->value.string));
+              oc_new_byte_string(&entry->osc_salt, oc_string(rep->value.string), oc_string_len(rep->value.string));
             }
             else if (rep->iname == 846)
             {
