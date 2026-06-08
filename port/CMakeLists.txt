@@ -93,12 +93,20 @@ if(CONFIG_KNXIOT_MBEDTLS_BUILTIN)
     endforeach()
 
     if(WIN32 AND NOT MSVC)
-        # Note:
-        # Mbed TLS 4.x throws -Werror=format= errors when using MinGW.
-        # Remove the error flag from Mbed TLS targets (not needed/supported on MSVC).
-        target_compile_options(tfpsacrypto PRIVATE -Wno-error=format)
-        target_compile_options(mbedtls PRIVATE -Wno-error=format)
-        target_compile_options(mbedx509 PRIVATE -Wno-error=format)
+        foreach(_tgt tfpsacrypto mbedtls mbedx509 builtin p256-m everest pqcp extras platform utilities)
+            if(TARGET ${_tgt})
+                # Required for Mbed TLS: GCC cross-compiling to Windows treats snprintf as a
+                # builtin with ms_printf format rules, rejecting %zu even with
+                # __USE_MINGW_ANSI_STDIO=1. -fno-builtin-snprintf tells GCC to use the
+                # gnu_printf attribute from the MinGW stdio.h redeclaration instead, which
+                # accepts C99 format specifiers like %zu.
+                target_compile_options(${_tgt} PRIVATE -fno-builtin-snprintf)
+                # Note:
+                # Mbed TLS 4.x throws -Werror=format= errors when using MinGW.
+                # Remove the error flag from Mbed TLS targets (not needed/supported on MSVC).
+                target_compile_options(${_tgt} PRIVATE -Wno-error=format)
+            endif()
+        endforeach()
     endif()
 endif()
 

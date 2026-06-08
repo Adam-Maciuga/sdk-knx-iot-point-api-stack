@@ -19,3 +19,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 
 # Make WIN32 behave in CMake
 set(WIN32 TRUE)
+
+# Enable POSIX-compatible printf in MinGW-w64 so that %zu is accepted
+# by -Wformat.
+set(CMAKE_C_FLAGS_INIT "-D__USE_MINGW_ANSI_STDIO=1")
+set(CMAKE_CXX_FLAGS_INIT "-D__USE_MINGW_ANSI_STDIO=1")
