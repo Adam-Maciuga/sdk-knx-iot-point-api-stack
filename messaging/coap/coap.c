@@ -748,11 +748,8 @@ coap_status_t coap_oscore_parse_options(void* packet, uint8_t* data,
 
         coap_pkt->etag_len = (uint8_t) MIN(COAP_ETAG_LEN, option_length);
         memcpy(coap_pkt->etag, current_options, coap_pkt->etag_len);
-        OC_DBG("  ETag %u [0x%02X%02X%02X%02X%02X%02X%02X%02X]",
-                coap_pkt->etag_len, coap_pkt->etag[0], coap_pkt->etag[1],
-                coap_pkt->etag[2], coap_pkt->etag[3], coap_pkt->etag[4],
-                coap_pkt->etag[5], coap_pkt->etag[6],
-                coap_pkt->etag[7]); // FIXME always prints 8 bytes
+        OC_DBG("  ETag [%u] ", coap_pkt->etag_len);
+        OC_LOGbytes(coap_pkt->etag, coap_pkt->etag_len);
         break;
       
       case COAP_OPTION_ACCEPT:
