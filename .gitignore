@@ -1,7 +1,7 @@
 # Patterns see https://git-scm.com/docs/gitignore#_pattern_format
 
 # GitHub files
-.github
+.github/
 
 # Dependend subprojects are not tracked (managed by .gitmodules)
 deps/**
@@ -10,11 +10,14 @@ deps/**
 # CMake
 CMakeUserPresets.json
 
+# Claude Code
+.claude/
+
 # VS Code setting files
-.vscode
+.vscode/
 
 # VS setting files
-.vs
+.vs/
 
 # Vim
 .*.swp

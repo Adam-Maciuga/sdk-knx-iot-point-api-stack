@@ -5,6 +5,50 @@
 config KNXIOT_LIB
     bool "KNX-IoT Point API Stack"
     select MBEDTLS
+    # PSA crypto requirements for KNX-IoT security (SPAKE2+ and OSCORE).
+    # These selects mirror security/knx_psa_crypto_config.h (the Linux/Windows PSA
+    # configuration) and bypass MBEDTLS_PROMPTLESS (set by OPENTHREAD_SECURITY_DEFAULT_CONFIG
+    # when OpenThread is in the build), ensuring all required algorithms are always
+    # available regardless of the active network backend.
+    # Applied only when using the Zephyr platform Mbed TLS (KNXIOT_MBEDTLS_BUILTIN=n).
+    #
+    # PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_BASIC is not listed. Zephyr 4.4.x does not expose
+    # it as a Kconfig symbol (no config entry in Kconfig.psa.auto). It is a C-level PSA
+    # define that Mbed TLS implicitly provides whenever any ECC key pair operation
+    # (IMPORT, EXPORT or GENERATE) is selected.
+    #
+    # MBEDTLS_ENTROPY_C and MBEDTLS_CTR_DRBG_C are selected for the PSA legacy RNG path
+    # (ENTROPY + CTR_DRBG) needed on boards without a hardware CSPRNG and for OpenThread
+    # DTLS which uses the entropy and DRBG APIs directly.
+    #
+    # MBEDTLS_PSA_BUILTIN_GET_ENTROPY is NOT selected. It is the Linux/Windows OS entropy
+    # source (getrandom/CryptGenRandom) and would cause a hard compile error on Zephyr
+    # (platform_util.c asserts Unix or Windows).
+    #
+    # MBEDTLS_PSA_DRIVER_GET_ENTROPY is the Zephyr replacement (entropy through Zephyr 
+    # hardware drivers) and is explicitly selected below to make the intent clear, 
+    # even though it is also auto-enabled via Kconfig (default y, depends on 
+    # MBEDTLS_ENTROPY_C, see Kconfig.mbedtls).
+    select MBEDTLS_PSA_CRYPTO_C if !KNXIOT_MBEDTLS_BUILTIN
+    select MBEDTLS_ENTROPY_C if !KNXIOT_MBEDTLS_BUILTIN
+    select MBEDTLS_PSA_DRIVER_GET_ENTROPY if !KNXIOT_MBEDTLS_BUILTIN
+    select MBEDTLS_CTR_DRBG_C if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_CCM if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_CBC_PKCS7 if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_SHA_256 if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_HMAC if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_HKDF if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_PBKDF2_HMAC if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ALG_ECDH if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_ECC_SECP_R1_256 if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_AES if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_IMPORT if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_ECC_PUBLIC_KEY if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_HMAC if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_DERIVE if !KNXIOT_MBEDTLS_BUILTIN
+    select PSA_WANT_KEY_TYPE_RAW_DATA if !KNXIOT_MBEDTLS_BUILTIN
     help
       Enable the KNX-IoT Point API protocol stack.
 
@@ -14,7 +58,7 @@ if KNXIOT_LIB
 
 config KNXIOT_MBEDTLS_BUILTIN
     bool "Use stack-bundled Mbed TLS"
-    default y
+    default n
     help
       Corresponds to CMake: CONFIG_KNXIOT_MBEDTLS_BUILTIN.
       Set to n to use the Mbed TLS module provided by Zephyr.
@@ -24,7 +68,9 @@ config KNXIOT_TINYCBOR_BUILTIN
     default y
     help
       Corresponds to CMake: CONFIG_KNXIOT_TINYCBOR_BUILTIN.
-      Set to n to use the TinyCBOR module provided by Zephyr.
+      TinyCBOR was dropped as a Zephyr module in Zephyr 4.x (replaced by zcbor).
+      Set to n only if a separate external TinyCBOR module is provided in the
+      west workspace.
 
 # ── Protocol ───────────────────────────────────────────────────────────────────
 

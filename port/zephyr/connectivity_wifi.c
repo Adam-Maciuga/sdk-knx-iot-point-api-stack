@@ -55,11 +55,14 @@ K_THREAD_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
 static struct k_thread rx_thread_data;
 K_MUTEX_DEFINE(network_mutex);
 
-/* server_sock: unicast traffic only; also used for all outgoing sends.
- * mcast_sock:  multicast group subscriptions; receive-only. */
+/* server_sock: Unicast traffic only, also used for all outgoing sends.
+ * mcast_sock:  Multicast group subscriptions, receive-only.
+ */
 static int server_sock = -1;
 static int mcast_sock  = -1;
 static k_tid_t rx_tid  = NULL;
+
+static uint16_t g_unicast_port = 0; // 0 -> Let the OS assign an ephemeral port. Set via oc_connectivity_set_port().
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -187,10 +190,11 @@ static void rx_thread(void *p1, void *p2, void *p3)
 
 /* Open a UDP socket and bind it to the given port on any IPv6 address.
  * Pass port=0 to let the OS assign an ephemeral port (used for server_sock).
- * Pass port=COAP_PORT_UNSECURED for mcast_sock; SO_REUSEADDR is set so that
- * both sockets can coexist without SO_REUSEPORT — which would cause the kernel
+ * Pass port=COAP_PORT_UNSECURED for mcast_sock. SO_REUSEADDR is set so that
+ * both sockets can coexist without SO_REUSEPORT, which would cause the kernel
  * to load-balance packets between sockets and break the unicast/multicast split.
- * description is a human-readable label used in log messages, e.g. "unicast". */
+ * Description is a human-readable label used in log messages, e.g. "unicast".
+ */
 static int open_and_bind_socket(uint16_t port, const char *description)
 {
     struct sockaddr_in6 addr = {
@@ -213,8 +217,9 @@ static int open_and_bind_socket(uint16_t port, const char *description)
     }
 
     /* Deliver destination address and receive interface index via recvmsg()
-     * ancillary data (IPV6_PKTINFO).  Required to populate
-     * endpoint->interface_index and endpoint->addr_local correctly. */
+     * ancillary data (IPV6_PKTINFO). Required to populate
+     * endpoint->interface_index and endpoint->addr_local correctly.
+     */
     if (zsock_setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) < 0) {
         OC_ERR("Failed to enable receive packet info (IPV6_RECVPKTINFO) on %s socket: %d",
                description, errno);
@@ -229,8 +234,9 @@ static int open_and_bind_socket(uint16_t port, const char *description)
     /* Prefer stable public SLAAC address as source to prevent source address
      * flip between S-mode retransmissions, which breaks the Echo sync loop.
      * NOTE: IPV6_ADDR_PREFERENCES is defined as a macro in <zephyr/net/socket.h>
-     * so this #ifdef always evaluates to true on Zephyr — the guard is kept only
-     * for portability with the Linux ipadapter pattern. */
+     * so this #ifdef always evaluates to true on Zephyr. The guard is kept only
+     * for portability with the Linux ipadapter pattern.
+     */
 #ifdef IPV6_ADDR_PREFERENCES
     {
         int prefer = IPV6_PREFER_SRC_PUBLIC;
@@ -255,13 +261,18 @@ static int open_and_bind_socket(uint16_t port, const char *description)
 
 /* ── Public interface ─────────────────────────────────────────────────────── */
 
+int oc_connectivity_set_port(uint16_t port) {
+    g_unicast_port = port;
+    return 0;
+}
+
 int oc_connectivity_init(void)
 {
     /* server_sock binds to port 0 so the OS assigns an ephemeral port.
      * This mirrors the Linux ipadapter: server_sock never competes with
      * mcast_sock for port 5683, so no SO_REUSEPORT is needed and the kernel
      * delivers port-5683 traffic exclusively to mcast_sock. */
-    server_sock = open_and_bind_socket(0, "unicast");
+    server_sock = open_and_bind_socket(g_unicast_port, "unicast");
     if (server_sock < 0) {
         OC_ERR("Failed to create unicast CoAP socket: %d", errno);
         return -1;
@@ -339,6 +350,32 @@ int oc_connectivity_init(void)
     OC_DBG("CoAP RX thread started.");
 
     OC_INF("WiFi connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
+    return 0;
+}
+
+int oc_connectivity_get_new_port(void) {
+    int old_fd = server_sock;
+    server_sock = -1; /* signal rx_thread to skip this socket while we replace it */
+
+    if (old_fd >= 0) {
+        zsock_close(old_fd);
+    }
+
+    /* Always bind to port 0 so the OS assigns a fresh ephemeral port. */
+    int new_fd = open_and_bind_socket(0, "unicast");
+    if (new_fd < 0) {
+        OC_ERR("Failed to create new unicast CoAP socket!");
+        return -1;
+    }
+
+    server_sock = new_fd;
+
+    struct sockaddr_in6 sa = {0};
+    socklen_t sa_len = sizeof(sa);
+    if (zsock_getsockname(server_sock, (struct sockaddr *)&sa, &sa_len) == 0) {
+        OC_INF("New CoAP unicast port: %u.", (unsigned)ntohs(sa.sin6_port));
+    }
+
     return 0;
 }
 

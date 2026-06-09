@@ -9,7 +9,9 @@
 #ifndef OC_RI_H
 #define OC_RI_H
 
+#ifndef __ZEPHYR__
 #include "ipadapter.h"
+#endif
 #include "oc_config.h"
 #include "oc_endpoint.h"
 #include "oc_rep.h"

@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (c) 2018 Intel Corporation
  * Copyright (c) 2024-2026 KNX Association
  *
@@ -529,6 +529,97 @@ oc_endpoint_t * oc_connectivity_get_endpoints() {
   return oc_list_head(dev->eps);
 }
 
+/* ── Socket helpers ─────────────────────────────────────────────────────────── */
+
+/* Flags for open_and_bind_socket(): bitmask controlling optional socket options. */
+#define OPEN_SOCK_OPT_REUSEADDR (1u << 0) /* set SO_REUSEADDR before bind */
+#define OPEN_SOCK_OPT_V6ONLY    (1u << 1) /* set IPV6_V6ONLY (unicast socket only) */
+
+/* Open a UDP socket and bind it to the given port on any IPv6 address.
+ * Pass port=0 to let the OS assign an ephemeral port (used for server_sock and
+ * secure_sock).  Pass port=COAP_PORT_UNSECURED for mcast_sock.
+ * opts is a bitmask of OPEN_SOCK_OPT_* flags selecting optional socket options.
+ * description is a human-readable label used in log messages, e.g. "unicast".
+ * Returns the file descriptor on success, or -1 on failure (fd is closed).
+ */
+static int open_and_bind_socket(uint16_t port, unsigned int opts,
+                                const char *description)
+{
+  struct sockaddr_in6 addr;
+  int on = 1;
+  int prefer = 2; /* IPV6_PREFER_SRC_PUBLIC: prefer stable public SLAAC address
+                   * as source to prevent source address flip between S-mode
+                   * retransmissions, which breaks the Echo sync loop.
+                   */
+
+  memset(&addr, 0, sizeof(addr));
+  addr.sin6_family = AF_INET6;
+  addr.sin6_port   = htons(port);
+  addr.sin6_addr   = in6addr_any;
+
+  int fd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  if (fd < 0) {
+    OC_ERR("Failed to open %s UDP socket for port %u: %d",
+           description, (unsigned)port, errno);
+    return -1;
+  }
+
+  /* Allow address reuse so a quick restart can reclaim a fixed port (e.g.
+   * port 5683) before TIME_WAIT expires. Set before bind so the kernel
+   * applies the option during the bind call itself.
+   */
+  if (opts & OPEN_SOCK_OPT_REUSEADDR) {
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == -1) {
+      OC_ERR("Failed to enable address reuse (SO_REUSEADDR) on %s socket: %d",
+             description, errno);
+      close(fd);
+      return -1;
+    }
+  }
+
+  /* Deliver destination address and receive interface index via recvmsg()
+   * ancillary data (IPV6_PKTINFO). Required to populate
+   * endpoint->interface_index and endpoint->addr_local correctly.
+   */
+  if (setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) == -1) {
+    OC_ERR("Failed to enable receive packet info (IPV6_RECVPKTINFO) on %s socket: %d",
+           description, errno);
+    close(fd);
+    return -1;
+  }
+
+  /* Restrict to real IPv6, reject IPv4-mapped addresses. */
+  if (opts & OPEN_SOCK_OPT_V6ONLY) {
+    if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on)) == -1) {
+      OC_ERR("Failed to restrict to IPv6 only (IPV6_V6ONLY) on %s socket: %d",
+             description, errno);
+      close(fd);
+      return -1;
+    }
+  }
+
+#ifdef IPV6_ADDR_PREFERENCES
+  if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES,
+                 &prefer, sizeof(prefer)) == -1) {
+    OC_ERR("Failed to set source address preference (IPV6_ADDR_PREFERENCES) on %s socket: %d",
+           description, errno);
+    close(fd);
+    return -1;
+  }
+#endif
+
+  if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+    int bind_err = errno; /* preserve errno before close() can overwrite it */
+    OC_ERR("Failed to bind %s UDP socket to port %u: %d",
+           description, (unsigned)port, bind_err);
+    close(fd);
+    errno = bind_err;
+    return -1;
+  }
+
+  return fd;
+}
+
 int oc_connectivity_get_new_port(void) {
   ip_context_t *dev = get_ip_context_for_device();
   if (!dev) {
@@ -536,58 +627,34 @@ int oc_connectivity_get_new_port(void) {
     return -1;
   }
 
-  /* Remove old socket from the watched fd set before closing it */
+  /* Remove old socket from the watched fd set before closing it. */
   ip_context_rfds_fd_clr(dev, dev->server_sock);
   close(dev->server_sock);
 
-  /* Open a fresh socket */
-  dev->server_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  /* Open a fresh socket, bound to port 0 so the OS assigns a new ephemeral port. */
+  dev->server_sock = open_and_bind_socket(0, OPEN_SOCK_OPT_V6ONLY, "unicast");
   if (dev->server_sock < 0) {
-    OC_ERR("creating new server socket %d", errno);
-    return -1;
-  }
-
-  int on = 1;
-  if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
-                 sizeof(on)) == -1) {
-    OC_ERR("setting IPV6_RECVPKTINFO %d", errno);
-    return -1;
-  }
-  if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_V6ONLY, &on,
-                 sizeof(on)) == -1) {
-    OC_ERR("setting IPV6_V6ONLY %d", errno);
-    return -1;
-  }
-
-  /* Bind to port 0 so OS assigns a new ephemeral port */
-  struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
-  l->sin6_family = AF_INET6;
-  l->sin6_addr   = in6addr_any;
-  l->sin6_port   = 0;
-
-  if (bind(dev->server_sock, (struct sockaddr *)&dev->server,
-           sizeof(dev->server)) == -1) {
-    OC_ERR("binding new server socket %d", errno);
+    OC_ERR("Failed to create new unicast CoAP socket: %d", errno);
     return -1;
   }
 
   socklen_t socklen = sizeof(dev->server);
   if (getsockname(dev->server_sock, (struct sockaddr *)&dev->server,
                   &socklen) == -1) {
-    OC_ERR("getsockname new server socket %d", errno);
+    OC_ERR("Failed to read assigned port from new unicast socket: %d", errno);
     return -1;
   }
-  dev->port = ntohs(l->sin6_port);
+  dev->port = ntohs(((struct sockaddr_in6 *)&dev->server)->sin6_port);
 
-  /* Register new socket with the select() thread */
+  /* Register new socket with the select() thread. */
   ip_context_rfds_fd_set(dev, dev->server_sock);
 
-  /* Wake the select() loop so it picks up the updated rfds immediately */
+  /* Wake the select() loop so it picks up the updated rfds immediately. */
   if (write(dev->shutdown_pipe[1], "", 1) < 0) {
     OC_ERR("waking network thread %d", errno);
   }
 
-  /* Rebuild the endpoint list with the new port */
+  /* Rebuild the endpoint list with the new port. */
   oc_network_event_handler_mutex_lock();
   refresh_endpoints_list(dev);
   oc_network_event_handler_mutex_unlock();
@@ -1391,139 +1458,69 @@ int oc_connectivity_init(void) {
     return -1;
   }
 
-  memset(&dev->mcast, 0, sizeof(struct sockaddr_storage));
-  memset(&dev->server, 0, sizeof(struct sockaddr_storage));
+  /* Open and bind all three UDP sockets. open_and_bind_socket() handles
+   * socket(), setsockopt(), and bind() in one step with consistent error
+   * messages. It closes the fd and returns -1 on any failure.
+   */
 
-  struct sockaddr_in6 *m = (struct sockaddr_in6 *)&dev->mcast;
-  m->sin6_family = AF_INET6;
-  m->sin6_port = htons(g_multicast_port);
-  m->sin6_addr = in6addr_any;
+  /* mcast_sock: Bound to the fixed CoAP port so all port-5683 traffic arrives
+   * here. Multicast group subscriptions are added after by
+   * configure_mcast_socket().
+   * SO_REUSEADDR (OPEN_SOCK_OPT_REUSEADDR) is set before bind so a quick
+   * program restart can reclaim port 5683 before TIME_WAIT expires.
+   * TODO FIXME: verify SO_REUSEADDR is still needed here.
+   */
+  dev->mcast_sock = open_and_bind_socket(g_multicast_port,
+                                         OPEN_SOCK_OPT_REUSEADDR, "multicast");
+  if (dev->mcast_sock < 0) {
+    OC_ERR("Failed to create multicast CoAP socket: %d", errno);
+    return -1;
+  }
 
-  struct sockaddr_in6 *l = (struct sockaddr_in6 *)&dev->server;
-  l->sin6_family = AF_INET6;
-  l->sin6_port = htons(g_unicast_port);   
-  l->sin6_addr = in6addr_any;
-
-#ifdef KNX_UDP_DTLS
-  memset(&dev->secure, 0, sizeof(struct sockaddr_storage));
-  struct sockaddr_in6 *sm = (struct sockaddr_in6 *)&dev->secure;
-  sm->sin6_family = AF_INET6;
-  sm->sin6_port = 0;
-  sm->sin6_addr = in6addr_any;
-#endif
-
-  dev->server_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-  dev->mcast_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-
-  if (dev->server_sock < 0 || dev->mcast_sock < 0) {
-    OC_ERR("creating server sockets");
+  /* server_sock: Bound to port 0 so the OS assigns an ephemeral port.
+   * Handles all outgoing sends and incoming unicast traffic.
+   * IPV6_V6ONLY (OPEN_SOCK_OPT_V6ONLY) prevents this socket from accepting
+   * IPv4-mapped addresses.
+   * TODO FIXME: consider adding OPEN_SOCK_OPT_V6ONLY to all sockets.
+   */
+  dev->server_sock = open_and_bind_socket(g_unicast_port, OPEN_SOCK_OPT_V6ONLY, "unicast");
+  if (dev->server_sock < 0) {
+    OC_ERR("Failed to create unicast CoAP socket: %d", errno);
     return -1;
   }
 
 #ifdef KNX_UDP_DTLS
-  dev->secure_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  /* secure_sock: Bound to port 0 for DTLS-protected (KNX_UDP_DTLS) traffic.
+   * Uses an ephemeral port like server_sock.
+   */
+  dev->secure_sock = open_and_bind_socket(0, 0, "secure (DTLS)");
   if (dev->secure_sock < 0) {
-    OC_ERR("creating secure socket");
+    OC_ERR("Failed to create secure (DTLS) CoAP socket: %d", errno);
     return -1;
   }
-#endif
-
-  int on = 1;
-  if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
-          sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d", errno);
-    return -1;
-  }
-
-  if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_V6ONLY, &on,
-          sizeof(on)) == -1) {
-    OC_ERR("setting sock option %d", errno);
-    return -1;
-  }
-
-#ifdef IPV6_ADDR_PREFERENCES
-  int prefer = 2;
-  if (setsockopt(dev->server_sock, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &prefer,
-          sizeof(prefer)) == -1) {
-    OC_ERR("setting src addr preference %d", errno);
-    return -1;
-  }
-#endif
-
-  if (bind(dev->server_sock, (struct sockaddr *)&dev->server,
-          sizeof(dev->server)) == -1) {
-    OC_ERR("binding server socket %d", errno);
-    return -1;
-  }
-
-  socklen_t socklen = sizeof(dev->server);
-  if (getsockname(dev->server_sock, (struct sockaddr *)&dev->server,
-          &socklen) == -1) {
-    OC_ERR("obtaining server socket information %d", errno);
-    return -1;
-  }
-
-  dev->port = ntohs(l->sin6_port);
+#endif /* KNX_UDP_DTLS */
 
   if (configure_mcast_socket(dev->mcast_sock, AF_INET6) < 0) {
     return -1;
   }
 
-  if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
-          sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d", errno);
+  /* Read back the ephemeral port numbers assigned by the OS. */
+  socklen_t socklen = sizeof(dev->server);
+  if (getsockname(dev->server_sock, (struct sockaddr *)&dev->server,
+          &socklen) == -1) {
+    OC_ERR("Failed to read assigned port from unicast socket: %d", errno);
     return -1;
   }
-
-  if (setsockopt(dev->mcast_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) ==
-          -1) {
-    OC_ERR("setting reuseaddr option %d", errno);
-    return -1;
-  }
-
-#ifdef IPV6_ADDR_PREFERENCES
-  if (setsockopt(dev->mcast_sock, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &prefer,
-          sizeof(prefer)) == -1) {
-    OC_ERR("setting src addr preference %d", errno);
-    return -1;
-  }
-#endif
-
-  if (bind(dev->mcast_sock, (struct sockaddr *)&dev->mcast,
-          sizeof(dev->mcast)) == -1) {
-    OC_ERR("binding mcast socket %d", errno);
-    return -1;
-  }
+  dev->port = ntohs(((struct sockaddr_in6 *)&dev->server)->sin6_port);
 
 #ifdef KNX_UDP_DTLS
-  if (setsockopt(dev->secure_sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
-          sizeof(on)) == -1) {
-    OC_ERR("setting recvpktinfo option %d", errno);
-    return -1;
-  }
-
-#ifdef IPV6_ADDR_PREFERENCES
-  if (setsockopt(dev->secure_sock, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &prefer,
-          sizeof(prefer)) == -1) {
-    OC_ERR("setting src addr preference %d", errno);
-    return -1;
-  }
-#endif
-
-  if (bind(dev->secure_sock, (struct sockaddr *)&dev->secure,
-          sizeof(dev->secure)) == -1) {
-    OC_ERR("binding IPv6 secure socket %d", errno);
-    return -1;
-  }
-
   socklen = sizeof(dev->secure);
   if (getsockname(dev->secure_sock, (struct sockaddr *)&dev->secure,
           &socklen) == -1) {
-    OC_ERR("obtaining secure socket information %d", errno);
+    OC_ERR("Failed to read assigned port from secure (DTLS) socket: %d", errno);
     return -1;
   }
-
-  dev->dtls_port = ntohs(sm->sin6_port);
+  dev->dtls_port = ntohs(((struct sockaddr_in6 *)&dev->secure)->sin6_port);
 #endif /* KNX_UDP_DTLS */
 
   OC_INF("### IP port info ###");
