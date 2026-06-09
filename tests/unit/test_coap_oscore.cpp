@@ -327,3 +327,57 @@ TEST(OscoreSerialize, FullRoundTrip)
   EXPECT_EQ(pkt_in.kid_ctx_len, 2);
   EXPECT_EQ(memcmp(pkt_in.kid_ctx, kid_ctx, 2), 0);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oscore_is_oscore_message — scans the raw CoAP option stream for option 9
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(OscoreIsOscoreMessage, DetectsOscoreOption)
+{
+  /* UDP header (4 bytes), no token, single OSCORE option (number 9). */
+  uint8_t data[5];
+  data[0] = 0x40; /* version 1, type CON, token length 0 */
+  data[1] = 0x02; /* code POST */
+  data[2] = 0x12; /* mid hi */
+  data[3] = 0x34; /* mid lo */
+  data[4] = 0x90; /* option delta 9 (OSCORE), length 0 */
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_TRUE(oscore_is_oscore_message(&msg));
+}
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseForNonOscoreOption)
+{
+  /* Same header but a URI-PATH option (number 11) instead of OSCORE. */
+  uint8_t data[5];
+  data[0] = 0x40;
+  data[1] = 0x02;
+  data[2] = 0x12;
+  data[3] = 0x34;
+  data[4] = 0xB0; /* option delta 11 (URI_PATH), length 0 */
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}
+
+TEST(OscoreIsOscoreMessage, ReturnsFalseWhenNoOptions)
+{
+  /* Header only, no options at all. */
+  uint8_t data[4];
+  data[0] = 0x40;
+  data[1] = 0x02;
+  data[2] = 0x12;
+  data[3] = 0x34;
+
+  oc_message_t msg{};
+  msg.data = data;
+  msg.length = sizeof(data);
+
+  EXPECT_FALSE(oscore_is_oscore_message(&msg));
+}

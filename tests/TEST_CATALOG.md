@@ -1,14 +1,14 @@
 # KNX IoT Point API Stack — Test Catalog
 
-> **470 unit tests** (26 files) + **233 runtime tests** (16 files) = **703 total**
+> **1030 unit tests** (49 files) + **233 runtime tests** (16 files) = **1263 total**
 >
-> Branch: `unit_tests_claude` | Last verified: 244 passed, 1 skipped (Docker CI)
+> Branch: `unit_tests_claude` | Last verified: 1029 passed, 1 skipped (Docker CI)
 
 ---
 
 ## Part 1: Unit Tests (Google Test / C++)
 
-Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
+Built with GCC, run via CTest. 49 `.cpp` files in `tests/unit/`.
 
 ---
 
@@ -41,23 +41,23 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 | Test | What it verifies |
 |------|-----------------|
-| `KnownUuid` (str→uuid) | Standard UUID string parses correctly |
-| `UppercaseHex` | Uppercase hex digits accepted |
-| `WildcardStar` (str→uuid) | `*` produces all-zeros UUID |
-| `KnownUuid` (uuid→str) | Known UUID → correct string with hyphens |
-| `AllZeros` | All-zero UUID → "00000000-..." |
-| `AllOnes` | All-0xFF UUID → "ffffffff-..." |
-| `BufferTooSmall` | Short buffer handled safely |
-| `WildcardStar` (uuid→str) | All-zeros → "*" |
-| `StringToBinaryToString` | str→uuid→str round-trip |
-| `ProducesValidFormat` (gen) | `oc_gen_uuid` output is canonical 8-4-4-4-12 hex |
-| `ProducesVersion4` (gen) | Generated UUID has version nibble set to 4 |
-| `RoundTripsThroughString` (gen) | Generated UUID survives uuid→str→uuid |
-| `ProducesDistinctValues` (gen) | Two generations do not collide |
+| `UuidStrToUuid.KnownUuid` | Standard UUID string parses correctly |
+| `UuidStrToUuid.UppercaseHex` | Uppercase hex digits accepted |
+| `UuidStrToUuid.WildcardStar` | `*` produces all-zeros UUID |
+| `UuidToStr.KnownUuid` | Known UUID → correct string with hyphens |
+| `UuidToStr.AllZeros` | All-zero UUID → "00000000-..." |
+| `UuidToStr.AllOnes` | All-0xFF UUID → "ffffffff-..." |
+| `UuidToStr.BufferTooSmall` | Short buffer handled safely |
+| `UuidToStr.WildcardStar` | All-zeros → "*" |
+| `UuidRoundTrip.StringToBinaryToString` | str→uuid→str round-trip |
+| `UuidGenerate.ProducesValidFormat` | `oc_gen_uuid` output is canonical 8-4-4-4-12 hex |
+| `UuidGenerate.ProducesVersion4` | Generated UUID has version nibble set to 4 |
+| `UuidGenerate.RoundTripsThroughString` | Generated UUID survives uuid→str→uuid |
+| `UuidGenerate.ProducesDistinctValues` | Two generations do not collide |
 
 ---
 
-### test_oc_list.cpp — Linked List (29 tests)
+### test_oc_list.cpp — Linked List (27 tests)
 
 **Source:** `util/oc_list.c`
 
@@ -81,8 +81,6 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `Remove_Middle` | Removes middle item, list stays connected |
 | `Remove_Tail` | Removes last item, previous becomes tail |
 | `Remove_Nonexistent_NoOp` | No effect, no crash |
-| `Remove2_ReturnsItem` | Alternate API returns removed item |
-| `Remove2_Nonexistent_ReturnsNull` | Returns NULL |
 | `Length_EmptyList` | Returns 0 |
 | `Length_AfterAddRemove` | Correct after add/remove |
 | `Insert_AfterItem` | Item inserted after given item |
@@ -113,7 +111,7 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_oc_helpers.cpp — String & Hex Utilities (63 tests)
+### test_oc_helpers.cpp — String & Hex Utilities (76 tests)
 
 **Source:** `api/oc_helpers.c`
 
@@ -130,8 +128,10 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `Strnchr` | 3 | Character search with length limit |
 | `ToLower` | 4 | String lowercase conversion |
 | `ZeroContent` | 4 | Checks if buffer is all zeros |
-| `OcStringTest` | 21 | String alloc/free/copy/compare/concat/url-compare |
-| `OcMmemTest` | — | *(moved to test_oc_mmem.cpp)* |
+| `OcStringTest` | 24 | String alloc/free/copy/compare/concat/url-compare, hex-string conversion, is-hex-array checks |
+| `OcStringArrayTest` | 6 | String-array alloc, add-item (overflow/NULL), join, byte-array add |
+| `OcArrayPool` | 1 | Int-array allocation yields usable storage |
+| `PrintUint64` | 3 | uint64 decimal/hex printing |
 
 ---
 
@@ -150,7 +150,7 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_oc_rep.cpp — CBOR Representation (36 tests)
+### test_oc_rep.cpp — CBOR Representation (46 tests)
 
 **Source:** `api/oc_rep.c`
 
@@ -170,10 +170,13 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `FreeRep/Parse` | 2 | Cleanup and empty-map parse |
 | `TextKey getters` | 6 | Text-keyed getters (int, bool, double, float, string, byte string NULL checks) |
 | `GetString/ByteString` | 2 | NULL size parameter handling |
+| `GetCborErrno` | 2 | CBOR errno reporting (clean encode, overflow) |
+| `EncodeRawEncoder` | 1 | `oc_rep_encode_raw_encoder()` writes bytes and advances |
+| `GetObject/Array` | 7 | Nested object + object-array getters (text/int keys, wrong key, absent mixed array) |
 
 ---
 
-### test_coap.cpp — CoAP Parser/Serializer (48 tests)
+### test_coap.cpp — CoAP Parser/Serializer (60 tests)
 
 **Source:** `messaging/coap/coap.c`
 
@@ -195,10 +198,11 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `OptionHeader` | 4 | Delta encoding (small, 1-byte ext, 2-byte ext, count-only) |
 | `RoundTrip` | 7 | Serialize→parse (empty, token, CF, payload, path, observe, ETag) |
 | `Parse_WrongVersion` | 1 | Rejects non-CoAP-1.0 |
+| `Connection/QueryOptions` | 12 | MID seeding, query-variable lookup, proxy-uri, uri-query + location-query option set/get |
 
 ---
 
-### test_coap_oscore.cpp — OSCORE Option (21 tests)
+### test_coap_oscore.cpp — OSCORE Option (24 tests)
 
 **Source:** `messaging/coap/oscore.c`
 
@@ -209,6 +213,7 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `PivSsnRoundTrip` | 2 | Conversion integrity (small, large) |
 | `OscoreOption` | 6 | Set/parse OSCORE option (PIV-only, PIV+KID, full, inner variants) |
 | `OscoreSerialize` | 2 | Serialization to wire format (PIV-only, full round-trip) |
+| `OscoreIsOscoreMessage` | 3 | Detects OSCORE option presence (true, non-OSCORE option, no options) |
 
 ---
 
@@ -225,18 +230,18 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_oc_oscore_context.cpp — OSCORE Context (12 tests)
+### test_oc_oscore_context.cpp — OSCORE Context (18 tests)
 
 **Source:** `security/oc_oscore_context.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `ContextDeriveParam` | 4 | HKDF key derivation (sender key, IV, with context, uniqueness) |
-| `OscoreContextTest` | 8 | Add/find/free contexts, bad params, kid_context |
+| `OscoreContextTest` | 14 | Add/find/free contexts, bad params, kid_context, find-by-group-address (sender/recipient), LRU recipient eviction, free-by-AT-id |
 
 ---
 
-### test_oc_knx_sec.cpp — Security Credentials (11 tests)
+### test_oc_knx_sec.cpp — Security Credentials (23 tests)
 
 **Source:** `api/oc_knx_sec.c`
 
@@ -244,6 +249,10 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 |-------|-------|----------------|
 | `AtProfileToString` | 5 | Profile enum → string (oscore, dtls, tls, pase, unknown) |
 | `ContainsInterface` | 6 | Interface bitmask matching (exact, subset, no overlap, empty, multi-bit) |
+| `OscoreConfig` | 2 | Replay-window size is RFC default; OSN delay round-trips |
+| `AuthAtEntry` | 3 | AT-table entry access (out-of-bounds NULL, in-bounds entry, positive table size) |
+| `GetAtIndex` | 2 | Entry pointer → slot index (NULL → -1) |
+| `AtTable` | 5 | Items-used count, find-by-osc-id, delete entry, delete NULL, find-and-remove PASE token |
 
 ---
 
@@ -267,18 +276,21 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_oc_knx_helpers.cpp — KNX Helpers (9 tests)
+### test_oc_knx_helpers.cpp — KNX Helpers (24 tests)
 
 **Source:** `api/oc_knx_helpers.c`
 
 | Group | Tests | What it covers |
 |-------|-------|----------------|
 | `CollectAndRank` | 6 | Status code ranking (ok, override, lower-no-override, worst-wins, not-found, internal-error) |
-| `NextPage` | 3 | Pagination URL construction (page 0, 1, large) |
+| `NextPageTest` | 3 | Pagination URL construction (page 0, 1, large) |
+| `FrameBufferTest` | 6 | Frame integer (pos/zero/neg) and `l=` total/ps query fragments |
+| `EvaluateQueryPx` | 3 | `pn`/`ps` pagination query → page-index product |
+| `QueryLProcessed` | 6 | `l=` query processing (ps-only, total-only, missing, extra-query bad request) |
 
 ---
 
-### test_oc_endpoint.cpp — Endpoint Handling (16 tests)
+### test_oc_endpoint.cpp — Endpoint Handling (29 tests)
 
 **Source:** `api/oc_endpoint.c`
 
@@ -288,39 +300,27 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `EndpointCompareAddress` | 3 | Address-only compare (ignores port) |
 | `EndpointCopy` | 3 | Deep copy, NULL src/dst safety |
 | `IsLinkLocal` | 5 | fe80:: detection, global, loopback, NULL, non-IPv6 |
+| `NewEndpoint` | 1 | Allocates a zeroed endpoint |
+| `FreeEndpoint` | 1 | NULL free is a no-op |
+| `EndpointToString` | 4 | coap/coaps URI formatting, NULL args, non-IPv6 error |
+| `EndpointParsePath` | 5 | Path extraction, query strip, missing scheme/path errors |
+| `EndpointListCopy` | 2 | Multi-node list copy breaks aliasing; NULL source no-op |
 
 ---
 
-### test_oc_knx_fp.cpp — Comm Flags + GO-Table Search (17 tests)
+### test_oc_knx_fp.cpp — Group Object & FP Tables (45 tests)
 
 **Source:** `api/oc_knx_fp.c`
 
-**Comm flags (`oc_cflags_as_string`, 7 tests)**
-
-| Test | What it verifies |
-|------|-----------------|
-| `AllFlags` | All comm flags → "rwitu" |
-| `NoFlags` | No flags → "....." |
-| `ReadOnly` | Read → "r...." |
-| `WriteOnly` | Write → ".w..." |
-| `TransmissionOnly` | Transmission → "...t." |
-| `ReadWrite` | Read+Write → "rw..." |
-| `InitAndUpdate` | Init+Update → "..i.u" |
-
-**Group-object-table search (`GoTableSearch` fixture, 10 tests)** — regression coverage for the array-bounds fix in `oc_core_find_next_go_table_index_with_ga` (commit b677b04f).
-
-| Test | What it verifies |
-|------|-----------------|
-| `TotalSizeMatchesBuildConstant` | `oc_core_get_group_object_table_total_size()` == `GOT_MAX_ENTRIES` |
-| `GetEntryOutOfBoundsReturnsNull` | Out-of-range index → NULL |
-| `FindFirstNoMatchReturnsNeg1` | No matching GA → -1 |
-| `FindFirstSingleMatch` | Single matching entry found |
-| `FindFirstSkipsEmptySlots` | Empty (id==-1) slots skipped |
-| `FindNextWalksAllMatchesThenNeg1` | Iterates every match then -1 |
-| `FindNextNegativeCurrentIndexDoesNotUnderflow` | current_index < -1 returns -1 without reading `g_got[negative]` |
-| `FindNextCurrentIndexAtOrPastEndReturnsNeg1` | current_index ≥ end → -1 |
-| `FindMatchesCorrectGaWithinMultiGaEntry` | Match on any GA in a multi-GA entry |
-| `FindIndexFromId` | `oc_core_find_index_in_group_object_table_from_id` |
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `CflagsAsString` | 7 | Comm-flag bitmask → "rwitu" string |
+| `GoTableSearch` | 17 | GO-table size/bounds, find-first/next by GA (incl. negative-index underflow guard, commit b677b04f), empty-slot search, cflags/ga-len getters |
+| `FpTableSizes` | 5 | Recipient/publisher table size + entry bounds, no-IID default |
+| `FpFindIdFromPayload` | 5 | id-from-payload lookup (in-range, above-range, negative, no-match, NULL) |
+| `GoTableHref` | 7 | href getter + find-first/next by href, sending-GA lookup |
+| `RecipientTable` | 1 | Recipient index-from-id match/miss |
+| `BelongsHref` | 3 | href ownership check, non-discoverable skipped |
 
 ---
 
@@ -342,21 +342,72 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_oc_core_res.cpp — Device Hostname (5 tests)
+### test_oc_core_res.cpp — Core Resources & Device Info (32 tests)
 
 **Source:** `api/oc_core_res.c`
 
-| Test | What it verifies |
-|------|-----------------|
-| `SetStoresValue` | `oc_core_set_device_hostname()` stores the hostname |
-| `SetOverwritesPrevious` | Second set overwrites the first |
-| `SetEmptyString` | Empty hostname accepted |
-| `ReadAndSetUsesDefaultWhenStorageUnavailable` | Falls back to `knx-<serial>` when storage unconfigured |
-| `ReadAndSetDefaultFitsHnameBuffer` | Default hostname fits within `HNAME_SIZE` |
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `DeviceHostname` | 5 | Set/overwrite/empty hostname, default fallback, `HNAME_SIZE` fit |
+| `DeviceInfo` | 14 | Firmware/hardware/app version, manufacturer/model setters, ia/iid/fid set-and-store range validation |
+| `CoreResourceByIndex` | 3 | Resource-by-index bounds (negative, out-of-range, first) |
+| `CheckUrnKnxQuery` | 2 | `urn:knx` query-value prefix match |
+| `CheckResourceByRt` | 4 | Resource type match (exact, wildcard, mismatch, no-rt default) |
+| `CheckResourceByIf` | 4 | Interface match (exact, wildcard, mismatch, no-if default) |
 
 ---
 
-### test_oc_knx.cpp — KNX Core (17 tests)
+### test_oc_knx_dev.cpp — Device Programming Mode & Resource Handlers (50 tests)
+
+**Source:** `api/oc_knx_dev.c`
+
+**Programming mode (`KnxDeviceProgrammingMode`, 6 tests)**
+
+| Test | What it verifies |
+|------|-----------------|
+| `SetTrueStoresOnDevice` | `oc_knx_device_set_programming_mode(true)` sets `device->pm` |
+| `SetFalseStoresOnDevice` | `oc_knx_device_set_programming_mode(false)` clears `device->pm` |
+| `InProgrammingModeReflectsSetTrue` | `oc_knx_device_in_programming_mode()` returns true after set-true |
+| `InProgrammingModeReflectsSetFalse` | Getter returns false after set-false |
+| `GetterMatchesDeviceField` | Getter mirrors `device->pm` exactly |
+| `TogglingIsIdempotentPerValue` | Repeated set of same value is stable |
+
+**Resource handlers (`KnxDevHandlers`, 44 tests)** — GET/PUT handlers for the
+device resources (`/dev/sn`, `/dev/hwv`, `/dev/fwv`, `/dev/hwt`, `/dev/model`,
+`/dev/hostname`, `/dev/iid`, `/dev/pm`, `/dev/sa`, `/dev/da`, `/dev/fid`,
+`/dev/port`, `/dev/mport`, `/dev/ap/pv`, `/dev/mid`, `/dev/ipv6`, dev/ap lists)
+exercised directly at handler level: wrong-Accept → bad request, happy-path
+content, empty-payload PUT → bad request, and array-size validation.
+
+**Coverage note:** `oc_knx_load_device`, `oc_knx_device_storage_reset`, and
+`oc_knx_device_restart` still require a live request pipeline (storage + OSCORE
+init / DNS-SD re-register) and are covered by the runtime suite
+(`test_5_2_*`, `test_5_2_reset.py`, `test_5_6_app_program.py`).
+
+---
+
+### test_oc_clock.cpp — RFC3339 Clock Helpers (12 tests)
+
+**Source:** `api/oc_clock.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `ParseEpochZeroIsZeroTicks` | `1970-01-01T00:00:00Z` → 0 ticks |
+| `ParseOneSecondAfterEpoch` | `...00:00:01Z` → `OC_CLOCK_SECOND` ticks |
+| `ParseInvalidStringReturnsZero` | Garbage string → 0 |
+| `ParseMalformedMonthReturnsZero` | Month 13 → 0 |
+| `ParseEmptyStringReturnsZero` | Empty input → 0 |
+| `EncodeEpochZero` | 0 ticks → `1970-01-01T00:00:00Z` |
+| `EncodeOneSecondAfterEpoch` | `OC_CLOCK_SECOND` ticks → `...00:00:01Z` |
+| `EncodeBufferTooSmallReturnsZero` | 5-byte buffer → 0 (error) |
+| `RoundTripParseEncodeWholeSeconds` | parse→encode reproduces original string |
+| `RoundTripEncodeParseIsStable` | encode→parse reproduces original ticks |
+| `CurrentTimeFormatsParseableString` | `oc_clock_time_rfc3339()` emits a parseable string |
+| `CurrentTimeBufferTooSmallReturnsZero` | Current-time small buffer → 0 |
+
+---
+
+### test_oc_knx.cpp — KNX Core (32 tests)
 
 **Source:** `api/oc_knx.c`
 
@@ -365,12 +416,17 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `LsmStateString` | 7 | State enum → string (unloaded, loaded, loading, unloading, load-completing, unknown, error) |
 | `LsmEventString` | 5 | Event enum → string (nop, start-loading, load-complete, unload, unknown) |
 | `IsRedirectedRequestFrom` | 5 | URL routing classification (NULL, empty, /k, /p, other) |
+| `KnxLsm` | 1 | `oc_knx_lsm_state()` returns the device LSM field |
+| `KnxRuntime` | 3 | Runtime-ready true only when loaded and IID set |
+| `KnxHandlers` | 11 | `/.well-known/knx`, `/a/lsm`, `/f` fingerprint, `ldevid`/`idevid` GET handlers (JSON/CBOR/accept errors) |
 
 ---
 
-### test_oc_knx_fb.cpp — Functional Block Helpers (8 tests)
+### test_oc_knx_fb.cpp — Functional Block Helpers (20 tests)
 
 **Source:** `api/oc_knx_fb.c`
+
+**`oc_get_fb_number_from_dp` (8 tests)**
 
 | Test | What it verifies |
 |------|-----------------|
@@ -382,6 +438,13 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `EmptyString` | "" → -1 |
 | `DotAtEnd` | "dpa." → 0 |
 | `MultipleDotsOnlyFirstMatters` | Correct parsing of first number |
+
+**Functional-block discovery (12 tests)**
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `CheckIfFunctionalBlocksNeedToAdd` | 7 | rt/if query + wildcard matching against `urn:knx:fb`/`ll` |
+| `CountFunctionalBlocks` | 5 | Distinct FB counting (number/instance, duplicates, non-discoverable skipped) |
 
 ---
 
@@ -401,24 +464,28 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_coap_engine.cpp — Duplicate Detection + History Clear (8 tests)
+### test_coap_engine.cpp — Duplicate Detection + Response Cache (12 tests)
 
 **Source:** `messaging/coap/engine.c`
 
 | Test | What it verifies |
 |------|-----------------|
-| `FreshMessageReturnsFalse` | First message with a MID is not duplicate |
-| `SameMessageIsDuplicate` | Same MID+endpoint is duplicate |
-| `DifferentMidIsNotDuplicate` | Different MID → fresh |
-| `DifferentPortIsNotDuplicate` | Same MID, different port → fresh |
-| `DifferentAddressIsNotDuplicate` | Same MID, different addr → fresh |
-| `HistoryWrapsAround` | Circular buffer evicts oldest entries |
+| `DuplicateDetection.FreshMessageReturnsFalse` | First message with a MID is not duplicate |
+| `DuplicateDetection.SameMessageIsDuplicate` | Same MID+endpoint is duplicate |
+| `DuplicateDetection.DifferentMidIsNotDuplicate` | Different MID → fresh |
+| `DuplicateDetection.DifferentPortIsNotDuplicate` | Same MID, different port → fresh |
+| `DuplicateDetection.DifferentAddressIsNotDuplicate` | Same MID, different addr → fresh |
+| `DuplicateDetection.HistoryWrapsAround` | Circular buffer evicts oldest entries |
 | `ClearRequestHistory.WipedMessageBecomesFreshAgain` | `oc_coap_clear_request_history()` makes a prior MID fresh again |
 | `ClearResponseHistory.SafeOnEmptyCache` | `oc_coap_clear_response_history()` is safe on an empty cache |
+| `ResponseCacheStore.PiggybackedAckIsCached` | Piggybacked ACK response is cached |
+| `ResponseCacheStore.EmptyAckIsNotCached` | Empty ACK is not cached |
+| `ResponseCacheStore.NonAckIsNotCached` | Non-ACK message is not cached |
+| `ResponseCacheStore.ShortMessageIsNotCached` | Too-short message is not cached |
 
 ---
 
-### test_coap_transactions.cpp — Transaction Lifecycle (15 tests)
+### test_coap_transactions.cpp — Transaction Lifecycle (19 tests)
 
 **Source:** `messaging/coap/transactions.c`
 
@@ -439,10 +506,14 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `FreeByEndpointSelectiveRemoval` | Only removes matching endpoint |
 | `MultipleTransactionsCoexist` | Multiple tracked simultaneously |
 | `ZeroLengthTokenMatch` | Both token_len==0 matches correctly |
+| `NewTransactionWithDataCopiesPayload` | `coap_new_transaction_with_data()` copies the payload |
+| `NewTransactionWithDataRegistersInList` | Data transaction registered in the list |
+| `RegisterAsTransactionHandlerIsCallable` | Transaction-handler registration is callable |
+| `InitEngineRegistersHandler` | Engine init registers the transaction handler |
 
 ---
 
-### test_coap_observe.cpp — Observer Management + Notify (16 tests)
+### test_coap_observe.cpp — Observer Management + Notify (18 tests)
 
 **Source:** `messaging/coap/observe.c`
 
@@ -464,10 +535,12 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `NotifyKObserversNoObserversIsSafe` | Empty /k observer list completes safely |
 | `NotifyObserversNullResourceReturnsZero` | NULL resource → returns 0 |
 | `NotifyObserversNoObserversReturnsZero` | Zero observers short-circuits → 0 |
+| `GetObserveCounterIsAtLeastFirstNotificationValue` | Observe counter ≥ first-notification value |
+| `GetObserveCounterIsStableWithoutNotifications` | Counter stable when no notifications sent |
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (35 tests)
+### test_oc_ri.cpp — Resource Interface (86 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -478,8 +551,351 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `CountScopes` | 3 | Scope bit counting |
 | `InterfaceStringFullUrn` | 4 | Index → URN string lookup |
 | `GetInterfaceMask` | 4 | URN string → bitmask |
-| `LsmStateString` | 6 | State enum → string (duplicate of test_oc_knx.cpp) |
-| `LsmEventString` | 5 | Event enum → string (duplicate of test_oc_knx.cpp) |
+| `LsmStateString` | 6 | State enum → string |
+| `LsmEventString` | 5 | Event enum → string |
+| `StatusFromCoap` | 5 | CoAP code → oc_status_t (round-trips with StatusCode) |
+| `ScopeMask` | 5 | Interface scope bit positions (if.i, if.a, if.swu, unknown, length mismatch) |
+| `RiMask` | 7 | Scope/interface name framing (single/multiple bits, truncated URNs) |
+| `PrintAclScopes` | 1 | ACL scope printer runs without crashing |
+| `NewRequestFromInbound` | 1 | Inbound request rewires response and copies buffer |
+| `AcceptHeader` | 4 | Accept-header validation (exact, content-none, NULL, mismatch) |
+| `QueryValue` | 5 | Query value lookup (first/middle/last/case-insensitive/missing) |
+| `QueryExists` | 3 | Query key existence (pair, key-only, missing) |
+| `QueryNthKeyValue` | 1 | Nth query fragment key/value |
+| `QueryNthKeyExists` | 1 | Nth query fragment key existence |
+| `RiAlloc` | 2 | Allocated resource/resource-data is zeroed |
+| `RiAddResource` | 5 | Add-resource validation (NULL, const, no handler, zero period, valid) |
+| `RiDeleteResource` | 3 | Delete-resource (NULL, const, removes+frees) |
+| `RiClientCb` | 8 | Client-callback find-by-mid/token, validity, get-by-uri/endpoint/method |
+
+---
+
+### test_oc_abort.cpp — Abort / Exit / Assert (6 tests)
+
+**Source:** `port/.../oc_assert.h` (`oc_abort`, `oc_exit`, `OC_ASSERT`) — GoogleTest death tests.
+
+| Test | What it verifies |
+|------|-----------------|
+| `AbortImplRaisesSigabrt` | Abort implementation raises `SIGABRT` |
+| `OcAbortWrapperTerminates` | `oc_abort()` terminates the process |
+| `ExitImplExitsWithGivenStatus` | Exit implementation exits with the given status |
+| `OcExitWrapperExitsWithStatus` | `oc_exit()` exits with the given status |
+| `AssertFalseAborts` | `OC_ASSERT(false)` aborts |
+| `AssertTrueIsNoOp` | `OC_ASSERT(true)` is a no-op |
+
+---
+
+### test_oc_blockwise.cpp — Blockwise Transfer (21 tests)
+
+**Source:** `api/oc_blockwise.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `BlockwiseDispatch` | 4 | Outgoing block slicing (offset beyond payload, advances offset, partial/mid slices) |
+| `BlockwiseHandle` | 5 | Incoming block reassembly (sequential append, offset/size overflow, gap, duplicate) |
+| `BlockwiseAlloc` | 7 | Request/response buffer alloc + lookup by href/token/mid/client-cb |
+| `BlockwiseScrub` | 5 | Free/scrub buffers, ref-count-based reclamation, scrub-for-client-cb |
+
+---
+
+### test_oc_buffer.cpp — Message Buffer Pool (8 tests)
+
+**Source:** `api/oc_buffer.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `AllocateMessageReturnsInitialisedMessage` | Allocated message is initialised |
+| `AllocateMessageDataIsWritableForFullPdu` | Data buffer is writable for a full PDU |
+| `AllocateMessageReturnsDistinctBuffers` | Successive allocations are distinct |
+| `AddRefIncrementsCounter` | `oc_message_add_ref()` increments ref count |
+| `AddRefNullDocumentedNotNullSafeInDebugBuilds` | **SKIPPED** — documents F-004 (NULL deref in `OC_DBG` of `oc_message_add_ref`) |
+| `UnrefDecrementsWithoutFreeingWhenStillReferenced` | Unref decrements without freeing while referenced |
+| `UnrefAtZeroFreesMessage` | Unref at zero frees the message |
+| `UnrefNullIsNoOp` | `oc_message_unref(NULL)` is a no-op |
+
+---
+
+### test_oc_client_api.cpp — Client API (19 tests)
+
+**Source:** `api/oc_client_api.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `ClientApiLF` | 9 | Link-format response parsing: entry count, entry URI, rt/if params, missing param |
+| `ClientApiResponse` | 3 | Raw response-payload access (NULL args, empty, stored payload) |
+| `ClientApiEndpoints` | 2 | Free server-endpoint chain (NULL no-op, frees chain) |
+| `ClientApiSession` | 1 | Close-session on plain endpoint is a no-op |
+| `ClientApiInitMsg` | 4 | s-mode / well-known message init (confirmable + non-confirmable) |
+
+---
+
+### test_oc_discovery.cpp — Discovery (`/.well-known/core`) (18 tests)
+
+**Source:** `api/oc_discovery.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `DiscoveryBase` (add-payload) | 8 | Link-format framing (URI angle brackets, leading comma, rt truncation/urn:knx strip, content types) |
+| `DiscoveryBase` (check-request) | 7 | Discoverability + rt-query filtering, first-entry skipping, uninitialised core |
+| `DiscoveryBase` (process-payload) | 3 | Link-format payload iteration invokes/skips handler, NULL handler safe |
+
+---
+
+### test_oc_etimer.cpp — Event Timers (12 tests)
+
+**Source:** `util/oc_etimer.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `SetAddsTimerToPendingList` | Set adds timer to the pending list |
+| `SetRecordsOwningProcess` | Set records the owning process |
+| `ExpirationTimeIsStartPlusInterval` | Expiration = start + interval |
+| `ExpiredWhenOwnerCleared` | Timer expires when owner cleared |
+| `StopRemovesTimerAndMarksExpired` | Stop removes timer and marks expired |
+| `StopMiddleOfListKeepsOthers` | Stopping a middle timer keeps others |
+| `AdjustShiftsStartTime` | Adjust shifts the start time |
+| `ResetAdvancesStartByInterval` | Reset advances start by one interval |
+| `ResetWithNewIntervalChangesInterval` | Reset with a new interval changes it |
+| `RestartKeepsTimerPending` | Restart keeps the timer pending |
+| `NextExpirationZeroWhenEmpty` | Next-expiration is 0 when none pending |
+| `NextExpirationNonZeroWhenPending` | Next-expiration is non-zero when pending |
+
+---
+
+### test_oc_knx_client.cpp — KNX Client Redirect (8 tests)
+
+**Source:** `api/oc_knx_client.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `NullRequestReturnsMinusOne` | NULL request → -1 |
+| `ZeroLengthPathReturnsMinusOne` | Zero-length path → -1 |
+| `KPathIsSmodeReturnsZero` | `/k` path classified as s-mode → 0 |
+| `KWithLeadingCharacterStillMatchesFirstByte` | First-byte match drives classification |
+| `PPathIsPropertyReturnsOne` | `/p` path classified as property → 1 |
+| `PPointPathIsPropertyReturnsOne` | `/p/...` path → 1 |
+| `OtherPathReturnsTwo` | Other path → 2 |
+| `WellKnownPathReturnsTwo` | `/.well-known/...` → 2 |
+
+---
+
+### test_oc_knx_p.cpp — KNX `/p` Properties Resource (7 tests)
+
+**Source:** `api/oc_knx_p.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `KnxPResource.DefinitionUriIsP` | Resource definition URI is `/p` |
+| `KnxPGet.WrongAcceptReturnsBadRequest` | GET with wrong Accept → bad request |
+| `KnxPGet.NoAppResourcesReturnsBadRequest` | GET with no app resources → bad request |
+| `KnxPGet.ContentNoneAcceptIsAccepted` | GET with content-none Accept is accepted |
+| `KnxPPost.WrongAcceptReturnsBadRequest` | POST with wrong Accept → bad request |
+| `KnxPPost.EmptyPayloadReturnsOk` | POST with empty payload → OK |
+| `KnxPPost.UnknownHrefReturnsNotFound` | POST to unknown href → not found |
+
+---
+
+### test_oc_knx_sub.cpp — KNX `/sub` Delete (7 tests)
+
+**Source:** `api/oc_knx_sub.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `SetsDeletedStatus` | Delete sets the deleted status |
+| `ReportsNoContentFormatAndZeroLength` | Reports no content-format, zero length |
+| `RemovesSingleObserver` | Removes a single observer |
+| `RemovesAllObserversAcrossResources` | Removes all observers across resources |
+| `NoObserversStillSucceeds` | Delete with no observers still succeeds |
+| `NullResponseDoesNotCrash` | NULL response does not crash |
+| `ResourceDefinitionUriIsSub` | Resource definition URI is `/sub` |
+
+---
+
+### test_oc_knx_swu.cpp — Software Update (59 tests)
+
+**Source:** `api/oc_knx_swu.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `KnxSwuGetInt` | 12 | Integer-valued `/swu` resource GETs (protocol, maxdefer, method, result, state, bytes) + wrong-Accept |
+| `KnxSwuGetString` | 6 | String-valued GETs (hwref, lastupdate, pkgqurl) + wrong-Accept |
+| `KnxSwuGetGated` | 9 | Download-gated GETs (pkgv, pkgname, update) returning not-found / OK |
+| `KnxSwuPut` | 17 | PUT validation per resource (wrong Accept, missing/non-typed payload, happy path, upgrade-cb invocation) |
+| `KnxSwuABlock` | 4 | `/swu` block transfer (Accept, ps param, no-callback, fast-path changed) |
+| `KnxSwuList` | 1 | List GET wrong-Accept |
+| `KnxSwuSetters` | 8 | Setter values become visible in matching GETs |
+| `KnxSwuCbReg` | 2 | Upgrade/download callback registration then trigger |
+
+---
+
+### test_oc_log.cpp — Hex Logging (4 tests)
+
+**Source:** `port/.../oc_log.h` (`OC_LOGbytes` formatting)
+
+| Test | What it verifies |
+|------|-----------------|
+| `FormatsSingleLineLowercaseHex` | Bytes formatted as single-line lowercase hex |
+| `EmptyBufferProducesNoOutput` | Empty buffer produces no output |
+| `SixteenBytesStayOnOneLine` | 16 bytes stay on one line |
+| `WrapsAfterThirtyTwoBytes` | Output wraps after 32 bytes |
+
+---
+
+### test_oc_main.cpp — Main Callbacks / State (10 tests)
+
+**Source:** `api/oc_main.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `MainCallbacks` | 8 | swu / factory-presets / reset / restart / hostname / programming-mode / lsm-change setter+getter, overwrite |
+| `MainState` | 2 | Not-initialised before bootstrap; signal-event-loop without callbacks is a no-op |
+
+---
+
+### test_oc_network_events.cpp — Network Events (2 tests)
+
+**Source:** `api/oc_network_events.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `EventWhenProcessNotRunningUnrefsMessage` | Event with process not running unrefs the message |
+| `EventWhenProcessNotRunningIsRepeatable` | Repeatable without leaking |
+
+---
+
+### test_oc_network_interface.cpp — Network Interface Enumeration (5 tests)
+
+**Source:** `port/.../ipadapter` (`oc_get_network_interfaces`, filter)
+
+| Test | What it verifies |
+|------|-----------------|
+| `EnumerateRejectsNullBuffer` | NULL buffer rejected |
+| `EnumerateRejectsNonPositiveMax` | Non-positive max rejected |
+| `EnumerateReturnsWithinBounds` | Returns a count within bounds |
+| `EnumerateRespectsMaxInterfaces` | Respects the max-interfaces cap |
+| `FilterSetAndGetRoundTrip` | Interface filter set/get round-trips |
+
+---
+
+### test_oc_process.cpp — Process / Event Loop (13 tests)
+
+**Source:** `util/oc_process.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `StartDeliversSynchronousInitEvent` | Start delivers a synchronous init event |
+| `StartTwiceDoesNotReinitialize` | Starting twice does not reinitialise |
+| `PostQueuesEventDeliveredByRun` | Posted event delivered by run |
+| `PostSynchDeliversImmediately` | Synchronous post delivers immediately |
+| `PostPropagatesData` | Post propagates the event data |
+| `PollSchedulesPollEventDrainedByRun` | Poll schedules a poll event drained by run |
+| `PollOnStoppedProcessIsIgnored` | Poll on a stopped process is ignored |
+| `NEventsReflectsQueueDepth` | `oc_process_nevents()` reflects queue depth |
+| `RunReturnsRemainingEventCount` | Run returns remaining event count |
+| `AllocEventReturnsIncreasingIds` | Event allocation returns increasing ids |
+| `AllocEventStartsAfterReservedRange` | Allocation starts after the reserved range |
+| `ExitStopsRunningProcess` | Exit stops a running process |
+| `BroadcastEventReachesRunningProcess` | Broadcast event reaches a running process |
+
+---
+
+### test_oc_random.cpp — Random (5 tests)
+
+**Source:** `port/.../oc_random`
+
+| Test | What it verifies |
+|------|-----------------|
+| `ValueProducesVaryingOutput` | `oc_random_value()` produces varying output |
+| `FillReturnsZeroAndWritesBytes` | Fill returns 0 and writes bytes |
+| `FillZeroLengthSucceeds` | Zero-length fill succeeds |
+| `TwoFillsDiffer` | Two fills differ |
+| `InitIsIdempotent` | Init is idempotent |
+
+---
+
+### test_oc_server_api.cpp — Server API (29 tests)
+
+**Source:** `api/oc_server_api.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `ServerApiQuery` | 8 | Query value/exists lookups, iterate-query walking, NULL request |
+| `ServerApiResponse` | 7 | Response preparation (CBOR/JSON/link-format/no-format), ignore-request, NULL-safe builders |
+| `ServerApiResource` | 14 | Resource new/bind/handler/interfaces/ACL/periodic/properties/DPT/rt, const-respecting mutators |
+
+---
+
+### test_oc_session_events.cpp — Session Events (3 tests)
+
+**Source:** `api/oc_session_events.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `HandleSessionConnectedIsSafe` | Handling session-connected is safe |
+| `HandleSessionDisconnectedNoObserversIsSafe` | Disconnected with no observers is safe |
+| `HandleSessionDisconnectedSecuredTcpIsSafe` | Disconnected on secured TCP is safe |
+
+---
+
+### test_oc_storage.cpp — Persistent Storage (9 tests)
+
+**Source:** `port/.../oc_storage.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `OcStorageBeforeConfig` | 3 | Config rejects NULL/empty/overlong path; read/write/erase fail without config |
+| `OcStorage` | 6 | Write→read round-trip (text/binary), size cap, missing file, erase, overwrite |
+
+---
+
+### test_oc_test_control.cpp — Test Control Trigger (4 tests)
+
+**Source:** `api/oc_test_control.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `NullPathReturnsBadRequest` | NULL path → bad request |
+| `OverLongPathInvokesSetDpThenBadRequest` | Over-long path invokes set-dp then bad request |
+| `OverLongPathWithoutCallbackStillBadRequest` | Over-long path without callback → bad request |
+| `DeferredCbWithNoPendingReturnsDone` | Deferred trigger with nothing pending → done |
+
+---
+
+### test_separate.cpp — Separate Responses (6 tests)
+
+**Source:** `messaging/coap/separate.c`
+
+| Test | What it verifies |
+|------|-----------------|
+| `AcceptNonRequestCreatesStore` | Accepting a non-request creates a store |
+| `AcceptSameTokenAndObserveReusesStore` | Same token + observe reuses the store |
+| `AcceptDifferentObserveCreatesSecondStore` | Different observe creates a second store |
+| `ResumeInitializesResponsePacket` | Resume initialises the response packet |
+| `ResumeWithObserveZeroSetsObserveHeader` | Resume with observe 0 sets the observe header |
+| `ClearRemovesMiddleStore` | Clear removes a middle store |
+
+---
+
+### test_spake2plus.cpp — SPAKE2+ Handshake (16 tests)
+
+**Source:** `security/oc_spake2plus.c`
+
+| Group | Tests | What it covers |
+|-------|-------|----------------|
+| `SpakeEncode` | 5 | uint/string/point encoding (little-endian, length-prefixed, empty) |
+| `SpakeLifecycle` | 2 | Init→free succeeds and is repeatable |
+| `Spake` | 9 | Parameter exchange, keypair gen, w0/L params, share calc, shared-secret derivation, full handshake agreement, transcript determinism |
+
+---
+
+### Runtime-covered source files (no unit tests)
+
+`api/oc_test_control.c` and `api/oc_knx_p.c` — previously listed here as
+runtime-only — now have dedicated unit test files
+([test_oc_test_control.cpp](unit/test_oc_test_control.cpp),
+[test_oc_knx_p.cpp](unit/test_oc_knx_p.cpp)) that exercise their handlers
+directly. End-to-end behaviour over the live CoAP/OSCORE pipeline remains
+covered by the runtime conformance suite (Part 2).
 
 ---
 
@@ -850,3 +1266,5 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 |----|--------|-------------|
 | ~~F-001~~ | ~~`oc_list`~~ | ~~`oc_list_add_block()` circular link~~ — RESOLVED (function removed upstream) |
 | F-002 | `oc_ri` | `oc_ri_get_interface_mask()` returns 1 for empty input |
+| F-003 | `oc_core_res` | `oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer (potential overflow) |
+| F-004 | `oc_buffer` | `oc_message_add_ref(NULL)` dereferences NULL in the trailing `OC_DBG` (debug builds only) — test `BufferPool.AddRefNullDocumentedNotNullSafeInDebugBuilds` is `GTEST_SKIP`'d |

@@ -594,3 +594,145 @@ TEST_F(CoapTest, Parse_WrongVersion)
   coap_packet_t parsed;
   EXPECT_NE(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Message-ID generation: coap_init_connection / coap_get_next_mid
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(CoapTest, GetNextMid_IsMonotonicallyIncreasing)
+{
+  uint16_t a = coap_get_next_mid();
+  uint16_t b = coap_get_next_mid();
+  uint16_t c = coap_get_next_mid();
+
+  EXPECT_EQ((uint16_t)(a + 1), b);
+  EXPECT_EQ((uint16_t)(b + 1), c);
+}
+
+TEST_F(CoapTest, InitConnection_SeedsMidAndNextIsConsecutive)
+{
+  /* After seeding, the next two MIDs are consecutive regardless of seed. */
+  coap_init_connection();
+  uint16_t first = coap_get_next_mid();
+  uint16_t second = coap_get_next_mid();
+
+  EXPECT_EQ((uint16_t)(first + 1), second);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * coap_get_query_variable
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(CoapTest, GetQueryVariable_NoQueryOption_ReturnsZero)
+{
+  init_con_get();
+  const char *out = nullptr;
+  /* No URI_QUERY option set → returns 0 */
+  EXPECT_EQ(coap_get_query_variable(&pkt, "pn", &out), 0);
+}
+
+TEST_F(CoapTest, GetQueryVariable_FindsValue)
+{
+  init_con_get();
+  coap_set_header_uri_query(&pkt, "pn=12&ps=64");
+
+  const char *out = nullptr;
+  int len = coap_get_query_variable(&pkt, "pn", &out);
+  ASSERT_EQ(len, 2);
+  EXPECT_EQ(strncmp(out, "12", 2), 0);
+
+  out = nullptr;
+  len = coap_get_query_variable(&pkt, "ps", &out);
+  ASSERT_EQ(len, 2);
+  EXPECT_EQ(strncmp(out, "64", 2), 0);
+}
+
+TEST_F(CoapTest, GetQueryVariable_MissingName_ReturnsZero)
+{
+  init_con_get();
+  coap_set_header_uri_query(&pkt, "pn=12&ps=64");
+
+  const char *out = nullptr;
+  EXPECT_EQ(coap_get_query_variable(&pkt, "zz", &out), 0);
+  EXPECT_EQ(out, nullptr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Proxy-URI header get/set
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(CoapTest, ProxyUri_GetWithoutOption_ReturnsZero)
+{
+  init_con_get();
+  const char *out = nullptr;
+  EXPECT_EQ(coap_get_header_proxy_uri(&pkt, &out), 0);
+}
+
+TEST_F(CoapTest, ProxyUri_SetThenGet)
+{
+  init_con_get();
+  const char *uri = "coap://[fe80::1]/p/1";
+  int set_len = coap_set_header_proxy_uri(&pkt, uri);
+  EXPECT_EQ(set_len, (int)strlen(uri));
+
+  const char *out = nullptr;
+  int get_len = coap_get_header_proxy_uri(&pkt, &out);
+  EXPECT_EQ(get_len, (int)strlen(uri));
+  EXPECT_EQ(out, uri);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Uri-Query header get
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(CoapTest, GetHeaderUriQuery_WithoutOption_ReturnsZero)
+{
+  init_con_get();
+  const char *out = nullptr;
+  EXPECT_EQ(coap_get_header_uri_query(&pkt, &out), 0u);
+}
+
+TEST_F(CoapTest, GetHeaderUriQuery_SetThenGet)
+{
+  init_con_get();
+  const char *q = "pn=0&ps=5";
+  coap_set_header_uri_query(&pkt, q);
+
+  const char *out = nullptr;
+  size_t len = coap_get_header_uri_query(&pkt, &out);
+  EXPECT_EQ(len, strlen(q));
+  EXPECT_EQ(out, q);
+}
+
+TEST_F(CoapTest, SetHeaderUriQuery_SkipsLeadingQuestionMarks)
+{
+  init_con_get();
+  coap_set_header_uri_query(&pkt, "??pn=0");
+
+  const char *out = nullptr;
+  size_t len = coap_get_header_uri_query(&pkt, &out);
+  EXPECT_EQ(len, strlen("pn=0"));
+  EXPECT_EQ(strncmp(out, "pn=0", 4), 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Location-Query header set
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(CoapTest, SetHeaderLocationQuery_StoresValueAndSetsOption)
+{
+  init_con_get();
+  const char *q = "token=abc";
+  size_t len = coap_set_header_location_query(&pkt, q);
+  EXPECT_EQ(len, strlen(q));
+  EXPECT_EQ(pkt.location_query, q);
+  EXPECT_EQ(pkt.location_query_len, strlen(q));
+}
+
+TEST_F(CoapTest, SetHeaderLocationQuery_SkipsLeadingQuestionMarks)
+{
+  init_con_get();
+  size_t len = coap_set_header_location_query(&pkt, "?id=7");
+  EXPECT_EQ(len, strlen("id=7"));
+  EXPECT_EQ(strncmp(pkt.location_query, "id=7", 4), 0);
+}

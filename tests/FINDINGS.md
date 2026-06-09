@@ -31,3 +31,26 @@ Bugs and issues discovered during unit test development.
   into the 17-byte stack buffer, overflowing it.
 - **Fix:** Pass `HNAME_SIZE` (or `sizeof(hname)`) as the size argument to
   `oc_storage_read()` instead of the literal `128`.
+
+## F-004: `oc_message_add_ref(NULL)` dereferences NULL in the trailing debug log
+
+- **File:** `api/oc_buffer.c`, `oc_message_add_ref()` (~line 53)
+- **Severity:** Low/Medium — only triggered in `OC_DEBUG` builds; the increment
+  itself is correctly NULL-guarded.
+- **Found by:** `test_oc_buffer.cpp` / `BufferPool.AddRefNullIsNoOp` (SEGFAULT).
+- **Description:** The function guards the increment with `if (message)`, but the
+  `OC_DBG(...)` statement that follows reads `message->ref_count`
+  *unconditionally*, outside the guard:
+
+  ```c
+  if (message) { message->ref_count++; }
+  OC_DBG("... counter is now %d", (void*)message, message->ref_count); // NULL deref
+  ```
+
+  With `OC_DEBUG` defined (as in the test/CI build) `OC_DBG` expands to a real
+  `printf`, so passing `NULL` dereferences a NULL pointer and crashes. In a
+  release build `OC_DBG` is a no-op, masking the defect. The `if (message)`
+  guard signals NULL-safe intent, so this is inconsistent. (`oc_message_unref`
+  is correct — its `OC_DBG` is *inside* the guard.)
+- **Fix:** Move the `OC_DBG` inside the `if (message)` block (matching
+  `oc_message_unref`), or early-return when `message == NULL`.

@@ -19,11 +19,11 @@
 
 extern "C" {
 #include "messaging/coap/transactions.h"
+#include "messaging/coap/engine.h"
 #include "messaging/coap/coap.h"
 #include "port/oc_network_events_mutex.h"
 #include "oc_buffer.h"
 #include <string.h>
-
 }
 
 /* ---------------- helpers ------------------------------------------------ */
@@ -255,4 +255,85 @@ TEST_F(CoapTransactions, ZeroLengthTokenMatch)
   coap_transaction_t *found =
       coap_get_transaction_by_token(empty_token, 0);
   EXPECT_EQ(found, t);
+}
+
+/* ---------------- coap_new_transaction_with_data ------------------------- */
+
+TEST_F(CoapTransactions, NewTransactionWithDataCopiesPayload)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  uint8_t token[] = {0x77};
+
+  /* Build a source s-mode message carrying a small payload. */
+  oc_message_t src{};
+  uint8_t payload[] = {0xDE, 0xAD, 0xBE, 0xEF};
+  uint8_t backing[16] = {};
+  memcpy(backing, payload, sizeof(payload));
+  src.data = backing;
+  src.length = sizeof(payload);
+  src.endpoint = ep;
+
+  coap_transaction_t *t =
+      coap_new_transaction_with_data(1300, token, sizeof(token), &src);
+
+  ASSERT_NE(t, nullptr);
+  EXPECT_EQ(t->mid, 1300);
+  EXPECT_EQ(t->token_len, 1);
+  EXPECT_EQ(t->token[0], 0x77);
+  ASSERT_NE(t->message, nullptr);
+  EXPECT_EQ(t->message->length, sizeof(payload));
+  EXPECT_EQ(memcmp(t->message->data, payload, sizeof(payload)), 0);
+  /* endpoint copied from the source message */
+  EXPECT_EQ(t->message->endpoint.addr.ipv6.port, ep.addr.ipv6.port);
+}
+
+TEST_F(CoapTransactions, NewTransactionWithDataRegistersInList)
+{
+  oc_endpoint_t ep = make_endpoint(5683);
+  uint8_t token[] = {0x01, 0x02};
+
+  oc_message_t src{};
+  uint8_t backing[8] = {1, 2, 3};
+  src.data = backing;
+  src.length = 3;
+  src.endpoint = ep;
+
+  coap_transaction_t *t =
+      coap_new_transaction_with_data(1301, token, sizeof(token), &src);
+  ASSERT_NE(t, nullptr);
+
+  /* The transaction is discoverable by its MID. */
+  EXPECT_EQ(coap_get_transaction_by_mid(1301), t);
+}
+
+/* ---------------- coap_register_as_transaction_handler ------------------- */
+
+TEST_F(CoapTransactions, RegisterAsTransactionHandlerIsCallable)
+{
+  /* Records OC_PROCESS_CURRENT() into a static handler pointer. In a unit
+   * context there is no running process, so the only observable contract is
+   * that the call completes without crashing and subsequent transaction
+   * bookkeeping still works. */
+  coap_register_as_transaction_handler();
+
+  oc_endpoint_t ep = make_endpoint(5683);
+  uint8_t token[] = {0x09};
+  coap_transaction_t *t = coap_new_transaction(1400, token, 1, &ep);
+  ASSERT_NE(t, nullptr);
+  EXPECT_EQ(coap_get_transaction_by_mid(1400), t);
+}
+
+/* ---------------- coap_init_engine --------------------------------------- */
+
+TEST_F(CoapTransactions, InitEngineRegistersHandler)
+{
+  /* coap_init_engine() is a thin wrapper around
+   * coap_register_as_transaction_handler(); verify it is callable and leaves
+   * the transaction subsystem usable. */
+  coap_init_engine();
+
+  oc_endpoint_t ep = make_endpoint(5683);
+  uint8_t token[] = {0x0A};
+  coap_transaction_t *t = coap_new_transaction(1401, token, 1, &ep);
+  ASSERT_NE(t, nullptr);
 }

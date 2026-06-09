@@ -564,3 +564,181 @@ TEST_F(OcRepTest, GetByteString_NullSize)
   char *str = nullptr;
   EXPECT_FALSE(oc_rep_get_byte_string(nullptr, "x", &str, nullptr));
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_rep_get_cbor_errno
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, GetCborErrno_NoErrorAfterCleanEncode)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_int(root, 1, 7);
+  oc_rep_end_root_object();
+  EXPECT_EQ(oc_rep_get_cbor_errno(), CborNoError);
+}
+
+TEST_F(OcRepTest, GetCborErrno_ReportsOverflow)
+{
+  uint8_t tiny[4];
+  oc_rep_new(tiny, sizeof(tiny));
+  oc_rep_begin_root_object();
+  /* write far more than the buffer can hold */
+  for (int i = 1; i < 50; ++i) {
+    oc_rep_i_set_int(root, i, 1234567890);
+  }
+  oc_rep_end_root_object();
+  EXPECT_NE(oc_rep_get_cbor_errno(), CborNoError);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_rep_encode_raw_encoder — write raw bytes through a supplied encoder
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, EncodeRawEncoder_WritesBytesAndAdvances)
+{
+  CborEncoder enc;
+  cbor_encoder_init(&enc, buf, sizeof(buf), 0);
+  const uint8_t data[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+  g_err = CborUnknownError; /* sentinel: function must reset to NoError */
+  oc_rep_encode_raw_encoder(&enc, data, sizeof(data));
+  EXPECT_EQ(g_err, CborNoError);
+  EXPECT_EQ(memcmp(buf, data, sizeof(data)), 0);
+  /* encoder write pointer advanced by len */
+  EXPECT_EQ(enc.data.ptr, buf + sizeof(data));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_rep_get_object / oc_rep_i_get_object
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, GetObject_TextKey)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_set_object(root, child);
+  oc_rep_text_set_int(child, a, 11);
+  oc_rep_close_object(root, child);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *obj = nullptr;
+  ASSERT_TRUE(oc_rep_get_object(rep, "child", &obj));
+  ASSERT_NE(obj, nullptr);
+  int64_t a = 0;
+  EXPECT_TRUE(oc_rep_get_int(obj, "a", &a));
+  EXPECT_EQ(a, 11);
+}
+
+TEST_F(OcRepTest, GetObject_WrongKeyReturnsFalse)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_set_object(root, child);
+  oc_rep_text_set_int(child, a, 11);
+  oc_rep_close_object(root, child);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *obj = nullptr;
+  EXPECT_FALSE(oc_rep_get_object(rep, "nope", &obj));
+}
+
+TEST_F(OcRepTest, IGetObject_IntKey)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 7);
+  oc_rep_begin_object(&root_map, child);
+  oc_rep_text_set_int(child, a, 22);
+  oc_rep_end_object(&root_map, child);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *obj = nullptr;
+  ASSERT_TRUE(oc_rep_i_get_object(rep, 7, &obj));
+  ASSERT_NE(obj, nullptr);
+  int64_t a = 0;
+  EXPECT_TRUE(oc_rep_get_int(obj, "a", &a));
+  EXPECT_EQ(a, 22);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_rep_get_object_array / oc_rep_i_get_object_array
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, GetObjectArray_TextKey)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_set_array(root, items);
+  oc_rep_object_array_begin_item(items);
+  oc_rep_text_set_int(items, n, 1);
+  oc_rep_object_array_end_item(items);
+  oc_rep_object_array_begin_item(items);
+  oc_rep_text_set_int(items, n, 2);
+  oc_rep_object_array_end_item(items);
+  oc_rep_close_array(root, items);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *arr = nullptr;
+  ASSERT_TRUE(oc_rep_get_object_array(rep, "items", &arr));
+  ASSERT_NE(arr, nullptr);
+  /* first element holds n=1 */
+  int64_t n = 0;
+  EXPECT_TRUE(oc_rep_get_int(arr->value.object, "n", &n));
+  EXPECT_EQ(n, 1);
+}
+
+TEST_F(OcRepTest, IGetObjectArray_IntKey)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_key(&root_map, 9);
+  oc_rep_begin_array(&root_map, items);
+  oc_rep_object_array_begin_item(items);
+  oc_rep_text_set_int(items, n, 5);
+  oc_rep_object_array_end_item(items);
+  oc_rep_end_array(&root_map, items);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *arr = nullptr;
+  ASSERT_TRUE(oc_rep_i_get_object_array(rep, 9, &arr));
+  ASSERT_NE(arr, nullptr);
+  int64_t n = 0;
+  EXPECT_TRUE(oc_rep_get_int(arr->value.object, "n", &n));
+  EXPECT_EQ(n, 5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_rep_get_mixed_array / oc_rep_i_get_mixed_array — negative paths
+ * (A genuine OC_REP_MIXED_ARRAY value is produced only by specific wire
+ *  encodings; here we confirm the lookup returns false when the key/type
+ *  does not match, which exercises the function body via oc_rep_get_value.)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcRepTest, GetMixedArray_AbsentKeyReturnsFalse)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_text_set_int(root, a, 1);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *arr = nullptr;
+  EXPECT_FALSE(oc_rep_get_mixed_array(rep, "missing", &arr));
+}
+
+TEST_F(OcRepTest, IGetMixedArray_AbsentKeyReturnsFalse)
+{
+  oc_rep_new(buf, sizeof(buf));
+  oc_rep_begin_root_object();
+  oc_rep_i_set_int(root, 3, 1);
+  int rc = encode_and_parse();
+  ASSERT_EQ(rc, CborNoError);
+
+  oc_rep_t *arr = nullptr;
+  EXPECT_FALSE(oc_rep_i_get_mixed_array(rep, 99, &arr));
+}

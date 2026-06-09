@@ -353,3 +353,20 @@ TEST_F(CoapObserve, NotifyObserversNoObserversReturnsZero)
   EXPECT_EQ(tr.data.num_observers, 0);
   EXPECT_EQ(coap_notify_observers(&tr.resource, nullptr, nullptr), 0);
 }
+
+/* ---------------- get_observe_counter ------------------------------------ */
+
+TEST_F(CoapObserve, GetObserveCounterIsAtLeastFirstNotificationValue)
+{
+  /* The observe counter seeds at OC_OBSERVE_FIRST_NOTIFICATION_VALUE (3) and
+   * only ever increases, so it is always >= that floor. */
+  EXPECT_GE(get_observe_counter(), (uint32_t)OC_OBSERVE_FIRST_NOTIFICATION_VALUE);
+}
+
+TEST_F(CoapObserve, GetObserveCounterIsStableWithoutNotifications)
+{
+  /* Reading the counter has no side effects: two reads return the same value. */
+  uint32_t a = get_observe_counter();
+  uint32_t b = get_observe_counter();
+  EXPECT_EQ(a, b);
+}

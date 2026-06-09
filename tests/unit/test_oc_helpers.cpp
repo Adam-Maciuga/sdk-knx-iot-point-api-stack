@@ -567,3 +567,143 @@ TEST_F(OcStringTest, FreeNullPtr_NoOp)
   _oc_free_string(nullptr);
   // should not crash
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * STRING ARRAY FUNCTIONS — _oc_alloc_string_array + add/join internals
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class OcStringArrayTest : public ::testing::Test {
+protected:
+  oc_string_array_t arr{};
+  void TearDown() override { oc_free_string_array(&arr); }
+};
+
+TEST_F(OcStringArrayTest, AllocReservesSlots)
+{
+  oc_new_string_array(&arr, 3);
+  EXPECT_EQ(oc_string_array_get_allocated_size(arr), 3u);
+  // every slot starts empty
+  for (size_t i = 0; i < oc_string_array_get_allocated_size(arr); ++i) {
+    EXPECT_EQ(oc_string_array_get_item_size(arr, i), 0u);
+  }
+}
+
+TEST_F(OcStringArrayTest, AddItemFillsFirstFreeSlot)
+{
+  oc_new_string_array(&arr, 2);
+  EXPECT_TRUE(oc_string_array_add_item(arr, "abc"));
+  EXPECT_TRUE(oc_string_array_add_item(arr, "de"));
+  EXPECT_STREQ(oc_string_array_get_item(arr, 0), "abc");
+  EXPECT_STREQ(oc_string_array_get_item(arr, 1), "de");
+  // array full -> further add fails
+  EXPECT_FALSE(oc_string_array_add_item(arr, "x"));
+}
+
+TEST_F(OcStringArrayTest, AddItemRejectsOverlongString)
+{
+  oc_new_string_array(&arr, 1);
+  char big[STRING_ARRAY_ITEM_MAX_LEN + 4];
+  memset(big, 'a', sizeof(big));
+  big[sizeof(big) - 1] = '\0';
+  // copy_string_to_array_internal returns false when too long
+  EXPECT_FALSE(oc_string_array_add_item(arr, big));
+}
+
+TEST_F(OcStringArrayTest, AddItemInternalNullArrayReturnsFalse)
+{
+  EXPECT_FALSE(oc_string_array_add_item_internal(nullptr, "x"));
+}
+
+TEST_F(OcStringArrayTest, JoinConcatenatesWithSpaces)
+{
+  oc_new_string_array(&arr, 3);
+  oc_string_array_add_item(arr, "one");
+  oc_string_array_add_item(arr, "two");
+  oc_string_t joined{};
+  oc_join_string_array(&arr, &joined);
+  EXPECT_STREQ(oc_string(joined), "one two");
+  oc_free_string(&joined);
+}
+
+TEST_F(OcStringArrayTest, ByteArrayAddItemStoresLengthPrefixedData)
+{
+  oc_new_byte_string_array(&arr, 2);
+  const char data[] = { 0x00, 0x01, 0x02, 0x03 };
+  EXPECT_TRUE(oc_byte_string_array_add_item(arr, data, sizeof(data)));
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 0), sizeof(data));
+  EXPECT_EQ(memcmp(oc_byte_string_array_get_item(arr, 0), data, sizeof(data)), 0);
+  // second free slot still empty
+  EXPECT_EQ(oc_byte_string_array_get_item_size(arr, 1), 0u);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * NUMERIC ARRAY POOLS — _oc_new_array / _oc_free_array
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(OcArrayPool, NewIntArrayAllocatesUsableStorage)
+{
+  oc_array_t ia{};
+  oc_new_int_array(&ia, 4);
+  ASSERT_NE(oc_int_array(ia), nullptr);
+  EXPECT_EQ(oc_int_array_size(ia), 4u);
+  for (size_t i = 0; i < 4; ++i) {
+    oc_int_array(ia)[i] = (int64_t)i * 10;
+  }
+  EXPECT_EQ(oc_int_array(ia)[3], 30);
+  oc_free_int_array(&ia);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_print_uint64_t — stdout capture
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(PrintUint64, DecimalRepresentation)
+{
+  testing::internal::CaptureStdout();
+  EXPECT_EQ(oc_print_uint64_t(1234567890ULL, DEC_REPRESENTATION), 0);
+  EXPECT_EQ(testing::internal::GetCapturedStdout(), "1234567890");
+}
+
+TEST(PrintUint64, HexRepresentation)
+{
+  testing::internal::CaptureStdout();
+  EXPECT_EQ(oc_print_uint64_t(0xABCDEFULL, HEX_REPRESENTATION), 0);
+  EXPECT_EQ(testing::internal::GetCapturedStdout(), "abcdef");
+}
+
+TEST(PrintUint64, ZeroHex)
+{
+  testing::internal::CaptureStdout();
+  EXPECT_EQ(oc_print_uint64_t(0ULL, HEX_REPRESENTATION), 0);
+  EXPECT_EQ(testing::internal::GetCapturedStdout(), "0");
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_conv_hex_string_to_oc_string
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcStringTest, ConvHexStringToOcString)
+{
+  const char *hex = "0a1bff";
+  ASSERT_EQ(oc_conv_hex_string_to_oc_string(hex, strlen(hex), &s1), 0);
+  ASSERT_EQ(oc_byte_string_len(s1), 3u);
+  EXPECT_EQ((uint8_t)oc_string(s1)[0], 0x0a);
+  EXPECT_EQ((uint8_t)oc_string(s1)[1], 0x1b);
+  EXPECT_EQ((uint8_t)oc_string(s1)[2], 0xff);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_string_is_hex_array
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OcStringTest, IsHexArrayAcceptsHexDigits)
+{
+  oc_new_string(&s1, "00aaFF99", 8);
+  EXPECT_EQ(oc_string_is_hex_array(s1), 0);
+}
+
+TEST_F(OcStringTest, IsHexArrayRejectsNonHex)
+{
+  oc_new_string(&s1, "00xz", 4);
+  EXPECT_EQ(oc_string_is_hex_array(s1), -1);
+}

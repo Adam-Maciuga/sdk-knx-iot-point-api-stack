@@ -13,7 +13,8 @@
 
 extern "C" {
 #include "oc_endpoint.h"
-
+#include "oc_helpers.h"
+#include "util/oc_mmem.h"
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -181,4 +182,180 @@ TEST(IsLinkLocal, NonIPv6_Endpoint)
   memset(&ep, 0, sizeof(ep));
   ep.flags = IPV4; /* not IPv6 */
   EXPECT_EQ(oc_ipv6_endpoint_is_link_local(&ep), -1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_new_endpoint / oc_free_endpoint
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(NewEndpoint, AllocatesZeroedEndpoint)
+{
+  oc_endpoint_t *ep = oc_new_endpoint();
+  ASSERT_NE(ep, nullptr);
+  /* calloc-backed: every byte zero, including the next pointer */
+  oc_endpoint_t zero;
+  memset(&zero, 0, sizeof(zero));
+  EXPECT_EQ(memcmp(ep, &zero, sizeof(zero)), 0);
+  EXPECT_EQ(ep->next, nullptr);
+  oc_free_endpoint(ep);
+}
+
+TEST(FreeEndpoint, NullIsNoOp)
+{
+  /* Must not crash on NULL */
+  oc_free_endpoint(nullptr);
+  SUCCEED();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_to_string
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class EndpointToString : public ::testing::Test {
+protected:
+  void SetUp() override { oc_mmem_init(); }
+};
+
+TEST_F(EndpointToString, NullArgsReturnError)
+{
+  oc_string_t s;
+  EXPECT_EQ(oc_endpoint_to_string(nullptr, &s), -1);
+  uint8_t addr[16] = { 0x20, 0x01 };
+  oc_endpoint_t ep = make_ipv6(addr, 5683);
+  EXPECT_EQ(oc_endpoint_to_string(&ep, nullptr), -1);
+}
+
+TEST_F(EndpointToString, NonIpv6ReturnsError)
+{
+  oc_endpoint_t ep;
+  memset(&ep, 0, sizeof(ep));
+  ep.flags = IPV4;
+  oc_string_t s;
+  EXPECT_EQ(oc_endpoint_to_string(&ep, &s), -1);
+}
+
+TEST_F(EndpointToString, UnsecuredUsesCoapScheme)
+{
+  uint8_t addr[16] = { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                       0, 0, 0, 0, 0, 0, 0, 1 };
+  oc_endpoint_t ep = make_ipv6(addr, 5683);
+  oc_string_t s;
+  ASSERT_EQ(oc_endpoint_to_string(&ep, &s), 0);
+  /* coap:// scheme, bracketed address, and the port suffix must be present */
+  EXPECT_EQ(strncmp(oc_string(s), "coap://[", 8), 0);
+  EXPECT_NE(strstr(oc_string(s), "]:5683"), nullptr);
+  oc_free_string(&s);
+}
+
+TEST_F(EndpointToString, SecuredUsesCoapsScheme)
+{
+  uint8_t addr[16] = { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                       0, 0, 0, 0, 0, 0, 0, 1 };
+  oc_endpoint_t ep = make_ipv6(addr, 5684, SECURED);
+  oc_string_t s;
+  ASSERT_EQ(oc_endpoint_to_string(&ep, &s), 0);
+  EXPECT_EQ(strncmp(oc_string(s), "coaps://[", 9), 0);
+  EXPECT_NE(strstr(oc_string(s), "]:5684"), nullptr);
+  oc_free_string(&s);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_string_parse_path
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+class EndpointParsePath : public ::testing::Test {
+protected:
+  void SetUp() override { oc_mmem_init(); }
+};
+
+TEST_F(EndpointParsePath, NullArgsReturnError)
+{
+  oc_string_t path;
+  oc_string_t s;
+  oc_new_string(&s, "coap://[fe80::1]:5683/a/b", 25);
+  EXPECT_EQ(oc_endpoint_string_parse_path(nullptr, &path), -1);
+  EXPECT_EQ(oc_endpoint_string_parse_path(&s, nullptr), -1);
+  oc_free_string(&s);
+}
+
+TEST_F(EndpointParsePath, ExtractsPath)
+{
+  oc_string_t s;
+  const char *uri = "coap://[fe80::1]:5683/dev/sn";
+  oc_new_string(&s, uri, strlen(uri));
+  oc_string_t path;
+  ASSERT_EQ(oc_endpoint_string_parse_path(&s, &path), 0);
+  EXPECT_STREQ(oc_string(path), "/dev/sn");
+  oc_free_string(&path);
+  oc_free_string(&s);
+}
+
+TEST_F(EndpointParsePath, StripsQueryString)
+{
+  oc_string_t s;
+  const char *uri = "coap://[fe80::1]:5683/dev/sn?if=urn";
+  oc_new_string(&s, uri, strlen(uri));
+  oc_string_t path;
+  ASSERT_EQ(oc_endpoint_string_parse_path(&s, &path), 0);
+  EXPECT_STREQ(oc_string(path), "/dev/sn");
+  oc_free_string(&path);
+  oc_free_string(&s);
+}
+
+TEST_F(EndpointParsePath, NoSchemeReturnsError)
+{
+  oc_string_t s;
+  const char *uri = "fe80::1/dev/sn";
+  oc_new_string(&s, uri, strlen(uri));
+  oc_string_t path;
+  EXPECT_EQ(oc_endpoint_string_parse_path(&s, &path), -1);
+  oc_free_string(&s);
+}
+
+TEST_F(EndpointParsePath, NoPathReturnsError)
+{
+  oc_string_t s;
+  const char *uri = "coap://[fe80::1]:5683";
+  oc_new_string(&s, uri, strlen(uri));
+  oc_string_t path;
+  EXPECT_EQ(oc_endpoint_string_parse_path(&s, &path), -1);
+  oc_free_string(&s);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_endpoint_list_copy
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST(EndpointListCopy, CopiesMultiNodeListAndBreaksAliasing)
+{
+  uint8_t a1[16] = { 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
+  uint8_t a2[16] = { 0x20, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2 };
+  oc_endpoint_t src0 = make_ipv6(a1, 5683);
+  oc_endpoint_t src1 = make_ipv6(a2, 5684);
+  src0.next = &src1;
+  src1.next = nullptr;
+
+  oc_endpoint_t *dst = nullptr;
+  oc_endpoint_list_copy(&dst, &src0);
+  ASSERT_NE(dst, nullptr);
+  /* first node copied */
+  EXPECT_EQ(oc_endpoint_compare(dst, &src0), 0);
+  ASSERT_NE(dst->next, nullptr);
+  /* second node copied */
+  EXPECT_EQ(oc_endpoint_compare(dst->next, &src1), 0);
+  /* deep copy: the copied nodes are fresh allocations, not the source */
+  EXPECT_NE(dst, &src0);
+  EXPECT_NE(dst->next, &src1);
+  EXPECT_EQ(dst->next->next, nullptr);
+
+  oc_free_endpoint(dst->next);
+  oc_free_endpoint(dst);
+}
+
+TEST(EndpointListCopy, NullSourceLeavesDstUntouched)
+{
+  oc_endpoint_t *dst = reinterpret_cast<oc_endpoint_t *>(0x1);
+  oc_endpoint_list_copy(&dst, nullptr);
+  /* guard: nothing assigned when src is NULL */
+  EXPECT_EQ(dst, reinterpret_cast<oc_endpoint_t *>(0x1));
 }

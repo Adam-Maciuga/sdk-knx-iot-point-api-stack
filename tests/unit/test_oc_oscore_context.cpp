@@ -351,3 +351,152 @@ TEST_F(OscoreContextTest, AddContextWithIdContext)
   found = oc_oscore_find_context_by_kid_and_kid_context(rid, 1, wrong_ctx, 1);
   EXPECT_EQ(found, nullptr);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_oscore_find_context_by_group_address — scan sender contexts for a GA
+ *
+ * Returns the *sender* context (sender_id_len > 0) whose auth_at GA list
+ * contains the requested group address. Recipient-only contexts are skipped.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OscoreContextTest, FindContextByGroupAddressReturnsSenderContext)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;   /* sender context */
+  params.recipient_id = NULL;
+  params.recipient_id_size = 0;
+  params.auth_at = &at_;       /* at_.ga == {0x1234} */
+  params.read_ssn_from_storage = false;
+
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), ctx);
+}
+
+TEST_F(OscoreContextTest, FindContextByGroupAddressUnknownReturnsNull)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t sid[] = {0x01};
+  params.sender_id = sid;
+  params.sender_id_size = 1;
+  params.auth_at = &at_;
+  params.read_ssn_from_storage = false;
+  ASSERT_NE(oc_oscore_add_context(&params), nullptr);
+
+  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x9999), nullptr);
+}
+
+TEST_F(OscoreContextTest, FindContextByGroupAddressSkipsRecipientContext)
+{
+  /* recipient-only context (sender_id_len == 0) must NOT be returned */
+  oc_oscore_context_params_t params = {};
+  uint8_t rid[] = {0x02};
+  params.sender_id = NULL;
+  params.sender_id_size = 0;
+  params.recipient_id = rid;
+  params.recipient_id_size = 1;
+  params.auth_at = &at_;
+  params.read_ssn_from_storage = false;
+  ASSERT_NE(oc_oscore_add_context(&params), nullptr);
+
+  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), nullptr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_oscore_free_sender_contexts — free contexts with recipient_id_len == 0
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OscoreContextTest, FreeSenderContextsRemovesSenderOnlyKeepsRecipient)
+{
+  /* sender-only context (recipient_id_len == 0) */
+  oc_oscore_context_params_t sp = {};
+  uint8_t sid[] = {0x01};
+  sp.sender_id = sid;
+  sp.sender_id_size = 1;
+  sp.auth_at = &at_;
+  sp.read_ssn_from_storage = false;
+  oc_oscore_context_t *sender = oc_oscore_add_context(&sp);
+  ASSERT_NE(sender, nullptr);
+  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), sender);
+
+  /* recipient context (recipient_id_len > 0) */
+  oc_oscore_context_params_t rp = {};
+  uint8_t rid[] = {0x02};
+  rp.recipient_id = rid;
+  rp.recipient_id_size = 1;
+  rp.auth_at = &at_;
+  rp.read_ssn_from_storage = false;
+  ASSERT_NE(oc_oscore_add_context(&rp), nullptr);
+
+  oc_oscore_free_sender_contexts();
+
+  /* sender-only context gone */
+  EXPECT_EQ(oc_oscore_find_context_by_group_address(0x1234), nullptr);
+  /* recipient context survives */
+  EXPECT_NE(oc_oscore_find_context_by_kid_and_kid_context(rid, 1, NULL, 0),
+            nullptr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_oscore_free_lru_recipient_context — free least-recently-used recipient ctx
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OscoreContextTest, FreeLruRecipientContextFreesOldest)
+{
+  oc_oscore_context_params_t pa = {};
+  uint8_t rid_a[] = {0x02};
+  pa.recipient_id = rid_a;
+  pa.recipient_id_size = 1;
+  pa.auth_at = &at_;
+  pa.read_ssn_from_storage = false;
+  oc_oscore_context_t *a = oc_oscore_add_context(&pa);
+  ASSERT_NE(a, nullptr);
+  a->last_used = 100; /* older */
+
+  oc_oscore_context_params_t pb = {};
+  uint8_t rid_b[] = {0x03};
+  pb.recipient_id = rid_b;
+  pb.recipient_id_size = 1;
+  pb.auth_at = &at_;
+  pb.read_ssn_from_storage = false;
+  oc_oscore_context_t *b = oc_oscore_add_context(&pb);
+  ASSERT_NE(b, nullptr);
+  b->last_used = 200; /* newer */
+
+  oc_oscore_free_lru_recipient_context();
+
+  /* oldest (a) freed, newest (b) survives */
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(rid_a, 1, NULL, 0),
+            nullptr);
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(rid_b, 1, NULL, 0), b);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * oc_oscore_free_contexts_at_id — free all contexts bound to a given auth_at
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+TEST_F(OscoreContextTest, FreeContextsAtIdRemovesMatchingAuthAt)
+{
+  oc_oscore_context_params_t params = {};
+  uint8_t rid[] = {0x02};
+  params.recipient_id = rid;
+  params.recipient_id_size = 1;
+  params.auth_at = &at_;
+  params.read_ssn_from_storage = false;
+  oc_oscore_context_t *ctx = oc_oscore_add_context(&params);
+  ASSERT_NE(ctx, nullptr);
+
+  /* Freeing for an unrelated auth_at leaves the context intact */
+  oc_auth_at_t other;
+  memset(&other, 0, sizeof(other));
+  oc_oscore_free_contexts_at_id(&other);
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(rid, 1, NULL, 0), ctx);
+
+  /* Freeing for the matching auth_at removes it */
+  oc_oscore_free_contexts_at_id(&at_);
+  EXPECT_EQ(oc_oscore_find_context_by_kid_and_kid_context(rid, 1, NULL, 0),
+            nullptr);
+}
