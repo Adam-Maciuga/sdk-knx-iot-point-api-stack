@@ -37,6 +37,8 @@ K_MUTEX_DEFINE(network_mutex);
 static otInstance *sInstance = NULL;
 static otUdpSocket mSocket;
 
+static uint16_t g_unicast_port = COAP_PORT_UNSECURED; // Set via oc_connectivity_set_port() before oc_connectivity_init().
+
 /* KNX-IoT OpenThread integration */
 static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessageInfo *aMessageInfo)
 {
@@ -51,6 +53,12 @@ static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessag
 
     message->length = otMessageRead(aMessage, otMessageGetOffset(aMessage), message->data, otMessageGetLength(aMessage));
     message->endpoint.flags = IPV6;
+    /* mSockAddr is the packet's destination address. All IPv6 multicast
+     * addresses start with 0xFF (RFC 4291 prefix FF00::/8).
+     */
+    if (aMessageInfo->mSockAddr.mFields.m8[0] == 0xFF) {
+        message->endpoint.flags |= MULTICAST;
+    }
     message->endpoint.addr.ipv6.port = aMessageInfo->mPeerPort;
     memcpy(message->endpoint.addr.ipv6.address, aMessageInfo->mPeerAddr.mFields.m8, 16);
 
@@ -59,6 +67,11 @@ static void HandleUdpReceive(void *aContext, otMessage *aMessage, const otMessag
     PRINTF("\r\n");
 
     oc_network_event(message);
+}
+
+int oc_connectivity_set_port(uint16_t port) {
+    g_unicast_port = port;
+    return 0;
 }
 
 int oc_connectivity_init(void)
@@ -76,7 +89,7 @@ int oc_connectivity_init(void)
 		goto exit;
 	}
 
-	sockaddr.mPort = COAP_PORT_UNSECURED;
+	sockaddr.mPort = g_unicast_port;
 
 	if (!otUdpIsOpen(sInstance, &mSocket))
 	{
