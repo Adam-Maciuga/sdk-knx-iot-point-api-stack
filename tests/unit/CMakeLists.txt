@@ -19,7 +19,21 @@ include(GoogleTest)
 
 # Application callback stubs (e.g. app_get_password) needed by kisClientServer.
 add_library(kis-app-stubs STATIC test_app_stubs.c)
-target_include_directories(kis-app-stubs PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include)
+# kis-common is an INTERFACE library (no objects) and carries the common stack
+# compile definitions (table sizes, feature flags) so oc_knx.h and its transitive
+# headers parse consistently with the rest of the build.
+target_link_libraries(kis-app-stubs PRIVATE kis-common)
+# Compile-only include dirs needed to parse oc_knx.h's transitive chain
+# (oc_api.h -> oc_ri.h -> ipadapter.h via kis-port; oc_rep.h -> cbor.h via tinycbor).
+# Pulled via generator expressions so the real static libraries are NOT linked here:
+# linking them would re-append their archives at the end of each test executable's
+# link line and break the carefully ordered kisClientServer <-> kis-port circular link.
+target_include_directories(kis-app-stubs PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    $<TARGET_PROPERTY:kis-port,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:tinycbor,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 # Thin interface target that injects kisClientServer.a at the very end
 # of the link line, AFTER the transitive kis-port dependency.

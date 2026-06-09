@@ -317,12 +317,8 @@ zephyr_compile_definitions(
 )
 
 ## Security
-# Note:
-# KNX_IOT_SPAKE2PLUS_ITERATIONS is hardcoded here to mirror the FORCE behaviour
-# in the root CMakeLists.txt. It is intentionally not exposed via Kconfig.
 zephyr_compile_definitions(
     $<$<BOOL:${CONFIG_KNXIOT_TLS_PKI}>:OC_PKI_ENABLED>
-    KNX_IOT_SPAKE2PLUS_ITERATIONS=50000
 )
 
 ## Logging

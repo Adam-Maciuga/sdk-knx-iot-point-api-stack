@@ -90,14 +90,6 @@ set(KNX_READ_ON_INIT_DELAY_MILLISECONDS "100" CACHE STRING "KNX read on init del
 # KNX reset "Process Time" in seconds
 set(KNX_RESPONSE_TIME_SECONDS "2" CACHE STRING "KNX reset Process Time in seconds")
 
-# Security
-set(KNX_IOT_SPAKE2PLUS_ITERATIONS "50000" CACHE STRING "Number of SHA256 iterations used within the SPAKE2+ handshake" FORCE)
-
-## Hidden Variables
-# Note:
-# Don't show variables below in any (command) GUI.
-mark_as_advanced(KNX_IOT_SPAKE2PLUS_ITERATIONS)
-
 ### KNX-IoT Stack ###
 set(KNX_INCLUDE_DIRS 
     ${PROJECT_SOURCE_DIR}/
@@ -171,10 +163,6 @@ set(COAP_SOURCES
 ## KNX-IoT Stack Options ##
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
-
-## Security
-# OSCORE
-target_compile_definitions(kis-common INTERFACE KNX_IOT_SPAKE2PLUS_ITERATIONS=${KNX_IOT_SPAKE2PLUS_ITERATIONS})
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)

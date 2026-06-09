@@ -106,17 +106,20 @@ int spake2plus_init(void);
 int spake2plus_free(void);
 
 /**
- * @brief Generate a random nonce and salt for SPAKE2+ password-based setup.
+ * @brief Generate a random nonce for SPAKE2+ password-based setup.
  *
  * spake2plus_init() must be called before this function.
  *
+ * The PBKDF2 salt is no longer generated here. Per RFC 9383 sec. 3.2 the salt
+ * is a fixed device-specific value that is part of the precalculated offline
+ * registration record, so it is supplied by the caller and never randomized
+ * per handshake.
+ *
  * @param rand         Output buffer for the random nonce.
  * @param rand_length  Length of the rand buffer in bytes.
- * @param salt         Output buffer for the PBKDF2 salt.
- * @param salt_length  Length of the salt buffer in bytes.
  * @return 0 on success, non-zero on failure.
  */
-int spake2plus_parameter_exchange(uint8_t *rand, size_t rand_length, uint8_t *salt, size_t salt_length);
+int spake2plus_parameter_exchange(uint8_t *rand, size_t rand_length);
 
 /**
  * @brief Compute the w0 scalar and L point from the device password.

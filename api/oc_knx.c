@@ -1371,6 +1371,31 @@ const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_k
 
 static spake_data_t spake_data = {0};
 
+/*
+  Precalculated SPAKE2+ offline registration record (RFC 9383 sec. 3.2).
+  The device (Verifier) stores only the password derivative (w0, L, salt) and
+  never the plaintext password. Loaded once from the application via
+  app_get_precalculated_spake_data() in oc_spake2plus_init_data().
+*/
+static oc_spake_record_t g_spake_record = {0};
+
+/*
+  Reset g_pase to a clean PASE session state seeded from the registration record.
+  Frees the allocated id string (the only heap-backed field), zeroes the whole
+  struct, then re-seeds the fixed device-specific PBKDF2 parameters (salt and
+  iteration count). These values are part of the offline registration record and
+  must stay stable across PASE sessions and resets, so they are (re-)seeded
+  whenever g_pase is (re-)initialised. oc_free_string() is a no-op when id is
+  already empty, so this is safe to call on a zero-initialised g_pase.
+*/
+static void oc_spake_clear_pase_and_init_from_record(void)
+{
+  oc_free_string(&g_pase.id);
+  g_pase = (oc_pase_t){0};
+  memcpy(g_pase.salt, g_spake_record.salt, sizeof(g_pase.salt));
+  g_pase.it = g_spake_record.it;
+}
+
 static int8_t failed_handshake_count = 0;
 static bool is_blocked = false;
 
@@ -1628,13 +1653,14 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     /*
       PASE parameter exchange (step 1)
 
-      - get random numbers for rnd and salt when starting a new PASE session
-      - set fixed compile time value for number of iterations (IMPORTANT consider the notes on oc_pase_t type definition)
+      - get a random number for rnd when starting a new PASE session
+      - the salt and the iteration count (it) are NOT randomized: they are the
+        fixed device-specific PBKDF2 parameters from the precalculated offline
+        registration record (RFC 9383 sec. 3.2), seeded into g_pase at init and
+        on every reset
 
     */
-    g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
-    spake2plus_parameter_exchange(g_pase.rnd, sizeof(g_pase.rnd),
-                                  g_pase.salt, sizeof(g_pase.salt));
+    spake2plus_parameter_exchange(g_pase.rnd, sizeof(g_pase.rnd));
 
     OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase.rnd, sizeof(g_pase.rnd));
     OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
@@ -1667,22 +1693,15 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     memset(&spake_data, 0, sizeof(spake_data));
 
-    /* app_get_password() is provided by the application; prototype declared here
-     * to avoid pulling in the full application header. */
-    const char *app_get_password(void);
-    const char *pwd = app_get_password();
-    int ret = spake2plus_get_w0_L_params(
-      (const uint8_t *)pwd, strlen(pwd),
-      g_pase.salt, sizeof(g_pase.salt), g_pase.it,
-      KNX_IOT_SPAKE2PLUS_ID_PROVER, KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
-      spake_data.w0, spake_data.L);
-    if (ret != 0)
-    {
-      OC_ERR("SPAKE2+ password expansion failed with code %d!", ret);
-      goto error;
-    }
+    /*
+      Use the precalculated offline registration record (RFC 9383 sec. 3.2).
+      The Verifier never derives w0/L from the password online; it uses the
+      stored w0 and L = w1*G from the registration record.
+    */
+    memcpy(spake_data.w0, g_spake_record.w0, sizeof(spake_data.w0));
+    memcpy(spake_data.L, g_spake_record.L, sizeof(spake_data.L));
 
-    ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
+    int ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ ephemeral key pair generation failed with code %d!", ret);
@@ -1768,12 +1787,11 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     // empty payload
     oc_send_empty_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
 
-    // handshake completed successfully - clear state
+    // handshake completed successfully - clear spake data
     spake_data = (spake_data_t){0};
 
-    // reset entire pase object after freeing the id string (it holds an allocated oc_string stack memory), init with iterations only, rest = 0;
-    oc_free_string(&g_pase.id);
-    g_pase = (oc_pase_t){.it = KNX_IOT_SPAKE2PLUS_ITERATIONS};
+    // reset pase: free id, zero all fields, re-seed fixed PBKDF2 params (salt + it) that must survive resets
+    oc_spake_clear_pase_and_init_from_record();
 
     return OC_EVENT_DONE;
   }
@@ -1785,9 +1803,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   // handshake error - clear state
   spake_data = (spake_data_t){0};
 
-  // reset entire pase object after freeing the id string (it holds an allocated oc_string stack memory), init with iterations only, rest = 0;
-  oc_free_string(&g_pase.id);
-  g_pase = (oc_pase_t){.it = KNX_IOT_SPAKE2PLUS_ITERATIONS};
+  // reset pase: free id, zero all fields, re-seed fixed PBKDF2 params (salt + it) that must survive resets
+  oc_spake_clear_pase_and_init_from_record();
 
   increment_spake_request_counter();
 
@@ -1817,11 +1834,31 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
 int oc_spake2plus_init_data(void)
 {
   // can fail if initialization of the RNG does not work (return == 0)
-  if(spake2plus_init() != 0)
+  if (spake2plus_init() != 0)
+  {
     return -1;
+  }
 
   // spake_data fields are plain byte arrays — zero-initialize is sufficient
   memset(&spake_data, 0, sizeof(spake_data));
+
+  /*
+    Load the precalculated SPAKE2+ offline registration record (w0, L, salt, it)
+    from the application (RFC 9383 sec. 3.2). The Verifier never uses the
+    plaintext password online.
+  */
+  const oc_spake_record_t* record = app_get_precalculated_spake_data();
+  if (!record || !record->valid)
+  {
+    OC_ERR("SPAKE2+ precalculated registration record is missing or invalid!");
+    return -1;
+  }
+  
+  // copy over spake record, not pase record 
+  g_spake_record = *record;
+
+  // reset pase to a clean state seeded with the fixed PBKDF2 params (salt + it) from the registration record
+  oc_spake_clear_pase_and_init_from_record();
 
   // start SPAKE brute force protection timer
   oc_set_delayed_callback(NULL, decrement_spake_request_counter, 10);

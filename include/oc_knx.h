@@ -43,12 +43,14 @@ extern "C"
    *
    * Context string and identity strings are fixed empty strings per KNX-IoT specification.
    *
-   * Salt and random nonce sizes are KNX-IoT choices — RFC 9383 does not mandate
+   * Salt and random nonce sizes are KNX-IoT choices - RFC 9383 does not mandate
    * specific sizes for either.
    *
-   * The device password is not stored here. It is provided at runtime via
-   * app_get_password(). Per KNX-IoT specification 3/10/5 clause 3.6.6.3 the
-   * password is a string of min 6 and max 32 characters.
+   * The device password is not stored here and is not used by the stack. The
+   * Verifier (device) uses only the precalculated offline registration record
+   * (w0, L, salt) provided via app_get_precalculated_spake_data(), see RFC 9383
+   * sec. 3.2. Per KNX-IoT specification 3/10/5 clause 3.6.6.3 the password is a
+   * string of min 6 and max 32 characters.
    */
 #define KNX_IOT_SPAKE2PLUS_CONTEXT       "knxpase"
 #define KNX_IOT_SPAKE2PLUS_ID_PROVER     ""
@@ -65,8 +67,10 @@ extern "C"
    *  - SPAKE2+ is an augmented/extended PAKE 'protocol', where only one party (usually a MaC) knows (and uses) the password.
    *    The other party (usually the server device) knows only a derivative of the password.
    *
-   *  The virtual demo applications uses the password also on server side, a real device shall use the password derivative,
-   *  see SPAKE2+, 3.2. Offline Registration.
+   *  The stack (server device, the SPAKE2+ Verifier) uses only the precalculated offline registration record
+   *  (w0, L, salt) provided by the application via app_get_precalculated_spake_data(); it never uses the plaintext
+   *  password online, see SPAKE2+, 3.2. Offline Registration. The demo applications keep the password only to show
+   *  it in their UI (for example a QR code).
    *
    *  The steps for the key enrolment are described in KNX IoT specification 3/10/5 clause 3.6.6.3
    *
@@ -87,12 +91,15 @@ extern "C"
    *  (1)
    *  The iteration value (it) is a fixed value, that needs to be set in accordance to
    *  the server device hardware calculation capabilities.
-   *  The stack allows to define this (it) value as part of the CMake compile definitions.
+   *  The (it) value is part of the precalculated offline registration record (see oc_spake_record_t)
+   *  and is supplied by the application via app_get_precalculated_spake_data().
    *  Note that a randomized iteration value (it) at runtime does not increase the security,
    *  it only reduces the effort for an attacker.
    *
    *  (2)
    *  The salt goes always together with an individual password.
+   *  It is the fixed device-specific salt that is part of the precalculated offline registration record
+   *  (see oc_spake_record_t); it is not randomized per handshake but stays stable across PASE sessions.
    *
    *  Example JSON
    *  ============
@@ -119,6 +126,29 @@ extern "C"
     uint8_t rnd[KNX_IOT_SPAKE2PLUS_RND_LENGTH];    // random nonce (wire name "rnd", KNX_IOT_SPAKE2PLUS_RND_LENGTH bytes)
     uint32_t it;                                   // iterations (see hints above)
   } oc_pase_t;
+
+  /**
+   * @brief SPAKE2+ precalculated offline registration record (RFC 9383 sec. 3.2).
+   *
+   * A real device (the SPAKE2+ Verifier) does not know the password. Instead, it
+   * stores only the password derivative computed offline during registration:
+   *   - w0   : the shared scalar (32-byte big-endian, reduced mod the P-256 order)
+   *   - L    : the verifier point L = w1 * G (65-byte uncompressed point)
+   *   - salt : the fixed device-specific PBKDF2 salt used to derive w0/w1
+   *   - it   : the PBKDF2 iteration count used to derive w0/w1, see note (1) above
+   *
+   * The application provides this record via app_get_precalculated_spake_data().
+   * w0 is stored as the full 32-byte big-endian value; the protocol transcript
+   * strips leading zeros per KNX-IoT specification clause 3.6.6.4 (len(w0)).
+   */
+  typedef struct oc_spake_record_t
+  {
+    uint8_t w0[32];                                // shared scalar w0 (big-endian, 32 bytes)
+    uint8_t L[65];                                 // verifier point L = w1 * G (uncompressed, 65 bytes)
+    uint8_t salt[KNX_IOT_SPAKE2PLUS_SALT_LENGTH];  // fixed device-specific PBKDF2 salt
+    uint32_t it;                                   // PBKDF2 iteration count used to derive w0/w1 (see note (1) above)
+    bool valid;                                    // true when the record holds a usable registration record
+  } oc_spake_record_t;
 
   /**
    * @brief Group Object Notification (s-mode messages)
@@ -287,6 +317,20 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
    *
    */
   int oc_spake2plus_init_data(void);
+
+  /**
+   * @brief Retrieve the precalculated SPAKE2+ offline registration record.
+   *
+   * Implemented by the application (not by the stack). A real device (the
+   * SPAKE2+ Verifier) does not know the password online; it returns the record
+   * (w0, L, salt, it) that was computed offline during registration, see RFC 9383
+   * sec. 3.2 and KNX-IoT specification clause 3.6.6.
+   *
+   * @return pointer to the registration record, or NULL when no record is
+   *         provisioned. The returned storage must remain valid for the
+   *         lifetime of the device.
+   */
+  const oc_spake_record_t *app_get_precalculated_spake_data(void);
 
 #ifdef __cplusplus
 }

@@ -286,17 +286,12 @@ int spake2plus_free(void)
   return 0;
 }
 
-int spake2plus_parameter_exchange(uint8_t *rand, size_t rand_length, uint8_t *salt, size_t salt_length)
+int spake2plus_parameter_exchange(uint8_t *rand, size_t rand_length)
 {
-  psa_status_t status = psa_generate_random(rand, rand_length);
-  if (status != PSA_SUCCESS) {
+  const psa_status_t status = psa_generate_random(rand, rand_length);
+  if (status != PSA_SUCCESS) 
+  {
     OC_ERR("Failed to generate SPAKE2+ random nonce (status %d)!", (int)status);
-    return (int)status;
-  }
-
-  status = psa_generate_random(salt, salt_length);
-  if (status != PSA_SUCCESS) {
-    OC_ERR("Failed to generate SPAKE2+ salt (status %d)!", (int)status);
   }
 
   return (int)status;
