@@ -44,11 +44,21 @@ TEST_F(NetworkEvents, EventWhenProcessNotRunningUnrefsMessage)
   ASSERT_NE(nullptr, message);
   ASSERT_EQ(1U, message->ref_count);
 
+  // Hold an extra reference so the message survives the unref that
+  // oc_network_event() performs on the not-running early-out path. Under
+  // dynamic allocation an unref to 0 free()s the buffer, so reading ref_count
+  // afterwards would be a use-after-free; the extra ref lets us observe the
+  // single unref safely.
+  oc_message_add_ref(message);
+  ASSERT_EQ(2U, message->ref_count);
+
   oc_network_event(message);
 
-  // pool messages are not free()d, so the slot is still readable; ref_count 0
-  // means it was released back to the pool.
-  EXPECT_EQ(0U, message->ref_count);
+  // The early-out path must have unref'd the message exactly once.
+  EXPECT_EQ(1U, message->ref_count);
+
+  // Drop our own reference (free()s the message under dynamic allocation).
+  oc_message_unref(message);
 }
 
 // The early-out path must be safe to invoke repeatedly across fresh messages.
@@ -57,7 +67,9 @@ TEST_F(NetworkEvents, EventWhenProcessNotRunningIsRepeatable)
   for (int i = 0; i < 4; ++i) {
     oc_message_t *message = oc_allocate_message();
     ASSERT_NE(nullptr, message);
+    oc_message_add_ref(message);
     oc_network_event(message);
-    EXPECT_EQ(0U, message->ref_count);
+    EXPECT_EQ(1U, message->ref_count);
+    oc_message_unref(message);
   }
 }

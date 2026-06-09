@@ -140,7 +140,7 @@ TEST(GetAtIndex, EntryPointerMapsToItsSlotIndex)
 /* ═══════════════════════════════════════════════════════════════════════════
  * AT-table content operations — driven directly against the static table.
  * Each test runs in its own process (gtest_discover_tests), but the fixture
- * still scrubs every slot in SetUp/TearDown to keep the table deterministic.
+ * still frees every slot in SetUp/TearDown to keep the table deterministic.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 class AtTable : public ::testing::Test {
@@ -148,15 +148,32 @@ protected:
   void SetUp() override
   {
     oc_mmem_init();
-    scrub();
+    reset();
   }
-  void TearDown() override { scrub(); }
+  void TearDown() override { reset(); }
 
-  static void scrub()
+  // Free every AT-table slot's heap-allocated fields and zero the scalars
+  // WITHOUT re-allocating empty placeholder strings. The production routine
+  // oc_delete_at_table_entry() frees each field and then re-initializes it to
+  // an empty heap string; using it for fixture teardown would leave a fresh
+  // generation of empty strings allocated after the final scrub, which
+  // LeakSanitizer reports at process exit. Freeing directly keeps the table
+  // deterministic and leak-free under ASAN.
+  static void reset()
   {
     int n = oc_core_get_at_table_size();
     for (int i = 0; i < n; i++) {
-      oc_delete_at_table_entry(oc_get_auth_at_entry(i));
+      oc_auth_at_t *e = oc_get_auth_at_entry(i);
+      oc_free_string(&e->id);
+      oc_free_string(&e->osc_ms);
+      oc_free_string(&e->osc_salt);
+      oc_free_string(&e->osc_contextid);
+      oc_free_string(&e->osc_id);
+      free(e->ga);
+      e->ga = nullptr;
+      e->ga_len = 0;
+      e->scope = OC_ACL_NONE;
+      e->profile = OC_PROFILE_UNKNOWN;
     }
   }
 };
