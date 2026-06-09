@@ -53,9 +53,9 @@ static inline void oc_abort(const char* msg)
 
   OC_ERR("%s", msg);
 
-  abort_impl();
-
   #endif 
+
+  abort_impl();
 }
 
 /**
