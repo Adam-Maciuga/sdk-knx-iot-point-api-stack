@@ -1,6 +1,6 @@
 # KNX IoT Point API Stack — Test Catalog
 
-> **466 unit tests** (26 files) + **233 runtime tests** (16 files) = **699 total**
+> **470 unit tests** (26 files) + **233 runtime tests** (16 files) = **703 total**
 >
 > Branch: `unit_tests_claude` | Last verified: 244 passed, 1 skipped (Docker CI)
 
@@ -35,7 +35,7 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 
 ---
 
-### test_oc_uuid.cpp — UUID Handling (9 tests)
+### test_oc_uuid.cpp — UUID Handling (13 tests)
 
 **Source:** `api/oc_uuid.c`
 
@@ -50,6 +50,10 @@ Built with GCC, run via CTest. 24 `.cpp` files in `tests/`.
 | `BufferTooSmall` | Short buffer handled safely |
 | `WildcardStar` (uuid→str) | All-zeros → "*" |
 | `StringToBinaryToString` | str→uuid→str round-trip |
+| `ProducesValidFormat` (gen) | `oc_gen_uuid` output is canonical 8-4-4-4-12 hex |
+| `ProducesVersion4` (gen) | Generated UUID has version nibble set to 4 |
+| `RoundTripsThroughString` (gen) | Generated UUID survives uuid→str→uuid |
+| `ProducesDistinctValues` (gen) | Two generations do not collide |
 
 ---
 
