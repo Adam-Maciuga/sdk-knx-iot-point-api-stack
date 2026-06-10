@@ -40,8 +40,7 @@ TEST(OcNetworkInterface, EnumerateReturnsWithinBounds)
   for (int i = 0; i < n; i++) {
     /* Names are strncpy'd with a reserved final NUL slot. */
     EXPECT_EQ(ifs[i].name[OC_NETWORK_IF_NAME_MAX - 1], '\0');
-    /* Enumerated interfaces are reported up (loopback/down are skipped). */
-    EXPECT_TRUE(ifs[i].is_up);
+    /* is_up is informational and platform-dependent (the Windows port reports down adapters too), so it is not a portable invariant. */
   }
 }
 
