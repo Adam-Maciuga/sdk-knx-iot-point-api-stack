@@ -39,14 +39,8 @@ extern const oc_resource_t core_resource_knx_spake;
 // ---------------------------Variables
 
 static uint64_t g_fingerprint = 0;  // covers GO/PUB/SUB table and 'P' parameters
-static oc_pase_t g_pase;            // holds the negotiated pase parameter (IMPORTANT consider the notes on oc_pase_t type definition)
-static oc_string_t g_idevid;
-static oc_string_t g_ldevid;
-static int pase_step = 0;           // covers the current running pase step 
 
-// ----------------------------------------------------------------------------
-
-enum SpakeKeys
+typedef enum spake_keys_t
 {
   SPAKE_ID = 0,
   SPAKE_SALT = 5,
@@ -58,7 +52,31 @@ enum SpakeKeys
   SPAKE_CA_CONFIRM_P = 14,
   SPAKE_RND = 15,
   SPAKE_IT = 16,
-};
+  SPAKE_UNDEFINED = 255,            // init state, or unclassified step
+
+} spake_keys_t;
+
+/*
+  Active PASE handshake session.
+
+  Bundles the wire PASE Resource Object (oc_pase_t, see the notes on its type
+  definition) with the stack-internal handshake progression. 'current_step' holds the
+  SPAKE step (see enum spake_keys_t) classified from the most recent request; it is
+  request-scoped control state kept next to the session parameters so a single
+  object represents the one active PASE session and is cleared together with the
+  parameters on every (re-)init/reset.
+*/
+typedef struct oc_pase_session_t
+{
+  oc_pase_t params;           // wire PASE Resource Object (salt, rnd, shares, confirms, id, it)
+  spake_keys_t current_step;  // current classified SPAKE step
+} oc_pase_session_t;
+
+static oc_pase_session_t g_pase_session;  // the single active PASE session (params + step)
+static oc_string_t g_idevid;
+static oc_string_t g_ldevid;
+
+// ----------------------------------------------------------------------------
 
 static int convert_cmd(char* cmd)
 {
@@ -1371,42 +1389,79 @@ const oc_resource_t core_resource_knx_idevid = {(oc_resource_t*)&core_resource_k
 
 static spake_data_t spake_data = {0};
 
+/*
+  Precalculated SPAKE2+ offline registration record (RFC 9383 sec. 3.2).
+  The device (Verifier) stores only the password derivative (w0, L, salt) and
+  never the plaintext password. Loaded once from the application via
+  app_get_precalculated_spake_data() in oc_spake2plus_init_data().
+*/
+static oc_spake_record_t g_spake_record = {0};
+
+/*
+  Reset the PASE session to a clean state seeded from the registration record.
+  Frees the allocated id string (the only heap-backed field), zeroes the whole
+  parameter struct and the handshake step, then re-seeds the fixed device-specific
+  PBKDF2 parameters (salt and iteration count). These values are part of the
+  offline registration record and must stay stable across PASE sessions and
+  resets, so they are (re-)seeded whenever the session is (re-)initialised.
+  oc_free_string() is a no-op when id is already empty, so this is safe to call on
+  a zero-initialised session.
+*/
+static void oc_spake_clear_pase_and_init_from_record(void)
+{
+  // release any heap memory from previous session, if any
+  oc_free_string(&g_pase_session.params.id);
+  g_pase_session.params = (oc_pase_t){0};
+
+  // assign fixed parameters from the precalculated record, which is stable across sessions and resets
+  memcpy(g_pase_session.params.salt, g_spake_record.salt, sizeof(g_pase_session.params.salt));
+  g_pase_session.params.it = g_spake_record.it;
+}
+
 static int8_t failed_handshake_count = 0;
 static bool is_blocked = false;
 
-// called every 10 seconds, if zero -> unblock the client
+// called every 6 seconds (also to reduce max age counter on further but blocked spake attempts), if zero -> unblock the client
 static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
   (void)data;
 
-  // on '0' don't continue to decrement and unblock (note the callback is still active)
-  if (failed_handshake_count > 0)
+  // cannot be -1 or less since callback is init/called first with counter = 10
+  if (--failed_handshake_count == 0)
   {
-    if (--failed_handshake_count == 0)
-    {
-      is_blocked = false;
-    }
+    // if counter is zero (this will be a one time trigger) unblock and stop callback (works also on an unexpected callback)
+    is_blocked = false;
+    return OC_EVENT_DONE;
   }
+  
+  // wait until next callback call 
   return OC_EVENT_CONTINUE;
 }
 
-// called on every unsuccessful spake attempt, if > 10 -> block the client
+// called on every unsuccessful spake attempt, if = 10 -> block the client and start callback to unblock after 60 seconds (see KNX specification)
 static void increment_spake_request_counter(void)
 {
-  // on '60' don't continue to increment
-  if (failed_handshake_count < 60)
+  /* 
+     - don't allow more than 10 failed attempts to access (in whatever time span)
+     - safe to reach 10 only on counting upwards since this method is not called again when blocked is true, 
+       (and counting down would reach the state '10' here again from 'above') 
+  
+  */
+
+  if (++failed_handshake_count == 10)
   {
-    if (++failed_handshake_count > 10)
-    {
-      is_blocked = true;
-    }
+    // if counter reaches 10 from below (this will be a one time trigger) block and start callback
+    is_blocked = true;
+    
+    // start SPAKE brute force protection timer ONES when entering blocked state, unblock 60 seconds
+    oc_set_delayed_callback(NULL, decrement_spake_request_counter, 6);
   }
 }
 
 // returns handshake blocker
 static bool is_handshake_blocked(void) { return is_blocked; }
 
-// a linked list for THE delayed response message for a (single) spake request (only one pending response is allowed)
+// a list hosting the delayed (spake) response message for a (single) spake request (only one pending (spake) response is allowed)
 static oc_separate_response_t delayed_separate_response_for_a_spake_request;
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p);
 
@@ -1455,17 +1510,36 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   }
 
 
+  // 0..9 errors end up in 4.00 - then 5.03 (see details above in 'increment_spake_request_counter') 
   if (is_handshake_blocked())
   {
+    // messages on blocked state the max age counter that is decreased every 6 seconds 
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
-    request->response->response_buffer->max_age = failed_handshake_count * 10;
+    request->response->response_buffer->max_age = failed_handshake_count * 6;
+    return;
+  }
+
+  /*
+    Reject a second concurrent PASE request while a previous separate (spake) response is
+    still pending. Otherwise, coap_separate_accept would batch the new request's token onto
+    the single shared response handle, send one reply to multiple requests, and let the
+    later request overwrite the global g_pase_session and corrupt the in-flight handshake.
+    Respond 5.03 so the MaC retries later; this is a busy signal, not a failed handshake
+    attempt, so the brute-force counter is intentionally left untouched.
+  */
+  if (delayed_separate_response_for_a_spake_request.active)
+  {
+    OC_WRN("a PASE separate response is already pending - rejecting concurrent request");
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
     return;
   }
 
   // set ptr
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
 
-  pase_step = 0;
+  // init to invalid
+  g_pase_session.current_step = SPAKE_UNDEFINED;
+
   uint8_t members_step_1 = 0;
   uint8_t members_step_2 = 0;
   uint8_t members_step_3 = 0;
@@ -1487,19 +1561,19 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
         if (rep->iname == SPAKE_PA_SHARE_P)
         {
           // pase credential request (step 2)
-          pase_step = SPAKE_PA_SHARE_P;
+          g_pase_session.current_step = SPAKE_PA_SHARE_P;
           members_step_2++;
         }
         else if (rep->iname == SPAKE_CA_CONFIRM_P)
         {
           // pase credential verification request (step 3) 
-          pase_step = SPAKE_CA_CONFIRM_P;
+          g_pase_session.current_step = SPAKE_CA_CONFIRM_P;
           members_step_3++;
         }
         else if (rep->iname == SPAKE_RND)
         {
           // pase parameter request (step 1) 
-          pase_step = SPAKE_RND;
+          g_pase_session.current_step = SPAKE_RND;
           members_step_1++;
         }
       }
@@ -1510,7 +1584,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
         if (rep->iname == SPAKE_ID)
         {
           // pase parameter request (step 1) 
-          pase_step = SPAKE_RND;
+          g_pase_session.current_step = SPAKE_RND;
           members_step_1++;
         }
       }
@@ -1521,9 +1595,9 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     rep = rep->next;
   }
 
-  bool s1 = members_step_1 == 2 && pase_step == SPAKE_RND;
-  bool s2 = members_step_2 == 1 && pase_step == SPAKE_PA_SHARE_P;
-  bool s3 = members_step_3 == 1 && pase_step == SPAKE_CA_CONFIRM_P;
+  const bool s1 = members_step_1 == 2 && g_pase_session.current_step == SPAKE_RND;
+  const bool s2 = members_step_2 == 1 && g_pase_session.current_step == SPAKE_PA_SHARE_P;
+  const bool s3 = members_step_3 == 1 && g_pase_session.current_step == SPAKE_CA_CONFIRM_P;
 
   // check if one out of step 1..3 is part of request and contains valid data
   if (!s1 && !s2 && !s3)
@@ -1545,32 +1619,32 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
         if (rep->iname == SPAKE_CA_CONFIRM_P)
         {
           // real string size (excluding '\') from request must match 
-          if (oc_string_len(rep->value.string) != sizeof(g_pase.confirmP))
+          if (oc_string_len(rep->value.string) != sizeof(g_pase_session.params.confirmP))
           {
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
           }
-          memcpy(g_pase.confirmP, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.confirmP));
+          memcpy(g_pase_session.params.confirmP, oc_cast(rep->value.string, uint8_t), sizeof(g_pase_session.params.confirmP));
         }
         if (rep->iname == SPAKE_PA_SHARE_P)
         {
           // real string size (excluding '\') from request must match   
-          if (oc_string_len(rep->value.string) != sizeof(g_pase.shareP))
+          if (oc_string_len(rep->value.string) != sizeof(g_pase_session.params.shareP))
           {
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
           }
-          memcpy(g_pase.shareP, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.shareP));
+          memcpy(g_pase_session.params.shareP, oc_cast(rep->value.string, uint8_t), sizeof(g_pase_session.params.shareP));
         }
         if (rep->iname == SPAKE_RND)
         {
           // real string size (excluding '\') from request must match 
-          if (oc_string_len(rep->value.string) != sizeof(g_pase.rnd))
+          if (oc_string_len(rep->value.string) != sizeof(g_pase_session.params.rnd))
           {
             oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
             return;
           }
-          memcpy(g_pase.rnd, oc_cast(rep->value.string, uint8_t), sizeof(g_pase.rnd));
+          memcpy(g_pase_session.params.rnd, oc_cast(rep->value.string, uint8_t), sizeof(g_pase_session.params.rnd));
         }
         
       }
@@ -1587,8 +1661,8 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
             }
 
             // free possible old spake token id
-            oc_free_string(&g_pase.id);
-            oc_new_byte_string(&g_pase.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
+            oc_free_string(&g_pase_session.params.id);
+            oc_new_byte_string(&g_pase_session.params.id, oc_string(rep->value.string), oc_string_len(rep->value.string));
             OC_DBG("==> CLIENT RECEIVES %d", (int)oc_byte_string_len(rep->value.string));
           }
         }
@@ -1599,7 +1673,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     rep = rep->next;
   }
 
-  OC_DBG("pase_step: %d", pase_step);
+  OC_DBG("current_step: %d", g_pase_session.current_step);
 
   oc_prepare_separate_response(request, &delayed_separate_response_for_a_spake_request);
   oc_set_delayed_callback(NULL, &oc_core_knx_spake_separate_post_handler, 0);
@@ -1611,7 +1685,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   (void)req_p;
   OC_INF("oc_core_knx_spake_separate_post_handler - start");
 
-  // previous device response is fired and no longer active ...
+  // no pending spake response -> do nothing and clear callback (happens if the callback is called after the response was already sent)
   if (!delayed_separate_response_for_a_spake_request.active)
   {
     return OC_EVENT_DONE;
@@ -1621,36 +1695,37 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   oc_set_separate_response_buffer(&delayed_separate_response_for_a_spake_request);
 
   // step 1
-  if (pase_step == SPAKE_RND)
+  if (g_pase_session.current_step == SPAKE_RND)
   {
     // return 2.04 changed, frame rnd, salt, it , ...
 
     /*
       PASE parameter exchange (step 1)
 
-      - get random numbers for rnd and salt when starting a new PASE session
-      - set fixed compile time value for number of iterations (IMPORTANT consider the notes on oc_pase_t type definition)
+      - get a random number for rnd when starting a new PASE session
+      - the salt and the iteration count (it) are NOT randomized: they are the
+        fixed device-specific PBKDF2 parameters from the precalculated offline
+        registration record (RFC 9383 sec. 3.2), seeded into g_pase_session.params at init and
+        on every reset
 
     */
-    g_pase.it = KNX_IOT_SPAKE2PLUS_ITERATIONS;
-    spake2plus_parameter_exchange(g_pase.rnd, sizeof(g_pase.rnd),
-                                  g_pase.salt, sizeof(g_pase.salt));
+    spake2plus_parameter_exchange(g_pase_session.params.rnd, sizeof(g_pase_session.params.rnd));
 
-    OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase.rnd, sizeof(g_pase.rnd));
-    OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase.salt, sizeof(g_pase.salt));
-    OC_DBG_SPAKE("Iterations: %u", g_pase.it);
+    OC_DBG_SPAKE("Rnd       : "); OC_LOGbytes_OSCORE(g_pase_session.params.rnd, sizeof(g_pase_session.params.rnd));
+    OC_DBG_SPAKE("Salt      : "); OC_LOGbytes_OSCORE(g_pase_session.params.salt, sizeof(g_pase_session.params.salt));
+    OC_DBG_SPAKE("Iterations: %u", g_pase_session.params.it);
 
     oc_rep_begin_root_object();
 
     // rnd (15)
-    oc_rep_i_set_byte_string(root, SPAKE_RND, g_pase.rnd, 32);
+    oc_rep_i_set_byte_string(root, SPAKE_RND, g_pase_session.params.rnd, 32);
     // pbkdf2
     oc_rep_i_set_key(&root_map, SPAKE_PBKDF2);
     oc_rep_begin_object(&root_map, pbkdf2);
     // it (16)
-    oc_rep_i_set_uint(pbkdf2, SPAKE_IT, g_pase.it);
+    oc_rep_i_set_uint(pbkdf2, SPAKE_IT, g_pase_session.params.it);
     // salt (5)
-    oc_rep_i_set_byte_string(pbkdf2, SPAKE_SALT, g_pase.salt, 32);
+    oc_rep_i_set_byte_string(pbkdf2, SPAKE_SALT, g_pase_session.params.salt, 32);
     oc_rep_end_object(&root_map, pbkdf2);
 
     oc_rep_end_root_object();
@@ -1661,28 +1736,21 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
   
   // step 2
-  if (pase_step == SPAKE_PA_SHARE_P)
+  if (g_pase_session.current_step == SPAKE_PA_SHARE_P)
   {
     // return 2.04 changed, frame shareV, confirmV
 
-    memset(&spake_data, 0, sizeof(spake_data));
+    spake_data = (spake_data_t){0};
 
-    /* app_get_password() is provided by the application; prototype declared here
-     * to avoid pulling in the full application header. */
-    const char *app_get_password(void);
-    const char *pwd = app_get_password();
-    int ret = spake2plus_get_w0_L_params(
-      (const uint8_t *)pwd, strlen(pwd),
-      g_pase.salt, sizeof(g_pase.salt), g_pase.it,
-      KNX_IOT_SPAKE2PLUS_ID_PROVER, KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
-      spake_data.w0, spake_data.L);
-    if (ret != 0)
-    {
-      OC_ERR("SPAKE2+ password expansion failed with code %d!", ret);
-      goto error;
-    }
+    /*
+      Use the precalculated offline registration record (RFC 9383 sec. 3.2).
+      The Verifier never derives w0/L from the password online; it uses the
+      stored w0 and L = w1*G from the registration record.
+    */
+    memcpy(spake_data.w0, g_spake_record.w0, sizeof(spake_data.w0));
+    memcpy(spake_data.L, g_spake_record.L, sizeof(spake_data.L));
 
-    ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
+    int ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ ephemeral key pair generation failed with code %d!", ret);
@@ -1690,14 +1758,14 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     }
 
     // calculate shareV = pub_y + w0*N (encoded as uncompressed P-256 point)
-    ret = spake2plus_calc_shareV(g_pase.shareV, spake_data.pub_y, spake_data.w0);
+    ret = spake2plus_calc_shareV(g_pase_session.params.shareV, spake_data.pub_y, spake_data.w0);
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ shareV computation failed with code %d!", ret);
       goto error;
     }
 
-    ret = spake2plus_calc_transcript_responder(&spake_data, g_pase.shareP, g_pase.shareV,
+    ret = spake2plus_calc_transcript_responder(&spake_data, g_pase_session.params.shareP, g_pase_session.params.shareV,
                                                KNX_IOT_SPAKE2PLUS_ID_PROVER,
                                                KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
                                                KNX_IOT_SPAKE2PLUS_CONTEXT);
@@ -1707,16 +1775,16 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
       goto error;
     }
 
-    spake2plus_calc_confirmV(spake_data.K_main, g_pase.confirmV, g_pase.shareP);
+    spake2plus_calc_confirmV(spake_data.K_main, g_pase_session.params.confirmV, g_pase_session.params.shareP);
 
     // return 2.04 changed, frame shareV (11) & confirmV (13)
 
     oc_rep_begin_root_object();
 
     // shareV (11)
-    oc_rep_i_set_byte_string(root, SPAKE_PB_SHARE_V, g_pase.shareV, sizeof(g_pase.shareV));
+    oc_rep_i_set_byte_string(root, SPAKE_PB_SHARE_V, g_pase_session.params.shareV, sizeof(g_pase_session.params.shareV));
     // confirmV (13)
-    oc_rep_i_set_byte_string(root, SPAKE_CB_CONFIRM_V, g_pase.confirmV, sizeof(g_pase.confirmV));
+    oc_rep_i_set_byte_string(root, SPAKE_CB_CONFIRM_V, g_pase_session.params.confirmV, sizeof(g_pase_session.params.confirmV));
 
     oc_rep_end_root_object();
 
@@ -1725,7 +1793,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   }
 
   // step 3
-  if (pase_step == SPAKE_CA_CONFIRM_P)
+  if (g_pase_session.current_step == SPAKE_CA_CONFIRM_P)
   {
     // return 2.04 changed, empty payload
 
@@ -1734,12 +1802,12 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     OC_DBG_SPAKE("KaKe & pB Bytes");
     OC_LOGbytes_OSCORE(spake_data.K_main, 32);
-    OC_LOGbytes_OSCORE(g_pase.shareV, sizeof(g_pase.shareV));
-    spake2plus_calc_confirmP(spake_data.K_main, expected_ca, g_pase.shareV);
+    OC_LOGbytes_OSCORE(g_pase_session.params.shareV, sizeof(g_pase_session.params.shareV));
+    spake2plus_calc_confirmP(spake_data.K_main, expected_ca, g_pase_session.params.shareV);
     OC_DBG_SPAKE("cA:");
     OC_LOGbytes_OSCORE(expected_ca, 32);
 
-    if (memcmp(expected_ca, g_pase.confirmP, sizeof(g_pase.confirmP)) != 0)
+    if (memcmp(expected_ca, g_pase_session.params.confirmP, sizeof(g_pase_session.params.confirmP)) != 0)
     {
       OC_ERR("SPAKE2+ confirmP verification failed!");
       goto error;
@@ -1753,8 +1821,8 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     OC_DBG_SPAKE("update PASE token for (server) device after successful negotiation with MaC");
 
     // debugging
-    OC_DBG("set id : (%zu) ", oc_byte_string_len(g_pase.id));
-    oc_char_println_hex(oc_string(g_pase.id), oc_byte_string_len(g_pase.id));
+    OC_DBG("set id : (%zu) ", oc_byte_string_len(g_pase_session.params.id));
+    oc_char_println_hex(oc_string(g_pase_session.params.id), oc_byte_string_len(g_pase_session.params.id));
     OC_DBG("set ms : (%zu) ", sizeof(shared_key));
     oc_char_println_hex(shared_key, sizeof(shared_key));
 
@@ -1763,17 +1831,16 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
       - note there should be no entries, if there is an entry then overwrite it
       - it is a by MaC freely chosen id
     */
-    oc_oscore_set_auth_shared(oc_string(g_pase.id), oc_byte_string_len(g_pase.id), shared_key, sizeof(shared_key));
+    oc_oscore_set_auth_shared(oc_string(g_pase_session.params.id), oc_byte_string_len(g_pase_session.params.id), shared_key, sizeof(shared_key));
 
     // empty payload
     oc_send_empty_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
 
-    // handshake completed successfully - clear state
+    // handshake completed successfully - clear spake data
     spake_data = (spake_data_t){0};
 
-    // reset entire pase object after freeing the id string (it holds an allocated oc_string stack memory), init with iterations only, rest = 0;
-    oc_free_string(&g_pase.id);
-    g_pase = (oc_pase_t){.it = KNX_IOT_SPAKE2PLUS_ITERATIONS};
+    // reset pase: free id, zero all fields, re-seed fixed PBKDF2 params (salt + it) that must survive resets
+    oc_spake_clear_pase_and_init_from_record();
 
     return OC_EVENT_DONE;
   }
@@ -1782,12 +1849,11 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
   OC_ERR("oc_core_knx_spake_separate_post_handler - error");
 
-  // handshake error - clear state
+  // spake_data fields are plain byte arrays — zero-initialize is sufficient
   spake_data = (spake_data_t){0};
 
-  // reset entire pase object after freeing the id string (it holds an allocated oc_string stack memory), init with iterations only, rest = 0;
-  oc_free_string(&g_pase.id);
-  g_pase = (oc_pase_t){.it = KNX_IOT_SPAKE2PLUS_ITERATIONS};
+  // reset pase: free id, zero all fields, re-seed fixed PBKDF2 params (salt + it) that must survive resets
+  oc_spake_clear_pase_and_init_from_record();
 
   increment_spake_request_counter();
 
@@ -1817,14 +1883,31 @@ const oc_resource_t core_resource_knx_spake = {(oc_resource_t*)&core_resource_kn
 int oc_spake2plus_init_data(void)
 {
   // can fail if initialization of the RNG does not work (return == 0)
-  if(spake2plus_init() != 0)
+  if (spake2plus_init() != 0)
+  {
     return -1;
+  }
 
   // spake_data fields are plain byte arrays — zero-initialize is sufficient
-  memset(&spake_data, 0, sizeof(spake_data));
+  spake_data = (spake_data_t){0};
 
-  // start SPAKE brute force protection timer
-  oc_set_delayed_callback(NULL, decrement_spake_request_counter, 10);
+  /*
+    Load the precalculated SPAKE2+ offline registration record (w0, L, salt, it)
+    from the application (RFC 9383 sec. 3.2). The Verifier never uses the
+    plaintext password online.
+  */
+  const oc_spake_record_t* record = app_get_precalculated_spake_data();
+  if (!record || !record->valid)
+  {
+    OC_ERR("SPAKE2+ precalculated registration record is missing or invalid!");
+    return -1;
+  }
+  
+  // copy over spake record, not pase record 
+  g_spake_record = *record;
+
+  // reset pase to a clean state seeded with the fixed PBKDF2 params (salt + it) from the registration record
+  oc_spake_clear_pase_and_init_from_record();
 
   return 0;
 }

@@ -313,7 +313,7 @@ bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_b
 
   return true;
 }
-#endif 
+
 
 oc_blockwise_state_t* oc_get_request_buffer_with_ptr(uint8_t* data)
 {
@@ -330,3 +330,5 @@ oc_blockwise_state_t* oc_get_request_buffer_with_ptr(uint8_t* data)
   }
   return NULL;
 }
+
+#endif
