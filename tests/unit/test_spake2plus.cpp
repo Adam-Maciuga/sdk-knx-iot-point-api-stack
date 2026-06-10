@@ -131,12 +131,9 @@ protected:
 TEST_F(Spake, ParameterExchangeFillsBuffers)
 {
   uint8_t rnd[32] = {0};
-  uint8_t salt[32] = {0};
-  EXPECT_EQ(spake2plus_parameter_exchange(rnd, sizeof(rnd), salt, sizeof(salt)),
-            0);
+  EXPECT_EQ(spake2plus_parameter_exchange(rnd, sizeof(rnd)), 0);
   /* random output must not be left all-zero */
   EXPECT_FALSE(all_zero(rnd, sizeof(rnd)));
-  EXPECT_FALSE(all_zero(salt, sizeof(salt)));
 }
 
 TEST_F(Spake, GenKeypairProducesValidPoint)

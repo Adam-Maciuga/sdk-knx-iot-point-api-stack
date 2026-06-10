@@ -76,6 +76,9 @@ function(kis_add_test TEST_NAME TEST_SOURCE)
 
     # Let CTest discover individual TEST() cases
     gtest_discover_tests(${TEST_NAME})
+
+    # Record this target so the run_unit_tests aggregate target can depend on it
+    set_property(GLOBAL APPEND PROPERTY KIS_UNIT_TEST_TARGETS ${TEST_NAME})
 endfunction()
 
 # ── Test targets ───────────────────────────────────────────────────────────────
@@ -121,6 +124,7 @@ kis_add_test(test_oc_session_events  test_oc_session_events.cpp)
 kis_add_test(test_oc_main            test_oc_main.cpp)
 kis_add_test(test_oc_core_res        test_oc_core_res.cpp)
 kis_add_test(test_spake2plus         test_spake2plus.cpp)
+kis_add_test(test_app_precalculated_spake test_app_precalculated_spake.cpp)
 kis_add_test(test_separate           test_separate.cpp)
 kis_add_test(test_oc_process         test_oc_process.cpp)
 kis_add_test(test_oc_etimer          test_oc_etimer.cpp)
@@ -135,3 +139,17 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(test_oc_rep PRIVATE -fpermissive)
     target_compile_options(test_oc_knx_helpers PRIVATE -fpermissive)
 endif()
+
+# ── Aggregate target: build all unit tests and run them at once ──────────────────
+# Building this target compiles every test executable above and then runs the whole
+# suite through CTest. Use it from Visual Studio (build the run_unit_tests target) or
+# from the CLI: cmake --build --preset=windows-test-gcc --target run_unit_tests
+get_property(_kis_unit_test_targets GLOBAL PROPERTY KIS_UNIT_TEST_TARGETS)
+add_custom_target(run_unit_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C $<CONFIG>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Building and running all KNX-IoT unit tests"
+    USES_TERMINAL
+    VERBATIM
+)
+add_dependencies(run_unit_tests ${_kis_unit_test_targets})
