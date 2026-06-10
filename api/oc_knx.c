@@ -1519,6 +1519,21 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
+  /*
+    Reject a second concurrent PASE request while a previous separate (spake) response is
+    still pending. Otherwise, coap_separate_accept would batch the new request's token onto
+    the single shared response handle, send one reply to multiple requests, and let the
+    later request overwrite the global g_pase_session and corrupt the in-flight handshake.
+    Respond 5.03 so the MaC retries later; this is a busy signal, not a failed handshake
+    attempt, so the brute-force counter is intentionally left untouched.
+  */
+  if (delayed_separate_response_for_a_spake_request.active)
+  {
+    OC_WRN("a PASE separate response is already pending - rejecting concurrent request");
+    oc_prepare_no_format_response_no_payload(request, OC_STATUS_SERVICE_UNAVAILABLE);
+    return;
+  }
+
   // set ptr
   const oc_rep_t* rep = request->request_payload;
 
