@@ -5,8 +5,19 @@ Runtime conformance tests — EITT 5.3 Security
 5.3.1.2   SPAKE2+ with wrong password (confirmV verification fails)
 5.3.1.2b  SPAKE2+ with correct password, wrong confirmP → 4.00
 5.3.1.4a  Secondary SPAKE2+ rejected when sent secured
+5.3.1.5a  SPAKE2+ state machine: credential request before parameter request → 4.00
+5.3.1.5b  SPAKE2+ state machine: verification request before parameter request → 4.00
+5.3.1.5c  SPAKE2+ state machine: repeated parameter request mid-handshake → 4.00
+5.3.1.5d  SPAKE2+ state machine: parameter request missing id (only rnd) → 4.00
+5.3.1.5e  SPAKE2+ state machine: parameter request missing rnd (only id) → 4.00
+5.3.1.5f  SPAKE2+ state machine: ordered handshake completes end-to-end
+5.3.1.6a  SPAKE2+ brute-force: 10 failed attempts block further requests (5.03)
+5.3.1.6b  SPAKE2+ brute-force: factory reset clears the block and counter
+5.3.1.6c  SPAKE2+ brute-force: counter decrements every 6 s (Max-Age shrinks)
+5.3.1.6d  SPAKE2+ brute-force: device auto-unblocks after the ~60 s timeout (slow)
+5.3.1.6e  SPAKE2+ brute-force: a successful step resets the consecutive counter
+5.3.1.6f  SPAKE2+ brute-force: 4 failures then a successful 5th resets the counter
 5.3.4.1   Read list of authentication related resources (GET /auth)
-5.3.8.1   Write entry to the access token list (POST /auth/at)
 5.3.8.1b  Invalid POST without security
 5.3.8.1c  Invalid PUT without security → 4.05
 5.3.8.1d  POST with OSCORE but without if.sec scope → 4.03
@@ -2694,3 +2705,456 @@ class TestSpake2PlusProtocol:
         assert resp is not None, "GET /auth/at/TmpTok timed out"
         assert resp.is_successful, (
             f"GET /auth/at/TmpTok failed: {resp.code}")
+
+
+# ===========================================================================
+# 5.3.1.5 — SPAKE2+ handshake state machine (request ordering + cardinality)
+# ===========================================================================
+
+
+class TestSpake2PlusStateMachine:
+    """5.3.1.5: SPAKE2+ handshake state machine correctness.
+
+    The device tracks the handshake progress with a state machine (IDLE →
+    PARAMS_SENT → CREDENTIALS_SENT → IDLE).  Requests that arrive out of
+    order, or that carry the wrong number of payload items for their step,
+    must be rejected with 4.00 without advancing the handshake.
+
+    Each test factory-resets the device to KNX Default State so the SPAKE2+
+    endpoint is available.  After the class finishes, the session OSCORE
+    context is re-provisioned for subsequent tests.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    def _reprovision_after(self, coap, oscore_ctx):
+        """Re-provision oscore_ctx after these tests destroy it."""
+        yield
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+
+    @pytest.fixture(autouse=True, scope="function")
+    def factory_reset_device(self, coap):
+        """Factory reset the device to KNX Default State before each test."""
+        resp = coap.post("/test/factory-reset", timeout=5)
+        assert resp is not None and resp.is_successful, (
+            f"Factory reset failed: {resp.code if resp else 'timeout'}")
+        time.sleep(1)
+
+    @staticmethod
+    def _post_spake(coap, payload_map, timeout=10):
+        """POST a raw CBOR map to the SPAKE2+ endpoint, return the response."""
+        return coap.post("/.well-known/knx/spake",
+                         payload=cbor2.dumps(payload_map),
+                         content_format=APPLICATION_CBOR, timeout=timeout)
+
+    def _do_step1(self, coap, spake):
+        """Run SPAKE2+ step 1 (parameter request), return the response."""
+        resp = self._post_spake(coap, spake.create_parameter_request(),
+                                 timeout=30)
+        assert resp is not None and resp.is_successful, (
+            f"SPAKE2+ step 1 failed: {resp.code if resp else 'timeout'}")
+        spake.process_parameter_response(cbor2.loads(resp.payload))
+        return resp
+
+    def _do_step2(self, coap, spake):
+        """Run SPAKE2+ step 2 (credential request), return the response."""
+        resp = self._post_spake(coap, spake.create_key_exchange_request(),
+                                 timeout=30)
+        assert resp is not None and resp.is_successful, (
+            f"SPAKE2+ step 2 failed: {resp.code if resp else 'timeout'}")
+        spake.process_key_exchange_response(cbor2.loads(resp.payload))
+        return resp
+
+    def _do_step3(self, coap, spake):
+        """Run SPAKE2+ step 3 (verification request), return the response."""
+        resp = self._post_spake(coap, spake.create_confirmation_request(),
+                                 timeout=10)
+        assert resp is not None and resp.is_successful, (
+            f"SPAKE2+ step 3 failed: {resp.code if resp else 'timeout'}")
+        return resp
+
+    def test_5_3_1_5a_credential_before_parameter(self, coap):
+        """Credential request (step 2) in IDLE state → 4.00."""
+        # shareP is a fixed-size point; use a plausibly-sized random value.
+        share_p = b"\x04" + os.urandom(64)
+        resp = self._post_spake(coap, {10: share_p})
+        assert resp is not None, "SPAKE2+ credential request timed out"
+        assert resp.is_bad_request, (
+            f"Credential request before parameter request should return "
+            f"4.00, got {resp.code}")
+
+    def test_5_3_1_5b_verification_before_parameter(self, coap):
+        """Verification request (step 3) in IDLE state → 4.00."""
+        resp = self._post_spake(coap, {14: os.urandom(32)})
+        assert resp is not None, "SPAKE2+ verification request timed out"
+        assert resp.is_bad_request, (
+            f"Verification request before parameter request should return "
+            f"4.00, got {resp.code}")
+
+    def test_5_3_1_5c_repeated_parameter_mid_handshake(self, coap):
+        """A second parameter request after step 1 → 4.00 (out of order)."""
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
+
+        # Step 1 succeeds and moves the state machine to PARAMS_SENT.
+        self._do_step1(coap, spake)
+
+        # A second parameter request is only legal from IDLE → rejected.
+        spake2 = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTo2")
+        resp = self._post_spake(coap, spake2.create_parameter_request(),
+                                 timeout=30)
+        assert resp is not None, "Second SPAKE2+ parameter request timed out"
+        assert resp.is_bad_request, (
+            f"Repeated parameter request mid-handshake should return 4.00, "
+            f"got {resp.code}")
+
+    def test_5_3_1_5d_parameter_missing_id(self, coap):
+        """Parameter request carrying only rnd (no id) → 4.00 (cardinality)."""
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
+        req = spake.create_parameter_request()
+        req.pop(0)  # drop the id (key 0), leaving only rnd (key 15)
+        resp = self._post_spake(coap, req, timeout=30)
+        assert resp is not None, "SPAKE2+ parameter request (no id) timed out"
+        assert resp.is_bad_request, (
+            f"Parameter request missing id should return 4.00, "
+            f"got {resp.code}")
+
+    def test_5_3_1_5e_parameter_missing_rnd(self, coap):
+        """Parameter request carrying only id (no rnd) → 4.00 (cardinality)."""
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
+        req = spake.create_parameter_request()
+        req.pop(15)  # drop rnd (key 15), leaving only id (key 0)
+        resp = self._post_spake(coap, req, timeout=30)
+        assert resp is not None, "SPAKE2+ parameter request (no rnd) timed out"
+        assert resp.is_bad_request, (
+            f"Parameter request missing rnd should return 4.00, "
+            f"got {resp.code}")
+
+    def test_5_3_1_5f_ordered_handshake_completes(self, coap):
+        """Ordered step 1→2→3 is accepted end-to-end and yields a working key.
+
+        The factory_reset fixture leaves the AT table empty (KNX Default
+        State), so the state machine starts in IDLE.  Driving the three
+        requests in order must transition IDLE → PARAMS_SENT →
+        CREDENTIALS_SENT → IDLE and complete the handshake.  Once the
+        handshake completes a PASE token is provisioned, so the device is no
+        longer in Default State and further SPAKE2+ requests are gated by the
+        empty-AT-table precondition (not by the state machine); that gating is
+        covered by the reset-type tests, so it is not re-checked here.
+        """
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="SmTest")
+
+        # Each step asserts a 2.xx response internally; an out-of-order or
+        # wrong-cardinality request would have been rejected with 4.00.
+        self._do_step1(coap, spake)
+        self._do_step2(coap, spake)
+        self._do_step3(coap, spake)
+
+        # The derived temp key must work, proving the ordered handshake
+        # actually completed (state machine returned to IDLE).
+        pase_ctx = OscoreContext(
+            master_secret=spake.shared_key,
+            sender_id=spake.sender_id.encode("utf-8"),
+            recipient_id=b"",
+        )
+        resp = coap.oscore_get(pase_ctx, "/.well-known/knx")
+        assert resp is not None, "GET /.well-known/knx with temp key timed out"
+        assert resp.is_successful, (
+            f"GET /.well-known/knx with temp key failed: {resp.code}")
+
+
+class TestSpake2PlusBruteForce:
+    """5.3.1.6: SPAKE2+ brute-force protection.
+
+    The device counts failed handshake attempts.  After 10 failures it blocks
+    further attempts for 60 seconds, answering with 5.03 (Service Unavailable)
+    instead of 4.00.  Returning the device to its KNX Default State (factory
+    reset) must clear both the failure counter and the blocked state so a fresh
+    handshake is accepted again.
+
+    Each test factory-resets the device to KNX Default State so the SPAKE2+
+    endpoint is available and the counter starts at zero.  After the class
+    finishes, the session OSCORE context is re-provisioned for subsequent tests.
+    """
+
+    BLOCK_THRESHOLD = 10
+
+    @pytest.fixture(autouse=True, scope="class")
+    def _reprovision_after(self, coap, oscore_ctx):
+        """Re-provision oscore_ctx after these tests destroy it."""
+        yield
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+
+    @pytest.fixture(autouse=True, scope="function")
+    def factory_reset_device(self, coap):
+        """Factory reset the device to KNX Default State before each test.
+
+        This also clears the SPAKE2+ brute-force protection (counter +
+        blocked state), so each test starts from a clean, unblocked device.
+        """
+        resp = coap.post("/test/factory-reset", timeout=5)
+        assert resp is not None and resp.is_successful, (
+            f"Factory reset failed: {resp.code if resp else 'timeout'}")
+        time.sleep(1)
+
+    @staticmethod
+    def _post_spake(coap, payload_map, timeout=10):
+        """POST a raw CBOR map to the SPAKE2+ endpoint, return the response."""
+        return coap.post("/.well-known/knx/spake",
+                         payload=cbor2.dumps(payload_map),
+                         content_format=APPLICATION_CBOR, timeout=timeout)
+
+    def _failed_attempt(self, coap):
+        """Send one request that is invalid in every handshake state.
+
+        An empty CBOR map carries none of the recognized members (id+rnd,
+        shareP, confirmP), so the device classifies it as an invalid request
+        and rejects it at the state-machine gate in ANY state (IDLE,
+        PARAMS_SENT, CREDENTIALS_SENT).  The gate rejection increments the
+        brute-force counter and resets the session back to IDLE, so this is a
+        reliable way to drive the counter up regardless of the current state
+        (e.g. right after a successful step that advanced the state machine).
+        Returns the response.
+        """
+        return self._post_spake(coap, {})
+
+    @staticmethod
+    def _max_age(resp):
+        """Return the CoAP Max-Age (option 14) of a response as an int, or None.
+
+        While blocked the device answers 5.03 with Max-Age = remaining_count * 6,
+        a countdown hint that shrinks as the brute-force counter is decremented.
+        """
+        if resp is None or not resp.options or 14 not in resp.options:
+            return None
+        return int.from_bytes(resp.options[14], "big")
+
+    def _successful_step1(self, coap):
+        """Run a successful SPAKE2+ step 1 (parameter request) -> 2.04.
+
+        A well-formed parameter request is a successful PASE step and must reset
+        the consecutive-failure counter on the device.  Returns the response.
+        """
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
+        resp = self._post_spake(coap, spake.create_parameter_request(),
+                                timeout=30)
+        assert resp is not None and resp.is_successful, (
+            f"SPAKE2+ step 1 should succeed, got "
+            f"{resp.code if resp else 'timeout'}")
+        return resp
+
+    def test_5_3_1_6a_block_after_ten_failures(self, coap):
+        """10 failed attempts arm the block; the next attempt returns 5.03."""
+        # The first BLOCK_THRESHOLD failures are each rejected with 4.00.
+        for i in range(self.BLOCK_THRESHOLD):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ failed attempt {i + 1} timed out")
+            assert resp.is_bad_request, (
+                f"Failed attempt {i + 1} should return 4.00, got {resp.code}")
+
+        # The device is now blocked: a further request is answered with 5.03
+        # (Service Unavailable) rather than 4.00.
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ request while blocked timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"Request after {self.BLOCK_THRESHOLD} failures should be blocked "
+            f"with 5.03, got {resp.code}")
+
+    def test_5_3_1_6b_factory_reset_clears_block(self, coap):
+        """A factory reset clears the brute-force block and counter.
+
+        After the device is blocked (10 failures), returning it to its KNX
+        Default State must reset the SPAKE2+ brute-force protection so a fresh,
+        well-formed handshake step is accepted again instead of being answered
+        with 5.03.
+        """
+        # Arm the block with BLOCK_THRESHOLD failed attempts.
+        for i in range(self.BLOCK_THRESHOLD):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ failed attempt {i + 1} timed out")
+
+        # Confirm the device is actually blocked now (5.03).
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ request while blocked timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"Device should be blocked with 5.03 before reset, got {resp.code}")
+
+        # Factory reset must clear the counter and the blocked state.
+        reset = coap.post("/test/factory-reset", timeout=5)
+        assert reset is not None and reset.is_successful, (
+            f"Factory reset failed: {reset.code if reset else 'timeout'}")
+        time.sleep(1)
+
+        # A well-formed step 1 must now succeed again (2.xx), proving the block
+        # and counter were cleared by the reset.
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
+        resp = self._post_spake(coap, spake.create_parameter_request(),
+                                timeout=30)
+        assert resp is not None, "SPAKE2+ step 1 after reset timed out"
+        assert resp.is_successful, (
+            f"SPAKE2+ step 1 after factory reset should succeed, "
+            f"got {resp.code}")
+
+    def test_5_3_1_6c_counter_decreases_over_time(self, coap):
+        """While blocked, the counter ticks down every 6 s (Max-Age shrinks).
+
+        The device decrements the brute-force counter once every 6 seconds and
+        reflects the remaining time in the 5.03 response's Max-Age option
+        (Max-Age = remaining_count * 6).  Probing the blocked endpoint across
+        two 6-second ticks must therefore show a strictly decreasing Max-Age,
+        proving the periodic decrement is running.  A blocked request does not
+        re-increment the counter, so polling does not perturb the countdown.
+        """
+        # Arm the block with BLOCK_THRESHOLD failed attempts (counter == 10).
+        for i in range(self.BLOCK_THRESHOLD):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ failed attempt {i + 1} timed out")
+
+        # First blocked probe: counter is at (or near) the maximum.
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ request while blocked timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"Device should be blocked with 5.03, got {resp.code}")
+        first_age = self._max_age(resp)
+        assert first_age is not None and first_age > 0, (
+            f"Blocked 5.03 must carry a positive Max-Age, got {first_age}")
+
+        # Wait for two decrement ticks (~6 s each) and probe again. The counter
+        # must have decreased, so the reported Max-Age must be strictly smaller.
+        time.sleep(13)
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ request while blocked timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"Device should still be blocked with 5.03, got {resp.code}")
+        second_age = self._max_age(resp)
+        assert second_age is not None, "Blocked 5.03 must carry a Max-Age"
+        assert second_age < first_age, (
+            f"Max-Age must shrink as the counter is decremented every 6 s: "
+            f"first={first_age}, after ~13 s={second_age}")
+
+    @pytest.mark.skipif(
+        os.environ.get("RUN_SLOW_TESTS") is None,
+        reason="Slow (~60 s): set RUN_SLOW_TESTS to run the full unblock timer")
+    def test_5_3_1_6d_unblocks_after_timeout(self, coap):
+        """The counter reaches zero after ~60 s and the device unblocks itself.
+
+        After 10 failures the device blocks for 10 * 6 s = 60 s, decrementing
+        the counter once every 6 s.  Once it reaches zero the device unblocks
+        without any external action, so a well-formed step 1 must be accepted
+        again (2.xx) instead of 5.03.  This is gated behind RUN_SLOW_TESTS
+        because it must wait out the full timer.
+        """
+        # Arm the block (counter == 10 -> blocked for ~60 s).
+        for i in range(self.BLOCK_THRESHOLD):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ failed attempt {i + 1} timed out")
+
+        # Confirm it is blocked right after arming.
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ request while blocked timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"Device should be blocked with 5.03, got {resp.code}")
+
+        # Wait out the full unblock window (60 s) plus a small margin so the
+        # final decrement-to-zero callback has fired.
+        time.sleep(self.BLOCK_THRESHOLD * 6 + 5)
+
+        # The device must have unblocked on its own: a valid step 1 succeeds.
+        spake = Spake2PlusClient(password=DEVICE_PASSWORD, sender_id="TmpTok")
+        resp = self._post_spake(coap, spake.create_parameter_request(),
+                                timeout=30)
+        assert resp is not None, "SPAKE2+ step 1 after unblock timed out"
+        assert resp.is_successful, (
+            f"SPAKE2+ step 1 should succeed after the block expires, "
+            f"got {resp.code}")
+
+    def test_5_3_1_6e_success_resets_consecutive_counter(self, coap):
+        """A successful PASE step resets the consecutive-failure counter.
+
+        The device only blocks on BLOCK_THRESHOLD CONSECUTIVE failures.  After
+        BLOCK_THRESHOLD - 1 failures a single successful step 1 must reset the
+        counter to zero, so it then takes a fresh full run of BLOCK_THRESHOLD
+        failures (each still 4.00) before the next request is blocked with 5.03.
+        Before the reset-on-success fix, the counter would have carried over and
+        blocked far sooner.
+        """
+        # Drive the counter to BLOCK_THRESHOLD - 1 failures (one short of block).
+        for i in range(self.BLOCK_THRESHOLD - 1):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ failed attempt {i + 1} timed out")
+            assert resp.is_bad_request, (
+                f"Failed attempt {i + 1} should return 4.00, got {resp.code}")
+
+        # A successful step must reset the consecutive-failure counter to zero.
+        self._successful_step1(coap)
+
+        # The counter restarted from zero: a fresh full run of BLOCK_THRESHOLD
+        # failures must each still be 4.00 (NOT blocked).  Had the success not
+        # reset the counter, the device would already be blocked well before
+        # reaching BLOCK_THRESHOLD here.
+        for i in range(self.BLOCK_THRESHOLD):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ post-reset failed attempt {i + 1} timed out")
+            assert resp.is_bad_request, (
+                f"Post-reset failed attempt {i + 1} should still return 4.00 "
+                f"(success must have reset the counter), got {resp.code}")
+
+        # Only now, the next (BLOCK_THRESHOLD + 1-th) request is blocked (5.03).
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ blocking attempt timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"After {self.BLOCK_THRESHOLD} consecutive failures (since the "
+            f"reset) the next request should be blocked with 5.03, "
+            f"got {resp.code}")
+
+    def test_5_3_1_6f_success_after_few_failures_resets_counter(self, coap):
+        """4 failures, then a successful 5th request resets the counter.
+
+        A concrete mid-streak example (below the block threshold): after 4
+        failed attempts the 5th request is a well-formed, successful step 1.
+        That success must reset the consecutive-failure counter, so the device
+        is NOT closer to being blocked afterwards: it then takes a fresh, full
+        run of BLOCK_THRESHOLD failures (each still 4.00) before the next
+        request is blocked with 5.03.  Had the counter not been reset, the 4
+        earlier failures would carry over and the block would arm sooner.
+        """
+        FAILS_BEFORE_SUCCESS = 4
+        assert FAILS_BEFORE_SUCCESS < self.BLOCK_THRESHOLD, (
+            "this test must stay below the block threshold before the success")
+
+        # 4 failed attempts, each rejected with 4.00 (not yet blocked).
+        for i in range(FAILS_BEFORE_SUCCESS):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ failed attempt {i + 1} timed out")
+            assert resp.is_bad_request, (
+                f"Failed attempt {i + 1} should return 4.00, got {resp.code}")
+
+        # The 5th request is a successful step 1 and must reset the counter to 0.
+        self._successful_step1(coap)
+
+        # The counter restarted from zero: a fresh full run of BLOCK_THRESHOLD
+        # failures must each still be 4.00.  If the 4 earlier failures had
+        # carried over, the block would arm before this loop completes.
+        for i in range(self.BLOCK_THRESHOLD):
+            resp = self._failed_attempt(coap)
+            assert resp is not None, (
+                f"SPAKE2+ post-reset failed attempt {i + 1} timed out")
+            assert resp.is_bad_request, (
+                f"Post-reset failed attempt {i + 1} should still return 4.00 "
+                f"(the successful 5th request must have reset the counter), "
+                f"got {resp.code}")
+
+        # Only the next request (BLOCK_THRESHOLD failures since the reset) blocks.
+        resp = self._failed_attempt(coap)
+        assert resp is not None, "SPAKE2+ blocking attempt timed out"
+        assert resp.code_class == 5 and resp.code_detail == 3, (
+            f"After {self.BLOCK_THRESHOLD} consecutive failures (since the "
+            f"successful 5th request) the next request should be blocked with "
+            f"5.03, got {resp.code}")

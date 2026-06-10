@@ -402,6 +402,7 @@ class CoapClient:
                 msg_type=msg_type,
                 mid=mid,
                 token=token,
+                options=options,
             )
 
     def get(self, path: str, accept: Optional[int] = None,

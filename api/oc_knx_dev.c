@@ -1169,7 +1169,8 @@ void oc_knx_device_storage_reset(int reset_mode)
 {
   oc_device_info_t* const device = oc_core_get_device_info();
 
-  if (reset_mode == RESET_TO_DEFAULT_STATE) {
+  if (reset_mode == RESET_TO_DEFAULT_STATE) 
+  {
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
@@ -1191,6 +1192,9 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_delete_group_object_table();
     oc_delete_group_tables();
     oc_delete_at_table();
+
+    // terminate any in-flight PASE handshake so its state machine is reset to IDLE
+    oc_spake_reset_pase_session();
 
     // clear the CoAP request cache 
     oc_coap_clear_request_history();
@@ -1215,7 +1219,8 @@ void oc_knx_device_storage_reset(int reset_mode)
     return;
   }
 
-  if (reset_mode == RESET_TO_DEFAULT_WO_IA) {
+  if (reset_mode == RESET_TO_DEFAULT_WO_IA) 
+  {
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
@@ -1230,6 +1235,9 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_delete_group_tables();
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
+
+    // terminate any in-flight PASE handshake so its state machine is reset to IDLE
+    oc_spake_reset_pase_session();
 
     // don't reset security related "replay window size" and "osn delay"
 
