@@ -1421,39 +1421,47 @@ static void oc_spake_clear_pase_and_init_from_record(void)
 static int8_t failed_handshake_count = 0;
 static bool is_blocked = false;
 
-// called every 10 seconds, if zero -> unblock the client
+// called every 6 seconds (also to reduce max age counter on further but blocked spake attempts), if zero -> unblock the client
 static oc_event_callback_retval_t decrement_spake_request_counter(void* data)
 {
   (void)data;
 
-  // on '0' don't continue to decrement and unblock (note the callback is still active)
-  if (failed_handshake_count > 0)
+  // cannot be -1 or less since callback is init/called first with counter = 10
+  if (--failed_handshake_count == 0)
   {
-    if (--failed_handshake_count == 0)
-    {
-      is_blocked = false;
-    }
+    // if counter is zero (this will be a one time trigger) unblock and stop callback (works also on an unexpected callback)
+    is_blocked = false;
+    return OC_EVENT_DONE;
   }
+  
+  // wait until next callback call 
   return OC_EVENT_CONTINUE;
 }
 
-// called on every unsuccessful spake attempt, if > 10 -> block the client
+// called on every unsuccessful spake attempt, if = 10 -> block the client and start callback to unblock after 60 seconds (see KNX specification)
 static void increment_spake_request_counter(void)
 {
-  // on '60' don't continue to increment
-  if (failed_handshake_count < 60)
+  /* 
+     - don't allow more than 10 failed attempts to access (in whatever time span)
+     - safe to reach 10 only on counting upwards since this method is not called again when blocked is true, 
+       (and counting down would reach the state '10' here again from 'above') 
+  
+  */
+
+  if (++failed_handshake_count == 10)
   {
-    if (++failed_handshake_count > 10)
-    {
-      is_blocked = true;
-    }
+    // if counter reaches 10 from below (this will be a one time trigger) block and start callback
+    is_blocked = true;
+    
+    // start SPAKE brute force protection timer ONES when entering blocked state, unblock 60 seconds
+    oc_set_delayed_callback(NULL, decrement_spake_request_counter, 6);
   }
 }
 
 // returns handshake blocker
 static bool is_handshake_blocked(void) { return is_blocked; }
 
-// a linked list for THE delayed response message for a (single) spake request (only one pending response is allowed)
+// a list hosting the delayed (spake) response message for a (single) spake request (only one pending (spake) response is allowed)
 static oc_separate_response_t delayed_separate_response_for_a_spake_request;
 static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* req_p);
 
@@ -1502,10 +1510,12 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   }
 
 
+  // 0..9 errors end up in 4.00 - then 5.03 (see details above in 'increment_spake_request_counter') 
   if (is_handshake_blocked())
   {
+    // messages on blocked state the max age counter that is decreased every 6 seconds 
     request->response->response_buffer->code = oc_status_code(OC_STATUS_SERVICE_UNAVAILABLE);
-    request->response->response_buffer->max_age = failed_handshake_count * 10;
+    request->response->response_buffer->max_age = failed_handshake_count * 6;
     return;
   }
 
@@ -1660,7 +1670,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   (void)req_p;
   OC_INF("oc_core_knx_spake_separate_post_handler - start");
 
-  // previous device response is fired and no longer active ...
+  // no pending spake response -> do nothing and clear callback (happens if the callback is called after the response was already sent)
   if (!delayed_separate_response_for_a_spake_request.active)
   {
     return OC_EVENT_DONE;
@@ -1715,7 +1725,7 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   {
     // return 2.04 changed, frame shareV, confirmV
 
-    memset(&spake_data, 0, sizeof(spake_data));
+    spake_data = (spake_data_t){0};
 
     /*
       Use the precalculated offline registration record (RFC 9383 sec. 3.2).
@@ -1883,9 +1893,6 @@ int oc_spake2plus_init_data(void)
 
   // reset pase to a clean state seeded with the fixed PBKDF2 params (salt + it) from the registration record
   oc_spake_clear_pase_and_init_from_record();
-
-  // start SPAKE brute force protection timer
-  oc_set_delayed_callback(NULL, decrement_spake_request_counter, 10);
 
   return 0;
 }
