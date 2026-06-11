@@ -8,21 +8,21 @@ if(CMAKE_COMPILER_IS_GNUCC AND UNIX)
     add_compile_options(-fPIC) 
 endif()
 
-if(CMAKE_COMPILER_IS_GNUCC)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes")
-endif(CMAKE_COMPILER_IS_GNUCC)
-
-if(CMAKE_COMPILER_IS_CLANG)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-declarations -Wmissing-prototypes -Wdocumentation -Wno-documentation-deprecated-sync -Wunreachable-code")
-endif(CMAKE_COMPILER_IS_CLANG)
-
 if(MSVC)
-  # Add command line definitiosn for the target in the current directory.
+  
+  # Add (global) command line definitions for the target in the current directory.
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-  # Add compile options for the target in the current directory and below.
-  # W4 = max warn level
-  # WX = all compile warnings are errors 
-  add_compile_options(/W4 /WX-)
+  # Warning-level flags (such as /W4 /WX-) are intentionally NOT set here.
+  #
+  # - 'add_compile_options' is directory-scoped and would leak into the FetchContent
+  #   third-party dependencies (such as Mbed TLS,TinyCBOR, mDNS, googletest, ...)
+  #
+  # - Mbed TLS uses its own /W3 and /WX on its targets, the HERE leaked flags would cause 
+  #   MSVC D9025 "overriding" warnings on every Mbed TLS source file
+  #
+  # - The stack warning flags are attached to the kis-common INTERFACE target below, 
+  #   which only the stack's own targets consume.
+
 endif()
 
 # Add preprocessor definitions for the current CMakeLists file.
@@ -163,6 +163,34 @@ set(COAP_SOURCES
 ## KNX-IoT Stack Options ##
 # virtual library targets, used to provide common (compile) settings 
 add_library(kis-common INTERFACE)
+
+# - stack warning flags are attached to the kis-common INTERFACE target 
+#   (consumed only by the stack's own targets) instead of via directory-scoped 
+#   add_compile_options / CMAKE_C_FLAGS, they do NOT leak into the FetchContent 
+#   third-party dependencies (see details above on ### Compiler ###). 
+#
+# - the GNU/Clang flags are guarded with # $<COMPILE_LANGUAGE:C> because they are not
+#   valid for C++ (the unit tests consume kis-common transitively).
+
+if(MSVC)
+    # W4 = max warn level, WX- = do NOT treat warnings as errors (MSVC default).
+    target_compile_options(kis-common INTERFACE /W4 /WX-)
+endif()
+if(CMAKE_COMPILER_IS_GNUCC)
+    target_compile_options(kis-common INTERFACE
+        $<$<COMPILE_LANGUAGE:C>:-Wmissing-declarations>
+        $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
+    )
+endif()
+if(CMAKE_COMPILER_IS_CLANG)
+    target_compile_options(kis-common INTERFACE
+        $<$<COMPILE_LANGUAGE:C>:-Wmissing-declarations>
+        $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>
+        $<$<COMPILE_LANGUAGE:C>:-Wdocumentation>
+        $<$<COMPILE_LANGUAGE:C>:-Wno-documentation-deprecated-sync>
+        $<$<COMPILE_LANGUAGE:C>:-Wunreachable-code>
+    )
+endif()
 
 if(OC_PRINT_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_PRINT)
