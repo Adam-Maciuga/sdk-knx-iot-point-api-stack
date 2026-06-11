@@ -19,8 +19,6 @@
 #include "oc_rep.h"
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
-#include "observe.h"
-#include "engine.h"
 
 #define __STDC_FORMAT_MACROS // defined to use format specifiers also in C++
 
