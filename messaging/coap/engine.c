@@ -1562,7 +1562,7 @@ int coap_receive(oc_message_t* incoming_message)
                oc_string_checked(response_buffer->href));
         client_cb = (oc_client_cb_t*)response_buffer->client_cb;
         oc_blockwise_response_state_t* response_state = (oc_blockwise_response_state_t*)response_buffer;
-        coap_get_header_observe(inbound_coap_pkt, (uint32_t*)&response_state->observe_seq);
+        coap_get_header_observe(inbound_coap_pkt, (oc_client_observe_t*)&response_state->observe_seq);
 
         const uint8_t* incoming_block;
         uint32_t incoming_block_len = coap_get_payload(inbound_coap_pkt, &incoming_block);
