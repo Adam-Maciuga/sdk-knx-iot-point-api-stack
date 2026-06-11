@@ -72,10 +72,11 @@ typedef enum oc_spake_event_t
 
 /*
   Handshake ordering table, indexed [event][state]. 
-  - Returns the next state for a legal transition or SPAKE_S_ERROR for an out-of-order request  or non-matching item count.
+  - Returns the next state for a legal transition or SPAKE_S_ERROR for an out-of-order request 
+    or non-matching item count (S1 -> S2 -> S3).
   NOTE: 
-  - S2 in SPAKE_PARAMS state is legal, e.g. a new S1 request (see also EITT tests 5.10.5.2 -> 5.10.5.3),
-    but S1 in SPAKE_CREDS state is not (e.g. a repeated S2 request or an S1 after an S2).
+  - S1 in SPAKE_PARAMS state is legal: a prover may abandon an 'in-progress handshake' and restart step 1
+    (see also EITT tests 5.10.5.2 -> 5.10.5.3), which re-arms the handshake and returns fresh parameters.
 */
 static const uint8_t spake_event_to_state[4][3] =
 {
