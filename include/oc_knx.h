@@ -322,11 +322,8 @@ void oc_knx_set_and_store_lsm(oc_lsm_state_t new_state);
    * @brief Reset the active PASE handshake session to a clean state.
    *
    * Terminates any in-flight SPAKE2+ handshake, resets the persistent handshake
-   * state machine to IDLE and clears the SPAKE brute-force protection. Called
-   * from the device reset path so a handshake abandoned before completion does
-   * not leave stale state that would wrongly reject the next handshake.
+   * state machine to IDLE and clears the SPAKE brute-force protection.
    *
-   * @see oc_knx_device_storage_reset
    */
   void oc_spake_reset_pase_session(void);
 

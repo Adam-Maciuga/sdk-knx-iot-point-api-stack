@@ -71,19 +71,26 @@ typedef enum oc_spake_event_t
 } oc_spake_event_t;
 
 /*
-  Handshake ordering table, indexed [event][state]. 
-  - Returns the next state for a legal transition or SPAKE_S_ERROR for an out-of-order request 
-    or non-matching item count (S1 -> S2 -> S3).
+  Handshake state machine (handcrafted by a human), indexed [event][state]. 
+  - returns the next state per transition + expected item count 
+  - 'happy-path' is IDLE + S1 -> PRAMS + S2 -> CREDS + S3 -> IDLE
+  
   NOTE: 
-  - S1 in SPAKE_PARAMS state is legal: a prover may abandon an 'in-progress handshake' and restart step 1
-    (see also EITT tests 5.10.5.2 -> 5.10.5.3), which re-arms the handshake and returns fresh parameters.
+  S1 in SPAKE_PARAMS, S1 in SPAKE_CREDS 
+
+  - is legal: a prover may abandon an 'in-progress handshake' and restart step 1
+    (see also EITT tests 5.10.5.2 -> 5.10.5.3), which re-arms the handshake and returns 
+    fresh parameters
+
+  - is necessary: an attacker may bring the device into state SPAKE_PARAMS or SPAKE_CREDS,  
+    a valid MaC would need to send 2 x S1 (first to get an error, second to restart over again) 
 */
 static const uint8_t spake_event_to_state[4][3] =
 {
   /*                          SPAKE_IDLE                SPAKE_PARAMS             SPAKE_CREDS           */
-  /* S1 PARAMETER_REQ    */ {(2 << 4) + SPAKE_PARAMS, (2 << 4) + SPAKE_PARAMS, SPAKE_ERROR,           }, 
-  /* S2 CREDENTIAL_REQ   */ {SPAKE_ERROR,             (1 << 4) + SPAKE_CREDS,  SPAKE_ERROR,           }, 
-  /* S3 VERIFICATION_REQ */ {SPAKE_ERROR,             SPAKE_ERROR,             (1 << 4) + SPAKE_IDLE, }, 
+  /* S1 PARAMS_REQ       */ {(2 << 4) + SPAKE_PARAMS, (2 << 4) + SPAKE_PARAMS, (2 << 4) + SPAKE_PARAMS}, 
+  /* S2 CREDENTIAL_REQ   */ {SPAKE_ERROR,             (1 << 4) + SPAKE_CREDS,  SPAKE_ERROR            }, 
+  /* S3 VERIFICATION_REQ */ {SPAKE_ERROR,             SPAKE_ERROR,             (1 << 4) + SPAKE_IDLE  }, 
   /* SX INVALID_REQ      */ {SPAKE_ERROR,             SPAKE_ERROR,             SPAKE_ERROR            }, 
 };
 
@@ -103,9 +110,7 @@ static const uint8_t spake_event_to_state[4][3] =
   protection. They are session control state too, but with a broader lifetime
   than event/state: they intentionally survive the per-attempt reset (so
   repeated failed attempts can still reach the blocking threshold) and are only
-  cleared on a successful handshake step and on device/factory-reset (see
-  reset_spake_request_counter / oc_spake_reset_pase_session). A single object
-  represents the one active PASE session.
+  cleared on a successful handshake and on device reset (2 + 7).
 */
 typedef struct oc_pase_session_t
 {
@@ -121,13 +126,6 @@ static oc_string_t g_idevid;
 static oc_string_t g_ldevid;
 
 // ----------------------------------------------------------------------------
-
-// reset only the handshake state machine; the brute-force counter is intentionally untouched (see oc_spake_reset_pase_session)
-static void oc_spake_clear_pase_state(void)
-{
-  g_pase_session.state = SPAKE_IDLE;
-}
-
 
 static int convert_cmd(char* cmd)
 {
@@ -1464,12 +1462,12 @@ static void oc_spake_clear_pase_and_init_from_record(void)
   oc_free_string(&g_pase_session.params.id);
   g_pase_session.params = (oc_pase_t){0};
 
-  // reset the handshake state machine (init, successful completion, and error all funnel through here)
-  oc_spake_clear_pase_state();
-
   // assign fixed parameters from the precalculated record, which is stable across sessions and resets
   memcpy(g_pase_session.params.salt, g_spake_record.salt, sizeof(g_pase_session.params.salt));
   g_pase_session.params.it = g_spake_record.it;
+
+  // reset the handshake state machine (init, successful completion, and error all funnel through here)
+  g_pase_session.state = SPAKE_IDLE;
 }
 
 // called every 6 seconds (also to reduce max age counter on further but blocked spake attempts), if zero -> unblock the client
@@ -1514,30 +1512,19 @@ static bool is_handshake_blocked(void) { return g_pase_session.is_blocked; }
 
 /*
   Clear the SPAKE brute-force protection: cancel any pending unblock timer, zero
-  the consecutive-failure counter and clear the blocked flag. Used on every
-  successful PASE step (the counter tracks CONSECUTIVE failures, so any success
-  resets it) and from the device/factory-reset hook below. Cancelling the
-  pending callback first is essential, otherwise it would keep firing and
-  decrement the (now zeroed) counter into negative values.
+  the consecutive-failure counter and clear the blocked flag. Used only successful 
+  PASE handshake in step 3 (the counter tracks CONSECUTIVE failures, so any success
+  resets it) and from the device/factory-reset hook below.
 */
 static void oc_spake_unblock_pase_session(void)
 {
+  // do first, otherwise it would keep firing and decrement the (now zeroed) counter into negative values
   oc_remove_delayed_callback(NULL, decrement_spake_request_counter);
+
   g_pase_session.failed_handshake_count = 0;
   g_pase_session.is_blocked = false;
 }
 
-/*
-  Public reset hook for the device reset/factory-reset path (see
-  oc_knx_device_storage_reset). Returning the device to its KNX default
-  configuration state must terminate any in-flight PASE handshake AND clear the
-  SPAKE brute-force protection. This is intentionally separate from the
-  per-attempt reset (oc_spake_clear_pase_and_init_from_record), which must keep
-  the brute-force counter intact so repeated failed attempts can still reach the
-  blocking threshold. Called from every reset path (real reset command and the
-  test-control factory-reset, which both funnel through
-  oc_knx_device_storage_reset).
-*/
 void oc_spake_reset_pase_session(void)
 {
   // clear the session (state machine + parameters)
@@ -1595,7 +1582,6 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
     return;
   }
 
-
   // 0..9 errors end up in 4.00 - then 5.03 (see details above in 'increment_spake_request_counter') 
   if (is_handshake_blocked())
   {
@@ -1626,7 +1612,7 @@ static void oc_core_knx_spake_post_handler(oc_request_t* request, oc_interface_m
   // init to invalid
   g_pase_session.event = SX_SPAKE_INVALID_REQ;
 
-  // payload item counts per handshake event (indexed by oc_spake_event_t); used by the cardinality gate below
+  // payload item counts per spake handshake event; used by the cardinality gate below
   uint8_t member_count[4] = { 0, 0, 0, 0};
 
   /*
@@ -1784,7 +1770,10 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
   (void)req_p;
   OC_INF("oc_core_knx_spake_separate_post_handler - start");
 
-  // no pending spake response -> do nothing and clear callback (happens if the callback is called after the response was already sent)
+  /* 
+     no pending spake response -> do nothing and clear callback 
+     (happens if the callback is called after the response was already sent)
+  */
   if (!delayed_separate_response_for_a_spake_request.active)
   {
     return OC_EVENT_DONE;
@@ -1828,9 +1817,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     oc_rep_end_object(&root_map, pbkdf2);
 
     oc_rep_end_root_object();
-
-    // successful step: clear the consecutive-failure counter and any block (only 10 failures in a row block)
-    oc_spake_unblock_pase_session();
 
     oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
@@ -1890,9 +1876,6 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
 
     oc_rep_end_root_object();
 
-    // successful step: clear the consecutive-failure counter and any block (only 10 failures in a row block)
-    oc_spake_unblock_pase_session();
-
     oc_send_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
     return OC_EVENT_DONE;
   }
@@ -1941,14 +1924,9 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     // empty payload
     oc_send_empty_separate_response(&delayed_separate_response_for_a_spake_request, OC_STATUS_CHANGED);
 
-    // handshake completed successfully - clear spake data
+    // handshake completed successfully - reset session (reinit/ unblock)
     spake_data = (spake_data_t){0};
-
-    // reset pase: free id, zero all fields, re-seed fixed PBKDF2 params (salt + it) that must survive resets
-    oc_spake_clear_pase_and_init_from_record();
-
-    // successful step: clear the consecutive-failure counter and any block (only 10 failures in a row block)
-    oc_spake_unblock_pase_session();
+    oc_spake_reset_pase_session();
 
     return OC_EVENT_DONE;
   }
