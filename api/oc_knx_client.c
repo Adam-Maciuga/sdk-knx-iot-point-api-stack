@@ -157,11 +157,8 @@ void oc_send_s_mode_unicast_message(uint32_t group_address, char service_type,
                                     const uint8_t* value_data, int value_size, oc_group_table_t* recipient,
                                     oc_group_object_table_t* group_object)
 {
-  if (!recipient)
-  {
-    OC_ERR("Cannot send unicast: recipient is NULL");
-    return;
-  }
+ 
+  // 'recipient' CANT BE invalid here, tested before this method call -> no extra test here
 
   if (recipient->ia == -1)
   {
@@ -198,17 +195,8 @@ void oc_send_s_mode_multicast_message(uint8_t scope, uint32_t group_address, cha
                                       const uint8_t* value_data, int value_size, oc_group_table_t* recipient)
 {
   
-  if (!recipient)
-  {
-    OC_ERR("Cannot send multicast: recipient is NULL");
-    return;
-  }
+  // 'recipient' and 'recipient->grpid' CANT BE invalid here, all tested before this method call -> no extra test here
 
-  if (recipient->grpid == 0)
-  {
-    OC_ERR("Cannot send multicast: invalid GRPID in recipient table for GA %u", group_address);
-    return;
-  }
   
   /* 
     - iid from specification, table 21 for multicast (only) is determined as follows:
