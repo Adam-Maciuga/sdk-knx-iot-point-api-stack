@@ -1,9 +1,13 @@
 /*
- * Unit tests for api/oc_knx_fp.c — pure functions only
+ * Unit tests for api/oc_knx_fp.c
  *
- * Covers: oc_cflags_as_string (communication flag bitmask to string)
- *
- * Table CRUD functions require full stack init and are not tested here.
+ * Covers:
+ *   - oc_cflags_as_string (communication flag bitmask to string)
+ *   - Group Object / Recipient / Publisher table search helpers
+ *   - oc_belongs_href_to_resource
+ *   - Group table persistence: store/load round trip for the Recipient and
+ *     Publisher tables (driven through the public loader
+ *     oc_create_knx_table_resources), including the 'non' boolean flag.
  */
 
 #include <gtest/gtest.h>
@@ -16,6 +20,7 @@ extern "C" {
 #include "oc_rep.h"
 #include "oc_helpers.h"
 #include "util/oc_mmem.h"
+#include "port/oc_storage.h"
 
 }
 
@@ -552,4 +557,271 @@ TEST_F(BelongsHref, NonDiscoverableSkippedWhenDiscoverableRequested)
   /* discoverable=false -> it is considered -> true */
   EXPECT_TRUE(oc_belongs_href_to_resource(href, false));
   oc_free_string(&href);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Group table persistence (Recipient / Publisher) - store/load round trip
+ *
+ * The store/load helpers in oc_knx_fp.c are file-static, so the round trip is
+ * exercised through the public surface:
+ *   - the loader runs via oc_create_knx_table_resources() (-> oc_load_object_tables
+ *     -> oc_load_group_table_entry for every slot);
+ *   - the writer's CBOR contract is reproduced with the same oc_rep_* macros the
+ *     production writer uses and persisted via oc_storage_write to the exact
+ *     per-entry filename the loader reads ("<store>_<index>").
+ *
+ * Regression focus: the 'non' boolean must survive a round trip. The previous
+ * writer encoded a text string (the AT value) under the 'non' key and the loader
+ * had no boolean case, so 'non' was silently dropped on reload.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Must match GRT_STORE / GPT_STORE in api/oc_knx_fp.c. */
+static const char *kRcpStore = "dev_knx_rcv_entry";
+static const char *kPubStore = "dev_knx_pub_entry";
+static const char *kFpStoreDir = "knx_storage_fp_unit_test";
+
+class GroupTableStorage : public ::testing::Test {
+protected:
+  static void SetUpTestSuite()
+  {
+    /* mkdir returns 0 on create, -1 if it already exists - both fine. */
+    oc_storage_config(kFpStoreDir);
+  }
+
+  void SetUp() override
+  {
+    /* erase any stale per-entry files and reset the RAM tables */
+    oc_delete_group_tables();
+  }
+
+  void TearDown() override
+  {
+    oc_delete_group_tables();
+  }
+
+  /* Encode a single group table entry to CBOR exactly as the production writer
+   * (oc_store_group_table_entry) does, then persist it under "<store>_<index>".
+   * 'ga' may be NULL with ga_len == 0 to exercise the empty-array path. */
+  static void stage_entry(const char *store, int index, int32_t id, int32_t ia,
+                          int64_t iid, int64_t fid, uint32_t grpid,
+                          const char *at, const uint32_t *ga, uint16_t ga_len,
+                          bool non)
+  {
+    uint8_t buf[512];
+    oc_rep_new(buf, (int)sizeof(buf));
+
+    oc_rep_begin_root_object();
+    oc_rep_i_set_int(root, 0, id);
+    oc_rep_i_set_int(root, 12, ia);
+    oc_rep_i_set_int(root, 26, iid);
+    oc_rep_i_set_int(root, 25, fid);
+    oc_rep_i_set_int(root, 13, grpid);
+    oc_rep_i_set_text_string(root, 14, at);
+    oc_rep_i_set_int_array(root, 7, ga, ga_len);
+    oc_rep_text_set_boolean(root, non, non);
+    oc_rep_end_root_object();
+
+    int size = oc_rep_get_encoded_payload_size();
+    ASSERT_GT(size, 0);
+
+    char filename[64];
+    (void)snprintf(filename, sizeof(filename), "%s_%d", store, index);
+    long written = oc_storage_write(filename, buf, (size_t)size);
+    ASSERT_EQ(written, (long)size);
+  }
+
+  /* Encode an entry WITHOUT the 'non' key, to mimic a legacy / partial record
+   * where the flag was never serialized. Used to verify the loader leaves
+   * 'non' at its initialized default (false). */
+  static void stage_entry_without_non(const char *store, int index, int32_t id,
+                                      int32_t ia, int64_t iid, int64_t fid,
+                                      uint32_t grpid, const char *at,
+                                      const uint32_t *ga, uint16_t ga_len)
+  {
+    uint8_t buf[512];
+    oc_rep_new(buf, (int)sizeof(buf));
+
+    oc_rep_begin_root_object();
+    oc_rep_i_set_int(root, 0, id);
+    oc_rep_i_set_int(root, 12, ia);
+    oc_rep_i_set_int(root, 26, iid);
+    oc_rep_i_set_int(root, 25, fid);
+    oc_rep_i_set_int(root, 13, grpid);
+    oc_rep_i_set_text_string(root, 14, at);
+    oc_rep_i_set_int_array(root, 7, ga, ga_len);
+    /* deliberately no 'non' key */
+    oc_rep_end_root_object();
+
+    int size = oc_rep_get_encoded_payload_size();
+    ASSERT_GT(size, 0);
+
+    char filename[64];
+    (void)snprintf(filename, sizeof(filename), "%s_%d", store, index);
+    long written = oc_storage_write(filename, buf, (size_t)size);
+    ASSERT_EQ(written, (long)size);
+  }
+};
+
+TEST_F(GroupTableStorage, RecipientRoundTripNonTrue)
+{
+  const uint32_t ga[] = { 1, 5, 65535 };
+  stage_entry(kRcpStore, 0, /*id*/ 7, /*ia*/ 0x110F, /*iid*/ 0x1199887766LL,
+              /*fid*/ 0x9988776655LL, /*grpid*/ 0x80000001u,
+              /*at*/ "token-rcp-0", ga, 3, /*non*/ true);
+
+  oc_create_knx_table_resources();
+
+  oc_group_table_t *e = oc_core_get_recipient_table_entry(0);
+  ASSERT_NE(e, nullptr);
+  EXPECT_EQ(e->id, 7);
+  EXPECT_EQ(e->ia, 0x110F);
+  EXPECT_EQ(e->iid, 0x1199887766LL);
+  EXPECT_EQ(e->fid, 0x9988776655LL);
+  EXPECT_EQ(e->grpid, 0x80000001u);
+  EXPECT_STREQ(oc_string(e->at), "token-rcp-0");
+  ASSERT_EQ(e->ga_len, 3);
+  EXPECT_EQ(e->ga[0], 1u);
+  EXPECT_EQ(e->ga[1], 5u);
+  EXPECT_EQ(e->ga[2], 65535u);
+  EXPECT_TRUE(e->non); /* regression: non must survive the reload */
+}
+
+TEST_F(GroupTableStorage, RecipientRoundTripNonFalse)
+{
+  const uint32_t ga[] = { 42 };
+  stage_entry(kRcpStore, 2, /*id*/ 11, /*ia*/ 0x1101, /*iid*/ 1, /*fid*/ 2,
+              /*grpid*/ 0x80000009u, /*at*/ "token-rcp-2", ga, 1,
+              /*non*/ false);
+
+  oc_create_knx_table_resources();
+
+  oc_group_table_t *e = oc_core_get_recipient_table_entry(2);
+  ASSERT_NE(e, nullptr);
+  EXPECT_EQ(e->id, 11);
+  EXPECT_EQ(e->grpid, 0x80000009u);
+  EXPECT_STREQ(oc_string(e->at), "token-rcp-2");
+  ASSERT_EQ(e->ga_len, 1);
+  EXPECT_EQ(e->ga[0], 42u);
+  EXPECT_FALSE(e->non);
+}
+
+TEST_F(GroupTableStorage, RecipientRoundTripEmptyGaArray)
+{
+  /* empty ga array is encoded as OC_REP_NIL; non must still round trip */
+  stage_entry(kRcpStore, 1, /*id*/ 9, /*ia*/ -1, /*iid*/ -1, /*fid*/ -1,
+              /*grpid*/ 0x80000005u, /*at*/ "", nullptr, 0, /*non*/ true);
+
+  oc_create_knx_table_resources();
+
+  oc_group_table_t *e = oc_core_get_recipient_table_entry(1);
+  ASSERT_NE(e, nullptr);
+  EXPECT_EQ(e->id, 9);
+  EXPECT_EQ(e->grpid, 0x80000005u);
+  EXPECT_EQ(e->ga_len, 0);
+  EXPECT_EQ(e->ga, nullptr);
+  EXPECT_TRUE(e->non);
+}
+
+TEST_F(GroupTableStorage, RecipientMultipleEntriesRoundTrip)
+{
+  const uint32_t ga0[] = { 100 };
+  const uint32_t ga1[] = { 200, 201 };
+  stage_entry(kRcpStore, 0, 1, 0x1000, 1, 1, 0x80000001u, "a", ga0, 1, true);
+  stage_entry(kRcpStore, 3, 2, 0x1002, 1, 1, 0x80000002u, "b", ga1, 2, false);
+
+  oc_create_knx_table_resources();
+
+  oc_group_table_t *e0 = oc_core_get_recipient_table_entry(0);
+  oc_group_table_t *e3 = oc_core_get_recipient_table_entry(3);
+  ASSERT_NE(e0, nullptr);
+  ASSERT_NE(e3, nullptr);
+  EXPECT_EQ(e0->id, 1);
+  EXPECT_TRUE(e0->non);
+  EXPECT_EQ(e3->id, 2);
+  EXPECT_FALSE(e3->non);
+
+  /* an untouched slot stays empty after load */
+  oc_group_table_t *e_empty = oc_core_get_recipient_table_entry(4);
+  ASSERT_NE(e_empty, nullptr);
+  EXPECT_EQ(e_empty->id, -1);
+}
+
+#ifdef OC_PUBLISHER_TABLE
+TEST_F(GroupTableStorage, PublisherRoundTripNonFlag)
+{
+  const uint32_t ga[] = { 7, 8 };
+  stage_entry(kPubStore, 0, /*id*/ 3, /*ia*/ 0x1234, /*iid*/ 5, /*fid*/ 6,
+              /*grpid*/ 0x80000003u, /*at*/ "token-pub-0", ga, 2,
+              /*non*/ true);
+
+  oc_create_knx_table_resources();
+
+  oc_group_table_t *e = oc_core_get_publisher_table_entry(0);
+  ASSERT_NE(e, nullptr);
+  EXPECT_EQ(e->id, 3);
+  EXPECT_EQ(e->ia, 0x1234);
+  EXPECT_EQ(e->grpid, 0x80000003u);
+  EXPECT_STREQ(oc_string(e->at), "token-pub-0");
+  ASSERT_EQ(e->ga_len, 2);
+  EXPECT_EQ(e->ga[0], 7u);
+  EXPECT_EQ(e->ga[1], 8u);
+  EXPECT_TRUE(e->non);
+}
+
+TEST_F(GroupTableStorage, PublisherDefaultsNonToFalseWhenAbsent)
+{
+  /* A stored publisher entry that never serialized the 'non' key (legacy /
+   * partial record). The loader must leave 'non' at its initialized default
+   * of false - it is never "void" or garbage, because oc_init_tables resets
+   * every entry (non = false) before any file is parsed. */
+  const uint32_t ga[] = { 7, 8 };
+  stage_entry_without_non(kPubStore, 0, /*id*/ 3, /*ia*/ 0x1234, /*iid*/ 5,
+                          /*fid*/ 6, /*grpid*/ 0x80000003u,
+                          /*at*/ "token-pub-0", ga, 2);
+
+  oc_create_knx_table_resources();
+
+  oc_group_table_t *e = oc_core_get_publisher_table_entry(0);
+  ASSERT_NE(e, nullptr);
+  /* the other fields still load, proving the entry was parsed */
+  EXPECT_EQ(e->id, 3);
+  EXPECT_EQ(e->grpid, 0x80000003u);
+  ASSERT_EQ(e->ga_len, 2);
+  /* 'non' was absent in storage -> stays at the false default */
+  EXPECT_FALSE(e->non);
+}
+#endif /* OC_PUBLISHER_TABLE */
+
+TEST_F(GroupTableStorage, WriterEncodesNonAsBoolean)
+{
+  /* Guards the original bug directly: the 'non' key must be encoded as a CBOR
+   * boolean (not a text string), so that the loader's OC_REP_BOOL case picks it
+   * up. We stage with the production macros and parse the persisted bytes. */
+  stage_entry(kRcpStore, 0, /*id*/ 5, /*ia*/ -1, /*iid*/ -1, /*fid*/ -1,
+              /*grpid*/ 0x80000001u, /*at*/ "some-at", nullptr, 0,
+              /*non*/ true);
+
+  char filename[64];
+  (void)snprintf(filename, sizeof(filename), "%s_%d", kRcpStore, 0);
+  uint8_t buf[512] = { 0 };
+  long read = oc_storage_read(filename, buf, sizeof(buf));
+  ASSERT_GT(read, 0);
+
+  oc_rep_t *rep = nullptr;
+  ASSERT_EQ(oc_parse_rep(buf, (int)read, &rep), 0);
+
+  bool found_bool = false;
+  bool non_value = false;
+  for (oc_rep_t *r = rep; r != nullptr; r = r->next) {
+    if (oc_string_len(r->name) > 0 &&
+        strncmp(oc_string(r->name), "non", 3) == 0) {
+      EXPECT_EQ(r->type, OC_REP_BOOL); /* must be a boolean, never a string */
+      found_bool = (r->type == OC_REP_BOOL);
+      non_value = r->value.boolean;
+    }
+  }
+  oc_free_rep(rep);
+
+  EXPECT_TRUE(found_bool) << "'non' key missing or not a boolean";
+  EXPECT_TRUE(non_value);
 }

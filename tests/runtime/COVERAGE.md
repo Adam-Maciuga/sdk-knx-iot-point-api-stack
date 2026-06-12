@@ -259,6 +259,7 @@ They provide additional coverage beyond the certification scope.
 | test_5_5_1_6b_update_nonexisting_go | test_5_5_fp_tables.py | Stack creates new entry (2.01) |
 | test_5_5_9_5_update_multiple_publishers | test_5_5_fp_tables.py | Additional publisher update test |
 | test_5_5_9_5b_update_nonexisting_publisher | test_5_5_fp_tables.py | Stack creates new entry (2.01) |
+| test_unicast_non_re_resolution | test_5_4_group_comm.py | Unicast NON s-mode: 4 missing 2.04 responses -> recipient UNRESOLVED -> second discovery GET (IPv6 re-resolution) |
 
 ---
 

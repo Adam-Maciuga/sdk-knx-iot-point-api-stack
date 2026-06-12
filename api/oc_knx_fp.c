@@ -2424,7 +2424,7 @@ static void oc_store_group_table_entry(int entry, char* store, const oc_group_ta
   // ga - 7 (writes only the ga array as n- elements, the ga len is explicitly not part of the stream)
   oc_rep_i_set_int_array(root, 7, table[entry].ga, table[entry].ga_len);
   // non - 'non'
-  oc_rep_text_set_text_string(root, non, oc_string(table[entry].at));
+  oc_rep_text_set_boolean(root, non, table[entry].non);
 
   oc_rep_end_root_object();
 
@@ -2549,8 +2549,16 @@ static int oc_load_group_table_entry(int entry, char* store, oc_group_table_t* t
 
             table[entry].ga_len = 0; 
             table[entry].ga = NULL;
-            
+
             OC_DBG("pub/rcp table entry with empty ga array 7: [] loaded from storage, size 0");
+          }
+          break;
+        case OC_REP_BOOL:
+
+          // non - 'non'
+          if (oc_string_len(rep->name) > 0 && strncmp(oc_string(rep->name), "non", 3) == 0)
+          {
+            table[entry].non = rep->value.boolean;
           }
           break;
         default:

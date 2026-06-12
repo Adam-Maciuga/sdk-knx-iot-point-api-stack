@@ -22,6 +22,7 @@ Reference: 08_10_5 KNX IoT Point API Tests v01_01_01_AS
 EITT trace: tests/EITT_REFERENCE_PROJECT/5_4_1_trace_buffer.xml
 """
 
+import select
 import socket
 import struct
 import threading
@@ -486,6 +487,163 @@ def _serve_discovery_and_capture_unicast(device_iface, peer_ia, dut_iid,
         uc_sock.close()
 
     return result
+
+
+def _serve_discovery_then_count_unicast_non(device_iface, peer_ia, dut_iid,
+                                            expected_failures=4,
+                                            timeout=60.0):
+    """Drive the unicast NON s-mode IPv6 re-resolution behavior.
+
+    The DUT resolves the recipient IA -> IPv6 via a multicast discovery
+    GET, then sends unicast NON s-mode POSTs.  When a unicast NON send
+    receives no 2.04 response, the stack increments a per-recipient
+    ``missing_response_count``; after *expected_failures* consecutive
+    failures the recipient is marked UNRESOLVED, which triggers a fresh
+    discovery GET on the next send (the "re-resolution").
+
+    This helper:
+    - answers the FIRST discovery GET (resolves PEER_IA -> our ephemeral
+      ``uc_sock`` port) so the DUT can send the NON POSTs;
+    - captures every inbound NON POST on ``uc_sock`` WITHOUT sending any
+      2.04 ack, so each send eventually times out and counts as missing;
+    - watches ``mc_sock`` (port 5683) for a SECOND discovery GET, which
+      proves the re-resolution fired.
+
+    Returns a dict::
+
+        {
+          "non_posts": <list of (msg, addr)>,
+          "second_discovery": <bool>,
+          "non_only": <bool>,   # True if every captured POST was NON
+        }
+    """
+    scope_id = 0
+    if device_iface:
+        try:
+            scope_id = socket.if_nametoindex(device_iface)
+        except (OSError, AttributeError):
+            print(f"[re-resolution] Warning: could not resolve "
+                  f"'{device_iface}'")
+
+    # Multicast socket - receives the DUT's discovery GET(s) on port 5683
+    mc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    mc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    mc_sock.bind(("", 5683))
+
+    # Unicast socket - sends the discovery response & captures the POSTs
+    uc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    uc_sock.bind(("", 0))  # ephemeral port
+    uc_port = uc_sock.getsockname()[1]
+    print(f"[re-resolution] Unicast socket on port {uc_port}")
+
+    # Join all-CoAP-nodes multicast (link-local + site-local)
+    joined = []
+    for maddr in ("ff02::fd", "ff05::fd"):
+        try:
+            mreq = struct.pack(
+                "16sI",
+                socket.inet_pton(socket.AF_INET6, maddr),
+                scope_id)
+            mc_sock.setsockopt(socket.IPPROTO_IPV6,
+                               socket.IPV6_JOIN_GROUP, mreq)
+            joined.append(mreq)
+        except OSError as exc:
+            print(f"[re-resolution] Warning: join {maddr} failed: {exc}")
+
+    def _answer_discovery(sock, addr, tkl, token, mid):
+        """Send a NON 2.05 link-format response resolving PEER_IA."""
+        ep = (f'<>;ep="knx://sn.aabbccddeeff '
+              f'knx://ia.{dut_iid:x}.{peer_ia:x}"')
+        payload = ep.encode()
+        resp_code = (2 << 5) | 5  # 2.05 Content
+        hdr = struct.pack(
+            "!BBH",
+            (1 << 6) | (1 << 4) | tkl,  # ver=1 type=NON
+            resp_code,
+            mid + 1)
+        opt = b"\xC1\x28"  # option 12 (Content-Format), 1-byte value 40
+        resp = hdr + token + opt + b"\xFF" + payload
+        # Respond from uc_sock so the DUT resolves PEER_IA to our port.
+        uc_sock.sendto(resp, addr)
+        print(f"[re-resolution] Answered discovery from port {uc_port}: {ep}")
+
+    deadline = time.monotonic() + timeout
+    non_posts = []
+    non_only = True
+    discoveries_answered = 0
+    second_discovery = False
+
+    try:
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+
+            # Poll both sockets concurrently: mc_sock for discovery GETs,
+            # uc_sock for the NON POSTs.
+            wait = min(remaining, 0.5)
+            ready, _, _ = select.select([mc_sock, uc_sock], [], [], wait)
+            if not ready:
+                continue
+
+            for sock in ready:
+                try:
+                    data, addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    continue
+
+                if len(data) < 4:
+                    continue
+
+                code_byte = data[1]
+                code_class = code_byte >> 5
+                code_detail = code_byte & 0x1F
+                tkl = data[0] & 0x0F
+                mid = struct.unpack("!H", data[2:4])[0]
+                token = data[4:4 + tkl]
+
+                # GET = discovery request (arrives on mc_sock, port 5683)
+                if code_class == 0 and code_detail == 1:
+                    discoveries_answered += 1
+                    print(f"[re-resolution] Discovery GET #{discoveries_answered}"
+                          f" from {addr[0]}:{addr[1]} mid={mid}")
+                    _answer_discovery(sock, addr, tkl, token, mid)
+                    if discoveries_answered >= 2:
+                        # The re-resolution (second discovery) fired.
+                        second_discovery = True
+                    continue
+
+                # POST = unicast s-mode message (arrives on uc_sock)
+                if code_class == 0 and code_detail == 2:
+                    msg = CoapClient.parse_coap_message(data)
+                    # CON = type 0, NON = type 1
+                    if msg["type"] != 1:
+                        non_only = False
+                    non_posts.append((msg, addr))
+                    print(f"[re-resolution] Captured POST #{len(non_posts)}"
+                          f" from {addr[0]}:{addr[1]} type={msg['type']}"
+                          f" (no 2.04 sent)")
+                    continue
+
+            # Stop early once we have observed the re-resolution after the
+            # expected number of failures.
+            if second_discovery and len(non_posts) >= expected_failures:
+                break
+    finally:
+        for mreq in joined:
+            try:
+                mc_sock.setsockopt(socket.IPPROTO_IPV6,
+                                   socket.IPV6_LEAVE_GROUP, mreq)
+            except OSError:
+                pass
+        mc_sock.close()
+        uc_sock.close()
+
+    return {
+        "non_posts": non_posts,
+        "second_discovery": second_discovery,
+        "non_only": non_only,
+    }
 
 
 def _decrypt_smode(msg, rx_ctx):
@@ -1438,3 +1596,89 @@ class TestUnicastConfirmable:
         assert msg["type"] == 0, (
             f"Expected CON (type=0) for unicast routing, "
             f"got type={msg['type']}")
+
+
+# ===========================================================================
+# Bonus (not in EITT) - Unicast NON s-mode IPv6 re-resolution
+# ===========================================================================
+
+class TestUnicastNonReResolution:
+    """Unicast NON s-mode: 4 consecutive missing responses trigger a
+    fresh IPv6 re-resolution.
+
+    When the DUT routes a group message to a unicast recipient as a NON
+    s-mode POST and receives no 2.04 response, the stack increments a
+    per-recipient ``missing_response_count`` (messaging/coap/transactions.c).
+    After 4 consecutive failures the recipient is marked UNRESOLVED, which
+    forces a fresh multicast discovery GET on the next send.
+
+    GO table:  ga=[65535, 1], cflag=0x40 (transmit), href=/p/3
+    RCP table: ga=[65535], ia=PEER_IA, at=UC15_TOKEN_ID, non=True (NON!)
+    AT:        unicast 5.4.1.15 credentials
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    def setup(self, coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
+        _install_go_table(coap, oscore_ctx, go)
+        # Unicast recipient with non=True -> sends NON (not CON) POSTs.
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID,
+                "non": True}]
+        _install_rcp_table(coap, oscore_ctx, rcp)
+        _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
+                    UC15_SENDER_ID, UC15_MS)
+        set_lsm(coap, oscore_ctx, 2)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_unicast_non_re_resolution(self, coap, oscore_ctx,
+                                       device_iface):
+        """Trigger the sensor repeatedly; the DUT sends unicast NON POSTs
+        that go unanswered.  After 4 failures the recipient is marked
+        UNRESOLVED and the DUT issues a second discovery GET.
+
+        Each unanswered NON send occupies its transaction ~5s (one resend)
+        before timing out and counting as a missing response, so we trigger
+        a few times spaced ~6s apart and let the responder thread run for
+        the full window.
+        """
+        result = {}
+
+        def _responder():
+            result.update(_serve_discovery_then_count_unicast_non(
+                device_iface, PEER_IA, DUT_IID,
+                expected_failures=4, timeout=60.0))
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)  # ensure responder sockets are ready
+
+        # Trigger 5 sends spaced ~6s apart (each NON send ~5s in-transaction).
+        for _ in range(5):
+            _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+            time.sleep(6.0)
+
+        t.join(timeout=15)
+
+        non_posts = result.get("non_posts", [])
+        if not non_posts:
+            pytest.skip("DUT did not send unicast NON POST "
+                        "(discovery resolution may have failed)")
+
+        assert result.get("non_only", False), (
+            "Captured a non-NON POST; expected all unicast sends to be "
+            "NON (type=1) because the recipient has non=True")
+
+        assert len(non_posts) >= 4, (
+            f"Expected at least 4 NON POSTs before re-resolution, "
+            f"got {len(non_posts)}")
+
+        assert result.get("second_discovery", False), (
+            "DUT did not issue a second discovery GET; the recipient was "
+            "not re-resolved after 4 missing NON responses")

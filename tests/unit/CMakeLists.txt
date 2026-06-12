@@ -138,6 +138,7 @@ kis_add_test(test_oc_log             test_oc_log.cpp)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(test_oc_rep PRIVATE -fpermissive)
     target_compile_options(test_oc_knx_helpers PRIVATE -fpermissive)
+    target_compile_options(test_oc_knx_fp PRIVATE -fpermissive)
 endif()
 
 # ── Aggregate target: build all unit tests and run them at once ──────────────────
