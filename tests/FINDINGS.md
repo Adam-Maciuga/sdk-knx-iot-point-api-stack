@@ -32,14 +32,14 @@ Bugs and issues discovered during unit test development.
 - **Fix:** Pass `HNAME_SIZE` (or `sizeof(hname)`) as the size argument to
   `oc_storage_read()` instead of the literal `128`.
 
-## F-004: `oc_message_add_ref(NULL)` dereferences NULL in the trailing debug log
+## F-004: ~~`oc_message_add_ref(NULL)` dereferences NULL in the trailing debug log~~ — RESOLVED
 
-- **File:** `api/oc_buffer.c`, `oc_message_add_ref()` (~line 53)
+- **File:** `api/oc_buffer.c`, `oc_message_add_ref()` (~line 56)
 - **Severity:** Low/Medium — only triggered in `OC_DEBUG` builds; the increment
   itself is correctly NULL-guarded.
-- **Found by:** `test_oc_buffer.cpp` / `BufferPool.AddRefNullIsNoOp` (SEGFAULT).
-- **Description:** The function guards the increment with `if (message)`, but the
-  `OC_DBG(...)` statement that follows reads `message->ref_count`
+- **Found by:** `test_oc_buffer.cpp` / `BufferPool.AddRefNullIsNoOp` (was SEGFAULT).
+- **Description:** The function guarded the increment with `if (message)`, but the
+  `OC_DBG(...)` statement that followed read `message->ref_count`
   *unconditionally*, outside the guard:
 
   ```c
@@ -47,10 +47,10 @@ Bugs and issues discovered during unit test development.
   OC_DBG("... counter is now %d", (void*)message, message->ref_count); // NULL deref
   ```
 
-  With `OC_DEBUG` defined (as in the test/CI build) `OC_DBG` expands to a real
-  `printf`, so passing `NULL` dereferences a NULL pointer and crashes. In a
-  release build `OC_DBG` is a no-op, masking the defect. The `if (message)`
-  guard signals NULL-safe intent, so this is inconsistent. (`oc_message_unref`
-  is correct — its `OC_DBG` is *inside* the guard.)
-- **Fix:** Move the `OC_DBG` inside the `if (message)` block (matching
-  `oc_message_unref`), or early-return when `message == NULL`.
+  With `OC_DEBUG` defined (as in the test/CI build) `OC_DBG` expanded to a real
+  `printf`, so passing `NULL` dereferenced a NULL pointer and crashed. In a
+  release build `OC_DBG` is a no-op, masking the defect.
+- **Resolution:** The `OC_DBG` is now inside the `if (message)` block (matching
+  `oc_message_unref`), so `oc_message_add_ref(NULL)` is a safe no-op in all
+  builds. The previously skipped test `BufferPool.AddRefNullIsNoOp` now actively
+  verifies the NULL-safe behaviour.

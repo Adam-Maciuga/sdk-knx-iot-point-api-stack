@@ -660,16 +660,16 @@ OC_TCP` (disabled in test build)**.
 
 The message-pool primitives are unit-tested in `test_oc_buffer.cpp` (the fixture
 calls `oc_network_event_handler_mutex_init()` once, since `oc_allocate_message`
-takes that mutex). `oc_message_add_ref(NULL)` is **not** NULL-safe in `OC_DEBUG`
-builds (FINDINGS F-004 — the trailing `OC_DBG` dereferences outside the guard),
-so that path is documented + skipped rather than crashed. The buffer-settings
+takes that mutex). `oc_message_add_ref(NULL)` is now a safe no-op in all builds
+(FINDINGS F-004 RESOLVED — the trailing `OC_DBG` was moved inside the guard), so
+that path is actively verified by `BufferPool.AddRefNullIsNoOp`. The buffer-settings
 API that also lives logically alongside the buffer module is covered by
 `test_oc_buffer_settings.cpp`.
 
 | Function | Status |
 |----------|--------|
 | oc_allocate_message | DONE |
-| oc_message_add_ref | DONE (NULL path: FINDINGS F-004, skipped) |
+| oc_message_add_ref | DONE (NULL path: FINDINGS F-004 RESOLVED, tested) |
 | oc_message_unref | DONE |
 | oc_receive_message | INTEGRATION — posts INBOUND_NETWORK_EVENT to the message_buffer_handler process; needs the process scheduler + event table |
 | oc_send_message | INTEGRATION — posts OUTBOUND_NETWORK_EVENT + signals the event loop; routes to OSCORE/IP layers |

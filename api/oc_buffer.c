@@ -58,8 +58,9 @@ void oc_message_add_ref(oc_message_t* message)
   if (message) 
   {
     message->ref_count++;
+    OC_DBG("increase message (%p) counter, counter is now %d", (void*)message, message->ref_count);
   }
-  OC_DBG("increase message (%p) counter, counter is now %d", (void*)message, message->ref_count);
+  
 }
 
 void oc_message_unref(oc_message_t* message) 

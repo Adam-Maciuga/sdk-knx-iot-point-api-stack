@@ -608,7 +608,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `AllocateMessageDataIsWritableForFullPdu` | Data buffer is writable for a full PDU |
 | `AllocateMessageReturnsDistinctBuffers` | Successive allocations are distinct |
 | `AddRefIncrementsCounter` | `oc_message_add_ref()` increments ref count |
-| `AddRefNullDocumentedNotNullSafeInDebugBuilds` | **SKIPPED** — documents F-004 (NULL deref in `OC_DBG` of `oc_message_add_ref`) |
+| `AddRefNullIsNoOp` | `oc_message_add_ref(NULL)` is a no-op (F-004 RESOLVED) |
 | `UnrefDecrementsWithoutFreeingWhenStillReferenced` | Unref decrements without freeing while referenced |
 | `UnrefAtZeroFreesMessage` | Unref at zero frees the message |
 | `UnrefNullIsNoOp` | `oc_message_unref(NULL)` is a no-op |
@@ -1267,4 +1267,4 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 | ~~F-001~~ | ~~`oc_list`~~ | ~~`oc_list_add_block()` circular link~~ — RESOLVED (function removed upstream) |
 | F-002 | `oc_ri` | `oc_ri_get_interface_mask()` returns 1 for empty input |
 | F-003 | `oc_core_res` | `oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer (potential overflow) |
-| F-004 | `oc_buffer` | `oc_message_add_ref(NULL)` dereferences NULL in the trailing `OC_DBG` (debug builds only) — test `BufferPool.AddRefNullDocumentedNotNullSafeInDebugBuilds` is `GTEST_SKIP`'d |
+| ~~F-004~~ | ~~`oc_buffer`~~ | ~~`oc_message_add_ref(NULL)` dereferences NULL in the trailing `OC_DBG` (debug builds only)~~ — RESOLVED (`OC_DBG` moved inside the `if (message)` guard; test `BufferPool.AddRefNullIsNoOp` now verifies NULL-safety) |

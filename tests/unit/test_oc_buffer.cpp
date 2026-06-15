@@ -91,16 +91,20 @@ TEST_F(BufferPool, AddRefIncrementsCounter)
   oc_message_unref(m);
 }
 
-TEST_F(BufferPool, AddRefNullDocumentedNotNullSafeInDebugBuilds)
+TEST_F(BufferPool, AddRefNullIsNoOp)
 {
-  /* NOTE (FINDINGS F-004): oc_message_add_ref() guards the increment with
-   * `if (message)`, but its trailing OC_DBG reads message->ref_count outside
-   * that guard, so passing NULL crashes in OC_DEBUG builds (this build defines
-   * OC_DEBUG). We therefore do NOT call it with NULL here — doing so would
-   * SEGFAULT. The guarded increment for a valid message is covered by
-   * AddRefIncrementsCounter. */
-  GTEST_SKIP() << "oc_message_add_ref(NULL) is not NULL-safe in OC_DEBUG "
-                  "builds (FINDINGS F-004)";
+  /*
+    FINDINGS F-004 (RESOLVED): oc_message_add_ref() now keeps its trailing
+    OC_DBG inside the `if (message)` guard, so passing NULL is a safe no-op
+    even in OC_DEBUG builds. Verify it neither crashes nor disturbs an
+    unrelated, still-valid message.
+  */
+  oc_message_t *m = oc_allocate_message();
+  ASSERT_NE(m, nullptr);
+  EXPECT_EQ(m->ref_count, 1);
+  oc_message_add_ref(nullptr);
+  EXPECT_EQ(m->ref_count, 1); /* NULL call must not touch any other message */
+  oc_message_unref(m);
 }
 
 /* ───────────────────────────── oc_message_unref ──────────────────────────── */
