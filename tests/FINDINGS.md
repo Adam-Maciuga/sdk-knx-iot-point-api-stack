@@ -12,20 +12,24 @@ Bugs and issues discovered during unit test development.
   only by its own unit test) and was removed, along with its `GetInterfaceMask`
   tests in `test_oc_ri.cpp`.
 
-## F-003: `oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer
+## F-003: ~~`oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer~~ — RESOLVED
 
 - **File:** `api/oc_core_res.c`, `oc_core_read_and_set_device_hostname()` (~line 113)
 - **Severity:** High — stack buffer overflow / memory corruption if the stored
   hostname file is larger than `HNAME_SIZE`.
 - **Found by:** Code review while writing `test_oc_core_res.cpp` (not triggered
   by a test — doing so would corrupt the stack).
-- **Description:** The local buffer is `char hname[HNAME_SIZE]` where
-  `HNAME_SIZE == 4 + SERIAL_NUM_SIZE + 1 == 17`. The function then calls
+- **Description:** The local buffer was `char hname[HNAME_SIZE]` where
+  `HNAME_SIZE == 4 + SERIAL_NUM_SIZE + 1 == 17`. The function then called
   `oc_storage_read(KNX_STORAGE_HOSTNAME, (uint8_t *)&hname, 128)`. If a stored
-  hostname file contains more than 17 bytes, `fread()` writes up to 128 bytes
+  hostname file contained more than 17 bytes, `fread()` wrote up to 128 bytes
   into the 17-byte stack buffer, overflowing it.
-- **Fix:** Pass `HNAME_SIZE` (or `sizeof(hname)`) as the size argument to
-  `oc_storage_read()` instead of the literal `128`.
+- **Resolution:** The buffer is now `char hname[MAX_HNAME_BUFFER_SIZE]`
+  (`MAX_HNAME_BUFFER_SIZE == 129`, zero-initialized) and the read is capped at
+  `MAX_HNAME_BUFFER_SIZE - 1` (128). `fread()` therefore writes at most 128
+  bytes into a 129-byte buffer, leaving index 128 as a guaranteed trailing `\0`.
+  This eliminates both the overflow and the subsequent `strlen()` over-read on
+  an unterminated buffer.
 
 ## F-004: ~~`oc_message_add_ref(NULL)` dereferences NULL in the trailing debug log~~ — RESOLVED
 
