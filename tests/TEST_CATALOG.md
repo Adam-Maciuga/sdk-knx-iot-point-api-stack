@@ -540,7 +540,7 @@ init / DNS-SD re-register) and are covered by the runtime suite
 
 ---
 
-### test_oc_ri.cpp — Resource Interface (86 tests)
+### test_oc_ri.cpp — Resource Interface (82 tests)
 
 **Source:** `api/oc_ri.c`
 
@@ -550,7 +550,6 @@ init / DNS-SD re-register) and are covered by the runtime suite
 | `CountInterfaces` | 4 | Bit counting in interface mask |
 | `CountScopes` | 3 | Scope bit counting |
 | `InterfaceStringFullUrn` | 4 | Index → URN string lookup |
-| `GetInterfaceMask` | 4 | URN string → bitmask |
 | `LsmStateString` | 6 | State enum → string |
 | `LsmEventString` | 5 | Event enum → string |
 | `StatusFromCoap` | 5 | CoAP code → oc_status_t (round-trips with StatusCode) |
@@ -1265,6 +1264,6 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 | ID | Module | Description |
 |----|--------|-------------|
 | ~~F-001~~ | ~~`oc_list`~~ | ~~`oc_list_add_block()` circular link~~ — RESOLVED (function removed upstream) |
-| F-002 | `oc_ri` | `oc_ri_get_interface_mask()` returns 1 for empty input |
+| ~~F-002~~ | ~~`oc_ri`~~ | ~~`oc_ri_get_interface_mask()` returns 1 for empty input~~ — RESOLVED (function had no production callers; removed with its `GetInterfaceMask` tests) |
 | F-003 | `oc_core_res` | `oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer (potential overflow) |
 | ~~F-004~~ | ~~`oc_buffer`~~ | ~~`oc_message_add_ref(NULL)` dereferences NULL in the trailing `OC_DBG` (debug builds only)~~ — RESOLVED (`OC_DBG` moved inside the `if (message)` guard; test `BufferPool.AddRefNullIsNoOp` now verifies NULL-safety) |

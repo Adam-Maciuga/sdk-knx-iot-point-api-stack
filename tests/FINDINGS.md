@@ -6,17 +6,12 @@ Bugs and issues discovered during unit test development.
 
 - **Status:** Moot — `oc_list_add_block()` was removed from upstream.
 
-## F-002: `oc_ri_get_interface_mask()` returns 1 for empty input instead of `OC_IF_NONE`
+## F-002: ~~`oc_ri_get_interface_mask()` returns 1 for empty input instead of `OC_IF_NONE`~~ — RESOLVED
 
-- **File:** `api/oc_ri.c`, line ~228
-- **Severity:** Low — unlikely to be called with empty strings in practice
-- **Found by:** `test_oc_ri.cpp` / `GetInterfaceMask.EmptyUrn`
-- **Description:** The lookup loop starts at index 0 where
-  `interface_string_full_urn[0]` is `""`. When called with `("", 0)`, the
-  condition `0 == strlen("") && strncmp("","",0) == 0` is true, so the function
-  returns `1 << 0 = 1` instead of `OC_IF_NONE (0)`.
-- **Fix:** Start the loop at `i = 1` (skip the sentinel entry) or guard with
-  `if (interface_name_len == 0) return OC_IF_NONE;`.
+- **Status:** Moot — `oc_ri_get_interface_mask()` had no production callers (used
+  only by its own unit test) and was removed, along with its `GetInterfaceMask`
+  tests in `test_oc_ri.cpp`.
+
 ## F-003: `oc_core_read_and_set_device_hostname()` reads up to 128 bytes into a 17-byte stack buffer
 
 - **File:** `api/oc_core_res.c`, `oc_core_read_and_set_device_hostname()` (~line 113)

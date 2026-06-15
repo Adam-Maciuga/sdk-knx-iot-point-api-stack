@@ -382,7 +382,7 @@ INTEGRATION (concrete reasons):
 The pure helpers are unit-tested in `test_oc_ri.cpp` on stack values:
 `oc_status_code` / `get_oc_status_code_from_coap_code` (round-trip),
 `oc_count_total_interfaces_in_mask`, `oc_count_total_scopes_in_mask`,
-`get_interface_string_full_urn`, `oc_ri_get_interface_mask`,
+`get_interface_string_full_urn`,
 `oc_ri_get_scope_mask`, `oc_put_all_access_scope_names_from_a_mask_in_string_array`,
 `oc_put_all_interface_short_urns_from_a_mask_in_string_array`,
 `oc_frame_interfaces_mask_in_response` (rep encoder via `oc_rep_new`),

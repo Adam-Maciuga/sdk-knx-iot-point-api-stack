@@ -676,18 +676,6 @@ int oc_ri_query_exists(const char* query, size_t query_len, const char* key);
 int oc_ri_query_nth_key_exists(const char* query, size_t query_len, char** key, size_t* key_len, size_t n);
 
 /**
- * @brief retrieve the interface mask from the interface name
- *
- * @param interface_name a pointer to a SINGLE, full interface urn (e.g. 'urn:knx:if.s')
- * @param interface_name_len the interface urn length
- *
- * @note only FULL URNs are used to compare with the input
- *
- * @return oc_interface_mask_t the compacted mask value of the interface, also 'OC_IF_NONE' on no hit
- */
-oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len);
-
-/**
  * @brief frame the interface mask in the response, as string in the uri
  * example: full tag if= ":if.i" this function frames ":if.i" (truncated)
  * or "urn:knx:if.i"

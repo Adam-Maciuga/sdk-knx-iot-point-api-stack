@@ -280,34 +280,6 @@ int oc_frame_interfaces_mask_in_response(oc_interface_mask_t interfaces, bool tr
   return total_size;
 }
 
-oc_interface_mask_t oc_ri_get_interface_mask(const char* interface_name, size_t interface_name_len)
-{
-  oc_interface_mask_t interfaces = OC_IF_NONE;
-
-  /*
-    32-bit if.swu = 0b00000000 00000000 00010000 00000000 = bit 12
-    32-bit if.i   = 0b00000000 00000000 00000000 00000010 = bit 2
-    32-bit if.none= 0b00000000 00000000 00000000 00000000 = 0
-  */
-
-  // get name from FULL array
-  for (int i = 0; i <= MAX_INTERFACE_BIT; i++)
-  {
-    // urn = urn:knx:if.i; i = 1; 1 << 1 = 2 -- urn = urn:knx:if.swu; i = 11; 1 << 11 = 4096
-
-    const char* n = interface_string_full_urn[i];
-
-    if (interface_name_len == strlen(n) && strncmp(interface_name, n, interface_name_len) == 0)
-    {
-      // on a hit return immediately
-      interfaces |= 1 << i;
-      return interfaces;
-    }
-  }
-
-  return interfaces;
-}
-
 oc_acl_mask_t oc_ri_get_scope_mask(const char* acl_scope_name, size_t acl_scope_name_len)
 {
   /*

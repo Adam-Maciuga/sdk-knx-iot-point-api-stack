@@ -4,7 +4,7 @@
  * Covers:
  *   oc_ri.c:  oc_status_code, oc_count_total_interfaces_in_mask,
  *             oc_count_total_scopes_in_mask, get_interface_string_full_urn,
- *             oc_ri_get_interface_mask, get_oc_status_code_from_coap_code,
+ *             get_oc_status_code_from_coap_code,
  *             oc_ri_get_scope_mask, oc_put_all_access_scope_names_from_a_mask_in_string_array,
  *             oc_put_all_interface_short_urns_from_a_mask_in_string_array,
  *             oc_frame_interfaces_mask_in_response, oc_print_acl_scopes,
@@ -157,35 +157,6 @@ TEST(InterfaceStringFullUrn, IndexSec)
 TEST(InterfaceStringFullUrn, IndexNone)
 {
   EXPECT_STREQ(get_interface_string_full_urn(0), "");
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * oc_ri_get_interface_mask
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-TEST(GetInterfaceMask, KnownUrn)
-{
-  const char *urn = "urn:knx:if.i";
-  EXPECT_EQ(oc_ri_get_interface_mask(urn, strlen(urn)), OC_IF_I);
-}
-
-TEST(GetInterfaceMask, SecUrn)
-{
-  const char *urn = "urn:knx:if.sec";
-  EXPECT_EQ(oc_ri_get_interface_mask(urn, strlen(urn)), OC_IF_SEC);
-}
-
-TEST(GetInterfaceMask, UnknownUrn)
-{
-  const char *urn = "urn:knx:if.unknown";
-  EXPECT_EQ(oc_ri_get_interface_mask(urn, strlen(urn)), OC_IF_NONE);
-}
-
-TEST(GetInterfaceMask, EmptyUrn)
-{
-  /* Bug F-002: index 0 of interface_string_full_urn is "", so an empty
-   * input matches it and returns 1<<0 = 1 instead of OC_IF_NONE (0). */
-  EXPECT_EQ(oc_ri_get_interface_mask("", 0), (oc_interface_mask_t)1);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
