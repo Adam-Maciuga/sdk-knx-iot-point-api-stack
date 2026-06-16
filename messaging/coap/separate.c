@@ -99,9 +99,8 @@ int coap_separate_accept(void* request, oc_separate_response_t* handle, const oc
 
   if (coap_req->type == COAP_TYPE_CON)
   { /* 
-      - send separate EMPTY ACK for a CON request
-      - if the original request was NON, no empty ACK is needed the server just sends the separate CON
-        response later (CON type set above ...) 
+      - send separate EMPTY ACK for a CON request, if the original request was NON, no empty ACK is needed
+      - the server just sends the separate CON response later (CON type set above ...)
     */
     
     const bool success = coap_send_response_with_empty_ack(coap_req->mid, &separate_store->endpoint);
