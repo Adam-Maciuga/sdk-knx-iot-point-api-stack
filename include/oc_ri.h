@@ -29,12 +29,11 @@ extern "C" {
 */
 typedef enum
 {
-  OC_OBSERVE_NOT_INITIALIZED = -1, 
-  OC_OBSERVE_REGISTER = 0, 
-  OC_OBSERVE_DEREGISTER = 1, 
-  OC_OBSERVE_NOT_APPLICABLE = 2, // regular frames w/o any observe option (no registration/de-registration or notification)
-  OC_OBSERVE_FIRST_NOTIFICATION_VALUE = 3, 
-  
+  OC_OBSERVE_NOT_INITIALIZED = -1,
+  OC_OBSERVE_REGISTER = 0,         // client request: register as observer
+  OC_OBSERVE_DEREGISTER = 1,       // client request: deregister as observer
+  OC_OBSERVE_NOT_APPLICABLE = 2,   // no observe option present (e.g. a normal one-off request/response)
+  OC_OBSERVE_NOTIFICATIONS = 3,    // notification sequence number (always > the reserved 0/1/2 values)
 } oc_client_observe_t;
 
 /**

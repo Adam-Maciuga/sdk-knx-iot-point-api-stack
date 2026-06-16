@@ -1307,7 +1307,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   #ifdef OC_SERVER
   // if a GET request was successfully processed, then check its observe option
 
-  // init 
+  // init with a default value that indicates no observe option present
   uint32_t observe_value_by_client = OC_OBSERVE_NOT_APPLICABLE;
 
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe_value_by_client))
@@ -1403,7 +1403,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     /*
       Attempt to register a client request to the separate response tracker and pass in the observe option
       (if present) or the value 2 (OC_OBSERVE_NOT_APPLICABLE) as determined by the code block above. 
-      
+
       Values 0 (OC_OBSERVE_REGISTER) and 1 (OC_OBSERVE_DEREGISTER) result in their
       expected behaviors whereas 2 (OC_OBSERVE_NOT_APPLICABLE) indicates an absence of an observe option 
       and hence a one-off request (answered later with a response without any expressed observe option/ value 

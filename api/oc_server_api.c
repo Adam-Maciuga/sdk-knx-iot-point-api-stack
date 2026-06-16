@@ -583,16 +583,16 @@ static void oc_send_separate_response_with_length(oc_separate_response_t* handle
     // get next
     coap_separate_t* next = current->next;
 
-    if (current->observe < OC_OBSERVE_FIRST_NOTIFICATION_VALUE)
+    if (current->observe < OC_OBSERVE_NOTIFICATIONS)
     { /* 
          any normal 'separate response' message, identified by the observe notification counter, 
          - spake handshake responses
          - observe registration/ deregistration responses
          - ...
 
-         Note: the observe 'n/a state' is handled/treated here as a normal separate response,
+         Note: observe < OC_OBSERVE_NOTIFICATIONS is handled/treated here as a normal separate response,
                such as when receiving a request with no observe option (n/a is the default state)
-               
+
       */
       
       coap_transaction_t* t = coap_new_transaction(coap_get_next_mid(), current->token, current->token_len, &current->endpoint);

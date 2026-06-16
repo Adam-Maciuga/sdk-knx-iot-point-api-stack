@@ -59,9 +59,10 @@
 /* 
   - used to seed each new (individual) observer with its notification response with a unique starting sequence number
   - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
-  - starts with 3 (to avoid confusion with the registering values)
+  - seeded at OC_OBSERVE_NOTIFICATIONS (3); since add_observer pre-increments, the first assigned value is
+    OC_OBSERVE_NOTIFICATIONS + 1, so a notification sequence number never collides with the reserved 0/1/2 values
 */
-static uint32_t observe_counter = OC_OBSERVE_FIRST_NOTIFICATION_VALUE;
+static uint32_t observe_counter = OC_OBSERVE_NOTIFICATIONS;
 uint32_t get_observe_counter(void) { return observe_counter; }
 
 OC_LIST(observers_list);
@@ -116,21 +117,20 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
     o->token_len = (uint8_t)token_len;
     memcpy(o->token, token, token_len);
     o->last_mid = 0;
-    
-    // init counter 
-    o->obs_counter = observe_counter;
-    
-    /* 
-      ensure unique counter for next observer, with wrap-around handling according to RFC 7641 Section 3.4
-      - a new observe register for the same res. (sure with diff. token) uses a diff observe notification number
-      - on a server restart there may be a problem with the same-token refresh/reboot freshness ordering (RFC 7641 3.4/4.4) 
+
+    /*
+      Assign a unique starting Observe sequence number to this observer, with 24-bit wrap-around per RFC 7641 Section 3.4.
+      - A new registration for the same resource (typically with a different token) gets a different starting sequence number.
+      - The counter is held in RAM, so it resets on reboot; this can weaken same-token refresh/reboot freshness ordering (RFC 7641 3.4/4.4).
     */
     observe_counter++;
     observe_counter &= OBSERVE_COUNTER_MASK;
-    
-    // on wrap around start again at init (compiler optimize this anyway)
-    observe_counter = observe_counter == 0 ? OC_OBSERVE_FIRST_NOTIFICATION_VALUE : observe_counter;
 
+    // on wrap-around, restart at OC_OBSERVE_NOTIFICATIONS (3) so the value never reuses the reserved values 0/1/2
+    observe_counter = observe_counter == 0 ? OC_OBSERVE_NOTIFICATIONS : observe_counter;
+
+    // set counter
+    o->obs_counter = observe_counter;
     o->resource = resource;
 
     #ifdef OC_BLOCK_WISE

@@ -358,9 +358,9 @@ TEST_F(CoapObserve, NotifyObserversNoObserversReturnsZero)
 
 TEST_F(CoapObserve, GetObserveCounterIsAtLeastFirstNotificationValue)
 {
-  /* The observe counter seeds at OC_OBSERVE_FIRST_NOTIFICATION_VALUE (3) and
+  /* The observe counter seeds at OC_OBSERVE_NOTIFICATIONS (3) and
    * only ever increases, so it is always >= that floor. */
-  EXPECT_GE(get_observe_counter(), (uint32_t)OC_OBSERVE_FIRST_NOTIFICATION_VALUE);
+  EXPECT_GE(get_observe_counter(), (uint32_t)OC_OBSERVE_NOTIFICATIONS);
 }
 
 TEST_F(CoapObserve, GetObserveCounterIsStableWithoutNotifications)
