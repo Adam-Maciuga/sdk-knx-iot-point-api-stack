@@ -214,15 +214,15 @@ TEST_F(CoapTest, Observe_SetGet)
   init_con_get();
   coap_set_header_observe(&pkt, 42);
 
-  oc_client_observe_t obs = OC_OBSERVE_NOT_APPLICABLE;
+  uint32_t obs = OC_OBSERVE_NOT_APPLICABLE;
   EXPECT_TRUE(coap_get_header_observe(&pkt, &obs));
-  EXPECT_EQ(obs, (oc_client_observe_t)42);
+  EXPECT_EQ(obs, 42);
 }
 
 TEST_F(CoapTest, Observe_NotSet)
 {
   init_con_get();
-  oc_client_observe_t obs = OC_OBSERVE_NOT_APPLICABLE;
+  uint32_t obs = OC_OBSERVE_NOT_APPLICABLE;
   EXPECT_FALSE(coap_get_header_observe(&pkt, &obs));
 }
 
@@ -556,7 +556,7 @@ TEST_F(CoapTest, RoundTrip_WithObserve)
   coap_packet_t parsed;
   EXPECT_EQ(coap_parse_udp_message(&parsed, wire, len), COAP_NO_ERROR);
 
-  oc_client_observe_t obs = OC_OBSERVE_NOT_APPLICABLE;
+  uint32_t obs = OC_OBSERVE_NOT_APPLICABLE;
   EXPECT_TRUE(coap_get_header_observe(&parsed, &obs));
   EXPECT_EQ(obs, OC_OBSERVE_REGISTER);
 }

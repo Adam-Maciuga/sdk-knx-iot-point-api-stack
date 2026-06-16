@@ -29,6 +29,7 @@ extern "C" {
 */
 typedef enum
 {
+  OC_OBSERVE_NOT_INITIALIZED = -1, 
   OC_OBSERVE_REGISTER = 0, 
   OC_OBSERVE_DEREGISTER = 1, 
   OC_OBSERVE_NOT_APPLICABLE = 2, // regular frames w/o any observe option (no registration/de-registration or notification)

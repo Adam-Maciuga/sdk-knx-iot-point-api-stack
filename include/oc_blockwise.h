@@ -78,9 +78,9 @@ typedef struct oc_blockwise_response_state_s
   oc_blockwise_state_t base;   /**< blockwise state data */
   uint8_t etag[COAP_ETAG_LEN]; /**< etag for the response */
 
-#ifdef OC_CLIENT
+  #ifdef OC_CLIENT
   int32_t observe_seq; /**< the observe sequence number */
-#endif                
+  #endif                
 } oc_blockwise_response_state_t;
 
 /**

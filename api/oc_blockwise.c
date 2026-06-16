@@ -112,7 +112,7 @@ oc_blockwise_state_t* oc_blockwise_alloc_response_buffer(const char* href, size_
     const uint32_t b = oc_random_value(); memcpy(buffer->etag + 4, &b, sizeof(b));
 
     #ifdef OC_CLIENT
-    buffer->observe_seq = -1;
+    buffer->observe_seq = OC_OBSERVE_NOT_INITIALIZED;
     #endif 
 
     oc_ri_add_timed_event_callback_seconds(buffer, oc_blockwise_response_timeout, OC_EXCHANGE_LIFETIME);

@@ -396,7 +396,7 @@ int coap_set_header_location_path(void* packet, const char* path); // Also split
 int coap_get_header_location_query( void* packet, const char** query); // In-place string might not be 0-terminated.
 size_t coap_set_header_location_query(void* packet, const char* query);
 
-bool coap_get_header_observe(void* packet, oc_client_observe_t* observe);
+bool coap_get_header_observe(void* packet, uint32_t* observe);
 void coap_set_header_observe(void* packet, uint32_t observe);
 
 int coap_get_header_block2(void* packet, uint32_t* num, uint8_t* more, uint16_t* size, uint32_t* offset);

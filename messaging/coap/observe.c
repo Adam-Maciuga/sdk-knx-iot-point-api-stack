@@ -459,8 +459,7 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
             coap_set_payload(notification, payload, payload_size);
             coap_set_header_block2(notification, 0, 1, obs->block2_size);
             coap_set_header_size2(notification, response_state->payload_size);
-            oc_blockwise_response_state_t* bwt_res_state =
-              (oc_blockwise_response_state_t*)response_state;
+            oc_blockwise_response_state_t* bwt_res_state = (oc_blockwise_response_state_t*)response_state;
             coap_set_header_etag(notification, bwt_res_state->etag, COAP_ETAG_LEN);
           }
         }

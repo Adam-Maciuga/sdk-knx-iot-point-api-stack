@@ -1308,7 +1308,7 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
   // if a GET request was successfully processed, then check its observe option
 
   // init 
-  oc_client_observe_t observe_value_by_client = OC_OBSERVE_NOT_APPLICABLE;
+  uint32_t observe_value_by_client = OC_OBSERVE_NOT_APPLICABLE;
 
   if (success && response_buffer.code < oc_status_code(OC_STATUS_BAD_REQUEST) && coap_get_header_observe(request, &observe_value_by_client))
   {
@@ -1517,7 +1517,7 @@ static void notify_client_cb_503(oc_client_cb_t* cb)
   oc_client_response_t client_response = {0};
   client_response.client_cb = cb;
   client_response.endpoint = &cb->endpoint;
-  client_response.observe_option = -1;
+  client_response.observe_option = OC_OBSERVE_NOT_INITIALIZED;
   client_response.user_data = cb->user_data;
   client_response.code = OC_STATUS_SERVICE_UNAVAILABLE;
 
@@ -1637,32 +1637,34 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
   cb->ref_count = 1;
 
-  uint8_t* payload = NULL;
+  const uint8_t* payload = NULL;
   int payload_len = 0;
   coap_packet_t* const pkt = (coap_packet_t*)response;
 
   // clear and set only those data which are not '0'
-  oc_client_response_t client_response = {0};
-  client_response.client_cb = cb;
-  client_response.endpoint = endpoint;
-  client_response.observe_option = -1;
-  client_response.content_format = cf;
-  client_response.user_data = cb->user_data;
-  client_response.code = get_oc_status_code_from_coap_code(pkt->code);
+  oc_client_response_t client_response = 
+  {
+    .client_cb = cb,
+    .endpoint = endpoint,
+    .observe_option = OC_OBSERVE_NOT_INITIALIZED,
+    .content_format = cf,
+    .user_data = cb->user_data,
+    .code = get_oc_status_code_from_coap_code(pkt->code)
+  };
+  
 
   #ifdef OC_BLOCK_WISE
   if (response_state)
   {
-    oc_blockwise_response_state_t* bwt_response_state =
-      (oc_blockwise_response_state_t*)*response_state;
+    const oc_blockwise_response_state_t* bwt_response_state = (const oc_blockwise_response_state_t*)*response_state;
     client_response.observe_option = bwt_response_state->observe_seq;
   }
   #else
   coap_get_header_observe(pkt, (uint32_t*)&client_response.observe_option);
   #endif
 
-  // > 1, = inbound notification/response to a non-observe request, so check if the notification number is newer than the one in the client callback
-  if (client_response.observe_option > 1)
+  // > register, = inbound notification/response to a non-observe request, so check if the notification number is newer than the one in the client callback
+  if (client_response.observe_option > OC_OBSERVE_DEREGISTER)
   {
     // use PIV/SSN as observe notification number, as the server may not support observe sequence numbers
     uint64_t notification_num;
@@ -1769,14 +1771,13 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
   cb->ref_count = 0;
 
-  if (client_response.observe_option == -1 && !separate && !cb->discovery)
+  if (client_response.observe_option == OC_OBSERVE_NOT_INITIALIZED && !separate && !cb->discovery)
   {
     if (cb->multicast)
     {
       if (cb->stop_multicast_receive)
       {
-        uint16_t mid = cb->mid;
-        oc_ri_free_client_cbs_by_mid(mid);
+        oc_ri_free_client_cbs_by_mid(cb->mid);
       }
     }
     else
@@ -1793,7 +1794,10 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   {
     cb->observe_seq = client_response.observe_option;
 
-    // Drop old observe callback and keep the last one.
+    /* 
+       drop old observe callback and keep the last one 
+       TODO why 
+    */
     if (cb->observe_seq == 0)
     {
       oc_client_cb_t* dup_cb = (oc_client_cb_t*)oc_list_head(client_cbs);
@@ -1801,7 +1805,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
       while (dup_cb != NULL)
       {
-        if (dup_cb != cb && dup_cb->observe_seq != -1 &&
+        if (dup_cb != cb && dup_cb->observe_seq != OC_OBSERVE_NOT_INITIALIZED &&
           dup_cb->token_len == cb->token_len &&
           memcmp(dup_cb->token, cb->token, cb->token_len) == 0 &&
           oc_string_len(dup_cb->uri) == uri_len &&
@@ -1868,10 +1872,8 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, 
 
   // set here fix COAP_TOKEN_LEN byte token len
   cb->token_len = COAP_TOKEN_LEN;
-  const uint32_t a = oc_random_value();
-  memcpy(cb->token + 0, &a, sizeof(a));
-  const uint32_t b = oc_random_value();
-  memcpy(cb->token + 4, &b, sizeof(b));
+  const uint32_t a = oc_random_value(); memcpy(cb->token + 0, &a, sizeof(a));
+  const uint32_t b = oc_random_value(); memcpy(cb->token + 4, &b, sizeof(b));
 
   oc_new_string(&cb->uri, uri, strlen(uri));
   cb->method = method;
@@ -1880,7 +1882,7 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, 
   cb->user_data = user_data;
   cb->discovery = false;
   cb->timestamp = oc_clock_time();
-  cb->observe_seq = -1;
+  cb->observe_seq = OC_OBSERVE_NOT_INITIALIZED;
   oc_endpoint_copy(&cb->endpoint, endpoint);
 
   if (query && strlen(query) > 0)

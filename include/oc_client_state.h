@@ -50,7 +50,7 @@ typedef struct
   void* user_data;                     /**< user data to be supplied to the callback to the client */
   oc_content_format_t content_format;  /**< content format of the payload */
   oc_status_t code;                    /**< status of the response */
-  int observe_option;                  /**< observe option, request: 0 = register, 1 = deregister; response: > 1 notification value */
+  int32_t observe_option;              /**< observe option, request: 0 = register, 1 = deregister; response: > 1 notification value */
 } oc_client_response_t;
 
 /**
