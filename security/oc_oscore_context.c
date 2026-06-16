@@ -159,6 +159,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_group_address(uint32_t group_addr
       // debugging 
       oc_print_auth_at_entry(ctx->auth_at);
 
+      // for a context without GA's (such as SPAKE2+ handshake context) the loop is skipped
       for (int i = 0; i < ctx->auth_at->ga_len; i++) 
       {
         // scan all GA's

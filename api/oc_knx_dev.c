@@ -1233,8 +1233,13 @@ void oc_knx_device_storage_reset(int reset_mode)
     // delete iot device tables
     oc_delete_group_object_table();
     oc_delete_group_tables();
+    
+    // first remove PASE token, then delete AT table, then reinit contexts
     oc_core_find_and_remove_pase_token_in_at_table();
     oc_delete_at_table_except_sec_scope_entries();
+
+    // (re)create the secure contexts from AT table (except PASE, see above) 
+    oc_init_oscore_from_storage(true);
 
     // terminate any in-flight PASE handshake so its state machine is reset to IDLE
     oc_spake_reset_pase_session();
@@ -1273,10 +1278,10 @@ void oc_knx_device_restart(void) {
   // disable PROG mode
   device->pm = false;
 
-  // delete PASE token
+  // first remove PASE token, DON'T delete at table, then reinit contexts
   oc_core_find_and_remove_pase_token_in_at_table();
 
-  // initialize OSCORE
+  // (re)create the secure contexts from AT table (except PASE, see above) 
   oc_init_oscore_from_storage(true);
   
   // check and send on i-flags

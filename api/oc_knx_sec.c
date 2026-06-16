@@ -1771,9 +1771,6 @@ void oc_delete_at_table_except_sec_scope_entries(void)
       oc_delete_at_table_entry(entry);
     }
   }
-
-  // (re)create the oscore contexts in the table that still remains
-  oc_init_oscore_from_storage(true);
 }
 
 void oc_oscore_set_auth_shared(const char* client_sender_id, int client_sender_id_size, uint8_t* shared_key, int shared_key_size)
@@ -1856,20 +1853,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
 
       if (at_entry->profile == OC_PROFILE_COAP_OSCORE || at_entry->profile == OC_PROFILE_COAP_PASE)
       {
-
-        /*
-          'Client' Side (details see method 'oc_oscore_receive_message' header)
-          - create oscore REQUEST sender context = kid + kid_context + ms + salt from token
-          - SSN initialized = read from storage, context is already present
-
-          'Client' Side (details see method 'oc_oscore_receive_message' header), create:
-          Request Sender Context
-          - kid
-          - kid_context
-          - ms + salt
-          - ssn = read from storage, context is already present
-        */
-
         // always read stored SSN from storage to maintain continuity
         const uint64_t stored_ssn = oc_read_ssn_from_storage(at_entry);
 
