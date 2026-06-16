@@ -120,8 +120,14 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
     // init counter 
     o->obs_counter = observe_counter;
     
-    // ensure unique counter for next observer, with wrap-around handling according to RFC 7641 Section 3.4
-    observe_counter = (observe_counter + 1) & OBSERVE_COUNTER_MASK;
+    /* 
+      ensure unique counter for next observer, with wrap-around handling according to RFC 7641 Section 3.4
+      - a new observe register for the same res. (sure with diff. token) uses a diff observe notification number
+      - on a server restart there may be a problem with the same-token refresh/reboot freshness ordering (RFC 7641 3.4/4.4) 
+    */
+    observe_counter++;
+    observe_counter &= OBSERVE_COUNTER_MASK;
+    
     // on wrap around start again at init (compiler optimize this anyway)
     observe_counter = observe_counter == 0 ? OC_OBSERVE_FIRST_NOTIFICATION_VALUE : observe_counter;
 
