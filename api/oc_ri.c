@@ -1403,8 +1403,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
     /*
       Attempt to register a client request to the separate response tracker and pass in the observe option
       (if present) or the value 2 (OC_OBSERVE_NOT_APPLICABLE) as determined by the code block above. 
+      
       Values 0 (OC_OBSERVE_REGISTER) and 1 (OC_OBSERVE_DEREGISTER) result in their
-      expected behaviors whereas 2 (OC_OBSERVE_NOT_APPLICABLE) indicates an absence of an observe option and hence a one-off request.
+      expected behaviors whereas 2 (OC_OBSERVE_NOT_APPLICABLE) indicates an absence of an observe option 
+      and hence a one-off request (answered later with a response without any expressed observe option/ value 
+      e.g; treated as a normal response on a normal GET request w/o observe option).
       
       Following a successful registration, the separate response tracker is flagged as "active". In this way,
       the function that later executes out-of-band upon availability of the resource state knows it must send
@@ -1703,9 +1706,8 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
       if (oc_ri_process_discovery_payload(payload, payload_len, cb->handler,
                                           endpoint, cf, cb->user_data) == OC_STOP_DISCOVERY)
       {
-        uint16_t mid = cb->mid;
         cb->ref_count = 0;
-        oc_ri_free_client_cbs_by_mid(mid);
+        oc_ri_free_client_cbs_by_mid(cb->mid);
         #ifdef OC_BLOCK_WISE
         *response_state = NULL;
         #endif
