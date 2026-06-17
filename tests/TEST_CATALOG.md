@@ -1,8 +1,9 @@
 # KNX IoT Point API Stack — Test Catalog
 
-> **1030 unit tests** (49 files) + **233 runtime tests** (16 files) = **1263 total**
+> **1030 unit tests** (49 files) + **249 runtime tests** (17 files) = **1279 total**
 >
 > Branch: `unit_tests_claude` | Last verified: 1029 passed, 1 skipped (Docker CI)
+> Runtime observe suite (`test_5_9_observe.py`): 15 passed, 1 xfailed on `windows-test-gcc`
 
 ---
 
@@ -902,7 +903,7 @@ covered by the runtime conformance suite (Part 2).
 
 Tests exercise the **full stack** over real CoAP/OSCORE on IPv6.
 The `runtime_test_server` binary runs as a subprocess — no mocks.
-16 `.py` files in `tests/runtime/`. 233 test functions (245 collected with parametrize).
+17 `.py` files in `tests/runtime/`. 249 test functions (261 collected with parametrize).
 
 **DUT config:** Serial=`00fa10020800`, Password=`2X4W3TE0DFLLS19Y1FCH`, MID=667, IA=`0x1101`, IID=`0x1199887766`
 
@@ -1253,7 +1254,34 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 
 ---
 
-## Known Skips
+### test_5_9_observe.py — CoAP Observe / Notifications (16 tests)
+
+> **Spec-backed approximation, NOT an EITT replication.** There is no EITT
+> (08_10_5) observe section; these tests are anchored to spec 2.5.9.x /
+> 2.6.10.1 and RFC 7641/8613, and the `5.9.x` / `OBS-x` IDs are placeholders.
+> See the file header and `docs/runtime-test-knowledge.md` for the documented
+> stack deviations.
+
+| Group | Test | Spec/ref |
+|-------|------|----------|
+| **A — Subscription lifecycle** | `test_5_9_1_1_obs_a1_register_returns_current_value` | 2.6.10.1 |
+| | `test_5_9_1_2_obs_a2_value_change_notifies` | 2.6.10.1 |
+| | `test_5_9_1_3_obs_a3_deregister_stops_notifications` | 2.6.10.1 |
+| | `test_5_9_1_4_obs_a3b_delete_sub_removes_subscription` | 2.6.10.1 |
+| | `test_5_9_1_5_obs_a4_resubscribe_replaces_by_ip_port` | 2.6.10.1 |
+| **B — lt validation** | `test_5_9_2_1_obs_b1_missing_lt_rejected` | 2.5.9.3 |
+| | `test_5_9_2_2_obs_b2_lt_zero_rejected` | 2.5.9.3 |
+| **C — CON/NON** | `test_5_9_3_1_obs_c1_default_confirmable` | 2.5.9.4 |
+| | `test_5_9_3_2_obs_c2_non_true_non_confirmable` | 2.5.9.4 |
+| **D — /k S-Mode** | `test_5_9_4_1_obs_d1_first_k_notification_sia_only` | 2.5.9.1 |
+| | `test_5_9_4_2_obs_d2_subsequent_k_notification_has_s_object` | 2.5.9.1 (xfail — deviation) |
+| | `test_5_9_4_4_obs_d4_inbound_post_k_not_echoed` | 2.5.9.1 |
+| **E — OSCORE notifications** | `test_5_9_5_1_obs_e1_encrypted_notifications_decrypt` | RFC 8613 |
+| | `test_5_9_5_2_obs_e2_notification_aad_binds_request_piv` | RFC 8613 §8.3 |
+| **F — Multi-observer** | `test_5_9_6_1_obs_f1_independent_seq_per_observer` | 2.6.10.1 |
+| | `test_5_9_6_2_obs_f2_stale_observer_pruned` | RFC 7641 |
+
+---
 
 | Test | Reason |
 |------|--------|
