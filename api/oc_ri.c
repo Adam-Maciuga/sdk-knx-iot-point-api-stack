@@ -1343,7 +1343,11 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
         else if (observe_result >= 0)
         { // (c) or (d) added new or refreshed observer 
           
-          // set observe option in response to the observer's assigned sequence number (RFC 7641 Section 3.1, 4.4 - not ness. a '0' must be the first value)
+          /* 
+             - set observe option + value in response to the observer's 
+             - assigned current sequence number that assigned to the observer 
+               (RFC 7641 Section 3.1, 4.4 - not ness. a '0' must be the first value)
+          */
           coap_set_header_observe(response, get_observe_counter());
 
           /*

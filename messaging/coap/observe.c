@@ -56,11 +56,11 @@
 // RFC 7641 Section 3.4: Observe option is at most 3 bytes (0 to 2^24-1)
 #define OBSERVE_COUNTER_MASK 0x00FFFFFF
 
-/* 
-  - used to seed each new (individual) observer with its notification response with a unique starting sequence number
-  - see RFC 7641 Section 3.4 for details on the observe option value and sequence number wrap-around handling
-  - seeded at OC_OBSERVE_NOTIFICATIONS (3); since add_observer pre-increments, the first assigned value is
-    OC_OBSERVE_NOTIFICATIONS + 1, so a notification sequence number never collides with the reserved 0/1/2 values
+/*
+  Global seed used to give each new observer a unique starting Observe sequence number.
+  - See RFC 7641 Section 3.4 for the Observe option value range and sequence number wrap-around handling.
+  - Seeded at OC_OBSERVE_NOTIFICATIONS (3); add_observer pre-increments before use, so the first assigned
+    value is OC_OBSERVE_NOTIFICATIONS + 1. A sequence number therefore never reuses the reserved 0/1/2 values.
 */
 static uint32_t observe_counter = OC_OBSERVE_NOTIFICATIONS;
 uint32_t get_observe_counter(void) { return observe_counter; }
@@ -120,16 +120,18 @@ static int add_observer(const oc_resource_t* resource, oc_endpoint_t* endpoint,
 
     /*
       Assign a unique starting Observe sequence number to this observer, with 24-bit wrap-around per RFC 7641 Section 3.4.
-      - A new registration for the same resource (typically with a different token) gets a different starting sequence number.
-      - The counter is held in RAM, so it resets on reboot; this can weaken same-token refresh/reboot freshness ordering (RFC 7641 3.4/4.4).
+      - Each registration gets a different (increasing) starting value derived from the global counter, so a new or
+        refreshed registration for the same resource (typically with a different token) also gets a different start.
+      - The global counter lives in RAM and resets on reboot, which can weaken same-token refresh/reboot freshness
+        ordering (RFC 7641 3.4/4.4).
     */
     observe_counter++;
     observe_counter &= OBSERVE_COUNTER_MASK;
 
-    // on wrap-around, restart at OC_OBSERVE_NOTIFICATIONS (3) so the value never reuses the reserved values 0/1/2
+    // on wrap-around, restart at OC_OBSERVE_NOTIFICATIONS (3) so the value never reuses the reserved 0/1/2 values
     observe_counter = observe_counter == 0 ? OC_OBSERVE_NOTIFICATIONS : observe_counter;
 
-    // set counter
+    // assign this observer's starting sequence number from the global counter
     o->obs_counter = observe_counter;
     o->resource = resource;
 
@@ -512,12 +514,18 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
         {
           if (notification->code < BAD_REQUEST_4_00 && obs->resource->runtime_data->num_observers)
           {
-            // use current seq. number
-            coap_set_header_observe(notification, obs->obs_counter);
-
-            // increment seq. number, each observation relationship has its own counter (was init from global counter)
+            /*
+              Advance the per-observer sequence number BEFORE use so a notification never reuses the value
+              already sent in the registration response (RFC 7641 3.4/4.4: the value must strictly increase).
+              Each observation relationship has its own counter (initialized from the global counter).
+            */
             obs->obs_counter++;
             obs->obs_counter &= OBSERVE_COUNTER_MASK;
+
+            // on wrap-around, restart at OC_OBSERVE_NOTIFICATIONS (3) so the value never reuses the reserved 0/1/2 values
+            obs->obs_counter = obs->obs_counter == 0 ? OC_OBSERVE_NOTIFICATIONS : obs->obs_counter;
+
+            coap_set_header_observe(notification, obs->obs_counter);
           }
           else
           {
@@ -705,12 +713,18 @@ void coap_notify_k_observers(const uint8_t* payload, size_t payload_len)
         coap_set_token(notification, obs->token, obs->token_len);
         coap_set_payload(notification, payload, payload_len);
         
-        // use current seq. number
-        coap_set_header_observe(notification, obs->obs_counter);
-
-        // increment seq. number, each observation relationship has its own counter (was init from global counter)
+        /*
+          Advance the per-observer sequence number BEFORE use so a notification never reuses the value
+          already sent in the registration response (RFC 7641 3.4/4.4: the value must strictly increase).
+          Each observation relationship has its own counter (initialized from the global counter).
+        */
         obs->obs_counter++;
         obs->obs_counter &= OBSERVE_COUNTER_MASK;
+
+        // on wrap-around, restart at OC_OBSERVE_NOTIFICATIONS (3) so the value never reuses the reserved 0/1/2 values
+        obs->obs_counter = obs->obs_counter == 0 ? OC_OBSERVE_NOTIFICATIONS : obs->obs_counter;
+
+        coap_set_header_observe(notification, obs->obs_counter);
 
         obs->last_mid = mid;
 
