@@ -238,6 +238,16 @@ static void test_set_dp(const char *path, bool value, bool has_value)
     else if (strcmp(path, "/p/3") == 0) g_dp3 = !g_dp3;
     else if (strcmp(path, "/p/4") == 0) g_dp4 = !g_dp4;
   }
+
+  /* Notify any CoAP observers that the datapoint value changed. Real KNX
+   * devices update output datapoints internally and push notifications; the
+   * test trigger emulates that internal change, so drive the notification
+   * here. Harmless for non-observable resources (no registered observers). */
+  const oc_resource_t *res =
+    oc_ri_get_app_resource_by_resource_path(path, strlen(path));
+  if (res != NULL) {
+    oc_notify_observers(res);
+  }
 }
 
 static void test_reset_dp(void)
@@ -372,12 +382,14 @@ static void register_resources(void)
   oc_add_resource(res);
 
   /* /p/2 — IOO (Indicate On/Off) status — output interface (matches EITT) */
+  /* Observable: output datapoints are register-able for CoAP observe so
+   * clients can be notified of value changes (used by the observe tests). */
   res = oc_new_resource("/p/2", 1);
   oc_resource_bind_resource_type(res, "urn:knx:dpa.417.62");
   oc_resource_bind_dpt(res, ":dpt.switch");
   oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_functional_block_data(res, 417, 1, 2);
-  oc_resource_set_properties(res, OC_DISCOVERABLE);
+  oc_resource_set_properties(res, OC_DISCOVERABLE | OC_OBSERVABLE);
   oc_resource_set_request_handler(res, COAP_GET, get_bool_dp, &g_dp2,
                                   OC_ACL_O, OC_IF_O);
   oc_add_resource(res);
@@ -385,12 +397,13 @@ static void register_resources(void)
   /* ── LSSB (FB 421, instance 1) ── */
 
   /* /p/3 — SOO control — output interface for LSSB (matches EITT) */
+  /* Observable (see /p/2 note). */
   res = oc_new_resource("/p/3", 1);
   oc_resource_bind_resource_type(res, "urn:knx:dpa.421.61");
   oc_resource_bind_dpt(res, ":dpt.switch");
   oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_functional_block_data(res, 421, 1, 2);
-  oc_resource_set_properties(res, OC_DISCOVERABLE);
+  oc_resource_set_properties(res, OC_DISCOVERABLE | OC_OBSERVABLE);
   oc_resource_set_request_handler(res, COAP_GET, get_bool_dp, &g_dp3,
                                   OC_ACL_O, OC_IF_O);
   oc_add_resource(res);

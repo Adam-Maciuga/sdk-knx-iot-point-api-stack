@@ -194,3 +194,65 @@ Helper function `_sync_group_context()` in `test_5_4_5_3_multicast.py` implement
 - When the stack returns a `p.next` link (e.g. `</fp/g?pn=1>;rt="p.next"`), it may omit the `ps` parameter
 - The EITT trace shows the test tool always re-adds `ps=` when following next links
 - Test code must append `ps=N` to next links if not already present
+
+## CoAP Observe / Notifications (June 2026 - test_5_9_observe.py)
+
+### Status: spec-backed approximation, NOT an EITT replication
+- There is no EITT (08_10_5) observe section and no observe telegrams in
+  `EittProject.xml`. `test_5_9_observe.py` is anchored to spec clauses
+  (2.5.9.x, 2.6.10.1) and RFC 7641/8613, but the `5.9.x` / `OBS-x` numbering
+  is a placeholder. The file header carries a prominent APPROXIMATION notice.
+
+### Infrastructure added
+- `coap_client.py`: Observe option (6) encoding in `_build_request` /
+  `_build_oscore_request`; `ObserveSubscription` + `Notification` dataclasses;
+  `observe_register`, `observe_register_oscore`, `collect_notifications`,
+  `observe_deregister`, `count_incoming_messages`, `_observe_seq`.
+- `knx_oscore.py`: `protect_request(..., observe=)` encodes the inner Observe
+  option (6) before Uri-Path (11); `0`=register, `1`=deregister.
+- `runtime_test_server.c`: `/p/2` and `/p/3` are `OC_DISCOVERABLE |
+  OC_OBSERVABLE`; `test_set_dp()` calls `oc_notify_observers()` (resource
+  looked up via `oc_ri_get_app_resource_by_resource_path`) after storing.
+
+### Dedicated-observer-per-port pattern (critical)
+- The stack keys subscriptions by source IP+port (2.6.10.1). Each observer
+  must use its own UDP socket — use the `make_observer` factory, never the
+  shared `coap` client, or notifications and request/response frames
+  interleave on one socket.
+- Observers share the session `oscore_ctx` (OSCORE is transport-independent,
+  identified by kid not port; the Python SSN counter stays monotonic).
+
+### OSCORE notification sequence number is OUTER (RFC 8613 4.1.3.5.2)
+- For OSCORE-protected notifications the Observe **sequence number is in the
+  outer (Class U) Observe option**; the inner (decrypted) Observe is present
+  but empty (it only signals "this is a notification").
+- `_recv_oscore_response` and `collect_notifications` therefore read seq from
+  the outer option (falling back to inner). Reading only the inner option
+  yields a constant 0 and breaks all seq-advance assertions.
+
+### Known stack deviations from spec (documented in the test file header)
+1. **/k subsequent-notification payload (spec 2.5.9.1 + 2.5.9.2).**
+   `coap_notify_k_observers()` (`messaging/coap/observe.c`) forwards only the
+   raw datapoint value `{1: <value>}` that `oc_issue_s_mode_message()`
+   (`api/oc_knx_client.c`) passed it, dropping the mandatory
+   `{4: <sia>, 5: {6: "w", 7: <ga>, 1: <value>}}` Group Notification wrapper.
+   `OBS-D2` keeps the spec-correct assertions but is `xfail(strict=False)` so
+   the deviation is visible and auto-flips to pass if the stack is fixed.
+2. **Observe seq at registration→first-notification boundary (RFC 7641 3.4).**
+   The 2.05 registration response and the first notification share the same
+   Observe value (the per-observer counter is sent first, incremented after).
+   RFC 7641 only requires monotonicity *between notifications*; `OBS-A2` and
+   `OBS-E1` compare notifications to each other, not to the registration
+   baseline.
+3. **Inbound s-mode write re-emit (NOT a deviation).** An inbound `w` on a GA
+   mapped to a transmission-flagged Datapoint legitimately triggers an
+   outbound s-mode write (spec 2.5.9.3), which reaches /k observers.
+   `OBS-D4` clears the group tables first (it runs after `OBS-D2`, which
+   provisions GA 65535→/p/3 as a sender) to exercise the "no re-transmit"
+   path; otherwise the leftover sender produces a legitimate echo.
+
+### Result baseline
+- 15 passed, 1 xfailed (`OBS-D2`) on `windows-test-gcc`. Multicast-dependent
+  paths still notify on Windows even when the physical s-mode send goes
+  nowhere, so `OBS-D` tests run; `OBS-D2`'s s-mode path skips gracefully if no
+  notification is captured.

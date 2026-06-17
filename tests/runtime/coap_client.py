@@ -117,6 +117,36 @@ class CoapResponse:
         return self.code_class == 4 and self.code_detail == 0
 
 
+@dataclass
+class ObserveSubscription:
+    """Handle for an active CoAP Observe relationship.
+
+    Tracks the token (the subscription identifier the server echoes on
+    every notification), the last seen Observe sequence number, and — for
+    OSCORE-protected subscriptions — the OSCORE context plus the partial IV
+    of the original registration request (needed to build the AAD when
+    decrypting server-initiated notifications, RFC 8613 §8.3).
+    """
+    path: str
+    token: bytes
+    oscore_ctx: object = None          # OscoreContext or None (plain)
+    request_piv: Optional[bytes] = None  # PIV of the observe GET request
+    last_seq: Optional[int] = None     # last Observe option value seen
+
+    @property
+    def is_oscore(self) -> bool:
+        return self.oscore_ctx is not None
+
+
+@dataclass
+class Notification:
+    """A single observe notification delivered to a subscriber."""
+    response: "CoapResponse"
+    seq: Optional[int]   # Observe sequence number (option 6)
+    msg_type: int        # CON or NON
+    mid: int
+
+
 def _encode_option(delta: int, value: bytes) -> bytes:
     """Encode a single CoAP option."""
     length = len(value)
@@ -223,10 +253,21 @@ class CoapClient:
     def _build_request(self, method: tuple, uri_path: str,
                        payload: bytes = b"",
                        accept: Optional[int] = None,
-                       content_format: Optional[int] = None) -> bytes:
-        """Build a CoAP CON request message."""
+                       content_format: Optional[int] = None,
+                       observe: Optional[int] = None,
+                       token: Optional[bytes] = None) -> bytes:
+        """Build a CoAP CON request message.
+
+        Args:
+            observe: If not None, encode the CoAP Observe option (6).
+                     0 = register, 1 = deregister (RFC 7641).
+            token: If provided, use this exact token instead of generating
+                   a fresh one (needed to deregister/refresh an existing
+                   observe relationship, which is keyed by token).
+        """
         mid = self._next_mid()
-        token = self._next_token()
+        if token is None:
+            token = self._next_token()
         tkl = len(token)
 
         # Split path?query
@@ -243,6 +284,15 @@ class CoapClient:
         # Options (must be in order of option number)
         options = b""
         prev_opt = 0
+
+        # Observe (option 6) -- comes before Uri-Path (11)
+        if observe is not None:
+            # RFC 7641: value 0 is encoded as a zero-length option.
+            obs_bytes = (b"" if observe == 0
+                         else observe.to_bytes(
+                             (observe.bit_length() + 7) // 8 or 1, "big"))
+            options += _encode_option(6 - prev_opt, obs_bytes)
+            prev_opt = 6
 
         # Uri-Path (option 11) -- split by /
         for part in path_part.strip("/").split("/"):
@@ -430,24 +480,40 @@ class CoapClient:
     # ------------------------------------------------------------------
 
     def _build_oscore_request(self, oscore_option: bytes,
-                              ciphertext: bytes) -> bytes:
+                              ciphertext: bytes,
+                              observe: Optional[int] = None,
+                              token: Optional[bytes] = None) -> bytes:
         """Build a CoAP CON POST request carrying an OSCORE option.
 
         OSCORE outer message:
         - Code = POST (0.02)
+        - Option 6 (Observe, outer/Class U) = observe, if requested
         - Option 9 (OSCORE) = oscore_option
         - Payload = ciphertext (the encrypted inner message)
+
+        The inner (encrypted) message also carries the Observe option; the
+        outer copy is required so the receiving CoAP/observe layer treats
+        the message as an observe (de)registration (RFC 8613 §4.1.3.5).
         """
         mid = self._next_mid()
-        token = self._next_token()
+        if token is None:
+            token = self._next_token()
         tkl = len(token)
 
         ver_type_tkl = (1 << 6) | (CON << 4) | tkl
         code = (POST[0] << 5) | POST[1]  # 0.02
         header = struct.pack("!BBH", ver_type_tkl, code, mid)
 
-        # OSCORE option (number 9)
-        options = _encode_option(9, oscore_option)
+        # Outer options in option-number order: Observe (6) then OSCORE (9)
+        options = b""
+        prev_opt = 0
+        if observe is not None:
+            obs_bytes = (b"" if observe == 0
+                         else observe.to_bytes(
+                             (observe.bit_length() + 7) // 8 or 1, "big"))
+            options += _encode_option(6 - prev_opt, obs_bytes)
+            prev_opt = 6
+        options += _encode_option(9 - prev_opt, oscore_option)
 
         msg = header + token + options + b"\xFF" + ciphertext
         return msg
@@ -599,6 +665,12 @@ class CoapClient:
                 inner_code, inner_payload, inner_options = (
                     oscore_ctx.unprotect_response(
                         resp_oscore_opt, outer_payload, piv))
+                # Surface the OUTER (Class U) Observe option, which carries
+                # the sequence number for observe registrations and
+                # notifications per RFC 8613 4.1.3.5.2.  The inner Observe
+                # is present but empty.
+                if 6 in options:
+                    inner_options[6] = options[6]
                 return (CoapResponse(
                     code_class=inner_code >> 5,
                     code_detail=inner_code & 0x1F,
@@ -655,6 +727,267 @@ class CoapClient:
                       timeout: Optional[float] = None) -> Optional[
                           CoapResponse]:
         return self.oscore_request(oscore_ctx, 4, path, timeout=timeout)
+
+    # ------------------------------------------------------------------
+    # CoAP Observe (RFC 7641)
+    # ------------------------------------------------------------------
+    #
+    # A single client socket = a single subscription source (IP+port).
+    # The KNX stack replaces a subscription based on source IP+port, not
+    # the CoAP token (spec 2.6.10.1), so dedicate one CoapClient per
+    # observer when a test needs independent subscriptions.
+
+    @staticmethod
+    def _build_observe_query(path: str, lt: Optional[int],
+                             non: Optional[bool]) -> tuple[str, list[str]]:
+        """Return (inner_path, query_list) with lt/non appended.
+
+        `lt=None` omits the lifetime entirely (to exercise the missing-lt
+        rejection); `lt=0` is sent literally.  `non=True` adds `non=true`.
+        """
+        if "?" in path:
+            inner_path, qpart = path.split("?", 1)
+            queries = [q for q in qpart.split("&") if q]
+        else:
+            inner_path, queries = path, []
+        if lt is not None:
+            queries.append(f"lt={lt}")
+        if non:
+            queries.append("non=true")
+        return inner_path, queries
+
+    def observe_register(self, path: str, lt: Optional[int] = 86400,
+                         non: Optional[bool] = None,
+                         accept: Optional[int] = None,
+                         timeout: Optional[float] = None) -> tuple[
+                             Optional[CoapResponse], "ObserveSubscription"]:
+        """Register a plain (unprotected) CoAP observe on `path`.
+
+        Returns (first_response, subscription).  The first response is the
+        initial notification (2.05 with the Observe option) on success, or
+        an error response (e.g. 4.00) when the registration is rejected.
+        """
+        inner_path, queries = self._build_observe_query(path, lt, non)
+        full = inner_path + ("?" + "&".join(queries) if queries else "")
+        msg = self._build_request(GET, full, observe=0)
+        tkl = msg[0] & 0x0F
+        token = msg[4:4 + tkl]
+
+        eff = timeout if timeout is not None else self.timeout
+        old = self._sock.gettimeout()
+        self._sock.settimeout(eff)
+        try:
+            self._sock.sendto(msg, (self.host, self.port, 0, 0))
+            resp = self._recv_response(eff, token)
+        finally:
+            self._sock.settimeout(old)
+
+        sub = ObserveSubscription(path=inner_path, token=token)
+        if resp is not None and resp.options and 6 in resp.options:
+            sub.last_seq = (int.from_bytes(resp.options[6], "big")
+                            if resp.options[6] else 0)
+        return resp, sub
+
+    def observe_register_oscore(self, oscore_ctx, path: str,
+                                lt: Optional[int] = 86400,
+                                non: Optional[bool] = None,
+                                accept: Optional[int] = None,
+                                content_format: Optional[int] = None,
+                                timeout: Optional[float] = None) -> tuple[
+                                    Optional[CoapResponse],
+                                    "ObserveSubscription"]:
+        """Register an OSCORE-protected CoAP observe on `path`.
+
+        The Observe option is carried both inside the encrypted inner
+        message and as an outer Class-U option.  The registration request's
+        partial IV is stored on the subscription so later notifications can
+        be decrypted (their AAD binds the request PIV, RFC 8613 §8.3).
+        """
+        inner_path, queries = self._build_observe_query(path, lt, non)
+        oscore_opt, ciphertext, piv = oscore_ctx.protect_request(
+            1, inner_path, b"", queries or None, observe=0,
+            accept=accept, content_format=content_format)
+        token = self._next_token()
+        msg = self._build_oscore_request(oscore_opt, ciphertext,
+                                         observe=0, token=token)
+
+        eff = timeout if timeout is not None else self.timeout
+        old = self._sock.gettimeout()
+        self._sock.settimeout(eff)
+        try:
+            self._sock.sendto(msg, (self.host, self.port, 0, 0))
+            result = self._recv_oscore_response(oscore_ctx, piv, eff, token)
+        finally:
+            self._sock.settimeout(old)
+
+        sub = ObserveSubscription(path=inner_path, token=token,
+                                  oscore_ctx=oscore_ctx, request_piv=piv)
+        if result is not None:
+            resp, inner_options = result
+            if 6 in inner_options:
+                sub.last_seq = (int.from_bytes(inner_options[6], "big")
+                                if inner_options[6] else 0)
+            return resp, sub
+        return None, sub
+
+    def collect_notifications(self, sub: "ObserveSubscription",
+                              count: int = 1, timeout: float = 5.0,
+                              ack: bool = True) -> list["Notification"]:
+        """Collect up to `count` notifications for `sub` within `timeout`.
+
+        Confirmable (CON) notifications are ACKed (unless `ack=False`, used
+        to test stale-observer pruning).  OSCORE subscriptions are decrypted
+        with the subscription's stored context and request PIV.  Messages
+        whose token does not match the subscription are ignored.
+        """
+        import time
+        deadline = time.monotonic() + timeout
+        out: list[Notification] = []
+        old = self._sock.gettimeout()
+        try:
+            while len(out) < count:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._sock.settimeout(remaining)
+                try:
+                    data, _ = self._sock.recvfrom(4096)
+                except socket.timeout:
+                    break
+                if len(data) < 4:
+                    continue
+
+                byte0 = data[0]
+                msg_type = (byte0 >> 4) & 0x03
+                tkl = byte0 & 0x0F
+                code_byte = data[1]
+                mid = struct.unpack("!H", data[2:4])[0]
+                token = data[4:4 + tkl]
+
+                if msg_type == ACK and code_byte == 0:
+                    continue
+                if msg_type == CON and ack:
+                    ackmsg = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
+                    self._sock.sendto(ackmsg, (self.host, self.port, 0, 0))
+                if token != sub.token:
+                    print(f"[observe] ignoring msg token={token.hex()}"
+                          f" (want {sub.token.hex()})")
+                    continue
+
+                offset = 4 + tkl
+                options, payload_offset = _parse_options(data, offset)
+                outer_payload = (data[payload_offset:]
+                                 if payload_offset < len(data) else b"")
+
+                if sub.is_oscore:
+                    if 9 not in options:
+                        print("[observe] OSCORE sub got unprotected msg, skip")
+                        continue
+                    inner_code, inner_payload, inner_options = (
+                        sub.oscore_ctx.unprotect_response(
+                            options[9], outer_payload, sub.request_piv))
+                    # The notification sequence number is carried in the
+                    # OUTER (Class U) Observe option per RFC 8613
+                    # 4.1.3.5.2; the inner Observe is present but empty
+                    # (it only signals that this is a notification).
+                    seq = self._observe_seq(options)
+                    if seq is None:
+                        seq = self._observe_seq(inner_options)
+                    resp = CoapResponse(
+                        code_class=inner_code >> 5,
+                        code_detail=inner_code & 0x1F,
+                        payload=inner_payload, content_format=None,
+                        msg_type=msg_type, mid=mid, token=token,
+                        options=inner_options)
+                else:
+                    ct = None
+                    if 12 in options:
+                        ct = (int.from_bytes(options[12], "big")
+                              if options[12] else 0)
+                    seq = self._observe_seq(options)
+                    resp = CoapResponse(
+                        code_class=code_byte >> 5,
+                        code_detail=code_byte & 0x1F,
+                        payload=outer_payload, content_format=ct,
+                        msg_type=msg_type, mid=mid, token=token,
+                        options=options)
+
+                if seq is not None:
+                    sub.last_seq = seq
+                out.append(Notification(response=resp, seq=seq,
+                                        msg_type=msg_type, mid=mid))
+        finally:
+            self._sock.settimeout(old)
+        return out
+
+    @staticmethod
+    def _observe_seq(options: dict) -> Optional[int]:
+        """Extract the Observe option (6) sequence value, or None."""
+        if 6 not in options:
+            return None
+        return int.from_bytes(options[6], "big") if options[6] else 0
+
+    def count_incoming_messages(self, timeout: float = 2.0,
+                                ack: bool = True) -> int:
+        """Count non-empty, non-ACK CoAP messages arriving within `timeout`.
+
+        Each observe notification is one message regardless of its token or
+        OSCORE protection, so this is used to detect duplicate notifications
+        (e.g. a stale subscription that should have been replaced).
+        Confirmable messages are ACKed so the server does not retransmit.
+        """
+        import time
+        deadline = time.monotonic() + timeout
+        count = 0
+        old = self._sock.gettimeout()
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._sock.settimeout(remaining)
+                try:
+                    data, _ = self._sock.recvfrom(4096)
+                except socket.timeout:
+                    break
+                if len(data) < 4:
+                    continue
+                msg_type = (data[0] >> 4) & 0x03
+                code_byte = data[1]
+                mid = struct.unpack("!H", data[2:4])[0]
+                if msg_type == ACK and code_byte == 0:
+                    continue
+                if msg_type == CON and ack:
+                    ackmsg = struct.pack("!BBH", (1 << 6) | (ACK << 4), 0, mid)
+                    self._sock.sendto(ackmsg, (self.host, self.port, 0, 0))
+                count += 1
+        finally:
+            self._sock.settimeout(old)
+        return count
+
+    def observe_deregister(self, sub: "ObserveSubscription",
+                           timeout: Optional[float] = None) -> Optional[
+                               CoapResponse]:
+        """Cancel a subscription via a GET with Observe=1 and the same token."""
+        eff = timeout if timeout is not None else self.timeout
+        old = self._sock.gettimeout()
+        self._sock.settimeout(eff)
+        try:
+            if sub.is_oscore:
+                oscore_opt, ciphertext, piv = sub.oscore_ctx.protect_request(
+                    1, sub.path, b"", None, observe=1)
+                msg = self._build_oscore_request(oscore_opt, ciphertext,
+                                                 observe=1, token=sub.token)
+                self._sock.sendto(msg, (self.host, self.port, 0, 0))
+                result = self._recv_oscore_response(
+                    sub.oscore_ctx, piv, eff, sub.token)
+                return result[0] if result else None
+            msg = self._build_request(GET, sub.path, observe=1,
+                                      token=sub.token)
+            self._sock.sendto(msg, (self.host, self.port, 0, 0))
+            return self._recv_response(eff, sub.token)
+        finally:
+            self._sock.settimeout(old)
 
     # ------------------------------------------------------------------
     # Multicast requests

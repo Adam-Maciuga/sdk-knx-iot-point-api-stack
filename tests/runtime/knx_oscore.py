@@ -160,7 +160,8 @@ class OscoreContext:
                         uri_queries: list[str] | None = None,
                         echo: bytes | None = None,
                         accept: int | None = None,
-                        content_format: int | None = None) -> tuple[
+                        content_format: int | None = None,
+                        observe: int | None = None) -> tuple[
                             bytes, bytes, bytes]:
         """Protect a CoAP request with OSCORE.
 
@@ -170,6 +171,10 @@ class OscoreContext:
                       class U options, but we include it in inner options
                       per the spec for E options)
             payload: Application payload
+            observe: Observe option value (0=register, 1=deregister). When
+                     set, the Observe option is encoded inside the encrypted
+                     inner message (it must also be replicated as an outer
+                     Class-U option by the caller).
 
         Returns:
             (oscore_option_value, ciphertext, piv) where:
@@ -185,8 +190,18 @@ class OscoreContext:
         plaintext = bytearray()
         plaintext.append(coap_code)
 
-        # Encode Uri-Path options (option 11)
         prev_opt = 0
+
+        # Encode Observe option (option 6) — comes before Uri-Path (11)
+        if observe is not None:
+            obs_bytes = (b"" if observe == 0
+                         else observe.to_bytes(
+                             (observe.bit_length() + 7) // 8 or 1, 'big'))
+            delta = 6 - prev_opt
+            prev_opt = 6
+            plaintext.extend(self._encode_option(delta, obs_bytes))
+
+        # Encode Uri-Path options (option 11)
         for part in uri_path.strip("/").split("/"):
             if not part:
                 continue
