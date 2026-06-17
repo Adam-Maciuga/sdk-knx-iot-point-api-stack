@@ -91,10 +91,11 @@ int coap_remove_observers_on_dos_change(bool reset);
 
 /**
  * @brief Notify /k observers (KNX clause 2.5.9.1)
- *        Each observer gets the original CBOR payload forwarded as a notification.
+ *        Each observer gets the fully-encoded S-Mode envelope forwarded as a notification, i.e.
+ *        { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } }, NOT just the raw inner value.
  *        Expired observers are removed before sending.
  *
- * @param payload inbound CBOR payload bytes
+ * @param payload fully-formed S-Mode CBOR envelope bytes (as sent in the S-Mode message)
  * @param payload_len length of payload
  *
 

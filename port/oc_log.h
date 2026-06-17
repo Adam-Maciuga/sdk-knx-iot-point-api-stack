@@ -251,6 +251,11 @@ extern "C" {
 
 /* knx_log_bytes_hex: Print label then bytes as lowercase hex ("xx "), 32 bytes per line.
  * Defined in port/oc_log.c. Used by OC_LOGbytes and OC_LOGbytes_OSCORE.
+ *
+ * The (length) argument is guarded with a signed (length) > 0 test before the cast to size_t:
+ * accessors such as oc_rep_get_encoded_payload_size() return -1 on error, and a bare (size_t)(-1)
+ * would become SIZE_MAX and drive an out-of-bounds read. A non-positive length is passed as 0 (no-op).
+ * NOTE: (length) is evaluated twice, so it must be a side-effect-free expression.
  */
 void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
 
@@ -258,7 +263,7 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
 #ifdef OC_DEBUG
   #define OC_DBG(...) OC_LOG("DBG", __VA_ARGS__)
   #define OC_LOGbytes(bytes, length) \
-    knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)(length))
+    knx_log_bytes_hex(#bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0))
 #else
   #define OC_DBG(...)
   #define OC_LOGbytes(bytes, length)
@@ -269,7 +274,7 @@ void knx_log_bytes_hex(const char *label, const uint8_t *bytes, size_t length);
   #define OC_DBG_OSCORE(...) OC_LOG("OSC", __VA_ARGS__)
   #define OC_DBG_SPAKE(...)  OC_LOG("SPK", __VA_ARGS__)
   #define OC_LOGbytes_OSCORE(bytes, length) \
-    knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)(length))
+    knx_log_bytes_hex("OSCORE: " #bytes "\t: ", (const uint8_t *)(bytes), (size_t)((length) > 0 ? (length) : 0))
 #else
   #define OC_DBG_OSCORE(...)
   #define OC_DBG_SPAKE(...)

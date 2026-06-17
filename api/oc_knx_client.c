@@ -279,23 +279,43 @@ static void oc_issue_s_mode_message(const oc_endpoint_t* endpoint, const char* p
     // FF (1st level)
     oc_rep_end_root_object();
 
+    const int16_t smode_payload_len = (int16_t)oc_rep_get_encoded_payload_size();
+
     #ifdef OC_DEBUG
 
     OC_INF("send s-mode to ipv6 address   : ");
     PRINTipaddr(*endpoint);
 
-    OC_INF("send s-mode CBOR payload (%d) : ", oc_rep_get_encoded_payload_size());
-    OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), oc_rep_get_encoded_payload_size());
+    OC_INF("send s-mode CBOR payload (%d) : ", smode_payload_len);
+    OC_LOGbytes_OSCORE(oc_rep_get_encoder_buf(), smode_payload_len);
 
     #endif
 
-    // called only in case the static buffer was allocated 
+    /*
+      Capture the fully-encoded S-Mode envelope { 4: <sia>, 5: { 6: <st>, 7: <ga>, 1: <value> } } BEFORE sending,
+      because oc_do_s_mode_message_update serializes the CoAP message in place (header + payload) into the same buffer
+      the rep encoder wrote into, and then hands that buffer to the transaction layer and resets the message machine.
+      
+      After sending the clean envelope is no longer recoverable here, so the /k observers must be notified from this
+      local copy to receive the same S-Mode payload as the transmitted message, not the raw inner value.
+    */
+    
+    uint8_t smode_payload[OC_MAX_OBSERVE_SIZE];
+    
+    // > 0 also guards for a returned cbor error code -1 
+    const bool smode_payload_size_ok = smode_payload_len > 0 && smode_payload_len <= OC_MAX_OBSERVE_SIZE;
+    if (smode_payload_size_ok)
+    {
+      memcpy(smode_payload, oc_rep_get_encoder_buf(), (size_t)smode_payload_len);
+    }
+
+    // step 1: called only in case the static buffer was allocated 
     oc_do_s_mode_message_update(recipient);
 
-    // notify /k observers ONLY on s-mode write 
-    if (service_type == 'w')
+    // step 2: notify /k observers ONLY on s-mode write -- forward the full S-Mode envelope captured above
+    if (service_type == 'w' && smode_payload_size_ok)
     {
-      coap_notify_k_observers(value_data, value_size);
+      coap_notify_k_observers(smode_payload, smode_payload_len);
     }
   }
 }

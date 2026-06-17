@@ -670,6 +670,7 @@ static void coap_remove_expired_observers(void)
 
 void coap_notify_k_observers(const uint8_t* payload, size_t payload_len)
 {
+  // double guard, normally not called with one of these cond.
   if (!payload || payload_len == 0)
   {
     return;
@@ -708,7 +709,7 @@ void coap_notify_k_observers(const uint8_t* payload, size_t payload_len)
           coap_udp_init_message(notification, msg_type, CONTENT_2_05, mid);
         }
 
-        // build notification with the raw inbound CBOR payload
+        // build notification with the fully-formed S-Mode envelope payload (same bytes as the sent S-Mode message)
         coap_set_header_content_format(notification, APPLICATION_CBOR);
         coap_set_token(notification, obs->token, obs->token_len);
         coap_set_payload(notification, payload, payload_len);
