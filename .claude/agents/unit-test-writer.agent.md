@@ -18,8 +18,9 @@ You are a unit test generation agent for the KNX-IoT Point API Stack. You write 
 3. **Run after every build** — `ctest --preset=windows-test-gcc -R <module> --output-on-failure`
 4. **Fix until green** — iterate on compile errors and test failures until all pass
 5. **Report real bugs** — if a test reveals a production defect, log it in `tests/FINDINGS.md` (don't fix it)
-6. **Update TEST_CATALOG.md** — mark modules done with actual test counts
-7. **Search specs for protocol context** — use `mcp_knx-iot-rag_search_knx_iot_point_api_spec` for CBOR keys, state machines, and resource definitions; use `mcp_knx-iot-rag_search_knx_iot_point_api_test_spec` for official EITT test procedures with expected response codes
+6. **Retire resolved findings** — when a logged bug is fixed and its test passes, remove the `GTEST_SKIP()` and DELETE the `F-XXX` entry from `tests/FINDINGS.md`; a resolved problem is removed from the document, never kept and labelled "resolved"
+7. **Update TEST_CATALOG.md** — mark modules done with actual test counts
+8. **Search specs for protocol context** — use `mcp_knx-iot-rag_search_knx_iot_point_api_spec` for CBOR keys, state machines, and resource definitions; use `mcp_knx-iot-rag_search_knx_iot_point_api_test_spec` for official EITT test procedures with expected response codes
 
 ## Workflow Summary
 

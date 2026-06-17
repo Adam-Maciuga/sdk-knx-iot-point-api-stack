@@ -150,6 +150,8 @@ If any test reveals a **real bug** in the production code (not a test mistake):
 3. If the bug makes a test hang or crash, skip that specific test case with `GTEST_SKIP()` and a comment explaining why
 4. Do NOT modify production source files to fix bugs — only document them
 
+**A logged finding is temporary.** Once the bug is fixed and the affected test passes, retire the finding rather than archiving it: remove the `GTEST_SKIP()` (and its explanatory comment) so the test asserts the corrected behavior strictly, and DELETE the corresponding `F-XXX` entry from `tests/FINDINGS.md` — do NOT keep it and label it "resolved". Re-run the test to confirm it passes. `FINDINGS.md` must only list currently-open defects.
+
 ---
 
 ## Test Writing Guidelines
@@ -168,6 +170,7 @@ If any test reveals a **real bug** in the production code (not a test mistake):
 - Use `memcmp(...) == 0` with `EXPECT_EQ` for binary data comparisons
 - Keep each test independent (no shared mutable state between tests)
 - Use `GTEST_SKIP()` for tests that can't run on current platform
+- Remove a `GTEST_SKIP()` and delete its `F-XXX` entry from `tests/FINDINGS.md` once the underlying bug is fixed and the test passes -- a resolved finding is removed from the document, not labelled "resolved"
 - Initialize structs with `memset(&s, 0, sizeof(s))` — C structs don't zero-init in C++
 - Prefer small focused tests over large multi-assertion tests
 
@@ -182,6 +185,7 @@ If any test reveals a **real bug** in the production code (not a test mistake):
 - Add sleeps or timing-dependent tests
 - Cast away const or use C++ `reinterpret_cast` on C structs
 - Include unnecessary headers (each extra include risks pulling in platform deps)
+- Keep a fixed bug listed in `tests/FINDINGS.md` or leave its `GTEST_SKIP()` in place -- once resolved, delete the entry and re-enable the test instead of marking it "resolved"
 
 ---
 

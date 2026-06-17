@@ -301,6 +301,7 @@ class TestTopicAuthenticated:
 - Use helper functions for repeated setup (e.g., AT provisioning, cleanup)
 - Clean up AT entries after tests (delete all except "RuntimeTest")
 - Verify behavior against the EITT trace file hex payloads
+- Remove a documented "KNOWN STACK DEVIATION" (and its `xfail` marker) the moment the stack is fixed and the test passes -- a resolved problem must be deleted from the list/document, not kept and labelled "resolved"
 
 ### DO NOT
 
@@ -313,8 +314,24 @@ class TestTopicAuthenticated:
 - Create new OSCORE contexts manually (use the `oscore_ctx` fixture, or build from SPAKE2+ if testing SPAKE2+ itself)
 - Use bare `assert` without a helpful error message
 - Wrap single-AT payload in an array (use `{0: at_inner}` for single, bare `[at1, at2]` for multi)
+- Keep a stale deviation entry in the "KNOWN STACK DEVIATIONS" list after the deviation is fixed -- do NOT leave it marked "RESOLVED"; remove the entry, drop any `xfail`, and renumber the remaining entries
 
 ---
+
+## Documenting and Retiring Known Stack Deviations
+
+When a test reveals that the stack's wire behavior diverges from the spec, document it in a `KNOWN STACK DEVIATIONS FROM SPEC` block in the test file's module docstring so the gap is visible in the test report. Keep the spec-correct assertions, and mark the affected test `@pytest.mark.xfail(reason=..., strict=False)` so it auto-flips to a pass once the stack is corrected.
+
+**A documented deviation is temporary.** As soon as the stack is fixed and the test passes (the `xfail` reports `XPASS`), the entry has served its purpose and MUST be retired, not archived:
+
+1. **Remove** the `@pytest.mark.xfail(...)` marker so the test asserts the corrected behavior strictly (a real `PASSED`, and a real `FAILED` on any regression).
+2. **Update** the test's docstring to describe the now-correct behavior (drop "xfail documents the deviation" wording).
+3. **Delete** the corresponding numbered entry from the `KNOWN STACK DEVIATIONS` list entirely -- do NOT keep it and write "RESOLVED". Also remove any per-test inline comments and summary-line `[xfail]` tags that referenced it.
+4. **Renumber** the remaining deviation entries so the list has no gaps, and update any cross-references (e.g. "see deviation #2").
+5. If the list becomes empty, remove the whole `KNOWN STACK DEVIATIONS` section.
+6. Re-run the affected tests to confirm they still pass after the documentation-only edits.
+
+Rationale: a "resolved" entry left in the list is stale documentation -- it misleads the next reader into thinking the stack is still broken and obscures which deviations are actually open. The list must only ever contain currently-open deviations.
 
 ## CBOR Payload Encoding Rules
 

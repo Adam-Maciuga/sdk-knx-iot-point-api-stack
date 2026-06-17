@@ -27,6 +27,7 @@ You are a runtime conformance test agent for the KNX-IoT Point API Stack. You wr
 6. **Check the trace file** — decode `RawContent` hex from the EITT trace to verify exact CBOR payloads and expected response codes
 7. **Clean up AT entries** — tests that create tokens must delete them (except "RuntimeTest") using the cleanup fixture pattern
 8. **EITT telegrams with `Active="N"` can be ignored** — they are skipped during certification
+9. **Retire resolved deviations** — when a documented "KNOWN STACK DEVIATION" is fixed and its test passes (`xfail` → `XPASS`), DELETE the entry from the list, remove the `xfail` marker and any `[xfail]`/inline references, renumber the remaining entries, and re-run the tests. A resolved problem is removed from the list/document, never kept and labelled "RESOLVED".
 
 ## CBOR Encoding Rules
 

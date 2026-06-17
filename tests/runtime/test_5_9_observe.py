@@ -11,7 +11,7 @@ Runtime conformance tests — CoAP Observe / Notifications (RFC 7641 over KNX-Io
   OBS-C1   Default notifications are confirmable (CON)        (2.5.9.4)
   OBS-C2   non=true yields non-confirmable (NON)              (2.5.9.4)
   OBS-D1   First /k notification carries only sia             (2.5.9.1)
-  OBS-D2   Subsequent /k notification includes the s object   (2.5.9.1) [xfail]
+  OBS-D2   Subsequent /k notification includes the s object   (2.5.9.1)
   OBS-D4   Inbound s-mode POST /k does not echo to observers  (2.5.9.1)
   OBS-E1   Encrypted subscription delivers decryptable notifs (RFC 8613)
   OBS-E2   Notification AAD binds the request PIV (regression)(RFC 8613 §8.3)
@@ -38,31 +38,9 @@ are marked OC_OBSERVABLE in runtime_test_server.c. POST /test/trigger emulates
 the device's internal value change and drives oc_notify_observers().
 
 ==============================================================================
-KNOWN STACK DEVIATIONS FROM SPEC (observed while writing these tests)
+BEHAVIOURAL NOTE FOR OBS-D4 (legitimate re-transmission, NOT a deviation)
 ==============================================================================
-1. /k subsequent-notification payload (spec 2.5.9.1 + 2.5.9.2):
-   The spec requires every notification after the first to carry the full
-   Group Notification Resource Object
-       { 4: <sia>, 5: { 6: "w", 7: <ga>, 1: <value> } }
-   (sia and the s object are MANDATORY, st = "w").
-   The stack's coap_notify_k_observers() (messaging/coap/observe.c) instead
-   forwards only the raw datapoint value { 1: <value> } that
-   oc_issue_s_mode_message() handed it (api/oc_knx_client.c) — the sia (4)
-   and s (5) wrapper are dropped.  OBS-D2 keeps the spec-correct assertions
-   but is marked xfail(strict=False) so the deviation is visible in the test
-   report and the test auto-flips to pass if the stack is corrected.
-
-2. Observe sequence number at the registration->first-notification boundary
-   (RFC 7641 3.4):
-   The 2.05 registration response and the first subsequent notification
-   share the same Observe option value in this stack (the per-observer
-   counter is sent first and incremented afterwards — see
-   coap_notify_k_observers()/coap_notify_observers()).  RFC 7641 only
-   mandates strict monotonicity *between notifications*, which this stack
-   honours, so OBS-A2/OBS-E1 compare notifications against each other rather
-   than against the registration baseline.
-
-3. Inbound s-mode write echoed to /k (NOT a deviation, documented for D4):
+Inbound s-mode write echoed to /k:
    If an inbound s-mode "w" lands on a Group Address mapped to a Datapoint
    that has the transmission flag set, the device legitimately re-emits an
    outbound s-mode write (spec 2.5.9.3: notifications are triggered by
@@ -204,10 +182,10 @@ def test_5_9_1_2_obs_a2_value_change_notifies(
     """OBS-A2: each value change pushes a notification with an advanced seq.
 
     RFC 7641 only requires the Observe sequence number to strictly increase
-    between *notifications*.  This stack reuses the registration response's
-    Observe value for the first notification (see header "KNOWN STACK
-    DEVIATIONS" #2), so this compares two notifications against each other
-    rather than against the registration baseline.
+    between *notifications*.  This test compares two notifications against each
+    other, which is the spec-mandated guarantee.  (The registration response
+    and the first notification also carry different, strictly increasing values
+    in this stack.)
     """
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
 
@@ -429,18 +407,14 @@ def test_5_9_4_1_obs_d1_first_k_notification_sia_only(
     obs.observe_deregister(sub)
 
 
-@pytest.mark.xfail(
-    reason="KNOWN STACK DEVIATION (spec 2.5.9.1/2.5.9.2): "
-           "coap_notify_k_observers (messaging/coap/observe.c) emits the raw "
-           "datapoint value {1: <v>} as the /k notification payload instead "
-           "of the Group Notification object {4: sia, 5: {6: 'w', 7: ga, "
-           "1: <v>}}. See test header 'KNOWN STACK DEVIATIONS' #1.",
-    strict=False)
 def test_5_9_4_2_obs_d2_subsequent_k_notification_has_s_object(
         coap, oscore_ctx, make_observer):
     """OBS-D2: after an outbound s-mode w, the /k notification has the s obj.
 
-    Spec-correct assertions retained; xfail documents the stack deviation.
+    Spec 2.5.9.1/2.5.9.2 - every /k notification after the first carries the
+    full Group Notification object { 4: sia, 5: { 6: "w", 7: ga, 1: value } }.
+    coap_notify_k_observers() (messaging/coap/observe.c) now forwards the full
+    envelope captured by oc_issue_s_mode_message() (api/oc_knx_client.c).
     """
     _provision_k_sender(coap, oscore_ctx, OBS_DP_ALT)
 
@@ -481,7 +455,7 @@ def test_5_9_4_4_obs_d4_inbound_post_k_not_echoed(
     tables to exercise the intended "not configured to re-transmit" path.
     """
     # Isolation: drop any sender config left by earlier Group-D tests so the
-    # inbound write below is not legitimately re-transmitted (see header #3).
+    # inbound write below is not legitimately re-transmitted (see header note).
     set_lsm(coap, oscore_ctx, 4)  # unload
     set_lsm(coap, oscore_ctx, 1)  # loading
     coap.oscore_delete(oscore_ctx, "/fp/g/13")  # tolerate 4.04 if absent
@@ -518,9 +492,9 @@ def test_5_9_5_1_obs_e1_encrypted_notifications_decrypt(
         oscore_ctx, OBS_DP, lt=86400, accept=APPLICATION_CBOR)
     assert resp is not None and resp.is_successful
     assert sub.is_oscore, "subscription should be OSCORE-protected"
-    # Notification seqs only; the registration response shares its Observe
-    # value with the first notification in this stack (header deviation #2).
-    # RFC 7641 requires strict monotonicity *between notifications*.
+    # Compare notification seqs against each other; RFC 7641 requires strict
+    # monotonicity *between notifications*.  (The registration response and the
+    # first notification also differ now.)
     seqs = []
 
     for v in (True, False, True):
