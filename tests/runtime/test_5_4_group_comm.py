@@ -1260,21 +1260,20 @@ class TestMulticastResponseUpdate:
 # ===========================================================================
 #
 # ADDITIONAL TEST - NOT part of the EITT 08_10_5 certification catalogue.
-# Added to probe a spec-vs-code discrepancy that EITT 5.4.1.10 cannot
-# distinguish (5.4.1.10 provisions cflag=0x90 = w+u, so it passes under
-# both interpretations).
+# Added to cover a spec rule that EITT 5.4.1.10 cannot distinguish (5.4.1.10
+# provisions cflag=0x90 = w+u, so the value updates regardless of whether the
+# stack additionally requires the Write flag).
 #
 # Spec 2.5.7.3.3 Table 19 (Update flag): a Group Value Response (st="a")
 # updates the Group Object value "if flag w=true". The Update (u) flag alone
-# should NOT be sufficient - the Write (w) flag must also be set.
+# is NOT sufficient - the Write (w) flag must ALSO be set (w AND a together).
 #
-# Code (api/oc_knx.c, oc_core_knx_k_post_handler): the st="a" branch checks
-# ONLY OC_CFLAG_UPDATE; it does NOT additionally require OC_CFLAG_WRITE. So
-# with cflag=0x80 (u only, w=0) the current stack DOES apply the response.
+# Code (api/oc_knx.c, oc_core_knx_k_post_handler): the st="a" branch
+# (service_a) requires BOTH OC_CFLAG_UPDATE AND OC_CFLAG_WRITE. So with
+# cflag=0x80 (u only, w=0) the stack does NOT apply the response.
 #
-# This test asserts the CURRENT CODE BEHAVIOUR (value updates with u-only)
-# and documents the deviation. If the stack is later aligned to the spec
-# (require w=true), flip the final assertion to expect the value unchanged.
+# This test asserts the SPEC-CONFORMANT behaviour: with w=false the value
+# stays unchanged.
 
 class TestMulticastResponseUpdateOnly:
     """5.4.1.10b (ADDITIONAL, non-EITT): NON POST /k multicast with st:"a"
@@ -1285,9 +1284,9 @@ class TestMulticastResponseUpdateOnly:
     PUB table: ga=[65535], grpid=0x80000001
     AT: multicast with scope=[65535, 1]
 
-    Probes spec(Table 19 "if w=true") vs code(oc_knx.c checks u only).
-    Asserts current code behaviour: the answer DOES update the value even
-    though the Write flag is not set.
+    Verifies spec 2.5.7.3.3 Table 19 ("if w=true"): with the Write flag
+    cleared, the st="a" response must NOT update the value (w AND a must be
+    set together). Asserts the value stays unchanged.
     """
 
     @pytest.fixture(autouse=True, scope="class")
@@ -1306,11 +1305,12 @@ class TestMulticastResponseUpdateOnly:
     def test_5_4_1_10b_answer_updateonly_go(self, coap, oscore_ctx,
                                             device_iface):
         """Set /p/1=true via /p, then multicast answer (st="a") false on a
-        u-only GO. Current code updates -> /p/1 becomes false.
+        u-only GO. Spec-conformant code keeps /p/1=true (no update).
 
-        Spec 2.5.7.3.3 Table 19 would require w=true for the update; with
-        w=false the value should stay true. The stack does not enforce this,
-        so we assert the observed (code) behaviour and flag the deviation.
+        Spec 2.5.7.3.3 Table 19 requires w=true for the update; with w=false
+        the value must stay true. The stack enforces this (service_a requires
+        OC_CFLAG_UPDATE AND OC_CFLAG_WRITE), so we assert the value is
+        unchanged.
         """
         # Seed a known value directly via /p (NOT via /k) so the starting
         # state is independent of any group message.
@@ -1338,15 +1338,15 @@ class TestMulticastResponseUpdateOnly:
             collect_timeout=1.0)
         time.sleep(0.5)
 
-        # SPEC (Table 19): w=false -> value should remain true.
-        # CODE (oc_knx.c st="a" checks OC_CFLAG_UPDATE only) -> value updates.
+        # SPEC (Table 19): w=false -> value must remain true.
+        # CODE (oc_knx.c service_a requires OC_CFLAG_UPDATE AND
+        # OC_CFLAG_WRITE) -> response is not applied, value unchanged.
         data = _get_datapoint(coap, oscore_ctx, "/p/1")
-        assert data.get(1) is False, (
-            "DEVIATION PROBE: with cflag=0x80 (u only, w=false) the current "
-            "stack applies the st='a' response (oc_knx.c checks "
-            "OC_CFLAG_UPDATE only). Spec 2.5.7.3.3 Table 19 requires w=true, "
-            f"which would keep /p/1=true. Got {data}. If the stack is aligned "
-            "to the spec, change this assertion to expect value True.")
+        assert data.get(1) is True, (
+            "CONFORMANCE: with cflag=0x80 (u only, w=false) the st='a' "
+            "response must be ignored (oc_knx.c service_a requires "
+            "OC_CFLAG_UPDATE AND OC_CFLAG_WRITE). Spec 2.5.7.3.3 Table 19 "
+            f"requires w=true, so /p/1 must stay True. Got {data}.")
 
 
 
