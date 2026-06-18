@@ -7,7 +7,7 @@ mimicking EITT certification. A `runtime_test_server` (built from
 ## Running in Docker (recommended)
 
 `run-in-docker.ps1` builds the stack and runs the tests inside the
-`luftd/knx-ci` container with a veth pair — the same setup as GitLab CI.
+`itgesellschaft/knxiot-knx-ci` container with a veth pair — the same setup as GitLab CI.
 Requires Docker Desktop running (Linux engine).
 
 ```powershell

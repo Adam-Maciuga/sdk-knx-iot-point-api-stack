@@ -26,31 +26,6 @@ linux-build:
     expire_in: 1 week
 
 # ----------------------------------------------------------
-# Windows (Cross-compile with MinGW-w64)
-# ----------------------------------------------------------
-# windows-cross-build:
-#   stage: build
-#   image: luftd/mingw-cross:latest
-#   cache:
-#     key: "wxwidgets-windows-cross-11-2025"
-#     policy: pull-push
-#     paths:
-#       - out/build/windows-cross-release/_deps/wxwidgets-src
-#       - out/build/windows-cross-release/_deps/wxwidgets-build
-#   script:
-#     - cmake --preset=windows-cross-release
-#     - cmake --build --preset=windows-cross-release
-#   artifacts:
-#     paths:
-#       - out/build/windows-cross-release/apps/eitt_virtual_gui.exe
-#       - out/build/windows-cross-release/apps/lssb_virtual_gui.exe
-#       - out/build/windows-cross-release/apps/lsab_virtual_gui.exe
-#       - out/build/windows-cross-release/apps/inverter_virtual_gui.exe
-#       - out/build/windows-cross-release/apps/cem_virtual_gui.exe
-#       - out/build/windows-cross-release/apps/charger_virtual_gui.exe
-#     expire_in: 1 week
-
-# ----------------------------------------------------------
 # Unit Tests (Linux)
 # ----------------------------------------------------------
 linux-test:
