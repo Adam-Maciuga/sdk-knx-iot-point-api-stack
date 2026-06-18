@@ -134,7 +134,7 @@ void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
   oc_resource_t *res;
 
   /* /test/restart — soft restart (same as EITT GUI "Restart Device") */
-  res = oc_new_resource("/test/restart", 1);
+  res = oc_new_resource((char *)"/test/restart", 1);
   oc_resource_bind_resource_type(res, "urn:knx:test.ctrl");
   oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_request_handler(res, COAP_POST, post_test_restart, NULL,
@@ -142,7 +142,7 @@ void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
   oc_add_resource(res);
 
   /* /test/factory-reset — clear AT table (accessible WITHOUT OSCORE) */
-  res = oc_new_resource("/test/factory-reset", 1);
+  res = oc_new_resource((char *)"/test/factory-reset", 1);
   oc_resource_bind_resource_type(res, "urn:knx:test.ctrl");
   oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_request_handler(res, COAP_POST, post_test_factory_reset,
@@ -150,7 +150,7 @@ void oc_test_control_register(oc_test_control_set_dp_fn set_dp,
   oc_add_resource(res);
 
   /* /test/trigger — sensor trigger (same as EITT GUI "SOO press me") */
-  res = oc_new_resource("/test/trigger", 1);
+  res = oc_new_resource((char *)"/test/trigger", 1);
   oc_resource_bind_resource_type(res, "urn:knx:test.ctrl");
   oc_resource_bind_content_type(res, APPLICATION_CBOR, CONTENT_NONE);
   oc_resource_set_request_handler(res, COAP_POST, post_test_trigger, NULL,

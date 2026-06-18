@@ -184,63 +184,60 @@ more_or_done:
 #ifdef OC_SERVER
 oc_resource_t* oc_new_resource(char* resource_path, uint8_t num_resource_types)
 {
-  oc_resource_t* resource = NULL;
+   if (strlen(resource_path) >= OC_MAX_URL_LENGTH)
+   {
+     /* 
+        returns NULL, needs to be checked/caught by the caller, note we need OC_MAX_URL_LENGTH -1 here, 
+        since the null terminator is not counted in the resource path length but in the string length set below
+     */
+     OC_ERR("resource path longer than 30 bytes: %d", (int)strlen(resource_path));
+     return NULL;
+   }
 
-  if (strlen(resource_path) < OC_MAX_URL_LENGTH)
-  {
-    // allocate resource HEAP, content is cleared
-    resource = oc_ri_alloc_resource();
-    // allocate resource runtime modifiable data, content is cleared
-    oc_resource_data_t* data = oc_ri_alloc_resource_data();
+   // allocate resource/data from HEAP, content is cleared
+   oc_resource_t* resource = oc_ri_alloc_resource();
+   oc_resource_data_t* data = oc_ri_alloc_resource_data();
 
-    if (resource && data)
-    {
-      // uri (href), note that this assigns - with oc_string_t type - an already - by application - allocated resource
-      oc_check_uri(resource_path);
-      resource->uri.next = NULL;
-      resource->uri.ptr = resource_path;
-      resource->uri.size = strlen(resource_path) + 1; // include null terminator in size
+   if (!resource || !data)
+   {
+     // returns NULL in release build, needs to be checked/caught by the caller, free all (NULL safe)
 
-      // types (allocates only the array , types will be assigned later by oc_resource_bind_resource_type)
-      oc_new_string_array(&resource->types, num_resource_types);
+     free(resource);
+     free(data);
 
-      // callback handler/ acl scope and interfaces = default
-      resource->get_handler.cb = NULL;
-      resource->get_handler.acl_scope_mask = OC_ACL_NONE;
-      resource->get_handler.interface_mask = OC_IF_NONE;
+     OC_ERR("resource allocation failed: %d", (int)strlen(resource_path));
+     return NULL;
+   }
 
-      resource->put_handler.cb = NULL;
-      resource->put_handler.acl_scope_mask = OC_ACL_NONE;
-      resource->put_handler.interface_mask = OC_IF_NONE;
+  /*
+      set below only none-zero values
 
-      resource->post_handler.cb = NULL;
-      resource->post_handler.acl_scope_mask = OC_ACL_NONE;
-      resource->post_handler.interface_mask = OC_IF_NONE;
+      - resource->is_const = false;
+      - resource->observe_period_seconds = 0;
+      - resource->fb_data = 0;
+      - resource->DPT = {NULL, NULL, 0}
+      - .cb = NULL for all handlers and properties cbs
+   */
 
-      resource->delete_handler.cb = NULL;
-      resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
-      resource->delete_handler.interface_mask = OC_IF_NONE;
+  // uri (href), note that this assigns - with oc_string_t type - an already - by application - allocated resource
+  oc_check_uri(resource_path);
+  resource->uri.ptr = resource_path;
+  resource->uri.size = strlen(resource_path) + 1; // include null terminator in size
 
-      /* 
-         dpt + observe + functional block instance + is_const are '0', cleared by (c)alloc
+  // types (allocates only the array , types will be assigned later by oc_resource_bind_resource_type)
+  oc_new_string_array(&resource->types, num_resource_types);
 
-         - resource->is_const = false; 
-         - resource->observe_period_seconds = 0;
-         - resource->fb_data = 0;
-         - resource->DPT = {NULL, NULL, 0}
-      */
+  // acl scope and interfaces = default (too risky to rely on '0' when enum may be changed)
+  resource->get_handler.acl_scope_mask = resource->put_handler.acl_scope_mask = OC_ACL_NONE;
+  resource->get_handler.interface_mask = resource->put_handler.interface_mask = OC_IF_NONE;
+  resource->post_handler.acl_scope_mask = resource->delete_handler.acl_scope_mask = OC_ACL_NONE;
+  resource->post_handler.interface_mask = resource->delete_handler.interface_mask = OC_IF_NONE;
 
-      // runtime modifiable data
-      resource->runtime_data = data;
-      resource->runtime_data->num_observers = 0;
-    }
-  }
-  else
-  {
-    // returns NULL in release build, needs to be checked/caught by the caller
-    OC_ERR("resource path longer than 30 bytes: %d", (int) strlen(resource_path));
-  }
-
+  // runtime modifiable data, ptr cant be NULL
+  resource->runtime_data = data;
+  resource->runtime_data->num_observers = 0;
+    
+  // cant be NULL
   return resource;
 }
 
