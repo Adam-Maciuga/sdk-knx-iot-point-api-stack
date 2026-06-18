@@ -829,17 +829,6 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
 
   #endif
 
-  // map service type char to cflag, only one out of w/a/r is possible
-  oc_cflag_mask_t service_type_from_request;
-
-  switch (received_notification.st)
-  {
-    case 'w': service_type_from_request = OC_CFLAG_WRITE;  break; // write -> overwrite object value
-    case 'a': service_type_from_request = OC_CFLAG_UPDATE; break; // response -> update object value
-    case 'r': service_type_from_request = OC_CFLAG_READ;   break; // read -> read object value
-    default : service_type_from_request = OC_CFLAG_NONE;   break; // not set or unknown char, will be handled as error later on
-  }
-
   /*
     GO array INDEX with the GA included (out of 0...max GO table entries)
     - process all GOs in the table with this GA included,
@@ -1006,12 +995,22 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
           const oc_cflag_mask_t cflags = oc_core_get_cflags_from_group_object_table_index(go_table_index_where_ga_is_used);
 
           /*
-            if corresponding c-flag and the (only one possible) original service type from request 'a/w/r' are set
-            use a 'service' copy hence cflags may be different for each individual GO
-          */
-          oc_cflag_mask_t service = service_type_from_request & cflags;
+              map service type char to service, only one possible original 
+              service type from request 'a/w/r' can be set
 
-          if (service & OC_CFLAG_WRITE && application_resource_with_href_match->put_handler.cb)
+             - request = 'w' + cflag must contain at least OC_CFLAG_WRITE
+             - request = 'r' + cflag must contain at least OC_CFLAG_READ
+             - request = 'a' + cflag must contain at least OC_CFLAG_UPDATE + OC_CFLAG_WRITE
+
+            Note, received_notification.st == 'w' and ... are loop inherent, but compiler will optimize it 
+            here better readable. 
+             
+          */
+          const bool service_w = received_notification.st == 'w' && cflags & OC_CFLAG_WRITE;
+          const bool service_r = received_notification.st == 'r' && cflags & OC_CFLAG_READ;
+          const bool service_a = received_notification.st == 'a' && cflags & OC_CFLAG_UPDATE && cflags & OC_CFLAG_WRITE;
+
+          if (service_w && application_resource_with_href_match->put_handler.cb)
           {
             OC_DBG("/k : write with GOT index %d handled due to write flag enabled %d", go_table_index_where_ga_is_used, cflags);
 
@@ -1050,7 +1049,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
           }
-          if (service & OC_CFLAG_UPDATE && application_resource_with_href_match->put_handler.cb)
+          if (service_a && application_resource_with_href_match->put_handler.cb)
           {
             OC_DBG("/k : response with GOT index %d handled due to update on response flag enabled %d", go_table_index_where_ga_is_used, cflags);
 
@@ -1079,7 +1078,7 @@ static void oc_core_knx_k_post_handler(oc_request_t* request, oc_interface_mask_
             // collect the max 'bad' status code, usually overwritten by the callback
             collect_and_rank_status(new_request.response->response_buffer->code, &summary_handler_status);
           }
-          if (service & OC_CFLAG_READ && application_resource_with_href_match->get_handler.cb)
+          if (service_r && application_resource_with_href_match->get_handler.cb)
           {
             OC_DBG("/k : read with GO table index %d handled due to read flags enabled 0x%x", go_table_index_where_ga_is_used, (uint32_t)cflags);
 

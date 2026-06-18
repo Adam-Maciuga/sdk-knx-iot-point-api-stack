@@ -12,6 +12,8 @@ Runtime conformance tests — EITT 5.4 Group Communication (S-Mode)
 5.4.1.8   Trigger Device to Check Not Sending in Loading State
 5.4.1.9   Set Init Flag Causes S-Mode Group Message on Startup
 5.4.1.10  Sending Multicast Response Group Message Causes Update
+5.4.1.10b Multicast Response on UPDATE-only GO (ADDITIONAL, non-EITT) - probes
+          spec(Table 19 "if w=true") vs code(oc_knx.c checks u-flag only)
 5.4.1.11  Sending Multicast Write Gets Ignored in Loading State
 5.4.1.12  Updating Own Group Objects for Outgoing Group Messages
 5.4.1.13  Receiving Support for Long Group Addresses
@@ -1251,6 +1253,101 @@ class TestMulticastResponseUpdate:
         data = _get_datapoint(coap, oscore_ctx, "/p/1")
         assert data.get(1) is False, (
             f"Expected /p/1=false after answer, got {data}")
+
+
+# ===========================================================================
+# 5.4.1.10b - Multicast Response (st="a") with UPDATE-only GO (ADDITIONAL)
+# ===========================================================================
+#
+# ADDITIONAL TEST - NOT part of the EITT 08_10_5 certification catalogue.
+# Added to probe a spec-vs-code discrepancy that EITT 5.4.1.10 cannot
+# distinguish (5.4.1.10 provisions cflag=0x90 = w+u, so it passes under
+# both interpretations).
+#
+# Spec 2.5.7.3.3 Table 19 (Update flag): a Group Value Response (st="a")
+# updates the Group Object value "if flag w=true". The Update (u) flag alone
+# should NOT be sufficient - the Write (w) flag must also be set.
+#
+# Code (api/oc_knx.c, oc_core_knx_k_post_handler): the st="a" branch checks
+# ONLY OC_CFLAG_UPDATE; it does NOT additionally require OC_CFLAG_WRITE. So
+# with cflag=0x80 (u only, w=0) the current stack DOES apply the response.
+#
+# This test asserts the CURRENT CODE BEHAVIOUR (value updates with u-only)
+# and documents the deviation. If the stack is later aligned to the spec
+# (require w=true), flip the final assertion to expect the value unchanged.
+
+class TestMulticastResponseUpdateOnly:
+    """5.4.1.10b (ADDITIONAL, non-EITT): NON POST /k multicast with st:"a"
+    on an UPDATE-only GO (cflag=0x80, w=false).
+
+    GO table: ga=[65535], cflag=0x80 (update only = OC_CFLAG_UPDATE, w=0),
+              href=/p/1
+    PUB table: ga=[65535], grpid=0x80000001
+    AT: multicast with scope=[65535, 1]
+
+    Probes spec(Table 19 "if w=true") vs code(oc_knx.c checks u only).
+    Asserts current code behaviour: the answer DOES update the value even
+    though the Write flag is not set.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    def setup(self, coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        go = [{0: 13, 7: [65535], 8: 0x80, 11: "/p/1"}]  # cflag=128=u only
+        pub = [{0: 7, 7: [65535], 13: GROUP_GRPID}]
+        _provision_multicast(coap, oscore_ctx, go, scope=[65535, 1],
+                              pub_entries=pub)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def test_5_4_1_10b_answer_updateonly_go(self, coap, oscore_ctx,
+                                            device_iface):
+        """Set /p/1=true via /p, then multicast answer (st="a") false on a
+        u-only GO. Current code updates -> /p/1 becomes false.
+
+        Spec 2.5.7.3.3 Table 19 would require w=true for the update; with
+        w=false the value should stay true. The stack does not enforce this,
+        so we assert the observed (code) behaviour and flag the deviation.
+        """
+        # Seed a known value directly via /p (NOT via /k) so the starting
+        # state is independent of any group message.
+        _set_datapoint(coap, oscore_ctx, "/p/1", True)
+        time.sleep(0.3)
+
+        data = _get_datapoint(coap, oscore_ctx, "/p/1")
+        assert data.get(1) is True, (
+            f"Expected /p/1=true before answer, got {data}")
+
+        tx_ctx = _sync_multicast_ssn(coap, device_iface, _make_mc_tx_ctx())
+
+        # _sync_multicast_ssn writes false via st="w" as a side effect, but
+        # this GO has w=0 so /p/1 is unaffected. Re-seed to be robust.
+        _set_datapoint(coap, oscore_ctx, "/p/1", True)
+        time.sleep(0.3)
+
+        # Send answer (st="a") with false on the update-only GO.
+        payload_a = _build_smode_answer(65535, False, sia=PEER_IA)
+        tx_ctx.ssn += 1
+        coap.oscore_multicast_post(
+            tx_ctx, "/k", payload=payload_a,
+            target_addr=_mcast_addr(),
+            interface=device_iface,
+            collect_timeout=1.0)
+        time.sleep(0.5)
+
+        # SPEC (Table 19): w=false -> value should remain true.
+        # CODE (oc_knx.c st="a" checks OC_CFLAG_UPDATE only) -> value updates.
+        data = _get_datapoint(coap, oscore_ctx, "/p/1")
+        assert data.get(1) is False, (
+            "DEVIATION PROBE: with cflag=0x80 (u only, w=false) the current "
+            "stack applies the st='a' response (oc_knx.c checks "
+            "OC_CFLAG_UPDATE only). Spec 2.5.7.3.3 Table 19 requires w=true, "
+            f"which would keep /p/1=true. Got {data}. If the stack is aligned "
+            "to the spec, change this assertion to expect value True.")
+
 
 
 # ===========================================================================

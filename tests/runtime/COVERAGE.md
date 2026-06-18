@@ -260,6 +260,7 @@ They provide additional coverage beyond the certification scope.
 | test_5_5_9_5_update_multiple_publishers | test_5_5_fp_tables.py | Additional publisher update test |
 | test_5_5_9_5b_update_nonexisting_publisher | test_5_5_fp_tables.py | Stack creates new entry (2.01) |
 | test_unicast_non_re_resolution | test_5_4_group_comm.py | Unicast NON s-mode: 4 missing 2.04 responses -> recipient UNRESOLVED -> second discovery GET (IPv6 re-resolution) |
+| test_5_4_1_10b_answer_updateonly_go | test_5_4_group_comm.py | UPDATE-only GO (cflag=0x80): probes spec(Table 19 "if w=true") vs code(oc_knx.c st='a' checks u-flag only). Asserts current code behaviour (value updates with w=false) |
 
 ---
 
