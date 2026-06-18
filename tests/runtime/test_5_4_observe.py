@@ -8,6 +8,7 @@ Runtime conformance tests — CoAP Observe / Notifications (RFC 7641 over KNX-Io
   OBS-A4   Re-subscribe replaces by IP+port, not token        (2.6.10.1)
   OBS-B1   Missing lt is rejected (4.00)                      (2.5.9.3/2.5.11.6)
   OBS-B2   lt=0 is rejected (4.00)                            (2.5.9.3/2.5.11.6)
+  OBS-B3   Expired lt stops notifications                     (2.5.9.3/2.5.11.6)
   OBS-C1   Default notifications are confirmable (CON)        (2.5.9.4)
   OBS-C2   non=true yields non-confirmable (NON)              (2.5.9.4)
   OBS-D1   First /k notification carries only sia             (2.5.9.1)
@@ -26,12 +27,12 @@ CoAP Observe, and EittProject.xml has no observe section. These tests are
 therefore NOT EITT replications. They are *spec-backed approximations*: every
 scenario is anchored to a KNX IoT Point API specification clause (see the IDs
 above), and the wire behaviour mirrors what a certifier would observe, but the
-exact numbering (5.9.x) and the test IDs (OBS-x) are placeholders pending an
+exact numbering (5.4.2.x+) and the test IDs (OBS-x) are placeholders pending an
 official EITT observe section.
 
-Function names use the test_5_9_<g>_<n>_ convention purely so conftest's EITT
-sort key orders them after the real sections; they do NOT correspond to real
-EITT IDs.
+Function names use the test_5_4_<g>_<n>_ convention purely so conftest's EITT
+sort key orders them immediately after the real 5.4.1 group-communication
+section; they do NOT correspond to real EITT IDs.
 
 The datapoints /p/2 (dpa.417.62) and /p/3 (dpa.421.61) are output Points and
 are marked OC_OBSERVABLE in runtime_test_server.c. POST /test/trigger emulates
@@ -152,7 +153,7 @@ def _install_rcp_table(coap, oscore_ctx, entries):
 # Group A — Subscription lifecycle on a /p datapoint (OSCORE-protected)
 # ===========================================================================
 
-def test_5_9_1_1_obs_a1_register_returns_current_value(
+def test_5_4_2_1_obs_a1_register_returns_current_value(
         coap, oscore_ctx, make_observer):
     """OBS-A1: a valid observe registration yields the current value.
 
@@ -177,7 +178,7 @@ def test_5_9_1_1_obs_a1_register_returns_current_value(
     obs.observe_deregister(sub)
 
 
-def test_5_9_1_2_obs_a2_value_change_notifies(
+def test_5_4_2_2_obs_a2_value_change_notifies(
         coap, oscore_ctx, make_observer):
     """OBS-A2: each value change pushes a notification with an advanced seq.
 
@@ -218,7 +219,7 @@ def test_5_9_1_2_obs_a2_value_change_notifies(
     obs.observe_deregister(sub)
 
 
-def test_5_9_1_3_obs_a3_deregister_stops_notifications(
+def test_5_4_2_3_obs_a3_deregister_stops_notifications(
         coap, oscore_ctx, make_observer):
     """OBS-A3: GET Observe=1 (same token) ends the relationship."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -238,7 +239,7 @@ def test_5_9_1_3_obs_a3_deregister_stops_notifications(
         f"expected no notifications after deregister, got {extra}")
 
 
-def test_5_9_1_4_obs_a3b_delete_sub_removes_subscription(
+def test_5_4_2_4_obs_a3b_delete_sub_removes_subscription(
         coap, oscore_ctx, make_observer):
     """OBS-A3b: DELETE /sub is a third deregistration path.
 
@@ -267,7 +268,7 @@ def test_5_9_1_4_obs_a3b_delete_sub_removes_subscription(
         f"expected no notifications after DELETE /sub, got {extra}")
 
 
-def test_5_9_1_5_obs_a4_resubscribe_replaces_by_ip_port(
+def test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port(
         coap, oscore_ctx, make_observer):
     """OBS-A4: re-registering from the same IP+port replaces the prior sub.
 
@@ -303,7 +304,7 @@ def test_5_9_1_5_obs_a4_resubscribe_replaces_by_ip_port(
 # Group B — Lifetime (lt)
 # ===========================================================================
 
-def test_5_9_2_1_obs_b1_missing_lt_rejected(
+def test_5_4_3_1_obs_b1_missing_lt_rejected(
         coap, oscore_ctx, make_observer):
     """OBS-B1: an observe registration without lt is rejected with 4.00."""
     obs = make_observer()
@@ -314,7 +315,7 @@ def test_5_9_2_1_obs_b1_missing_lt_rejected(
         f"missing lt should give 4.00, got {resp.code}")
 
 
-def test_5_9_2_2_obs_b2_lt_zero_rejected(
+def test_5_4_3_2_obs_b2_lt_zero_rejected(
         coap, oscore_ctx, make_observer):
     """OBS-B2: lt=0 is rejected with 4.00 (valid range is 1..86400)."""
     obs = make_observer()
@@ -325,11 +326,58 @@ def test_5_9_2_2_obs_b2_lt_zero_rejected(
         f"lt=0 should give 4.00, got {resp.code}")
 
 
+def test_5_4_3_3_obs_b3_expired_lt_stops_notifications(
+        coap, oscore_ctx, make_observer):
+    """OBS-B3: once the observe lifetime (lt) elapses the subscription is
+    pruned, so a later value change yields no notification.
+
+    The KNX stack removes expired observers lazily, right before it would
+    emit notifications (coap_remove_expired_observers in observe.c, where
+    elapsed > lifetime).  A short lt is registered and confirmed live with
+    one notification; after the lifetime passes a second value change must
+    be silently dropped for that observer.
+
+    The time.sleep here is intrinsic, not a synchronisation crutch: lt
+    expiry is a wall-clock duration the device measures itself
+    (now - created > lifetime), so it cannot be awaited via a CoAP response
+    timeout (cf. OBS-F2, which likewise waits out a real timer).  The
+    registration and positive-control steps skip on timeout so the
+    transient observe-suite registration flake never reports a false
+    negative for the expiry behaviour under test.
+    """
+    import time
+    lt = 2  # seconds; 1 is the minimum, 2 keeps the in-lifetime phase stable
+
+    _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
+
+    obs = make_observer()
+    resp, sub = obs.observe_register_oscore(
+        oscore_ctx, OBS_DP, lt=lt, accept=APPLICATION_CBOR)
+    if resp is None:
+        pytest.skip("short-lt observe registration timed out")
+    assert resp.is_successful, f"short-lt registration failed: {resp.code}"
+
+    # Positive control: while the lease is valid a change still notifies.
+    # A miss is a precondition failure (in-lifetime delivery is OBS-A2's
+    # responsibility), so skip rather than fail the expiry check below.
+    _trigger_p(coap, oscore_ctx, OBS_DP, value=True)
+    live = obs.collect_notifications(sub, count=1, timeout=5.0)
+    if len(live) != 1:
+        pytest.skip(f"could not establish a live notification (got {len(live)})")
+
+    # Let the lifetime expire, then force another notification attempt.
+    time.sleep(lt + 2)
+    _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
+    extra = obs.count_incoming_messages(timeout=2.0)
+    assert extra == 0, (
+        f"expired observer (lt={lt}s) must not be notified, got {extra}")
+
+
 # ===========================================================================
 # Group C — Confirmable vs non-confirmable (non)
 # ===========================================================================
 
-def test_5_9_3_1_obs_c1_default_confirmable(
+def test_5_4_4_1_obs_c1_default_confirmable(
         coap, oscore_ctx, make_observer):
     """OBS-C1: default notifications are confirmable (CON)."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -348,7 +396,7 @@ def test_5_9_3_1_obs_c1_default_confirmable(
     obs.observe_deregister(sub)
 
 
-def test_5_9_3_2_obs_c2_non_true_non_confirmable(
+def test_5_4_4_2_obs_c2_non_true_non_confirmable(
         coap, oscore_ctx, make_observer):
     """OBS-C2: non=true yields non-confirmable (NON) notifications."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -388,7 +436,7 @@ def _provision_k_sender(coap, oscore_ctx, href=OBS_DP_ALT):
     set_lsm(coap, oscore_ctx, 2)
 
 
-def test_5_9_4_1_obs_d1_first_k_notification_sia_only(
+def test_5_4_5_1_obs_d1_first_k_notification_sia_only(
         coap, oscore_ctx, make_observer):
     """OBS-D1: first /k notification is exactly {sia: <ia>} (2.5.9.1)."""
     obs = make_observer()
@@ -407,7 +455,7 @@ def test_5_9_4_1_obs_d1_first_k_notification_sia_only(
     obs.observe_deregister(sub)
 
 
-def test_5_9_4_2_obs_d2_subsequent_k_notification_has_s_object(
+def test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object(
         coap, oscore_ctx, make_observer):
     """OBS-D2: after an outbound s-mode w, the /k notification has the s obj.
 
@@ -441,7 +489,7 @@ def test_5_9_4_2_obs_d2_subsequent_k_notification_has_s_object(
     obs.observe_deregister(sub)
 
 
-def test_5_9_4_4_obs_d4_inbound_post_k_not_echoed(
+def test_5_4_5_4_obs_d4_inbound_post_k_not_echoed(
         coap, oscore_ctx, make_observer):
     """OBS-D4: an inbound s-mode POST /k is not echoed to /k observers.
 
@@ -482,7 +530,7 @@ def test_5_9_4_4_obs_d4_inbound_post_k_not_echoed(
 # Group E — OSCORE-protected notifications (drives the AAD-for-observe fix)
 # ===========================================================================
 
-def test_5_9_5_1_obs_e1_encrypted_notifications_decrypt(
+def test_5_4_6_1_obs_e1_encrypted_notifications_decrypt(
         coap, oscore_ctx, make_observer):
     """OBS-E1: OSCORE notifications decrypt and the sequence advances."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -513,7 +561,7 @@ def test_5_9_5_1_obs_e1_encrypted_notifications_decrypt(
     obs.observe_deregister(sub)
 
 
-def test_5_9_5_2_obs_e2_notification_aad_binds_request_piv(
+def test_5_4_6_2_obs_e2_notification_aad_binds_request_piv(
         coap, oscore_ctx, make_observer):
     """OBS-E2: a notification's AAD binds the original request PIV (regression).
 
@@ -610,7 +658,7 @@ def _capture_raw(client, token, timeout=5.0):
 # Group F — Robustness / multiple observers
 # ===========================================================================
 
-def test_5_9_6_1_obs_f1_independent_seq_per_observer(
+def test_5_4_7_1_obs_f1_independent_seq_per_observer(
         coap, oscore_ctx, make_observer):
     """OBS-F1: two observers each get their own notification + own seq."""
     _trigger_p(coap, oscore_ctx, OBS_DP, value=False)
@@ -638,7 +686,7 @@ def test_5_9_6_1_obs_f1_independent_seq_per_observer(
     obs2.observe_deregister(sub2)
 
 
-def test_5_9_6_2_obs_f2_stale_observer_pruned(
+def test_5_4_7_2_obs_f2_stale_observer_pruned(
         coap, oscore_ctx, make_observer):
     """OBS-F2: a silent (CON, never-ACKing) observer is pruned, the other
     keeps receiving notifications.

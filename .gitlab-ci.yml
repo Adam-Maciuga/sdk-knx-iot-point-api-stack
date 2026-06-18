@@ -124,11 +124,11 @@ linux-test-asan:
 #       tests/runtime/test_5_2_swu.py
 #       tests/runtime/test_5_3_security.py
 #       tests/runtime/test_5_4_group_comm.py
+#       tests/runtime/test_5_4_observe.py
 #       tests/runtime/test_5_5_fp_tables.py
 #       tests/runtime/test_5_6_app_program.py
 #       tests/runtime/test_5_7_functional_blocks.py
 #       tests/runtime/test_5_8_parameters.py
-#       tests/runtime/test_5_9_observe.py
 #       tests/runtime/test_5_10_generic.py
 #       tests/runtime/test_5_1_discovery_mdns.py
 #       tests/runtime/test_5_2_reset.py
@@ -183,11 +183,11 @@ linux-runtime-test:
       tests/runtime/test_5_2_swu.py
       tests/runtime/test_5_3_security.py
       tests/runtime/test_5_4_group_comm.py
+      tests/runtime/test_5_4_observe.py
       tests/runtime/test_5_5_fp_tables.py
       tests/runtime/test_5_6_app_program.py
       tests/runtime/test_5_7_functional_blocks.py
       tests/runtime/test_5_8_parameters.py
-      tests/runtime/test_5_9_observe.py
       tests/runtime/test_5_10_generic.py
       tests/runtime/test_5_1_discovery_mdns.py
       tests/runtime/test_5_2_reset.py
