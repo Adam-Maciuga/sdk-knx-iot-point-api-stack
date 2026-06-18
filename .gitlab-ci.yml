@@ -16,7 +16,7 @@ before_script:
 # ----------------------------------------------------------
 linux-build:
   stage: build
-  image: luftd/knx-ci:latest
+  image: itgesellschaft/knxiot-knx-ci:latest
   script:
     - cmake --preset=linux-debug-gcc
     - cmake --build --preset=linux-debug-gcc
@@ -55,7 +55,7 @@ linux-build:
 # ----------------------------------------------------------
 linux-test:
   stage: test
-  image: luftd/knx-ci:latest
+  image: itgesellschaft/knxiot-knx-ci:latest
   script:
     - cmake --preset=linux-test-gcc
     - cmake --build --preset=linux-test-gcc
@@ -71,7 +71,7 @@ linux-test:
 # ----------------------------------------------------------
 linux-test-asan:
   stage: test
-  image: luftd/knx-ci:latest
+  image: itgesellschaft/knxiot-knx-ci:latest
   script:
     - cmake --preset=linux-test-asan
     - cmake --build --preset=linux-test-asan
@@ -91,7 +91,7 @@ linux-test-asan:
 #   stage: test
 #   tags:
 #     - runtimetests
-#   image: luftd/knx-ci:latest
+#   image: itgesellschaft/knxiot-knx-ci:latest
 #   script:
 #     - apt-get update -qq && apt-get install -y -qq iproute2 > /dev/null 2>&1
 #     - ip link add veth-dut type veth peer name veth-test
@@ -146,7 +146,7 @@ linux-runtime-test:
   stage: test
   tags:
     - runtimetests
-  image: luftd/knx-ci:latest
+  image: itgesellschaft/knxiot-knx-ci:latest
   script:
     # Install iproute2 for veth pair creation
     - apt-get update -qq && apt-get install -y -qq iproute2 > /dev/null 2>&1

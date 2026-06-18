@@ -23,7 +23,7 @@
 
 param(
     [string]$Preset = "linux-test-gcc",
-    [string]$Image = "luftd/knx-ci:latest",
+    [string]$Image = "itgesellschaft/knxiot-knx-ci:latest",
     # Test the current working tree (uncommitted + untracked files) instead of
     # committed HEAD. Respects .gitignore.
     [Alias("WorkingTree", "Dirty")]

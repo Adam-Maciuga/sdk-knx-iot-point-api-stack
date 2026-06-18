@@ -7,7 +7,7 @@ Session: May 2026 · Branch: `unit_tests_claude`
 ### Test Infrastructure
 - **Location**: `tests/runtime/` — Python-based integration tests using pytest
 - **Server binary**: `build/linux-test-gcc/tests/runtime_test_server` (built via `cmake --preset linux-test-gcc`)
-- **CI**: GitLab CI on `luftd/knx-ci:latest` (Python 3.13.5, GCC 15.2.0, IPv6 available)
+- **CI**: GitLab CI on `itgesellschaft/knxiot-knx-ci:latest` (Python 3.13.5, GCC 15.2.0, IPv6 available)
 - **Server password**: `"2X4W3TE0DFLLS19Y1FCH"` (from `app_get_password()` in the test server)
 - **Device config**: Serial=`00fa10020800`, MID=`667`, Model=`"KNX Certification"`
 
@@ -173,7 +173,7 @@ Helper function `_sync_group_context()` in `test_5_4_5_3_multicast.py` implement
 - Tier 3 (requires runtime/mocks): oc_core_res, oc_knx, oc_oscore_*, oc_spake2plus
 
 ## CI Configuration
-- Docker image: `luftd/knx-ci:latest`
+- Docker image: `itgesellschaft/knxiot-knx-ci:latest`
 - IPv6 available on CI runners
 - Runner: `gitlab-runner0.net.knx.org`
 - Storage cleanup: delete `tests/runtime/knx_iot_server_creds/` before each test run to prevent stale OSCORE state

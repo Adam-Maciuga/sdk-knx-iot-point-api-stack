@@ -3,14 +3,14 @@
 # Run the runtime conformance test suite locally, replicating CI.
 #
 # Usage (from repo root, PowerShell):
-#   git archive --format=tar HEAD | docker run --rm -i --privileged luftd/knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh [pytest-args...]"
+#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh [pytest-args...]"
 #
 # Examples:
 #   # Run only test_5_4_group_comm.py:
-#   git archive --format=tar HEAD | docker run --rm -i --privileged luftd/knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh tests/runtime/test_5_4_group_comm.py"
+#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh tests/runtime/test_5_4_group_comm.py"
 #
 #   # Run a single test class:
-#   git archive --format=tar HEAD | docker run --rm -i --privileged luftd/knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh 'tests/runtime/test_5_4_group_comm.py::TestOwnGroupObjectUpdate' -v"
+#   git archive --format=tar HEAD | docker run --rm -i --privileged itgesellschaft/knxiot-knx-ci:latest bash -c "mkdir /w && tar -xf - -C /w && cd /w && bash tests/runtime/run-local-ci.sh 'tests/runtime/test_5_4_group_comm.py::TestOwnGroupObjectUpdate' -v"
 #
 # NOTE: git archive uses HEAD, so commit your changes first.
 #       To include uncommitted work, use tar piping instead:
