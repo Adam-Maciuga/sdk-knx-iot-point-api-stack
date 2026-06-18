@@ -44,13 +44,15 @@
 extern "C" {
 #endif
 
+
+
 /*
 	Observer entry -- fields ordered by descending alignment to minimize padding.
 	Used by the CoAP observe mechanism (RFC 7641) and KNX IoT subscriptions (clause 2.5.9).
 */
 typedef struct coap_observer_t
 {
-	struct coap_observer_t* next;    // linked list pointer (for LIST)
+	struct coap_observer_t* next;  // linked list pointer (for LIST)
 
 	// --- 8-byte aligned: pointers, oc_string_t, ... ---
 	const oc_resource_t* resource;
@@ -79,6 +81,8 @@ typedef struct coap_observer_t
 	int coap_remove_observer_by_mid(const oc_endpoint_t* endpoint, uint16_t mid);
 	int coap_remove_observer_by_resource(const oc_resource_t* rsc);
 	void coap_free_all_observers(void);
+
+  
 	
 
 #ifdef OC_BLOCK_WISE
@@ -100,9 +104,15 @@ int coap_remove_observers_on_dos_change(bool reset);
  *
 
   @note  
-   - notifies on /k observers on self-triggered outbound application s-mode POST 'w' request 
-   - does not notify on /k for inbound POST s-mode request
-   - does not notify on /k for inbound POST/PUT request
+   - notifies /k observers on self-triggered outbound application s-mode POST 'w' request 
+   - does not notify /k observers for inbound POST s-mode 'w/r' requests 
+     - mc: 
+       - 'w' other linked (n) receivers gets this mc 'w' request as well, 
+             if linked (n) receivers would issue an own notification cycle -> one 'w' request 
+             would end up in (n) extra s-mode 'w' notifications (provided all (n) receivers are observed) 
+       - 'r' is not a CoV at receiver side 
+     - uc: 
+   - does not notify /k observers for inbound 'none' s-mode requests
 */
 void coap_notify_k_observers(const uint8_t* payload, size_t payload_len);
 
@@ -120,9 +130,9 @@ void coap_notify_k_observers(const uint8_t* payload, size_t payload_len);
  *
 
   @note
-   - notifies on /p observers on self-triggered outbound application s-mode PUT/POST 'w' request
-   - notifies on /p on inbound PUT/POST request
-   - does not notify on /p on inbound POST s-mode request
+   - notifies /p observers on self-triggered outbound application s-mode PUT/POST 'w' request
+   - notifies /p observers on inbound PUT/POST request
+   - does not notify /p observers on inbound POST s-mode request
 
 */
 int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* response_buf, const oc_endpoint_t* endpoint);

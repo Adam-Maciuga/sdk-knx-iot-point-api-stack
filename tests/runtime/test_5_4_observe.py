@@ -13,11 +13,38 @@ Runtime conformance tests — CoAP Observe / Notifications (RFC 7641 over KNX-Io
   OBS-C2   non=true yields non-confirmable (NON)              (2.5.9.4)
   OBS-D1   First /k notification carries only sia             (2.5.9.1)
   OBS-D2   Subsequent /k notification includes the s object   (2.5.9.1)
+  OBS-D3   /k deregister (Observe=1) stops notifications       (2.5.9.1/2.6.10.1)
   OBS-D4   Inbound s-mode POST /k does not echo to observers  (2.5.9.1)
+  OBS-D5   Plain GET /k (no Observe) returns sia, never pushes (2.5.9.1)
   OBS-E1   Encrypted subscription delivers decryptable notifs (RFC 8613)
   OBS-E2   Notification AAD binds the request PIV (regression)(RFC 8613 §8.3)
   OBS-F1   Independent sequence counters per observer         (2.6.10.1)
   OBS-F2   Stale observer pruned, others still notified       (RFC 7641)
+
+==============================================================================
+OBSERVE BEHAVIOUR: /k (S-Mode group, if.g.s) vs /p/xxx (Point, if.o)
+==============================================================================
+Registration, deregistration and subsequent notifications differ by resource
+type. The /k resource (rt=urn:knx:if.g.s, spec 2.5.9.1) carries Group
+Notification objects, whereas /p Points (if.o, spec 2.6.10.1) carry the raw
+Point value.
+
+  Aspect                | /p/xxx (Point, if.o)        | /k (S-Mode group, if.g.s)
+  ----------------------|-----------------------------|-----------------------------
+  Register response     | 2.05 Content, payload =     | 2.05 Content, payload =
+                        | current Point value         | { 4: sia } ONLY
+                        | { 1: <value> }              | (NO s object)
+  Subsequent notifs     | changed Point value         | full group object
+                        | { 1: <value> }              | { 4: sia,
+                        |                             |   5: { 6:"w", 7:ga, 1:val } }
+  Deregister (Observe=1)| 2.05 Content, notifications | 2.05 Content, notifications
+                        | stop                        | stop
+  Plain GET (no Observe)| current Point value, no     | { 4: sia } once, then NO
+                        | subscription created        | subsequent notifications
+  Spec clause           | 2.6.10.1                    | 2.5.9.1
+
+Group A (A1/A2/A3) verifies the /p side; Group D (D1/D2/D3/D5) verifies the /k
+side. D4 additionally checks that inbound s-mode POST /k is not echoed.
 
 ==============================================================================
 APPROXIMATION / NON-EITT NOTICE
@@ -489,6 +516,37 @@ def test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object(
     obs.observe_deregister(sub)
 
 
+def test_5_4_5_3_obs_d3_k_deregister_stops_notifications(
+        coap, oscore_ctx, make_observer):
+    """OBS-D3: deregistering a /k observe returns 2.05 and stops notifications.
+
+    Spec 2.5.9.1/2.6.10.1 - a /k subscription is cancelled the same way as a
+    /p one (GET with Observe=1, same token).  The server SHALL answer the
+    deregistration with 2.05 Content, and a subsequent device-originated
+    outbound s-mode write must no longer reach the (now removed) observer.
+    Group A/OBS-A3 covers this for /p; this is the /k counterpart.
+    """
+    _provision_k_sender(coap, oscore_ctx, OBS_DP_ALT)
+
+    obs = make_observer()
+    resp, sub = obs.observe_register_oscore(
+        oscore_ctx, "/k", lt=86400, accept=APPLICATION_CBOR)
+    if resp is None:
+        pytest.skip("/k observe registration timed out")
+    assert resp.is_successful, (
+        f"/k observe register expected 2.05, got {resp.code}")
+
+    dereg = obs.observe_deregister(sub)
+    assert dereg is not None and dereg.is_successful, (
+        f"/k deregister expected 2.05, got {dereg.code if dereg else 'timeout'}")
+
+    # A device-originated outbound s-mode write must not reach the observer.
+    _trigger_p(coap, oscore_ctx, OBS_DP_ALT, value=True)
+    extra = obs.count_incoming_messages(timeout=2.0)
+    assert extra == 0, (
+        f"expected no /k notifications after deregister, got {extra}")
+
+
 def test_5_4_5_4_obs_d4_inbound_post_k_not_echoed(
         coap, oscore_ctx, make_observer):
     """OBS-D4: an inbound s-mode POST /k is not echoed to /k observers.
@@ -524,6 +582,51 @@ def test_5_4_5_4_obs_d4_inbound_post_k_not_echoed(
         f"inbound POST /k must not notify observers, got {extra} messages")
 
     obs.observe_deregister(sub)
+
+
+def test_5_4_5_5_obs_d5_plain_get_k_no_subsequent(
+        coap, oscore_ctx, make_observer):
+    """OBS-D5: a plain GET /k (no Observe option) returns { sia } once and
+    never produces subsequent push notifications; a repeated GET behaves
+    identically to the first.
+
+    Spec 2.5.9.1 - if a client sends a simple GET to /k WITHOUT the CoAP
+    Observe Option, the device SHALL return 2.05 Content with a payload that
+    contains only the "sia" object ({ 4: <ia> }, no "s" object) and SHALL NOT
+    send subsequent notifications.  Because no subscription is created, every
+    GET is a fresh stateless read: a second GET SHALL react the same way as
+    the first.
+    """
+    obs = make_observer()
+
+    # First plain GET (no Observe option).
+    first = obs.oscore_get(oscore_ctx, "/k", accept=APPLICATION_CBOR)
+    if first is None:
+        pytest.skip("/k GET timed out")
+    assert first.is_successful, (
+        f"/k GET expected 2.05, got {first.code}")
+    d1 = cbor2.loads(first.payload)
+    assert d1.get(4) == DUT_IA, (
+        f"/k GET payload should carry sia={DUT_IA:#x}, got {d1}")
+    assert 5 not in d1, (
+        f"/k GET payload must NOT contain the s object, got {d1}")
+
+    # No subscription was created, so a value change yields no push.
+    _trigger_p(coap, oscore_ctx, OBS_DP_ALT, value=True)
+    extra = obs.count_incoming_messages(timeout=2.0)
+    assert extra == 0, (
+        f"plain GET /k must not create a subscription, got {extra} pushes")
+
+    # A subsequent GET must react identically to the first (stateless read).
+    second = obs.oscore_get(oscore_ctx, "/k", accept=APPLICATION_CBOR)
+    assert second is not None, "second /k GET timed out"
+    assert second.is_successful, (
+        f"second /k GET expected 2.05, got {second.code}")
+    d2 = cbor2.loads(second.payload)
+    assert d2.get(4) == DUT_IA, (
+        f"second /k GET payload should carry sia={DUT_IA:#x}, got {d2}")
+    assert 5 not in d2, (
+        f"second /k GET payload must NOT contain the s object, got {d2}")
 
 
 # ===========================================================================
