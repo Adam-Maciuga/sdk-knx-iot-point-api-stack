@@ -195,12 +195,12 @@ Helper function `_sync_group_context()` in `test_5_4_5_3_multicast.py` implement
 - The EITT trace shows the test tool always re-adds `ps=` when following next links
 - Test code must append `ps=N` to next links if not already present
 
-## CoAP Observe / Notifications (June 2026 - test_5_9_observe.py)
+## CoAP Observe / Notifications (June 2026 - test_5_4_observe.py)
 
 ### Status: spec-backed approximation, NOT an EITT replication
 - There is no EITT (08_10_5) observe section and no observe telegrams in
-  `EittProject.xml`. `test_5_9_observe.py` is anchored to spec clauses
-  (2.5.9.x, 2.6.10.1) and RFC 7641/8613, but the `5.9.x` / `OBS-x` numbering
+  `EittProject.xml`. `test_5_4_observe.py` is anchored to spec clauses
+  (2.5.9.x, 2.6.10.1) and RFC 7641/8613, but the `5.4.x` / `OBS-x` numbering
   is a placeholder. The file header carries a prominent APPROXIMATION notice.
 
 ### Infrastructure added

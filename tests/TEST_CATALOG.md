@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack — Test Catalog
 
-> **1030 unit tests** (49 files) + **249 runtime tests** (17 files) = **1279 total**
+> **1030 unit tests** (49 files) + **254 runtime tests** (17 files) = **1284 total**
 >
 > Branch: `unit_tests_claude` | Last verified: 1029 passed, 1 skipped (Docker CI)
-> Runtime observe suite (`test_5_9_observe.py`): 15 passed, 1 xfailed on `windows-test-gcc`
+> Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
 
@@ -1123,7 +1123,7 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 
 ---
 
-### test_5_4_group_comm.py — Group Communication (19 tests)
+### test_5_4_group_comm.py — Group Communication (21 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1138,6 +1138,7 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 | **TestNotSendingInLoadingState** | `test_5_4_1_8_no_send_in_loading` | 5.4.1.8 |
 | **TestInitFlagStartup** | `test_5_4_1_9_init_flag_sends_read_on_restart` | 5.4.1.9 |
 | **TestMulticastResponseUpdate** | `test_5_4_1_10_multicast_answer_updates_value` | 5.4.1.10 |
+| **TestMulticastResponseUpdateOnly** | `test_5_4_1_10b_answer_updateonly_go` | 5.4.1.10b (non-EITT) |
 | **TestMulticastWriteIgnoredLoading** | `test_5_4_1_11_write_ignored_in_loading` | 5.4.1.11 |
 | **TestOwnGroupObjectUpdate** | `test_5_4_1_12_self_update_on_transmit` | 5.4.1.12 |
 | **TestLongGAReceive** | `test_5_4_1_13_long_ga_write_ga0` | 5.4.1.13 |
@@ -1146,6 +1147,40 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 | | `test_5_4_1_13_long_ga_write_ga_max32` | 5.4.1.13 |
 | **TestLongGASend** | `test_5_4_1_14_sends_long_ga` | 5.4.1.14 |
 | **TestUnicastConfirmable** | `test_5_4_1_15_unicast_sends_con` | 5.4.1.15 |
+| **TestUnicastNonReResolution** | `test_unicast_non_re_resolution` | non-EITT |
+
+---
+
+### test_5_4_observe.py — CoAP Observe / Notifications (19 tests)
+
+> **Spec-backed approximation, NOT an EITT replication.** There is no EITT
+> (08_10_5) observe section and `EittProject.xml` has no observe telegrams;
+> these tests are anchored to spec 2.5.9.x / 2.6.10.1 and RFC 7641/8613, and
+> the `5.4.2.x+` numbering / `OBS-x` IDs are placeholders pending an official
+> EITT observe section. See the file header for the documented /k vs /p
+> behaviour.
+
+| Group | Test | Spec/ref |
+|-------|------|----------|
+| **A — Subscription lifecycle** | `test_5_4_2_1_obs_a1_register_returns_current_value` | 2.6.10.1 |
+| | `test_5_4_2_2_obs_a2_value_change_notifies` | 2.6.10.1 |
+| | `test_5_4_2_3_obs_a3_deregister_stops_notifications` | 2.6.10.1 |
+| | `test_5_4_2_4_obs_a3b_delete_sub_removes_subscription` | 2.6.10.1 |
+| | `test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port` | 2.6.10.1 |
+| **B — lt validation** | `test_5_4_3_1_obs_b1_missing_lt_rejected` | 2.5.9.3 / 2.5.11.6 |
+| | `test_5_4_3_2_obs_b2_lt_zero_rejected` | 2.5.9.3 / 2.5.11.6 |
+| | `test_5_4_3_3_obs_b3_expired_lt_stops_notifications` | 2.5.9.3 / 2.5.11.6 |
+| **C — CON/NON** | `test_5_4_4_1_obs_c1_default_confirmable` | 2.5.9.4 |
+| | `test_5_4_4_2_obs_c2_non_true_non_confirmable` | 2.5.9.4 |
+| **D — /k S-Mode** | `test_5_4_5_1_obs_d1_first_k_notification_sia_only` | 2.5.9.1 |
+| | `test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object` | 2.5.9.1 |
+| | `test_5_4_5_3_obs_d3_k_deregister_stops_notifications` | 2.5.9.1 / 2.6.10.1 |
+| | `test_5_4_5_4_obs_d4_inbound_post_k_not_echoed` | 2.5.9.1 |
+| | `test_5_4_5_5_obs_d5_plain_get_k_no_subsequent` | 2.5.9.1 |
+| **E — OSCORE notifications** | `test_5_4_6_1_obs_e1_encrypted_notifications_decrypt` | RFC 8613 |
+| | `test_5_4_6_2_obs_e2_notification_aad_binds_request_piv` | RFC 8613 §8.3 |
+| **F — Multi-observer** | `test_5_4_7_1_obs_f1_independent_seq_per_observer` | 2.6.10.1 |
+| | `test_5_4_7_2_obs_f2_stale_observer_pruned` | RFC 7641 |
 
 ---
 
@@ -1251,35 +1286,6 @@ The `runtime_test_server` binary runs as a subprocess — no mocks.
 | **TestDefaultOptions** | `test_5_10_5_1_accept_omitted` | 5.10.5.1 |
 | | `test_5_10_5_2_content_format_omitted` | 5.10.5.2 |
 | | `test_5_10_5_3_unknown_critical_option` | 5.10.5.3 |
-
----
-
-### test_5_9_observe.py — CoAP Observe / Notifications (16 tests)
-
-> **Spec-backed approximation, NOT an EITT replication.** There is no EITT
-> (08_10_5) observe section; these tests are anchored to spec 2.5.9.x /
-> 2.6.10.1 and RFC 7641/8613, and the `5.9.x` / `OBS-x` IDs are placeholders.
-> See the file header and `docs/runtime-test-knowledge.md` for the documented
-> stack deviations.
-
-| Group | Test | Spec/ref |
-|-------|------|----------|
-| **A — Subscription lifecycle** | `test_5_9_1_1_obs_a1_register_returns_current_value` | 2.6.10.1 |
-| | `test_5_9_1_2_obs_a2_value_change_notifies` | 2.6.10.1 |
-| | `test_5_9_1_3_obs_a3_deregister_stops_notifications` | 2.6.10.1 |
-| | `test_5_9_1_4_obs_a3b_delete_sub_removes_subscription` | 2.6.10.1 |
-| | `test_5_9_1_5_obs_a4_resubscribe_replaces_by_ip_port` | 2.6.10.1 |
-| **B — lt validation** | `test_5_9_2_1_obs_b1_missing_lt_rejected` | 2.5.9.3 |
-| | `test_5_9_2_2_obs_b2_lt_zero_rejected` | 2.5.9.3 |
-| **C — CON/NON** | `test_5_9_3_1_obs_c1_default_confirmable` | 2.5.9.4 |
-| | `test_5_9_3_2_obs_c2_non_true_non_confirmable` | 2.5.9.4 |
-| **D — /k S-Mode** | `test_5_9_4_1_obs_d1_first_k_notification_sia_only` | 2.5.9.1 |
-| | `test_5_9_4_2_obs_d2_subsequent_k_notification_has_s_object` | 2.5.9.1 (xfail — deviation) |
-| | `test_5_9_4_4_obs_d4_inbound_post_k_not_echoed` | 2.5.9.1 |
-| **E — OSCORE notifications** | `test_5_9_5_1_obs_e1_encrypted_notifications_decrypt` | RFC 8613 |
-| | `test_5_9_5_2_obs_e2_notification_aad_binds_request_piv` | RFC 8613 §8.3 |
-| **F — Multi-observer** | `test_5_9_6_1_obs_f1_independent_seq_per_observer` | 2.6.10.1 |
-| | `test_5_9_6_2_obs_f2_stale_observer_pruned` | RFC 7641 |
 
 ---
 

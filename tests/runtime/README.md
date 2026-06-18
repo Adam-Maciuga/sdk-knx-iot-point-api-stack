@@ -15,14 +15,14 @@ Requires Docker Desktop running (Linux engine).
 .\tests\runtime\run-in-docker.ps1
 
 # Run a subset (any pytest -k filter)
-.\tests\runtime\run-in-docker.ps1 -k "5_9"        # observe tests
-.\tests\runtime\run-in-docker.ps1 -k "5_9_4_2"    # a single test
+.\tests\runtime\run-in-docker.ps1 -k "5_4"        # observe tests
+.\tests\runtime\run-in-docker.ps1 -k "5_4_2_1"    # a single test
 
 # Run a specific file, pass extra single-dash args
-.\tests\runtime\run-in-docker.ps1 tests/runtime/test_5_9_observe.py -x
+.\tests\runtime\run-in-docker.ps1 tests/runtime/test_5_4_observe.py -x
 
 # Test uncommitted/untracked changes (default tests only committed HEAD)
-.\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k "5_9"
+.\tests\runtime\run-in-docker.ps1 -IncludeUncommitted -k "5_4"
 ```
 
 ### Reading results

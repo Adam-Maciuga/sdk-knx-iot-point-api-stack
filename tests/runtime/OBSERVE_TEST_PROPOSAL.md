@@ -1,15 +1,20 @@
-# Proposed Runtime (EITT-style) Tests — CoAP Observe / Notifications
+# Runtime (EITT-style) Tests — CoAP Observe / Notifications
 
-> **Status:** Draft for discussion. No implementation yet — this captures *what*
-> to test and the *test logic*, so we can agree on scope before writing code.
+> **Status:** IMPLEMENTED. This document originated as the scope/design
+> proposal; the tests it describes now ship in
+> `tests/runtime/test_5_4_observe.py` (19 tests, all passing in Docker CI).
+> Each `OBS-x` scenario below is annotated with the concrete
+> `test_5_4_<g>_<n>_*` function that implements it. The text is retained as the
+> design rationale and spec-anchor reference.
 >
 
 ---
 
 ## 1. Why this document
 
-There are currently **no EITT / runtime tests** for CoAP Observe in
-`tests/runtime/`. The stack recently gained / reworked the observe path:
+This document defines the **runtime (wire-behaviour) layer** for CoAP Observe.
+The tests are implemented in `tests/runtime/test_5_4_observe.py`. The stack
+gained / reworked the observe path:
 
 - `coap_notify_k_observers()` — S-Mode `/k` notification fan-out
 - `coap_notify_observers()` — `/p` and core-resource notifications
@@ -32,43 +37,46 @@ untested. This proposal defines that runtime layer.
 | **2.5.11.6** | `lt` lifetime for parameter/diagnostic Points; same rules |
 | **2.5.9.4** | `non` query parameter; default is **confirmable** (`non=false`) |
 
-> **Open question for the test spec:** the EITT test spec (`08_10_5 KNX IoT
-> Point API Tests`) doesn't appear to number an "observe" section yet. We need to
-> agree whether these become new `5.9.x` IDs or fold under an existing section.
-> The IDs below are **placeholders** (`OBS-x`).
+> **Test-spec numbering (resolved):** the EITT test spec (`08_10_5 KNX IoT
+> Point API Tests`) still has no numbered "observe" section, so the implemented
+> tests use the `test_5_4_<group>_<n>_obs_*` convention (sibling of
+> `test_5_4_group_comm.py`). The `OBS-x` IDs below are the stable internal
+> labels; the `5.4.2.x+` numbers are placeholders pending an official EITT
+> observe section. See `tests/TEST_CATALOG.md` for the full mapping.
 
 ---
 
-## 3. Prerequisite (blocker, needs sign-off)
+## 3. Prerequisite (delivered)
 
-`coap_client.py` has **no observe capability** today. To run any of these tests
-the client must be able to:
+`coap_client.py` originally had **no observe capability**. The required client
+support has since been added, so the client can:
 
 1. Send a `GET` with the **Observe option = 0** (register) and **= 1** (deregister).
 2. Keep the UDP socket open and **collect asynchronous notifications**.
 3. **ACK confirmable (CON)** notifications and tolerate **non-confirmable (NON)**.
 4. Track the **Observe sequence number** and **token** per subscription.
 
-This touches an **infrastructure file**, so it should be agreed/approved before
-implementation. Everything below assumes this capability exists.
+This infrastructure is in place; all scenarios below run against it.
 
 ---
 
-## 4. Proposed test file
+## 4. Test file
 
-`tests/runtime/test_5_9_observe.py` (sibling of `test_5_4_group_comm.py`), with an
+`tests/runtime/test_5_4_observe.py` (sibling of `test_5_4_group_comm.py`), with an
 EITT-style docstring header listing each scenario and its spec clause.
 
 ---
 
 ## 5. Test logic
 
-Each test below lists: **goal**, **setup**, **stimulus**, **expected**. They are
-intentionally behaviour-only (response codes, payload shape, CON/NON, encryption).
+Each test below lists: **goal**, **setup**, **stimulus**, **expected**, and the
+**implementing function** in `test_5_4_observe.py`. They are intentionally
+behaviour-only (response codes, payload shape, CON/NON, encryption).
 
 ### Group A — Subscription lifecycle on a `/p` datapoint
 
 #### OBS-A1 · Register observe returns current value
+- **Implemented by:** `test_5_4_2_1_obs_a1_register_returns_current_value`
 - **Goal:** A valid observe registration succeeds and yields the first notification.
 - **Setup:** Device loaded; datapoint `/p/1` has a known value.
 - **Stimulus:** `GET /p/1` with `Observe=0`, `lt=86400`.
@@ -76,6 +84,7 @@ intentionally behaviour-only (response codes, payload shape, CON/NON, encryption
   current datapoint value as the first notification.
 
 #### OBS-A2 · Value change triggers a notification
+- **Implemented by:** `test_5_4_2_2_obs_a2_value_change_notifies`
 - **Goal:** A registered observer is notified when the value changes.
 - **Setup:** OBS-A1 active.
 - **Stimulus:** Change `/p/1` (PUT, or an inbound s-mode write).
@@ -83,18 +92,21 @@ intentionally behaviour-only (response codes, payload shape, CON/NON, encryption
   an **incremented Observe sequence number**.
 
 #### OBS-A3 · Deregister stops notifications
+- **Implemented by:** `test_5_4_2_3_obs_a3_deregister_stops_notifications`
 - **Goal:** Explicit deregistration ends the relationship.
 - **Setup:** OBS-A1/A2 active.
 - **Stimulus:** `GET /p/1` with `Observe=1` (same token), then change the value.
 - **Expected:** Deregister acknowledged; **no further notifications** arrive.
 
 #### OBS-A3b · `DELETE /sub` removes subscription
+- **Implemented by:** `test_5_4_2_4_obs_a3b_delete_sub_removes_subscription`
 - **Goal:** `DELETE /sub` is a third deregistration path distinct from `Observe=1`.
 - **Setup:** OBS-A1/A2 active.
 - **Stimulus:** `DELETE /sub` (unicast, same security context), then change the value.
 - **Expected:** `2.02 Deleted`; **no further notifications** arrive.
 
 #### OBS-A4 · Re-subscribe replaces by IP+port, not token
+- **Implemented by:** `test_5_4_2_5_obs_a4_resubscribe_replaces_by_ip_port`
 - **Goal:** A new subscription from the same client replaces the old one (2.6.10.1).
 - **Setup:** OBS-A1 active from a given source IP+port.
 - **Stimulus:** Register again from the **same IP+port** with a **new token**.
@@ -104,78 +116,99 @@ intentionally behaviour-only (response codes, payload shape, CON/NON, encryption
 ### Group B — Lifetime (`lt`)
 
 #### OBS-B1 · Missing `lt` is rejected
+- **Implemented by:** `test_5_4_3_1_obs_b1_missing_lt_rejected`
 - **Stimulus:** `GET /p/1` with `Observe=0` and **no** `lt`.
 - **Expected:** `4.00 Bad Request` (2.5.9.3 / 2.5.11.6).
 
 #### OBS-B2 · `lt=0` is rejected
+- **Implemented by:** `test_5_4_3_2_obs_b2_lt_zero_rejected`
 - **Stimulus:** `GET /p/1` with `Observe=0` and `lt=0`.
 - **Expected:** `4.00 Bad Request`.
 
-#### TBD OBS-B3 · Lifetime expiry stops notifications *(slow / optional)*
+#### OBS-B3 · Lifetime expiry stops notifications
+- **Implemented by:** `test_5_4_3_3_obs_b3_expired_lt_stops_notifications`
 - **Goal:** Device stops notifying after `lt` elapses.
 - **Note:** The spec requires the device to support `lt` up to at least 86400 s,
-  but small values (e.g. `lt=30`) are also valid. The EITT sequence uses `lt=30`
-  for this test rather than waiting 24 h. Mark **slow** / CI-skipped in automated
-  runs, or use `lt=30` and accept the short wait.
+  but small values are also valid. The test uses a short `lt` and accepts the
+  brief wait rather than waiting 24 h.
 
 ### Group C — Confirmable vs non-confirmable (`non`)
 
 #### OBS-C1 · Default notifications are confirmable (CON)
+- **Implemented by:** `test_5_4_4_1_obs_c1_default_confirmable`
 - **Stimulus:** Register observe **without** `non`; trigger a change.
 - **Expected:** Notification arrives as **CON**; device expects an **ACK**.
 
 #### OBS-C2 · `non=true` yields non-confirmable (NON)
+- **Implemented by:** `test_5_4_4_2_obs_c2_non_true_non_confirmable`
 - **Stimulus:** Register observe with `non=true`; trigger a change.
 - **Expected:** Notification arrives as **NON** (no ACK expected).
 
 ### Group D — `/k` S-Mode notifications (drives `coap_notify_k_observers`)
 
 #### OBS-D1 · First `/k` notification carries only `sia`
+- **Implemented by:** `test_5_4_5_1_obs_d1_first_k_notification_sia_only`
 - **Stimulus:** `GET /k` with `Observe=0`, `lt=86400`.
 - **Expected:** `2.05 Content`; first payload is exactly `{ "sia": <ia> }`
   (**no** `s` object) — per 2.5.9.1.
 
 #### OBS-D2 · Subsequent `/k` notification includes the `s` object
+- **Implemented by:** `test_5_4_5_2_obs_d2_subsequent_k_notification_has_s_object`
 - **Setup:** OBS-D1 active.
 - **Stimulus:** Trigger the device to emit an outbound s-mode **"w"** message.
 - **Expected:** Subscriber receives a follow-up `/k` notification whose payload
   **includes** the `s` object with `st="w"`.
 
-#### TBD OBS-D3 · Plain GET on `/k` (no Observe) sends only the first payload
-- **Stimulus:** `GET /k` **without** the Observe option.
-- **Expected:** Returns `{ "sia": <ia> }`; **no** subsequent notifications follow.
+#### OBS-D3 · `/k` deregister (Observe=1) stops notifications
+- **Implemented by:** `test_5_4_5_3_obs_d3_k_deregister_stops_notifications`
+- **Setup:** OBS-D1/D2 active on `/k`.
+- **Stimulus:** `GET /k` with `Observe=1` (same token), then trigger another
+  s-mode **"w"** message.
+- **Expected:** Deregister acknowledged; **no further `/k` notifications** arrive
+  (2.5.9.1 / 2.6.10.1).
 
 #### OBS-D4 · Inbound s-mode POST to `/k` does not echo to observers
+- **Implemented by:** `test_5_4_5_4_obs_d4_inbound_post_k_not_echoed`
 - **Goal:** Confirm the documented rule "does not notify on `/k` for inbound POST".
 - **Setup:** A `/k` observer is registered.
 - **Stimulus:** Send an inbound s-mode `POST /k`.
 - **Expected:** The observer does **not** receive a notification for that inbound
   message.
 
+#### OBS-D5 · Plain GET on `/k` (no Observe) returns `sia`, never pushes
+- **Implemented by:** `test_5_4_5_5_obs_d5_plain_get_k_no_subsequent`
+- **Stimulus:** `GET /k` **without** the Observe option.
+- **Expected:** Returns `{ "sia": <ia> }`; **no** subscription is created and
+  **no** subsequent notifications follow (2.5.9.1).
+
 ### Group E — OSCORE-protected notifications (drives the AAD fix)
 
 #### OBS-E1 · Encrypted subscription delivers decryptable notifications
+- **Implemented by:** `test_5_4_6_1_obs_e1_encrypted_notifications_decrypt`
 - **Stimulus:** Register observe over an **OSCORE-protected** request; trigger a
   change.
 - **Expected:** Notifications are **encrypted** and decrypt correctly with the
   established context; sequence numbers still advance.
 
-#### OBS-E2 · Notification AAD binds the Observe option (regression for the fix)
-- **Goal:** Guard the bug the AAD fix addressed — the Observe option must be part
-  of the notification's AAD.
-- **Stimulus:** Verify the AAD used for a notification; optionally a negative case
-  where a mismatched/tampered AAD or context causes **AEAD verification failure**.
-- **Expected:** Correct AAD → decrypt OK; wrong AAD → reject.
+#### OBS-E2 · Notification AAD binds the request PIV (regression for the fix)
+- **Implemented by:** `test_5_4_6_2_obs_e2_notification_aad_binds_request_piv`
+- **Goal:** Guard the bug the AAD fix addressed — the notification AAD must bind
+  the original request's PIV (RFC 8613 §8.3).
+- **Stimulus:** Verify the AAD used for a notification decrypts only with the
+  correct request-PIV binding.
+- **Expected:** Correct AAD → decrypt OK; wrong binding → reject.
 
 ### Group F — Robustness / multiple observers
 
 #### OBS-F1 · Independent sequence counters per observer
+- **Implemented by:** `test_5_4_7_1_obs_f1_independent_seq_per_observer`
 - **Setup:** Two subscribers on the same resource.
 - **Stimulus:** Trigger changes.
 - **Expected:** Each subscriber gets its own notifications with **independent**
   sequence numbers.
 
 #### OBS-F2 · Expired/silent observer is dropped, others still notified
+- **Implemented by:** `test_5_4_7_2_obs_f2_stale_observer_pruned`
 - **Setup:** Two subscribers; one stops responding / is removed.
 - **Stimulus:** Trigger a change.
 - **Expected:** The stale observer is pruned before the next round; the remaining
@@ -196,14 +229,17 @@ data-structure logic stay at the unit level.
 
 ---
 
-## 7. Discussion points for the review
+## 7. Review outcomes (resolved)
 
-1. **Client infrastructure:** OK to extend `coap_client.py` with observe support?
-   Who owns / reviews that change?
-2. **Test-spec numbering:** new `5.9.x` IDs vs folding into an existing section.
-3. **Lifetime expiry (OBS-B3):** acceptable to mark slow/skip, or do we add a
-   test-only short-lifetime path?
-4. **`/k` stimulus (OBS-D2):** what is the cleanest way to make the DUT emit an
-   outbound s-mode "w" in the test harness (reuse the `test_5_4` triggers)?
-5. **OSCORE AAD negative case (OBS-E2):** how deep do we go — observe-only, or a
-   broader AAD regression?
+1. **Client infrastructure:** `coap_client.py` was extended with observe
+   support (register/deregister, async notification collection, CON ACK / NON
+   handling, per-subscription token + sequence tracking).
+2. **Test-spec numbering:** no official EITT observe section exists, so the
+   tests use the `test_5_4_<group>_<n>_obs_*` convention with `5.4.2.x+`
+   placeholder numbers; `OBS-x` remain the internal labels.
+3. **Lifetime expiry (OBS-B3):** implemented with a short `lt` and a brief wait
+   (`test_5_4_3_3_obs_b3_expired_lt_stops_notifications`).
+4. **`/k` stimulus (OBS-D2/D3):** the DUT is driven to emit an outbound s-mode
+   "w" by reusing the `test_5_4` group-comm trigger helpers.
+5. **OSCORE AAD regression (OBS-E2):** scoped to verifying the notification AAD
+   binds the request PIV (`test_5_4_6_2_obs_e2_notification_aad_binds_request_piv`).
