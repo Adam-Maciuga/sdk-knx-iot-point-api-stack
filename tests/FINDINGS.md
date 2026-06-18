@@ -53,3 +53,42 @@ Bugs and issues discovered during unit test development.
   `oc_message_unref`), so `oc_message_add_ref(NULL)` is a safe no-op in all
   builds. The previously skipped test `BufferPool.AddRefNullIsNoOp` now actively
   verifies the NULL-safe behaviour.
+
+## F-005: ~~Group Value Response (st="a") updates value with the Update flag alone (Write flag ignored)~~ — RESOLVED
+
+- **File:** `api/oc_knx.c`, `oc_core_knx_k_post_handler()` (the `service_a`
+  branch, ~line 1007).
+- **Severity:** Medium — spec-conformance deviation on the S-Mode receive path;
+  a Group Value Response could overwrite a datapoint on a Group Object that has
+  only the Update flag set (Write cleared), contrary to the specification.
+- **Found by:** Spec-vs-code review of the `/k` receive handler while extending
+  the runtime group-communication tests; probed by the additional runtime test
+  `test_5_4_1_10b_answer_updateonly_go` in `tests/runtime/test_5_4_group_comm.py`
+  (cflag=0x80, Update-only). The EITT case `5.4.1.10` could not distinguish the
+  deviation because it provisions cflag=0x90 (Write + Update), which updates
+  under both interpretations.
+- **Description:** Spec 2.5.7.3.3 Table 19 (Update flag) states a Group Value
+  Response (st="a") updates the Group Object value only **if flag w=true** — the
+  Write (w) flag must be set in addition to the Update (u) flag. The handler's
+  st="a" branch originally checked **only** `OC_CFLAG_UPDATE`:
+
+  ```c
+  if (service & OC_CFLAG_UPDATE && ...) // st="a" applied with u alone, w ignored
+  ```
+
+  So with cflag=0x80 (u only, w=0) the stack incorrectly applied the response
+  and overwrote the datapoint.
+- **Resolution:** The st="a" branch now requires **both** flags via the
+  precomputed predicate:
+
+  ```c
+  const bool service_a = received_notification.st == 'a' &&
+                         cflags & OC_CFLAG_UPDATE && cflags & OC_CFLAG_WRITE;
+  ```
+
+  With cflag=0x80 the response is now ignored and the value is left unchanged.
+  This also aligns the receive path with the outbound side
+  (`oc_knx_client.c`, which already gates on `OC_CFLAG_WRITE`). Validated
+  end-to-end in Docker (veth multicast): `test_5_4_1_10b_answer_updateonly_go`
+  passes (value stays unchanged with w=0) and the positive case
+  `test_5_4_1_10_multicast_answer_updates_value` (cflag=0x90) still updates.

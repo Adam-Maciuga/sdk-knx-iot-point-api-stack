@@ -367,7 +367,10 @@ INTEGRATION (concrete reasons):
   `oc_core_knx_ia_post_handler` — mutate device state and drive group multicast
   register/unregister, datapoint init, GO/recipient-table walks, s-mode
   unicast/multicast CoAP send and DNS-SD republish (need a bootstrapped device +
-  populated RI tables + network).
+  populated RI tables + network). The `oc_core_knx_k_post_handler` st="a"
+  Write+Update rule (FINDINGS F-005 RESOLVED) is exercised at the runtime level
+  by `test_5_4_1_10`/`test_5_4_1_10b` (tracked in `tests/runtime/COVERAGE.md`),
+  not by a unit test.
 - `oc_core_knx_spake_post_handler`, `oc_core_knx_spake_separate_post_handler`,
   `oc_spake2plus_init_data` — SPAKE2+ crypto exchange, OSCORE auth-token store
   writes, separate-response delayed callbacks and the brute-force timer.
