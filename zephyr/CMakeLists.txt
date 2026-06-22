@@ -134,10 +134,11 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
     zephyr_include_directories(${tinycbor_SOURCE_DIR}/src ${tinycbor_BINARY_DIR})
 endif()
 
+# mDNS header-only library
 # Note:
-# mdns header-only library — always required by port/dns-sd_mdns.c.
-# On Zephyr, CONFIG_MDNS_RESPONDER handles the mDNS responder separately;
-# this fetch only provides the mdns.h header used by dns-sd_mdns.c.
+# Always required by port/dns-sd_mdns.c.
+# This fetch only provides the mdns.h header used by dns-sd_mdns.c, which is
+# the stack provided DNS-SD responder based on mDNS (Wi-Fi/Ethernet).
 FetchContent_Declare(
     mdns
     GIT_REPOSITORY https://github.com/mjansson/mdns.git
