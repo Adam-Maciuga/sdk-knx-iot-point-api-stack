@@ -24,7 +24,7 @@ static oc_blockwise_state_t* oc_blockwise_init_buffer(size_t size, const char* h
   if (href_len == 0)
     return NULL;
 
-  oc_blockwise_state_t* buffer = calloc(1, size);
+  oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)calloc(1, size);
   if (buffer)
   {
     if (!buffer->buffer)
@@ -186,7 +186,8 @@ void oc_blockwise_scrub_buffers(bool all)
   }
 }
 
-  #ifdef OC_CLIENT
+#ifdef OC_CLIENT
+
 static oc_blockwise_state_t* oc_blockwise_find_buffer_by_token(oc_list_t list, uint8_t* token, uint8_t token_len)
 {
   oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_list_head(list);
@@ -227,7 +228,7 @@ oc_blockwise_state_t* oc_blockwise_find_response_buffer_by_mid(uint16_t mid) { r
 
 static oc_blockwise_state_t* oc_blockwise_find_buffer_by_client_cb(oc_list_t list, oc_endpoint_t* endpoint, void* client_cb)
 {
-  oc_blockwise_state_t* buffer = oc_list_head(list);
+  oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_list_head(list);
   while (buffer)
   {
     if (buffer->role == OC_BLOCKWISE_CLIENT && buffer->client_cb == client_cb && oc_endpoint_compare(endpoint, &buffer->endpoint) == 0)
@@ -248,12 +249,14 @@ oc_blockwise_state_t* oc_blockwise_find_response_buffer_by_client_cb(oc_endpoint
 {
   return oc_blockwise_find_buffer_by_client_cb(oc_blockwise_responses, endpoint, client_cb);
 }
-  #endif 
+
+
+#endif 
 
 static oc_blockwise_state_t* oc_blockwise_find_buffer(oc_list_t list, const char* href, size_t href_len, oc_endpoint_t* endpoint,
                                                       coap_method_t method, const char* query, size_t query_len, oc_blockwise_role_t role)
 {
-  oc_blockwise_state_t* buffer = oc_list_head(list);
+  oc_blockwise_state_t* buffer = (oc_blockwise_state_t*)oc_list_head(list);
   while (buffer)
   {
     if (strncmp(href, oc_string(buffer->href), href_len) == 0 && oc_endpoint_compare(&buffer->endpoint, endpoint) == 0 && buffer->method == method &&
@@ -278,24 +281,42 @@ oc_blockwise_state_t* oc_blockwise_find_response_buffer(const char* href, size_t
   return oc_blockwise_find_buffer(oc_blockwise_responses, href, href_len, endpoint, method, query, query_len, role);
 }
 
-const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer, uint32_t block_offset, uint32_t requested_block_size, uint32_t* payload_size)
+const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer, uint32_t block_offset, 
+                                           uint32_t requested_block_size, uint32_t* payload_size)
 {
   if (block_offset < buffer->payload_size)
   {
     if (buffer->payload_size < requested_block_size)
+    {
+      /*
+        buffer fits in requested payload size, dispatch it as one block (always or last block)
+        example: payload_size=40, requested_block_size=64
+          block_offset=0 -> emit bytes [0..39], next_block_offset=40 (1st and only payload)
+      */
       *payload_size = buffer->payload_size;
+    }
     else
     {
+      /*
+        buffer does not fit in requested payload size, dispatch it as a chunk (size - offset)
+        example: payload_size=200, requested_block_size=64 (emitted as 64-byte chunks)
+          block_offset=0   -> emit bytes [0..63],    next_block_offset=64   (1st payload)
+          block_offset=64  -> emit bytes [64..127],  next_block_offset=128  (2nd payload)
+          block_offset=128 -> emit bytes [128..191], next_block_offset=192  (3rd payload)
+          block_offset=192 -> emit bytes [192..199], next_block_offset=200  (last payload, 8 bytes)
+      */
       *payload_size = MIN(requested_block_size, (uint32_t)(buffer->payload_size - block_offset));
     }
+    // update next block offset to be dispatched
     buffer->next_block_offset = block_offset + *payload_size;
+
     return &buffer->buffer[block_offset];
   }
   return NULL;
 }
 
-bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_block_offset, const uint8_t* incoming_block,
-                               uint32_t incoming_block_size)
+bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_block_offset,
+                               const uint8_t* incoming_block, uint32_t incoming_block_size)
 {
   if (incoming_block_offset >= OC_MAX_APP_DATA_SIZE 
       || incoming_block_size > OC_MAX_APP_DATA_SIZE - incoming_block_offset 

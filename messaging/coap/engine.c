@@ -582,7 +582,7 @@ int coap_receive(oc_message_t* incoming_message)
   }
 
   // static declaration reduces stack peaks and program code size, this way the packet can be treated as a pointer as usual
-  static coap_packet_t inbound_coap_pkt[1];
+  static coap_packet_t inbound_coap_pkt[1]; // can be an inbound request or response
   static coap_packet_t outbound_coap_pkt[1];
 
   // hosts a coap transaction (including s-mode transactions of CON, NON (uc/mc))
@@ -698,12 +698,13 @@ int coap_receive(oc_message_t* incoming_message)
     }
     #endif
 
-    // extract block options
+    // extract block1 + size options from payload (block 1/2 can be part of a single message -> RFC 7959 section 2.3)
     if (coap_get_header_block1(inbound_coap_pkt, &block1_num, &block1_more, &block1_size, &block1_offset))
     {
       block1 = true;
     }
 
+    // extract block2 + size options from payload (block 1/2 can be part of a single message -> RFC 7959 section 2.3)
     if (coap_get_header_block2(inbound_coap_pkt, &block2_num, &block2_more, &block2_size, &block2_offset))
     {
       block2 = true;
@@ -1456,7 +1457,11 @@ int coap_receive(oc_message_t* incoming_message)
       }
 
       if (!error_response && request_buffer && (block1 || inbound_coap_pkt->code == REQUEST_ENTITY_TOO_LARGE_4_13))
-      {
+      { /* 
+          - in case of a 4.13 response the size of the first block request from 'us' was too large for the peer, so the peer is asking us to 
+            use block-wise transfer with reduced size block1 option -> restarting with the first block (offset 0) again
+        */
+        
         OC_DBG("found request buffer for uri %s", oc_string_checked(request_buffer->href));
 
         client_cb = (oc_client_cb_t*)request_buffer->client_cb;
@@ -1465,18 +1470,24 @@ int coap_receive(oc_message_t* incoming_message)
 
         if (block1)
         {
+          OC_DBG("continuing block-wise transfer with block1 option");
           payload = oc_blockwise_dispatch_block(request_buffer, block1_offset + block1_size, block1_size, &payload_size);
         }
         else
         {
           OC_DBG("initiating block-wise transfer with block1 option");
+          
+          // tmp copy
           uint32_t peer_mtu = 0;
-          if (coap_get_header_size1(inbound_coap_pkt, (uint32_t*)&peer_mtu) == 1)
+
+          if (coap_get_header_size1(inbound_coap_pkt, &peer_mtu) == 1)
           {
+            // if the peer specified a Size1 option (especially in case of 4.13 response), use it to determine the block size for the block-wise transfer, but cap it at OC_BLOCK_SIZE
             block1_size = (uint16_t) MIN(peer_mtu, OC_BLOCK_SIZE);
           }
           else
           {
+            // if the peer did not specify a Size1 option, use the default block size
             block1_size = OC_BLOCK_SIZE;
           }
 

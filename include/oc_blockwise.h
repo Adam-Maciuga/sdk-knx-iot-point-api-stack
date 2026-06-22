@@ -24,7 +24,6 @@
 #include "messaging/coap/transactions.h"
 #include "oc_helpers.h"
 #include "oc_ri.h"
-#include "port/oc_connectivity.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,12 +51,14 @@ typedef struct oc_blockwise_state_s
   uint8_t *buffer;
   oc_string_t uri_query;                   /**< the query */
   oc_content_format_t return_content_type; /**< the content type */
-#ifdef OC_CLIENT
+  
+  #ifdef OC_CLIENT
   uint8_t token[COAP_TOKEN_LEN]; /**< the token */
   uint8_t token_len;             /**< token length */
   uint16_t mid;                  /**< the message id */
   void *client_cb;               /**< client callback */
-#endif                           /* OC_CLIENT */
+  #endif                          
+
 } oc_blockwise_state_t;
 
 /**
@@ -219,9 +220,9 @@ void oc_blockwise_free_response_buffer(oc_blockwise_state_t *buffer);
  * @brief send the block
  *
  * @param buffer the buffer (whole message)
- * @param block_offset the block offset
- * @param requested_block_size block size to be send
- * @param payload_size the send payload size
+ * @param block_offset the block offset from which the block should be sent
+ * @param requested_block_size block size to be sent
+ * @param payload_size the send payload size (output parameter)
  * @return const uint8_t* to buffer
  */
 const uint8_t* oc_blockwise_dispatch_block(oc_blockwise_state_t* buffer,
