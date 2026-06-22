@@ -1523,22 +1523,23 @@ static void notify_client_cb_503(oc_client_cb_t* cb)
 {
   oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
 
-  oc_client_response_t client_response = {0};
-  client_response.client_cb = cb;
-  client_response.endpoint = &cb->endpoint;
-  client_response.observe_option = OC_OBSERVE_NOT_INITIALIZED;
-  client_response.user_data = cb->user_data;
-  client_response.code = OC_STATUS_SERVICE_UNAVAILABLE;
+  oc_client_response_t client_response = 
+  {
+    .client_cb = cb, 
+    .endpoint = &cb->endpoint, 
+    .observe_option = OC_OBSERVE_NOT_INITIALIZED,
+    .user_data = cb->user_data,
+    .code = OC_STATUS_SERVICE_UNAVAILABLE
+  };
 
-  oc_response_handler_t handler = (oc_response_handler_t)cb->handler.response;
-  if (handler != NULL)
+  const oc_response_handler_t handler = cb->handler.response;
+  if (handler)
   {
     handler(&client_response);
   }
 
   #ifdef OC_TCP
-  if ((oc_string_len(cb->uri) == 5 &&
-    memcmp((const char*)oc_string(cb->uri), "/ping", 5) == 0))
+  if ((oc_string_len(cb->uri) == 5 &&  memcmp((const char*)oc_string(cb->uri), "/ping", 5) == 0))
   {
     oc_ri_remove_timed_event_callback(cb, oc_remove_ping_handler);
   }
@@ -1667,7 +1668,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   {
     /* 
        casting from generic blockwise state to response state,
-       works only since the calloc spans over the entire 'oc_blockwise_response_state_t' and observe option sits after the 'state' struct 
+       works only since the calloc spans over the entire 'response state' and observe option sits after the 'state' struct 
 
     */
     const oc_blockwise_response_state_t* bwt_response_state = (const oc_blockwise_response_state_t*)*response_state;
