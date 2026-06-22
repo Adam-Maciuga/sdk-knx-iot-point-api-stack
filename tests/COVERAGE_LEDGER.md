@@ -702,7 +702,6 @@ Compiled into the test build because `OC_BLOCK_WISE` is defined in `port/linux/o
 | oc_blockwise_find_response_buffer | DONE |
 | oc_blockwise_dispatch_block | DONE |
 | oc_blockwise_handle_block | DONE |
-| oc_get_request_buffer_with_ptr | DONE |
 | request/response_timeout callbacks (static) | DONE (transitive via free) |
 
 ### api/oc_knx_swu.c — DONE (all handlers + public API); init/storage-load + link-format-body integration-level

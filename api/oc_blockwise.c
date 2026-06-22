@@ -314,21 +314,4 @@ bool oc_blockwise_handle_block(oc_blockwise_state_t* buffer, uint32_t incoming_b
   return true;
 }
 
-
-oc_blockwise_state_t* oc_get_request_buffer_with_ptr(uint8_t* data)
-{
-  oc_blockwise_state_t* state = oc_list_head(oc_blockwise_requests);
-
-  while (state)
-  {
-    if (state->buffer <= data && data < state->buffer + state->payload_size)
-    {
-      // data lies within msg, so we return it
-      return state;
-    }
-    state = state->next;
-  }
-  return NULL;
-}
-
 #endif

@@ -283,22 +283,6 @@ TEST_F(BlockwiseAlloc, FindByClientCb)
             nullptr);
 }
 
-TEST_F(BlockwiseAlloc, GetRequestBufferWithPtr)
-{
-  oc_endpoint_t ep = make_endpoint(5683);
-  oc_blockwise_state_t *b = oc_blockwise_alloc_request_buffer(
-    "/ptr", strlen("/ptr"), &ep, COAP_GET, OC_BLOCKWISE_SERVER);
-  ASSERT_NE(b, nullptr);
-  b->payload_size = 64;
-
-  // a pointer inside the payload region resolves to the buffer
-  EXPECT_EQ(oc_get_request_buffer_with_ptr(b->buffer), b);
-  EXPECT_EQ(oc_get_request_buffer_with_ptr(b->buffer + 10), b);
-  // a pointer outside resolves to NULL
-  uint8_t stray = 0;
-  EXPECT_EQ(oc_get_request_buffer_with_ptr(&stray), nullptr);
-}
-
 // ===========================================================================
 // Free + scrub
 // ===========================================================================
