@@ -107,7 +107,22 @@ static ip_context_t *get_ip_context_for_device(void)
   static ip_context_t ctx;
   knx_eps_head = oc_connectivity_get_endpoints();
   ctx.eps = (oc_list_t)&knx_eps_head;
-  ctx.port = KNX_UNICAST_PORT;
+
+  /* Advertise the real bound CoAP port, taken from the unicast IPv6 endpoint.
+   * CONFIG_KNX_UNICAST_PORT is deliberately not used here as it may be
+   * 0/ephemeral. All addresses share the same bound port, so the first match
+   * is sufficient. */
+  ctx.port = 0;
+  for (oc_endpoint_t *ep = knx_eps_head; ep; ep = ep->next) {
+    if ((ep->flags & IPV6) && !(ep->flags & (MULTICAST | SECURED | TCP))) {
+      ctx.port = ep->addr.ipv6.port;
+      break;
+    }
+  }
+
+  if (ctx.port == 0) {
+    OC_ERR("DNS-SD: No bound unicast IPv6 endpoint found, advertised SRV port is invalid!");
+  }
   return &ctx;
 }
 #endif
