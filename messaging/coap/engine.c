@@ -1534,8 +1534,8 @@ int coap_receive(oc_message_t* incoming_message)
         if (!response_buffer)
         {
           response_buffer = oc_blockwise_alloc_response_buffer(
-            oc_string(client_cb->uri) + 1,
-            oc_string_len(client_cb->uri) - 1,
+            oc_string(client_cb->uri) + 1,  // exclude leading '/', as this is how the URI path is stored in the request buffer, see oc_blockwise_alloc_request_buffer
+            oc_string_len(client_cb->uri) - 1, // exclude leading '/' = -1
             &incoming_message->endpoint, client_cb->method,
             OC_BLOCKWISE_CLIENT);
           if (response_buffer)
