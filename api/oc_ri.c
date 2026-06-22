@@ -1665,11 +1665,22 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   #ifdef OC_BLOCK_WISE
   if (response_state)
   {
+    /* 
+       casting from generic blockwise state to response state,
+       works only since the calloc spans over the entire 'oc_blockwise_response_state_t' and observe option sits after the 'state' struct 
+
+    */
     const oc_blockwise_response_state_t* bwt_response_state = (const oc_blockwise_response_state_t*)*response_state;
     client_response.observe_option = bwt_response_state->observe_seq;
+    
+    payload = (*response_state)->buffer;
+    payload_len = (*response_state)->payload_size;
   }
   #else
+  
   coap_get_header_observe(pkt, (uint32_t*)&client_response.observe_option);
+  payload_len = coap_get_payload(response, (const uint8_t**)&payload);
+  
   #endif
 
   // > register, = inbound notification/response to a non-observe request, so check if the notification number is newer than the one in the client callback
@@ -1690,16 +1701,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   }
 
   bool separate = false;
-
-  #ifdef OC_BLOCK_WISE
-  if (response_state)
-  {
-    payload = (*response_state)->buffer;
-    payload_len = (*response_state)->payload_size;
-  }
-  #else
-  payload_len = coap_get_payload(response, (const uint8_t**)&payload);
-  #endif
   client_response._payload = payload;
   client_response._payload_len = (size_t)payload_len;
 
