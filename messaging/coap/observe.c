@@ -369,30 +369,33 @@ int coap_notify_observers(const oc_resource_t* resource, oc_response_buffer_t* r
       // it will be a separate CON response (CAN be overwritten from NULL ONLY in GET handler)
       if (response_obj.separate_response)
       {
-        coap_packet_t req[1];
+        /* 
+           create an artificial CoAP request to be used for generating the separate CON response,
+           with same token and URI path as the original registration GET request from the observer (RFC 7641 3.1)
+        */
+        coap_packet_t request_virtual[1];
 
         #ifdef OC_TCP
         if (obs->endpoint.flags & TCP)
         {
-          coap_tcp_init_message(req, COAP_GET);
+          coap_tcp_init_message(request_virtual, COAP_GET);
         }
         else
         #endif
         {
-          coap_udp_init_message(req, COAP_TYPE_NON, COAP_GET, 0);
+          coap_udp_init_message(request_virtual, COAP_TYPE_NON, COAP_GET, 0);
         }
-        memcpy(req->token, obs->token, obs->token_len);
-        req->token_len = obs->token_len;
+        memcpy(request_virtual->token, obs->token, obs->token_len);
+        request_virtual->token_len = obs->token_len;
+        coap_set_header_uri_path(request_virtual, oc_string(resource->uri), oc_string_len(resource->uri));
 
-        coap_set_header_uri_path(req, oc_string(resource->uri), oc_string_len(resource->uri));
-
-        OC_DBG("creating separate response for notification");
+        OC_DBG("creating separate (CON) response for notification");
 
         #ifdef OC_BLOCK_WISE
-        if (coap_separate_accept(req, response_obj.separate_response, &obs->endpoint, obs->obs_counter, obs->block2_size) == 1)
+        if (coap_separate_accept(request_virtual, response_obj.separate_response, &obs->endpoint, obs->obs_counter, obs->block2_size) == 1)
         {
         #else
-        if (coap_separate_accept(req, response_obj.separate_response, &obs->endpoint, obs->obs_counter) == 1)
+        if (coap_separate_accept(request_virtual, response_obj.separate_response, &obs->endpoint, obs->obs_counter) == 1)
         {
         #endif
           response_obj.separate_response->active = true;
