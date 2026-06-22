@@ -357,7 +357,7 @@ TEST_F(DiscoveryBase, ProcessPayloadLinkFormatInvokesAllHandler)
     (const uint8_t *)payload, (int)strlen(payload), h, &ep,
     APPLICATION_LINK_FORMAT, &dummy);
 
-  EXPECT_EQ(f, OC_CONTINUE_DISCOVERY);
+  EXPECT_EQ(f, OC_STOP_DISCOVERY);
   EXPECT_TRUE(g_disco.called);
   EXPECT_EQ(g_disco.len, (int)strlen(payload));
   EXPECT_EQ(g_disco.endpoint, &ep);

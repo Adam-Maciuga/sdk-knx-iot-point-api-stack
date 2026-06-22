@@ -619,37 +619,50 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
   {
     bool ia_and_iid_valid_and_present = false;
 
-    if (data->_payload)
-    {
-      /*
+    /*
         - check if the response matches the beforehand requested IA/IID
           (same tests as on inbound discovery on well-known request)
 
           response with knx://ia.IID.IA -> <>;ep="knx://sn.00fa12345678 knx://ia.1199887766.110f" (no leading IID zeros)
           the ia is NOT always at a fixed pos; IID = 40 BIT = 5 byte = 10 char, leading zeros are omitted
 
-        - iid can only be from same installation, unicast does not allow resolving of several 'iid', 
-          see specification, table 21 
-        
+        - iid can only be from same installation, unicast does not allow resolving of several 'iid',
+          see specification, table 21
+
+        - min size of response must be '<>;ep="knx://sn.00fa12345678 knx://ia.1.1"' 
+          string in the ep option, with some spaces and NO string termination
+
       */
 
-      #define LEN_SN (12)              // 00fa12345678
-      #define LEN_DOT_SN (16)          // <>;ep="knx://sn.
-      #define LEN_DOT_IA (9)           // knx://ia.
-      #define IID_STR_LEN_MAX (10)     // max IID length in hex coded ASCII if no leading zeros are omitted (5 octets = 40 bit)
-      #define IA_STR_LEN_MAX (4)       // max IA length in hex coded ASCII (2 octets = 16 bit)
+      #define LEN_DOT_SN (16)      // <>;ep="knx://sn.
+      #define LEN_SN (12)          // 00fa12345678, leading zeros NOT omitted, clause 2.6.1.4
+      #define LEN_DOT_IA (9)       // knx://ia.
 
+      #define IID_STR_LEN_MAX (10) // max IID length, hex coded ASCII if no leading zeros are omitted (5 octets 40 bit)
+      #define IID_STR_LEN_MIN (1)  // min IID length, hex coded ASCII if leading zeros are omitted (1 octet = 8 bit), clause 2.6.1.4
+      #define IA_STR_LEN_MAX (4)   // max IA length in hex coded ASCII (2 octets = 16 bit)
+      #define IA_STR_LEN_MIN (1)   // min IA length in hex coded ASCII (1 octet = 8 bit), clause 2.6.1.4
+      #define LEN_QUOTE_END (1)    // closing " of ep="..."
+
+      #define LL_MIN_LEN (LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA + IID_STR_LEN_MIN + 1 + IA_STR_LEN_MIN + LEN_QUOTE_END)
+
+    if (data->_payload && data->_payload_len >= LL_MIN_LEN && data->content_format == APPLICATION_LINK_FORMAT)
+    {// LL format and valid min sizes ...
+      
       // get device
       const oc_device_info_t* const device = oc_core_get_device_info();
 
-      // find first 'i' in 'knx://ia.'
-      // Assume heading some SN with at least with one char.
-      char* iid_start_pos = oc_strnchr((char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA) + 3; // + 3 = 'ia.'
-      const char* ia_start_pos = oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) + 1;
+      // find first 'i' in 'knx://ia.', assume heading some SN with at least with one char
+      char* iid_start_pos = oc_strnchr((char*)data->_payload, 'i', LEN_DOT_SN + LEN_SN + 1 + LEN_DOT_IA);
+      if (iid_start_pos) {iid_start_pos += 3;} // + 3 = 'ia.' -> start of IID, only when the 'i' of 'ia.' was found
 
-      if (iid_start_pos)
+      // find the '.' between IID and IA, + 1 -> start of IA, only when the IID start and the '.' were found
+      char* ia_start_pos = iid_start_pos ? oc_strnchr(iid_start_pos, '.', IID_STR_LEN_MAX + 1) : NULL;
+      if (ia_start_pos) {ia_start_pos += 1;}  // + 1 = '.' -> start of IA, only when the IID start and the '.' were found
+
+      if (iid_start_pos && ia_start_pos)
       {
-        // convert only if a 'i' was found
+        // convert only when both the IID start ('i' of 'ia.') and the IA start (the IID/IA '.') were found
 
         // empty max len IID + string termination '\0'
         char iid_str[IID_STR_LEN_MAX + 1] = "";
@@ -674,8 +687,8 @@ static void knx_coap_discovery_response_handler(oc_client_response_t* data)
 
           // IA can be of 0..4 chars (valid) or > 4 (attack/error)
           // Note: -1 for escaped " at the end '\"'
-          char* ia_end_pos = (char*)data->_payload + data->_payload_len - 1;
-          size_t ia_len = ia_end_pos - ia_start_pos;
+          const char* ia_end_pos = (const char*)data->_payload + data->_payload_len - 1;
+          const size_t ia_len = ia_end_pos - ia_start_pos;
 
           // copy IA size 0..4 , but don't copy > 4 chars
           strncpy(ia_str, ia_start_pos, ia_len > IA_STR_LEN_MAX ? IA_STR_LEN_MAX : ia_len);

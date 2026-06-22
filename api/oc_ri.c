@@ -1723,17 +1723,19 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     else
     {
       int err = 0;
-      // Do not parse an incoming payload when the Content-Format option has not been set to the CBOR encoding.
+      
       if (cf == APPLICATION_CBOR)
-      {
-        // oc_rep_t nodes are allocated via calloc inside oc_parse_rep.
+      {// parse only on CBOR 
+        
+        // oc_rep_t nodes are allocated via calloc inside oc_parse_rep
         err = oc_parse_rep(payload, payload_len, &client_response.payload);
       }
 
       if (err == 0)
-      {
-        oc_response_handler_t handler = (oc_response_handler_t)cb->handler.response;
-        if (handler != NULL)
+      {// call only on no error (on CBOR), on no CBOR parse what you got ...
+
+        const oc_response_handler_t handler = cb->handler.response;
+        if (handler)
         {
           handler(&client_response);
         }
@@ -1758,8 +1760,8 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     }
     else if (!cb->discovery)
     {
-      oc_response_handler_t handler = cb->handler.response;
-      if (handler != NULL)
+      const oc_response_handler_t handler = cb->handler.response;
+      if (handler)
       {
         handler(&client_response);
       }

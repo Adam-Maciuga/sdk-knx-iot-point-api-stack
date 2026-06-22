@@ -557,11 +557,9 @@ int oc_parse_rep(const uint8_t *in_payload, int in_payload_size, oc_rep_t **out_
   *out_rep = 0;
   if (cbor_value_is_valid(&root_value)) 
   {
+    // returns an object/array at top level for out_rep on no error
     oc_parse_single_entity(&root_value, out_rep, &err);
   }
-  // since this has now changed so it returns an object/array at top level
-  // rather than the first element (linked list style) we need to correct this
-  // comment by KNX AH, code may be done in original code   
 
   if (*out_rep) 
   { // out pointer is not NULL

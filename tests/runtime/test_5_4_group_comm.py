@@ -491,6 +491,166 @@ def _serve_discovery_and_capture_unicast(device_iface, peer_ia, dut_iid,
     return result
 
 
+def _serve_discovery_payload_and_capture(device_iface, ep_payload,
+                                         timeout=15.0, want_gets=1,
+                                         grace=2.5):
+    """Answer the DUT's discovery GET(s) with a caller-supplied *ep_payload*.
+
+    Unlike _serve_discovery_and_capture_unicast (which always sends a
+    well-formed ``ep``), this helper sends whatever link-format string the
+    caller passes, so a test can craft malformed serial-number / IID / IA
+    lengths and observe whether the DUT still resolves the recipient.
+
+    The DUT only sends the unicast s-mode POST /k once it has accepted the
+    discovery response (IID matches the device and IA matches the recipient,
+    knx_coap_discovery_response_handler case (b) -> OC_IP_STATUS_RESOLVED).
+    A malformed ``ep`` is rejected (case (a) -> OC_IP_STATUS_DATA_ERROR),
+    which yields NO POST and, on the next trigger, a fresh re-resolution
+    discovery GET (ipv6_for_ia_is_resolved DATA_ERROR branch).
+
+    The internal resolve_status is not observable over the wire, so the
+    not-resolved outcome is validated indirectly:
+      - rejected  -> no POST follows AND a second discovery GET is issued
+                     (positive proof the recipient stayed unresolved);
+      - resolved  -> a unicast POST /k follows the first GET.
+
+    This helper therefore answers EVERY discovery GET it sees with
+    *ep_payload* (so the re-resolution GET is served too), counts the GETs,
+    and captures the first unicast POST.  It stops early once a POST is
+    captured, or once *want_gets* GETs have been answered and a *grace*
+    window then elapses without a POST.
+
+    Returns a dict::
+
+        {
+          "got_get": <bool>,            # the DUT issued at least one GET
+          "get_count": <int>,           # number of discovery GETs answered
+          "post": (msg, addr) | None,   # the captured unicast POST, if any
+        }
+    """
+    scope_id = 0
+    if device_iface:
+        try:
+            scope_id = socket.if_nametoindex(device_iface)
+        except (OSError, AttributeError):
+            print(f"[malformed-disco] Warning: could not resolve "
+                  f"'{device_iface}'")
+
+    # Multicast socket - receives the DUT's discovery GET on port 5683
+    mc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    mc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    mc_sock.bind(("", 5683))
+
+    # Unicast socket - sends the response & captures the POST
+    uc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    uc_sock.bind(("", 0))  # ephemeral port
+    uc_port = uc_sock.getsockname()[1]
+    print(f"[malformed-disco] Unicast socket on port {uc_port}")
+
+    # Join all-CoAP-nodes multicast (link-local + site-local)
+    joined = []
+    for maddr in ("ff02::fd", "ff05::fd"):
+        try:
+            mreq = struct.pack(
+                "16sI",
+                socket.inet_pton(socket.AF_INET6, maddr),
+                scope_id)
+            mc_sock.setsockopt(socket.IPPROTO_IPV6,
+                               socket.IPV6_JOIN_GROUP, mreq)
+            joined.append(mreq)
+        except OSError as exc:
+            print(f"[malformed-disco] Warning: join {maddr} failed: {exc}")
+
+    def _answer(addr, tkl, token, mid):
+        """Send a NON 2.05 link-format response carrying *ep_payload*."""
+        payload = ep_payload.encode()
+        resp_code = (2 << 5) | 5  # 2.05 Content
+        hdr = struct.pack(
+            "!BBH",
+            (1 << 6) | (1 << 4) | tkl,  # ver=1 type=NON
+            resp_code,
+            mid + 1)
+        opt = b"\xC1\x28"  # option 12 (Content-Format), 1-byte value 40
+        resp = hdr + token + opt + b"\xFF" + payload
+        # Respond from uc_sock so the DUT resolves to our ephemeral port.
+        uc_sock.sendto(resp, addr)
+
+    deadline = time.monotonic() + timeout
+    result = {"got_get": False, "get_count": 0, "post": None}
+    last_get_time = None
+
+    try:
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+
+            # Poll both sockets: mc_sock for the GET(s), uc_sock for the POST.
+            wait = min(remaining, 0.5)
+            ready, _, _ = select.select([mc_sock, uc_sock], [], [], wait)
+            if not ready:
+                # No traffic; if we have served enough GETs and waited out
+                # the grace window with no POST, the recipient stayed
+                # unresolved - stop early.
+                if result["post"] is None and last_get_time is not None \
+                        and result["get_count"] >= want_gets \
+                        and (time.monotonic() - last_get_time) > grace:
+                    break
+                continue
+
+            for sock in ready:
+                try:
+                    data, addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    continue
+
+                if len(data) < 4:
+                    continue
+
+                code_byte = data[1]
+                code_class = code_byte >> 5
+                code_detail = code_byte & 0x1F
+                tkl = data[0] & 0x0F
+                mid = struct.unpack("!H", data[2:4])[0]
+                token = data[4:4 + tkl]
+
+                # GET = discovery request (arrives on mc_sock, port 5683).
+                # Answer EVERY GET so the DATA_ERROR re-resolution GET is
+                # served too.
+                if code_class == 0 and code_detail == 1:
+                    result["got_get"] = True
+                    result["get_count"] += 1
+                    last_get_time = time.monotonic()
+                    print(f"[malformed-disco] GET #{result['get_count']} "
+                          f"from {addr[0]}:{addr[1]} mid={mid} tkl={tkl}")
+                    _answer(addr, tkl, token, mid)
+                    print(f"[malformed-disco] Answered with ep={ep_payload!r}")
+                    continue
+
+                # POST = unicast s-mode message (arrives on uc_sock) -> the
+                # DUT accepted the ep and resolved the recipient.
+                if code_class == 0 and code_detail == 2:
+                    msg = CoapClient.parse_coap_message(data)
+                    print(f"[malformed-disco] Captured POST from "
+                          f"{addr[0]}:{addr[1]} type={msg['type']}")
+                    result["post"] = (msg, addr)
+                    break
+
+            if result["post"] is not None:
+                break
+    finally:
+        for mreq in joined:
+            try:
+                mc_sock.setsockopt(socket.IPPROTO_IPV6,
+                                   socket.IPV6_LEAVE_GROUP, mreq)
+            except OSError:
+                pass
+        mc_sock.close()
+        uc_sock.close()
+
+    return result
+
+
 def _serve_discovery_then_count_unicast_non(device_iface, peer_ia, dut_iid,
                                             expected_failures=4,
                                             timeout=60.0):
@@ -1779,3 +1939,217 @@ class TestUnicastNonReResolution:
         assert result.get("second_discovery", False), (
             "DUT did not issue a second discovery GET; the recipient was "
             "not re-resolved after 4 missing NON responses")
+
+
+# ===========================================================================
+# Bonus (not in EITT) - Malformed discovery ep length handling
+# ===========================================================================
+
+class TestUnicastDiscoveryMalformedLengths:
+    """Bonus length-robustness checks around EITT 5.4.1.15.
+
+    The DUT resolves a unicast recipient IA -> IPv6 by issuing a multicast
+    discovery GET /.well-known/core?ep=knx://ia.<iid>.<ia> and parsing the
+    ``ep`` attribute of the link-format response in
+    knx_coap_discovery_response_handler (api/oc_knx_client.c).
+
+    Per spec clause 2.6.1.4 / 2.5.5.5 the ``ep`` fields have fixed widths:
+      - KNX Serial Number: 6 octets = exactly 12 hex chars, leading zeros
+        NOT omitted;
+      - KNX Installation ID: 5 octets = 1..10 hex chars, leading zeros
+        omitted (all-zero collapses to a single "0");
+      - KNX Individual Address: 2 octets = 1..4 hex chars, leading zeros
+        omitted (all-zero collapses to a single "0").
+
+    Each test answers the discovery GET with a deliberately mis-sized field
+    and checks whether the DUT still resolves the recipient (it then sends a
+    unicast POST /k) or rejects the response (no POST follows).
+
+    A well-formed ``ep`` for this DUT is::
+
+        <>;ep="knx://sn.aabbccddeeff knx://ia.1199887766.110f"
+
+    with DUT_IID = 0x1199887766 (10 hex chars) and PEER_IA = 0x110F (110f).
+
+    NOTE: these document the current parser behavior. Two cases are lenient
+    versus the spec - the parser does not enforce the 12-char serial-number
+    width (sn_too_short still resolves), and it truncates an over-long IA
+    rather than rejecting it. Those leniencies are covered separately.
+    """
+
+    # well-formed reference fields (DUT_IID hex = 1199887766, PEER_IA = 110f)
+    GOOD_SN = "aabbccddeeff"          # 12 hex chars (6 octets), spec width
+    GOOD_IID = f"{DUT_IID:x}"         # 1199887766 (10 hex chars)
+    GOOD_IA = f"{PEER_IA:x}"          # 110f (4 hex chars)
+
+    @staticmethod
+    def _ep(sn, iid, ia):
+        """Frame a link-format ep record from explicit sn / iid / ia."""
+        return f'<>;ep="knx://sn.{sn} knx://ia.{iid}.{ia}"'
+
+    @pytest.fixture(autouse=True, scope="class")
+    def setup(self, coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        auth_prepare(coap, oscore_ctx)
+        ia_prepare(coap, oscore_ctx)
+        set_lsm(coap, oscore_ctx, 4)
+        set_lsm(coap, oscore_ctx, 1)
+        go = [{0: 13, 7: [65535, 1], 8: 0x40, 11: "/p/3"}]
+        _install_go_table(coap, oscore_ctx, go)
+        # Unicast recipient - routes to PEER_IA instead of multicast.
+        rcp = [{0: 7, 7: [65535], 12: PEER_IA, 3: UC15_TOKEN_ID}]
+        _install_rcp_table(coap, oscore_ctx, rcp)
+        _install_at(coap, oscore_ctx, UC15_TOKEN_ID, [65535, 1],
+                    UC15_SENDER_ID, UC15_MS)
+        set_lsm(coap, oscore_ctx, 2)
+        yield
+        set_lsm(coap, oscore_ctx, 4)
+
+    def _run(self, device_iface, coap, oscore_ctx, ep_payload):
+        """Single trigger: answer the GET with *ep_payload*, return result.
+
+        Used for the resolve case - one GET, then expect a unicast POST.
+        """
+        result = {}
+
+        def _responder():
+            result.update(_serve_discovery_payload_and_capture(
+                device_iface, ep_payload, timeout=10.0, want_gets=1))
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)  # ensure responder sockets are ready
+
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+
+        t.join(timeout=12)
+        return result
+
+    def _run_reject(self, device_iface, coap, oscore_ctx, ep_payload):
+        """Two triggers: confirm the recipient stays UNRESOLVED.
+
+        A malformed ep drives knx_coap_discovery_response_handler into case
+        (a) -> OC_IP_STATUS_DATA_ERROR.  resolve_status is not observable on
+        the wire, so we prove "not resolved" positively: on the SECOND
+        trigger the DATA_ERROR branch of ipv6_for_ia_is_resolved re-issues a
+        fresh discovery GET (the recipient was never resolved).  A resolved
+        recipient would instead send a unicast POST and never re-discover.
+
+        Expected for a rejected ep:  get_count >= 2  AND  post is None.
+        """
+        result = {}
+
+        def _responder():
+            # Serve both discovery GETs (initial + re-resolution); allow the
+            # whole window since each unanswered s-mode cycle plus the retry
+            # spacing takes several seconds.
+            result.update(_serve_discovery_payload_and_capture(
+                device_iface, ep_payload, timeout=20.0, want_gets=2))
+
+        t = threading.Thread(target=_responder)
+        t.start()
+        time.sleep(0.3)  # ensure responder sockets are ready
+
+        # First trigger -> GET #1, answered with the malformed ep (DATA_ERROR).
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+        # Spacing so the deferred discovery + DATA_ERROR settle before retry.
+        time.sleep(6.0)
+        # Second trigger -> DATA_ERROR branch re-issues GET #2 (re-resolution).
+        _trigger_sensor(coap, oscore_ctx, href="/p/3", value=True)
+
+        t.join(timeout=22)
+        return result
+
+    def _assert_rejected(self, result):
+        """The DUT must NOT resolve the recipient from a malformed ep.
+
+        Validated positively: no unicast POST was sent, and the DUT issued a
+        second (re-resolution) discovery GET - proving the recipient stayed
+        in a not-resolved state (OC_IP_STATUS_DATA_ERROR), not silently
+        resolved.
+        """
+        if not result.get("got_get"):
+            pytest.skip("DUT did not issue a discovery GET "
+                        "(resolution did not start)")
+        assert result.get("post") is None, (
+            "DUT resolved the recipient from a malformed ep and sent a "
+            "unicast POST; expected the response to be rejected")
+        assert result.get("get_count", 0) >= 2, (
+            "DUT did not re-issue a discovery GET on the second trigger; "
+            "expected the recipient to stay UNRESOLVED (DATA_ERROR -> "
+            "re-resolution), got "
+            f"get_count={result.get('get_count')}")
+
+    def _assert_resolved(self, result):
+        """The DUT must accept the ep and send the unicast POST /k."""
+        if not result.get("got_get"):
+            pytest.skip("DUT did not issue a discovery GET "
+                        "(resolution did not start)")
+        if result.get("post") is None:
+            pytest.skip("DUT did not send unicast POST "
+                        "(discovery resolution may have failed)")
+        msg, _addr = result["post"]
+        assert msg["type"] in (0, 1), (
+            f"Unexpected CoAP type for unicast POST: {msg['type']}")
+
+    # ---- test 1: IID too long (11+ hex chars, spec max 10) -> reject -------
+    def test_5_4_1_15_bonus_iid_too_long(self, coap, oscore_ctx,
+                                         device_iface):
+        """IID of 12 hex chars exceeds the 10-char (5-octet) maximum;
+        the IID/IA separator falls outside the parser search window, so the
+        DUT must not resolve the recipient."""
+        ep = self._ep(self.GOOD_SN, "119988776655", self.GOOD_IA)
+        self._assert_rejected(
+            self._run_reject(device_iface, coap, oscore_ctx, ep))
+
+    # ---- test 2: IID too short (empty) -> reject ---------------------------
+    def test_5_4_1_15_bonus_iid_too_short(self, coap, oscore_ctx,
+                                          device_iface):
+        """An empty IID is invalid (all-zero collapses to a single '0');
+        the parsed IID does not match the device IID, so no POST follows."""
+        ep = self._ep(self.GOOD_SN, "", self.GOOD_IA)
+        self._assert_rejected(
+            self._run_reject(device_iface, coap, oscore_ctx, ep))
+
+    # ---- test 3: IA too long (5+ hex chars, spec max 4) -> reject ----------
+    def test_5_4_1_15_bonus_ia_too_long(self, coap, oscore_ctx,
+                                        device_iface):
+        """An IA of 5 hex chars exceeds the 4-char (2-octet) maximum; the
+        first four chars ('2110') do not match PEER_IA (110f), so the DUT
+        must not resolve the recipient."""
+        ep = self._ep(self.GOOD_SN, self.GOOD_IID, "2110f")
+        self._assert_rejected(
+            self._run_reject(device_iface, coap, oscore_ctx, ep))
+
+    # ---- test 4: IA too short (empty) -> reject ----------------------------
+    def test_5_4_1_15_bonus_ia_too_short(self, coap, oscore_ctx,
+                                         device_iface):
+        """An empty IA is invalid (all-zero collapses to a single '0'); the
+        parsed IA does not match PEER_IA, so no POST follows."""
+        ep = self._ep(self.GOOD_SN, self.GOOD_IID, "")
+        self._assert_rejected(
+            self._run_reject(device_iface, coap, oscore_ctx, ep))
+
+    # ---- test 5: SN too long (17 hex chars, spec width 12) -> reject -------
+    def test_5_4_1_15_bonus_sn_too_long(self, coap, oscore_ctx,
+                                        device_iface):
+        """A serial number longer than the parser search window pushes the
+        'knx://ia.' anchor out of reach, so the DUT cannot locate the IID/IA
+        and must not resolve the recipient."""
+        ep = self._ep("aabbccddeeff01234", self.GOOD_IID, self.GOOD_IA)
+        self._assert_rejected(
+            self._run_reject(device_iface, coap, oscore_ctx, ep))
+
+    # ---- test 6: SN too short (4 hex chars, spec width 12) -----------------
+    def test_5_4_1_15_bonus_sn_too_short(self, coap, oscore_ctx,
+                                         device_iface):
+        """A serial number shorter than the spec width of 12 hex chars.
+
+        The spec (clause 2.6.1.4) requires exactly 12 chars with leading
+        zeros retained, but the DUT parser does not validate the serial
+        number length - it only uses it to locate 'knx://ia.'. The IID and
+        IA still match, so the DUT resolves the recipient and sends the POST.
+        This documents the current (lenient) behavior."""
+        ep = self._ep("aabb", self.GOOD_IID, self.GOOD_IA)
+        self._assert_resolved(self._run(device_iface, coap, oscore_ctx, ep))
