@@ -151,13 +151,6 @@ config KNXIOT_PAGE_SIZE
 
 # ── Network ────────────────────────────────────────────────────────────────────
 
-config KNXIOT_DNS_SD
-    bool "DNS-SD / mDNS discovery support"
-    default y
-    help
-      Corresponds to CMake: OC_DNS_SD_ENABLED.
-      Enables DNS-SD based discovery in addition to CoAP multicast discovery.
-
 config KNX_UNICAST_PORT
     int "IPv6 unicast port for KNX S-mode messages"
     default 0

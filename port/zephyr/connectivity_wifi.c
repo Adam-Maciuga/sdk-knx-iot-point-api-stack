@@ -21,18 +21,24 @@
 
 #include <errno.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "oc_buffer.h"
+#include "oc_core_res.h"
 #include "oc_endpoint.h"
+#include "api/oc_knx_fp.h"
+#include "port/dns-sd.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_log.h"
+#include "util/oc_list.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/wifi_mgmt.h>
+
 
 /* CoAP unencrypted port (RFC 7252) */
 #define COAP_PORT_UNSECURED  5683
@@ -259,6 +265,169 @@ static int open_and_bind_socket(uint16_t port, const char *description)
     return fd;
 }
 
+/* Pin multicast sends to the WiFi STA interface and (re)join the all-CoAP-nodes
+ * multicast groups on mcast_sock so discovery requests reach the device
+ * regardless of GOT configuration. Mirrors the Linux ipadapter
+ * add_mcast_sock_to_ipv6_mcast_group().
+ *
+ * Safe to call repeatedly. It is invoked once from oc_connectivity_init (where
+ * the interface may have no address yet, e.g. when the stack starts before
+ * Wi-Fi is up, in which case it returns early without joining) and again on
+ * every NETWORK_INTERFACE_UP event once the interface is actually up. Each group
+ * is dropped before being re-added so a re-join after reconnect does not fail
+ * with EADDRINUSE. */
+static void setup_multicast_interface(void)
+{
+    if (server_sock < 0 || mcast_sock < 0) {
+        return;
+    }
+
+    /* Skip while the interface has no usable address. The all-CoAP-nodes joins
+     * fail and log errors without a link. Re-run from the NETWORK_INTERFACE_UP
+     * handler once connected. Same approach as knx_dns_sd_update_service(). */
+    if (oc_connectivity_get_endpoints() == NULL) {
+        OC_INF("Multicast interface setup skipped, no network connection yet.");
+        return;
+    }
+
+    /* net_if_get_default() may return the Ethernet interface on boards with
+     * both Ethernet and WiFi (e.g. FRDM-RW612), so we explicitly look up the
+     * first WiFi interface instead. Fall back to default for Ethernet-only
+     * builds where no WiFi interface exists. */
+    struct net_if *wifi_iface = net_if_get_first_wifi();
+    if (!wifi_iface) {
+        wifi_iface = net_if_get_default();
+    }
+    int ifidx = wifi_iface ? net_if_get_by_iface(wifi_iface) : -1;
+    if (ifidx <= 0) {
+        OC_WRN("No network interface available, skipping multicast interface binding!");
+        return;
+    }
+
+    if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+                         &ifidx, sizeof(ifidx)) < 0) {
+        OC_WRN("Failed to pin multicast sends to interface: %d", errno);
+    } else {
+        OC_DBG("Multicast sends pinned to interface ifidx=%d.", ifidx);
+    }
+
+    static const uint8_t *coap_mcast[] = {
+        ALL_COAP_NODES_LL, ALL_COAP_NODES_RL, ALL_COAP_NODES_SL
+    };
+    struct ipv6_mreq mreq_coap = { 0 };
+    mreq_coap.ipv6mr_ifindex = (unsigned int)ifidx;
+    int n_joined = 0;
+    for (int i = 0; i < 3; i++) {
+        memcpy(&mreq_coap.ipv6mr_multiaddr, coap_mcast[i], 16);
+        /* Drop first so a re-join after reconnect does not fail with EADDRINUSE. */
+        zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
+                         &mreq_coap, sizeof(mreq_coap));
+        if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+                             &mreq_coap, sizeof(mreq_coap)) < 0) {
+            OC_ERR("Failed to join all-CoAP-nodes group [%d]: %d", i, errno);
+        } else {
+            n_joined++;
+        }
+    }
+
+    OC_INF("Joined %d/3 all-CoAP-nodes multicast groups.", n_joined);
+}
+
+/* ── Network interface event monitor ─────────────────────────────────────── */
+
+#ifdef OC_NETWORK_MONITOR
+OC_LIST(oc_network_interface_cb_list);
+static struct net_mgmt_event_callback ipv6_addr_event_callback;
+
+static void ipv6_addr_event_handler(struct net_mgmt_event_callback *cb,
+                                    uint64_t mgmt_event, struct net_if *iface)
+{
+    ARG_UNUSED(cb);
+    ARG_UNUSED(iface);
+
+    if (mgmt_event == NET_EVENT_IPV6_ADDR_ADD) {
+        oc_network_interface_event(NETWORK_INTERFACE_UP);
+    } else if (mgmt_event == NET_EVENT_IPV6_ADDR_DEL) {
+        oc_network_interface_event(NETWORK_INTERFACE_DOWN);
+    }
+}
+
+static void network_interface_event_handler(oc_interface_event_t event)
+{
+    if (event == NETWORK_INTERFACE_UP) {
+        setup_multicast_interface();
+        oc_register_group_multicasts();
+        oc_device_info_t *device = oc_core_get_device_info();
+        if (device) {
+            knx_dns_sd_update_service(oc_string(device->serialnumber),
+                                     device->iid, device->ia, device->pm);
+        }
+        /* Trigger the KNX "read on init" datapoint reads now that the link is
+         * up. Idempotent: It cancels any pending scan and restarts, so the
+         * harmless pre-network call from oc_main_init is superseded here. */
+        oc_init_datapoints_at_initialization();
+    } else if (event == NETWORK_INTERFACE_DOWN) {
+        /* Send the DNS-SD goodbye while the interface is still up, before
+         * leaving the multicast groups. */
+        knx_dns_sd_stop();
+        oc_unregister_group_multicasts();
+    }
+}
+
+int oc_add_network_interface_event_callback(interface_event_handler_t cb)
+{
+    if (!cb) {
+        return -1;
+    }
+
+    oc_network_interface_cb_t *cb_item =
+        calloc(1, sizeof(oc_network_interface_cb_t));
+    if (!cb_item) {
+        OC_ERR("Failed to allocate network interface callback item!");
+        return -1;
+    }
+
+    cb_item->handler = cb;
+    oc_list_add(oc_network_interface_cb_list, cb_item);
+
+    return 0;
+}
+
+int oc_remove_network_interface_event_callback(interface_event_handler_t cb)
+{
+    if (!cb) {
+        return -1;
+    }
+
+    oc_network_interface_cb_t *cb_item =
+        oc_list_head(oc_network_interface_cb_list);
+    while (cb_item != NULL && cb_item->handler != cb) {
+        cb_item = cb_item->next;
+    }
+
+    if (!cb_item) {
+        return -1;
+    }
+
+    oc_list_remove(oc_network_interface_cb_list, cb_item);
+    free(cb_item);
+
+    return 0;
+}
+
+void handle_network_interface_event_callback(oc_interface_event_t event)
+{
+    if (oc_list_length(oc_network_interface_cb_list) > 0) {
+        oc_network_interface_cb_t *cb_item =
+            oc_list_head(oc_network_interface_cb_list);
+        while (cb_item) {
+            cb_item->handler(event);
+            cb_item = cb_item->next;
+        }
+    }
+}
+#endif
+
 /* ── Public interface ─────────────────────────────────────────────────────── */
 
 int oc_connectivity_set_port(uint16_t port) {
@@ -299,48 +468,11 @@ int oc_connectivity_init(void)
     }
     OC_DBG("Multicast socket ready, fd=%d, port=%u.", mcast_sock, COAP_PORT_UNSECURED);
 
-    /* Pin multicast sends to the WiFi STA interface.
-     * net_if_get_default() may return the Ethernet interface on boards with
-     * both Ethernet and WiFi (e.g. FRDM-RW612), so we explicitly look up the
-     * first WiFi interface instead.  Fall back to default for Ethernet-only
-     * builds where no WiFi interface exists. */
-    struct net_if *wifi_iface = net_if_get_first_wifi();
-    if (!wifi_iface) {
-        wifi_iface = net_if_get_default();
-    }
-    int ifidx = wifi_iface ? net_if_get_by_iface(wifi_iface) : -1;
-    if (ifidx > 0) {
-        if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
-                             &ifidx, sizeof(ifidx)) < 0) {
-            OC_WRN("Failed to pin multicast sends to interface: %d", errno);
-        } else {
-            OC_DBG("Multicast sends pinned to interface ifidx=%d.", ifidx);
-        }
-
-        /* Subscribe to all-CoAP-nodes multicast groups on mcast_sock so
-         * discovery requests reach the device regardless of GOT configuration.
-         * Mirrors Linux ipadapter add_mcast_sock_to_ipv6_mcast_group(). */
-        {
-            static const uint8_t *coap_mcast[] = {
-                ALL_COAP_NODES_LL, ALL_COAP_NODES_RL, ALL_COAP_NODES_SL
-            };
-            struct ipv6_mreq mreq_coap = { 0 };
-            mreq_coap.ipv6mr_ifindex = (unsigned int)ifidx;
-            int n_joined = 0;
-            for (int i = 0; i < 3; i++) {
-                memcpy(&mreq_coap.ipv6mr_multiaddr, coap_mcast[i], 16);
-                if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
-                                     &mreq_coap, sizeof(mreq_coap)) < 0) {
-                    OC_ERR("Failed to join all-CoAP-nodes group [%d]: %d", i, errno);
-                } else {
-                    n_joined++;
-                }
-            }
-            OC_INF("Joined %d/3 all-CoAP-nodes multicast groups.", n_joined);
-        }
-    } else {
-        OC_WRN("No network interface found, skipping multicast interface binding!");
-    }
+    /* Pin multicast sends to the WiFi STA interface and join the all-CoAP-nodes
+     * multicast groups. Best-effort here: when the stack starts before Wi-Fi is
+     * up the interface has no address yet and the join fails harmlessly. It is
+     * retried on the NETWORK_INTERFACE_UP event once the interface is up. */
+    setup_multicast_interface();
 
     rx_tid = k_thread_create(&rx_thread_data, rx_thread_stack,
                              K_THREAD_STACK_SIZEOF(rx_thread_stack),
@@ -348,6 +480,13 @@ int oc_connectivity_init(void)
                              RX_THREAD_PRIORITY, 0, K_NO_WAIT);
     k_thread_name_set(rx_tid, "coap_rx_wifi");
     OC_DBG("CoAP RX thread started.");
+
+#ifdef OC_NETWORK_MONITOR
+    net_mgmt_init_event_callback(&ipv6_addr_event_callback, ipv6_addr_event_handler,
+                                 NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_ADDR_DEL);
+    net_mgmt_add_event_callback(&ipv6_addr_event_callback);
+    oc_add_network_interface_event_callback(network_interface_event_handler);
+#endif
 
     OC_INF("WiFi connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
     return 0;

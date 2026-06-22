@@ -37,8 +37,7 @@ typedef uint64_t oc_clock_time_t;
 #define SELECT_TIMEOUT_SEC (1)
 
 // Add support for passing network up/down events to the application.
-// TODO verify, this has been commented out by NXP
-//#define OC_NETWORK_MONITOR
+#define OC_NETWORK_MONITOR
 // Add support for passing TCP/TLS/DTLS session connection events to the
 // application.
 #define OC_SESSION_EVENTS

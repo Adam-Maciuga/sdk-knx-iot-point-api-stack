@@ -71,21 +71,15 @@ void knx_dns_sd_set_sleep_period(int sp);
 uint16_t knx_dns_sd_get_used_port(void);
 
 /**
- * @brief Stop DNS-SD/mDNS service advertisements during application shutdown.
+ * @brief Stop the device's DNS-SD service advertisement during shutdown.
  *
- * On Zephyr (Wi-Fi / Thread): suppresses DNS-SD advertisements by zeroing the
- * instance and sub-type record buffers; the mDNS responder thread keeps running.
- *
- * On Linux / Windows: sends mDNS goodbye packets, stops the listener thread,
- * and closes the multicast socket — the mDNS service is fully torn down.
+ * On the mDNS transports (Wi-Fi on Zephyr, Linux, Windows) this sends the mDNS
+ * goodbye (TTL 0), stops the listener thread, and closes the multicast socket,
+ * fully tearing down the service. On Zephyr Thread (SRP) it is currently a stub.
  *
  * Call this from oc_main_shutdown before tearing down the network stack.
  */
-#ifdef __ZEPHYR__
 void knx_dns_sd_stop(void);
-#else
-void knx_mdns_stop(void);
-#endif
 
 #ifdef __cplusplus
 }

@@ -37,9 +37,11 @@
 #include "oc_buffer.h"
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
+#include "oc_knx_fp.h"
 #ifdef OC_NETWORK_MONITOR
 #include "oc_network_monitor.h"
 #endif
+#include "port/dns-sd.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_network_interface.h"
@@ -1318,7 +1320,26 @@ void handle_session_event_callback(const oc_endpoint_t *endpoint,
 #endif /* OC_SESSION_EVENTS */
 
 static uint16_t g_multicast_port = COAP_PORT_UNSECURED;
-static uint16_t g_unicast_port = 0; // on '0' -> let OS assign ephemeral port - value is set by oc_connectivity_set_port() 
+static uint16_t g_unicast_port = 0; // on '0' -> let OS assign ephemeral port - value is set by oc_connectivity_set_port()
+
+static void network_interface_event_handler(oc_interface_event_t event)
+{
+  if (event == NETWORK_INTERFACE_UP) {
+    oc_register_group_multicasts();
+    oc_device_info_t *device = oc_core_get_device_info();
+    if (device) {
+      knx_dns_sd_update_service(oc_string(device->serialnumber),
+                                device->iid,
+                                device->ia,
+                                device->pm);
+    }
+  } else if (event == NETWORK_INTERFACE_DOWN) {
+    /* Send the DNS-SD goodbye while the interface is still up, before
+     * leaving the multicast groups. */
+    knx_dns_sd_stop();
+    oc_unregister_group_multicasts();
+  }
+}
 
 int oc_connectivity_set_port(uint16_t port) {
   g_unicast_port = port;
@@ -1517,6 +1538,8 @@ int oc_connectivity_init(void) {
     OC_ERR("creating network polling thread");
     return -1;
   }
+
+  oc_add_network_interface_event_callback(network_interface_event_handler);
 
   OC_INF("Successfully initialized connectivity.");
 

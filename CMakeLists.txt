@@ -40,7 +40,6 @@ add_compile_definitions(OC_CLIENT OC_SERVER)
 ## Common
 set(CLANG_TIDY_ENABLED OFF CACHE BOOL "Enable clang-tidy analysis during compilation.")
 set(KNX_LOG_CAST_64_BIT_INTS_ENABLED OFF CACHE BOOL "Cast int64_t and uint64_t values to (int) if platform doesn't support 64 bit int format specifiers")
-set(OC_DNS_SD_ENABLED ON CACHE BOOL "Enable DNS SD discovery (in addition to CoAP discovery)")
 set(OC_PUBLISHER_TABLE_ENABLED ON CACHE BOOL "Enable publisher table, with this a device can (also) receive (OFF: for plain senders).")
 set(OC_PKI_ENABLED OFF CACHE BOOL "Enable PKI security")
 
@@ -202,10 +201,6 @@ endif()
 
 if(OC_DEBUG_OSCORE_ENABLED)
     target_compile_definitions(kis-common INTERFACE OC_DEBUG_OSCORE)
-endif()
-
-if(OC_DNS_SD_ENABLED)
-    target_compile_definitions(kis-common INTERFACE OC_DNS_SD)
 endif()
 
 if(OC_PUBLISHER_TABLE_ENABLED)

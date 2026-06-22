@@ -43,6 +43,7 @@
 
 #include "oc_core_res.h"
 #include "port/dns-sd.h"
+#include "port/oc_connectivity.h"
 #include "port/oc_log.h"
 
 #include <zephyr/net/dns_sd.h>
@@ -191,7 +192,16 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     OC_DBG("DNS-SD: Publish KNX service: serial_no=%s iid=%" PRIx64 " ia=%04x pm=%d.",
            serial_no ? serial_no : "(null)", iid, (unsigned int)ia, (int)pm);
 
-#ifdef OC_DNS_SD
+    /* Skip while the interface has no usable address: there is nothing to
+     * advertise yet, and on Zephyr the registration is a no-op without a link.
+     * The check lives here (not at the caller) so every call site is handled
+     * uniformly. The service is (re)registered from the network-UP handler once
+     * the link is up. */
+    if (oc_connectivity_get_endpoints() == NULL) {
+        OC_INF("DNS-SD: Skipping service update, no network connection yet.");
+        return 0;
+    }
+
     oc_device_info_t *device = oc_core_get_device_info();
 
     if (!device) {
@@ -249,9 +259,7 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
      * equivalent to what port/dns-sd.c provides for Linux/Windows (announce, goodbye,
      * restart, etc.). No public Zephyr mDNS API for proactive announcements exists yet. */
     //mdns_announce_dns_sd_services();
-#else
-    OC_WRN("DNS-SD: OC_DNS_SD not defined, DNS-SD service registration is disabled!");
-#endif /* OC_DNS_SD */
+
     return 0;
 }
 
@@ -262,7 +270,6 @@ uint16_t knx_dns_sd_get_used_port(void)
 
 void knx_dns_sd_set_sleep_period(int sp)
 {
-#ifdef OC_DNS_SD
     OC_DBG("DNS-SD: Updating TXT record sleep period: SP=%d.", sp);
     if (sp > 0) {
         char kv[16];
@@ -278,14 +285,10 @@ void knx_dns_sd_set_sleep_period(int sp)
     /* No re-registration needed: the dns_sd_rec.text pointer already points to
      * knx_txt, so the updated buffer is used on the next mDNS response. */
     OC_INF("DNS-SD: Sleep period set to %d.", sp);
-#else
-    (void)sp;
-#endif
 }
 
 void knx_dns_sd_stop(void)
 {
-#ifdef OC_DNS_SD
     OC_DBG("DNS-SD: Stopping service advertisements (zeroing instance and sub-type buffers).");
     /* Zero the instance name.  Zephyr's rec_is_valid() skips records with
      * an empty instance string, suppressing further DNS-SD advertisements
@@ -297,5 +300,4 @@ void knx_dns_sd_stop(void)
     memset(knx_subtype_ia, 0, sizeof(knx_subtype_ia));
     memset(knx_subtype_pm, 0, sizeof(knx_subtype_pm));
     OC_INF("DNS-SD: Service advertisements stopped.");
-#endif
 }

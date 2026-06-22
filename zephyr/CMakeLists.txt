@@ -237,13 +237,14 @@ list(APPEND PORT_SOURCES
 )
 
 # Network backend selection:
-#   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (OT SRP)
-#   Wi-Fi       — connectivity_wifi.c    +  dns-sd-wifi.c    (Zephyr BSD sockets + mDNS/DNS-SD)
+#   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (DNS-SD and OT_SRP)
+#   Wi-Fi       — connectivity_wifi.c    +  port/dns-sd.c    (DNS-SD and mDNS)
 # Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
 # Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
 #       provides oc_connectivity_init, oc_send_buffer, etc.
-# Note: connectivity_wifi.c + dns-sd-wifi.c are the Wi-Fi equivalents using
-#       Zephyr BSD sockets and the Zephyr DNS-SD / mDNS responder API.
+# Note: connectivity_wifi.c provides Wi-Fi connectivity (Zephyr BSD sockets).
+#       The shared port/dns-sd.c provides DNS-SD and mDNS, the same implementation
+#       used on Linux and Windows.
 if(CONFIG_NET_L2_OPENTHREAD)
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_thread.c
@@ -252,7 +253,7 @@ if(CONFIG_NET_L2_OPENTHREAD)
 elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
-        ${STACK_ROOT}/port/zephyr/dns-sd-wifi.c
+        ${STACK_ROOT}/port/dns-sd.c
     )
 else()
     message(FATAL_ERROR
@@ -313,7 +314,6 @@ zephyr_compile_definitions(
 
 ## Network
 zephyr_compile_definitions(
-    $<$<BOOL:${CONFIG_KNXIOT_DNS_SD}>:OC_DNS_SD>
     KNX_UNICAST_PORT=${CONFIG_KNX_UNICAST_PORT}
     KNX_MULTICAST_SCOPE=${CONFIG_KNX_MULTICAST_SCOPE}
     KNX_READ_ON_INIT_DELAY_MILLISECONDS=${CONFIG_KNX_READ_ON_INIT_DELAY_MS}
