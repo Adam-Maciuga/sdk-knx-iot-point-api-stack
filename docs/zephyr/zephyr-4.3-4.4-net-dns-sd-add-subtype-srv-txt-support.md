@@ -149,4 +149,4 @@ own buffer (e.g. `knx_subtype_pm` when leaving programming mode), because
   proactively sending unsolicited announcements or goodbye packets.  Updated
   sub-type buffers are only reflected in the next incoming query response.
   See the TODO FIXME comment in `port/zephyr/dns-sd-wifi.c` and the equivalent
-  Linux/Windows implementation in `port/dns-sd.c` for reference.
+  Linux/Windows implementation in `port/dns-sd_mdns.c` for reference.

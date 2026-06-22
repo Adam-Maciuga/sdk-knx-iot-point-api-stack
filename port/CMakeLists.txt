@@ -155,7 +155,7 @@ FetchContent_MakeAvailable(mdns)
 target_sources(kis-port PRIVATE
     ${PORT_DIR}/abort.c
     ${PORT_DIR}/clock.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/dns-sd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/dns-sd_mdns.c
     ${PORT_DIR}/ipadapter.c
     ${PORT_DIR}/oc_network_interface.c
     ${CMAKE_CURRENT_SOURCE_DIR}/random_psa.c
@@ -166,13 +166,13 @@ target_sources(kis-port PRIVATE
 target_include_directories(kis-port 
     PRIVATE "${PROJECT_SOURCE_DIR}"
     PRIVATE "${PROJECT_SOURCE_DIR}/include"
-    # Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd.c)
+    # Platform-specific include path (for ipadapter.h / ipcontext.h used by dns-sd_mdns.c)
     PUBLIC "${PORT_DIR}"
 )
 target_include_directories(kis-port PRIVATE "${tinycbor_SOURCE_DIR}/src" PRIVATE "${tinycbor_BINARY_DIR}")
 # mDNS header-only library (mdns/mdns.h)
 # Note:
-# PUBLIC because dns-sd.c is a PUBLIC source that gets compiled by targets linking to kis-port.
+# PUBLIC because dns-sd_mdns.c is a PUBLIC source that gets compiled by targets linking to kis-port.
 target_include_directories(kis-port PUBLIC "${mdns_SOURCE_DIR}")
 
 ## KNX-IoT Stack - Platform Port Options ##

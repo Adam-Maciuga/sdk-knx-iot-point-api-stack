@@ -135,9 +135,9 @@ if(CONFIG_KNXIOT_TINYCBOR_BUILTIN)
 endif()
 
 # Note:
-# mdns header-only library — always required by port/dns-sd.c.
+# mdns header-only library — always required by port/dns-sd_mdns.c.
 # On Zephyr, CONFIG_MDNS_RESPONDER handles the mDNS responder separately;
-# this fetch only provides the mdns.h header used by dns-sd.c.
+# this fetch only provides the mdns.h header used by dns-sd_mdns.c.
 FetchContent_Declare(
     mdns
     GIT_REPOSITORY https://github.com/mjansson/mdns.git
@@ -238,12 +238,12 @@ list(APPEND PORT_SOURCES
 
 # Network backend selection:
 #   OpenThread  — connectivity_thread.c  +  dns-sd-thread.c  (DNS-SD and OT_SRP)
-#   Wi-Fi       — connectivity_wifi.c    +  port/dns-sd.c    (DNS-SD and mDNS)
+#   Wi-Fi       — connectivity_wifi.c    +  port/dns-sd_mdns.c    (DNS-SD and mDNS)
 # Note: dns-sd-thread.c uses OpenThread SRP client instead of POSIX mDNS sockets.
 # Note: connectivity_thread.c is the OpenThread equivalent of ipadapter.c —
 #       provides oc_connectivity_init, oc_send_buffer, etc.
 # Note: connectivity_wifi.c provides Wi-Fi connectivity (Zephyr BSD sockets).
-#       The shared port/dns-sd.c provides DNS-SD and mDNS, the same implementation
+#       The shared port/dns-sd_mdns.c provides DNS-SD and mDNS, the same implementation
 #       used on Linux and Windows.
 if(CONFIG_NET_L2_OPENTHREAD)
     list(APPEND PORT_SOURCES
@@ -253,7 +253,7 @@ if(CONFIG_NET_L2_OPENTHREAD)
 elseif(CONFIG_WIFI OR CONFIG_NET_L2_ETHERNET)
     list(APPEND PORT_SOURCES
         ${STACK_ROOT}/port/zephyr/connectivity_wifi.c
-        ${STACK_ROOT}/port/dns-sd.c
+        ${STACK_ROOT}/port/dns-sd_mdns.c
     )
 else()
     message(FATAL_ERROR
