@@ -1324,8 +1324,8 @@ bool oc_ri_invoke_coap_entity_handler(void* request, void* response, uint8_t* bu
           
           (a) returns -2 if 'lt' is missing or 'lt' value is not in range (observer is removed internally)
           (b) returns -1 on invalid request/response codes, no memory, or other error (observer is not added)
-          (c) returns 0 on adding NEW / FRESH observe 
-          (d) returns 1 on add REFRESHED observe (from an existing (and before deleted) observe)
+          (c) returns 0 on adding a NEW observe, on removing existing an observe (0: but not found)
+          (d) returns 1 on add a REFRESHED observe (from an existing, before deleted observe)
         
         */
 
