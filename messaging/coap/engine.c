@@ -1627,17 +1627,14 @@ int coap_receive(oc_message_t* incoming_message)
         */
         if (oc_ri_is_client_cb_valid(client_cb))
         {
-          if (client_cb->separate == 0)
+          // release the response buffer only for a non-separate response (separate keeps it alive, see above)
+          if (response_buffer && client_cb->separate == 0)
           {
-            if (response_buffer)
-            {
-              response_buffer->ref_count = 0;
-            }
+            response_buffer->ref_count = 0;
           }
-          else
-          {
-            client_cb->separate = 0;
-          }
+
+          // clear the one-shot separate flag (no-op when it was already 0)
+          client_cb->separate = 0;
         }
 
         goto send_message;
