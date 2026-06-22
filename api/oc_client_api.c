@@ -197,23 +197,6 @@ void oc_free_server_endpoints(oc_endpoint_t *endpoint)
   }
 }
 
-bool oc_get_response_payload_raw(oc_client_response_t *response,
-        const uint8_t **payload, size_t *size, 
-        oc_content_format_t *content_format) {
-  if (!response || !payload || !size || !content_format) {
-    return false;
-  }
-
-  if (response->_payload && response->_payload_len > 0) {
-    *content_format = response->content_format;
-    *payload = response->_payload;
-    *size = response->_payload_len;
-    return true;
-  }
-
-  return false;
-}
-
 #ifdef OC_TCP
 oc_event_callback_retval_t oc_remove_ping_handler(void *data) {
   oc_client_cb_t *cb = (oc_client_cb_t *)data;

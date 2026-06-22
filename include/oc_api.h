@@ -919,18 +919,6 @@ extern "C"
   void oc_prepare_no_format_response_no_payload(const oc_request_t* request, oc_status_t response_code);
 
   /**
-   * @brief retrieve the response payload, without processing
-   *
-   * @param response the response
-   * @param payload the payload of the response
-   * @param size the size of the payload
-   * @param content_format the content format of the payload
-   * @return true - retrieved payload
-   * @return false
-   */
-  bool oc_get_response_payload_raw(oc_client_response_t* response, const uint8_t** payload, size_t* size,
-                                   oc_content_format_t* content_format);
-  /**
    * @brief Ignore a request
    *
    * The GET, PUT, POST or DELETE requests can be ignored. For example an oc_request_callback_t may only want

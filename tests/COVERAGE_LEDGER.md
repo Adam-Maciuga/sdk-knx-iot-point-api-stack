@@ -333,7 +333,6 @@ INTEGRATION.
 | oc_lf_get_line (static) | DONE (transitive) |
 | oc_lf_get_entry_uri | DONE |
 | oc_lf_get_entry_param | DONE |
-| oc_get_response_payload_raw | DONE |
 | oc_free_server_endpoints | DONE |
 | oc_close_session | DONE (plain no-op path; SECURED/TCP branches INTEGRATION) |
 | oc_do_s_mode_message_update | INTEGRATION — builds + sends an s-mode CoAP message |

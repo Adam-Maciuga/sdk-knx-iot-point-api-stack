@@ -6,7 +6,6 @@
  *   oc_lf_get_entry_uri      — extract the <uri> of the Nth record
  *   oc_lf_get_entry_param    — extract a ;param=value of the Nth record
  *                              (also drives the static oc_lf_get_line)
- *   oc_get_response_payload_raw — NULL-guarded raw-payload accessor
  *   oc_free_server_endpoints — free a linked list of endpoints
  *   oc_close_session         — plain (non-secured/non-TCP) endpoint is a no-op
  *
@@ -121,50 +120,6 @@ TEST_F(ClientApiLF, GetEntryParamMissingReturnsZero)
   int p_len = 0;
   /* "xx" is not a parameter of the record */
   EXPECT_EQ(oc_lf_get_entry_param(LF2, (int)strlen(LF2), 0, "xx", &p, &p_len), 0);
-}
-
-/* ─────────────────────────── oc_get_response_payload_raw ──────────────────── */
-
-TEST(ClientApiResponse, ResponsePayloadRawNullArgsReturnFalse)
-{
-  oc_client_response_t resp;
-  memset(&resp, 0, sizeof(resp));
-  const uint8_t *payload = nullptr;
-  size_t size = 0;
-  oc_content_format_t cf = CONTENT_NONE;
-
-  EXPECT_FALSE(oc_get_response_payload_raw(nullptr, &payload, &size, &cf));
-  EXPECT_FALSE(oc_get_response_payload_raw(&resp, nullptr, &size, &cf));
-  EXPECT_FALSE(oc_get_response_payload_raw(&resp, &payload, nullptr, &cf));
-  EXPECT_FALSE(oc_get_response_payload_raw(&resp, &payload, &size, nullptr));
-}
-
-TEST(ClientApiResponse, ResponsePayloadRawEmptyPayloadReturnsFalse)
-{
-  oc_client_response_t resp;
-  memset(&resp, 0, sizeof(resp)); /* _payload == NULL, _payload_len == 0 */
-  const uint8_t *payload = nullptr;
-  size_t size = 0;
-  oc_content_format_t cf = CONTENT_NONE;
-  EXPECT_FALSE(oc_get_response_payload_raw(&resp, &payload, &size, &cf));
-}
-
-TEST(ClientApiResponse, ResponsePayloadRawReturnsStoredPayload)
-{
-  const uint8_t data[] = { 0xDE, 0xAD, 0xBE, 0xEF };
-  oc_client_response_t resp;
-  memset(&resp, 0, sizeof(resp));
-  resp._payload = data;
-  resp._payload_len = sizeof(data);
-  resp.content_format = APPLICATION_CBOR;
-
-  const uint8_t *payload = nullptr;
-  size_t size = 0;
-  oc_content_format_t cf = CONTENT_NONE;
-  EXPECT_TRUE(oc_get_response_payload_raw(&resp, &payload, &size, &cf));
-  EXPECT_EQ(payload, data);
-  EXPECT_EQ(size, sizeof(data));
-  EXPECT_EQ(cf, APPLICATION_CBOR);
 }
 
 /* ─────────────────────────── oc_free_server_endpoints ─────────────────────── */
