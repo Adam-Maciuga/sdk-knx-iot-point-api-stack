@@ -65,7 +65,7 @@ typedef void (*oc_response_handler_t)(oc_client_response_t*);
  */
 typedef struct oc_client_handler_t 
 {
-  oc_response_handler_t response;             /**< response handler */
+  oc_response_handler_t response;      /**< response handler */
 } oc_client_handler_t;
 
 /**
@@ -85,7 +85,7 @@ typedef struct oc_client_cb_t
   int32_t observe_seq;                 /**< observe sequence number */
   oc_clock_time_t timestamp;           /**< time stamp is INITIALLY set to the time when the callback was created  */
   oc_qos_t qos;                        /**< quality of service */
-  coap_method_t method;                  /**< method used */
+  coap_method_t method;                /**< method used */
   uint16_t mid;                        /**< CoAP message identifier */
   uint8_t token[COAP_TOKEN_LEN];       /**< CoAP token */
   uint8_t token_len;                   /**< CoAP token length */

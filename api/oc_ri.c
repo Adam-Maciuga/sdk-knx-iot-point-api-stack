@@ -961,28 +961,28 @@ static bool add_periodic_observe_callback(const oc_resource_t* resource)
 }
 #endif
 
+// frees all event timers (observers, timed)
 static void free_all_event_timers(void)
 {
   #ifdef OC_SERVER
-  oc_event_callback_t* obs_cb =
-    (oc_event_callback_t*)oc_list_pop(observe_callbacks);
-  while (obs_cb != NULL)
+
+  oc_event_callback_t* obs_cb =(oc_event_callback_t*)oc_list_pop(observe_callbacks);
+  while (obs_cb)
   {
     oc_etimer_stop(&obs_cb->timer);
     oc_list_remove(observe_callbacks, obs_cb);
     free(obs_cb);
-    obs_cb = oc_list_pop(observe_callbacks);
+    obs_cb = (oc_event_callback_t*)oc_list_pop(observe_callbacks);
   }
   #endif
 
-  oc_event_callback_t* event_cb =
-    (oc_event_callback_t*)oc_list_pop(timed_callbacks);
-  while (event_cb != NULL)
+  oc_event_callback_t* event_cb =(oc_event_callback_t*)oc_list_pop(timed_callbacks);
+  while (event_cb)
   {
     oc_etimer_stop(&event_cb->timer);
     oc_list_remove(timed_callbacks, event_cb);
     free(event_cb);
-    event_cb = oc_list_pop(timed_callbacks);
+    event_cb = (oc_event_callback_t*)oc_list_pop(timed_callbacks);
   }
 }
 
@@ -1569,7 +1569,7 @@ void oc_ri_free_client_cbs_by_mid(uint16_t mid)
 void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t* endpoint)
 {
   oc_client_cb_t* cb = (oc_client_cb_t*)oc_list_head(client_cbs);
-  while (cb != NULL)
+  while (cb)
   {
     oc_client_cb_t* next = cb->next;
     if (cb->ref_count == 0 && oc_endpoint_compare(&cb->endpoint, endpoint) == 0)
@@ -1639,10 +1639,12 @@ bool oc_ri_invoke_client_cb(void* response, oc_blockwise_state_t** response_stat
 bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* endpoint)
 {
 #endif
-  // to be checked, default is CBOR
+  
+  // set as default = CBOR and read the actual content format from the response, if present
   oc_content_format_t cf = APPLICATION_CBOR;
   coap_get_header_content_format(response, &cf);
 
+  // set cb 'in use'
   cb->ref_count = 1;
 
   const uint8_t* payload = NULL;
@@ -1682,10 +1684,18 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   
   #endif
 
-  // > register, = inbound notification/response to a non-observe request, so check if the notification number is newer than the one in the client callback
+  /* 
+     > de-register, = inbound notification (response) to a non-observe request, 
+     so check if the notification number is newer than the one in the client callback
+  */
   if (client_response.observe_option > OC_OBSERVE_DEREGISTER)
   {
-    // use PIV/SSN as observe notification number, as the server may not support observe sequence numbers
+    /* 
+      Client Side: 
+
+      use PIV/SSN as observe notification number, 
+      as the server may not support observe sequence numbers (RFC 8613, 4.1.3.5)
+    */
     uint64_t notification_num;
     oscore_store_piv_to_ssn(endpoint->piv, endpoint->piv_len, &notification_num);
 

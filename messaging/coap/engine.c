@@ -1612,7 +1612,7 @@ int coap_receive(oc_message_t* incoming_message)
 
       if (client_cb)
       {
-        OC_DBG("calling oc_ri_invoke_client_cb");
+        OC_DBG("calling present client cb");
         #ifdef OC_BLOCK_WISE
         if (request_buffer)
         {
