@@ -240,6 +240,14 @@ int oc_main_init(const oc_handler_t* handler)
 
   initialized = true;
 
+  /* NOTE: The post-init steps below (group-multicast registration, the
+   * read-on-init datapoint reads and the DNS-SD registration) assume the
+   * network is already up. On the Zephyr Wi-Fi reorder the stack initializes
+   * before Wi-Fi is associated, so they run with no link and are (re)done by
+   * the NETWORK_INTERFACE_UP handler instead. Whether to gate or skip these
+   * here when not connected is still open.
+   * TODO: Discuss gating these on a connected check. */
+
   #ifdef OC_SERVER
   // listen to the group addresses multicasts that are registered in the PUB table
   oc_register_group_multicasts();
@@ -288,14 +296,11 @@ void oc_main_shutdown(void)
 
   initialized = false;
 
-  /* Stop DNS-SD/mDNS service before tearing down networking.
-   * On Zephyr: suppresses DNS-SD advertisements (mDNS responder keeps running).
-   * On Linux/Windows: sends goodbye, stops listener thread, closes socket. */
-  #ifdef __ZEPHYR__
+  /* Stop the DNS-SD service advertisement before tearing down networking.
+   * On the mDNS transports (Wi-Fi, Linux, Windows) this sends the goodbye, stops
+   * the listener thread, and closes the socket. On Zephyr Thread the SRP teardown
+   * is done instead (currently a stub). */
   knx_dns_sd_stop();
-  #else
-  knx_mdns_stop();
-  #endif
 
   /* Send MLD leave messages for all registered multicast groups */
   oc_unregister_group_multicasts();

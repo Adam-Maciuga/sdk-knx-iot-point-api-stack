@@ -1,18 +1,9 @@
 /*
-// Copyright (c) 2022 Cascoda Ltd.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2022 Cascoda Ltd.
+ * Copyright (c) 2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef DNS_SD_H
 #define DNS_SD_H
@@ -71,21 +62,15 @@ void knx_dns_sd_set_sleep_period(int sp);
 uint16_t knx_dns_sd_get_used_port(void);
 
 /**
- * @brief Stop DNS-SD/mDNS service advertisements during application shutdown.
+ * @brief Stop the device's DNS-SD service advertisement during shutdown.
  *
- * On Zephyr (Wi-Fi / Thread): suppresses DNS-SD advertisements by zeroing the
- * instance and sub-type record buffers; the mDNS responder thread keeps running.
- *
- * On Linux / Windows: sends mDNS goodbye packets, stops the listener thread,
- * and closes the multicast socket — the mDNS service is fully torn down.
+ * On the mDNS transports (Wi-Fi on Zephyr, Linux, Windows) this sends the mDNS
+ * goodbye (TTL 0), stops the listener thread, and closes the multicast socket,
+ * fully tearing down the service. On Zephyr Thread (SRP) it is currently a stub.
  *
  * Call this from oc_main_shutdown before tearing down the network stack.
  */
-#ifdef __ZEPHYR__
 void knx_dns_sd_stop(void);
-#else
-void knx_mdns_stop(void);
-#endif
 
 #ifdef __cplusplus
 }

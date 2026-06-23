@@ -1,22 +1,12 @@
 /*
-// Copyright (c) 2022 Cascoda Ltd.
-// Copyright (c) 2024-2026 KNX Association
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-*/
+ * Copyright (c) 2022 Cascoda Ltd.
+ * Copyright (c) 2024-2026 KNX Association
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /**
- * @file dns-sd.c
+ * @file dns-sd_mdns.c
  *
  * Unified, lightweight, in-process mDNS/DNS-SD service announcement and query
  * response using the public-domain header-only mdns.h library (deps/mdns).
@@ -34,7 +24,9 @@
 /* ipadapter.h is resolved via PORT_DIR include path set by CMake.
  * It provides get_ip_context_for_device() -> ip_context_t* with .port member
  * and (via ipcontext.h) the ip_context_t struct with the OC_LIST eps list. */
-#include "ipadapter.h"
+#ifndef __ZEPHYR__
+#include "ipadapter.h" /* get_ip_context_for_device(): Linux/Windows only */
+#endif
 
 #include "dns-sd.h"
 #include "oc_log.h"
@@ -45,6 +37,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _MSC_VER
+#include <strings.h> /* strncasecmp, used by mdns.h (absent on MSVC) */
+#endif
 #include <ctype.h>
 
 #ifdef _WIN32
@@ -59,12 +54,78 @@
   #include <netinet/in.h>
   #include <unistd.h>
   #include <fcntl.h>
-  #include <pthread.h>
   #include <errno.h>
+  #ifdef __ZEPHYR__
+    /* Native kernel threads instead of pthreads, so the POSIX threads layer is
+     * not pulled in. The BSD socket names come from CONFIG_POSIX_NETWORKING. */
+    #include <zephyr/kernel.h>
+  #else
+    #include <pthread.h>
+  #endif
 #endif
 
-/* Pull in the header-only mdns implementation */
+/* Zephyr: bare close()/fcntl() are declared in <unistd.h>/<fcntl.h> only under
+ * CONFIG_POSIX_API, which we avoid to keep the POSIX threads layer out. Map them
+ * to Zephyr's native socket calls. Every close()/fcntl() in this file operates on
+ * a socket.
+ *
+ * NOTE: these MUST come before #include "mdns.h" below, because mdns.h's own
+ * mdns_socket_close() uses bare close() and is compiled at its include point. */
+#ifdef __ZEPHYR__
+#define close zsock_close
+#define fcntl zsock_fcntl
+/* Zephyr's struct net_ipv6_mreq names the interface member ipv6mr_ifindex, not
+ * the POSIX ipv6mr_interface. Remap so the shared multicast-join code compiles. */
+#define ipv6mr_interface ipv6mr_ifindex
+#endif
+
+/* Pull in the header-only mDNS implementation */
 #include "mdns.h"
+
+#ifdef __ZEPHYR__
+/* ------------------------------------------------------------------ */
+/* Zephyr shim for the Linux/Windows ip_context_t endpoint accessor   */
+/* ------------------------------------------------------------------ */
+/* The shared code below reaches the stack's endpoint list and CoAP port via
+ * get_ip_context_for_device() (declared in ipadapter.h on Linux/Windows).
+ * Zephyr has no ipadapter.h, so provide a minimal compatible shim backed by
+ * oc_connectivity_get_endpoints(). oc_list_head() dereferences the oc_list_t
+ * (void**), so eps points at a static head cell holding the endpoint list,
+ * letting every call site compile unchanged. */
+#include "oc_endpoint.h"
+#include "port/oc_connectivity.h"
+
+typedef struct {
+  oc_list_t eps;
+  uint16_t port;
+} ip_context_t;
+
+static oc_endpoint_t *knx_eps_head;
+
+static ip_context_t *get_ip_context_for_device(void)
+{
+  static ip_context_t ctx;
+  knx_eps_head = oc_connectivity_get_endpoints();
+  ctx.eps = (oc_list_t)&knx_eps_head;
+
+  /* Advertise the real bound CoAP port, taken from the unicast IPv6 endpoint.
+   * CONFIG_KNX_UNICAST_PORT is deliberately not used here as it may be
+   * 0/ephemeral. All addresses share the same bound port, so the first match
+   * is sufficient. */
+  ctx.port = 0;
+  for (oc_endpoint_t *ep = knx_eps_head; ep; ep = ep->next) {
+    if ((ep->flags & IPV6) && !(ep->flags & (MULTICAST | SECURED | TCP))) {
+      ctx.port = ep->addr.ipv6.port;
+      break;
+    }
+  }
+
+  if (ctx.port == 0) {
+    OC_ERR("DNS-SD: No bound unicast IPv6 endpoint found, advertised SRV port is invalid!");
+  }
+  return &ctx;
+}
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Private helpers & state                                            */
@@ -82,19 +143,26 @@ static int mdns_listen_sock6 = -1;
 
 /* Listener thread handle and termination flag */
 static volatile bool listener_running = false;
-#ifdef _WIN32
+static bool listener_thread_created = false;
+#if defined(_WIN32)
   static HANDLE listener_thread_handle = NULL;
+#elif defined(__ZEPHYR__)
+  /* Native kernel thread instead of a pthread_t. Stack size mirrors the CoAP
+   * RX thread (RX_THREAD_STACK_SIZE) in connectivity_wifi.c. */
+  #define KNX_MDNS_LISTENER_STACK_SIZE 2048
+  #define KNX_MDNS_LISTENER_PRIORITY 7 /* mirrors RX_THREAD_PRIORITY in connectivity_wifi.c */
+  K_THREAD_STACK_DEFINE(knx_mdns_listener_stack, KNX_MDNS_LISTENER_STACK_SIZE);
+  static struct k_thread knx_mdns_listener_thread_data;
 #else
   static pthread_t listener_thread;
-  static bool      listener_thread_created = false;
 #endif
 
 /* sleep-period TXT value, e.g. "30" (seconds). Empty string = no SP record. */
 static char sp_value[16] = "";
 
 /* ---- constants for building mDNS records ---- */
-#define KNX_SERVICE_TYPE      "_knx._udp.local."
-#define MDNS_BUF_SIZE         2048
+#define KNX_SERVICE_TYPE "_knx._udp.local."
+#define MDNS_BUF_SIZE 2048
 
 /* Scratch buffer for building mDNS packets (no heap allocation).
  * Must be 32-bit aligned as required by mdns.h. */
@@ -120,8 +188,7 @@ static char sp_value[16] = "";
  * mdns_multicast_send() detects AF_INET6 via getsockname() and sends to
  * [FF02::FB]:5353 regardless of our source port.
  */
-static int
-open_mdns_send_socket_ipv6(void)
+static int open_mdns_send_socket_ipv6(void)
 {
   int sock = (int)socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
   if (sock < 0)
@@ -129,28 +196,25 @@ open_mdns_send_socket_ipv6(void)
 
   /* Allow address reuse (best effort) */
   unsigned int reuseaddr = 1;
-  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-             (const char *)&reuseaddr, sizeof(reuseaddr));
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuseaddr, sizeof(reuseaddr));
 
   /* Multicast hop limit = 1 (link-local) */
   int hops = 1;
-  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
-             (const char *)&hops, sizeof(hops));
+  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, (const char *)&hops, sizeof(hops));
 
   /* Enable loopback so local listeners also see our packets */
   unsigned int loopback = 1;
-  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
-             (const char *)&loopback, sizeof(loopback));
+  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, (const char *)&loopback, sizeof(loopback));
 
   /* Bind to [::]:0  — ephemeral port, avoids conflict with existing mDNS */
   struct sockaddr_in6 saddr6;
   memset(&saddr6, 0, sizeof(saddr6));
   saddr6.sin6_family = AF_INET6;
-  saddr6.sin6_addr   = in6addr_any;
-  saddr6.sin6_port   = htons(0);
+  saddr6.sin6_addr = in6addr_any;
+  saddr6.sin6_port = htons(0);
 
   if (bind(sock, (struct sockaddr *)&saddr6, sizeof(saddr6))) {
-    OC_ERR("dns-sd: bind() failed for IPv6 send socket");
+    OC_ERR("DNS-SD: bind() failed for IPv6 mDNS send socket!");
 #ifdef _WIN32
     closesocket(sock);
 #else
@@ -164,10 +228,8 @@ open_mdns_send_socket_ipv6(void)
   unsigned long param = 1;
   ioctlsocket(sock, FIONBIO, &param);
 #else
-  {
-    const int flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-  }
+  const int flags = fcntl(sock, F_GETFL, 0);
+  fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 #endif
 
   return sock;
@@ -178,16 +240,16 @@ open_mdns_send_socket_ipv6(void)
  * Per spec 2.6.1.2.1: "mDNS SHALL use UDP port 5353 with multicast IP
  * address FF02::FB for IPv6."
  */
-static int
-ensure_socket(void)
+static int ensure_socket(void)
 {
   if (mdns_sock6 < 0) {
     mdns_sock6 = open_mdns_send_socket_ipv6();
     if (mdns_sock6 < 0) {
-      OC_ERR("dns-sd: failed to open mDNS IPv6 socket");
+      OC_ERR("DNS-SD: Failed to open mDNS IPv6 socket!");
       return -1;
     }
   }
+
   return 0;
 }
 
@@ -196,22 +258,22 @@ ensure_socket(void)
 /* ------------------------------------------------------------------ */
 
 /**
- * @brief Send an mDNS multicast announcement (or goodbye with TTL=0).
+ * @brief Send an DNS-SD mDNS multicast announcement (or goodbye with TTL=0).
  *
  * Records sent:
- *   answer:     PTR  _knx._udp.local.  ->  <sn>._knx._udp.local.
- *   additional: SRV  <sn>._knx._udp.local.  ->  knx-<sn>.local. : port
- *               AAAA knx-<sn>.local.        ->  <ipv6 address>  (per spec 2.6.1.2.2 SHALL)
- *               PTR  _<sn_lower>._sub._knx._udp.local.        ->  instance
- *               PTR  _ia<iid>-<ia>._sub._knx._udp.local.      ->  instance
- *               PTR  _pm._sub._knx._udp.local.                ->  instance  (if pm)
- *               TXT  <sn>._knx._udp.local.  SP=<seconds>                   (if sp set)
+ *   answer:     PTR  _knx._udp.local. -> <sn>._knx._udp.local.
+ *   additional: SRV  <sn>._knx._udp.local. -> knx-<sn>.local. : port
+ *               AAAA knx-<sn>.local. -> <ipv6 address> (per spec 2.6.1.2.2 SHALL)
+ *               PTR  _<sn_lower>._sub._knx._udp.local. -> instance
+ *               PTR  _ia<iid>-<ia>._sub._knx._udp.local. -> instance
+ *               PTR  _pm._sub._knx._udp.local. -> instance (if pm)
+ *               TXT  <sn>._knx._udp.local.  SP=<seconds> (if sp set)
  */
-static int
-send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool goodbye)
+static int send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool goodbye)
 {
-  if (ensure_socket() != 0)
+  if (ensure_socket() != 0) {
     return -1;
+  }
 
   /* --- Build name strings ---------------------------------------- */
 
@@ -220,8 +282,9 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
   char sn_lower[20];
   strncpy(sn_lower, serial_no, sizeof(sn_lower) - 1);
   sn_lower[sizeof(sn_lower) - 1] = '\0';
-  for (int i = 0; sn_lower[i]; ++i)
+  for (int i = 0; sn_lower[i]; ++i) {
     sn_lower[i] = (char)tolower((unsigned char)sn_lower[i]);
+  }
 
   /* Instance: "<sn_lower>._knx._udp.local." */
   char instance_name[128];
@@ -235,8 +298,7 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
 
   /* Subtype strings */
   char sub_sn[96];
-  (void)snprintf(sub_sn, sizeof(sub_sn),
-                 "_%s._sub._knx._udp.local.", sn_lower);
+  (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", sn_lower);
 
   char sub_ia[96];
   (void)snprintf(sub_ia, sizeof(sub_ia),
@@ -253,10 +315,10 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
   /* Answer: PTR _knx._udp.local. -> instance */
   mdns_record_t answer;
   memset(&answer, 0, sizeof(answer));
-  answer.name.str    = KNX_SERVICE_TYPE;
+  answer.name.str = KNX_SERVICE_TYPE;
   answer.name.length = strlen(KNX_SERVICE_TYPE);
-  answer.type        = MDNS_RECORDTYPE_PTR;
-  answer.data.ptr.name.str    = instance_name;
+  answer.type = MDNS_RECORDTYPE_PTR;
+  answer.data.ptr.name.str = instance_name;
   answer.data.ptr.name.length = instance_len;
 
   /* Additional records (max 10: SRV + up to 4 AAAA + 3 subtype PTRs + TXT) */
@@ -266,13 +328,13 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
   memset(additional, 0, sizeof(additional));
 
   /* SRV */
-  additional[add_count].name.str        = instance_name;
-  additional[add_count].name.length     = instance_len;
-  additional[add_count].type            = MDNS_RECORDTYPE_SRV;
+  additional[add_count].name.str = instance_name;
+  additional[add_count].name.length = instance_len;
+  additional[add_count].type = MDNS_RECORDTYPE_SRV;
   additional[add_count].data.srv.priority = 0;
-  additional[add_count].data.srv.weight   = 0;
-  additional[add_count].data.srv.port     = port;
-  additional[add_count].data.srv.name.str    = hostname;
+  additional[add_count].data.srv.weight = 0;
+  additional[add_count].data.srv.port = port;
+  additional[add_count].data.srv.name.str = hostname;
   additional[add_count].data.srv.name.length = hostname_len;
   add_count++;
 
@@ -288,59 +350,60 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
         /* Pick non-multicast, non-secure, non-TCP IPv6 endpoints (unicast server) */
         if ((ep->flags & IPV6) && !(ep->flags & MULTICAST) &&
             !(ep->flags & SECURED) && !(ep->flags & TCP)) {
-          additional[add_count].name.str    = hostname;
+          additional[add_count].name.str = hostname;
           additional[add_count].name.length = hostname_len;
-          additional[add_count].type        = MDNS_RECORDTYPE_AAAA;
+          additional[add_count].type = MDNS_RECORDTYPE_AAAA;
           memset(&additional[add_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
           additional[add_count].data.aaaa.addr.sin6_family = AF_INET6;
-          memcpy(&additional[add_count].data.aaaa.addr.sin6_addr,
-                 ep->addr.ipv6.address, 16);
+          memcpy(&additional[add_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
           additional[add_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
           add_count++;
           aaaa_count++;
         }
+
         ep = ep->next;
       }
+
       if (aaaa_count == 0) {
-        OC_DBG("dns-sd: no IPv6 endpoints found for AAAA records");
+        OC_DBG("DNS-SD: No IPv6 endpoints found for AAAA records!");
       }
     }
   }
 
   /* Subtype PTR: serial number */
-  additional[add_count].name.str            = sub_sn;
-  additional[add_count].name.length         = strlen(sub_sn);
-  additional[add_count].type                = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str    = instance_name;
+  additional[add_count].name.str = sub_sn;
+  additional[add_count].name.length = strlen(sub_sn);
+  additional[add_count].type = MDNS_RECORDTYPE_PTR;
+  additional[add_count].data.ptr.name.str = instance_name;
   additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
   /* Subtype PTR: installation-id + individual-address */
-  additional[add_count].name.str            = sub_ia;
-  additional[add_count].name.length         = strlen(sub_ia);
-  additional[add_count].type                = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str    = instance_name;
+  additional[add_count].name.str = sub_ia;
+  additional[add_count].name.length = strlen(sub_ia);
+  additional[add_count].type = MDNS_RECORDTYPE_PTR;
+  additional[add_count].data.ptr.name.str = instance_name;
   additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
   /* Subtype PTR: programming mode (conditional) */
   if (pm) {
-    additional[add_count].name.str            = sub_pm;
-    additional[add_count].name.length         = strlen(sub_pm);
-    additional[add_count].type                = MDNS_RECORDTYPE_PTR;
-    additional[add_count].data.ptr.name.str    = instance_name;
+    additional[add_count].name.str = sub_pm;
+    additional[add_count].name.length = strlen(sub_pm);
+    additional[add_count].type = MDNS_RECORDTYPE_PTR;
+    additional[add_count].data.ptr.name.str = instance_name;
     additional[add_count].data.ptr.name.length = instance_len;
     add_count++;
   }
 
   /* TXT: optional SP=<seconds> */
   if (sp_value[0] != '\0') {
-    additional[add_count].name.str            = instance_name;
-    additional[add_count].name.length         = instance_len;
-    additional[add_count].type                = MDNS_RECORDTYPE_TXT;
-    additional[add_count].data.txt.key.str    = "SP";
+    additional[add_count].name.str = instance_name;
+    additional[add_count].name.length = instance_len;
+    additional[add_count].type = MDNS_RECORDTYPE_TXT;
+    additional[add_count].data.txt.key.str = "SP";
     additional[add_count].data.txt.key.length = 2;
-    additional[add_count].data.txt.value.str    = sp_value;
+    additional[add_count].data.txt.value.str = sp_value;
     additional[add_count].data.txt.value.length = strlen(sp_value);
     add_count++;
   }
@@ -351,7 +414,7 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
    * ensures the packet reaches all local network segments. */
   #define MAX_IF_INDICES 8
   unsigned int if_indices[MAX_IF_INDICES];
-  int          if_count = 0;
+  int if_count = 0;
 
   {
     ip_context_t *ctx2 = get_ip_context_for_device();
@@ -365,8 +428,12 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
           unsigned int idx = (unsigned int)ep2->interface_index;
           bool already = false;
           for (int j = 0; j < if_count; ++j) {
-            if (if_indices[j] == idx) { already = true; break; }
+            if (if_indices[j] == idx) {
+              already = true;
+              break;
+            }
           }
+
           if (!already) {
             if_indices[if_count++] = idx;
           }
@@ -377,7 +444,7 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
   }
 
   if (if_count == 0) {
-    OC_DBG("dns-sd: no interfaces available for mDNS %s (network not ready?)",
+    OC_WRN("DNS-SD: No interfaces available for mDNS %s (network not ready?)!",
            goodbye ? "goodbye" : "announce");
     return 0;
   }
@@ -400,22 +467,22 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
     }
 
     if (ret < 0) {
-      OC_DBG("dns-sd: IPv6 multicast %s failed on interface %u",
+      OC_WRN("DNS-SD: IPv6 multicast mDNS %s failed on interface %u!",
              goodbye ? "goodbye" : "announce", if_indices[iface]);
     } else {
-      OC_DBG("dns-sd: sent mDNS %s on interface %u",
+      OC_INF("DNS-SD: Sent mDNS %s on interface %u.",
              goodbye ? "goodbye" : "announce", if_indices[iface]);
       ok_count++;
     }
   }
 
   if (ok_count == 0) {
-    OC_DBG("dns-sd: IPv6 multicast %s could not be sent on any interface",
+    OC_WRN("DNS-SD: IPv6 multicast mDNS %s could not be sent on any interface!",
            goodbye ? "goodbye" : "announce");
     return 0;
   }
 
-  OC_DBG("dns-sd: mDNS %s for %s sent on %d/%d interfaces (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)",
+  OC_DBG("DNS-SD: mDNS %s for %s sent on %d/%d interfaces (port %u, iid 0x%" PRIx64 ", ia 0x%x, pm=%d)",
          goodbye ? "goodbye" : "announce",
          serial_no, ok_count, if_count, (unsigned)port, iid, (unsigned)ia, (int)pm);
 
@@ -425,11 +492,11 @@ send_announcement(char *serial_no, uint64_t iid, uint16_t ia, bool pm, bool good
 /* Saved previous-advertisement state so we can send a goodbye before
  * re-publishing with changed parameters.  Also read by the listener
  * callback to build query responses. */
-static bool     prev_valid = false;
-static char     prev_serial[20];
+static bool prev_valid = false;
+static char prev_serial[20];
 static uint64_t prev_iid;
 static uint16_t prev_ia;
-static bool     prev_pm;
+static bool prev_pm;
 
 /* ------------------------------------------------------------------ */
 /* mDNS Query Listener                                                */
@@ -443,40 +510,35 @@ static bool     prev_pm;
  * socket, try joining the multicast group on each known interface, bind
  * to port 5353, and set non-blocking mode.
  */
-static int
-open_mdns_listen_socket_ipv6(void)
+static int open_mdns_listen_socket_ipv6(void)
 {
   int sock = (int)socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
   if (sock < 0) {
-    OC_ERR("dns-sd: socket() failed for listen socket");
+    OC_ERR("mDNS: socket() failed for listen socket!");
     return -1;
   }
 
-  /* Allow address reuse — required to coexist with Bonjour on port 5353 */
+  /* Allow address reuse, required to coexist with Bonjour on port 5353 */
   unsigned int reuseaddr = 1;
-  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-             (const char *)&reuseaddr, sizeof(reuseaddr));
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuseaddr, sizeof(reuseaddr));
 #ifdef SO_REUSEPORT
-  setsockopt(sock, SOL_SOCKET, SO_REUSEPORT,
-             (const char *)&reuseaddr, sizeof(reuseaddr));
+  setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, (const char *)&reuseaddr, sizeof(reuseaddr));
 #endif
 
   /* Multicast hop limit = 1 (for responses) */
   int hops = 1;
-  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
-             (const char *)&hops, sizeof(hops));
+  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, (const char *)&hops, sizeof(hops));
 
   /* Enable loopback */
   unsigned int loopback = 1;
-  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
-             (const char *)&loopback, sizeof(loopback));
+  setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, (const char *)&loopback, sizeof(loopback));
 
   /* Join FF02::FB multicast group — try on each known interface.
    * Interface 0 (any) often fails on Windows when Bonjour is running. */
   struct ipv6_mreq mreq;
   memset(&mreq, 0, sizeof(mreq));
-  mreq.ipv6mr_multiaddr.s6_addr[0]  = 0xFF;
-  mreq.ipv6mr_multiaddr.s6_addr[1]  = 0x02;
+  mreq.ipv6mr_multiaddr.s6_addr[0] = 0xFF;
+  mreq.ipv6mr_multiaddr.s6_addr[1] = 0x02;
   mreq.ipv6mr_multiaddr.s6_addr[15] = 0xFB;
 
   int joined = 0;
@@ -491,20 +553,25 @@ open_mdns_listen_socket_ipv6(void)
         unsigned int idx = (unsigned int)ep->interface_index;
         bool dup = false;
         for (int j = 0; j < tried_count; ++j) {
-          if (tried[j] == idx) { dup = true; break; }
+          if (tried[j] == idx) {
+            dup = true;
+            break;
+          }
         }
+
         if (!dup) {
           tried[tried_count++] = idx;
           mreq.ipv6mr_interface = idx;
           if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP,
                          (const char *)&mreq, sizeof(mreq)) == 0) {
-            OC_DBG("dns-sd: joined FF02::FB on interface %u", idx);
+            OC_INF("mDNS: Joined FF02::FB on interface %u.", idx);
             joined++;
           } else {
-            OC_DBG("dns-sd: IPV6_JOIN_GROUP failed on interface %u", idx);
+            OC_DBG("mDNS: IPV6_JOIN_GROUP failed on interface %u!", idx);
           }
         }
       }
+
       ep = ep->next;
     }
   }
@@ -514,13 +581,13 @@ open_mdns_listen_socket_ipv6(void)
     mreq.ipv6mr_interface = 0;
     if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP,
                    (const char *)&mreq, sizeof(mreq)) == 0) {
-      OC_DBG("dns-sd: joined FF02::FB on default interface");
+      OC_INF("mDNS: Joined FF02::FB on default interface.");
       joined++;
     }
   }
 
   if (joined == 0) {
-    OC_ERR("dns-sd: could not join FF02::FB on any interface");
+    OC_ERR("mDNS: Could not join FF02::FB on any interface!");
 #ifdef _WIN32
     closesocket(sock);
 #else
@@ -533,11 +600,11 @@ open_mdns_listen_socket_ipv6(void)
   struct sockaddr_in6 saddr6;
   memset(&saddr6, 0, sizeof(saddr6));
   saddr6.sin6_family = AF_INET6;
-  saddr6.sin6_addr   = in6addr_any;
-  saddr6.sin6_port   = htons(MDNS_PORT);
+  saddr6.sin6_addr = in6addr_any;
+  saddr6.sin6_port = htons(MDNS_PORT);
 
   if (bind(sock, (struct sockaddr *)&saddr6, sizeof(saddr6))) {
-    OC_ERR("dns-sd: bind(:5353) failed for listen socket");
+    OC_ERR("mDNS: bind(:%d) failed for listen socket!", MDNS_PORT);
 #ifdef _WIN32
     closesocket(sock);
 #else
@@ -557,43 +624,59 @@ open_mdns_listen_socket_ipv6(void)
   }
 #endif
 
-  OC_INF("dns-sd: listen socket open on port 5353 (joined %d interfaces)", joined);
+  OC_INF("mDNS: Listen socket open on port %d (joined %d interfaces).", MDNS_PORT, joined);
   return sock;
 }
 
 /**
  * @brief Case-insensitive comparison of DNS name strings, ignoring trailing dots.
  */
-static bool
-dns_name_equal(const char *a, size_t alen, const char *b, size_t blen)
+static bool dns_name_equal(const char *a, size_t alen, const char *b, size_t blen)
 {
   /* Strip trailing dots */
-  if (alen > 0 && a[alen - 1] == '.') alen--;
-  if (blen > 0 && b[blen - 1] == '.') blen--;
-  if (alen != blen) return false;
-  for (size_t i = 0; i < alen; ++i) {
-    if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i]))
-      return false;
+  if (alen > 0 && a[alen - 1] == '.') {
+    alen--;
   }
+
+  if (blen > 0 && b[blen - 1] == '.') {
+    blen--;
+  }
+
+  if (alen != blen) {
+    return false;
+  }
+
+  for (size_t i = 0; i < alen; ++i) {
+    if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) {
+      return false;
+    }
+  }
+
   return true;
 }
 
 /**
  * @brief Check if the query name ends with "._sub._knx._udp.local" (case-insensitive).
  */
-static bool
-is_knx_subtype_query(const char *qname, size_t qlen)
+static bool is_knx_subtype_query(const char *qname, size_t qlen)
 {
   const char *suffix = "._sub._knx._udp.local";
   size_t slen = strlen(suffix);
   /* Strip trailing dot */
-  if (qlen > 0 && qname[qlen - 1] == '.') qlen--;
-  if (qlen <= slen) return false;
-  for (size_t i = 0; i < slen; ++i) {
-    if (tolower((unsigned char)qname[qlen - slen + i]) !=
-        tolower((unsigned char)suffix[i]))
-      return false;
+  if (qlen > 0 && qname[qlen - 1] == '.') {
+    qlen--;
   }
+
+  if (qlen <= slen) {
+    return false;
+  }
+
+  for (size_t i = 0; i < slen; ++i) {
+    if (tolower((unsigned char)qname[qlen - slen + i]) != tolower((unsigned char)suffix[i])) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -608,14 +691,14 @@ is_knx_subtype_query(const char *qname, size_t qlen)
  * Used both by the proactive announcement and the query callback.
  * Returns 0 on success, <0 on error.
  */
-static int
-send_query_response(int sock, const char *ptr_name)
+static int send_query_response(int sock, const char *ptr_name)
 {
   char sn_lower[20];
   strncpy(sn_lower, prev_serial, sizeof(sn_lower) - 1);
   sn_lower[sizeof(sn_lower) - 1] = '\0';
-  for (int i = 0; sn_lower[i]; ++i)
+  for (int i = 0; sn_lower[i]; ++i) {
     sn_lower[i] = (char)tolower((unsigned char)sn_lower[i]);
+  }
 
   char instance_name[128];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, sn_lower);
@@ -630,10 +713,10 @@ send_query_response(int sock, const char *ptr_name)
   /* Answer: PTR — the name must match the query the client sent */
   mdns_record_t answer;
   memset(&answer, 0, sizeof(answer));
-  answer.name.str    = ptr_name;
+  answer.name.str = ptr_name;
   answer.name.length = strlen(ptr_name);
-  answer.type        = MDNS_RECORDTYPE_PTR;
-  answer.data.ptr.name.str    = instance_name;
+  answer.type = MDNS_RECORDTYPE_PTR;
+  answer.data.ptr.name.str = instance_name;
   answer.data.ptr.name.length = instance_len;
 
   /* Additional records */
@@ -642,13 +725,13 @@ send_query_response(int sock, const char *ptr_name)
   memset(additional, 0, sizeof(additional));
 
   /* SRV */
-  additional[add_count].name.str        = instance_name;
-  additional[add_count].name.length     = instance_len;
-  additional[add_count].type            = MDNS_RECORDTYPE_SRV;
+  additional[add_count].name.str = instance_name;
+  additional[add_count].name.length = instance_len;
+  additional[add_count].type = MDNS_RECORDTYPE_SRV;
   additional[add_count].data.srv.priority = 0;
-  additional[add_count].data.srv.weight   = 0;
-  additional[add_count].data.srv.port     = port;
-  additional[add_count].data.srv.name.str    = hostname;
+  additional[add_count].data.srv.weight = 0;
+  additional[add_count].data.srv.port = port;
+  additional[add_count].data.srv.name.str = hostname;
   additional[add_count].data.srv.name.length = hostname_len;
   add_count++;
 
@@ -661,17 +744,17 @@ send_query_response(int sock, const char *ptr_name)
       while (ep && aaaa_count < MAX_AAAA_RECORDS) {
         if ((ep->flags & IPV6) && !(ep->flags & MULTICAST) &&
             !(ep->flags & SECURED) && !(ep->flags & TCP)) {
-          additional[add_count].name.str    = hostname;
+          additional[add_count].name.str = hostname;
           additional[add_count].name.length = hostname_len;
-          additional[add_count].type        = MDNS_RECORDTYPE_AAAA;
+          additional[add_count].type = MDNS_RECORDTYPE_AAAA;
           memset(&additional[add_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
           additional[add_count].data.aaaa.addr.sin6_family = AF_INET6;
-          memcpy(&additional[add_count].data.aaaa.addr.sin6_addr,
-                 ep->addr.ipv6.address, 16);
+          memcpy(&additional[add_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
           additional[add_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
           add_count++;
           aaaa_count++;
         }
+
         ep = ep->next;
       }
     }
@@ -680,42 +763,41 @@ send_query_response(int sock, const char *ptr_name)
   /* Subtype PTRs */
   char sub_sn[96];
   (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", sn_lower);
-  additional[add_count].name.str            = sub_sn;
-  additional[add_count].name.length         = strlen(sub_sn);
-  additional[add_count].type                = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str    = instance_name;
+  additional[add_count].name.str = sub_sn;
+  additional[add_count].name.length = strlen(sub_sn);
+  additional[add_count].type = MDNS_RECORDTYPE_PTR;
+  additional[add_count].data.ptr.name.str = instance_name;
   additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
   char sub_ia[96];
-  (void)snprintf(sub_ia, sizeof(sub_ia),
-                 "_ia%" PRIx64 "-%x._sub._knx._udp.local.",
+  (void)snprintf(sub_ia, sizeof(sub_ia), "_ia%" PRIx64 "-%x._sub._knx._udp.local.",
                  prev_iid, (unsigned)prev_ia);
-  additional[add_count].name.str            = sub_ia;
-  additional[add_count].name.length         = strlen(sub_ia);
-  additional[add_count].type                = MDNS_RECORDTYPE_PTR;
-  additional[add_count].data.ptr.name.str    = instance_name;
+  additional[add_count].name.str = sub_ia;
+  additional[add_count].name.length = strlen(sub_ia);
+  additional[add_count].type = MDNS_RECORDTYPE_PTR;
+  additional[add_count].data.ptr.name.str = instance_name;
   additional[add_count].data.ptr.name.length = instance_len;
   add_count++;
 
   if (prev_pm) {
     static const char sub_pm[] = "_pm._sub._knx._udp.local.";
-    additional[add_count].name.str            = sub_pm;
-    additional[add_count].name.length         = strlen(sub_pm);
-    additional[add_count].type                = MDNS_RECORDTYPE_PTR;
-    additional[add_count].data.ptr.name.str    = instance_name;
+    additional[add_count].name.str = sub_pm;
+    additional[add_count].name.length = strlen(sub_pm);
+    additional[add_count].type = MDNS_RECORDTYPE_PTR;
+    additional[add_count].data.ptr.name.str = instance_name;
     additional[add_count].data.ptr.name.length = instance_len;
     add_count++;
   }
 
   /* TXT */
   if (sp_value[0] != '\0') {
-    additional[add_count].name.str            = instance_name;
-    additional[add_count].name.length         = instance_len;
-    additional[add_count].type                = MDNS_RECORDTYPE_TXT;
-    additional[add_count].data.txt.key.str    = "SP";
+    additional[add_count].name.str = instance_name;
+    additional[add_count].name.length = instance_len;
+    additional[add_count].type = MDNS_RECORDTYPE_TXT;
+    additional[add_count].data.txt.key.str = "SP";
     additional[add_count].data.txt.key.length = 2;
-    additional[add_count].data.txt.value.str    = sp_value;
+    additional[add_count].data.txt.value.str = sp_value;
     additional[add_count].data.txt.value.length = strlen(sp_value);
     add_count++;
   }
@@ -739,14 +821,14 @@ send_query_response(int sock, const char *ptr_name)
  * Answer:      SRV {instance}._knx._udp.local. → knx-{sn}.local. : port
  * Additional:  AAAA knx-{sn}.local. → IPv6 addresses
  */
-static int
-send_srv_response(int sock)
+static int send_srv_response(int sock)
 {
   char sn_lower[20];
   strncpy(sn_lower, prev_serial, sizeof(sn_lower) - 1);
   sn_lower[sizeof(sn_lower) - 1] = '\0';
-  for (int i = 0; sn_lower[i]; ++i)
+  for (int i = 0; sn_lower[i]; ++i) {
     sn_lower[i] = (char)tolower((unsigned char)sn_lower[i]);
+  }
 
   char instance_name[128];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, sn_lower);
@@ -761,14 +843,14 @@ send_srv_response(int sock)
   /* Answer: SRV */
   mdns_record_t answer;
   memset(&answer, 0, sizeof(answer));
-  answer.name.str               = instance_name;
-  answer.name.length            = instance_len;
-  answer.type                   = MDNS_RECORDTYPE_SRV;
-  answer.data.srv.priority      = 0;
-  answer.data.srv.weight        = 0;
-  answer.data.srv.port          = port;
-  answer.data.srv.name.str      = hostname;
-  answer.data.srv.name.length   = hostname_len;
+  answer.name.str = instance_name;
+  answer.name.length = instance_len;
+  answer.type = MDNS_RECORDTYPE_SRV;
+  answer.data.srv.priority = 0;
+  answer.data.srv.weight = 0;
+  answer.data.srv.port = port;
+  answer.data.srv.name.str = hostname;
+  answer.data.srv.name.length = hostname_len;
 
   /* Additional: AAAA records */
   mdns_record_t additional[MAX_AAAA_RECORDS];
@@ -781,16 +863,16 @@ send_srv_response(int sock)
     while (ep && add_count < MAX_AAAA_RECORDS) {
       if ((ep->flags & IPV6) && !(ep->flags & MULTICAST) &&
           !(ep->flags & SECURED) && !(ep->flags & TCP)) {
-        additional[add_count].name.str    = hostname;
+        additional[add_count].name.str = hostname;
         additional[add_count].name.length = hostname_len;
-        additional[add_count].type        = MDNS_RECORDTYPE_AAAA;
+        additional[add_count].type = MDNS_RECORDTYPE_AAAA;
         memset(&additional[add_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
         additional[add_count].data.aaaa.addr.sin6_family = AF_INET6;
-        memcpy(&additional[add_count].data.aaaa.addr.sin6_addr,
-               ep->addr.ipv6.address, 16);
+        memcpy(&additional[add_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
         additional[add_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
         add_count++;
       }
+
       ep = ep->next;
     }
   }
@@ -812,14 +894,14 @@ send_srv_response(int sock)
  * Answer:  AAAA knx-{sn}.local. → first IPv6 address
  * Additional:  remaining AAAA records (if more than one address)
  */
-static int
-send_aaaa_response(int sock)
+static int send_aaaa_response(int sock)
 {
   char sn_lower[20];
   strncpy(sn_lower, prev_serial, sizeof(sn_lower) - 1);
   sn_lower[sizeof(sn_lower) - 1] = '\0';
-  for (int i = 0; sn_lower[i]; ++i)
+  for (int i = 0; sn_lower[i]; ++i) {
     sn_lower[i] = (char)tolower((unsigned char)sn_lower[i]);
+  }
 
   char hostname[80];
   (void)snprintf(hostname, sizeof(hostname), "knx-%s.local.", sn_lower);
@@ -836,22 +918,22 @@ send_aaaa_response(int sock)
     while (ep && aaaa_count < MAX_AAAA_RECORDS) {
       if ((ep->flags & IPV6) && !(ep->flags & MULTICAST) &&
           !(ep->flags & SECURED) && !(ep->flags & TCP)) {
-        aaaa_records[aaaa_count].name.str    = hostname;
+        aaaa_records[aaaa_count].name.str = hostname;
         aaaa_records[aaaa_count].name.length = hostname_len;
-        aaaa_records[aaaa_count].type        = MDNS_RECORDTYPE_AAAA;
+        aaaa_records[aaaa_count].type = MDNS_RECORDTYPE_AAAA;
         memset(&aaaa_records[aaaa_count].data.aaaa.addr, 0, sizeof(struct sockaddr_in6));
         aaaa_records[aaaa_count].data.aaaa.addr.sin6_family = AF_INET6;
-        memcpy(&aaaa_records[aaaa_count].data.aaaa.addr.sin6_addr,
-               ep->addr.ipv6.address, 16);
+        memcpy(&aaaa_records[aaaa_count].data.aaaa.addr.sin6_addr, ep->addr.ipv6.address, 16);
         aaaa_records[aaaa_count].data.aaaa.addr.sin6_port = htons(ep->addr.ipv6.port);
         aaaa_count++;
       }
+
       ep = ep->next;
     }
   }
 
   if (aaaa_count == 0) {
-    OC_DBG("dns-sd: no IPv6 addresses to respond with for AAAA query");
+    OC_WRN("DNS-SD: No IPv6 addresses to respond with for AAAA query!");
     return -1;
   }
 
@@ -877,51 +959,54 @@ send_aaaa_response(int sock)
  *        in a received mDNS packet.
  *
  * Responds to:
- *   - PTR/ANY queries for _knx._udp.local.          (general service browse)
+ *   - PTR/ANY queries for _knx._udp.local. (general service browse)
  *   - PTR/ANY queries for _pm._sub._knx._udp.local. (programming mode browse)
  *   - PTR/ANY queries for _<sn>._sub._knx._udp.local. (serial number browse)
  *   - PTR/ANY queries for _ia<iid>-<ia>._sub._knx._udp.local. (IA browse)
- *   - SRV/ANY queries for <sn>._knx._udp.local.     (instance → hostname+port)
- *   - AAAA/ANY queries for knx-<sn>.local.           (hostname → IPv6 address)
+ *   - SRV/ANY queries for <sn>._knx._udp.local. (instance → hostname+port)
+ *   - AAAA/ANY queries for knx-<sn>.local. (hostname → IPv6 address)
  */
-static int
-mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
-                    mdns_entry_type_t entry, uint16_t query_id,
-                    uint16_t rtype, uint16_t rclass, uint32_t ttl,
-                    const void *data, size_t size,
-                    size_t name_offset, size_t name_length,
-                    size_t record_offset, size_t record_length,
-                    void *user_data)
+static int mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
+                               mdns_entry_type_t entry, uint16_t query_id,
+                               uint16_t rtype, uint16_t rclass, uint32_t ttl,
+                               const void *data, size_t size,
+                               size_t name_offset, size_t name_length,
+                               size_t record_offset, size_t record_length,
+                               void *user_data)
 {
   (void)from; (void)addrlen; (void)query_id; (void)rclass; (void)ttl;
   (void)record_offset; (void)record_length; (void)user_data;
 
   /* Only interested in questions */
-  if (entry != MDNS_ENTRYTYPE_QUESTION)
+  if (entry != MDNS_ENTRYTYPE_QUESTION) {
     return 0;
+  }
 
   /* Must have a published service */
-  if (!prev_valid)
+  if (!prev_valid) {
     return 0;
+  }
 
   /* Filter to record types we handle */
   if (rtype != MDNS_RECORDTYPE_PTR && rtype != MDNS_RECORDTYPE_SRV &&
-      rtype != MDNS_RECORDTYPE_AAAA && rtype != MDNS_RECORDTYPE_ANY)
+      rtype != MDNS_RECORDTYPE_AAAA && rtype != MDNS_RECORDTYPE_ANY) {
     return 0;
+  }
 
   /* Extract queried name */
   char qname[256];
-  mdns_string_t qstr = mdns_string_extract(data, size, &name_offset,
-                                           qname, sizeof(qname));
-  if (qstr.length == 0)
+  mdns_string_t qstr = mdns_string_extract(data, size, &name_offset, qname, sizeof(qname));
+  if (qstr.length == 0) {
     return 0;
+  }
 
   /* Pre-build our canonical names for matching */
   char sn_lower[20];
   strncpy(sn_lower, prev_serial, sizeof(sn_lower) - 1);
   sn_lower[sizeof(sn_lower) - 1] = '\0';
-  for (int i = 0; sn_lower[i]; ++i)
+  for (int i = 0; sn_lower[i]; ++i) {
     sn_lower[i] = (char)tolower((unsigned char)sn_lower[i]);
+  }
 
   char instance_name[128];
   (void)snprintf(instance_name, sizeof(instance_name), "%s." KNX_SERVICE_TYPE, sn_lower);
@@ -937,7 +1022,7 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
 
     /* 1a. General service browse: _knx._udp.local. */
     if (dns_name_equal(qname, qstr.length, KNX_SERVICE_TYPE, strlen(KNX_SERVICE_TYPE))) {
-      OC_INF("dns-sd: received browse query for %s", KNX_SERVICE_TYPE);
+      OC_INF("DNS-SD: Received browse query for %s.", KNX_SERVICE_TYPE);
       ptr_respond = true;
     }
 
@@ -947,7 +1032,7 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
       if (prev_pm) {
         const char *pm_sub = "_pm._sub._knx._udp.local.";
         if (dns_name_equal(qname, qstr.length, pm_sub, strlen(pm_sub))) {
-          OC_INF("dns-sd: received _pm subtype query - device IS in programming mode");
+          OC_INF("DNS-SD: Received _pm subtype query, device is in programming mode.");
           ptr_respond = true;
         }
       }
@@ -957,7 +1042,7 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
         char sub_sn[96];
         (void)snprintf(sub_sn, sizeof(sub_sn), "_%s._sub._knx._udp.local.", sn_lower);
         if (dns_name_equal(qname, qstr.length, sub_sn, strlen(sub_sn))) {
-          OC_INF("dns-sd: received serial number subtype query");
+          OC_INF("DNS-SD: Received serial number subtype query.");
           ptr_respond = true;
         }
       }
@@ -969,13 +1054,13 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
                        "_ia%" PRIx64 "-%x._sub._knx._udp.local.",
                        prev_iid, (unsigned)prev_ia);
         if (dns_name_equal(qname, qstr.length, sub_ia, strlen(sub_ia))) {
-          OC_INF("dns-sd: received IA subtype query");
+          OC_INF("DNS-SD: Received IA subtype query.");
           ptr_respond = true;
         }
       }
 
       if (!ptr_respond) {
-        OC_DBG("dns-sd: received _sub query for unmatched subtype: %.*s",
+        OC_DBG("DNS-SD: Received _sub query for unmatched subtype: %.*s",
                (int)qstr.length, qname);
       }
     }
@@ -994,9 +1079,9 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
 
       ret = send_query_response(sock, ptr_name);
       if (ret < 0) {
-        OC_ERR("dns-sd: failed to send PTR answer (ret=%d)", ret);
+        OC_ERR("DNS-SD: Failed to send PTR answer (ret=%d)!", ret);
       } else {
-        OC_INF("dns-sd: PTR answer sent for %s", ptr_name);
+        OC_INF("DNS-SD: PTR answer sent for %s.", ptr_name);
       }
       return 0;
     }
@@ -1005,12 +1090,12 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
   /* ---- 2. SRV / ANY: instance name → hostname + port ---- */
   if (rtype == MDNS_RECORDTYPE_SRV || rtype == MDNS_RECORDTYPE_ANY) {
     if (dns_name_equal(qname, qstr.length, instance_name, strlen(instance_name))) {
-      OC_INF("dns-sd: received SRV query for %s", instance_name);
+      OC_INF("DNS-SD: Received SRV query for %s.", instance_name);
       ret = send_srv_response(sock);
       if (ret < 0) {
-        OC_ERR("dns-sd: failed to send SRV answer (ret=%d)", ret);
+        OC_ERR("DNS-SD: Failed to send SRV answer (ret=%d)!", ret);
       } else {
-        OC_INF("dns-sd: SRV answer sent for %s", instance_name);
+        OC_INF("DNS-SD: SRV answer sent for %s.", instance_name);
       }
       return 0;
     }
@@ -1019,12 +1104,12 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
   /* ---- 3. AAAA / ANY: hostname → IPv6 address ---- */
   if (rtype == MDNS_RECORDTYPE_AAAA || rtype == MDNS_RECORDTYPE_ANY) {
     if (dns_name_equal(qname, qstr.length, hostname, strlen(hostname))) {
-      OC_INF("dns-sd: received AAAA query for %s", hostname);
+      OC_INF("DNS-SD: Received AAAA query for %s.", hostname);
       ret = send_aaaa_response(sock);
       if (ret < 0) {
-        OC_ERR("dns-sd: failed to send AAAA answer (ret=%d)", ret);
+        OC_ERR("DNS-SD: Failed to send AAAA answer (ret=%d)!", ret);
       } else {
-        OC_INF("dns-sd: AAAA answer sent for %s", hostname);
+        OC_INF("DNS-SD: AAAA answer sent for %s.", hostname);
       }
       return 0;
     }
@@ -1041,15 +1126,19 @@ mdns_query_callback(int sock, const struct sockaddr *from, size_t addrlen,
  * so we add a small sleep to avoid busy-looping when no packets arrive.
  */
 #ifdef _WIN32
-static DWORD WINAPI
-mdns_listener_thread(LPVOID param)
+static DWORD WINAPI mdns_listener_thread(LPVOID param)
+#elif defined(__ZEPHYR__)
+static void mdns_listener_thread(void *param, void *p2, void *p3)
 #else
-static void *
-mdns_listener_thread(void *param)
+static void* mdns_listener_thread(void *param)
 #endif
 {
   (void)param;
-  OC_INF("dns-sd: listener thread started on port 5353");
+#ifdef __ZEPHYR__
+  (void)p2;
+  (void)p3;
+#endif
+  OC_INF("DNS-SD: mDNS listener thread started on port %d.", MDNS_PORT);
 
   while (listener_running) {
     size_t parsed = mdns_socket_listen(mdns_listen_sock6, mdns_listen_buf,
@@ -1059,15 +1148,19 @@ mdns_listener_thread(void *param)
       /* No packet received — sleep briefly to avoid busy loop */
 #ifdef _WIN32
       Sleep(100);
+#elif defined(__ZEPHYR__)
+      k_msleep(100);
 #else
       usleep(100000);
 #endif
     }
   }
 
-  OC_INF("dns-sd: listener thread stopped");
+  OC_INF("DNS-SD: mDNS listener thread stopped.");
 #ifdef _WIN32
   return 0;
+#elif defined(__ZEPHYR__)
+  return;
 #else
   return NULL;
 #endif
@@ -1076,85 +1169,87 @@ mdns_listener_thread(void *param)
 /**
  * @brief Start the mDNS listener thread (if not already running).
  */
-static void
-start_listener(void)
+static void start_listener(void)
 {
-  if (listener_running)
+  if (listener_running) {
     return;
+  }
 
   mdns_listen_sock6 = open_mdns_listen_socket_ipv6();
   if (mdns_listen_sock6 < 0) {
-    OC_ERR("dns-sd: query responder not started (listen socket unavailable)");
+    OC_ERR("DNS-SD: Query responder not started (mDNS listen socket unavailable)!");
     return;
   }
 
   listener_running = true;
 
 #ifdef _WIN32
-  listener_thread_handle =
-    CreateThread(NULL, 0, mdns_listener_thread, NULL, 0, NULL);
+  listener_thread_handle = CreateThread(NULL, 0, mdns_listener_thread, NULL, 0, NULL);
   if (listener_thread_handle == NULL) {
-    OC_ERR("dns-sd: failed to create listener thread");
-    listener_running = false;
-    mdns_socket_close(mdns_listen_sock6);
-    mdns_listen_sock6 = -1;
-  }
+#elif defined(__ZEPHYR__)
+  k_tid_t tid = k_thread_create(&knx_mdns_listener_thread_data,
+                                knx_mdns_listener_stack,
+                                K_THREAD_STACK_SIZEOF(knx_mdns_listener_stack),
+                                mdns_listener_thread, NULL, NULL, NULL,
+                                KNX_MDNS_LISTENER_PRIORITY, 0, K_NO_WAIT);
+  if (tid == NULL) {
 #else
   if (pthread_create(&listener_thread, NULL, mdns_listener_thread, NULL) != 0) {
-    OC_ERR("dns-sd: failed to create listener thread");
+#endif
+    OC_ERR("DNS-SD: Failed to create mDNS listener thread!");
     listener_running = false;
     mdns_socket_close(mdns_listen_sock6);
     mdns_listen_sock6 = -1;
-  } else {
-    listener_thread_created = true;
+    return;
   }
+
+#ifdef __ZEPHYR__
+  k_thread_name_set(tid, "knx_mdns_listener");
 #endif
+  listener_thread_created = true;
+
+  OC_INF("DNS-SD: DNS-SD query responder started.");
 }
 
 /**
  * @brief Stop the mDNS listener thread and close the listen socket.
  */
-static void
-stop_listener(void)
+static void stop_listener(void)
 {
-  if (!listener_running)
+  if (!listener_running) {
     return;
+  }
 
   listener_running = false;
 
+  if (listener_thread_created) {
 #ifdef _WIN32
-  if (listener_thread_handle) {
     WaitForSingleObject(listener_thread_handle, 2000);
     CloseHandle(listener_thread_handle);
     listener_thread_handle = NULL;
-  }
+#elif defined(__ZEPHYR__)
+    k_thread_join(&knx_mdns_listener_thread_data, K_FOREVER);
 #else
-  if (listener_thread_created) {
     pthread_join(listener_thread, NULL);
-    listener_thread_created = false;
-  }
 #endif
+  }
+
+  listener_thread_created = false;
 
   if (mdns_listen_sock6 >= 0) {
     mdns_socket_close(mdns_listen_sock6);
     mdns_listen_sock6 = -1;
   }
+
+  OC_INF("DNS-SD: DNS-SD query responder stopped.");
 }
 
 /* ------------------------------------------------------------------ */
-/* Public API  (see port/dns-sd.h)                                    */
+/* Public API                                                         */
 /* ------------------------------------------------------------------ */
 
 int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool pm)
 {
-#ifndef OC_DNS_SD
-  (void)serial_no;
-  (void)iid;
-  (void)ia;
-  (void)pm;
-  return 0;
-#else
-
   /* Goodbye for previous advertisement (if any) */
   if (prev_valid) {
     (void)send_announcement(prev_serial, prev_iid, prev_ia, prev_pm, /*goodbye=*/true);
@@ -1168,8 +1263,8 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     strncpy(prev_serial, serial_no, sizeof(prev_serial) - 1);
     prev_serial[sizeof(prev_serial) - 1] = '\0';
     prev_iid = iid;
-    prev_ia  = ia;
-    prev_pm  = pm;
+    prev_ia = ia;
+    prev_pm = pm;
     prev_valid = true;
   }
 
@@ -1177,21 +1272,23 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
   start_listener();
 
   return ret;
-#endif /* OC_DNS_SD */
 }
 
 void knx_dns_sd_set_sleep_period(int sp)
 {
-  if (sp)
+  if (sp) {
     (void)snprintf(sp_value, sizeof(sp_value), "%d", sp);
-  else
+  } else {
     memset(sp_value, 0, sizeof(sp_value));
+  }
 
   /* Re-announce immediately so the updated TXT record (SP=<n>) is picked up
    * without the caller having to call knx_dns_sd_update_service separately. */
-  if (prev_valid)
+  if (prev_valid) {
     (void)send_announcement(prev_serial, prev_iid, prev_ia, prev_pm, /*goodbye=*/false);
-  OC_INF("DNS-SD: Sleep period set to %d.", sp);
+  }
+
+  OC_INF("DNS-SD: DNS-SD sleep period set to %d.", sp);
 }
 
 uint16_t knx_dns_sd_get_used_port(void)
@@ -1199,9 +1296,8 @@ uint16_t knx_dns_sd_get_used_port(void)
   return get_ip_context_for_device()->port;
 }
 
-void knx_mdns_stop(void)
+void knx_dns_sd_stop(void)
 {
-#ifdef OC_DNS_SD
   /* Send goodbye for current advertisement */
   if (prev_valid) {
     (void)send_announcement(prev_serial, prev_iid, prev_ia, prev_pm, /*goodbye=*/true);
@@ -1220,5 +1316,4 @@ void knx_mdns_stop(void)
 #endif
     mdns_sock6 = -1;
   }
-#endif
 }

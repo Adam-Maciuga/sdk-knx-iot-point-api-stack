@@ -114,7 +114,7 @@ Runtime/conformance tests (`tests/runtime/`) are tracked **separately** and are
 | port/linux/oc_network_interface.c | test_oc_network_interface.cpp | DONE |
 | port/random_psa.c | test_oc_random.cpp | DONE |
 | port/oc_log.c | test_oc_log.cpp | DONE |
-| port/dns-sd.c | — | INTEGRATION |
+| port/dns-sd_mdns.c | — | INTEGRATION |
 | port/linux/ipadapter.c | — | INTEGRATION |
 | port/linux/tcpadapter.c | — | COMPILED-OUT |
 
@@ -629,13 +629,13 @@ it is absent from the unit binary.
 | knx_log_bytes_hex | DONE (single line, empty, 16-byte, 33-byte wrap) |
 | oc_file_print | COMPILED-OUT — `#if defined(OC_PRINT) && defined(KNX_LOG_TO_FILE)` (off) |
 
-### port/dns-sd.c — INTEGRATION (mDNS sockets + listener thread)
+### port/dns-sd_mdns.c — INTEGRATION (mDNS sockets + listener thread)
 
 The public service-announcement API (`knx_publish_service` and friends) opens
 multicast UDP sockets, spawns a background listener thread, and sends/receives
 real mDNS packets — all network/thread behavior validated at integration level.
 The pure static helpers (`dns_name_equal`, `is_knx_subtype_query`) are
-**file-static** and only reachable by `#include`-ing `dns-sd.c`, which is not
+**file-static** and only reachable by `#include`-ing `dns-sd_mdns.c`, which is not
 viable: it is already compiled into `libkis-port` (duplicate symbols) and pulls
 in the header-only `mdns.h` plus POSIX socket code that does not compile as part
 of a g++ test TU. Concrete reason: **network/thread I/O + statics unreachable

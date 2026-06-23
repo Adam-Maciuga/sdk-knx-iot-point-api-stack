@@ -38,6 +38,7 @@
 #ifdef OC_NETWORK_MONITOR
 #include "oc_network_monitor.h"
 #endif
+#include "port/dns-sd.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
 #include "port/oc_network_interface.h"
@@ -1419,9 +1420,21 @@ void handle_session_event_callback(const oc_endpoint_t *endpoint,
 }
 #endif /* OC_SESSION_EVENTS */
 
-static void register_multicasts(oc_interface_event_t event) {
-  if (event == NETWORK_INTERFACE_DOWN || event == NETWORK_INTERFACE_UP) {
+static void network_interface_event_handler(oc_interface_event_t event) {
+  if (event == NETWORK_INTERFACE_UP) {
     oc_register_group_multicasts();
+    oc_device_info_t *device = oc_core_get_device_info();
+    if (device) {
+      knx_dns_sd_update_service(oc_string(device->serialnumber),
+                                device->iid,
+                                device->ia,
+                                device->pm);
+    }
+  } else if (event == NETWORK_INTERFACE_DOWN) {
+    /* Send the DNS-SD goodbye while the interface is still up, before
+     * leaving the multicast groups. */
+    knx_dns_sd_stop();
+    oc_unregister_group_multicasts();
   }
 }
 
@@ -1572,7 +1585,8 @@ int oc_connectivity_init(void) {
     return -1;
   }
 
-  oc_add_network_interface_event_callback(register_multicasts);
+  oc_add_network_interface_event_callback(network_interface_event_handler);
+
   OC_INF("Successfully initialized connectivity.");
 
   return 0;

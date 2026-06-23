@@ -204,7 +204,6 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     (void)ia;
     (void)pm;
 
-#ifdef OC_DNS_SD
     if (!otIp6IsEnabled(thrInstancePtr) || device == NULL)
     {
         OC_WRN("Thread link is not yet up!\r\n");
@@ -255,7 +254,7 @@ int knx_dns_sd_update_service(char *serial_no, uint64_t iid, uint16_t ia, bool p
     {
         isInitialized = true;
     }
-#endif /* OC_DNS_SD */
+
     return 0;
 }
 
