@@ -215,8 +215,6 @@ bool oc_send_ping(bool custody, oc_endpoint_t *endpoint,
         void *user_data) {
   oc_client_handler_t client_handler = {
     .response = handler,
-    .discovery = NULL,
-    .discovery_all = NULL,
   };
 
   oc_client_cb_t *cb = oc_ri_alloc_client_cb(

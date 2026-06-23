@@ -777,7 +777,7 @@ oc_event_callback_retval_t knx_add_ipv6_address_coap_discovery_handler(void* dat
     return OC_EVENT_DONE;
   }
   // register client callback
-  const oc_client_handler_t handler = {.response = knx_coap_discovery_response_handler, .discovery = NULL, .discovery_all = NULL};
+  const oc_client_handler_t handler = {.response = knx_coap_discovery_response_handler};
 
   // flags, well-known is never secure ...
   const enum transport_flags my_transport_flags = IPV6 + DISCOVERY;

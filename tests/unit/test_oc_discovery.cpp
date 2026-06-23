@@ -7,10 +7,8 @@
  *                                         link-format record (<uri>;rt=..;if=..;ct=..)
  *   oc_check_request_from_resource      — discoverability + rt/if query filter +
  *                                         paging skip, then frame the record
- *   oc_check_request_from_index         — same, but resolve the resource from the
+  oc_check_request_from_index         — same, but resolve the resource from the
  *                                         core-resource table by index
- *   oc_ri_process_discovery_payload     — client side: dispatch a received
- *                                         link-format payload to discovery_all
  *
  * Requirements:
  *   - oc_mmem_init() for the oc_string_array_t resource types.
@@ -46,29 +44,6 @@ extern "C" {
 #include "util/oc_mmem.h"
 }
 
-/* ─────────────────────────── recording discovery_all handler ─────────────── */
-
-struct DiscoRec {
-  bool called;
-  const char *payload;
-  int len;
-  oc_endpoint_t *endpoint;
-  void *data;
-};
-static DiscoRec g_disco;
-
-static oc_discovery_flags_t
-recording_discovery_all(const char *payload, int len, oc_endpoint_t *endpoint,
-                        void *data)
-{
-  g_disco.called = true;
-  g_disco.payload = payload;
-  g_disco.len = len;
-  g_disco.endpoint = endpoint;
-  g_disco.data = data;
-  return OC_STOP_DISCOVERY;
-}
-
 /* ───────────────────────────────── fixture ───────────────────────────────── */
 
 class DiscoveryBase : public ::testing::Test {
@@ -79,7 +54,6 @@ protected:
     oc_mmem_init();
     memset(buf, 0, sizeof(buf));
     oc_rep_new(buf, sizeof(buf));
-    memset(&g_disco, 0, sizeof(g_disco));
   }
 
   /* current encoded content as a std::string of the first n bytes */
@@ -338,63 +312,4 @@ TEST_F(DiscoveryBase, CheckRequestFromIndexUninitializedCoreReturnsFalse)
   /* with no device bootstrapped the core table is empty, so the resolved
    * resource is NULL and the call must safely return false. */
   EXPECT_FALSE(oc_check_request_from_index(9999, &req, &len, &skipped, 0, false));
-}
-
-/* ──────────────────────────── oc_ri_process_discovery_payload ─────────────── */
-
-TEST_F(DiscoveryBase, ProcessPayloadLinkFormatInvokesAllHandler)
-{
-  oc_client_handler_t h;
-  memset(&h, 0, sizeof(h));
-  h.discovery_all = recording_discovery_all;
-
-  oc_endpoint_t ep;
-  memset(&ep, 0, sizeof(ep));
-
-  const char *payload = "</p/0>;rt=\"urn:knx:dpa.353\"";
-  int dummy = 42;
-  oc_discovery_flags_t f = oc_ri_process_discovery_payload(
-    (const uint8_t *)payload, (int)strlen(payload), h, &ep,
-    APPLICATION_LINK_FORMAT, &dummy);
-
-  EXPECT_EQ(f, OC_STOP_DISCOVERY);
-  EXPECT_TRUE(g_disco.called);
-  EXPECT_EQ(g_disco.len, (int)strlen(payload));
-  EXPECT_EQ(g_disco.endpoint, &ep);
-  EXPECT_EQ(g_disco.data, &dummy);
-}
-
-TEST_F(DiscoveryBase, ProcessPayloadNonLinkFormatDoesNotInvoke)
-{
-  oc_client_handler_t h;
-  memset(&h, 0, sizeof(h));
-  h.discovery_all = recording_discovery_all;
-
-  oc_endpoint_t ep;
-  memset(&ep, 0, sizeof(ep));
-
-  const char *payload = "anything";
-  oc_discovery_flags_t f = oc_ri_process_discovery_payload(
-    (const uint8_t *)payload, (int)strlen(payload), h, &ep,
-    APPLICATION_CBOR, nullptr);
-
-  EXPECT_EQ(f, OC_CONTINUE_DISCOVERY);
-  EXPECT_FALSE(g_disco.called);
-}
-
-TEST_F(DiscoveryBase, ProcessPayloadNullHandlerIsSafe)
-{
-  oc_client_handler_t h;
-  memset(&h, 0, sizeof(h)); /* discovery_all == NULL */
-
-  oc_endpoint_t ep;
-  memset(&ep, 0, sizeof(ep));
-
-  const char *payload = "</p/0>";
-  oc_discovery_flags_t f = oc_ri_process_discovery_payload(
-    (const uint8_t *)payload, (int)strlen(payload), h, &ep,
-    APPLICATION_LINK_FORMAT, nullptr);
-
-  EXPECT_EQ(f, OC_CONTINUE_DISCOVERY);
-  EXPECT_FALSE(g_disco.called);
 }

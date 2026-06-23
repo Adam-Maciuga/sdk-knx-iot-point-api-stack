@@ -419,7 +419,6 @@ INTEGRATION.
 | oc_add_resource_to_response_payload | DONE (uri/rt/truncate/ct framing + comma) |
 | oc_check_request_from_resource | DONE (discoverable filter, rt/if match, paging skip, frame) |
 | oc_check_request_from_index | DONE (guard/NULL path; match path is INTEGRATION) |
-| oc_ri_process_discovery_payload | DONE (link-format dispatch, non-link skip, NULL handler) |
 | oc_process_application_resources (static) | INTEGRATION — iterates oc_ri_get_app_resources(); needs the app resource list |
 | oc_process_core_resources (static) | INTEGRATION — iterates the core-resource table by index |
 | frame_sn (static) | INTEGRATION — frames stored serial-number / iid / ia into the response |

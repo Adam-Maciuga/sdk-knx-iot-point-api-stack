@@ -1554,8 +1554,7 @@ void oc_ri_free_client_cbs_by_mid(uint16_t mid)
   while (cb)
   {
     oc_client_cb_t* next = cb->next;
-    if (!cb->discovery && cb->ref_count == 0 &&
-      cb->mid == mid)
+    if (cb->ref_count == 0 && cb->mid == mid)
     {
       cb->ref_count = 1;
       notify_client_cb_503(cb);
@@ -1573,8 +1572,7 @@ void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t* endpoint)
   while (cb != NULL)
   {
     oc_client_cb_t* next = cb->next;
-    if (!cb->discovery && cb->ref_count == 0 &&
-      oc_endpoint_compare(&cb->endpoint, endpoint) == 0)
+    if (cb->ref_count == 0 && oc_endpoint_compare(&cb->endpoint, endpoint) == 0)
     {
       cb->ref_count = 1;
       notify_client_cb_503(cb);
@@ -1707,48 +1705,32 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
   if (payload_len)
   {
-    if (cb->discovery)
-    {
-      if (oc_ri_process_discovery_payload(payload, payload_len, cb->handler,
-                                          endpoint, cf, cb->user_data) == OC_STOP_DISCOVERY)
+    int err = 0;
+
+    if (cf == APPLICATION_CBOR)
+    {// parse only on CBOR 
+
+      // oc_rep_t nodes are allocated via calloc inside oc_parse_rep
+      err = oc_parse_rep(payload, payload_len, &client_response.payload);
+    }
+
+    if (err == 0)
+    {// call only on no error (on CBOR), on no CBOR parse what you got ...
+
+      const oc_response_handler_t handler = cb->handler.response;
+      if (handler)
       {
-        cb->ref_count = 0;
-        oc_ri_free_client_cbs_by_mid(cb->mid);
-        #ifdef OC_BLOCK_WISE
-        *response_state = NULL;
-        #endif
-        return true;
+        handler(&client_response);
       }
     }
     else
     {
-      int err = 0;
-      
-      if (cf == APPLICATION_CBOR)
-      {// parse only on CBOR 
-        
-        // oc_rep_t nodes are allocated via calloc inside oc_parse_rep
-        err = oc_parse_rep(payload, payload_len, &client_response.payload);
-      }
+      OC_WRN("Error parsing payload!");
+    }
 
-      if (err == 0)
-      {// call only on no error (on CBOR), on no CBOR parse what you got ...
-
-        const oc_response_handler_t handler = cb->handler.response;
-        if (handler)
-        {
-          handler(&client_response);
-        }
-      }
-      else
-      {
-        OC_WRN("Error parsing payload!");
-      }
-
-      if (client_response.payload)
-      {
-        oc_free_rep(client_response.payload);
-      }
+    if (client_response.payload)
+    {
+      oc_free_rep(client_response.payload);
     }
   }
   else
@@ -1758,7 +1740,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
       separate = true;
       cb->separate = 1;
     }
-    else if (!cb->discovery)
+    else
     {
       const oc_response_handler_t handler = cb->handler.response;
       if (handler)
@@ -1783,7 +1765,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
   cb->ref_count = 0;
 
-  if (client_response.observe_option == OC_OBSERVE_NOT_INITIALIZED && !separate && !cb->discovery)
+  if (client_response.observe_option == OC_OBSERVE_NOT_INITIALIZED && !separate)
   {
     oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
     free_client_cb(cb);
@@ -1882,7 +1864,6 @@ oc_client_cb_t* oc_ri_alloc_client_cb(const char* uri, oc_endpoint_t* endpoint, 
   cb->qos = qos;
   cb->handler = handler;
   cb->user_data = user_data;
-  cb->discovery = false;
   cb->timestamp = oc_clock_time();
   cb->observe_seq = OC_OBSERVE_NOT_INITIALIZED;
   oc_endpoint_copy(&cb->endpoint, endpoint);

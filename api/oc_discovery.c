@@ -850,23 +850,3 @@ const oc_resource_t core_resource_well_known_core =																					 		// th
 	&core_resource_well_known_core_data																												 		// ptr to user runtime data
 };
 
-oc_discovery_flags_t oc_ri_process_discovery_payload(const uint8_t* payload, const int len,
-																const oc_client_handler_t client_handler,
-																oc_endpoint_t* endpoint,
-																oc_content_format_t content, void* user_data)
-{
-	const oc_discovery_all_handler_t all_handler = client_handler.discovery_all;
-	oc_discovery_flags_t ret = OC_CONTINUE_DISCOVERY;
-
-	if (content == APPLICATION_LINK_FORMAT)
-	{
-
-		OC_INF("calling handler 'discovery all'");
-		if (all_handler)
-		{
-			ret = all_handler((const char*) payload, len, endpoint, user_data);
-		}
-	}
-
-	return ret;
-}
