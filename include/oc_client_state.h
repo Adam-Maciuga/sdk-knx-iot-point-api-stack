@@ -113,8 +113,6 @@ typedef struct oc_client_cb_t
   uint8_t token[COAP_TOKEN_LEN];       /**< CoAP token */
   uint8_t token_len;                   /**< CoAP token length */
   bool discovery;                      /**< discovery call */
-  bool multicast;                      /**< multicast */
-  bool stop_multicast_receive;         /**< stop receiving multi cast */
   uint8_t ref_count;                   /**< reference counting on this data block */
   uint8_t separate;                    /**< separate responses, 1 = is separate response, 0 is not */
   

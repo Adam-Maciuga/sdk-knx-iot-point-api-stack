@@ -1554,7 +1554,7 @@ void oc_ri_free_client_cbs_by_mid(uint16_t mid)
   while (cb)
   {
     oc_client_cb_t* next = cb->next;
-    if (!cb->multicast && !cb->discovery && cb->ref_count == 0 &&
+    if (!cb->discovery && cb->ref_count == 0 &&
       cb->mid == mid)
     {
       cb->ref_count = 1;
@@ -1573,7 +1573,7 @@ void oc_ri_free_client_cbs_by_endpoint(oc_endpoint_t* endpoint)
   while (cb != NULL)
   {
     oc_client_cb_t* next = cb->next;
-    if (!cb->multicast && !cb->discovery && cb->ref_count == 0 &&
+    if (!cb->discovery && cb->ref_count == 0 &&
       oc_endpoint_compare(&cb->endpoint, endpoint) == 0)
     {
       cb->ref_count = 1;
@@ -1785,18 +1785,8 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
   if (client_response.observe_option == OC_OBSERVE_NOT_INITIALIZED && !separate && !cb->discovery)
   {
-    if (cb->multicast)
-    {
-      if (cb->stop_multicast_receive)
-      {
-        oc_ri_free_client_cbs_by_mid(cb->mid);
-      }
-    }
-    else
-    {
-      oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
-      free_client_cb(cb);
-    }
+    oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
+    free_client_cb(cb);
 
     #ifdef OC_BLOCK_WISE
     *response_state = NULL;
