@@ -831,7 +831,8 @@ class TestUnicastWrite:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx):
+    @staticmethod
+    def setup(coap, oscore_ctx):
         go = [{0: 13, 7: [65535, 1], 8: 0x10, 11: "/p/1"}]
         _provision_unicast(coap, oscore_ctx, go, scope=[1, 65535])
         yield
@@ -872,7 +873,8 @@ class TestUnicastWriteUnauthorized:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx):
+    @staticmethod
+    def setup(coap, oscore_ctx):
         go = [{0: 13, 7: [65535, 1], 8: 0x10, 11: "/p/1"}]
         # Scope only [65535] — ga=1 is NOT authorized
         _provision_unicast(coap, oscore_ctx, go, scope=[65535])
@@ -911,7 +913,8 @@ class TestMulticastWrite:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         go = [{0: 13, 7: [65535], 8: 0x10, 11: "/p/1"}]
@@ -956,7 +959,8 @@ class TestMulticastRead:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1059,7 +1063,8 @@ class TestUnicastRead:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx):
+    @staticmethod
+    def setup(coap, oscore_ctx):
         auth_prepare(coap, oscore_ctx)
         ia_prepare(coap, oscore_ctx)
         go = [{0: 13, 7: [65535], 8: 0x18, 11: "/p/1"}]
@@ -1115,7 +1120,8 @@ class TestUnicastWriteMultipleGO:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx):
+    @staticmethod
+    def setup(coap, oscore_ctx):
         # EITT: no AUTH/IA preparation — chains from 5.4.1.4, just tables
         go = [
             {0: 13, 7: [65535, 1], 8: 0x10, 11: "/p/1"},
@@ -1162,7 +1168,8 @@ class TestTriggerMulticastWrite:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1215,7 +1222,8 @@ class TestTriggerFirstGA:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1256,7 +1264,8 @@ class TestNotSendingInLoadingState:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         # EITT: no AUTH/IA preparation — chains from 5.4.1.7, just tables
@@ -1301,7 +1310,8 @@ class TestInitFlagStartup:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         # EITT: no AUTH/IA preparation — chains from 5.4.1.8, just tables
@@ -1365,7 +1375,8 @@ class TestMulticastResponseUpdate:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1450,7 +1461,8 @@ class TestMulticastResponseUpdateOnly:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1522,7 +1534,8 @@ class TestMulticastWriteIgnoredLoading:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         # EITT: no AUTH/IA preparation — chains from 5.4.1.10, just tables
@@ -1590,7 +1603,8 @@ class TestOwnGroupObjectUpdate:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1655,7 +1669,8 @@ class TestLongGAReceive:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1757,7 +1772,8 @@ class TestLongGASend:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1803,7 +1819,8 @@ class TestUnicastConfirmable:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1875,7 +1892,8 @@ class TestUnicastNonReResolution:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
@@ -1988,7 +2006,8 @@ class TestUnicastDiscoveryMalformedLengths:
         return f'<>;ep="knx://sn.{sn} knx://ia.{iid}.{ia}"'
 
     @pytest.fixture(autouse=True, scope="class")
-    def setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         auth_prepare(coap, oscore_ctx)
