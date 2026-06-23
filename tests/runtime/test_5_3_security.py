@@ -1665,7 +1665,8 @@ class TestGroupOscoreMulticast:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def group_setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def group_setup(coap, oscore_ctx, device_iface):
         """Provision group tables and clean up after."""
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
@@ -1772,13 +1773,14 @@ class TestGroupOscoreMasterSaltCtxId:
     _MS = os.urandom(16)
 
     @pytest.fixture(autouse=True, scope="class")
-    def group_setup_with_salt(self, coap, oscore_ctx, device_iface):
+    @classmethod
+    def group_setup_with_salt(cls, coap, oscore_ctx, device_iface):
         """Provision group tables with master salt."""
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
         ok = _provision_group_tables(
-            coap, oscore_ctx, self._MS,
-            context_id=_GROUP_CTX_ID, master_salt=self._SALT)
+            coap, oscore_ctx, cls._MS,
+            context_id=_GROUP_CTX_ID, master_salt=cls._SALT)
         if not ok:
             pytest.skip("Failed to provision group tables with salt")
         yield
@@ -2025,7 +2027,8 @@ class TestGroupAntiReplayWindow:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def group_rx_setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def group_rx_setup(coap, oscore_ctx, device_iface):
         """Provision device to receive group multicast."""
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
@@ -2148,7 +2151,8 @@ class TestSyncDelayEcho:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def group_rx_setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def group_rx_setup(coap, oscore_ctx, device_iface):
         """Provision device to receive group multicast."""
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
@@ -2274,7 +2278,8 @@ class TestInvalidEchoReply:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def group_rx_setup(self, coap, oscore_ctx, device_iface):
+    @staticmethod
+    def group_rx_setup(coap, oscore_ctx, device_iface):
         """Provision device to receive group multicast."""
         if device_iface is None:
             pytest.skip("Multicast tests require DEVICE_IFACE env var")
@@ -2375,7 +2380,8 @@ class TestSpake2PlusResetTypes:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def _reprovision_after(self, coap, oscore_ctx):
+    @staticmethod
+    def _reprovision_after(coap, oscore_ctx):
         """Re-provision oscore_ctx after this test destroys it."""
         yield
         auth_prepare(coap, oscore_ctx)
@@ -2517,7 +2523,8 @@ class TestEchoPaseToken:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def _reprovision_after(self, coap, oscore_ctx):
+    @staticmethod
+    def _reprovision_after(coap, oscore_ctx):
         """Re-provision oscore_ctx after this test destroys it."""
         yield
         auth_prepare(coap, oscore_ctx)
@@ -2597,7 +2604,8 @@ class TestSpake2PlusProtocol:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def _reprovision_after(self, coap, oscore_ctx):
+    @staticmethod
+    def _reprovision_after(coap, oscore_ctx):
         """Re-provision oscore_ctx after SPAKE tests destroy it."""
         yield
         auth_prepare(coap, oscore_ctx)
@@ -2731,7 +2739,8 @@ class TestSpake2PlusStateMachine:
     """
 
     @pytest.fixture(autouse=True, scope="class")
-    def _reprovision_after(self, coap, oscore_ctx):
+    @staticmethod
+    def _reprovision_after(coap, oscore_ctx):
         """Re-provision oscore_ctx after these tests destroy it."""
         yield
         auth_prepare(coap, oscore_ctx)
@@ -3038,7 +3047,8 @@ class TestSpake2PlusBruteForce:
     BLOCK_THRESHOLD = 10
 
     @pytest.fixture(autouse=True, scope="class")
-    def _reprovision_after(self, coap, oscore_ctx):
+    @staticmethod
+    def _reprovision_after(coap, oscore_ctx):
         """Re-provision oscore_ctx after these tests destroy it."""
         yield
         auth_prepare(coap, oscore_ctx)
