@@ -1152,17 +1152,6 @@ extern "C"
   bool oc_do_well_known_message_update(void);
 
   /**
-   * Free a list of endpoints from the oc_endpoint_t
-   *
-   * note: oc_endpoint_t is a linked list. This will walk the list an free all
-   * endpoints found in the list. Even if the list only consists of a single
-   * endpoint.
-   *
-   * @param[in,out] endpoint the endpoint list to free
-   */
-  void oc_free_server_endpoints(oc_endpoint_t* endpoint);
-
-  /**
    * @brief close the tls session on the indicated endpoint
    *
    * @param endpoint endpoint indicating a session

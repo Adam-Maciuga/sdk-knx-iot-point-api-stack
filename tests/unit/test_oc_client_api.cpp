@@ -6,7 +6,6 @@
  *   oc_lf_get_entry_uri      — extract the <uri> of the Nth record
  *   oc_lf_get_entry_param    — extract a ;param=value of the Nth record
  *                              (also drives the static oc_lf_get_line)
- *   oc_free_server_endpoints — free a linked list of endpoints
  *   oc_close_session         — plain (non-secured/non-TCP) endpoint is a no-op
  *
  * INTEGRATION (documented, not unit-tested here):
@@ -120,32 +119,6 @@ TEST_F(ClientApiLF, GetEntryParamMissingReturnsZero)
   int p_len = 0;
   /* "xx" is not a parameter of the record */
   EXPECT_EQ(oc_lf_get_entry_param(LF2, (int)strlen(LF2), 0, "xx", &p, &p_len), 0);
-}
-
-/* ─────────────────────────── oc_free_server_endpoints ─────────────────────── */
-
-TEST(ClientApiEndpoints, FreeServerEndpointsNullIsNoOp)
-{
-  oc_free_server_endpoints(nullptr);
-  SUCCEED();
-}
-
-TEST(ClientApiEndpoints, FreeServerEndpointsFreesChain)
-{
-  /* build a 3-node endpoint chain and free it; ASan verifies no leak / double
-   * free (oc_new_endpoint allocates, oc_free_server_endpoints walks ->next). */
-  oc_endpoint_t *a = oc_new_endpoint();
-  oc_endpoint_t *b = oc_new_endpoint();
-  oc_endpoint_t *c = oc_new_endpoint();
-  ASSERT_NE(a, nullptr);
-  ASSERT_NE(b, nullptr);
-  ASSERT_NE(c, nullptr);
-  a->next = b;
-  b->next = c;
-  c->next = nullptr;
-
-  oc_free_server_endpoints(a);
-  SUCCEED();
 }
 
 /* ─────────────────────────────── oc_close_session ─────────────────────────── */

@@ -186,17 +186,6 @@ bool oc_init_well_known_message_update(const oc_endpoint_t* well_known_message, 
   return true;
 }
 
-void oc_free_server_endpoints(oc_endpoint_t *endpoint)
-{
-  while (endpoint) 
-  {
-    // tmp copy, will be released next ...
-    oc_endpoint_t* next = endpoint->next;
-    oc_free_endpoint(endpoint);
-    endpoint = next;
-  }
-}
-
 #ifdef OC_TCP
 oc_event_callback_retval_t oc_remove_ping_handler(void *data) {
   oc_client_cb_t *cb = (oc_client_cb_t *)data;

@@ -951,8 +951,7 @@ static bool add_periodic_observe_callback(const oc_resource_t* resource)
     event_cb->data = (void*)resource;
     event_cb->callback = periodic_observe_handler;
     OC_PROCESS_CONTEXT_BEGIN(&timed_callback_events);
-      oc_etimer_set(&event_cb->timer,
-                    (uint64_t)resource->observe_period_seconds * OC_CLOCK_SECOND);
+    oc_etimer_set(&event_cb->timer,(uint64_t)resource->observe_period_seconds * OC_CLOCK_SECOND);
     OC_PROCESS_CONTEXT_END(&timed_callback_events);
     oc_list_add(observe_callbacks, event_cb);
   }
