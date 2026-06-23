@@ -143,20 +143,18 @@ static int mdns_listen_sock6 = -1;
 
 /* Listener thread handle and termination flag */
 static volatile bool listener_running = false;
-#ifdef _WIN32
+static bool listener_thread_created = false;
+#if defined(_WIN32)
   static HANDLE listener_thread_handle = NULL;
+#elif defined(__ZEPHYR__)
+  /* Native kernel thread instead of a pthread_t. Stack size mirrors the CoAP
+   * RX thread (RX_THREAD_STACK_SIZE) in connectivity_wifi.c. */
+  #define KNX_MDNS_LISTENER_STACK_SIZE 2048
+  #define KNX_MDNS_LISTENER_PRIORITY 7 /* mirrors RX_THREAD_PRIORITY in connectivity_wifi.c */
+  K_THREAD_STACK_DEFINE(knx_mdns_listener_stack, KNX_MDNS_LISTENER_STACK_SIZE);
+  static struct k_thread knx_mdns_listener_thread_data;
 #else
-  #ifdef __ZEPHYR__
-    /* Native kernel thread instead of a pthread_t. Stack size mirrors the CoAP
-     * RX thread (RX_THREAD_STACK_SIZE) in connectivity_wifi.c. */
-    #define KNX_MDNS_LISTENER_STACK_SIZE 2048
-    #define KNX_MDNS_LISTENER_PRIORITY 7 /* mirrors RX_THREAD_PRIORITY in connectivity_wifi.c */
-    K_THREAD_STACK_DEFINE(knx_mdns_listener_stack, KNX_MDNS_LISTENER_STACK_SIZE);
-    static struct k_thread knx_mdns_listener_thread_data;
-  #else
-    static pthread_t listener_thread;
-  #endif
-  static bool listener_thread_created = false;
+  static pthread_t listener_thread;
 #endif
 
 /* sleep-period TXT value, e.g. "30" (seconds). Empty string = no SP record. */

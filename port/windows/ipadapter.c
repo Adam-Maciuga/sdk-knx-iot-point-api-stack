@@ -37,10 +37,10 @@
 #include "oc_buffer.h"
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
-#include "oc_knx_fp.h"
 #ifdef OC_NETWORK_MONITOR
 #include "oc_network_monitor.h"
 #endif
+#include "api/oc_knx_fp.h"
 #include "port/dns-sd.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
