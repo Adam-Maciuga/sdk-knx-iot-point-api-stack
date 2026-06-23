@@ -13,8 +13,7 @@
  *   - oc_process_network_event (static) drains the queue into
  *     oc_receive_message -> full CoAP/OSCORE receive path (INTEGRATION).
  *   - the OC_PROCESS_THREAD body needs the process scheduler (INTEGRATION).
- *   - oc_network_interface_event is OC_NETWORK_MONITOR-only and needs the
- *     running process (INTEGRATION).
+ *   - oc_network_interface_event needs the running process (INTEGRATION).
  *
  * The single branch with no scheduler dependency is the early-out in
  * oc_network_event: when the oc_network_events process is NOT running it simply

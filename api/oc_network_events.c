@@ -14,9 +14,7 @@
 #include "util/oc_list.h"
 
 OC_LIST(network_events);
-#ifdef OC_NETWORK_MONITOR
 static bool interface_up, interface_down;
-#endif
 
 static void oc_process_network_event(void)
 {
@@ -29,7 +27,6 @@ static void oc_process_network_event(void)
     message = (oc_message_t*)oc_list_pop(network_events);
   }
 
-  #ifdef OC_NETWORK_MONITOR
   if (interface_up)
   {
     oc_process_post(&oc_network_events, oc_events[INTERFACE_UP], NULL);
@@ -40,7 +37,6 @@ static void oc_process_network_event(void)
     oc_process_post(&oc_network_events, oc_events[INTERFACE_DOWN], NULL);
     interface_down = false;
   }
-  #endif
   oc_network_event_handler_mutex_unlock();
 }
 
@@ -53,7 +49,6 @@ OC_PROCESS_THREAD(oc_network_events, ev, data)
     while (oc_process_is_running(&(oc_network_events)))
     {
       OC_PROCESS_YIELD();
-      #ifdef OC_NETWORK_MONITOR
       if (ev == oc_events[INTERFACE_DOWN])
       {
         handle_network_interface_event_callback(NETWORK_INTERFACE_DOWN);
@@ -62,7 +57,6 @@ OC_PROCESS_THREAD(oc_network_events, ev, data)
       {
         handle_network_interface_event_callback(NETWORK_INTERFACE_UP);
       }
-      #endif
     }
   OC_PROCESS_END();
 }
@@ -82,7 +76,6 @@ void oc_network_event(oc_message_t* message)
   _oc_signal_event_loop();
 }
 
-#ifdef OC_NETWORK_MONITOR
 void oc_network_interface_event(oc_interface_event_t event)
 {
   if (!oc_process_is_running(&oc_network_events))
@@ -109,4 +102,3 @@ void oc_network_interface_event(oc_interface_event_t event)
   oc_process_poll(&oc_network_events);
   _oc_signal_event_loop();
 }
-#endif

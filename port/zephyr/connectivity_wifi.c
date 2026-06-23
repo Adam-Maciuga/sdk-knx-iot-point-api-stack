@@ -335,7 +335,6 @@ static void setup_multicast_interface(void)
 
 /* ── Network interface event monitor ─────────────────────────────────────── */
 
-#ifdef OC_NETWORK_MONITOR
 OC_LIST(oc_network_interface_cb_list);
 static struct net_mgmt_event_callback ipv6_addr_event_callback;
 
@@ -426,7 +425,6 @@ void handle_network_interface_event_callback(oc_interface_event_t event)
         }
     }
 }
-#endif
 
 /* ── Public interface ─────────────────────────────────────────────────────── */
 
@@ -481,12 +479,10 @@ int oc_connectivity_init(void)
     k_thread_name_set(rx_tid, "coap_rx_wifi");
     OC_DBG("CoAP RX thread started.");
 
-#ifdef OC_NETWORK_MONITOR
     net_mgmt_init_event_callback(&ipv6_addr_event_callback, ipv6_addr_event_handler,
                                  NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_ADDR_DEL);
     net_mgmt_add_event_callback(&ipv6_addr_event_callback);
     oc_add_network_interface_event_callback(network_interface_event_handler);
-#endif
 
     OC_INF("WiFi connectivity initialized on UDP port %d.", COAP_PORT_UNSECURED);
     return 0;

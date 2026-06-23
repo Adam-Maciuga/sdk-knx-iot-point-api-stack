@@ -35,9 +35,7 @@
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
 #include "api/oc_knx_fp.h"
-#ifdef OC_NETWORK_MONITOR
 #include "oc_network_monitor.h"
-#endif
 #include "port/dns-sd.h"
 #include "port/oc_assert.h"
 #include "port/oc_connectivity.h"
@@ -65,7 +63,6 @@ bool ifchange_initialized;
 
 OC_LIST(ip_contexts);
 
-#ifdef OC_NETWORK_MONITOR
 /**
  * Structure to manage interface list.
  */
@@ -162,7 +159,6 @@ static void remove_all_network_interface_cbs(void) {
     cb_item = next;
   }
 }
-#endif /* OC_NETWORK_MONITOR */
 
 #ifdef OC_SESSION_EVENTS
 OC_LIST(oc_session_event_cb_list);
@@ -196,10 +192,8 @@ void oc_network_event_handler_mutex_unlock(void) {
 void oc_network_event_handler_mutex_destroy(void) {
   ifchange_initialized = false;
   close(ifchange_sock);
-#ifdef OC_NETWORK_MONITOR
   remove_all_ip_interface();
   remove_all_network_interface_cbs();
-#endif
 #ifdef OC_SESSION_EVENTS
   remove_all_session_event_cbs();
 #endif
@@ -728,11 +722,9 @@ int oc_network_refresh_endpoints(void) {
     if (response->nlmsg_type == RTM_NEWADDR) {
       struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(response);
       if (ifa) {
-#ifdef OC_NETWORK_MONITOR
         if (add_ip_interface(ifa->ifa_index)) {
           oc_network_interface_event(NETWORK_INTERFACE_UP);
         }
-#endif
         struct rtattr *attr = (struct rtattr *)IFA_RTA(ifa);
         int att_len = IFA_PAYLOAD(response);
         while (RTA_OK(attr, att_len)) {
@@ -751,11 +743,9 @@ int oc_network_refresh_endpoints(void) {
     } else if (response->nlmsg_type == RTM_DELADDR) {
       struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(response);
       if (ifa) {
-#ifdef OC_NETWORK_MONITOR
         if (remove_ip_interface(ifa->ifa_index)) {
           oc_network_interface_event(NETWORK_INTERFACE_DOWN);
         }
-#endif
       }
 
       if_state_changed = true;
@@ -1318,7 +1308,6 @@ done:
   freeifaddrs(ifs);
 }
 
-#ifdef OC_NETWORK_MONITOR
 int oc_add_network_interface_event_callback(interface_event_handler_t cb) {
   if (!cb) {
     return -1;
@@ -1368,7 +1357,6 @@ void handle_network_interface_event_callback(oc_interface_event_t event) {
     }
   }
 }
-#endif /* OC_NETWORK_MONITOR */
 
 #ifdef OC_SESSION_EVENTS
 int oc_add_session_event_callback(session_event_handler_t cb) {
@@ -1569,12 +1557,10 @@ int oc_connectivity_init(void) {
       return -1;
     }
 
-#ifdef OC_NETWORK_MONITOR
     if (!check_new_ip_interfaces()) {
       OC_ERR("checking new IP interfaces failed.");
       return -1;
     }
-#endif
 
     ifchange_initialized = true;
   }

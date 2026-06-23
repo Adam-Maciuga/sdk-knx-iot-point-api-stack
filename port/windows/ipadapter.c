@@ -37,9 +37,7 @@
 #include "oc_buffer.h"
 #include "oc_core_res.h"
 #include "oc_endpoint.h"
-#ifdef OC_NETWORK_MONITOR
 #include "oc_network_monitor.h"
-#endif
 #include "api/oc_knx_fp.h"
 #include "port/dns-sd.h"
 #include "port/oc_assert.h"
@@ -63,7 +61,6 @@ static LPFN_WSASENDMSG PWSASendMsg;
 
 OC_LIST(ip_contexts);
 
-#ifdef OC_NETWORK_MONITOR
 OC_LIST(ip_interface_list);
 
 OC_LIST(oc_network_interface_cb_list);
@@ -128,13 +125,10 @@ static void remove_all_network_interface_cbs(void) {
     cb_item = next;
   }
 }
-#endif /* OC_NETWORK_MONITOR */
 
 void oc_network_event_handler_mutex_init(void) {
   mutex = mutex_new();
-#ifdef OC_NETWORK_MONITOR
   oc_network_interface_cb_mutex = mutex_new();
-#endif
 #ifdef OC_TCP
   oc_tcp_adapter_mutex_init();
 #endif
@@ -159,11 +153,9 @@ void oc_network_event_handler_mutex_destroy(void) {
   ifchange_initialized = false;
   mutex_free(mutex);
   closesocket(ifchange_sock);
-#ifdef OC_NETWORK_MONITOR
   mutex_free(oc_network_interface_cb_mutex);
   remove_all_ip_interface();
   remove_all_network_interface_cbs();
-#endif
 #ifdef OC_SESSION_EVENTS
   remove_all_session_event_cbs();
 #endif
@@ -504,7 +496,6 @@ int oc_network_refresh_endpoints(void) {
     OC_ERR("IP context is NULL");
   }
 
-#ifdef OC_NETWORK_MONITOR
   bool if_up = false;
   bool if_down = false;
   for (ifaddr_t *ifaddr = ifaddr_list; ifaddr != NULL; ifaddr = ifaddr->next) {
@@ -529,7 +520,6 @@ int oc_network_refresh_endpoints(void) {
   if (if_down) {
     oc_network_interface_event(NETWORK_INTERFACE_DOWN);
   }
-#endif /* OC_NETWORK_MONITOR */
 
   free_network_addresses(ifaddr_list);
 
@@ -1209,7 +1199,6 @@ done:
 }
 #endif /* OC_CLIENT */
 
-#ifdef OC_NETWORK_MONITOR
 int oc_add_network_interface_event_callback(interface_event_handler_t cb) {
   if (!cb)
     return -1;
@@ -1259,7 +1248,6 @@ void handle_network_interface_event_callback(oc_interface_event_t event) {
   }
   mutex_unlock(oc_network_interface_cb_mutex);
 }
-#endif /* OC_NETWORK_MONITOR */
 
 #ifdef OC_SESSION_EVENTS
 OC_LIST(oc_session_event_cb_list);
