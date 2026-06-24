@@ -65,10 +65,7 @@ void _oc_alloc_string(oc_string_t* ocstring, size_t size)
 
 void _oc_free_string(oc_string_t* ocstring)
 {
-  // Free whenever an allocation exists, not just when size > 0:
-  // a zero-length byte string (e.g. oc_new_byte_string(x, "", 0)) still
-  // owns a malloc(0) block with ptr != NULL but size == 0. Guarding on
-  // size > 0 would leak it. oc_free -> free(NULL) is safe.
+  // free whenever an allocation exists, not just when size > 0, see detailed notes on oc_free_string() in oc_helpers.h
   if (ocstring && ocstring->ptr)
   {
     oc_free(ocstring, BYTE_POOL);

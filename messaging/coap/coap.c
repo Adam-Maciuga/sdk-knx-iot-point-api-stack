@@ -249,55 +249,77 @@ static size_t coap_serialize_int_option(unsigned int number,
 
 static size_t coap_serialize_array_option(unsigned int number, 
         unsigned int current_number, uint8_t* buffer, uint8_t* array, 
-        size_t length, char split_char) {
+        size_t length, char split_char) 
+{
 
   size_t i = 0;
-  if (buffer) {
-    OC_DBG("ARRAY type %u, len %zu", number, length);
-  }
 
-  if (split_char != '\0') {
-    uint8_t* part_start = array;
-    uint8_t* part_end = NULL;
-    for (size_t j = 0; j <= length + 1; ++j) {
-      if (array[j] == split_char || j == length) {
-        part_end = array + j;
-        size_t temp_length = part_end - part_start;
-        if (buffer) {
+  OC_DBG("%s ARRAY type %u, len %zu", buffer ? "serialize -" : "count -", number, length);
+
+  if (split_char != '\0') 
+  { // no string splitter, may be any splitter such as '/' or '&'
+    const uint8_t* part_start = array;
+
+    for (size_t j = 0; j <= length + 1; ++j) 
+    {
+      if (array[j] == split_char || j == length) 
+      {
+        const uint8_t* part_end = array + j;
+        const size_t temp_length = part_end - part_start;
+        
+        if (buffer) 
+        { // serialize
           i += coap_set_option_header(number - current_number, temp_length, &buffer[i]);
-          // memmove (not memcpy): src and dst may overlap because OSCORE
-          // re-serializes the message in place into its own buffer.
+          
+          /* 
+             - memmove (not memcpy): src and dst may overlap (on a length error), 
+               buffer = coap options buffer, array will be serialized into it (after the set option code in header)
+             
+             - memcpy was a problem on 'Address Sanitizer Tests'  
+
+          */
           memmove(&buffer[i], part_start, temp_length);
-        } else {
+        } 
+        else 
+        { // count
           i += coap_set_option_header(number - current_number, temp_length, NULL);
         }
 
         i += temp_length;
-        if (buffer) {
-          OC_DBG("OPTION type %u, delta %u, len %zu, part [%.*s]", number,
-                  number - current_number, i, (int) temp_length, part_start);
-        }
+       
+        OC_DBG("%s OPTION type %u, delta %u, len %zu, part [%.*s]", buffer ? "serialize -" : "count -", number, number - current_number, i, (int) temp_length, part_start);
+        
 
         ++j; // skip the splitter
         current_number = number;
         part_start = array + j;
       }
     }
-  } else {
-    if (buffer) {
+  } 
+  else 
+  { // string splitter 
+    if (buffer) 
+    { // serialize
       i += coap_set_option_header(number - current_number, length, &buffer[i]);
-      // memmove (not memcpy): src and dst may overlap because OSCORE
-      // re-serializes the message in place into its own buffer.
+      
+      /*
+             - memmove (not memcpy): src and dst may overlap (on a length error),
+               buffer = coap options buffer, array will be serialized into it (after the set option code in header)
+
+             - memcpy was a problem on 'Address Sanitizer Tests'
+
+      */
       memmove(&buffer[i], array, length);
-    } else {
+    } 
+    else 
+    { // count
       i += coap_set_option_header(number - current_number, length, NULL);
     }
 
     i += length;
-    if (buffer) {
-      OC_DBG("OPTION type %u, delta %u, len %zu", number, 
-              number - current_number, length);
-    }
+
+    OC_DBG("%s OPTION type %u, delta %u, len %zu", buffer ? "serialize -" : "count -", number,  number - current_number, length);
+    
   }
 
   return i;
@@ -466,7 +488,8 @@ static size_t coap_serialize_options(void* packet, uint8_t* option_array, bool i
   // COAP_SERIALIZE_STRING_OPTION(COAP_OPTION_LOCATION_PATH, location_path, '/', "Location-Path");
 
   // OSCORE option must be in outer options, set only if outer and oscore are true
-  if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) {
+  if (oscore && outer && IS_OPTION(coap_pkt, COAP_OPTION_OSCORE)) 
+  {
     // add OSCORE option
 
     // adjust total option len
@@ -1087,7 +1110,6 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
   coap_packet_t* const coap_pkt = (coap_packet_t*) packet; 
   uint8_t* option;						// ptr to all options 
-  uint8_t token_location = 0;	// location in coap telegram
 
   // init 
   coap_pkt->buffer = buffer;  // is a ptr copy from org endpoint data
@@ -1103,6 +1125,7 @@ size_t coap_oscore_serialize_message(void* packet, uint8_t* buffer, bool inner, 
 
   if (outer) 
   {
+    uint8_t token_location = 0;
     // if outer is true serialize only outer options and possibly OSCORE options (if true)
     
     // add size of token

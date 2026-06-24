@@ -82,10 +82,10 @@ enum StringRepresentation {
  * @brief frees an 'ocstring'
  *
  *	@note
- *	- an empty string "" - is a string - and will be released (string size of empty string is '1', the string pointer .ptr as such is NOT NULL)
- *	- an ocstring with .size '0' is not released
- *	- an ocstring with parameter = NULL is not released
- *	- an ocstring with .ptr 'NULL' is released -> free ignores NULL ptr (size must be > 0, this would be a previous alloc problem anyhow)
+ *	- an empty string "" - is a string - will be released 
+ *	  (its used memory size is '1' for the '\0' terminator, .ptr is NOT NULL, the returned oc_string_len will be 0)
+ *	- an ocstring with parameter 'ocstring' = NULL will not be released
+ *	- an ocstring with .ptr 'NULL' will not be released
  *
  *	@return in result the next/size/ptr are set to 'NULL'/'0', which is not a valid string definition
  *

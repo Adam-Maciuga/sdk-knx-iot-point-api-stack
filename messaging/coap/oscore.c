@@ -265,21 +265,23 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
   // calculate OSCORE option value length (piv, kid_context + kid)
   size_t option_length = coap_pkt->piv_len + coap_pkt->kid_len + coap_pkt->kid_ctx_len;
 
-  if (coap_pkt->kid_ctx_len > 0) { 
+  if (coap_pkt->kid_ctx_len > 0) 
+  { 
     // context is present so increase option length (s = 1 byte, https://www.rfc-editor.org/rfc/rfc8613.html#section-6.1)
     ++option_length;
   }
 
-  if (coap_pkt->oscore_flags > 0) { 
+  if (coap_pkt->oscore_flags > 0) 
+  { 
     // flags are present so increase option length (flags = 1 byte, see above)
     ++option_length;
   }
 
   // serialize OSCORE option header
-  size_t header_length = coap_set_option_header(
-          COAP_OPTION_OSCORE - *current_number, option_length, buffer);
+  const size_t header_length = coap_set_option_header(COAP_OPTION_OSCORE - *current_number, option_length, buffer);
 
-  if (buffer) {
+  if (buffer) 
+  {
     buffer += header_length;
 
     OC_DBG_OSCORE("OSCORE option");
@@ -315,9 +317,9 @@ size_t coap_serialize_oscore_option(unsigned int* current_number, void* packet, 
       }
 
       // remaining bytes, if any, represent the kid
-      if (coap_pkt->kid_len > 0) {
+      if (coap_pkt->kid_len > 0) 
+      {
         memcpy(buffer, coap_pkt->kid, coap_pkt->kid_len);
-        buffer += coap_pkt->kid_len;
 
         OC_DBG_OSCORE("\t kid\t\t: ");
         OC_LOGbytes_OSCORE(coap_pkt->kid, coap_pkt->kid_len);
@@ -344,8 +346,6 @@ size_t coap_serialize_message(void* packet, uint8_t* buffer)
   return coap_oscore_serialize_message(packet, buffer, true, true, false);
 }
 
-
-
 // checks message header to find the CoAP OSCORE option header
 bool oscore_is_oscore_message(oc_message_t* msg)
 {
@@ -370,7 +370,7 @@ bool oscore_is_oscore_message(oc_message_t* msg)
   }
 
   // add token size and jump to the end 
-  size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
+  const size_t token_len = (COAP_HEADER_TOKEN_LEN_MASK & msg->data[0]) >> COAP_HEADER_TOKEN_LEN_POSITION;
   current_option += token_len;
 
   // parse outer options, first option instance is defined as zero https://datatracker.ietf.org/doc/html/rfc7252#section-3.1
