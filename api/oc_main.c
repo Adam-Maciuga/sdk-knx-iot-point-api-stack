@@ -236,9 +236,7 @@ int oc_main_init(const oc_handler_t* handler)
   }
   #endif 
 
-  OC_DBG("stack initialized ...");
-
-  initialized = true;
+  
 
   /* NOTE: The post-init steps below (group-multicast registration, the
    * read-on-init datapoint reads and the DNS-SD registration) assume the
@@ -274,6 +272,10 @@ int oc_main_init(const oc_handler_t* handler)
   OC_INF("Re-register DNS-SD service after stack initialization)");
   const oc_device_info_t* const  device = oc_core_get_device_info();
   knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
+
+  // add as last step to avoid half init's 
+  OC_DBG("stack initialized ...");
+  initialized = true;
 
   return 0;
 }
