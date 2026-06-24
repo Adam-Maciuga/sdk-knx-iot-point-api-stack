@@ -265,7 +265,9 @@ static size_t coap_serialize_array_option(unsigned int number,
         size_t temp_length = part_end - part_start;
         if (buffer) {
           i += coap_set_option_header(number - current_number, temp_length, &buffer[i]);
-          memcpy(&buffer[i], part_start, temp_length);
+          // memmove (not memcpy): src and dst may overlap because OSCORE
+          // re-serializes the message in place into its own buffer.
+          memmove(&buffer[i], part_start, temp_length);
         } else {
           i += coap_set_option_header(number - current_number, temp_length, NULL);
         }
@@ -284,7 +286,9 @@ static size_t coap_serialize_array_option(unsigned int number,
   } else {
     if (buffer) {
       i += coap_set_option_header(number - current_number, length, &buffer[i]);
-      memcpy(&buffer[i], array, length);
+      // memmove (not memcpy): src and dst may overlap because OSCORE
+      // re-serializes the message in place into its own buffer.
+      memmove(&buffer[i], array, length);
     } else {
       i += coap_set_option_header(number - current_number, length, NULL);
     }
