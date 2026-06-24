@@ -239,6 +239,7 @@ typedef struct coap_packet_t
     {                                                                                 \
       block |= 0x8;                                                                   \
     }                                                                                 \
+    /* RFC 7959, SZX 0...6 = 16...1024 bytes */                                                                                  \
     block |= 0xF & coap_log_2(coap_pkt->field##_size / 16);                           \
     option_length += coap_serialize_int_option(number, current_number, option, block);\
     if (option)                                                                       \

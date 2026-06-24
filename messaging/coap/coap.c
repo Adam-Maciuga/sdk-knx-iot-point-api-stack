@@ -52,16 +52,24 @@ static uint16_t current_mid = 0;
 // cant be static, used by several modules
 coap_status_t coap_status_code = COAP_NO_ERROR;
 
-// local helper functions  
-static uint16_t coap_log_2(uint16_t value) {
+// local helper functions, gets power of value 2, used for blockwise transfer
+static uint16_t coap_log_2(uint16_t value) 
+{
   uint16_t result = 0;
+  /* 
+     RFC 7959, SZX 0...6 = 16...1024 bytes, examples:
+     - in 1 (16/16) = 1: out 0  -> 2p(0+4) = 16
+     - in 2 (32/16) = 2: out 1  -> 2p(1+4) = 32
+     - in 3 (64/16) = 4: out 2  -> 2p(2+4) = 64
+  */
 
-  do {
+  do 
+  {
     value = value >> 1;
     result++;
   } while (value);
 
-  return (result - 1);
+  return result - 1;
 }
 
 void print_coap_service(uint8_t code, char* text)
