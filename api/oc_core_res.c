@@ -35,7 +35,7 @@
 
 static oc_device_info_t oc_device_info;	// common device 0 data pointer - cannot be NULL
 
-int oc_core_set_device_fwv(uint16_t major, uint16_t minor, uint16_t patch)
+int oc_core_set_and_store_device_fwv(uint16_t major, uint16_t minor, uint16_t patch)
 {
 	oc_device_info.fwv.major = major;
 	oc_device_info.fwv.minor = minor;

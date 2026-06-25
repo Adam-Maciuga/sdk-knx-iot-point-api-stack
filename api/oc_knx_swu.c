@@ -535,7 +535,7 @@ static void oc_knx_swu_update_put_handler(oc_request_t* request, oc_interface_ma
       // 1. Respect defer_time (delay before starting upgrade)
       // 2. Apply firmware from downloaded package
       // 3. Verify firmware integrity
-      // 4. Update device firmware version: oc_core_set_device_fwv()
+      // 4. Update device firmware version: oc_core_set_and_store_device_fwv()
       // 5. Set result: oc_swu_set_result(OC_SWU_RESULT_SUCCESS/failure)
       // 6. Complete transition: oc_swu_set_state(OC_SWU_STATE_IDLE)
       const oc_swu_upgrade_t* swu_upgrade_cb = oc_get_swu_upgrade_cb();

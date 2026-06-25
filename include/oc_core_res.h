@@ -98,7 +98,7 @@ extern "C" {
   void oc_core_set_device(const char* serialnumber, const char* app_friendly_name);
 
 	/**
-	 * @brief set the firmware version
+	 * @brief sets and stores the firmware version
 	 *
 	 * @param major the xxx number of xxx.yyy.zzz
 	 * @param minor the yyy number of xxx.yyy.zzz
@@ -109,7 +109,7 @@ extern "C" {
 	 *
 	 * @return int error status, 0 = OK
 	 */
-  int oc_core_set_device_fwv(uint16_t major, uint16_t minor, uint16_t patch);
+  int oc_core_set_and_store_device_fwv(uint16_t major, uint16_t minor, uint16_t patch);
 
 	/**
 	 * @brief sets the hardware version number
