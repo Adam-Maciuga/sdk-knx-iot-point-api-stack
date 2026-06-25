@@ -101,6 +101,7 @@ static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
 
     message->length                  = (size_t)len;
     message->endpoint.addr.ipv6.port = ntohs(from.sin6_port);
+    message->endpoint.addr.ipv6.scope = (uint8_t)from.sin6_scope_id;
     memcpy(message->endpoint.addr.ipv6.address, from.sin6_addr.s6_addr, 16);
 
     /* Parse IPV6_PKTINFO ancillary data for interface index and
@@ -514,12 +515,117 @@ int oc_connectivity_get_new_port(void) {
     return 0;
 }
 
+/* Return true when all size bytes of address are zero. */
+static bool check_if_address_unset(const uint8_t *address, int size)
+{
+    for (int i = 0; i < size; i++) {
+        if (address[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* RFC 6724 Section 3.2: Determine the scope of a unicast address.
+ * Loopback (::1) and link-local (fe80::/10) -> scope 2.
+ * Deprecated site-local (fec0::/10) -> scope 5.
+ * Everything else (including ULA fc00::/7 and global) -> scope 14 (global).
+ */
+static int get_addr_scope(const uint8_t *a)
+{
+    static const uint8_t loopback[16] = { 0, 0, 0, 0, 0, 0, 0, 0,
+                                          0, 0, 0, 0, 0, 0, 0, 1 };
+    if (memcmp(a, loopback, 16) == 0) {
+        return 2;
+    }
+    if (a[0] == 0xfe && (a[1] & 0xc0) == 0x80) {  /* link-local fe80::/10 */
+        return 2;
+    }
+    if (a[0] == 0xfe && (a[1] & 0xc0) == 0xc0) {  /* deprecated site-local fec0::/10 */
+        return 5;
+    }
+    return 14;
+}
+
+/* Return true for a Unique Local Address (fc00::/7). */
+static bool is_ula(const uint8_t *a)
+{
+    return (a[0] & 0xfe) == 0xfc;
+}
+
+/* Select a source address for the WiFi interface based on the destination
+ * scope, implementing RFC 6724 Rule 2: prefer the source whose scope is the
+ * smallest value that is still >= the destination scope. Rule 5 (simplified):
+ * prefer a global address over a ULA when the scopes are equal. The destination
+ * scope comes from the multicast address byte for multicast destinations, or
+ * from the address prefix for unicast destinations. Falls back to the first
+ * usable address.
+ *
+ * Writes 16 bytes into address. Leaves address unchanged when the interface has
+ * no usable IPv6 address.
+ */
+static void select_source_address(uint8_t *address, const uint8_t *dest)
+{
+    int dest_scope;
+    if (dest[0] == 0xff) {  /* multicast */
+        dest_scope = dest[1] & 0x0f;
+    } else {
+        dest_scope = get_addr_scope(dest);
+    }
+
+    struct net_if *iface = net_if_get_first_wifi();
+    if (!iface) {
+        iface = net_if_get_default();
+    }
+    if (!iface) {
+        return;
+    }
+    struct net_if_ipv6 *ipv6 = iface->config.ip.ipv6;
+    if (!ipv6) {
+        return;
+    }
+
+    uint8_t best[16] = { 0 };
+    int best_scope = -1;
+    bool best_is_ula = false;
+    uint8_t fallback[16] = { 0 };
+    bool have_fallback = false;
+
+    for (int i = 0; i < NET_IF_MAX_IPV6_ADDR; i++) {
+        if (!ipv6->unicast[i].is_used) {
+            continue;
+        }
+        const uint8_t *a = ipv6->unicast[i].address.in6_addr.s6_addr;
+        int src_scope = get_addr_scope(a);
+
+        if (!have_fallback) {
+            memcpy(fallback, a, 16);
+            have_fallback = true;
+        }
+
+        /* RFC 6724 Rule 2: prefer smallest scope >= dest_scope.
+         * Rule 5 (simplified): prefer global over ULA when scopes are equal. */
+        if (src_scope >= dest_scope) {
+            if (best_scope < 0 || src_scope < best_scope) {
+                memcpy(best, a, 16);
+                best_scope = src_scope;
+                best_is_ula = is_ula(a);
+            } else if (src_scope == best_scope && best_is_ula && !is_ula(a)) {
+                memcpy(best, a, 16);
+                best_is_ula = false;
+            }
+        }
+    }
+
+    if (best_scope >= 0) {
+        memcpy(address, best, 16);
+    } else if (have_fallback) {
+        memcpy(address, fallback, 16);
+    }
+}
+
 int oc_send_buffer(oc_message_t *message)
 {
-    struct sockaddr_in6 to = {
-        .sin6_family = AF_INET6,
-    };
-
     if (!message) {
         OC_ERR("Attempted to send a NULL message!");
         return -1;
@@ -535,11 +641,81 @@ int oc_send_buffer(oc_message_t *message)
     PRINTF("\r\n");
 #endif
 
-    to.sin6_port = htons(message->endpoint.addr.ipv6.port);
+    struct sockaddr_in6 to = {
+        .sin6_family = AF_INET6,
+        .sin6_port   = htons(message->endpoint.addr.ipv6.port),
+        .sin6_scope_id = message->endpoint.addr.ipv6.scope,
+    };
     memcpy(to.sin6_addr.s6_addr, message->endpoint.addr.ipv6.address, 16);
 
-    ssize_t sent = zsock_sendto(server_sock, message->data, message->length, 0,
-                                (struct sockaddr *)&to, sizeof(to));
+    /* For multicast destinations (e.g. KNX S-mode group telegrams) pin the
+     * outgoing interface, set the hop limit per scope, and carry the zone index
+     * for link-local scopes. Mirrors the Linux ipadapter oc_send_buffer(). The
+     * Zephyr initial multicast hop limit is 1, so without this a site-local
+     * (scope 5) telegram would not leave the link. */
+    if (to.sin6_addr.s6_addr[0] == 0xff &&
+        message->endpoint.interface_index == 0) {
+        struct net_if *mif = net_if_get_first_wifi();
+        if (!mif) {
+            mif = net_if_get_default();
+        }
+        int ifidx = mif ? net_if_get_by_iface(mif) : 0;
+        message->endpoint.interface_index = ifidx;
+
+        if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+                             &ifidx, sizeof(ifidx)) < 0) {
+            OC_ERR("Failed to set multicast send interface: %d", errno);
+        }
+
+        uint8_t mcast_scope = to.sin6_addr.s6_addr[1] & 0x0f;
+        int hops = (mcast_scope <= 2) ? 1 : 255;
+        if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+                             &hops, sizeof(hops)) < 0) {
+            OC_ERR("Failed to set multicast hop limit: %d", errno);
+        }
+
+        to.sin6_scope_id = (mcast_scope <= 2) ? (uint32_t)ifidx : 0;
+    }
+
+    /* Choose the source address explicitly. A unicast reply reuses addr_local,
+     * the device address the request was sent to, so the reply leaves from the
+     * same address (recv_one() captured it from the request's IPV6_PKTINFO).
+     * Otherwise pick a scope-appropriate source for the destination. The chosen
+     * source is carried to the kernel in an IPV6_PKTINFO ancillary message,
+     * honoured by the Zephyr net_context send patch in port/zephyr/patches. */
+    uint8_t src[16];
+    memcpy(src, message->endpoint.addr_local.ipv6.address, 16);
+    if (check_if_address_unset(src, 16)) {
+        select_source_address(src, message->endpoint.addr.ipv6.address);
+    }
+
+    uint8_t ctrl[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+    struct iovec iov = {
+        .iov_base = message->data,
+        .iov_len  = message->length,
+    };
+    struct msghdr mhdr = {
+        .msg_name       = &to,
+        .msg_namelen    = sizeof(to),
+        .msg_iov        = &iov,
+        .msg_iovlen     = 1,
+        .msg_control    = ctrl,
+        .msg_controllen = sizeof(ctrl),
+    };
+
+    struct cmsghdr *cm = CMSG_FIRSTHDR(&mhdr);
+    cm->cmsg_level = IPPROTO_IPV6;
+    cm->cmsg_type  = IPV6_PKTINFO;
+    cm->cmsg_len   = CMSG_LEN(sizeof(struct in6_pktinfo));
+    struct in6_pktinfo *pi = (struct in6_pktinfo *)CMSG_DATA(cm);
+    memset(pi, 0, sizeof(*pi));
+    memcpy(pi->ipi6_addr.s6_addr, src, 16);
+    /* Pin the egress interface so multi-interface boards (e.g. FRDM-RW612) reply
+     * on the interface the request arrived on. Honoured by the Zephyr
+     * net_context send patch in port/zephyr/patches. */
+    pi->ipi6_ifindex = message->endpoint.interface_index;
+
+    ssize_t sent = zsock_sendmsg(server_sock, &mhdr, 0);
     if (sent < 0) {
         OC_ERR("Failed to send CoAP message: %d", errno);
         return -1;
