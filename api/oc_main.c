@@ -236,8 +236,6 @@ int oc_main_init(const oc_handler_t* handler)
   }
   #endif 
 
-  
-
   /* NOTE: The post-init steps below (group-multicast registration, the
    * read-on-init datapoint reads and the DNS-SD registration) assume the
    * network is already up. On the Zephyr Wi-Fi reorder the stack initializes
@@ -251,17 +249,6 @@ int oc_main_init(const oc_handler_t* handler)
   oc_register_group_multicasts();
   #endif
 
-  #ifdef OC_CLIENT
-  // called one time on startup
-  if (app_callbacks->requests_entry)
-  {
-    app_callbacks->requests_entry();
-  }
-  
-  // check and send on i-flags
-  oc_init_datapoints_at_initialization();
-  #endif
-
   /* 
      Synchronously populate the endpoint list so the mDNS announcement
      can include AAAA records.  oc_connectivity_init() only starts the
@@ -273,6 +260,18 @@ int oc_main_init(const oc_handler_t* handler)
   const oc_device_info_t* const  device = oc_core_get_device_info();
   knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 
+  #ifdef OC_CLIENT
+  // called one time on startup after all network initialization
+  if (app_callbacks->requests_entry)
+  {
+    app_callbacks->requests_entry();
+  }
+
+  // check and send on i-flags
+  oc_init_datapoints_at_initialization();
+  #endif
+
+ 
   // add as last step to avoid half init's 
   OC_DBG("stack initialized ...");
   initialized = true;
