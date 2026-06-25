@@ -1889,10 +1889,12 @@ int coap_set_header_size1(void* packet, uint32_t size)
 }
 
 int coap_get_header_echo(void* packet, uint8_t* echo) {
+  
   // copy needed since name is used in macro
   coap_packet_t* const coap_pkt = (coap_packet_t*)packet;
 
-  if (!IS_OPTION(coap_pkt, COAP_OPTION_ECHO)) {
+  if (!IS_OPTION(coap_pkt, COAP_OPTION_ECHO) || coap_pkt->echo_len > COAP_ECHO_LEN) 
+  { 
     return 0;
   }
 
