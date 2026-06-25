@@ -238,6 +238,82 @@ int oc_ipv6_endpoint_is_link_local(oc_endpoint_t* endpoint)
   return -1;
 }
 
+/* oc_ipv6_address_scope
+ * RFC 6724 Section 3.2 scope of a 16-byte IPv6 address.
+ *
+ * Loopback (::1) and link-local (fe80::/10) return 2.
+ * Deprecated site-local (fec0::/10) returns 5.
+ * Everything wider (ULA fc00::/7 and global) returns 14.
+ */
+int oc_ipv6_address_scope(const uint8_t* address)
+{
+  static const uint8_t loopback[16] = { 0, 0, 0, 0, 0, 0, 0, 0,
+                                        0, 0, 0, 0, 0, 0, 0, 1 };
+  if (memcmp(address, loopback, 16) == 0)
+  {
+    // ::1 = loopback
+    return 2;
+  }
+
+  if (address[0] == 0xfe && (address[1] & 0xc0) == 0x80)
+  {
+    // fe80::/10 = link local
+    return 2;
+  }
+
+  if (address[0] == 0xfe && (address[1] & 0xc0) == 0xc0)
+  {
+    // fec0::/10 = deprecated site local
+    return 5;
+  }
+
+  return 14;
+}
+
+int oc_ipv6_endpoint_scope(const oc_endpoint_t* endpoint)
+{
+  if (!endpoint || !(endpoint->flags & IPV6))
+  {
+    return 0;
+  }
+
+  return oc_ipv6_address_scope(endpoint->addr.ipv6.address);
+}
+
+/* oc_connectivity_get_network_scope
+ * Widest IPv6 scope currently usable by the device.
+ *
+ * Scans the device's own unicast connectivity endpoints and returns the
+ * widest scope found. A return value of 5 or more means a valid
+ * non-link-local IPv6 address is present and therefore a real network
+ * connection.
+ */
+int oc_connectivity_get_network_scope(void)
+{
+  const oc_endpoint_t* ep = oc_connectivity_get_endpoints();
+  int widest = 0;
+  int scope = 0;
+
+  while (ep)
+  {
+    if (!(ep->flags & IPV6) || (ep->flags & MULTICAST))
+    {
+      ep = ep->next;
+      continue;
+    }
+
+    scope = oc_ipv6_address_scope(ep->addr.ipv6.address);
+    if (scope > widest)
+    {
+      widest = scope;
+    }
+
+    ep = ep->next;
+  }
+
+  return widest;
+}
+
 int oc_endpoint_compare_address(const oc_endpoint_t* ep1, const oc_endpoint_t* ep2)
 {
   if (!ep1 || !ep2)
