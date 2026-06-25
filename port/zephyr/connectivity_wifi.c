@@ -526,27 +526,6 @@ static bool check_if_address_unset(const uint8_t *address, int size)
     return true;
 }
 
-/* RFC 6724 Section 3.2: Determine the scope of a unicast address.
- * Loopback (::1) and link-local (fe80::/10) -> scope 2.
- * Deprecated site-local (fec0::/10) -> scope 5.
- * Everything else (including ULA fc00::/7 and global) -> scope 14 (global).
- */
-static int get_addr_scope(const uint8_t *a)
-{
-    static const uint8_t loopback[16] = { 0, 0, 0, 0, 0, 0, 0, 0,
-                                          0, 0, 0, 0, 0, 0, 0, 1 };
-    if (memcmp(a, loopback, 16) == 0) {
-        return 2;
-    }
-    if (a[0] == 0xfe && (a[1] & 0xc0) == 0x80) {  /* link-local fe80::/10 */
-        return 2;
-    }
-    if (a[0] == 0xfe && (a[1] & 0xc0) == 0xc0) {  /* deprecated site-local fec0::/10 */
-        return 5;
-    }
-    return 14;
-}
-
 /* Return true for a Unique Local Address (fc00::/7). */
 static bool is_ula(const uint8_t *a)
 {
@@ -570,7 +549,7 @@ static void select_source_address(uint8_t *address, const uint8_t *dest)
     if (dest[0] == 0xff) {  /* multicast */
         dest_scope = dest[1] & 0x0f;
     } else {
-        dest_scope = get_addr_scope(dest);
+        dest_scope = oc_ipv6_address_scope(dest);
     }
 
     struct net_if *iface = net_if_get_first_wifi();
@@ -596,7 +575,7 @@ static void select_source_address(uint8_t *address, const uint8_t *dest)
             continue;
         }
         const uint8_t *a = ipv6->unicast[i].address.in6_addr.s6_addr;
-        int src_scope = get_addr_scope(a);
+        int src_scope = oc_ipv6_address_scope(a);
 
         if (!have_fallback) {
             memcpy(fallback, a, 16);

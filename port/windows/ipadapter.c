@@ -874,20 +874,6 @@ static void set_source_address_for_interface(ADDRESS_FAMILY family, uint8_t *add
   free_network_addresses(ifaddr_list);
 }
 
-// RFC 6724 Section 3.2: Determine the scope of a unicast address.
-//   Loopback (::1) -> scope 1
-//   Link-local (fe80::/10) -> scope 2
-//   Deprecated site-local (fec0::/10) -> scope 5
-//   Everything else (including ULA fc00::/7 and GUA) -> scope 14 (global)
-static int get_addr_scope(const struct in6_addr *addr) {
-  const uint8_t *a = (const uint8_t *)addr;
-  if (IN6_IS_ADDR_LOOPBACK(addr) || IN6_IS_ADDR_LINKLOCAL(addr))
-    return 2;
-  if (a[0] == 0xfe && (a[1] & 0xc0) == 0xc0)  // deprecated site-local fec0::/10
-    return 5;
-  return 14;
-}
-
 static bool is_ula(const struct in6_addr *addr) {
   return (((const uint8_t *)addr)[0] & 0xfe) == 0xfc;  // fc00::/7
 }
@@ -907,7 +893,7 @@ static void select_source_address(uint8_t *address, int interface_index,
   if (IN6_IS_ADDR_MULTICAST(dest)) {
     dest_scope = ((const uint8_t *)dest)[1] & 0x0f;
   } else {
-    dest_scope = get_addr_scope(dest);
+    dest_scope = oc_ipv6_address_scope((const uint8_t *)dest);
   }
 
   ifaddr_t *ifaddr_list = get_network_addresses();
@@ -923,7 +909,7 @@ static void select_source_address(uint8_t *address, int interface_index,
       continue;
 
     struct sockaddr_in6 *a = (struct sockaddr_in6 *)&ifaddr->addr;
-    int src_scope = get_addr_scope(&a->sin6_addr);
+    int src_scope = oc_ipv6_address_scope((const uint8_t *)&a->sin6_addr);
 
     if (!have_fallback) {
       memcpy(fallback, a->sin6_addr.u.Byte, 16);

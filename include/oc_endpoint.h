@@ -181,6 +181,38 @@ extern "C" {
   int oc_ipv6_endpoint_is_link_local(oc_endpoint_t* endpoint);
 
   /**
+   * @brief determine the RFC 6724 scope of a 16-byte IPv6 address
+   *
+   * Loopback (::1) and link-local (fe80::/10) return 2.
+   * Deprecated site-local (fec0::/10) returns 5.
+   * Everything wider (ULA fc00::/7 and global) returns 14.
+   *
+   * @param address the 16-byte IPv6 address
+   * @return int the address scope
+   */
+  int oc_ipv6_address_scope(const uint8_t* address);
+
+  /**
+   * @brief determine the RFC 6724 scope of an (ipv6) endpoint address
+   *
+   * @param endpoint the endpoint to check
+   * @return int the address scope, 0 if not a valid IPv6 endpoint
+   */
+  int oc_ipv6_endpoint_scope(const oc_endpoint_t* endpoint);
+
+  /**
+   * @brief widest IPv6 scope currently usable by the device
+   *
+   * Scans the device's own unicast connectivity endpoints and returns the
+   * widest IPv6 scope found (see oc_ipv6_address_scope). A return value of 5
+   * or more means the device has a valid non-link-local IPv6 address and
+   * therefore a real network connection.
+   *
+   * @return int the widest usable scope, 0 if no usable IPv6 address
+   */
+  int oc_connectivity_get_network_scope(void);
+
+  /**
    * @brief compare endpoint
    *
    * @param ep1 endpoint 1 to compare
