@@ -23,6 +23,13 @@
 
 #include "oc_core_res.h"
 
+#define KNX_STORAGE_SWU_MAX_DEFER "swu_knx_max_defer"
+#define KNX_STORAGE_SWU_METHOD "swu_knx_method"
+#define KNX_STORAGE_SWU_PROTOCOL "swu_knx_protocol"
+#define KNX_STORAGE_QUERY_URL "swu_knx_query_url"
+#define KNX_STORAGE_SWU_DOWNLOADED_ONCE "swu_knx_downloaded_once"
+#define KNX_STORAGE_SWU_LAST_UPDATE "swu_knx_last_update"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
