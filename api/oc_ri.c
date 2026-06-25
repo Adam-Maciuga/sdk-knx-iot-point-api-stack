@@ -1660,7 +1660,6 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     .user_data = cb->user_data,
     .code = get_oc_status_code_from_coap_code(pkt->code)
   };
-  
 
   #ifdef OC_BLOCK_WISE
   if (response_state)
@@ -1728,7 +1727,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
 
       const oc_response_handler_t handler = cb->handler.response;
       if (handler)
-      {
+      { // call handler with inbound payload 
         handler(&client_response);
       }
     }
@@ -1738,14 +1737,18 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     }
 
     if (client_response.payload)
-    {
+    { /* 
+         free payload on error and on successful handler call, 
+         since the handler is not expected to free it 
+         (was created by oc_parse_rep and alloc is not part of the client callback)
+      */
       oc_free_rep(client_response.payload);
     }
   }
   else
   {
     if (pkt->type == COAP_TYPE_ACK && pkt->code == EMPTY_0_00)
-    {
+    { // don't call handler on empty ack only 
       separate = true;
       cb->separate = 1;
     }
@@ -1753,7 +1756,7 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     {
       const oc_response_handler_t handler = cb->handler.response;
       if (handler)
-      {
+      { // call handler without inbound payload 
         handler(&client_response);
       }
     }
@@ -1775,7 +1778,8 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
   cb->ref_count = 0;
 
   if (client_response.observe_option == OC_OBSERVE_NOT_INITIALIZED && !separate)
-  {
+  { // no observe option, no separate response, so free the client callback
+    
     oc_ri_remove_timed_event_callback(cb, &oc_ri_remove_client_cb);
     free_client_cb(cb);
 
@@ -1784,7 +1788,8 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     #endif
   }
   else
-  {
+  { 
+    // update the observe sequence number in the client callback
     cb->observe_seq = client_response.observe_option;
 
     /* 
@@ -1794,20 +1799,20 @@ bool oc_ri_invoke_client_cb(void* response, oc_client_cb_t* cb, oc_endpoint_t* e
     if (cb->observe_seq == 0)
     {
       oc_client_cb_t* dup_cb = (oc_client_cb_t*)oc_list_head(client_cbs);
-      size_t uri_len = oc_string_len(cb->uri);
+      const size_t uri_len = oc_string_len(cb->uri);
 
-      while (dup_cb != NULL)
+      while (dup_cb)
       {
-        if (dup_cb != cb && dup_cb->observe_seq != OC_OBSERVE_NOT_INITIALIZED &&
-          dup_cb->token_len == cb->token_len &&
-          memcmp(dup_cb->token, cb->token, cb->token_len) == 0 &&
-          oc_string_len(dup_cb->uri) == uri_len &&
-          strncmp(oc_string(dup_cb->uri), oc_string(cb->uri), uri_len) == 0 &&
-          oc_endpoint_compare(&dup_cb->endpoint, endpoint) == 0)
+        if (dup_cb != cb 
+            && dup_cb->observe_seq != OC_OBSERVE_NOT_INITIALIZED 
+            && dup_cb->token_len == cb->token_len 
+            && memcmp(dup_cb->token, cb->token, cb->token_len) == 0 
+            && oc_string_len(dup_cb->uri) == uri_len 
+            && strncmp(oc_string(dup_cb->uri), oc_string(cb->uri), uri_len) == 0 
+            && oc_endpoint_compare(&dup_cb->endpoint, endpoint) == 0)
         {
-          OC_DBG("Freeing cb %s, token 0x%02X%02X",
-                 oc_string_checked(dup_cb->uri), dup_cb->token[0],
-                 dup_cb->token[1]);
+          OC_DBG("Freeing cb %s, token 0x%02X%02X", oc_string_checked(dup_cb->uri), dup_cb->token[0], dup_cb->token[1]);
+
           oc_ri_remove_timed_event_callback(dup_cb, &oc_ri_remove_client_cb);
           free_client_cb(dup_cb);
           break;
