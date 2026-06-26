@@ -1154,7 +1154,7 @@ extra collected items come from parametrized cases in
 
 ---
 
-### test_5_4_group_comm.py — Group Communication (27 tests)
+### test_5_4_group_comm.py — Group Communication (31 tests)
 
 | Class | Test | EITT ref |
 |-------|------|----------|
@@ -1168,6 +1168,10 @@ extra collected items come from parametrized cases in
 | **TestTriggerFirstGA** | `test_5_4_1_7_sends_first_ga` | 5.4.1.7 |
 | **TestNotSendingInLoadingState** | `test_5_4_1_8_no_send_in_loading` | 5.4.1.8 |
 | **TestInitFlagStartup** | `test_5_4_1_9_init_flag_sends_read_on_restart` | 5.4.1.9 |
+| **TestReadOnInitNetworkGate** | `test_read_on_init_up_from_start_sends_read` | 5.4.1.9b (non-EITT) |
+| | `test_read_on_init_withheld_while_down` | 5.4.1.9b (non-EITT) |
+| | `test_read_on_init_released_after_network_up` | 5.4.1.9b (non-EITT) |
+| | `test_read_on_init_abandoned_after_max_retries` | 5.4.1.9b (non-EITT) |
 | **TestMulticastResponseUpdate** | `test_5_4_1_10_multicast_answer_updates_value` | 5.4.1.10 |
 | **TestMulticastResponseUpdateOnly** | `test_5_4_1_10b_answer_updateonly_go` | 5.4.1.10b (non-EITT) |
 | **TestMulticastWriteIgnoredLoading** | `test_5_4_1_11_write_ignored_in_loading` | 5.4.1.11 |

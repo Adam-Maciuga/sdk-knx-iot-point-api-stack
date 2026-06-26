@@ -2969,12 +2969,41 @@ void oc_unregister_group_multicasts(void)
 }
 
 // global index for staggered "read on init" -- also used as cb_data for removal
-static int g_roi_got_idx;
+static struct g_roi {int got_idx; int counter;} g_roi = {0,0};
 
 static oc_event_callback_retval_t oc_init_read_next(void* data)
 {
   (void)data;
 
+  if (oc_connectivity_get_network_scope() <= 5)
+  {
+    /*
+      Wait until we are getting at least a ULA IPv6 to start sending. As longs as not, reschedule the read
+      on init callback. 
+      
+      Note, the regular application will be executed in the meantime. Any s-mode message may not be sent out 
+      until the network is up with a correct scope. The following scopes are defined in RFC 4291:
+      
+      - loopback / link local = 2
+      - site local (SLA, deprecated) = 5
+      - unique local address (ULA), global = 14
+
+      After 20 attempts stop try to send.
+    */
+
+    if (++g_roi.counter > 20)
+    {
+      OC_ERR("network not up with correct scope, max attempts reached, aborting read on init");
+      return OC_EVENT_DONE;
+    }
+
+    OC_DBG("network not (yet)up with correct scope, wait and reschedule the read on init, attempt %d", g_roi.counter);
+    return OC_EVENT_CONTINUE;
+  }
+
+  // a single network up resets the counter, in case of a network down and up again
+  g_roi.counter = 0;
+  
   /*
     (a)
       check first on init flag
@@ -2990,13 +3019,13 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
   */
 
   // starts from last callback that increments the counter by 1
-  while (g_roi_got_idx < GOT_MAX_ENTRIES)
+  while (g_roi.got_idx < GOT_MAX_ENTRIES)
   {
-    if (g_got[g_roi_got_idx].id >= 0 && g_got[g_roi_got_idx].cflags & OC_CFLAG_INIT)
+    if (g_got[g_roi.got_idx].id >= 0 && g_got[g_roi.got_idx].cflags & OC_CFLAG_INIT)
     {// (a)
 
       // (b)
-      oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[g_roi_got_idx].href));
+      oc_group_object_table_t* go_entry = oc_core_find_sending_ga_in_pos_zero_for_href(oc_string(g_got[g_roi.got_idx].href));
 
       if (go_entry && go_entry->cflags & OC_CFLAG_INIT)
       {
@@ -3004,7 +3033,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
         const uint32_t sending_ga = go_entry->ga[0];
         const oc_device_info_t* const device = oc_core_get_device_info();
 
-        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi_got_idx);
+        OC_INF("init datapoint : ga=%04X ia=%d, iid=%" PRIu64 " got index (%d)", sending_ga, device->ia, device->iid, g_roi.got_idx);
 
         // find recipient entry for sending ga, contains both grpid and non flag
         oc_group_table_t* recipient = oc_find_entry_in_recipient_table(sending_ga);
@@ -3022,13 +3051,12 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
         }
 
         // advance and schedule the next GOT entry after a delay
-        g_roi_got_idx++;
-        oc_ri_add_timed_event_callback_ticks(NULL, oc_init_read_next, KNX_READ_ON_INIT_DELAY_MILLISECONDS);
-        return OC_EVENT_DONE;
+        g_roi.got_idx++;
+        return OC_EVENT_CONTINUE;
       }
     }
     // scan next GOT entry
-    g_roi_got_idx++;
+    g_roi.got_idx++;
   }
 
   OC_INF("init datapoints : done (all entries processed)");
@@ -3039,10 +3067,11 @@ void oc_init_datapoints_at_initialization(void)
 {
   OC_INF("scan datapoints : for a possible cflag read on 'init' initialization ...");
 
-  // remove any pending callback from a previous run such as on two resets in a short time period  (only one callback can be pending at a time)
+  // remove any pending callback from a previous run such as on two resets in a short time period (only one callback can be pending at a time)
   oc_ri_remove_timed_event_callback(NULL, oc_init_read_next);
 
   // start staggered processing from the first GO table entry
-  g_roi_got_idx = 0;
+  g_roi.got_idx = 0;
+  g_roi.counter = 0;
   oc_ri_add_timed_event_callback_ticks(NULL, oc_init_read_next, KNX_READ_ON_INIT_DELAY_MILLISECONDS);
 }

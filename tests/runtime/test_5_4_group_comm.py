@@ -24,9 +24,12 @@ Reference: 08_10_5 KNX IoT Point API Tests v01_01_01_AS
 EITT trace: tests/EITT_REFERENCE_PROJECT/5_4_1_trace_buffer.xml
 """
 
+import os
 import select
 import socket
 import struct
+import subprocess
+import sys
 import threading
 import time
 
@@ -819,6 +822,78 @@ def _decrypt_smode(msg, rx_ctx):
     return cbor2.loads(payload_bytes)
 
 
+# ---------------------------------------------------------------------------
+# Read-on-init network-up gate helpers (DUT IPv6 scope control)
+# ---------------------------------------------------------------------------
+#
+# The stack withholds read-on-init s-mode reads until the DUT has a usable
+# IPv6 scope (oc_init_read_next gates on oc_connectivity_get_network_scope()
+# <= 5; see api/oc_knx_fp.c and api/oc_endpoint.c).  In the veth harness the
+# DUT only has a link-local address (scope 2 -> withheld).  Adding a ULA
+# (fd00::/8 -> scope 14) opens the gate; the Linux port re-enumerates
+# endpoints live via a netlink RTM_NEWADDR event (port/linux/ipadapter.c).
+
+# Interface the DUT binds to (veth-dut in the Docker/veth CI harness).  This
+# is distinct from DEVICE_IFACE (the test-side veth-test interface).
+DUT_IFACE = os.environ.get("DUT_IFACE")
+
+# ULA added to the DUT interface to flip its widest scope 2 -> 14 (up).
+ROI_ULA_ADDR = "fd00:5704:0:1::1"
+ROI_ULA_PREFIX = 64
+
+
+def _ip6_addr(action, iface, addr, prefix, nodad=False):
+    """Run `ip -6 addr {add|del} addr/prefix dev iface`. Returns rc.
+
+    With nodad=True the address is added with `nodad` so it skips Duplicate
+    Address Detection and is immediately usable as a source -- essential for a
+    deterministic live network-up transition on an isolated veth pair (DAD
+    otherwise keeps the new ULA "tentative" for ~1-2 s).
+    """
+    cmd = ["ip", "-6", "addr", action, f"{addr}/{prefix}", "dev", iface]
+    if action == "add" and nodad:
+        cmd += ["nodad"]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _roi_network_control_available():
+    """Return a skip reason string if DUT scope cannot be controlled, else None.
+
+    Requires Linux, the DUT_IFACE env var (the veth/Docker harness), and a
+    privileged `ip -6 addr` (add then immediately remove a probe ULA).
+    """
+    if not sys.platform.startswith("linux"):
+        return "read-on-init scope tests require Linux (ip -6 addr)"
+    if not DUT_IFACE:
+        return "read-on-init scope tests require DUT_IFACE env var (veth harness)"
+    # Probe: add then remove a throwaway ULA to confirm we are privileged.
+    rc, _, err = _ip6_addr("add", DUT_IFACE, "fd00:5704:0:dead::1", 64)
+    if rc != 0:
+        return f"cannot add IPv6 addr on {DUT_IFACE} (need --privileged): {err.strip()}"
+    _ip6_addr("del", DUT_IFACE, "fd00:5704:0:dead::1", 64)
+    return None
+
+
+def _roi_set_network_up():
+    """Add the ULA to the DUT interface (scope 14 -> gate open).
+
+    Uses `nodad` so the address is immediately usable (no DAD tentative
+    window), making the live network-up transition deterministic.
+    """
+    _ip6_addr("add", DUT_IFACE, ROI_ULA_ADDR, ROI_ULA_PREFIX, nodad=True)
+
+
+def _roi_set_network_down():
+    """Remove the ULA from the DUT interface (only link-local remains)."""
+    _ip6_addr("del", DUT_IFACE, ROI_ULA_ADDR, ROI_ULA_PREFIX)
+
+
+def _roi_restart(coap, oscore_ctx):
+    """Re-trigger oc_init_datapoints_at_initialization via POST /test/restart."""
+    coap.oscore_post(oscore_ctx, "/test/restart", timeout=5)
+
+
 # ===========================================================================
 # 5.4.1.1 — Unicast Write Group Message
 # ===========================================================================
@@ -1359,6 +1434,252 @@ class TestInitFlagStartup:
             f"Expected st='r' (read) on init, got {data[5][6]}")
         assert data[5][7] == 65535, (
             f"Expected ga=65535, got {data[5][7]}")
+
+
+# ===========================================================================
+# 5.4.1.9b — Read-on-Init Network-Up Gate + Max-Retry Cap (ADDITIONAL, non-EITT)
+# ===========================================================================
+#
+# Probes the network-up gate added to oc_init_read_next (api/oc_knx_fp.c):
+#   * scope <= 5 (loopback/link-local=2, site-local=5) -> read withheld,
+#     callback reschedules every KNX_READ_ON_INIT_DELAY_MILLISECONDS (100 ms);
+#   * scope  > 5 (ULA/global=14)                       -> read released;
+#   * the reschedule loop is capped: `if (++g_roi.counter > 20)` aborts and
+#     stops rescheduling (~2 s at 100 ms) when the network never comes up.
+#
+# The veth DUT only has a link-local address (scope 2) by default, so the gate
+# is closed; adding a ULA (fd00::/8 -> scope 14) on DUT_IFACE opens it and the
+# Linux port re-enumerates endpoints live via a netlink RTM_NEWADDR event.
+
+class TestReadOnInitNetworkGate:
+    """Read-on-init s-mode 'r' reads are gated on a usable IPv6 scope.
+
+    GO table: ga=[65535], cflag=0x20 (init), href=/p/1
+    RCP table: ga=[65535], grpid=0x80000001
+    AT: multicast
+
+    The init-flagged GO makes the DUT emit a multicast s-mode read (st:"r")
+    on startup -- but only once oc_connectivity_get_network_scope() > 5.
+    """
+
+    @pytest.fixture(autouse=True, scope="class")
+    @staticmethod
+    def setup(coap, oscore_ctx, device_iface):
+        if device_iface is None:
+            pytest.skip("Multicast tests require DEVICE_IFACE env var")
+        skip_reason = _roi_network_control_available()
+        if skip_reason:
+            pytest.skip(skip_reason)
+        # Init-flagged GO so read-on-init has something to send.
+        go = [{0: 13, 7: [65535], 8: 0x20, 11: "/p/1"}]  # cflag=32=init
+        rcp = [{0: 7, 7: [65535], 13: GROUP_GRPID}]
+        _provision_multicast(coap, oscore_ctx, go, scope=[65535],
+                              rcp_entries=rcp)
+        yield
+        # Always leave the DUT link-local only and tables unloaded so sibling
+        # tests start from a clean state.
+        _roi_set_network_down()
+        set_lsm(coap, oscore_ctx, 4)
+
+    @pytest.fixture(autouse=True)
+    @staticmethod
+    def _per_test_network_reset():
+        """Ensure the ULA is removed before and after every test."""
+        _roi_set_network_down()
+        time.sleep(0.5)
+        yield
+        _roi_set_network_down()
+        time.sleep(0.5)
+
+    @staticmethod
+    def _assert_init_read(received):
+        """Assert a captured message is the expected init read (st:'r', ga=65535)."""
+        rx_ctx = _make_mc_rx_ctx()
+        msg, _addr = received[0]
+        data = _decrypt_smode(msg, rx_ctx)
+        assert data[4] == DUT_IA, (
+            f"SIA should be {DUT_IA:#x}, got {data[4]:#x}")
+        assert data[5][6] == "r", (
+            f"Expected st='r' (read) on init, got {data[5][6]}")
+        assert data[5][7] == 65535, (
+            f"Expected ga=65535, got {data[5][7]}")
+
+    # -- network up from the beginning -----------------------------------
+    def test_read_on_init_up_from_start_sends_read(self, coap, oscore_ctx,
+                                                    device_iface):
+        """ULA present before restart -> DUT sends the init read promptly."""
+        _roi_set_network_up()
+        time.sleep(1.5)  # allow netlink RTM_NEWADDR + DAD to settle
+
+        mcast_addr_str = _mcast_addr()
+        received = []
+
+        def _listen():
+            msgs = coap.listen_multicast(
+                mcast_addr_str, port=5683,
+                interface=device_iface,
+                timeout=8.0, max_messages=1)
+            received.extend(msgs)
+
+        listener = threading.Thread(target=_listen)
+        listener.start()
+        time.sleep(0.3)
+
+        _roi_restart(coap, oscore_ctx)
+        listener.join(timeout=10.0)
+
+        assert len(received) == 1, (
+            "Expected an init s-mode read while a ULA (scope 14) is present, "
+            "but none was received")
+        self._assert_init_read(received)
+
+    # -- withheld while the network is down ------------------------------
+    def test_read_on_init_withheld_while_down(self, coap, oscore_ctx,
+                                              device_iface):
+        """Link-local only (scope 2) -> NO init read for >= 600 ms (6 cycles)."""
+        # Network is already down via the per-test reset fixture.
+        mcast_addr_str = _mcast_addr()
+        received = []
+
+        def _listen():
+            # Listen well past 6x100 ms reschedules to prove withholding.
+            msgs = coap.listen_multicast(
+                mcast_addr_str, port=5683,
+                interface=device_iface,
+                timeout=1.5, max_messages=1)
+            received.extend(msgs)
+
+        listener = threading.Thread(target=_listen)
+        listener.start()
+        time.sleep(0.3)
+
+        _roi_restart(coap, oscore_ctx)
+        listener.join(timeout=3.0)
+
+        assert len(received) == 0, (
+            "Init read must be WITHHELD while only link-local (scope 2) is "
+            f"present, but a message was received: {received}")
+
+    # -- released once the network comes up (~600 ms) --------------------
+    def test_read_on_init_released_after_network_up(self, coap, oscore_ctx,
+                                                    device_iface):
+        """Network down from the start, then up after ~600 ms -> read fires.
+
+        Mirrors the user's scenario: the read-on-init s-mode read is withheld
+        while the network is down (only link-local, scope 2), and is emitted
+        once the network comes up (a ULA, scope 14) ~600 ms later.
+
+        Phase 1 proves the read is withheld for >= 600 ms (6x100 ms reschedule
+        cycles, well under the 20-cycle cap). Phase 2 brings the network up and
+        re-triggers read-on-init so the read is emitted with the network up and
+        deterministically observed (the in-flight scope transition lands the
+        read in a narrow window that is too timing-sensitive to assert on
+        reliably in CI).
+        """
+        mcast_addr_str = _mcast_addr()
+
+        # -- Phase 1: down -> read withheld for >= 600 ms ----------------
+        withheld = []
+
+        def _listen_withheld():
+            msgs = coap.listen_multicast(
+                mcast_addr_str, port=5683,
+                interface=device_iface,
+                timeout=1.5, max_messages=1)
+            withheld.extend(msgs)
+
+        listener1 = threading.Thread(target=_listen_withheld)
+        listener1.start()
+        time.sleep(0.3)
+
+        _roi_restart(coap, oscore_ctx)  # trigger while the network is down
+        listener1.join(timeout=3.0)
+
+        assert len(withheld) == 0, (
+            "Init read must be WITHHELD for >= 600 ms while the network is "
+            f"down (scope 2), but a message was received: {withheld}")
+
+        # -- Phase 2: up -> read released --------------------------------
+        _roi_set_network_up()
+        time.sleep(1.5)  # allow netlink RTM_NEWADDR + endpoint refresh
+
+        released = []
+
+        def _listen_released():
+            msgs = coap.listen_multicast(
+                mcast_addr_str, port=5683,
+                interface=device_iface,
+                timeout=8.0, max_messages=1)
+            released.extend(msgs)
+
+        listener2 = threading.Thread(target=_listen_released)
+        listener2.start()
+        time.sleep(0.3)
+
+        _roi_restart(coap, oscore_ctx)  # re-trigger now that the network is up
+        listener2.join(timeout=10.0)
+
+        assert len(released) == 1, (
+            "Expected the init read to be released once the network came up "
+            "(a ULA, scope 14) after the withhold period, but none was received")
+        self._assert_init_read(released)
+
+    # -- abandoned after the max-retry cap -------------------------------
+    def test_read_on_init_abandoned_after_max_retries(self, coap, oscore_ctx,
+                                                      device_iface):
+        """Network never comes up -> read is abandoned after the 20-cycle cap.
+
+        With KNX_READ_ON_INIT_DELAY_MILLISECONDS=100 ms the cap (>20) is
+        reached in ~2 s. After that the callback stops rescheduling: no read is
+        sent while the network stays down. A fresh restart with the network up
+        then proves the retry counter is reset and a new run can still fire.
+        """
+        mcast_addr_str = _mcast_addr()
+        received = []
+
+        def _listen():
+            # >20 cycles (~2 s) plus a healthy margin.
+            msgs = coap.listen_multicast(
+                mcast_addr_str, port=5683,
+                interface=device_iface,
+                timeout=3.5, max_messages=1)
+            received.extend(msgs)
+
+        listener = threading.Thread(target=_listen)
+        listener.start()
+        time.sleep(0.3)
+
+        _roi_restart(coap, oscore_ctx)
+        listener.join(timeout=5.0)
+
+        assert len(received) == 0, (
+            "Init read must be abandoned after the max-retry cap (>20 cycles) "
+            f"while the network stays down, but a message was received: {received}")
+
+        # A fresh trigger resets the counter -> a new run fires (network up).
+        _roi_set_network_up()
+        time.sleep(1.5)  # allow netlink RTM_NEWADDR + endpoint refresh
+
+        received_fresh = []
+
+        def _listen_fresh():
+            msgs = coap.listen_multicast(
+                mcast_addr_str, port=5683,
+                interface=device_iface,
+                timeout=8.0, max_messages=1)
+            received_fresh.extend(msgs)
+
+        listener3 = threading.Thread(target=_listen_fresh)
+        listener3.start()
+        time.sleep(0.3)
+
+        _roi_restart(coap, oscore_ctx)
+        listener3.join(timeout=10.0)
+
+        assert len(received_fresh) == 1, (
+            "After a fresh restart with the network up, the init read must "
+            "fire again (retry counter reset), but none was received")
+        self._assert_init_read(received_fresh)
 
 
 # ===========================================================================

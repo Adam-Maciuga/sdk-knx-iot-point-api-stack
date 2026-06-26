@@ -157,6 +157,7 @@
 | 5.4.1.7 | Trigger device multicast write (first GA) | DONE | test_5_4_group_comm.py | Deferred trigger |
 | 5.4.1.8 | Trigger in loading state → no send | DONE | test_5_4_group_comm.py | |
 | 5.4.1.9 | Init flag → s-mode on startup | DONE | test_5_4_group_comm.py | Uses /test/restart |
+| 5.4.1.9b | Read-on-init network-up gate + max-retry cap (ADDITIONAL, non-EITT) | DONE | test_5_4_group_comm.py | Requires DUT_IFACE + privileged (ip -6 addr); skips otherwise. Probes oc_init_read_next scope gate and 20-cycle cap |
 | 5.4.1.10 | Multicast response → device update | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
 | 5.4.1.11 | Multicast write/response ignored in loading | DONE | test_5_4_group_comm.py | Requires DEVICE_IFACE |
 | 5.4.1.12 | Updating own GOs for outgoing messages | DONE | test_5_4_group_comm.py | |
