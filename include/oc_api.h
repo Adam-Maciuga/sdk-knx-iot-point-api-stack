@@ -40,46 +40,11 @@
   - .well-known/core discovery
   - Table implementation:
     - Group object table
-    - Credential table (e.g. auth/at entries)
+    - Access token table (e.g. auth/at entries)
     - Recipient table
-    - functionality to handle the s-mode objects & transmission flags.
+    - Publisher table
+    - functionality to handle the s-mode objects & transmission flags
 
-
-  Therefore, an KNX IoT Point API application exist of:
-
-  - Code for each specific data points (handling GET/POST)
-  - own code to talk to hardware
-  - Device specific (functional specific) callbacks
-     - reset \ref oc_reset_t
-     - restart \ref oc_restart_t
-     - software update
-     - setting host name  \ref oc_hostname_t
-  - main loop
-
-  Examples of functional devices :
-  - lsab_minimal_all.c an example that implements Functional Block LSAB
-  - lssb_minimal_all.c an example that implements Functional Block LSSB
-
-  ## handling of transmission flags
-
-  - Case 1 (write data):
-    - Received from bus: -st w, any ga
-    - receiver does: c flags = w -> overwrite object value
-  - Case 2 (update data):
-    - Received from bus: -st rp, any ga
-    - receiver does: c flags = u -> overwrite object value
-  - Case 3 (inform change):
-    - sender: updated object value + cflags = t
-    - Sent: -st w, sending association (1st assigned ga)
-      Note: this will be done when Case 1 & Case 2 have updated a value.
-  - Case 4 (request & respond):
-    - sender: c flags = r
-    - Received from bus: -st r
-    - Sent: -st rp, sending association (1st assigned ga)
-  - Case 5 (update at start up):
-    - sender: c flags = i
-    - After device restart (power up)
-    - Sent: -st r, sending association (1st assigned ga)
 */
 
 #ifndef OC_API_H
@@ -110,14 +75,11 @@ extern "C"
   typedef struct
   {
     /**
-     * Device initialization callback that is invoked to initialize the platform
-     * and device(s).
+     * Device initialization callback that is invoked to initialize the device.
      *
-     * At a minimum the platform should be initialized and at least one device
-     * added.
-     *
-     *  - oc_init_platform()
      *  - oc_set_device()
+     *  - oc_set_device_mid()
+     *  - ...
      *
      * Other actions may be taken in the init handler
      *  - Set up an interrupt handler oc_activate_interrupt_handler()
@@ -127,9 +89,7 @@ extern "C"
      *  - 0 to indicate success initializing the application
      *  - value less than zero to indicate failure initializing the application
      *
-     * @see oc_activate_interrupt_handler
      * @see oc_set_device
-     * @see oc_init_platform
      */
     int (*init)(void);
 
@@ -141,121 +101,41 @@ extern "C"
      */
     void (*signal_event_loop)(void);
 
-#ifdef OC_SERVER
+    #ifdef OC_SERVER
     /**
      * Resource registration callback.
      *
      * Callback is invoked after the device initialization callback.
      *
      * Use this callback to add resources to the devices added during the device
-     * initialization.  This where the properties and callbacks associated with
-     * the resources are typically done.
-     *
+     * initialization.  
+     * 
+     *  - knx_iot_register_resources
+     * 
      * Note: Callback is only invoked when OC_SERVER macro is defined.
      *
-     * Example:
-     * ```
-     * static void register_resources(void)
-     * {
-     *   oc_resource_t *bswitch = oc_new_resource(NULL, "/switch", 1);
-     *   oc_resource_bind_resource_type(bswitch, "urn:knx:dpa.417.61");
-     *   oc_resource_bind_dpt(bswitch, "urn:knx:dpt.switch");
-     *   oc_resource_bind_resource_interface(bswitch, OC_IF_A);
-     *   oc_resource_set_discoverable(bswitch, true);
-     *   oc_resource_set_request_handler(bswitch, COAP_GET, get_switch, NULL);
-     *   oc_resource_set_request_handler(bswitch, COAP_PUT, put_switch, NULL);
-     *   oc_resource_set_request_handler(bswitch, COAP_POST, post_switch, NULL);
-     *   oc_add_resource(bswitch);
-     * }
-     * ```
-     *
-     * @see init
+     * @see knx_iot_register_functional_block_datapoint
      * @see oc_new_resource
      * @see oc_resource_bind_resource_interface
      * @see oc_resource_bind_resource_type
-     * @see oc_resource_bind_dpt
-     * @see oc_resource_set_discoverable
-     * @see oc_resource_set_observable
-     * @see oc_resource_set_periodic_observable
-     * @see oc_resource_set_request_handler
-     * @see oc_add_resource
+     * ...
+    
      */
     void (*register_resources)(void);
-#endif
+    #endif
 
-#ifdef OC_CLIENT
+    #ifdef OC_CLIENT
     /**
-     * Callback invoked when the stack is ready to issue discovery requests.
+     * Callback invoked when the stack is ready to issue (discovery) requests, e.g; when 
+       the network is up.
      *
      * Callback is invoked after the device initialization callback.
      *
-     * Example:
-     * ```
-     * static void issue_requests(void)
-     * {
-     *   oc_do_ip_discovery("dpa.321.51", &discovery, NULL);
-     * }
-     * ```
-     *
-     * @see init
-     * @see oc_do_ip_discovery
-     * @see oc_do_ip_discovery_at_endpoint
-     * @see oc_do_site_local_ipv6_discovery
-     * @see oc_do_realm_local_ipv6_discovery
      */
     void (*requests_entry)(void);
-#endif
+    #endif
   } oc_handler_t;
 
-  /**
-   * Callback invoked during oc_init_platform(). The purpose is to add any
-   * additional platform properties that are not supplied to oc_init_platform()
-   * function call.
-   *
-   * Example:
-   * ```
-   * static int app_init(void)
-   * {
-   *   int ret = oc_init_platform("My Platform",
-   *      set_additional_platform_properties, NULL);
-   *   ret |= oc_set_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
-   * }
-   * ```
-   *
-   * @param[in] data context pointer that comes from the oc_set_device() function
-   *
-   * @see oc_set_device
-   * @see oc_set_custom_device_property
-   */
-  typedef void (*oc_init_platform_cb_t)(void* data);
-
-  /**
-   * Callback invoked during oc_set_device(). The purpose is to add any additional
-   * device properties that are not supplied to oc_set_device() function call.
-   *
-   * Example:
-   * ```
-   * static void set_device_custom_property(void *data)
-   * {
-   *   (void)data;
-   *   oc_set_custom_device_property(purpose, "desk lamp");
-   * }
-   *
-   * static int app_init(void)
-   * {
-   *   int ret = oc_init_platform("My Platform", NULL, NULL);
-   *   ret |= oc_set_device("my_name", "1.0.0", "//", "000005", NULL, NULL);
-   *   return ret;
-   * }
-   * ```
-   *
-   * @param[in] data context pointer that comes from the oc_init_platform()
-   * function
-   *
-   * @see oc_set_device
-   * @see oc_set_custom_device_property
-   */
-  typedef void (*oc_set_device_cb_t)(void* data);
 
   /**
    * Register and call handler functions responsible for controlling the
@@ -483,36 +363,6 @@ extern "C"
    * @param[in] data context pointer that is passed to the callback
    */
   void oc_set_swu_upgrade_cb(oc_swu_upgrade_cb_t cb, void* data);
-
-/**
- * Set custom device property
- *
- * The purpose is to add additional device properties that are not supplied to
- * oc_set_device() function call. This function will likely only be used inside
- * the oc_set_device_cb_t().
- *
- * @param[in] prop the name of the custom property being added to the device
- * @param[in] value the value of the custom property being added to the device
- *
- * @see oc_set_device_cb_t for example code using this function
- * @see oc_set_device
- */
-#define oc_set_custom_device_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
-
-/**
- * Set custom platform property.
- *
- * The purpose is to add additional platform properties that are not supplied to
- * oc_init_platform() function call. This function will likely only be used
- * inside the oc_init_platform_cb_t().
- *
- * @param[in] prop the name of the custom property being added to the platform
- * @param[in] value the value of the custom property being added to the platform
- *
- * @see oc_init_platform_cb_t for example code using this function
- * @see oc_init_platform
- */
-#define oc_set_custom_platform_property(prop, value) oc_rep_text_set_text_string(root, prop, value)
 
   /**
    * @brief Allocate and populate a new application resource.
