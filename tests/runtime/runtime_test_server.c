@@ -320,7 +320,7 @@ static oc_event_callback_retval_t swu_upgrade_complete_cb(void* data)
   fclose(f);
 
   /* Update firmware version to 0.0.2 */
-  oc_core_set_device_fwv(0, 0, 2);
+  oc_core_set_and_store_device_fwv(0, 0, 2);
 
   /* Cleanup */
   remove("downloaded_bin");
@@ -350,7 +350,7 @@ static int app_init(void)
   /* Same values as EITT test template */
   oc_core_set_device("00fa10020800", "RuntimeTestServer");
   oc_core_set_device_hwv(0, 0, 1);
-  oc_core_set_device_fwv(0, 0, 1);
+  oc_core_set_and_store_device_fwv(0, 0, 1);
   oc_core_set_device_hwt("Linux");
   oc_core_set_device_model("KNX Certification");
   oc_core_set_device_mid(667);

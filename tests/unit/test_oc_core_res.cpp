@@ -101,7 +101,7 @@ protected:
 
 TEST_F(DeviceInfo, SetFirmwareVersion)
 {
-  EXPECT_EQ(oc_core_set_device_fwv(1, 2, 3), 0);
+  EXPECT_EQ(oc_core_set_and_store_device_fwv(1, 2, 3), 0);
   const oc_device_info_t *d = oc_core_get_device_info();
   EXPECT_EQ(d->fwv.major, 1);
   EXPECT_EQ(d->fwv.minor, 2);
