@@ -877,46 +877,6 @@ extern "C"
    */
   int oc_notify_observers(const oc_resource_t* resource);
 
-
-#ifdef __cplusplus
-}
-#endif
-/** @} */ // end of doc_module_tag_server_side
-
-/**
-  @defgroup doc_module_tag_client_state Client side
-  Client side support functions.
-
-  This module contains functions to communicate to a KNX server for an Client.
-
-  ## multicast
-
-  The multicast communication is for:
-  - Discovery
-
-  The multicast Discovery is issued is on CoAP .well-known/core
-  The s-mode communication is performed at the (specific) group addresses.
-
-
-  ## unicast communication
-
-  The following functions can be used to communicate on CoAP level e.g. issuing:
-  - GET
-  - PUT
-  - POST
-  - DELETE
-  functions.
-  The functions are secured with OSCORE.
-
-  @{
-*/
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-
   /**
    * @brief link format parser, retrieve the number of entries in a response
    *
@@ -1008,7 +968,7 @@ extern "C"
    */
   void oc_close_session(oc_endpoint_t* endpoint);
 
-#ifdef OC_TCP
+  #ifdef OC_TCP
   /**
    * @brief send CoAP ping over the TCP connection
    *
@@ -1022,18 +982,7 @@ extern "C"
    */
   bool oc_send_ping(bool custody, oc_endpoint_t* endpoint, uint16_t timeout_seconds, oc_response_handler_t handler,
                     void* user_data);
-#endif /* OC_TCP */
-  /** @} */ // end of doc_module_tag_client_state
-
-  /**  */
-  /**
-    @defgroup doc_module_tag_common_operations Common operations
-
-    This section contains common operations that can be used to schedule
-    callbacks.
-
-    @{
-  */
+  #endif 
 
   /**
    * @brief Schedule a callback to be invoked after a set number of seconds.
@@ -1061,36 +1010,6 @@ extern "C"
    */
   void oc_remove_delayed_callback(void* cb_data, oc_trigger_t callback);
 
-  /** API for setting handlers for interrupts */
-
-#define oc_signal_interrupt_handler(name)                                                                                   \
-  do                                                                                                                        \
-  {                                                                                                                         \
-    oc_process_poll(&(name##_interrupt_x));                                                                                 \
-    _oc_signal_event_loop();                                                                                                \
-  }                                                                                                                         \
-  while (0)
-
-  /** activate the interrupt handler */
-#define oc_activate_interrupt_handler(name) (oc_process_start(&(name##_interrupt_x), 0))
-
-  /** define the interrupt handler */
-#define oc_define_interrupt_handler(name)                                                                                   \
-  void name##_interrupt_x_handler(void);                                                                                    \
-  OC_PROCESS(name##_interrupt_x, "");                                                                                       \
-  OC_PROCESS_THREAD(name##_interrupt_x, ev, data)                                                                           \
-  {                                                                                                                         \
-    (void)data;                                                                                                             \
-    OC_PROCESS_POLLHANDLER(name##_interrupt_x_handler());                                                                   \
-    OC_PROCESS_BEGIN();                                                                                                     \
-    while (oc_process_is_running(&(name##_interrupt_x)))                                                                    \
-    {                                                                                                                       \
-      OC_PROCESS_YIELD();                                                                                                   \
-    }                                                                                                                       \
-    OC_PROCESS_END();                                                                                                       \
-  }                                                                                                                         \
-  void name##_interrupt_x_handler(void)
-  /** @} */ // end of doc_module_tag_common_operations
 #ifdef __cplusplus
 }
 #endif
