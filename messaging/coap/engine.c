@@ -1416,8 +1416,16 @@ int coap_receive(oc_message_t* incoming_message)
         coap_status_code = CLEAR_TRANSACTION;
 
         /* 
-           s-mode unicast: reset missing response counter on successful 2.04 response
-           (responses to multicast are not allowed by spec, but guard anyway)
+           s-mode unicast 
+           - reset missing response counter on successful 2.04 response
+           - responses to multicast are not allowed by spec, but guard anyway
+
+          request we sent (transaction flag)   | response we receive (inbound type)   | branch
+          -------------------------------------|--------------------------------------|----------------------
+          s-mode CON (S_MODE_CON_REQUEST)      | piggybacked ACK carrying 2.04        | is_ack
+          s-mode CON (S_MODE_CON_REQUEST)      | empty ACK (later separate CON 2.04)  | is_ack
+          s-mode NON (S_MODE_NON_REQUEST)      | NON 2.04 response                    | is_inbound_non_response
+
         */
         if (inbound_coap_pkt->code == CHANGED_2_04 
             && transaction 
