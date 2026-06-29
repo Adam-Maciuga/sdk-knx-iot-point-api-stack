@@ -292,21 +292,17 @@ int oc_connectivity_get_network_scope(void)
 {
   const oc_endpoint_t* ep = oc_connectivity_get_endpoints();
   int widest = 0;
-  int scope = 0;
 
   while (ep)
   {
-    if (!(ep->flags & IPV6) || (ep->flags & MULTICAST))
+    // check only IPv6 unicast endpoints
+    if (ep->flags & IPV6 && !(ep->flags & MULTICAST))
     {
-      // check only IPv6 unicast endpoints
-      ep = ep->next;
-      continue;
-    }
-
-    scope = oc_ipv6_address_scope(ep->addr.ipv6.address);
-    if (scope > widest)
-    {
-      widest = scope;
+      const int scope = oc_ipv6_address_scope(ep->addr.ipv6.address);
+      if (scope > widest)
+      {
+        widest = scope;
+      }
     }
 
     ep = ep->next;

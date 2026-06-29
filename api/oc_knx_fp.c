@@ -2969,43 +2969,61 @@ void oc_unregister_group_multicasts(void)
 }
 
 // global index for staggered "read on init" -- also used as cb_data for removal
-static struct g_roi {int got_idx; int counter;} g_roi = {0,0};
+typedef struct g_roi_t
+{
+  int got_idx; // index of the current GO table entry to be processed
+  int counter; // counter for the number of attempts to send a read on init message
+  bool net_up; // flag to indicate if the network is up with the correct scope
+} g_roi_t;
+
+enum scope
+{
+  SCOPE_NONE = 0,
+  SCOPE_LINK_LOCAL = 2,
+  SCOPE_SITE_LOCAL = 5,
+};
+
+static g_roi_t g_roi = {0, 0, false};
 
 static oc_event_callback_retval_t oc_init_read_next(void* data)
 {
   (void)data;
 
-  if (oc_connectivity_get_network_scope() <= 5)
+  if (!g_roi.net_up)
   {
-    /*
-      Wait until we are getting at least a ULA IPv6 to start (and continue) sending. 
-      
-      - on each sending check available network scope, reschedule the read on init callback if not available 
-      - on each successful sending of a single message resets the 'attempt' counter to '0' (network is up with correct scope)
-      
-      Note, the regular application will be executed in the meantime. Any s-mode message may not be sent out 
-      until the network is up with a correct scope. The following scopes are defined in RFC 4291:
-      
-      - loopback / link local = 2
-      - site local (SLA, deprecated) = 5
-      - unique local address (ULA), global = 14
-
-      After 20 attempts stop try to send.
-    */
-
-    if (++g_roi.counter > 20)
+    if (oc_connectivity_get_network_scope() > SCOPE_SITE_LOCAL)
     {
-      OC_ERR("network not up with correct scope, max attempts reached, aborting read on init");
-      return OC_EVENT_DONE;
+      // one time available with at least a ULA IPv6 address scope, mark network up
+      g_roi.net_up = true;
     }
+    else
+    {
+      /*
+        Wait once for at least a ULA IPv6 before we start sending 
+        - once up we keep going (network down later is tolerated)
+        - while not up, reschedule the read on init callback
+        
+        Note, the regular application will be executed in the meantime. Any s-mode message may not be sent out
+        until the network is up with a correct scope. The following scopes are defined in RFC 4291:
 
-    OC_DBG("network not (yet)up with correct scope, wait and reschedule the read on init, attempt %d", g_roi.counter);
-    return OC_EVENT_CONTINUE;
+        - loopback / link local = 2
+        - site local (SLA, deprecated) = 5
+        - unique local address (ULA), global = 14
+
+        After 20 attempts stop try to send.
+      */
+
+      if (++g_roi.counter > 20)
+      {
+        OC_ERR("network not up with ULA scope, max attempts reached");
+        return OC_EVENT_DONE;
+      }
+
+      OC_DBG("network not (yet)up with correct scope, wait and reschedule the read on init, attempt %d", g_roi.counter);
+      return OC_EVENT_CONTINUE;
+    }
   }
 
-  // a single network up resets the counter, in case of a network down and up again
-  g_roi.counter = 0;
-  
   /*
     (a)
       check first on init flag
@@ -3020,7 +3038,7 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
     // TODO 4 Low Priority -> b.1, in case of 2...n GO entries with same href its send 2...n-time the read (note MaC ETS does not split entries)
   */
 
-  // starts from last callback that increments the counter by 1
+  // continue from where the previous callback left off (got_idx advances one GOT entry per sent read)
   while (g_roi.got_idx < GOT_MAX_ENTRIES)
   {
     if (g_got[g_roi.got_idx].id >= 0 && g_got[g_roi.got_idx].cflags & OC_CFLAG_INIT)
@@ -3073,7 +3091,6 @@ void oc_init_datapoints_at_initialization(void)
   oc_ri_remove_timed_event_callback(NULL, oc_init_read_next);
 
   // start staggered processing from the first GO table entry
-  g_roi.got_idx = 0;
-  g_roi.counter = 0;
+  g_roi = (g_roi_t){0, 0, false};
   oc_ri_add_timed_event_callback_ticks(NULL, oc_init_read_next, KNX_READ_ON_INIT_DELAY_MILLISECONDS);
 }
