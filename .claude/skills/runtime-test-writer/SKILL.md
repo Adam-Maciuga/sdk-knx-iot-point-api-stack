@@ -748,4 +748,4 @@ Renamed to exclude from pytest collection. These are **NOT EITT-compliant** — 
 
 ### Coverage tracking
 
-See `tests/runtime/COVERAGE.md` for the definitive test ID coverage status. Do not track coverage in this skill file.
+See `tests/runtime/EITT_TEST_COVERAGE.md` for the definitive test ID coverage status. Do not track coverage in this skill file.

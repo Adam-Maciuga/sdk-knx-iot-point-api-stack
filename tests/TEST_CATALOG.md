@@ -1,9 +1,9 @@
 # KNX IoT Point API Stack — Test Catalog
 
-> **1033 unit tests** (50 files) + **289 runtime tests** (17 files) = **1322 total**
+> **1033 unit tests** (50 files) + **293 runtime tests** (17 files) = **1326 total**
 >
 > Branch: `work_in_progress` | Unit: 1033 passed (windows-test-gcc, GCC/CTest).
-> Runtime (Docker `linux-test-gcc`, full suite): 284 passed, 5 skipped, 0 failed, 0 errors (289 collected) - fully green. The intermittent DUT hang at `test_5_4_1_7` seen in an earlier session did not reproduce. See "Last runtime run status" at the end of Part 2.
+> Runtime (Docker `linux-test-gcc`, full suite): 287 passed, 6 skipped, 0 failed, 0 errors (293 collected) - fully green. The intermittent DUT hang at `test_5_4_1_7` seen in an earlier session did not reproduce. See "Last runtime run status" at the end of Part 2.
 > Runtime observe suite (`test_5_4_observe.py`): 19 tests, anchored to spec 2.5.9.x / 2.6.10.1 (non-EITT approximation)
 
 ---
@@ -1333,7 +1333,7 @@ extra collected items come from parametrized cases in
 ## Last runtime run status
 
 Full runtime suite (Docker `linux-test-gcc`, committed HEAD of `work_in_progress`):
-**284 passed, 5 skipped, 0 failed, 0 errors** (289 collected, 560.10s) - fully green.
+**287 passed, 6 skipped, 0 failed, 0 errors** (293 collected, 592.66s) - fully green.
 
 Every section passed, including `test_5_4_group_comm.py` (`test_5_4_1_7` and the
 multicast-provisioning path), the full `test_5_4_observe.py` module, and
@@ -1343,7 +1343,7 @@ setup fixture that cascaded into the rest of `5_4` and `5_5`) did **not**
 reproduce on this run, confirming it was DUT instability under cumulative load
 rather than a code regression.
 
-The 5 skips are conditional `pytest.skip()` cases (environment/timing
+The 6 skips are conditional `pytest.skip()` cases (environment/timing
 dependent), not failures - see "Skipped tests" below.
 
 The unit suite is fully green (1033/1033). No stack C code was modified while
@@ -1356,6 +1356,7 @@ refreshing this catalog.
 | Test | Reason |
 |------|--------|
 | `test_5_1_2_3b_ia_unconfigured_subtype` | Requires fully unconfigured DUT (no IA at all); cannot be achieved mid-suite |
+| `test_5_4_1_9_init_flag_sends_read_on_restart` | Init-flag read-on-startup gate is environment-dependent; skipped when veth/network conditions not met |
 | `test_5_3_1_6d_unblocks_after_timeout` | Brute-force lockout auto-unblock is time-dependent; skipped to keep the suite fast/deterministic |
 | `test_5_4_1_15_bonus_iid_too_short` | Malformed-length discovery edge case skipped on this DUT/transport configuration |
 | `test_5_4_1_15_bonus_sn_too_long` | Malformed-length discovery edge case skipped on this DUT/transport configuration |

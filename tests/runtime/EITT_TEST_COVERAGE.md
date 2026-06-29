@@ -1,4 +1,4 @@
-# Runtime Test Coverage Tracking
+# EITT Test Coverage Tracking
 
 > **Source of truth** for mapping EITT spec test IDs to our runtime tests.
 > Authoritative EITT ID list extracted from `tests/EITT_REFERENCE_PROJECT/EittProject.xml`.
@@ -280,7 +280,6 @@ They provide additional coverage beyond the certification scope.
 | 5.10 Generic | 9 | 9 | 0 | 0 |
 | **TOTAL** | **179** | **176** | **0** | **3** |
 
-**Coverage: 169/179 = 94.4% (DONE)**
-**Achievable: 176/179 = 98.3% (excluding BLOCKED)**
-**Remaining TODO: 7 (5.5.9.3, 5.8.1.1, 5.8.3.2, 5.10.1.1, 5.10.1.2, 5.10.1.4, 5.10.1.6)**
+**Coverage: 176/179 = 98.3% (DONE)**
+**Remaining TODO: 0**
 **Remaining BLOCKED: 3 (5.3.1.4b/c/d — SPAKE2+ handover timing)**
