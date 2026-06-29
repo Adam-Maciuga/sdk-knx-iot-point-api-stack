@@ -298,6 +298,7 @@ int oc_connectivity_get_network_scope(void)
   {
     if (!(ep->flags & IPV6) || (ep->flags & MULTICAST))
     {
+      // check only IPv6 unicast endpoints
       ep = ep->next;
       continue;
     }

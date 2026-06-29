@@ -2978,8 +2978,10 @@ static oc_event_callback_retval_t oc_init_read_next(void* data)
   if (oc_connectivity_get_network_scope() <= 5)
   {
     /*
-      Wait until we are getting at least a ULA IPv6 to start sending. As longs as not, reschedule the read
-      on init callback. 
+      Wait until we are getting at least a ULA IPv6 to start (and continue) sending. 
+      
+      - on each sending check available network scope, reschedule the read on init callback if not available 
+      - on each successful sending of a single message resets the 'attempt' counter to '0' (network is up with correct scope)
       
       Note, the regular application will be executed in the meantime. Any s-mode message may not be sent out 
       until the network is up with a correct scope. The following scopes are defined in RFC 4291:
