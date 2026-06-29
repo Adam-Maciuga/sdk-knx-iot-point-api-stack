@@ -212,8 +212,8 @@ void oc_coap_response_cache_store(oc_message_t* message)
     only cache (piggybacked) ACK responses (CoAP type = 2, bits 4-5 of byte 0)
   */
   const bool is_piggybacked_ack = message->length > 4 && ((message->data[0] >> 4) & 0x03) == COAP_TYPE_ACK;
- 
-  if (message && is_piggybacked_ack)
+  
+  if (is_piggybacked_ack)
   {
     // build key from the outgoing message's wire bytes + endpoint (same layout as history)
     oc_request_history_entry_t key = {
