@@ -1754,6 +1754,7 @@ void oc_delete_at_table(void)
 
   oc_oscore_free_all_contexts();
   oc_oscore_free_all_replay_records();
+  oc_oscore_free_all_replay_echo_records();
 }
 
 void oc_delete_at_table_except_sec_scope_entries(void)

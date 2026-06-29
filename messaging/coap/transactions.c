@@ -240,7 +240,7 @@ void coap_send_transaction(coap_transaction_t *t)
     if (t->retransmit_counter < 1)
     { // keep transaction + init timeout
 
-      // init ~ 5s timeout
+      // init timeout
       t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
 
       OC_DBG("interval initialized %d", (int)t->retransmit_timer.timer.interval);

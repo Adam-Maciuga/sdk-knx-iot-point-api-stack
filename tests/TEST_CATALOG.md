@@ -278,6 +278,22 @@ Built with GCC, run via CTest. 50 `.cpp` files in `tests/unit/`.
 
 ---
 
+### test_oc_oscore_echo_tx.cpp — S-Mode Echo Replay Defence (7 tests)
+
+**Source:** `security/oc_oscore_engine.c` (echo TX ring, TODO 20)
+
+| Test | What it verifies |
+|------|-----------------|
+| `StoredSSN_FirstEcho_Accepted` | Echo whose PIV/SSN matches a sent multicast is accepted |
+| `MultipleStored_EachConsumedOnce` | Several pending SSNs each consume independently |
+| `SameSSN_SecondEcho_IsReplay` | Replayed echo (same SSN) dropped after first consume |
+| `UnknownSSN_NoStore_IsDropped` | Echo with no matching sent SSN dropped |
+| `UnknownSSN_AfterStore_IsDropped` | Mismatching SSN dropped while another is pending |
+| `OldestEntry_EvictedAfterOverflow` | Ring keeps only the most recent SIZE entries |
+| `Clear_DropsPendingEntries` | Clear wipes the white-list |
+
+---
+
 ### test_oc_knx_helpers.cpp — KNX Helpers (24 tests)
 
 **Source:** `api/oc_knx_helpers.c`

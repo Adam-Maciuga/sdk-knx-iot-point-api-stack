@@ -24,6 +24,13 @@ extern "C"
   // store 64-bit ssn (src) to piv (dst), piv is cleared first and result is converted by little/big endian
   int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
 
+  // echo white-list of sent s-mode multicast (ssn, kid); exposed for unit testing
+  struct coap_packet_t;
+  void oc_oscore_free_all_replay_echo_records(void);
+  void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* kid_ctx, uint8_t kid_ctx_len);
+  void oc_oscore_echo_tx_supersede_kid(const uint8_t* kid, uint8_t kid_len);
+  bool oc_oscore_echo_tx_check_and_consume(const struct coap_packet_t* pkt);
+
   bool oscore_is_oscore_message(oc_message_t* msg);
 
   int coap_parse_inner_oscore_option(void* packet, uint8_t* current_option, size_t option_length);

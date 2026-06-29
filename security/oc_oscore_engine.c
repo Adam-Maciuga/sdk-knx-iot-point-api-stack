@@ -15,6 +15,7 @@
 #include "oc_client_state.h"
 #include "oc_oscore_context.h"
 #include "oc_oscore_crypto.h"
+#include "port/oc_clock.h"
 #include "conf.h"
 
 #ifdef KNX_TCP_TLS
@@ -150,6 +151,216 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
     // uses the 'Sender ID' and 'ID Context' from access token 
     oc_write_ssn_to_storage(ctx->auth_at, ctx->ssn);
   }
+}
+
+/*
+  ECHO TX RING 
+  ============
+  Defends the client-side S-mode echo path against replayed 4.01 'unicast echo responses'
+  
+  - a flat ring of recently-sent multicast requests and the responders that answered them.
+  - per clause 3.6.4.1.3 an echo response replays back the request's 'kid' (as Sender ID) and
+    sequence number, while 'kid_context' is a fresh server-side (10 byte) random.
+  - a single multicast request may be answered by MANY peers; every responder replays the SAME
+    (ssn, kid) but a DIFFERENT 'kid_context'. The full (ssn, kid, kid_context) triple therefore
+    identifies one responder, and the protocol SHALL accept more than a single response.
+
+  Entries:
+  - SEND-ANCHOR (kid_ctx_len == 0): written by oc_oscore_echo_tx_append() (kid_ctx = NULL) for each
+    request we put on the wire. It proves WE sent this (ssn, kid) and authorizes responders to be accepted.
+  
+  - RESPONDER (kid_ctx_len > 0): appended by oc_oscore_echo_tx_check_and_consume() the first time a
+    given responder's triple is accepted, so its later replays are recognised and dropped.
+    Both are reclaimed when the next multicast for the Group supersedes them (see lifecycle below).
+
+  Accept / reject decision for an inbound echo response (single read-only pass over the whole ring):
+  - exact (ssn, kid, kid_context) triple already live  -> replay of THIS responder -> reject.
+  - else a live (ssn, kid) anchor/sibling exists        -> a NEW responder to a request we sent ->
+    accept (allowing the one permitted re-request) and append the triple.
+  - else (no live (ssn, kid))                           -> never sent or aged out -> reject.
+
+  Note on lifecycle (clause 3.6.4 / 3.6.4.1.3):
+  - an echo response is NOT sent per request. A peer only sends a 4.01 + Echo the first time it sees
+    us (unsynchronized, no replay window) or after it lost sync (e.g. reboot). Once synchronized,
+    normal multicast traffic flows with NO echo responses at all.
+  - the sender CANNOT pick a meaningful wall-clock lifetime: it cannot tell "no echo will ever come"
+    (all receivers in sync) from "an echo is still on its way" (a sleepy receiver that answers only
+    when it wakes, possibly much later) - no protocol signal distinguishes the two. Any fixed timeout
+    is therefore arbitrary and would either drop a late-but-genuine first echo or keep (ssn, kid)
+    armed too long.
+  - so the lifetime is EVENT-BOUNDED, exactly as the spec defines it: a send-anchor is kept "at least
+    until the next multicast request for the same Group". When we send the next multicast for a GA we
+    SUPERSEDE that Group's prior anchors (oc_oscore_echo_tx_supersede_kid: one GA -> one Sender Context
+    -> one kid, so we reclaim by kid). This self-adjusts to the send rate - a chatty publisher narrows
+    the window automatically; a once-an-hour publisher keeps its anchor legitimately for that hour, so a
+    sleepy receiver that wakes within it is still accepted - with NO magic number.
+  - guardrails:
+      * MIN_ARM floor (OC_ECHO_TX_MIN_ARM ~5s): supersession keeps anchors younger than this, so a very
+        fast re-publish cannot drop an echo still in flight (3.6.4.1.3 "re-request ... e.g. 5s").
+      * ring size (OC_ECHO_TX_RING_SIZE = 32): hard cap on coexisting (ssn, kid)+responder records.
+      * backstop TTL (OC_ECHO_TX_RING_BACKSTOP_TTL): pure memory-leak guard for a GA published once and
+        never superseded; deliberately generous so it is NOT the freshness mechanism.
+  - true freshness rests on the SSN + replay window (3.6.4.1.3): the Publisher distinguishes responders
+    and validates freshness via the sender sequence number + replay window carried in the (ssn, kid,
+    kid_context) triple, not via this ring's wall clock.
+  - a SECOND, independent gate also caps the window: the outbound s-mode request runs as a NON CoAP
+    transaction that self-clears after COAP_RESPONSE_TIMEOUT (~5s); after that the inbound echo finds no
+    transaction (correlated by mid/token in messaging/coap/engine.c) and is dropped there regardless of
+    this ring. MIN_ARM is aligned with that timeout.
+  - blast radius of accepting a stale/replayed echo is limited anyway: it only makes US emit a
+    re-request, which the peer still validates against its own Echo value + replay window - a
+    DoS/amplification concern, not an integrity break.
+*/
+#ifndef OC_ECHO_TX_RING_SIZE
+#define OC_ECHO_TX_RING_SIZE (32) // MUST use only values of 2 power n
+#endif
+
+#ifndef OC_ECHO_TX_MIN_ARM
+/*
+   minimum time a send-anchor stays armed before the NEXT multicast for the same Group may reclaim it
+   (3.6.4.1.3: re-requests SHOULD be sent "for a sufficiently long time, e.g. 5s"). Protects a very
+   fast re-publish from prematurely killing an in-flight echo. Aligned with the s-mode CoAP transaction
+   lifetime (transactions.c), which is the independent second gate dropping late echoes by token/mid.
+*/
+#define OC_ECHO_TX_MIN_ARM (COAP_RESPONSE_TIMEOUT_TICKS)
+#endif
+
+#ifndef OC_ECHO_TX_RING_BACKSTOP_TTL
+/*
+   memory-leak backstop ONLY: a Group published exactly once (never superseded by a later multicast)
+   would otherwise occupy its slot forever. This is NOT the freshness mechanism (freshness rests on the
+   SSN + replay window per 3.6.4.1.3) and is deliberately generous so it never clips a legitimately late
+   echo from a sleepy receiver; the real lifetime is event-bounded (see oc_oscore_echo_tx_supersede_kid).
+*/
+#define OC_ECHO_TX_RING_BACKSTOP_TTL (3600 * OC_CLOCK_CONF_TICKS_PER_SECOND)
+#endif
+
+typedef struct
+{
+  uint64_t ssn;                           // SSN used as Partial IV of the send out multicast request
+  oc_clock_time_t ts;                     // time the request was sent (anchor) or a responder was accepted
+  uint8_t kid[OSCORE_SENDER_ID_LEN];      // sender id (kid) of the send out request, replayed back in the echo response
+  uint8_t kid_len;                        // length of the kid
+  uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // kid_context (responder's one-time random) of an accepted echo response
+  uint8_t kid_ctx_len;                    // length of the kid_context, '0' marks a send-anchor entry (no responder yet)
+} oc_echo_tx_entry_t;
+
+static oc_echo_tx_entry_t g_echo_tx_ring[OC_ECHO_TX_RING_SIZE];
+static uint8_t g_echo_tx_idx;
+
+// clear all records from former outbound s-mode messages to identify inbound replay (echo) messages 
+void oc_oscore_free_all_replay_echo_records(void)
+{
+  memset(g_echo_tx_ring, 0, sizeof(g_echo_tx_ring));
+  g_echo_tx_idx = 0;
+  OC_DBG("Cleared all replay echo window records");
+}
+
+/* 
+   append a (ssn, kid, kid_ctx) entry into the ring (kid_ctx_len = 0 -> send-anchor), evicting the oldest slot
+   a send-anchor proves we actually sent a (ssn, kid) so a later 'unicast echo response' can be validated 
+*/
+void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* kid_ctx, uint8_t kid_ctx_len)
+{
+  oc_echo_tx_entry_t* e = &g_echo_tx_ring[g_echo_tx_idx];
+  memset(e, 0, sizeof(*e));
+
+  e->ssn = ssn;
+  e->ts = oc_clock_time();
+
+  if (kid && kid_len <= OSCORE_SENDER_ID_LEN)
+  {
+    memcpy(e->kid, kid, kid_len);
+    e->kid_len = kid_len;
+  }
+  if (kid_ctx && kid_ctx_len <= OSCORE_ID_CONTEXT_LEN)
+  {
+    memcpy(e->kid_ctx, kid_ctx, kid_ctx_len);
+    e->kid_ctx_len = kid_ctx_len;
+  }
+
+  // roll over id from 0...n-1 (use only 2 power n max size)
+  g_echo_tx_idx = (g_echo_tx_idx + 1) & (OC_ECHO_TX_RING_SIZE - 1);
+}
+
+/* 
+   supersede prior anchors/responders for a kid when a NEW multicast for the same Group is sent
+   (3.6.4.1.3: re-requests run only "until the next multicast for the Group"). 
+   
+   - One GA -> one Sender Context -> one kid, so matching the kid reclaims exactly that Group's stale entries. 
+   - Entries younger than OC_ECHO_TX_MIN_ARM are kept so a very fast re-publish cannot drop an echo still in flight.
+*/
+void oc_oscore_echo_tx_supersede_kid(const uint8_t* kid, uint8_t kid_len)
+{
+  if (!kid || kid_len == 0)
+  {
+    return;
+  }
+
+  const oc_clock_time_t now = oc_clock_time();
+
+  for (oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
+  {
+    if (e->kid_len == kid_len
+        && memcmp(e->kid, kid, kid_len) == 0
+        && now - e->ts > OC_ECHO_TX_MIN_ARM) // keep in-flight (young) anchors/echoes
+    {
+      // wipe it: the next multicast for this Group supersedes this entry (
+      memset(e, 0, sizeof(*e)); // free the slot: this Group's request is superseded
+    }
+  }
+}
+
+// accept an echo response or reject it
+// keyed on the full (ssn, kid, kid_context) triple:
+//  - exact triple already present (and live) -> replay of THIS responder -> reject
+//  - else a live (ssn, kid) anchor exists     -> we sent it, NEW responder -> accept + register the triple
+//  - else                                     -> never sent / aged out    -> reject
+bool oc_oscore_echo_tx_check_and_consume(const coap_packet_t* pkt)
+{
+  // pkt can't be NULL
+
+  // the echoed PIV carries the SSN of the multicast request we sent
+  uint64_t ssn = 0;
+  oscore_store_piv_to_ssn((uint8_t*)pkt->piv, pkt->piv_len, &ssn);
+
+  const oc_clock_time_t now = oc_clock_time();
+
+  bool anchor_seen = false;       // any live (ssn, kid) entry present      -> we sent it
+
+  // single read-only pass: decide replay vs. anchor over the WHOLE ring before mutating it
+  for (const oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
+  {
+    if (e->kid_len == 0                                  // empty slot
+        || e->ssn != ssn                                 // different ssn 
+        || e->kid_len != pkt->kid_len                    // different kid length
+        || memcmp(e->kid, pkt->kid, pkt->kid_len) != 0   // different kid
+        || now - e->ts > OC_ECHO_TX_RING_BACKSTOP_TTL)   // backstop only: real lifetime is supersession (see supersede_kid)
+    {
+      continue;
+    }
+
+    // (ssn, kid) matches a live entry -> this is the send-anchor OR a sibling responder
+    anchor_seen = true;
+
+    // same responder (exact, non-empty kid_context) -> replay; the empty anchor (len 0) never counts as a triple
+    if (e->kid_ctx_len > 0
+        && e->kid_ctx_len == pkt->kid_ctx_len
+        && memcmp(e->kid_ctx, pkt->kid_ctx, pkt->kid_ctx_len) == 0)
+    {
+      return false; // replay of an already-accepted responder (decisive, regardless of any anchor)
+    }
+  }
+
+  if (!anchor_seen)
+  {
+    // no live (ssn, kid) we sent beforehand out is part of our echo window -> unknown inbound echo response / aged out
+    return false; 
+  }
+
+  // new responder for a request we sent -> register the triple so its replay is caught, then accept (one re-request)
+  oc_oscore_echo_tx_append(ssn, pkt->kid, pkt->kid_len, pkt->kid_ctx, pkt->kid_ctx_len);
+  return true;
 }
 
 /*
@@ -509,6 +720,14 @@ static int oc_oscore_receive_message(oc_message_t* msg)
         return -1;
       }
 
+      // defend against replayed S-mode 'unicast echo responses'
+      if (!oc_oscore_echo_tx_check_and_consume(coap_pkt))
+      {
+        OC_DBG("dropping replayed/unknown 'unicast echo response' (kid/SSN not in white-list or already consumed)");
+        oc_message_unref(msg);
+        return -1;
+      }
+
       /*
 
          'Client' Side (details see method 'oc_oscore_receive_message' header), create:
@@ -518,8 +737,6 @@ static int oc_oscore_receive_message(oc_message_t* msg)
            - ms + salt from token (inside 'oc_oscore_add_context')
            - ssn (init ssn with '0', not used on any sending)
       */
-
-      // TODO 20 DL check on replay by compare ssn with white 'list' (last send out ssn, kid, kid context) / black 'list' (own list system , not reusing ctx , to big) 
 
       oc_oscore_context_params_t oscore_params = 
       {
@@ -782,6 +999,11 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
 
     // request - use context SSN as Partial IV (before increment)
     oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
+
+    // fill white-list with a send-anchor (ssn, kid) so a later 'unicast echo response' can be validated
+    // first supersede this Group's prior anchors (3.6.4.1.3: re-request only until the next multicast for the Group)
+    oc_oscore_echo_tx_supersede_kid(oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    oc_oscore_echo_tx_append(oscore_ctx->ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, NULL, 0);
 
     // debugging
     OC_DBG_OSCORE("protecting outgoing multicast request, using SSN as Partial IV : %" PRIu64, oscore_ctx->ssn);
