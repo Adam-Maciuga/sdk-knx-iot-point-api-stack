@@ -850,11 +850,14 @@ int coap_receive(oc_message_t* incoming_message)
             }
 
             /*
-              This is potentially endian sensitive, but we've already checked that the echo value is 8 bytes, and correct echo values
-              originate on the same machine where they are generated, so this should be okay.
+              The echo value is a timestamp, originated by sender, responded by receiver,
+              check of time difference (RFC 9175 clause 2.3)
+              
+              The echo value is potentially endian sensitive
+              - we've already checked that the echo value is 8 bytes
+              - echoed values from server where originated on the same (sender) machine -> so okay.
             */
 
-            // check of time difference, RFC 9175 clause 2.3, use type cast
             oc_clock_time_t delta_time = echo_ctx.echo.timestamp - echo.timestamp; 
 
             OC_DBG("'echo' timestamp difference %" PRIu64", threshold %d", delta_time, OC_ECHO_FRESHNESS_TIME);
