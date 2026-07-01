@@ -189,9 +189,9 @@ void coap_send_transaction(coap_transaction_t *t)
       oc_etimer_restart(&t->retransmit_timer); // interval updated above
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
-      // send message and keep transaction
+      // send message, keep transaction, increase ref_count to 2 (send msg would release it with 1)
       OC_DBG("sending CON message transaction (len: %zu , mid %u)", t->message->length, t->mid);
-      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
+      oc_message_add_ref(t->message);
       coap_send_message(t->message);
     }
     else 
@@ -298,11 +298,9 @@ void coap_send_transaction(coap_transaction_t *t)
          in the OSCORE echo TX ring instead of the transaction 
     */
     
-    // send message and clear transaction
-    OC_DBG("sending NON %s coap message transaction (len: %zu , mid %u)", 
-           t->message->endpoint.flags & S_MODE_NON_REQUEST ? "s-mode multicast" : "coap", t->message->length, t->mid);
-    
-    oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
+    // send message, wipe transaction, increase ref_count to 2 (send msg would release it with 1)
+    OC_DBG("sending NON %s message transaction (len: %zu , mid %u)", smode_non ? "s-mode mc" : "coap", t->message->length, t->mid);
+    oc_message_add_ref(t->message);
     coap_send_message(t->message);
     coap_clear_transaction(t);
   }
