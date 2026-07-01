@@ -272,8 +272,10 @@ static void echo_tx_entry_release(oc_echo_tx_entry_t* e)
    can still be answered with an 'echo re-request'.
 
    - precondition: 'msg' MUST be non-NULL (the anchor-only case goes through oc_oscore_echo_tx_append instead)
-   - ADOPTS the caller's reference on 'msg' (ownership handover, no extra ref is taken); the slot becomes the sole
-     owner and the caller MUST NOT unref 'msg' afterward
+   
+   - takes its OWN reference on 'msg', the slot owns that reference until released. The
+     caller keeps its own reference and MUST unref 'msg' afterward (symmetric with every send-path error branch)
+   
    - stores the request's CoAP (token, token_len) so the inbound echo can be correlated to this payload
 
    - the number of retained messages is bounded by the ring size: reusing the slot at 'g_echo_tx_idx'
@@ -302,7 +304,11 @@ void oc_oscore_echo_tx_put_retain_plaintext(uint64_t ssn, const uint8_t* kid, ui
     e->token_len = token_len;
   }
 
-  // take over callers ownership on the plaintext message; the slot owns this reference until released
+  /* 
+     take our OWN reference on the plaintext message; the slot owns this reference until released.
+     the caller keeps its reference and unref's it after this call, so ownership is NOT handed over.
+  */
+  oc_message_add_ref(msg);
   e->msg = msg;
 
   // roll over id from 0...n-1 (use only 2 power n max size)
@@ -335,7 +341,7 @@ oc_message_t* oc_oscore_echo_tx_get_retained_plaintext(const uint8_t* token, uin
 }
 
 // clear all records from former outbound s-mode messages to identify inbound replay (echo) messages 
-void oc_oscore_free_all_replay_echo_records(void)
+void oc_oscore_free_all_echo_records(void)
 {
   // release each slot individually so any retained plaintext s-mode message is unref'd (not leaked)
   for (oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
@@ -1078,10 +1084,11 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     
     - the multicast (sending) transaction is cleared right after send, so the echo ring is the ONLY
       surviving payload source. 
-    
-    - the caller's message reference (msg) carries the plaintext to
-      the echo ring for the commit point after serialization succeeds and MUST be released on every
-      pre-commit error
+
+    - this function owns exactly ONE reference on the plaintext message (msg) for its whole lifetime and
+      unref's it on EVERY exit path: each pre-commit error branch, and the happy path right after the ring
+      has taken its own reference at the commit point. The retained payload therefore survives solely on the
+      ring's reference, never on this one.
   */
 
   // clone handed over 'oscore' message (msg) into sent out 'oscore' message, the outgoing msg takes care from now on
@@ -1231,11 +1238,13 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
       - replace this GA's prior (aged) anchors for this kid (3.6.4.1.3: re-requests run only "until the next
         multicast for the Group")
 
-      - the ring takes over the ref count from the caller (ownership), so no add ref (ring) remove ref (caller) is needed,
-        it is simply a handover since the ref count is anonymous
+      - the ring takes its OWN reference on the plaintext (add ref inside put_retain), so we drop our caller
+        reference right after. This keeps 'msg' cleanup uniform: the happy path unref's 'msg' exactly like
+        every pre-commit error branch above, and the retained payload survives on the ring's own reference.
     */
     oc_oscore_echo_tx_replace_kid(oscore_ctx->sender_id, oscore_ctx->sender_id_len);
     oc_oscore_echo_tx_put_retain_plaintext(anchor_ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, retained_token, retained_token_len, msg);
+    oc_message_unref(msg);
   }
   else
   {

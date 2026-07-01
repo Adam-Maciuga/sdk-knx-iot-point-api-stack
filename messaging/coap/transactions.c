@@ -189,7 +189,11 @@ void coap_send_transaction(coap_transaction_t *t)
       oc_etimer_restart(&t->retransmit_timer); // interval updated above
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
-      // send message, keep transaction, increase ref_count to 2 (send msg would release it with 1)
+      /*
+       send message, keep transaction -> increase ref_count to 2
+       - send message decrements to 1
+       - keep transaction until reps are done + clear transaction (or ACK received + clear transaction)
+      */
       OC_DBG("sending CON message transaction (len: %zu , mid %u)", t->message->length, t->mid);
       oc_message_add_ref(t->message);
       coap_send_message(t->message);
@@ -255,7 +259,11 @@ void coap_send_transaction(coap_transaction_t *t)
       oc_etimer_restart(&t->retransmit_timer);
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
-      // send message and keep transaction and increase ref_count to 2 (send msg would release it with 1)
+      /*
+       send message, keep transaction -> increase ref_count to 2
+       - send message decrements to 1
+       - keep transaction until timed out + clear transaction 
+      */
       OC_DBG("sending NON s-mode message transaction (len: %zu , mid %u)", t->message->length, t->mid);
       oc_message_add_ref(t->message); 
       coap_send_message(t->message);
@@ -296,9 +304,12 @@ void coap_send_transaction(coap_transaction_t *t)
        - no keep-alive, there is no single unicast recipient to track, 
        - late (>5s) multicast echoes are served from the retained plaintext message backup
          in the OSCORE echo TX ring instead of the transaction 
+   
+       send message, wipe transaction -> increase ref_count to 2 
+       - send message decrements to 1 
+       - clear transaction will decrement (to 0) BUT async sender processes (send unicast/ multicast)
+         with that message still runs, so keep it at 1 until the message is fully processed 
     */
-    
-    // send message, wipe transaction, increase ref_count to 2 (send msg would release it with 1)
     OC_DBG("sending NON %s message transaction (len: %zu , mid %u)", smode_non ? "s-mode mc" : "coap", t->message->length, t->mid);
     oc_message_add_ref(t->message);
     coap_send_message(t->message);
