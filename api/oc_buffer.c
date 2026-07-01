@@ -68,7 +68,7 @@ void oc_message_unref(oc_message_t* message)
   if (message) 
   {
     message->ref_count--;
-    OC_DBG("decrease message (%p) ref counter, counter is now%d", (void*)message,message->ref_count);
+    OC_DBG("decrease message (%p) ref counter, counter is now %d", (void*)message,message->ref_count);
     if (message->ref_count == 0)
     {
       if (message->data)
