@@ -15,16 +15,18 @@
  *             and is accepted too.
  *
  * Lifetime is event-bounded: the next multicast for a Group supersedes that kid's
- * anchors (3.6.4.1.3), with a MIN_ARM (~5s) floor and a generous memory backstop;
- * it is NOT a short clock-based TTL. Default size 32.
+ * anchors (3.6.4.1.3), with a MIN_ARM (~5s) floor; it is NOT a short clock-based TTL.
+ * Default size 32.
  */
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <cstdlib>
 
 extern "C" {
 #include "messaging/coap/oscore.h"
 #include "messaging/coap/coap.h"
+#include "oc_buffer.h"
 }
 
 /* Default ring capacity (OC_ECHO_TX_RING_SIZE) — must stay a power of two. */
@@ -199,4 +201,124 @@ TEST_F(EchoTxRingTest, Supersede_DifferentKid_LeavesOtherKidIntact)
   /* a different Group's multicast must not reclaim our kid's anchor */
   oc_oscore_echo_tx_supersede_kid(other_kid, sizeof(other_kid));
   EXPECT_TRUE(consume(10));
+}
+
+/* ── Retained plaintext s-mode message (late-echo backup) ─────────────────────
+   oc_oscore_echo_tx_put_retain_plaintext pins the PLAINTEXT s-mode message (ref-counted) with a
+   send-anchor so a LATE 'echo response' (arriving after the s-mode CoAP transaction
+   has self-cleared) can still be answered. The retained message is correlated by the
+   request's CoAP TOKEN (the key the CoAP layer uses), bounded by the ring size
+   (slot roll-over releases the message that lived there), and released on
+   supersede / clear / roll-over.
+
+   These tests allocate a stand-in oc_message_t the same way oc_allocate_message does
+   (struct + OC_PDU_SIZE data buffer, ref_count = 1) so the real oc_message_add_ref /
+   oc_message_unref ref-counting and free-at-zero behaviour is exercised. put_retain HANDS
+   OVER (adopts) the caller's single reference - it does NOT take an extra one - so after
+   the call the ring is the sole owner (ref_count stays 1) and the test must NOT unref the
+   message itself; the ring frees it via free_all / supersede / roll-over. */
+
+/* allocate a fake message with ref_count = 1 (mirrors oc_allocate_message without the
+   network mutex), carrying the given token in its serialized-ish data buffer. */
+static oc_message_t* make_msg(const uint8_t* token, uint8_t token_len)
+{
+  oc_message_t* m = (oc_message_t*)calloc(1, sizeof(oc_message_t));
+  m->data = (uint8_t*)calloc(1, OC_PDU_SIZE);
+  m->ref_count = 1;
+  m->length = token_len;
+  if (token && token_len > 0) {
+    memcpy(m->data, token, token_len);
+  }
+  return m;
+}
+
+static uint8_t g_tok_a[] = {0x11, 0x22, 0x33, 0x44};
+static uint8_t g_tok_b[] = {0x55, 0x66, 0x77, 0x88};
+
+TEST_F(EchoTxRingTest, Retain_GetByToken_ReturnsSameMessage)
+{
+  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a)); /* ref_count = 1 (test owns it) */
+  oc_oscore_echo_tx_put_retain_plaintext(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* HANDOVER: ring adopts the ref -> stays 1, ring now owns it */
+
+  EXPECT_EQ(m, oc_oscore_echo_tx_get_retained_plaintext(g_tok_a, sizeof(g_tok_a)));
+  EXPECT_EQ(1, m->ref_count);
+
+  /* the (ssn, kid) send-anchor was also laid, so a genuine echo is still accepted */
+  EXPECT_TRUE(consume(10));
+
+  oc_oscore_free_all_replay_echo_records(); /* ring drops its (the only) ref -> 0, freed */
+}
+
+TEST_F(EchoTxRingTest, GetByToken_UnknownToken_ReturnsNull)
+{
+  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a));
+  oc_oscore_echo_tx_put_retain_plaintext(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* HANDOVER: ring owns m */
+
+  EXPECT_EQ(nullptr, oc_oscore_echo_tx_get_retained_plaintext(g_tok_b, sizeof(g_tok_b)));
+
+  oc_oscore_free_all_replay_echo_records(); /* ring frees m */
+}
+
+TEST_F(EchoTxRingTest, Retain_FreeAll_ReleasesRetainedMessage)
+{
+  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a));
+  oc_oscore_echo_tx_put_retain_plaintext(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* HANDOVER: ring owns m, ref stays 1 */
+  EXPECT_EQ(1, m->ref_count);
+
+  oc_oscore_free_all_replay_echo_records(); /* must unref the retained msg -> 0, freed (no leak) */
+}
+
+TEST_F(EchoTxRingTest, Supersede_ReleasesYoungRetained_OnlyWhenAged)
+{
+  /* a freshly retained message is YOUNGER than MIN_ARM, so supersede keeps it (and its ref) */
+  oc_message_t* m = make_msg(g_tok_a, sizeof(g_tok_a));
+  oc_oscore_echo_tx_put_retain_plaintext(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* HANDOVER: ring owns m, ref stays 1 */
+
+  oc_oscore_echo_tx_supersede_kid(g_kid, sizeof(g_kid)); /* young -> survives */
+  EXPECT_EQ(1, m->ref_count);
+  EXPECT_EQ(m, oc_oscore_echo_tx_get_retained_plaintext(g_tok_a, sizeof(g_tok_a)));
+
+  oc_oscore_free_all_replay_echo_records(); /* ring frees m */
+}
+
+TEST_F(EchoTxRingTest, Retain_RingRollOverEvictsOldestRetainedMessage)
+{
+  /* fill exactly ECHO_TX_RING_SIZE retained messages, each with a UNIQUE token, then add
+     one more: the ring index wraps to slot 0, so the FIRST-inserted (oldest) retained
+     message must be evicted (its ring ref dropped -> freed under HANDOVER ownership). The
+     number of retained messages is bounded by the ring size alone - there is no separate
+     retained-message cap.
+
+     NOTE (handover): put_retain adopts the caller's single reference, so the ring is the
+     SOLE owner. Eviction FREES the oldest message, therefore its ref_count MUST NOT be
+     read afterwards - eviction is observed via the token lookup instead. The test keeps no
+     own reference and performs no own unref; free_all reclaims every still-retained slot. */
+  const int cap = ECHO_TX_RING_SIZE;
+
+  for (int i = 0; i < cap; i++) {
+    uint8_t tok[4] = { (uint8_t)i, 0xAA, 0xBB, 0xCC };
+    oc_message_t* m = make_msg(tok, sizeof(tok));                          /* ref 1 (adopted by ring) */
+    oc_oscore_echo_tx_put_retain_plaintext((uint64_t)(100 + i), g_kid, sizeof(g_kid),
+                             tok, sizeof(tok), m);                         /* HANDOVER: ring owns m */
+  }
+
+  /* every retained message is still findable by its token (pinned by the ring) */
+  for (int i = 0; i < cap; i++) {
+    uint8_t tok[4] = { (uint8_t)i, 0xAA, 0xBB, 0xCC };
+    EXPECT_NE(nullptr, oc_oscore_echo_tx_get_retained_plaintext(tok, sizeof(tok)));
+  }
+
+  /* one more retain -> ring wraps to slot 0 -> OLDEST (i == 0) evicted and FREED */
+  uint8_t extra_tok[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
+  oc_message_t* extra = make_msg(extra_tok, sizeof(extra_tok));           /* ref 1 (adopted by ring) */
+  oc_oscore_echo_tx_put_retain_plaintext((uint64_t)(100 + cap), g_kid, sizeof(g_kid),
+                           extra_tok, sizeof(extra_tok), extra);          /* HANDOVER: ring owns extra */
+
+  /* the oldest token is gone (its message was evicted + freed), the newest is present */
+  uint8_t evicted_tok[4] = { 0x00, 0xAA, 0xBB, 0xCC };
+  EXPECT_EQ(nullptr, oc_oscore_echo_tx_get_retained_plaintext(evicted_tok, sizeof(evicted_tok)));
+  EXPECT_EQ(extra, oc_oscore_echo_tx_get_retained_plaintext(extra_tok, sizeof(extra_tok)));
+
+  /* cleanup: the ring owns all still-retained messages -> free_all releases them (no test-side unref) */
+  oc_oscore_free_all_replay_echo_records();
 }

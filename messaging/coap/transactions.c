@@ -235,23 +235,29 @@ void coap_send_transaction(coap_transaction_t *t)
       }
     }
   }
-  else if (smode_non)
+  else if (smode_non_uc)
   {
+    /* 
+       UNICAST s-mode NON: 
+       - keep transaction alive (~5s) only to wait for the outstanding 2.04 response and drive 
+         the missing_response_count -> UNRESOLVED state machine 
+       - the payload IS NOT retained in the OSCORE echo ring 
+    */
     if (t->retransmit_counter < 1)
     { // keep transaction + init timeout
 
-      // init timeout
-      t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS;
+      // init timeout, use it from CoAP CON init
+      t->retransmit_timer.timer.interval = COAP_RESPONSE_TIMEOUT_TICKS + oc_random_value() % (oc_clock_time_t)COAP_RESPONSE_TIMEOUT_BACKOFF_MASK;
 
       OC_DBG("interval initialized %d", (int)t->retransmit_timer.timer.interval);
-      
+
       OC_PROCESS_CONTEXT_BEGIN(transaction_handler_process);
       oc_etimer_restart(&t->retransmit_timer);
       OC_PROCESS_CONTEXT_END(transaction_handler_process);
 
-      // send message and keep transaction
+      // send message and keep transaction and increase ref_count to 2 (send msg would release it with 1)
       OC_DBG("sending NON s-mode message transaction (len: %zu , mid %u)", t->message->length, t->mid);
-      oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
+      oc_message_add_ref(t->message); 
       coap_send_message(t->message);
     }
     else
@@ -260,7 +266,7 @@ void coap_send_transaction(coap_transaction_t *t)
 
       #ifdef OC_CLIENT
       // s-mode unicast NON: increment missing response counter on timeout
-      if (smode_non_uc && t->recipient)
+      if (t->recipient)
       {
         oc_group_table_t* rec = t->recipient;
         rec->ipv6_res.missing_response_count++;
@@ -279,12 +285,23 @@ void coap_send_transaction(coap_transaction_t *t)
 
       coap_clear_transaction(t);
     }
-  } 
+  }
   else
-  { // empty ACK/RST, other NON application messages, ...
+  { 
+    /* 
+       empty ACK/RST, multicast s-mode NON, other NON application messages ...
+
+       multicast s-mode NON: 
+       - send and clear immediately like a plain NON 
+       - no keep-alive, there is no single unicast recipient to track, 
+       - late (>5s) multicast echoes are served from the retained plaintext message backup
+         in the OSCORE echo TX ring instead of the transaction 
+    */
     
     // send message and clear transaction
-    OC_DBG("sending NON coap message transaction (len: %zu , mid %u)", t->message->length, t->mid);
+    OC_DBG("sending NON %s coap message transaction (len: %zu , mid %u)", 
+           t->message->endpoint.flags & S_MODE_NON_REQUEST ? "s-mode multicast" : "coap", t->message->length, t->mid);
+    
     oc_message_add_ref(t->message); // msg created on 'new transaction' sets ref_count = 1, so set here to 2 (tracked)
     coap_send_message(t->message);
     coap_clear_transaction(t);
@@ -308,7 +325,7 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
 {
   for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next)
   {
-    // skip NON-confirmable s-mode transactions
+    // skip NON-confirmable s-mode transactions (unicast, they still use an artificial transaction to catch a missing 2.04 response)
     if (t->message->endpoint.flags & S_MODE_NON_REQUEST) continue; 
     if (t->mid == mid) 
     {
@@ -324,7 +341,7 @@ coap_transaction_t * coap_get_transaction_by_token(const uint8_t *token, uint8_t
 {
   for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next)
   {
-    // skip NON-confirmable s-mode transactions
+    // skip NON-confirmable s-mode transactions (unicast, they still use an artificial transaction to catch a missing 2.04 response)
     if (t->message->endpoint.flags & S_MODE_NON_REQUEST) continue; 
     if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
     {

@@ -65,11 +65,8 @@ extern "C" {
  * float arithmetic avoids software-emulated 64-bit double on 32-bit targets.
  */
 #define COAP_RESPONSE_TIMEOUT_TICKS (OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT)
-#define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK                                     \
-  (long)(((OC_CLOCK_SECOND * COAP_RESPONSE_TIMEOUT *                           \
-           ((float)COAP_RESPONSE_RANDOM_FACTOR - 1.0f)) +                     \
-          0.5f) +                                                              \
-         1)
+#define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK (((COAP_RESPONSE_TIMEOUT_TICKS * \
+           ((float)COAP_RESPONSE_RANDOM_FACTOR - 1.0f)) +  0.5f) + 1)
 
 /**
    @brief Container for transactions with message buffer and retransmission info

@@ -45,6 +45,7 @@
 #include "oc_buffer.h"
 #include "observe.h"
 #include "engine.h"
+#include "oscore.h"
 #include "timestamp.h"
 #include "port/oc_random.h"
 
@@ -1296,7 +1297,20 @@ int coap_receive(oc_message_t* incoming_message)
 
       if (inbound_coap_pkt->code == UNAUTHORIZED_4_01 && echo_len != 0)
       {
-        if (transaction)
+        /*
+          source of the original s-mode payload for the 'echo re-request':
+          
+          UNICAST s-mode NON: 
+          - the payload IS NOT retained in the OSCORE echo ring 
+          - the payload is recovered from the still-open s-mode CoAP transaction, use transaction->message
+          
+          MULTICAST s-mode NON: 
+          - the payload IS retained in the OSCORE echo ring (after clearing the ring slot)
+          - the payload is NOT recovered from the NOT anymore existing s-mode CoAP transaction (was self cleared)
+        
+        */
+        oc_message_t* source_msg = transaction ? transaction->message : oc_oscore_echo_tx_get_retained_plaintext(inbound_coap_pkt->token, inbound_coap_pkt->token_len);
+        if (source_msg)
         {
           /*
             server side, inbound response, external client is not synchronised:
@@ -1304,11 +1318,11 @@ int coap_receive(oc_message_t* incoming_message)
             - 1: CON (uc) message
             - 2: NON (uc/mc) message
           */
-          OC_DBG("received 4.01 'echo response' from own TRANSACTION, must sending 'echo re-request' ...");
+          OC_DBG("received 4.01 'echo response', must sending 'echo re-request' ... (source: %s)", transaction ? "transaction" : "retained s-mode message");
 
           // parse data and copy to 'unicast echo re-request'
           coap_packet_t re_request_coap_packet[1];
-          coap_parse_udp_message(re_request_coap_packet, transaction->message->data, transaction->message->length);
+          coap_parse_udp_message(re_request_coap_packet, source_msg->data, source_msg->length);
 
           // find a POSSIBLE created client callback by using old mid (before changing mid)
           client_cb = oc_ri_find_client_cb_by_mid(re_request_coap_packet->mid);
@@ -1336,7 +1350,7 @@ int coap_receive(oc_message_t* incoming_message)
           }
 
           /*
-            create new transaction from original (transaction'ized) s-mode message that includes for 'unicast echo re-request':
+            create new transaction from original s-mode message that includes for 'unicast echo re-request':
             (-) the original s-mode message payload,
             (a) echo option from inbound 4.01 'echo response', new mid and new token,
             (b) destination from inbound 4.01 'echo response'
@@ -1352,7 +1366,7 @@ int coap_receive(oc_message_t* incoming_message)
             re_request_coap_packet->mid,
             re_request_coap_packet->token,
             re_request_coap_packet->token_len,
-            transaction->message);
+            source_msg);
 
           if (new_transaction)
           {
@@ -1385,7 +1399,7 @@ int coap_receive(oc_message_t* incoming_message)
               /*
                 NOT send out 'unicast echo re-request' s-mode message -> no payload ...,
                 - drop new 're-request' transaction
-                - drop old 'original s-mode message' transaction
+                - drop old 'original s-mode message' transaction (if any)
                   - even if another 4.01 echo response may be received later, the new transaction would have again
                     an empty payload
               */
@@ -1400,7 +1414,7 @@ int coap_receive(oc_message_t* incoming_message)
         }
         else
         {
-          OC_ERR("received 4.01 'echo response' from NO TRANSACTION, strange ...");
+          OC_ERR("received 4.01 'echo response' but no retained s-mode message exists for this inbound token, strange ...");
         }
       }
 
