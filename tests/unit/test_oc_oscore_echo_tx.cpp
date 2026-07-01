@@ -144,6 +144,18 @@ TEST_F(EchoTxRingTest, WrongKid_SameSSN_IsDropped)
   EXPECT_TRUE(consume(10));
 }
 
+/* ── Same kid, different ssn: independent anchors, both accepted ──────────── */
+
+TEST_F(EchoTxRingTest, SameKid_DifferentSSN_BothAccepted)
+{
+  /* two multicast requests for the SAME Group (shared kid) carry DIFFERENT SSNs;
+     the ring keys on (ssn, kid), so each is its own anchor and both echoes pass */
+  store(10);
+  store(11);
+  EXPECT_TRUE(consume(10));  /* echo for anchor (10, kid) */
+  EXPECT_TRUE(consume(11));  /* echo for anchor (11, kid) - not shadowed by the other ssn */
+}
+
 /* ── Cleanup: ring keeps only the most recent SIZE entries ───────────── */
 
 TEST_F(EchoTxRingTest, OldestEntry_CleanedAfterOverflow)
