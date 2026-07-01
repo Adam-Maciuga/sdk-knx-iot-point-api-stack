@@ -171,7 +171,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   
   - RESPONDER (kid_ctx_len > 0): appended by oc_oscore_echo_tx_check_and_consume() the first time a
     given responder's triple is accepted, so its later replays are recognised and dropped.
-    Both are reclaimed when the next multicast for the Group supersedes them (see lifecycle below).
+    Both are reclaimed when the next multicast for the Group replaces them (see lifecycle below).
 
   Accept / reject decision for an inbound echo response (single read-only pass over the whole ring):
   - exact (ssn, kid, kid_context) triple already live  -> replay of THIS responder -> reject.
@@ -190,9 +190,9 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
     armed too long.
   - so the lifetime is EVENT-BOUNDED, exactly as the spec defines it: a send-anchor is kept "at least
     until the next multicast request for the same Group". When we send the next multicast for a GA we
-    SUPERSEDE that Group's prior anchors at that send's commit point (oc_oscore_echo_tx_supersede_kid: one
+    REPLACE that Group's prior anchors at that send's commit point (oc_oscore_echo_tx_replace_kid: one
     GA -> one Sender Context -> one kid, so we reclaim by kid), atomically with registering the new anchor
-    so a failed send never evicts the old anchor without a replacement. This self-adjusts to the send rate -
+    so a failed send never cleans the old anchor without a replacement. This self-adjusts to the send rate -
     a chatty publisher narrows the window automatically; a once-an-hour publisher keeps its anchor
     legitimately for that hour, so a sleepy receiver that wakes within it is still accepted - with NO magic number.
   - guardrails:
@@ -230,9 +230,7 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
    minimum time a send-anchor stays armed before the NEXT multicast for the same Group may reclaim it
    (3.6.4.1.3: re-requests SHOULD be sent "for a sufficiently long time, e.g. 5s"). 
    
-   Protects a very
-   fast re-publish from prematurely killing an in-flight echo. Aligned with the s-mode CoAP transaction
-   lifetime (transactions.c), which is the independent second gate dropping late echoes by token/mid.
+   Protects a very fast re-publish from prematurely killing an in-flight echo.
 */
 #define OC_ECHO_TX_MIN_ARM (COAP_RESPONSE_TIMEOUT_TICKS)
 #endif
@@ -279,7 +277,7 @@ static void echo_tx_entry_release(oc_echo_tx_entry_t* e)
    - stores the request's CoAP (token, token_len) so the inbound echo can be correlated to this payload
 
    - the number of retained messages is bounded by the ring size: reusing the slot at 'g_echo_tx_idx'
-     releases whatever retained message lived there, so roll-over is the eviction mechanism
+     releases whatever retained message lived there, so roll-over is the cleanup mechanism
 
 */
 void oc_oscore_echo_tx_put_retain_plaintext(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* token, uint8_t token_len, oc_message_t* msg)
@@ -315,7 +313,7 @@ void oc_oscore_echo_tx_put_retain_plaintext(uint64_t ssn, const uint8_t* kid, ui
    look up the retained PLAINTEXT s-mode message by the request's CoAP TOKEN - the same key the CoAP layer
    (messaging/coap/engine.c) uses to correlate an inbound 4.01 'echo response' to its originating request.
    Ownership is NOT transferred: the slot keeps its reference. Returns NULL if no retained message exists for
-   that token (e.g. unicast send, never retained, or already evicted/superseded).
+   that token (e.g. unicast send, never retained, or already cleaned/replaced).
 */
 oc_message_t* oc_oscore_echo_tx_get_retained_plaintext(const uint8_t* token, uint8_t token_len)
 {
@@ -349,7 +347,7 @@ void oc_oscore_free_all_replay_echo_records(void)
 }
 
 /* 
-   append a (ssn, kid, kid_ctx) entry into the ring (kid_ctx_len = 0 -> send-anchor), evicting the oldest slot
+   append a (ssn, kid, kid_ctx) entry into the ring (kid_ctx_len = 0 -> send-anchor), cleaning the oldest slot
    a send-anchor proves we actually sent a (ssn, kid) so a later 'unicast echo response' can be validated 
 */
 void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* kid_ctx, uint8_t kid_ctx_len)
@@ -378,13 +376,13 @@ void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
 }
 
 /* 
-   supersede a GA's prior anchors for a kid when a NEW s-mode message for the same GA is sent
+   replace a GA's prior anchors for a kid when a NEW s-mode message for the same GA is sent
    (3.6.4.1.3: re-requests run only "until the next multicast for the Group"). 
 
    - One GA -> one Sender Context -> one kid, so matching the kid reclaims exactly that GA's stale entries 
    - Entries younger than OC_ECHO_TX_MIN_ARM are kept so a very fast re-publish cannot drop an echo still in flight
 */
-void oc_oscore_echo_tx_supersede_kid(const uint8_t* kid, uint8_t kid_len)
+void oc_oscore_echo_tx_replace_kid(const uint8_t* kid, uint8_t kid_len)
 {
   if (!kid || kid_len == 0)
   {
@@ -1142,7 +1140,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // capture the send-anchor SSN (pre-increment) so the (ssn, kid) anchor can be registered ONLY at the
     // post-serialization commit point below (registering here would leave a stale anchor / leaked retained
     // message if the encryption/serialization further down fails). The prior generation's anchor for this
-    // kid is likewise superseded only at that commit point, so a pre-append failure cannot evict it here.
+    // kid is likewise replaced only at that commit point, so a pre-append failure cannot clean it here.
     const uint64_t anchor_ssn = oscore_ctx->ssn;
 
     // debugging
@@ -1230,13 +1228,13 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
       - the message is fully serialized and WILL be dispatched below 
       - the only remaining failure is a full process queue, which just drops this send without a stale-anchor problem
 
-      - supersede this GA's prior (aged) anchors for this kid (3.6.4.1.3: re-requests run only "until the next
+      - replace this GA's prior (aged) anchors for this kid (3.6.4.1.3: re-requests run only "until the next
         multicast for the Group")
 
       - the ring takes over the ref count from the caller (ownership), so no add ref (ring) remove ref (caller) is needed,
         it is simply a handover since the ref count is anonymous
     */
-    oc_oscore_echo_tx_supersede_kid(oscore_ctx->sender_id, oscore_ctx->sender_id_len);
+    oc_oscore_echo_tx_replace_kid(oscore_ctx->sender_id, oscore_ctx->sender_id_len);
     oc_oscore_echo_tx_put_retain_plaintext(anchor_ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, retained_token, retained_token_len, msg);
   }
   else

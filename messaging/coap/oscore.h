@@ -28,7 +28,7 @@ extern "C"
   struct coap_packet_t;
   void oc_oscore_free_all_replay_echo_records(void);
   void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* kid_ctx, uint8_t kid_ctx_len);
-  void oc_oscore_echo_tx_supersede_kid(const uint8_t* kid, uint8_t kid_len);
+  void oc_oscore_echo_tx_replace_kid(const uint8_t* kid, uint8_t kid_len);
   bool oc_oscore_echo_tx_check_and_consume(const struct coap_packet_t* pkt);
 
   /* retain the PLAINTEXT s-mode message with its (ssn, kid) send-anchor so a LATE 'echo response' (after the s-mode CoAP transaction has

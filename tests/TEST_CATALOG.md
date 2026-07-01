@@ -289,7 +289,7 @@ Built with GCC, run via CTest. 50 `.cpp` files in `tests/unit/`.
 | `SameSSN_SecondEcho_IsReplay` | Replayed echo (same SSN) dropped after first consume |
 | `UnknownSSN_NoStore_IsDropped` | Echo with no matching sent SSN dropped |
 | `UnknownSSN_AfterStore_IsDropped` | Mismatching SSN dropped while another is pending |
-| `OldestEntry_EvictedAfterOverflow` | Ring keeps only the most recent SIZE entries |
+| `OldestEntry_CleanedAfterOverflow` | Ring keeps only the most recent SIZE entries |
 | `Clear_DropsPendingEntries` | Clear wipes the white-list |
 
 ---
