@@ -1309,7 +1309,7 @@ int coap_receive(oc_message_t* incoming_message)
           - the payload is NOT recovered from the NOT anymore existing s-mode CoAP transaction (was self cleared)
         
         */
-        oc_message_t* source_msg = transaction ? transaction->message : oc_oscore_echo_tx_get_retained_plaintext(inbound_coap_pkt->token, inbound_coap_pkt->token_len);
+        oc_message_t* source_msg = transaction ? transaction->message : oc_oscore_echo_get_retained_plaintext(inbound_coap_pkt->token, inbound_coap_pkt->token_len);
         if (source_msg)
         {
           /*

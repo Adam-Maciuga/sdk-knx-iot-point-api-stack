@@ -24,24 +24,21 @@ extern "C"
   // store 64-bit ssn (src) to piv (dst), piv is cleared first and result is converted by little/big endian
   int oscore_store_ssn_to_piv(uint8_t* piv, uint8_t* piv_len, uint64_t ssn);
 
-  // echo white-list of sent s-mode multicast (ssn, kid); exposed for unit testing
+  // echo ring (single unified FIFO: anchor slots + seen-responder slots); exposed for unit testing and the send / receive paths
+
   struct coap_packet_t;
   void oc_oscore_free_all_echo_records(void);
-  void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* kid_ctx, uint8_t kid_ctx_len);
-  void oc_oscore_echo_tx_replace_kid(const uint8_t* kid, uint8_t kid_len);
-  bool oc_oscore_echo_tx_check_and_consume(const struct coap_packet_t* pkt);
 
-  /* retain the PLAINTEXT s-mode message with its (ssn, kid) send-anchor so a LATE 'echo response' (after the s-mode CoAP transaction has
-     self-cleared) can still be answered; 
-     
-     - takes its OWN reference on the message (oc_message_add_ref, no ownership handover
-     - the caller keeps and unref's its own reference
-     - stores the request (token, token_len) for correlation
-  */
-  void oc_oscore_echo_tx_put_retain_plaintext(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* token, uint8_t token_len, oc_message_t* msg);
-  
-  // return the retained plaintext s-mode message for a request CoAP token (no ownership transfer), or NULL
-  oc_message_t* oc_oscore_echo_tx_get_retained_plaintext(const uint8_t* token, uint8_t token_len);
+  // write an anchor slot (former whitelist append); takes own ref on msg (NULL-safe); caller must unref msg after
+  void oc_oscore_echo_whitelist_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
+                                       const uint8_t* token, uint8_t token_len,
+                                       oc_message_t* msg);
+
+  // look up the retained PLAINTEXT s-mode message by CoAP token; no ownership transfer; NULL if not found
+  oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_t token_len);
+
+  // accept or reject an inbound echo response using the unified ring (anchor + seen-responder scan)
+  bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt);
 
   bool oscore_is_oscore_message(oc_message_t* msg);
 

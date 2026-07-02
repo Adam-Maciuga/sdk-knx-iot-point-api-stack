@@ -160,9 +160,9 @@ TEST_F(SModeRefCount, M1_RefCountUnchangedEvenIfTransactionFails)
     oc_allocate_message inside coap_new_transaction   ref = 1  (BIRTH)
     oc_message_add_ref  (cover deferred async send)   ref = 2
     coap_clear_transaction (immediate, transaction)   ref = 1  (via unref)
-    oc_oscore_echo_tx_put_retain_plaintext (ring)     ref = 2  (ring add_ref)
+    oc_oscore_echo_whitelist_append  (ring)     ref = 2  (ring add_ref)
     oc_message_unref    (send-fn drops its send-ref)  ref = 1
-    echo_tx_entry_release / free_all                  ref = 0  FREED
+    whitelist slot release / free_all                 ref = 0  FREED
 */
 TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
 {
@@ -187,9 +187,9 @@ TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
   coap_clear_transaction(t); /* oc_message_unref(m2) inside */
   EXPECT_EQ(m2->ref_count, 1); /* transaction's ref gone; send-ref survives */
 
-  /* step: ring puts its own reference (oc_oscore_engine.c:307) */
+  /* step: ring puts its own reference (oc_oscore_engine.c) */
   static const uint8_t kid[] = {0x01};
-  oc_oscore_echo_tx_put_retain_plaintext(42, kid, sizeof(kid),
+  oc_oscore_echo_whitelist_append(42, kid, sizeof(kid),
                                          token, sizeof(token), m2);
   EXPECT_EQ(m2->ref_count, 2); /* ring owns one, send path owns one */
 
@@ -212,7 +212,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_FullLifecycle)
 */
 TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
 {
-  static const int RING = 32; /* OC_ECHO_TX_RING_SIZE */
+  static const int RING = 64; /* OC_ECHO_RING_SIZE */
 
   oc_endpoint_t ep = make_mc_ep();
   oc_message_t *m1 = make_plaintext_smode_msg(&ep);
@@ -230,8 +230,8 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
   oc_message_add_ref(m2);                                        /* 1 -> 2 */
   coap_clear_transaction(t);                                     /* 2 -> 1 */
   static const uint8_t kid[] = {0x01};
-  oc_oscore_echo_tx_put_retain_plaintext(100, kid, sizeof(kid),
-                                          token, sizeof(token), m2); /* -> 2 */
+  oc_oscore_echo_whitelist_append(100, kid, sizeof(kid),
+                                           token, sizeof(token), m2); /* -> 2 */
   oc_message_unref(m2);                                          /* 2 -> 1 */
   EXPECT_EQ(m2->ref_count, 1); /* ring is sole owner */
 
@@ -242,7 +242,7 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
     oc_message_t *filler = oc_allocate_message();
     ASSERT_NE(filler, nullptr);
     static const uint8_t fk[] = {0x01};
-    oc_oscore_echo_tx_put_retain_plaintext((uint64_t)(200 + i), fk, sizeof(fk),
+    oc_oscore_echo_whitelist_append((uint64_t)(200 + i), fk, sizeof(fk),
                                             tok, sizeof(tok), filler);
     oc_message_unref(filler); /* drop our ref; ring owns it now */
   }
@@ -252,15 +252,15 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
   oc_message_t *extra = oc_allocate_message();
   ASSERT_NE(extra, nullptr);
   static const uint8_t ek[] = {0x01};
-  oc_oscore_echo_tx_put_retain_plaintext(999, ek, sizeof(ek),
-                                          extra_tok, sizeof(extra_tok), extra);
+  oc_oscore_echo_whitelist_append(999, ek, sizeof(ek),
+                                           extra_tok, sizeof(extra_tok), extra);
   oc_message_unref(extra);
 
   /*
     M2 was at slot 0 and has been cleaned by roll-over. Confirm it is gone
     from the ring (its token is no longer findable).
   */
-  EXPECT_EQ(oc_oscore_echo_tx_get_retained_plaintext(token, sizeof(token)),
+  EXPECT_EQ(oc_oscore_echo_get_retained_plaintext(token, sizeof(token)),
             nullptr);
 
   /* M1 cleanup */
@@ -417,8 +417,8 @@ TEST_F(SModeRefCount, M1AndM2_IndependentLifetimes)
   EXPECT_EQ(m2->ref_count, 1);
 
   static const uint8_t kid[] = {0x01};
-  oc_oscore_echo_tx_put_retain_plaintext(77, kid, sizeof(kid),
-                                          token, sizeof(token), m2); /* -> 2 */
+  oc_oscore_echo_whitelist_append(77, kid, sizeof(kid),
+                                           token, sizeof(token), m2); /* -> 2 */
   EXPECT_EQ(m2->ref_count, 2);
   oc_message_unref(m2);         /* send-ref gone: 2 -> 1 */
   EXPECT_EQ(m2->ref_count, 1);

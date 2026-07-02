@@ -154,312 +154,262 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 }
 
 /*
-  ECHO TX RING 
-  ============
-  Defends the client-side S-mode echo path against replayed 4.01 'unicast echo responses'
-  
-  - a flat ring of recently-sent multicast requests and the responders that answered them.
-  - per clause 3.6.4.1.3 an echo response replays back the request's 'kid' (as Sender ID) and
-    sequence number, while 'kid_context' is a fresh server-side (10 byte) random.
-  - a single multicast request may be answered by MANY peers; every responder replays the SAME
-    (ssn, kid) but a DIFFERENT 'kid_context'. The full (ssn, kid, kid_context) triple therefore
-    identifies one responder, and the protocol SHALL accept more than a single response.
+  ECHO RING
+  =========
+  Defends the client-side S-mode path against replayed 4.01 unicast echo responses
+  (clause 3.6.4.1.3).
 
-  Entries:
-  - SEND-ANCHOR (kid_ctx_len == 0): written by oc_oscore_echo_tx_append() (kid_ctx = NULL) for each
-    request we put on the wire. It proves WE sent this (ssn, kid) and authorizes responders to be accepted.
-  
-  - RESPONDER (kid_ctx_len > 0): appended by oc_oscore_echo_tx_check_and_consume() the first time a
-    given responder's triple is accepted, so its later replays are recognised and dropped.
-    Both are reclaimed when the next multicast for the Group replaces them (see lifecycle below).
+  One unified FIFO ring (g_echo_ring). Every slot holds the same struct; the
+  bl.kid_ctx_len field acts as a discriminator between two ring roles:
 
-  Accept / reject decision for an inbound echo response (single read-only pass over the whole ring):
-  - exact (ssn, kid, kid_context) triple already live  -> replay of THIS responder -> reject.
-  - else a live (ssn, kid) anchor/sibling exists        -> a NEW responder to a request we sent ->
-    accept (allowing the one permitted re-request) and append the triple.
-  - else (no live (ssn, kid))                           -> never sent or aged out -> reject.
+  Anchor slot  (bl.kid_ctx_len == 0)  -- WHITELIST role:
+  - Written once per outbound multicast send: records (ssn, kid, token, msg).
+  - Proves we sent a request carrying this (ssn, kid).
+  - Also carries the retained PLAINTEXT s-mode message (msg, ref-counted) so a
+    LATE echo response (arriving after the s-mode CoAP transaction self-cleared)
+    can still trigger a re-request.  token + token_len correlate the echo to msg.
+  - Released (msg unref'd, slot zeroed) when the slot is reused on roll-over or
+    when the ring is cleared.
 
-  Note on lifecycle (clause 3.6.4 / 3.6.4.1.3):
-  - an echo response is NOT sent per request. A peer only sends a 4.01 + Echo the first time it sees
-    us (unsynchronized, no replay window) or after it lost sync (e.g. reboot). Once synchronized,
-    normal multicast traffic flows with NO echo responses at all.
-  - the sender CANNOT pick a meaningful wall-clock lifetime: it cannot tell "no echo will ever come"
-    (all receivers in sync) from "an echo is still on its way" (a sleepy receiver that answers only
-    when it wakes, possibly much later) - no protocol signal distinguishes the two. Any fixed timeout
-    is therefore arbitrary and would either drop a late-but-genuine first echo or keep (ssn, kid)
-    armed too long.
-  - so the lifetime is EVENT-BOUNDED, exactly as the spec defines it: a send-anchor is kept "at least
-    until the next multicast request for the same Group". When we send the next multicast for a GA we
-    REPLACE that Group's prior anchors at that send's commit point (oc_oscore_echo_tx_replace_kid: one
-    GA -> one Sender Context -> one kid, so we reclaim by kid), atomically with registering the new anchor
-    so a failed send never cleans the old anchor without a replacement. This self-adjusts to the send rate -
-    a chatty publisher narrows the window automatically; a once-an-hour publisher keeps its anchor
-    legitimately for that hour, so a sleepy receiver that wakes within it is still accepted - with NO magic number.
-  - guardrails:
-      * MIN_ARM floor (OC_ECHO_TX_MIN_ARM ~5s): supersession keeps anchors younger than this, so a very
-        fast re-publish cannot drop an echo still in flight (3.6.4.1.3 "re-request ... e.g. 5s").
-      * ring size (OC_ECHO_TX_RING_SIZE = 32): hard cap on coexisting (ssn, kid)+responder records AND,
-        via slot roll-over, the single bound on the number of retained plaintext s-mode messages.
-  - true freshness rests on the SSN + replay window (3.6.4.1.3): the Publisher distinguishes responders
-    and validates freshness via the sender sequence number + replay window carried in the (ssn, kid,
-    kid_context) triple, not via this ring's wall clock.
-  - a SECOND, independent gate also caps the window: the outbound s-mode request runs as a NON CoAP
-    transaction that self-clears after COAP_RESPONSE_TIMEOUT (~5s); after that the inbound echo finds no
-    transaction (correlated by mid/token in messaging/coap/engine.c) and is dropped there regardless of
-    this ring. MIN_ARM is aligned with that timeout.
-  - blast radius of accepting a stale/replayed echo is limited anyway: it only makes US emit a
-    re-request, which the peer still validates against its own Echo value + replay window - a
-    DoS/amplification concern, not an integrity break.
+  Seen-responder slot  (bl.kid_ctx_len > 0)  -- BLACKLIST role:
+  - Written the first time a responder triple (ssn, kid, kid_ctx) is accepted.
+  - An exact (ssn, kid, kid_ctx) match on a subsequent inbound echo -> REPLAY, reject.
+  - msg is always NULL; token and token_len are always zero.
+  - The slot release helper calls oc_message_unref(NULL) which is a no-op, so the same
+    helper covers both slot kinds without branching.
+
+  Accept / reject decision for an inbound echo response (single scan):
+  1. Any seen-responder slot with exact (ssn, kid, kid_ctx) match -> REPLAY, reject.
+  2. Any anchor slot with (ssn, kid) match -> send-proof found.
+  After the scan: no send-proof -> UNKNOWN, reject.
+                  send-proof found -> NEW responder, write a seen-responder slot and accept.
+
+  Ring size:
+  - OC_ECHO_RING_SIZE (default 64; MUST be a power of two).
+    Roll-over releases the retained plaintext message in whichever slot is reused.
+    Both slot kinds share one ring lifetime and are evicted in arrival order.
+
 */
-#ifndef OC_ECHO_TX_RING_SIZE
-/*
-   number of slots in the echo TX ring. This single array serves two concerns at once:
-   - a cheap (ssn, kid, kid_ctx) REPLAY ANCHOR in every used slot
-   - an optional, demand-driven RETAINED PLAINTEXT s-mode message ('msg', one OC_PDU_SIZE heap buffer)
-     so a LATE multicast 'echo response' can still be answered after the s-mode CoAP transaction self-cleared.
-   
-   The ring's own roll-over is therefore the single limiter for BOTH: reusing a slot releases (unref's) whatever
-   retained message lived there, so the worst-case retained memory is bounded by the ring size alone - no
-   separate retained-message cap is needed.
-*/
-#define OC_ECHO_TX_RING_SIZE (32) // MUST be 2^n, roll-over uses '& (size - 1)', not modulo
+
+#ifndef OC_ECHO_RING_SIZE
+// total ring slots (anchor slots + seen-responder slots); MUST be a power of two
+#define OC_ECHO_RING_SIZE (64)
 #endif
 
-#ifndef OC_ECHO_TX_MIN_ARM
-/*
-   minimum time a send-anchor stays armed before the NEXT multicast for the same Group may reclaim it
-   (3.6.4.1.3: re-requests SHOULD be sent "for a sufficiently long time, e.g. 5s"). 
-   
-   Protects a very fast re-publish from prematurely killing an in-flight echo.
+/* 
+   GA flavour of osc:id is at most 4 bytes
+   - inbound messages with more than 4 byte are rejected before reaching this ring 
+     (we do not find an access token for that '> 4 byte GA' in AT table)
+   - outbound messages are strictly uses 32 bit
 */
-#define OC_ECHO_TX_MIN_ARM (COAP_RESPONSE_TIMEOUT_TICKS)
-#endif
+#define OC_ECHO_KID_LEN (4)
 
+/* 
+  inbound echo responses are gated on kid_ctx_len == 10 (spec clause 3.6.4.1.3); 
+  - echo ring
+    - inbound messages with != 10 byte are rejected before reaching the echo ring
+    - outbound messages are strictly uses 10 byte but this is not stored in the echo ring
+*/
+#define OC_ECHO_KID_CTX_LEN (10)
+
+/*
+  Echo ring entry -- single struct for both ring roles.
+
+  Anchor slot  (wl.kid_len > 0, bl.kid_ctx_len == 0)  -- WHITELIST role:
+    wl.ssn        : SSN used as Partial IV of the outbound request
+    wl.kid        : sender id replayed back in the echo response
+    wl.kid_len    : > 0 means the slot is live; 0 means wiped
+    wl.token      : CoAP token of the send; correlates a late echo to msg
+    wl.token_len  : length of token
+    wl.msg        : retained PLAINTEXT s-mode message (ref-counted); NULL if none
+    bl.kid_ctx_len: 0  <- discriminator: marks this as an anchor slot
+
+  Seen-responder slot  (wl.kid_len > 0, bl.kid_ctx_len > 0)  -- BLACKLIST role:
+    wl.ssn        : echoed SSN (same as the originating anchor)
+    wl.kid        : echoed sender id (same as the originating anchor)
+    wl.kid_len    : > 0 means the slot is live; 0 means wiped
+    wl.msg        : always NULL
+    bl.kid_ctx    : responder's server-side random context id
+    bl.kid_ctx_len: > 0  <- discriminator: marks this as a seen-responder slot
+*/
 typedef struct
 {
-  uint64_t ssn;                           // SSN used as Partial IV of the send out multicast request
-  oc_clock_time_t ts;                     // time the request was sent (anchor) or a responder was accepted
-  uint8_t kid[OSCORE_SENDER_ID_LEN];      // sender id (kid) of the send out request, replayed back in the echo response
-  uint8_t kid_len;                        // length of the kid
-  uint8_t kid_ctx[OSCORE_ID_CONTEXT_LEN]; // kid_context (responder's one-time random) of an accepted echo response
-  uint8_t kid_ctx_len;                    // length of the kid_context, '0' marks a send-anchor entry (no responder yet)
-  uint8_t token[COAP_TOKEN_LEN];          // CoAP token of the retained s-mode request; correlates the inbound echo to its retained payload
-  uint8_t token_len;                      // length of the token (0 = no retained payload / no token)
-  oc_message_t* msg;                      // retained PLAINTEXT s-mode message (ref-counted) to build a late 'echo re-request' from; NULL = not retained
-} oc_echo_tx_entry_t;
+  struct
+  {
+    uint64_t      ssn;
+    uint8_t       kid[OC_ECHO_KID_LEN];
+    uint8_t       kid_len;       // 0 = slot wiped
+    uint8_t       token[COAP_TOKEN_LEN];
+    uint8_t       token_len;
+    oc_message_t* msg;           // always NULL on seen-responder slots
+  } wl;                          // outbound anchor (WHITELIST part)
+  struct
+  {
+    uint8_t       kid_ctx[OC_ECHO_KID_CTX_LEN];
+    uint8_t       kid_ctx_len;   // 0 = anchor slot, >0 = seen-responder slot
+  } bl;                          // inbound responder (BLACKLIST part)
+} oc_echo_entry_t;
 
-static oc_echo_tx_entry_t g_echo_tx_ring[OC_ECHO_TX_RING_SIZE];
-static uint8_t g_echo_tx_idx;
+static oc_echo_entry_t g_echo_ring[OC_ECHO_RING_SIZE];
+static uint8_t         g_echo_idx;
 
 /*
-   release a single ring slot: drop the reference on any retained plaintext s-mode message (so its
-   OC_PDU_SIZE buffer is freed once no other owner remains) and wipe the slot. Every place that frees or
-   reuses a slot MUST go through here, otherwise a retained message would leak when its slot is overwritten.
+  Release a single ring slot: unref any retained message and wipe the slot.
+  Covers both anchor slots (may have msg) and seen-responder slots (msg is NULL;
+  unref on NULL is a no-op). Every path that reuses a slot MUST call this.
 */
-static void echo_tx_entry_release(oc_echo_tx_entry_t* e)
+static void entry_release(oc_echo_entry_t* e)
 {
-  /* 
-     - can handle NULL, memory cleared, incl. e->msg ptr
-     - note, even if e->msg is still referenced elsewhere, the slot's reference is released and the
-       slot is wiped, not the msg as such
-  */
-  oc_message_unref(e->msg); 
+  // no-op on seen-responder slots where msg == NULL
+  oc_message_unref(e->wl.msg);
   memset(e, 0, sizeof(*e));
 }
 
-/*
-   register a send-anchor for (ssn, kid) AND retain the PLAINTEXT s-mode message so a late 'echo response'
-   can still be answered with an 'echo re-request'.
-
-   - precondition: 'msg' MUST be non-NULL (the anchor-only case goes through oc_oscore_echo_tx_append instead)
-   
-   - takes its OWN reference on 'msg', the slot owns that reference until released. The
-     caller keeps its own reference and MUST unref 'msg' afterward (symmetric with every send-path error branch)
-   
-   - stores the request's CoAP (token, token_len) so the inbound echo can be correlated to this payload
-
-   - the number of retained messages is bounded by the ring size: reusing the slot at 'g_echo_tx_idx'
-     releases whatever retained message lived there, so roll-over is the cleanup mechanism
-
-*/
-void oc_oscore_echo_tx_put_retain_plaintext(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* token, uint8_t token_len, oc_message_t* msg)
+// clear the ring and reset the write index
+void oc_oscore_free_all_echo_records(void)
 {
-  oc_echo_tx_entry_t* e = &g_echo_tx_ring[g_echo_tx_idx];
-  
-  // free older message already living in the slot (unref and wipe the slot)
-  echo_tx_entry_release(e);
-
-  e->ssn = ssn;
-  e->ts = oc_clock_time();
-
-  if (kid && kid_len <= OSCORE_SENDER_ID_LEN)
+  for (oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
   {
-    memcpy(e->kid, kid, kid_len);
-    e->kid_len = kid_len;
+    // frees retained msg, null safe
+    entry_release(e);
+  }
+  g_echo_idx = 0;
+  OC_DBG("Cleared all echo ring records");
+}
+
+/*
+  ANCHOR SLOT WRITE (WHITELIST role)
+  Writes a send-anchor so an inbound echo can be validated against a request we sent.
+  bl.kid_ctx_len stays zero (set by the slot-release memset) marking this as an anchor slot.
+  Takes its OWN reference on msg (if non-NULL); caller keeps its reference and MUST unref after.
+  token + token_len correlate a late echo to the retained payload.
+*/
+void oc_oscore_echo_whitelist_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
+                                     const uint8_t* token, uint8_t token_len,
+                                     oc_message_t* msg)
+{
+  // power-of-two roll-over, increase anchor before writing 
+  g_echo_idx = (g_echo_idx + 1) & (OC_ECHO_RING_SIZE - 1); 
+  oc_echo_entry_t* e = &g_echo_ring[g_echo_idx];
+
+  // frees retained msg, null safe
+  entry_release(e); 
+
+  e->wl.ssn = ssn;
+
+  if (kid && kid_len <= OC_ECHO_KID_LEN)
+  {
+    memcpy(e->wl.kid, kid, kid_len);
+    e->wl.kid_len = kid_len;
   }
 
   if (token && token_len <= COAP_TOKEN_LEN)
   {
-    memcpy(e->token, token, token_len);
-    e->token_len = token_len;
+    memcpy(e->wl.token, token, token_len);
+    e->wl.token_len = token_len;
   }
 
-  /* 
-     take our OWN reference on the plaintext message; the slot owns this reference until released.
-     the caller keeps its reference and unref's it after this call, so ownership is NOT handed over.
-  */
-  oc_message_add_ref(msg);
-  e->msg = msg;
-
-  // roll over id from 0...n-1 (use only 2 power n max size)
-  g_echo_tx_idx = (g_echo_tx_idx + 1) & (OC_ECHO_TX_RING_SIZE - 1);
+  // null safe
+  oc_message_add_ref(msg); 
+  e->wl.msg = msg;
+  
 }
 
 /*
-   look up the retained PLAINTEXT s-mode message by the request's CoAP TOKEN - the same key the CoAP layer
-   (messaging/coap/engine.c) uses to correlate an inbound 4.01 'echo response' to its originating request.
-   Ownership is NOT transferred: the slot keeps its reference. Returns NULL if no retained message exists for
-   that token (e.g. unicast send, never retained, or already cleaned/replaced).
+  ANCHOR SLOT LOOKUP BY TOKEN (WHITELIST role)
+  Looks up the retained PLAINTEXT message by CoAP token; no ownership transfer; NULL if not found.
+  msg != NULL implies an anchor slot, so no discriminator check is needed.
 */
-oc_message_t* oc_oscore_echo_tx_get_retained_plaintext(const uint8_t* token, uint8_t token_len)
+oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_t token_len)
 {
   if (!token || token_len == 0)
   {
     return NULL;
   }
 
-  for (const oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
+  for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
   {
-    if (e->msg
-        && e->token_len == token_len
-        && memcmp(e->token, token, token_len) == 0)
+    // msg != NULL implies an anchor slot with a retained message
+    if (e->wl.msg
+        && e->wl.token_len == token_len
+        && memcmp(e->wl.token, token, token_len) == 0)
     {
-      return e->msg;
+      return e->wl.msg;
     }
   }
   return NULL;
 }
 
-// clear all records from former outbound s-mode messages to identify inbound replay (echo) messages 
-void oc_oscore_free_all_echo_records(void)
-{
-  // release each slot individually so any retained plaintext s-mode message is unref'd (not leaked)
-  for (oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
-  {
-    echo_tx_entry_release(e);
-  }
-  g_echo_tx_idx = 0;
-  OC_DBG("Cleared all replay echo window records");
-}
-
-/* 
-   append a (ssn, kid, kid_ctx) entry into the ring (kid_ctx_len = 0 -> send-anchor), cleaning the oldest slot
-   a send-anchor proves we actually sent a (ssn, kid) so a later 'unicast echo response' can be validated 
-*/
-void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len, const uint8_t* kid_ctx, uint8_t kid_ctx_len)
-{
-  oc_echo_tx_entry_t* e = &g_echo_tx_ring[g_echo_tx_idx];
-  
-  // release (and unref any retained msg) the slot we are about to reuse, then it is wiped
-  echo_tx_entry_release(e);
-
-  e->ssn = ssn;
-  e->ts = oc_clock_time();
-
-  if (kid && kid_len <= OSCORE_SENDER_ID_LEN)
-  {
-    memcpy(e->kid, kid, kid_len);
-    e->kid_len = kid_len;
-  }
-  if (kid_ctx && kid_ctx_len <= OSCORE_ID_CONTEXT_LEN)
-  {
-    memcpy(e->kid_ctx, kid_ctx, kid_ctx_len);
-    e->kid_ctx_len = kid_ctx_len;
-  }
-
-  // roll over id from 0...n-1 (use only 2 power n max size)
-  g_echo_tx_idx = (g_echo_tx_idx + 1) & (OC_ECHO_TX_RING_SIZE - 1);
-}
-
-/* 
-   replace a GA's prior anchors for a kid when a NEW s-mode message for the same GA is sent
-   (3.6.4.1.3: re-requests run only "until the next multicast for the Group"). 
-
-   - One GA -> one Sender Context -> one kid, so matching the kid reclaims exactly that GA's stale entries 
-   - Entries younger than OC_ECHO_TX_MIN_ARM are kept in echo ring, so a high frequent sender cannot drop
-     an echo that is still in flight
-*/
-void oc_oscore_echo_tx_replace_kid(const uint8_t* kid, uint8_t kid_len)
-{
-  if (!kid || kid_len == 0)
-  {
-    return;
-  }
-
-  const oc_clock_time_t now = oc_clock_time();
-
-  for (oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
-  {
-    // keep not expired anchors/echoes
-    if (e->kid_len == kid_len 
-        && memcmp(e->kid, kid, kid_len) == 0 
-        && now - e->ts > OC_ECHO_TX_MIN_ARM) 
-    {
-      // wipe a present ring buffer entry, next multicast for the same GA (kid) will schedule
-      echo_tx_entry_release(e);
-    }
-  }
-}
-
 /*
-   accept an echo response or reject it
-   keyed on the full (ssn, kid, kid_context) triple:
-    - exact triple already present (and live)  -> replay of THIS responder -> reject
-    - else a live (ssn, kid) anchor exists     -> we sent it, NEW responder -> accept + register the triple
-    - else                                     -> never sent / aged out    -> reject
-*/
-bool oc_oscore_echo_tx_check_and_consume(const coap_packet_t* pkt)
-{
-  // pkt can't be NULL
+  INBOUND ECHO RESPONSE GATE (WHITELIST + BLACKLIST check, single scan)
 
-  // the echoed PIV carries the SSN of the multicast request we sent
+  1 seen-responder slot, black list (bl.kid_ctx_len > 0) with exact (ssn, kid, kid_ctx) -> REPLAY, reject
+  2 anchor slot, white list (bl.kid_ctx_len == 0) with matching (ssn, kid) -> send-proof found
+  3 after scan
+    a) no send-proof -> UNKNOWN, / never sent, reject
+    b) send-proof    -> NEW responder, write seen-responder slot and accept
+*/
+bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
+{
   uint64_t ssn = 0;
   oscore_store_piv_to_ssn((uint8_t*)pkt->piv, pkt->piv_len, &ssn);
 
-  // live anchor (ssn, kid) entry present that we have sent
-  bool anchor_seen = false;
+  bool anchor_found = false;
 
-  // single read-only pass: decide replay vs. anchor over the WHOLE ring before mutating it
-  for (const oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
+  for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
   {
-    // slot matches (ssn, kid) of the inbound echo response
-    if (e->kid_len != 0
-        && e->ssn == ssn
-        && e->kid_len == pkt->kid_len
-        && memcmp(e->kid, pkt->kid, pkt->kid_len) == 0)
-    {
-      // live anchor (ssn, kid) matches a live entry -> this is the send-anchor OR a sibling responder
-      anchor_seen = true;
 
-      // same responder (exact, non-empty kid_context) -> replay; the empty anchor (len 0) never counts as a triple
-      if (e->kid_ctx_len > 0
-          && e->kid_ctx_len == pkt->kid_ctx_len
-          && memcmp(e->kid_ctx, pkt->kid_ctx, pkt->kid_ctx_len) == 0)
-      {
-        // replay of an already-accepted responder
-        return false;
-      }
+    const uint8_t len1 = e->wl.kid_len;
+    
+    // check for anchor
+    if (len1 > 0
+        && e->wl.ssn == ssn
+        && len1 == pkt->kid_len
+        && memcmp(e->wl.kid, pkt->kid, len1) == 0)
+    {
+      // 2
+      anchor_found = true;
+      const uint8_t len2 = e->bl.kid_ctx_len;
+
+      // check for triple match (anchor + kid context)
+      if (len2 > 0 
+          && len2 == pkt->kid_ctx_len 
+          && memcmp(e->bl.kid_ctx, pkt->kid_ctx, len2) == 0)
+        {
+          // 1
+          return false;
+        }
     }
   }
 
-  if (!anchor_seen)
+  if (!anchor_found)
   {
-    // no ssn/kid (anchor) we have sent out is part of our ring -> unknown inbound echo response / aged out
+    // 3a
     return false;
   }
 
-  // new responder for a request we sent -> register the triple so its replay is caught, then accept (one re-request)
-  oc_oscore_echo_tx_append(ssn, pkt->kid, pkt->kid_len, pkt->kid_ctx, pkt->kid_ctx_len);
+  // 3b: // power-of-two roll-over, increase anchor before writing 
+  g_echo_idx = (g_echo_idx + 1) & (OC_ECHO_RING_SIZE - 1);
+  oc_echo_entry_t* b = &g_echo_ring[g_echo_idx];
+
+  // frees retained msg, wipes entry, null safe, token and msg are zero/NULL
+  entry_release(b);
+
+  b->wl.ssn = ssn;
+
+  if (pkt->kid_len <= OC_ECHO_KID_LEN)
+  {
+    memcpy(b->wl.kid, pkt->kid, pkt->kid_len);
+    b->wl.kid_len = pkt->kid_len;
+  }
+
+  // copy is 0-safe, 0 cannot be here since  
+  if (pkt->kid_ctx_len <= OC_ECHO_KID_CTX_LEN)
+  {
+    memcpy(b->bl.kid_ctx, pkt->kid_ctx, pkt->kid_ctx_len);
+    b->bl.kid_ctx_len = pkt->kid_ctx_len; 
+  }
+
   return true;
 }
 
@@ -802,7 +752,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
 
     OC_DBG("searching OSCORE context by message 'mid' + 'token' (kid len %d) : ", coap_pkt->kid_len);
 
-    if (coap_pkt->kid_ctx_len == 10)
+    if (coap_pkt->kid_ctx_len == OC_ECHO_KID_CTX_LEN)
     { // kid_ctx = 10
 
       // find auth/at entry with corresponding 'kid' from inbound message
@@ -821,7 +771,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       }
 
       // defend against replayed s-mode 'unicast echo responses'
-      if (!oc_oscore_echo_tx_check_and_consume(coap_pkt))
+      if (!oc_oscore_echo_check_and_consume(coap_pkt))
       {
         OC_DBG("dropping replayed/unknown 'unicast echo response' (kid/SSN not in white-list or already consumed)");
         oc_message_unref(msg);
@@ -869,7 +819,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       request_piv_len = coap_pkt->piv_len;
     }
     else
-    { // kid_ctx != 10
+    { // kid_ctx != OC_ECHO_KID_CTX_LEN
 
       /*  find context from 'former' own request on inbound:
           - s-mode response, for s-mode only possible as empty CON responses, see "S-MODE" details (engine.c)
@@ -1078,19 +1028,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     return -1;
   }
 
-  /*
-    Retain the PLAINTEXT s-mode message (msg) so a LATE 'echo response' can still be answered with an 'echo re-request'
-    (per spec 3.6.4 / 3.6.4.1.3). 
-    
-    - the multicast (sending) transaction is cleared right after send, so the echo ring is the ONLY
-      surviving payload source. 
-
-    - this function owns exactly ONE reference on the plaintext message (msg) for its whole lifetime and
-      unref's it on EVERY exit path: each pre-commit error branch, and the happy path right after the ring
-      has taken its own reference at the commit point. The retained payload therefore survives solely on the
-      ring's reference, never on this one.
-  */
-
   // clone handed over 'oscore' message (msg) into sent out 'oscore' message, the outgoing msg takes care from now on
   from_org_msg_cloned_outgoing_msg->length = msg->length;
   memcpy(from_org_msg_cloned_outgoing_msg->data, msg->data, msg->length);
@@ -1231,19 +1168,15 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     OC_DBG("serialized OSCORE message");
 
     /*
-      COMMIT POINT: 
-      - the message is fully serialized and WILL be dispatched below 
+      COMMIT POINT:
+      - the message is fully serialized and WILL be dispatched below
       - the only remaining failure is a full process queue, which just drops this send without a stale-anchor problem
 
-      - replace this GA's prior (aged) anchors for this kid (3.6.4.1.3: re-requests run only "until the next
-        multicast for the Group")
-
-      - the ring takes its OWN reference on the plaintext (add ref inside put_retain), so we drop our caller
-        reference right after. This keeps 'msg' cleanup uniform: the happy path unref's 'msg' exactly like
-        every pre-commit error branch above, and the retained payload survives on the ring's own reference.
+      - the whitelist ring takes its OWN reference on the plaintext (add ref inside 'append'), so we drop
+        our caller reference right after. This keeps 'msg' cleanup uniform: the happy path unrefs 'msg' exactly
+        like every pre-commit error branch above, and the retained payload survives on the ring's own reference.
     */
-    oc_oscore_echo_tx_replace_kid(oscore_ctx->sender_id, oscore_ctx->sender_id_len);
-    oc_oscore_echo_tx_put_retain_plaintext(anchor_ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, retained_token, retained_token_len, msg);
+    oc_oscore_echo_whitelist_append(anchor_ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, retained_token, retained_token_len, msg);
     oc_message_unref(msg);
   }
   else
