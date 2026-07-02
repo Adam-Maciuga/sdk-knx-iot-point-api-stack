@@ -385,10 +385,6 @@ static void network_interface_event_handler(oc_interface_event_t event)
             knx_dns_sd_update_service(oc_string(device->serialnumber),
                                      device->iid, device->ia, device->pm);
         }
-        /* Trigger the KNX "read on init" datapoint reads now that the link is
-         * up. Idempotent: It cancels any pending scan and restarts, so the
-         * harmless pre-network call from oc_main_init is superseded here. */
-        oc_init_datapoints_at_initialization();
     } else if (event == NETWORK_INTERFACE_DOWN) {
         /* Send the DNS-SD goodbye while the interface is still up, before
          * leaving the multicast groups. */
