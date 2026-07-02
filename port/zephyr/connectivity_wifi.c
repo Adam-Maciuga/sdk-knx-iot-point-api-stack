@@ -104,26 +104,49 @@ static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
     message->endpoint.addr.ipv6.scope = (uint8_t)from.sin6_scope_id;
     memcpy(message->endpoint.addr.ipv6.address, from.sin6_addr.s6_addr, 16);
 
-    /* Parse IPV6_PKTINFO ancillary data for interface index and
-     * destination address (required for correct OSCORE response routing). */
+    /* Parse IPV6_PKTINFO ancillary data for interface index and destination
+     * address (required for correct OSCORE response routing and for deciding
+     * whether this datagram is multicast).
+     *
+     * The MULTICAST endpoint flag MUST be derived from the actual destination
+     * address, not from which socket received the datagram. Unicast CoAP to
+     * port 5683 is delivered to mcast_sock (server_sock uses an ephemeral
+     * port), so a socket-based decision mis-tags every unicast request as
+     * multicast. That pushes the OSCORE engine onto the s-mode Echo path
+     * (ECHO_CAUSED_BY_MC_SRC), whose Echo response the client cannot decrypt.
+     * Mirrors the Linux ipadapter IN6_IS_ADDR_MULTICAST() check. */
+    bool dst_is_mcast = is_mcast;
     for (struct cmsghdr *cm = CMSG_FIRSTHDR(&mhdr); cm != NULL;
          cm = CMSG_NXTHDR(&mhdr, cm)) {
         if (cm->cmsg_level == IPPROTO_IPV6 && cm->cmsg_type == IPV6_PKTINFO) {
             struct in6_pktinfo *pi =
                 (struct in6_pktinfo *)CMSG_DATA(cm);
             message->endpoint.interface_index = (int)pi->ipi6_ifindex;
-            if (!is_mcast) {
-                /* Unicast socket: record destination address so the stack
-                 * can use it as the source address in replies. */
+            dst_is_mcast = (pi->ipi6_addr.s6_addr[0] == 0xff);
+            if (!dst_is_mcast) {
+                /* Unicast destination.
+                 * Record it so the stack can use it as the source address in replies.
+                 */
                 memcpy(message->endpoint.addr_local.ipv6.address,
                        pi->ipi6_addr.s6_addr, 16);
             } else {
-                /* Multicast socket: addr_local is not meaningful here;
-                 * clear it to avoid stale data (matches Linux ipadapter). */
+                /* Multicast destination.
+                 * The addr_local field is not meaningful here, so clear it to 
+                 * avoid stale data (matches the Linux ipadapter).
+                 */
                 memset(message->endpoint.addr_local.ipv6.address, 0, 16);
             }
             break;
         }
+    }
+
+    /* Apply the destination-derived multicast decision, overriding the
+     * socket-based default the caller set on message->endpoint.flags.
+     */
+    if (dst_is_mcast) {
+        message->endpoint.flags |= MULTICAST;
+    } else {
+        message->endpoint.flags &= ~MULTICAST;
     }
 
     return true;
