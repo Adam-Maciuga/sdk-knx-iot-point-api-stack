@@ -386,7 +386,8 @@ void oc_oscore_echo_tx_append(uint64_t ssn, const uint8_t* kid, uint8_t kid_len,
    (3.6.4.1.3: re-requests run only "until the next multicast for the Group"). 
 
    - One GA -> one Sender Context -> one kid, so matching the kid reclaims exactly that GA's stale entries 
-   - Entries younger than OC_ECHO_TX_MIN_ARM are kept so a very fast re-publish cannot drop an echo still in flight
+   - Entries younger than OC_ECHO_TX_MIN_ARM are kept in echo ring, so a high frequent sender cannot drop
+     an echo that is still in flight
 */
 void oc_oscore_echo_tx_replace_kid(const uint8_t* kid, uint8_t kid_len)
 {
@@ -399,7 +400,7 @@ void oc_oscore_echo_tx_replace_kid(const uint8_t* kid, uint8_t kid_len)
 
   for (oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
   {
-    // keep in-flight (young) anchors/echoes
+    // keep not expired anchors/echoes
     if (e->kid_len == kid_len 
         && memcmp(e->kid, kid, kid_len) == 0 
         && now - e->ts > OC_ECHO_TX_MIN_ARM) 
@@ -425,30 +426,29 @@ bool oc_oscore_echo_tx_check_and_consume(const coap_packet_t* pkt)
   uint64_t ssn = 0;
   oscore_store_piv_to_ssn((uint8_t*)pkt->piv, pkt->piv_len, &ssn);
 
-  // any live (ssn, kid) entry present that we have sent
+  // live anchor (ssn, kid) entry present that we have sent
   bool anchor_seen = false;
 
   // single read-only pass: decide replay vs. anchor over the WHOLE ring before mutating it
   for (const oc_echo_tx_entry_t* e = g_echo_tx_ring; e < g_echo_tx_ring + OC_ECHO_TX_RING_SIZE; e++)
   {
-    if (e->kid_len == 0                  // empty slot
-        || e->ssn != ssn                 // different ssn
-        || e->kid_len != pkt->kid_len    // different kid length
-        || memcmp(e->kid, pkt->kid, pkt->kid_len) != 0)  // different kid
+    // slot matches (ssn, kid) of the inbound echo response
+    if (e->kid_len != 0
+        && e->ssn == ssn
+        && e->kid_len == pkt->kid_len
+        && memcmp(e->kid, pkt->kid, pkt->kid_len) == 0)
     {
-      continue;
-    }
+      // live anchor (ssn, kid) matches a live entry -> this is the send-anchor OR a sibling responder
+      anchor_seen = true;
 
-    // (ssn, kid) matches a live entry -> this is the send-anchor OR a sibling responder
-    anchor_seen = true;
-
-    // same responder (exact, non-empty kid_context) -> replay; the empty anchor (len 0) never counts as a triple
-    if (e->kid_ctx_len > 0
-        && e->kid_ctx_len == pkt->kid_ctx_len
-        && memcmp(e->kid_ctx, pkt->kid_ctx, pkt->kid_ctx_len) == 0)
-    {
-      // replay of an already-accepted responder (decisive, regardless of any anchor)
-      return false;
+      // same responder (exact, non-empty kid_context) -> replay; the empty anchor (len 0) never counts as a triple
+      if (e->kid_ctx_len > 0
+          && e->kid_ctx_len == pkt->kid_ctx_len
+          && memcmp(e->kid_ctx, pkt->kid_ctx, pkt->kid_ctx_len) == 0)
+      {
+        // replay of an already-accepted responder
+        return false;
+      }
     }
   }
 
