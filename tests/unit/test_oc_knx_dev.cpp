@@ -63,6 +63,28 @@ extern const oc_resource_t core_resource_dev_mid;
 }
 
 
+/* -- linker --wrap stubs -------------------------------------------------- */
+
+/*
+  __wrap_oc_main_initialized: lets guards that check for a live stack pass
+  without a full oc_main_init().
+*/
+extern "C" bool __wrap_oc_main_initialized(void)
+{
+  return true;
+}
+
+/*
+  __wrap_knx_dns_sd_update_service: no-op stand-in; the real function requires
+  an initialised mDNS/DNS-SD backend which is not available in unit tests.
+*/
+extern "C" int __wrap_knx_dns_sd_update_service(char *, uint64_t, uint16_t, bool)
+{
+  return 0;
+}
+
+/* ----------------------------------------------------------------------- */
+
 class KnxDeviceProgrammingMode : public ::testing::Test {
 protected:
   void SetUp() override

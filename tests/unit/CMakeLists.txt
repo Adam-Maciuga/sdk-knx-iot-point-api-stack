@@ -119,6 +119,14 @@ target_link_options(test_smode_send_refcount PRIVATE
 kis_add_test(test_oc_knx_helpers     test_oc_knx_helpers.cpp)
 kis_add_test(test_oc_knx             test_oc_knx.cpp)
 kis_add_test(test_oc_knx_dev         test_oc_knx_dev.cpp)
+# oc_knx_device_set_programming_mode calls knx_dns_sd_update_service which
+# requires a live network stack. Wrap both oc_main_initialized (returns true
+# so guards pass) and knx_dns_sd_update_service (no-op) so the tests run
+# without oc_main_init().
+target_link_options(test_oc_knx_dev PRIVATE
+    -Wl,--wrap=oc_main_initialized
+    -Wl,--wrap=knx_dns_sd_update_service
+)
 kis_add_test(test_oc_knx_sub         test_oc_knx_sub.cpp)
 kis_add_test(test_oc_knx_p           test_oc_knx_p.cpp)
 kis_add_test(test_oc_knx_swu         test_oc_knx_swu.cpp)
