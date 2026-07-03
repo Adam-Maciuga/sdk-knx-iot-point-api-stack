@@ -105,7 +105,7 @@ void coap_clear_transaction(coap_transaction_t *t);
 coap_transaction_t *coap_get_transaction_by_mid(uint16_t mid);
   
 // returns ONLY coap CON transactions by token, note, returns also a non-null transaction if both token len's are '0';
-coap_transaction_t *coap_get_transaction_by_token(const uint8_t *token, uint8_t token_len);
+coap_transaction_t *coap_get_transaction_by_token(const coap_packet_t* pkt);
 
 // returns ANY transaction (CON/NON, w/wo s-mode), checks first mid then token, note, returns also a non-null transaction if both token len's are '0';
 coap_transaction_t* get_any_transaction_by_token_or_mid(uint16_t mid, const uint8_t* token, uint8_t token_len);

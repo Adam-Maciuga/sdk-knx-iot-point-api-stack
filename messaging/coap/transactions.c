@@ -346,13 +346,13 @@ coap_transaction_t * coap_get_transaction_by_mid(uint16_t mid)
   return NULL;
 }
 
-coap_transaction_t * coap_get_transaction_by_token(const uint8_t *token, uint8_t token_len)
+coap_transaction_t * coap_get_transaction_by_token(const coap_packet_t* pkt)
 {
   for (coap_transaction_t* t = (coap_transaction_t*)oc_list_head(transactions_list); t; t = t->next)
   {
     // skip NON-confirmable s-mode transactions (unicast, they still use an artificial transaction to catch a missing 2.04 response)
     if (t->message->endpoint.flags & S_MODE_NON_REQUEST) continue; 
-    if (t->token_len == token_len && memcmp(t->token, token, token_len) == 0) 
+    if (t->token_len == pkt->token_len && memcmp(t->token, pkt->token, pkt->token_len) == 0) 
     {
       OC_DBG("found coap transaction for token %p and flags %i", (void *)t, t->message->endpoint.flags);
       return t;

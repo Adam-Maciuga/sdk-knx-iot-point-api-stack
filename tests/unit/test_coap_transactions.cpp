@@ -38,6 +38,16 @@ static oc_endpoint_t make_endpoint(uint16_t port)
   return ep;
 }
 
+static coap_packet_t make_pkt(const uint8_t *token, uint8_t token_len)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  if (token && token_len > 0)
+    memcpy(pkt.token, token, token_len);
+  pkt.token_len = token_len;
+  return pkt;
+}
+
 /* ---------------- fixture ------------------------------------------------ */
 
 class CoapTransactions : public ::testing::Test {
@@ -110,15 +120,17 @@ TEST_F(CoapTransactions, GetByTokenFindsTransaction)
       coap_new_transaction(400, token, sizeof(token), &ep);
   ASSERT_NE(t, nullptr);
 
+  coap_packet_t pkt = make_pkt(token, sizeof(token));
   coap_transaction_t *found =
-      coap_get_transaction_by_token(token, sizeof(token));
+      coap_get_transaction_by_token(&pkt);
   EXPECT_EQ(found, t);
 }
 
 TEST_F(CoapTransactions, GetByTokenReturnsNullWhenNotFound)
 {
   uint8_t token[] = {0xFF};
-  EXPECT_EQ(coap_get_transaction_by_token(token, 1), nullptr);
+  coap_packet_t pkt = make_pkt(token, sizeof(token));
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt), nullptr);
 }
 
 TEST_F(CoapTransactions, GetByTokenSkipsSModeNon)
@@ -131,7 +143,8 @@ TEST_F(CoapTransactions, GetByTokenSkipsSModeNon)
       coap_new_transaction(500, token, sizeof(token), &ep);
   ASSERT_NE(t, nullptr);
 
-  EXPECT_EQ(coap_get_transaction_by_token(token, sizeof(token)), nullptr);
+  coap_packet_t pkt = make_pkt(token, sizeof(token));
+  EXPECT_EQ(coap_get_transaction_by_token(&pkt), nullptr);
 }
 
 TEST_F(CoapTransactions, GetAnyByMidFindsSModeNon)
@@ -252,8 +265,9 @@ TEST_F(CoapTransactions, ZeroLengthTokenMatch)
   ASSERT_NE(t, nullptr);
 
   /* Zero-length token match: both have token_len==0 */
+  coap_packet_t pkt = make_pkt(empty_token, 0);
   coap_transaction_t *found =
-      coap_get_transaction_by_token(empty_token, 0);
+      coap_get_transaction_by_token(&pkt);
   EXPECT_EQ(found, t);
 }
 

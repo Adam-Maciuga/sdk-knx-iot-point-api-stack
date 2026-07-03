@@ -51,7 +51,7 @@ oc_oscore_context_t* oc_oscore_find_context_by_kid_and_kid_context(uint8_t* kid,
     return NULL;
   }
 
-  #ifdef OC_PRINT
+  #ifdef OC_DEBUG
   oc_context_print_all();
   #endif
 
@@ -115,18 +115,17 @@ static oc_oscore_context_t* oc_oscore_find_context_by_access_token(const oc_auth
   return NULL;
 }
 
-oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token, uint8_t token_len, uint16_t mid, uint8_t** request_piv,
-                                                                 uint8_t* request_piv_len, bool tcp)
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp)
 {
   // search for a transaction by token
-  coap_transaction_t* t = coap_get_transaction_by_token(token, token_len);
+  coap_transaction_t* t = coap_get_transaction_by_token(pkt);
 
   if (!t)
   {
     if (!tcp)
     {
       // on no TCP search by mid (TCP : mid NOT relevant)
-      t = coap_get_transaction_by_mid(mid);
+      t = coap_get_transaction_by_mid(pkt->mid);
     }
 
     if (!t)
@@ -267,8 +266,6 @@ void oc_oscore_free_context(oc_oscore_context_t* ctx)
 
 void oc_context_print_all(void)
 {
-#ifdef OC_PRINT
-
   // get list start
   const oc_oscore_context_t* ctx = (oc_oscore_context_t*)oc_list_head(contexts);
 
@@ -304,7 +301,6 @@ void oc_context_print_all(void)
 
     ctx = ctx->next;
   }
-#endif
 }
 
 oc_oscore_context_t* oc_oscore_add_recipient_context(oc_oscore_context_params_t* params)

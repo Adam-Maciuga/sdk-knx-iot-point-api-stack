@@ -9,6 +9,7 @@
 #define OC_KNX_SEC_INTERNAL_H
 
 #include "oc_ri.h"
+#include "coap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -278,13 +279,12 @@ extern "C" {
 	/**
 	 * @brief returns AT entry with OSCORE ID
 	 *
-	 * @param osc_id OSCORE ID
-	 * @param osc_id_len OSCORE ID length
+   * @param pkt coap paket including the OSCORE ID (kid) and OSCORE ID Context (kid_context)
 	 *
 	 * @return NULL : AT entry not found
 	 * @return pointer to AT entry : AT entry found
 	 */
-  oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len);
+const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt);
 
 	/**
    * @brief get OSCORE Replay Window Size

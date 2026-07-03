@@ -1713,11 +1713,12 @@ void oc_core_find_and_remove_pase_token_in_at_table(void)
   }
 }
 
-oc_auth_at_t* oc_core_find_at_entry_by_osc_id(uint8_t* osc_id, size_t osc_id_len)
+const oc_auth_at_t* oc_core_find_at_entry_by_osc_id(const coap_packet_t* pkt)
 {
-  for (oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
+  for (const oc_auth_at_t* entry = g_at_entries; entry < g_at_entries + G_AT_MAX_ENTRIES; entry++)
   {
-    if (oc_byte_string_len(entry->osc_id) == osc_id_len && memcmp(oc_string(entry->osc_id), osc_id, osc_id_len) == 0)
+    if (oc_byte_string_len(entry->osc_id) == pkt->kid_len 
+        && memcmp(oc_string(entry->osc_id), pkt->kid, pkt->kid_len) == 0)
     {
       return entry;
     }

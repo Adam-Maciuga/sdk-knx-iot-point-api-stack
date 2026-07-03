@@ -154,7 +154,7 @@ oc_oscore_context_t *oc_oscore_find_context_by_group_address(uint32_t group_addr
 oc_oscore_context_t *oc_oscore_find_context_by_kid_and_kid_context(uint8_t *kid, uint8_t kid_len, uint8_t *kid_ctx, uint8_t kid_ctx_len);
 
 // searches a context by token/ mid of inbound response, from a former (OBSERVE) request by a client (inputs are checked against the contexts INBOUND access token)
-oc_oscore_context_t* oc_oscore_find_context_by_token_mid(uint8_t* token, uint8_t token_len, uint16_t mid, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp);
+oc_oscore_context_t* oc_oscore_find_context_by_token_mid(const coap_packet_t* pkt, uint8_t** request_piv, uint8_t* request_piv_len, bool tcp);
 
 #ifdef __cplusplus
 }

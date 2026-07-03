@@ -648,7 +648,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       { // no beforehand cached context available, make one (usually on a fresh req[in])
 
         // find auth/at entry with corresponding 'kid' from inbound message
-        const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
+        const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt);
         if (!at_entry)
         {
           /*
@@ -759,7 +759,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
     { // kid_ctx = 10
 
       // find auth/at entry with corresponding 'kid' from inbound message
-      const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt->kid, coap_pkt->kid_len);
+      const oc_auth_at_t* at_entry = oc_core_find_at_entry_by_osc_id(coap_pkt);
       if (!at_entry)
       {
         /*
@@ -795,7 +795,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
       {
         // .ssn = 0, not used for receiving; C99 zero-initializes unnamed fields
         .id_context = (const uint8_t*)coap_pkt->kid_ctx,
-        .id_context_size = coap_pkt->kid_ctx_len,
+        .id_context_size = OC_ECHO_KID_CTX_LEN,
         .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
         .read_ssn_from_storage = false  // NO offset is added to SSN
       };
@@ -829,7 +829,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           - OBSERVE response, each server response uses the initial client 'request' token, 
             the device acts as a client that subscribes on a resource 
       */
-      oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt->token, coap_pkt->token_len, coap_pkt->mid, &request_piv, &request_piv_len, false);
+      oscore_ctx = oc_oscore_find_context_by_token_mid(coap_pkt, &request_piv, &request_piv_len, false);
       if (!oscore_ctx)
       {
         OC_ERR("response error (8.4 step 2), ignore silently, cannot find a matching oscore Request Sender Context from inbound response");
@@ -1339,7 +1339,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
   uint8_t piv[OSCORE_PIV_LEN], piv_len = 0;
   uint8_t aad[OSCORE_AAD_MAX_LEN], aad_len = 0, nonce[OSCORE_AEAD_NONCE_LEN];
 
-  coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt->token, coap_pkt->token_len);
+  coap_transaction_t* transaction = coap_get_transaction_by_token(coap_pkt);
   bool is_a_con_repetition = transaction && transaction->retransmit_counter > 0;
 
   /*
