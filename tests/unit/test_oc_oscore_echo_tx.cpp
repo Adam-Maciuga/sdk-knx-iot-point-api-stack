@@ -76,6 +76,17 @@ static bool consume(uint64_t ssn)
 }
 
 
+/* Helper: build a minimal coap_packet_t carrying only the given token. */
+static coap_packet_t make_token_pkt(const uint8_t *token, uint8_t token_len)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  if (token && token_len > 0)
+    memcpy(pkt.token, token, token_len);
+  pkt.token_len = token_len;
+  return pkt;
+}
+
 class EchoTxRingTest : public ::testing::Test {
 protected:
   void SetUp() override { oc_oscore_free_all_echo_records(); }
@@ -350,7 +361,8 @@ TEST_F(EchoTxRingTest, Retain_GetByToken_ReturnsSameMessage)
   oc_oscore_echo_whitelist_append(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* ring adds its own ref -> 2 */
   oc_message_unref(m); /* caller drops its ref -> 1, ring is sole owner */
 
-  EXPECT_EQ(m, oc_oscore_echo_get_retained_plaintext(g_tok_a, sizeof(g_tok_a)));
+  coap_packet_t pkt_a = make_token_pkt(g_tok_a, sizeof(g_tok_a));
+  EXPECT_EQ(m, oc_oscore_echo_get_retained_plaintext(&pkt_a));
   EXPECT_EQ(1, m->ref_count);
 
   /* the (ssn, kid) send-anchor was also laid, so a genuine echo is still accepted */
@@ -365,7 +377,8 @@ TEST_F(EchoTxRingTest, GetByToken_UnknownToken_ReturnsNull)
   oc_oscore_echo_whitelist_append(10, g_kid, sizeof(g_kid), g_tok_a, sizeof(g_tok_a), m); /* ring adds its own ref -> 2 */
   oc_message_unref(m); /* caller drops its ref -> 1, ring owns m */
 
-  EXPECT_EQ(nullptr, oc_oscore_echo_get_retained_plaintext(g_tok_b, sizeof(g_tok_b)));
+  coap_packet_t pkt_b = make_token_pkt(g_tok_b, sizeof(g_tok_b));
+  EXPECT_EQ(nullptr, oc_oscore_echo_get_retained_plaintext(&pkt_b));
 
   oc_oscore_free_all_echo_records(); /* ring frees m */
 }
@@ -547,7 +560,8 @@ TEST_F(EchoTxRingTest, Retain_RingRollOverCleansOldestRetainedMessage)
   /* every retained message is still findable by its token */
   for (int i = 0; i < cap; i++) {
     uint8_t tok[4] = { (uint8_t)i, 0xAA, 0xBB, 0xCC };
-    EXPECT_NE(nullptr, oc_oscore_echo_get_retained_plaintext(tok, sizeof(tok)));
+    coap_packet_t ring_pkt = make_token_pkt(tok, sizeof(tok));
+    EXPECT_NE(nullptr, oc_oscore_echo_get_retained_plaintext(&ring_pkt));
   }
 
   /* one more append -> ring wraps to slot 0 -> OLDEST (i == 0) cleaned and FREED */
@@ -559,8 +573,10 @@ TEST_F(EchoTxRingTest, Retain_RingRollOverCleansOldestRetainedMessage)
 
   /* the oldest token is gone (its message was cleaned + freed), the newest is present */
   uint8_t cleaned_tok[4] = { 0x00, 0xAA, 0xBB, 0xCC };
-  EXPECT_EQ(nullptr, oc_oscore_echo_get_retained_plaintext(cleaned_tok, sizeof(cleaned_tok)));
-  EXPECT_EQ(extra, oc_oscore_echo_get_retained_plaintext(extra_tok, sizeof(extra_tok)));
+  coap_packet_t pkt_cleaned = make_token_pkt(cleaned_tok, sizeof(cleaned_tok));
+  coap_packet_t pkt_extra   = make_token_pkt(extra_tok, sizeof(extra_tok));
+  EXPECT_EQ(nullptr, oc_oscore_echo_get_retained_plaintext(&pkt_cleaned));
+  EXPECT_EQ(extra, oc_oscore_echo_get_retained_plaintext(&pkt_extra));
 
   /* cleanup: ring owns all still-retained messages -> free_all releases them */
   oc_oscore_free_all_echo_records();

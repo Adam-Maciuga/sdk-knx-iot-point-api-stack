@@ -328,10 +328,14 @@ void oc_oscore_echo_whitelist_append(uint64_t ssn, const uint8_t* kid, uint8_t k
   ANCHOR SLOT LOOKUP BY TOKEN (WHITELIST role)
   Looks up the retained PLAINTEXT message by CoAP token; no ownership transfer; NULL if not found.
   msg != NULL implies an anchor slot, so no discriminator check is needed.
+
+  Note, pkt and pkt->token can never be NULL, since the CoAP engine always creates a coap_packet_t 
+  for every inbound message, even if the message is malformed.
 */
-oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_t token_len)
+oc_message_t* oc_oscore_echo_get_retained_plaintext(const struct coap_packet_t* pkt)
 {
-  if (!token || token_len == 0)
+  
+  if (pkt->token_len == 0)
   {
     return NULL;
   }
@@ -340,8 +344,8 @@ oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_
   {
     // msg != NULL implies an anchor slot with a retained message (so not an empty ring slot)
     if (e->wl.msg
-        && e->wl.token_len == token_len
-        && memcmp(e->wl.token, token, token_len) == 0)
+        && e->wl.token_len == pkt->token_len
+        && memcmp(e->wl.token, pkt->token, pkt->token_len) == 0)
     {
       return e->wl.msg;
     }
@@ -361,7 +365,7 @@ oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_
   Note, at this point pkt->kid_ctx_len is ALWAYS 10, since inbound echo responses with != 10 byte are rejected
   before reaching THIS echo ring check.
 */
-bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
+bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt)
 {
   uint64_t ssn = 0;
   oscore_store_piv_to_ssn((uint8_t*)pkt->piv, pkt->piv_len, &ssn);
@@ -1050,18 +1054,6 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     return -1;
   }
 
-  /* 
-     capture the CoAP token of the s-mode request NOW (before the OSCORE pipeline rewrites coap_pkt) so a late
-     'echo response' can later be correlated to its retained plaintext payload by token (see engine.c)
-  */
-  uint8_t retained_token[COAP_TOKEN_LEN];
-  uint8_t retained_token_len = 0;
-  if (coap_pkt->token_len <= COAP_TOKEN_LEN)
-  {
-    memcpy(retained_token, coap_pkt->token, coap_pkt->token_len);
-    retained_token_len = (uint8_t)coap_pkt->token_len;
-  }
-
   OC_INF("coap parse packet : ok (multicast)");
   
   // get sending ga
@@ -1084,10 +1076,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
     // request - use context SSN as Partial IV (before increment)
     oscore_store_ssn_to_piv(piv, &piv_len, oscore_ctx->ssn);
 
-    // capture the send-anchor SSN (pre-increment) so the (ssn, kid) anchor can be registered ONLY at the
-    // post-serialization commit point below (registering here would leave a stale anchor / leaked retained
-    // message if the encryption/serialization further down fails). The prior generation's anchor for this
-    // kid is likewise replaced only at that commit point, so a pre-append failure cannot clean it here.
+    // capture SSN before increment so the (ssn, kid) ring anchor can be registered at the commit point below 
     const uint64_t anchor_ssn = oscore_ctx->ssn;
 
     // debugging
@@ -1179,7 +1168,7 @@ static int oc_oscore_send_multicast_message(oc_message_t* msg)
         our caller reference right after. This keeps 'msg' cleanup uniform: the happy path unrefs 'msg' exactly
         like every pre-commit error branch above, and the retained payload survives on the ring's own reference.
     */
-    oc_oscore_echo_whitelist_append(anchor_ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, retained_token, retained_token_len, msg);
+    oc_oscore_echo_whitelist_append(anchor_ssn, oscore_ctx->sender_id, oscore_ctx->sender_id_len, coap_pkt->token, coap_pkt->token_len, msg);
     oc_message_unref(msg);
   }
   else

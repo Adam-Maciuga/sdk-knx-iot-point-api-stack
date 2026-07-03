@@ -12,6 +12,7 @@
 
 extern "C" {
 #include "api/oc_knx_sec.h"
+#include "messaging/coap/coap.h"
 #include "oc_helpers.h"
 #include "util/oc_mmem.h"
 #include <string.h>
@@ -143,6 +144,17 @@ TEST(GetAtIndex, EntryPointerMapsToItsSlotIndex)
  * still frees every slot in SetUp/TearDown to keep the table deterministic.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Helper: build a minimal coap_packet_t carrying only the given kid (OSCORE sender ID). */
+static coap_packet_t make_kid_pkt(const uint8_t *kid, uint8_t kid_len)
+{
+  coap_packet_t pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  if (kid && kid_len > 0)
+    memcpy(pkt.kid, kid, kid_len);
+  pkt.kid_len = kid_len;
+  return pkt;
+}
+
 class AtTable : public ::testing::Test {
 protected:
   void SetUp() override
@@ -197,10 +209,12 @@ TEST_F(AtTable, FindByOscIdMatchAndMiss)
   const uint8_t osc[] = { 0x01, 0x02, 0x03 };
   oc_new_byte_string(&e->osc_id, (const char *)osc, sizeof(osc));
 
-  EXPECT_EQ(oc_core_find_at_entry_by_osc_id((uint8_t *)osc, sizeof(osc)), e);
+  coap_packet_t pkt = make_kid_pkt(osc, sizeof(osc));
+  EXPECT_EQ(oc_core_find_at_entry_by_osc_id(&pkt), e);
 
   const uint8_t other[] = { 0x09, 0x09 };
-  EXPECT_EQ(oc_core_find_at_entry_by_osc_id((uint8_t *)other, sizeof(other)),
+  coap_packet_t pkt_other = make_kid_pkt(other, sizeof(other));
+  EXPECT_EQ(oc_core_find_at_entry_by_osc_id(&pkt_other),
             nullptr);
 }
 

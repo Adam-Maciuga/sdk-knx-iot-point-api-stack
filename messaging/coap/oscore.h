@@ -26,7 +26,9 @@ extern "C"
 
   // echo ring (single unified FIFO: anchor slots + seen-responder slots); exposed for unit testing and the send / receive paths
 
+  // extra definition to avoid including coap.h in this header file (circular dependency)   
   struct coap_packet_t;
+
   void oc_oscore_free_all_echo_records(void);
 
   // write an anchor slot (former whitelist append); takes own ref on msg (NULL-safe); caller must unref msg after
@@ -35,7 +37,7 @@ extern "C"
                                        oc_message_t* msg);
 
   // look up the retained PLAINTEXT s-mode message by CoAP token; no ownership transfer; NULL if not found
-  oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_t token_len);
+  oc_message_t* oc_oscore_echo_get_retained_plaintext(const struct coap_packet_t* pkt);
 
   // accept or reject an inbound echo response using the unified ring (anchor + seen-responder scan)
   bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt);

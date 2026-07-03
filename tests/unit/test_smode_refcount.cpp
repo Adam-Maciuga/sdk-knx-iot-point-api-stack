@@ -260,7 +260,11 @@ TEST_F(SModeRefCount, M2_MulticastNon_RingRolloverReleases)
     M2 was at slot 0 and has been cleaned by roll-over. Confirm it is gone
     from the ring (its token is no longer findable).
   */
-  EXPECT_EQ(oc_oscore_echo_get_retained_plaintext(token, sizeof(token)),
+  coap_packet_t tok_pkt;
+  memset(&tok_pkt, 0, sizeof(tok_pkt));
+  memcpy(tok_pkt.token, token, sizeof(token));
+  tok_pkt.token_len = sizeof(token);
+  EXPECT_EQ(oc_oscore_echo_get_retained_plaintext(&tok_pkt),
             nullptr);
 
   /* M1 cleanup */
