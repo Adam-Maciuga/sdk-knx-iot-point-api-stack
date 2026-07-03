@@ -214,6 +214,7 @@ static oc_event_callback_retval_t reset(void* context)
       - device IP configuration(bind new socket)
    
    7 (Factory Reset without IA):
+      - programming mode (pm)
       - group object table
       - recipient table
       - publisher table

@@ -29,7 +29,6 @@ extern "C" {
 #define KNX_STORAGE_FID       "dev_knx_fid"
 #define KNX_STORAGE_HOSTNAME  "dev_knx_hostname"
 #define FINGERPRINT_STORE     "dev_knx_fingerprint"
-#define KNX_STORAGE_PM        "dev_knx_pm"
 #define KNX_STORAGE_LSM       "dev_knx_lsm"
 #define KNX_STORAGE_AP_MAJOR  "knx_ap_major"
 #define KNX_STORAGE_AP_MINOR  "knx_ap_minor"
@@ -45,12 +44,12 @@ extern "C" {
  *  
  *  - hname (host name)
  *  - ia (individual address)
- *  - pm (prg mode)
  *  - iid (installation id)
  *  - fid (fabric id)
  *  - ap (application version)
+ *  - fwv (firmware version)
  *  - lsm (load state)
- *  - oscore osn delay / replay window size 
+ *  - oscore osn delay
  *
  *  @note if storage cannot be read, their default values will be applied to the properties
  *
@@ -88,10 +87,10 @@ void oc_knx_device_storage_reset(int reset_mode);
 bool oc_knx_device_in_programming_mode(void);
 
 /**
- * @brief function set the programming mode of the device to true or false
+ * @brief function set the programming mode of the device to true or false and updates the 
+ *        DNS-SD service advertisement with new programming mode (and iid/ia) information
  *
- * @param programming_mode true to set the device in programming mode, false
- * otherwise
+ * @param programming_mode true to set the device in programming mode, false otherwise
  */
 void oc_knx_device_set_programming_mode(bool programming_mode);
 

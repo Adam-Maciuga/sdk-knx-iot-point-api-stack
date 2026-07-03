@@ -23,6 +23,7 @@
 #include "oc_knx_sec.h"
 #include "oc_core_res.h"
 #include "oc_endpoint.h" // SERIAL_NUM_SIZE
+#include "api/oc_knx_dev.h"
 #include "port/dns-sd.h"
 #include "port/oc_storage.h"
 
@@ -270,15 +271,8 @@ static int knx_pm_cmd(const struct shell *sh, size_t argc, char **argv)
         shell_error(sh, "Invalid argument. Use 0 or 1");
         return -EINVAL;
     }
-    bool mode = (arg == 1) ? true : false;
-    /* TODO FIXME: Merge with equivalent code in apps/knx_iot_app.c into a
-     * single stack function (oc_knx_device_set_programming_mode) that covers
-     * field update, storage write, and DNS-SD update in one place. */
-    oc_device_info_t *device = oc_core_get_device_info();
-    device->pm = mode;
-    oc_storage_write(KNX_STORAGE_PM, (uint8_t *)&mode, sizeof(mode));
-    /* Update DNS-SD */
-    knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, mode);
+    const bool mode = (arg == 1) ? true : false;
+    oc_knx_device_set_programming_mode(mode);
     return 0;
 }
 

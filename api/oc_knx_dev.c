@@ -513,20 +513,20 @@ const oc_resource_t core_resource_dev_ipv6 = {
         true,
         &core_resource_dev_ipv6_data};
 
-static void oc_core_dev_pm_get_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_pm_get_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
   OC_INF("calling dev/pm GET handler");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   const oc_device_info_t* const  device = oc_core_get_device_info();
 
-  // cbor_encode_boolean(&g_encoder, device->pm);
   oc_rep_begin_root_object();
   oc_rep_i_set_boolean(root, 1, device->pm); // knx PRG mode
   oc_rep_end_root_object();
@@ -534,38 +534,39 @@ static void oc_core_dev_pm_get_handler(oc_request_t* request,
   oc_prepare_cbor_response(request, OC_STATUS_OK);
 }
 
-static void oc_core_dev_pm_put_handler(oc_request_t* request, 
-        oc_interface_mask_t iface_mask, void* data) {
+static void oc_core_dev_pm_put_handler(oc_request_t* request, oc_interface_mask_t iface_mask, void* data) 
+{
   (void)data;
   (void)iface_mask;
 
   OC_INF("calling dev/pm PUT handler");
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
   oc_device_info_t* const device = oc_core_get_device_info();
-  oc_rep_t* rep = request->request_payload;
+  const oc_rep_t* rep = request->request_payload;
   const oc_programming_mode_t* my_cb = oc_get_programming_mode_cb();
 
-  while (rep) {
-    if (rep->type == OC_REP_BOOL) {
-      if (rep->iname == 1) {
+  while (rep) 
+  {
+    if (rep->type == OC_REP_BOOL) 
+    {
+      if (rep->iname == 1) 
+      {
         OC_INF("oc_core_dev_pm_put_handler received : %d", (int)rep->value.boolean);
 
-        // application programming mode callback handler, 
-        // if not present PM it is set directly
-        if (my_cb && my_cb->cb) {
+        // application programming mode callback handler, if not PROG mode it is set directly
+        if (my_cb && my_cb->cb) 
+        {
           my_cb->cb(rep->value.boolean, my_cb->data);
-        } else {
-          device->pm = rep->value.boolean;
+        } 
+        else 
+        {
+          oc_knx_device_set_programming_mode(rep->value.boolean);
         }
-
-        OC_INF("Re-register DNS-SD service after writing PROG mode)");
-        knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, 
-                device->ia, device->pm);
-        oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&rep->value.boolean, 1);
 
         oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
         return;
@@ -1123,11 +1124,6 @@ void oc_knx_load_device(void)
   device->fid = oc_storage_read(KNX_STORAGE_FID, (uint8_t*)&fid, sizeof(fid)) > 0 ? fid : 0;
   OC_INF("fid (storage) %" PRIu64, device->fid); 
 
-  // read prg mode from storage (on error = false)
-  bool pm;
-  device->pm = oc_storage_read(KNX_STORAGE_PM, (uint8_t*)&pm, sizeof(pm)) > 0 ? pm : false;
-  OC_INF("pm (storage) %d", pm); 
-
   // read host name from storage (on error = the default host name is used, otherwise stored host name)
   oc_core_read_and_set_device_hostname();
   OC_INF("hostname (storage) %s", oc_string(device->iot_hostname)); 
@@ -1209,7 +1205,6 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_storage_write(KNX_STORAGE_IA, (uint8_t*)&device->ia, sizeof(device->ia));
     oc_storage_write(KNX_STORAGE_IID, (uint8_t*)&device->iid, sizeof(device->iid));
     oc_storage_write(KNX_STORAGE_FID, (uint8_t*)&device->fid, sizeof(device->fid));
-    oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
     oc_storage_write(KNX_STORAGE_HOSTNAME, (uint8_t*)oc_string(device->iot_hostname), oc_string_len(device->iot_hostname));
 
     // reset security related variables to default values
@@ -1245,31 +1240,38 @@ void oc_knx_device_storage_reset(int reset_mode)
     oc_spake_reset_pase_session();
 
     // don't reset security related "replay window size" and "osn delay"
-
-    // writing all above reset values to storage (LSM already written)
-    oc_storage_write(KNX_STORAGE_PM, (uint8_t*)&device->pm, sizeof(device->pm));
   }
 }
 
-bool oc_knx_device_in_programming_mode(void) {
+bool oc_knx_device_in_programming_mode(void) 
+{
   const oc_device_info_t* const device = oc_core_get_device_info();
   return device->pm;
 }
 
-void oc_knx_device_set_programming_mode(bool programming_mode) {
+void oc_knx_device_set_programming_mode(bool programming_mode) 
+{
   oc_device_info_t* const device = oc_core_get_device_info();
   device->pm = programming_mode;
+
+  OC_INF("Re-register DNS-SD service after device PRG mode change)");
+  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
 
-void oc_knx_device_restart(void) {
-  // Specification demands
-  // - reset a possible PRG mode
-  // - terminate a possible PASE token (removes all, even that only one should be present)
-  // - apply (changed) configuration parameters latest after 30s
-  //
-  // Additionally
-  // - send read requests for all GO's with i-flag
-  // - call individual application restart callback handler
+void oc_knx_device_restart(void) 
+{
+  /* Specification demands
+     - reset a possible PRG mode
+     - terminate a possible PASE token (removes all, even that only one should be present)
+     - apply (changed) configuration parameters latest after 30s
+
+     Additionally
+     - send read requests for all GO's with i-flag
+     - call individual application restart callback handler
+
+    @note After the actions factory restart callback handler is called.
+
+  */
 
   OC_INF("restart device");
 
@@ -1287,14 +1289,13 @@ void oc_knx_device_restart(void) {
   // check and send on i-flags
   oc_init_datapoints_at_initialization();
 
-  // Re-publish DNS-SD service after restart to reflect updated state
-  // (e.g. PM=false, changed IA/IID from prior POST).
-  OC_INF("Re-register DNS-SD service after device restart)");
-  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
-
   // application restart callback handler
   const oc_restart_t* my_restart = oc_get_restart_cb();
-  if (my_restart && my_restart->cb) {
+  if (my_restart && my_restart->cb)
+  {
     my_restart->cb(my_restart->data);
   }
+
+  OC_INF("Re-register DNS-SD service after device restart)");
+  knx_dns_sd_update_service(oc_string(device->serialnumber), device->iid, device->ia, device->pm);
 }
