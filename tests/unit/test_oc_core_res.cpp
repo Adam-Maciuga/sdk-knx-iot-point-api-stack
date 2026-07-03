@@ -101,7 +101,8 @@ protected:
 
 TEST_F(DeviceInfo, SetFirmwareVersion)
 {
-  EXPECT_EQ(oc_core_set_and_store_device_fwv(1, 2, 3), 0);
+  oc_knx_version_info_t version = {1, 2, 3};
+  EXPECT_EQ(oc_core_set_and_store_device_fwv(&version), 0);
   const oc_device_info_t *d = oc_core_get_device_info();
   EXPECT_EQ(d->fwv.major, 1);
   EXPECT_EQ(d->fwv.minor, 2);
@@ -110,7 +111,8 @@ TEST_F(DeviceInfo, SetFirmwareVersion)
 
 TEST_F(DeviceInfo, SetHardwareVersion)
 {
-  EXPECT_EQ(oc_core_set_device_hwv(4, 5, 6), 0);
+  oc_knx_version_info_t version = {4, 5, 6};
+  EXPECT_EQ(oc_core_set_device_hwv(&version), 0);
   const oc_device_info_t *d = oc_core_get_device_info();
   EXPECT_EQ(d->hwv.major, 4);
   EXPECT_EQ(d->hwv.minor, 5);
@@ -119,7 +121,8 @@ TEST_F(DeviceInfo, SetHardwareVersion)
 
 TEST_F(DeviceInfo, SetApplicationVersion)
 {
-  EXPECT_EQ(oc_core_set_device_apv(7, 8, 9), 0);
+  oc_knx_version_info_t version = {7, 8, 9};
+  EXPECT_EQ(oc_core_set_and_store_device_application_version(&version), 0);
   const oc_device_info_t *d = oc_core_get_device_info();
   EXPECT_EQ(d->apv.major, 7);
   EXPECT_EQ(d->apv.minor, 8);
@@ -173,7 +176,8 @@ TEST_F(DeviceInfo, SetAndStoreIidRejectsNegative)
 
 TEST_F(DeviceInfo, SetAndStoreApplicationVersion)
 {
-  EXPECT_EQ(oc_core_set_and_store_device_application_version(2, 1, 0), 0);
+  oc_knx_version_info_t version = {2, 1, 0};
+  EXPECT_EQ(oc_core_set_and_store_device_application_version(&version), 0);
   const oc_device_info_t *d = oc_core_get_device_info();
   EXPECT_EQ(d->apv.major, 2);
   EXPECT_EQ(d->apv.minor, 1);

@@ -35,33 +35,17 @@
 
 static oc_device_info_t oc_device_info;	// common device 0 data pointer - cannot be NULL
 
-int oc_core_set_and_store_device_fwv(uint16_t major, uint16_t minor, uint16_t patch)
+int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version)
 {
-	oc_device_info.fwv.major = major;
-	oc_device_info.fwv.minor = minor;
-	oc_device_info.fwv.patch = patch;
-	
-	// Persist to storage so firmware version survives reboot
-	oc_storage_write(KNX_STORAGE_FW_MAJOR, (uint8_t*)&major, sizeof(major));
-	oc_storage_write(KNX_STORAGE_FW_MINOR, (uint8_t*)&minor, sizeof(minor));
-	oc_storage_write(KNX_STORAGE_FW_PATCH, (uint8_t*)&patch, sizeof(patch));
+	oc_device_info.fwv = *version;
+  oc_storage_write(KNX_STORAGE_FW_VER, (uint8_t*)version, sizeof(oc_knx_version_info_t));
 	
 	return 0;
 }
 
-int oc_core_set_device_hwv(uint16_t major, uint16_t minor, uint16_t patch)
+int oc_core_set_device_hwv(const oc_knx_version_info_t* version)
 {
-	oc_device_info.hwv.major = major;
-	oc_device_info.hwv.minor = minor;
-	oc_device_info.hwv.patch = patch;
-	return 0;
-}
-
-int oc_core_set_device_apv(uint16_t major, uint16_t minor, uint16_t patch)
-{
-	oc_device_info.apv.major = major;
-	oc_device_info.apv.minor = minor;
-	oc_device_info.apv.patch = patch;
+	oc_device_info.hwv = *version;
 	return 0;
 }
 
@@ -148,14 +132,10 @@ bool oc_core_set_and_store_device_iid(int64_t iid)
   return false;
 }
 
-int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t minor, uint16_t patch)
+int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* version)
 {
-	oc_core_set_device_apv(major, minor, patch);
-
-	oc_storage_write(KNX_STORAGE_AP_MAJOR, (uint8_t*)&major, sizeof(major));
-  oc_storage_write(KNX_STORAGE_AP_MINOR, (uint8_t*)&minor, sizeof(minor));
-  oc_storage_write(KNX_STORAGE_AP_PATCH, (uint8_t*)&patch, sizeof(patch));
-
+	oc_device_info.apv = *version;
+  oc_storage_write(KNX_STORAGE_AP_VER, (uint8_t*)version, sizeof(oc_knx_version_info_t));
   return 0;
 }
 
@@ -289,7 +269,7 @@ bool oc_check_resource_by_rt(const oc_resource_t* resource, oc_request_t* reques
 		if (request_rt_ptr_len > 0)
 		{
 		  // key 'rt' is part of query, check on wildcard rt=* or rt=urn:knx:dpa.201.* 
-			const char* wildcard = memchr(request_rt_ptr, '*', request_rt_ptr_len);
+			const char* wildcard = (char*)memchr(request_rt_ptr, '*', request_rt_ptr_len);
 
 		  if (wildcard)
 			{

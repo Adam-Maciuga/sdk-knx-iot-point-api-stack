@@ -100,44 +100,26 @@ extern "C" {
 	/**
 	 * @brief sets and stores the firmware version
 	 *
-	 * @param major the xxx number of xxx.yyy.zzz
-	 * @param minor the yyy number of xxx.yyy.zzz
-	 * @param patch the zzz number of xxx.yyy.zzz
+	 * @param version the xxx number of xxx.yyy.zzz
 	 *
 	 * @note according to the type definition it is a U5U5U6,
 	 *       please consider the range (no active range check is implemented)
 	 *
 	 * @return int error status, 0 = OK
 	 */
-  int oc_core_set_and_store_device_fwv(uint16_t major, uint16_t minor, uint16_t patch);
+  int oc_core_set_and_store_device_fwv(oc_knx_version_info_t* version);
 
 	/**
 	 * @brief sets the hardware version number
 	 *
-	 * @param major the xxx number of xxx.yyy.zzz
-	 * @param minor the yyy number of xxx.yyy.zzz
-	 * @param patch the zzz number of xxx.yyy.zzz
+	 * @param version the xxx number of xxx.yyy.zzz
 	 *
 	 * @note according to the type definition it is a U5U5U6,
 	 *       please consider the range (no active range check is implemented)
 	 *
 	 * @return int  error status, 0 = OK
 	 */
-  int oc_core_set_device_hwv(uint16_t major, uint16_t minor, uint16_t patch);
-
-  /**
-	 * @brief sets the application version number
-	 *
-	 * @param major the xxx number of xxx.yyy.zzz
-	 * @param minor the yyy number of xxx.yyy.zzz
-	 * @param patch the zzz number of xxx.yyy.zzz
-	 *
-	 * @note according to the type definition it is a U16U16U8,
-	 *       please consider the range (no active range check is implemented)
-	 *
-	 * @return int  error status, 0 = OK
-	 */
-  int oc_core_set_device_apv(uint16_t major, uint16_t minor, uint16_t patch);
+  int oc_core_set_device_hwv(const oc_knx_version_info_t* version);
 
 	/**
 	 * @brief sets the manufacturer id
@@ -220,16 +202,14 @@ bool oc_core_set_and_store_device_fid(int64_t fid);
 	/**
    * @brief sets the application version identifier
    *
-   * @param major major version
-   * @param minor minor version
-   * @param patch patch version
+   * @param version major version
    *
    * @note according to the type definition it is a U16U16U8 with vendor id, device type, app. version,
    *       no active range check is yet implemented for the U8 range of patch (app. version)
    *
    * @return int error status, 0 = OK
    */
-	int oc_core_set_and_store_device_application_version(uint16_t major, uint16_t minor, uint16_t patch);
+	int oc_core_set_and_store_device_application_version(oc_knx_version_info_t* version);
 
 	/**
 	 * @brief retrieve the device info for device 0

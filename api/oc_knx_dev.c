@@ -930,7 +930,8 @@ static void oc_core_ap_x_put_handler(oc_request_t* request,
   (void)data;
   (void)iface_mask;
 
-  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) {
+  if (!oc_accept_header_is_ok(request, APPLICATION_CBOR)) 
+  {
     return;
   }
 
@@ -938,18 +939,21 @@ static void oc_core_ap_x_put_handler(oc_request_t* request,
 
   OC_DBG("oc_core_ap_x_put_handler type: %d", rep ? rep->type : OC_REP_NIL);
 
-  if (rep && rep->type == OC_REP_INT_ARRAY) {
+  if (rep && rep->type == OC_REP_INT_ARRAY) 
+  {
     int64_t* array = oc_int_array(rep->value.array);
     size_t array_size = oc_int_array_size(rep->value.array);
 
-    if (array_size != 3) {
+    if (array_size != 3) 
+    {
       oc_prepare_no_format_response_no_payload(request, OC_STATUS_BAD_REQUEST);
       return;
     }
 
-    // major, minor, patch, see xxx.ap definition how it is interpreted
-    oc_core_set_and_store_device_application_version(
-            (uint16_t)array[0], (uint16_t)array[1], (uint16_t)array[2]);
+    // prepare version info, major, minor, patch, see xxx.ap definition how it is interpreted
+    oc_knx_version_info_t app_version = {(uint16_t)array[0], (uint16_t)array[1], (uint16_t)array[2]};
+
+    oc_core_set_and_store_device_application_version(&app_version);
 
     oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
     return;
@@ -1128,17 +1132,18 @@ void oc_knx_load_device(void)
   oc_core_read_and_set_device_hostname();
   OC_INF("hostname (storage) %s", oc_string(device->iot_hostname)); 
 
+  oc_knx_version_info_t version;
+  
   // read application version from storage (on error = '0.0.0')
-  uint16_t value;
-  device->apv.major = oc_storage_read(KNX_STORAGE_AP_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  device->apv.minor = oc_storage_read(KNX_STORAGE_AP_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  device->apv.patch = oc_storage_read(KNX_STORAGE_AP_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->apv = oc_storage_read(KNX_STORAGE_AP_VER, (uint8_t*)&version, sizeof(version)) > 0 
+    ? version 
+    : (oc_knx_version_info_t){0, 0, 0};
   OC_INF("app ver (storage) %d.%d.%d", device->apv.major, device->apv.minor, device->apv.patch); 
 
   // read firmware version from storage (on error = '0.0.0')
-  device->fwv.major = oc_storage_read(KNX_STORAGE_FW_MAJOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  device->fwv.minor = oc_storage_read(KNX_STORAGE_FW_MINOR, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
-  device->fwv.patch = oc_storage_read(KNX_STORAGE_FW_PATCH, (uint8_t*)&value, sizeof(value)) > 0 ? value : 0;
+  device->fwv = oc_storage_read(KNX_STORAGE_FW_VER, (uint8_t*)&version, sizeof(version)) > 0 
+    ? version 
+    : (oc_knx_version_info_t){0, 0, 0};
   OC_INF("fw ver (storage) %d.%d.%d", device->fwv.major, device->fwv.minor, device->fwv.patch);
 
   // read lsm mode from storage (on error = unloaded)
@@ -1148,8 +1153,7 @@ void oc_knx_load_device(void)
 
   // load security related variables
   uint16_t osc;
-  const uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc,
-                                          sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
+  const uint16_t d_size = oc_storage_read(OSC_STORAGE_OSN_DELAY, (uint8_t*)&osc, sizeof(osc)) > 0 ? osc : DEFAULT_OSN_DELAY;
 
   set_oscore_osn_delay_ms(d_size);
   OC_INF("oscore (storage) osn delay (%u) ms ", d_size);
