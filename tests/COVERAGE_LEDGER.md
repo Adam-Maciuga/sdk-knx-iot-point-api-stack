@@ -207,10 +207,10 @@ the `oc_core_fp_*_get_handler` / `oc_core_fp_*_post_handler` and
 group register/unregister and s-mode unicast/multicast CoAP send — all need a
 bootstrapped device + populated RI tables + network.
 
-### api/oc_knx_sec.c — DONE (string/interface helpers + OSCORE config getters/setter + AT-table slot accessors and content ops); ACL eval / handlers / storage / OSCORE auth are integration-level
+### api/oc_knx_sec.c — DONE (string helper + OSCORE config getters/setter + AT-table slot accessors and content ops); ACL eval / handlers / storage / OSCORE auth are integration-level
 
-Unit-tested in `test_oc_knx_sec.cpp`. Pure helpers: `oc_at_profile_to_string`,
-`oc_knx_contains_interface` (bitwise interface containment). OSCORE config lives
+Unit-tested in `test_oc_knx_sec.cpp`. Pure helpers: `oc_at_profile_to_string`.
+OSCORE config lives
 in file-static RAM: `get_oscore_replay_window_size` (const RFC default 32),
 `get_oscore_osn_delay_ms` / `set_oscore_osn_delay_ms` (round-trip, restored).
 The AT table is the file-static `g_at_entries[G_AT_MAX_ENTRIES]`, reached for

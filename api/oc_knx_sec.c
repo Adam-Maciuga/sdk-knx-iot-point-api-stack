@@ -1891,18 +1891,6 @@ void oc_init_oscore_from_storage(const bool read_ssn_from_storage)
   }
 }
 
-// used for API test only
-bool oc_knx_contains_interface(oc_interface_mask_t caller_scope, oc_interface_mask_t called_scope)
-{
-  if (caller_scope & called_scope)
-  {
-    // one of the entries is matching (bitset of 'a and b')
-    return true;
-  }
-
-  return false;
-}
-
 bool oc_knx_sec_check_acl(coap_method_t method, const oc_resource_t* resource, oc_endpoint_t* endpoint, oc_rep_t* value_object)
 {
   //  scope of called resource, init with default

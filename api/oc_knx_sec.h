@@ -246,19 +246,6 @@ extern "C" {
 	void oc_init_oscore_from_storage(bool read_ssn_from_storage);
 
 	/**
-	 * @brief function to check if the at_interface is listed in the resource
-	 * interfaces
-	 *
-	 * @param caller_scope interface to be checked
-	 * @param called_scope interface to be matched (resource).
-	 * @return true one of the scopes listed in resource acl list
-	 * @return false none of the scopes listed in resource acl list
-	 * @note done as an individual function to use in tests
-	 */
-	bool oc_knx_contains_interface(oc_interface_mask_t caller_scope,
-																 oc_interface_mask_t called_scope);
-
-	/**
 	 * @brief check access control based on:
 	 *        - acl scope (auth table)
 	 *        - resource scope
