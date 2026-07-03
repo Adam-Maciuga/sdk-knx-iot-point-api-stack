@@ -205,12 +205,9 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 #define OC_ECHO_KID_LEN (4)
 
 /* 
-  inbound echo responses are gated on kid_ctx_len == 10 (spec clause 3.6.4.1.3); 
-  - echo ring
-    - inbound messages with != 10 byte are rejected before reaching the echo ring
-    - outbound messages are strictly uses 10 byte but this is never stored in the echo ring
-
-  reduce the to be compared ctx to 4 byte is good enough in view of entropy (2^6 entries / 2^32) 
+  - outbound echo responses are strictly uses 10 byte but will never be stored in the echo ring
+  - inbound echo responses are gated on kid_ctx_len == 10 (spec clause 3.6.4.1.3), with != 10 byte
+    a message is rejected before reaching the echo ring
 */
 #define OC_ECHO_KID_CTX_LEN (10)
 /*
@@ -1461,7 +1458,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
       { // any context using an access token with ga len > 0 is an s-mode message
         
         // mc echo data = random
-        uint8_t rnd[10];
+        uint8_t rnd[OC_ECHO_KID_CTX_LEN];
 
         psa_generate_random(rnd, sizeof(rnd));
 
@@ -1480,7 +1477,7 @@ static int oc_oscore_send_unicast_message(oc_message_t* msg)
         {
           // .ssn = 0 
           .id_context = rnd,
-          .id_context_size = 10,
+          .id_context_size = OC_ECHO_KID_CTX_LEN,
           .auth_at = at_entry, 
           // .read_ssn_from_storage = false
         };
