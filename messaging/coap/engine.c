@@ -623,8 +623,10 @@ int coap_receive(oc_message_t* incoming_message)
 
   /* 
      local struct to hold all fields for a (delayed) echo response 
-     - pre-fill echo_ctx with all fields known after parse; 
-     - error-path call sites below reuse this directly and adapt if needed
+     - pre-fill echo_ctx with all fields known after parse 
+     - error-path call sites below reuse this ctx directly and adapt it if needed
+     - token len may be at this stage still > COAP_TOKEN_LEN (and error from udp scan = 4.00),
+       MUST be trimmed to max COAP_TOKEN_LEN in the struct
   */
   coap_echo_ctx_t echo_ctx = 
   {
@@ -634,7 +636,7 @@ int coap_receive(oc_message_t* incoming_message)
     .endpoint       = incoming_message->endpoint,     // shallow copy - no owning pointers in oc_endpoint_t
     .echo.timestamp = oc_clock_time(), 
     .echo_len       = sizeof(oc_clock_time_t),
-    .token_len      = inbound_coap_pkt->token_len < COAP_TOKEN_LEN ? inbound_coap_pkt->token_len : COAP_TOKEN_LEN
+    .token_len      = inbound_coap_pkt->token_len > COAP_TOKEN_LEN ? COAP_TOKEN_LEN : inbound_coap_pkt->token_len
   };
 
   // even zero bytes to copy is valid c-standard, pointers are always valid (either static or local)
@@ -652,7 +654,7 @@ int coap_receive(oc_message_t* incoming_message)
      check duplicate before process any message
      - two level : -> oscore (secured) -> coap : skip duplicate check for messages already checked by OSCORE layer
      - one level : -> coap (unsecured, others) : check only inbound plain CoAP messages 
-  */
+    */
     if (!(incoming_message->endpoint.flags & OSCORE_DECRYPTED))
     {
       if (oc_coap_check_if_duplicate_and_if_not_add_to_history(inbound_coap_pkt, &incoming_message->endpoint))

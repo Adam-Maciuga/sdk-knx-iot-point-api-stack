@@ -208,9 +208,18 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
   inbound echo responses are gated on kid_ctx_len == 10 (spec clause 3.6.4.1.3); 
   - echo ring
     - inbound messages with != 10 byte are rejected before reaching the echo ring
-    - outbound messages are strictly uses 10 byte but this is not stored in the echo ring
+    - outbound messages are strictly uses 10 byte but this is never stored in the echo ring
+
+  reduce the to be compared ctx to 4 byte is good enough in view of entropy (2^6 entries / 2^32) 
 */
 #define OC_ECHO_KID_CTX_LEN (10)
+/*
+  
+  reduce the context size to be stored/compared on inbound echo messages to 4 byte, 
+  - good enough in view of entropy (2^6 echo ring entries / 2^32 = 1/2^26)
+  - saves 64 x 6 bytes = 384 bytes RAM on a 64 slot echo ring
+*/
+#define OC_ECHO_KID_CTX_LEN_GOOD_ENOUGH (4)
 
 /*
   Echo ring entry -- single struct for both ring roles.
@@ -236,16 +245,16 @@ typedef struct
 {
   struct
   {
+    oc_message_t* msg;
     uint64_t      ssn;
     uint8_t       kid[OC_ECHO_KID_LEN];
-    uint8_t       kid_len;       // 0 = slot wiped
     uint8_t       token[COAP_TOKEN_LEN];
     uint8_t       token_len;
-    oc_message_t* msg;           // always NULL on seen-responder slots
+    uint8_t       kid_len;       // 0 = slot wiped
   } wl;                          // outbound anchor (WHITELIST part)
   struct
   {
-    uint8_t       kid_ctx[OC_ECHO_KID_CTX_LEN];
+    uint8_t       kid_ctx[OC_ECHO_KID_CTX_LEN_GOOD_ENOUGH];
     uint8_t       kid_ctx_len;   // 0 = anchor slot, >0 = seen-responder slot
   } bl;                          // inbound responder (BLACKLIST part)
 } oc_echo_entry_t;
@@ -329,7 +338,7 @@ oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_
 
   for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
   {
-    // msg != NULL implies an anchor slot with a retained message
+    // msg != NULL implies an anchor slot with a retained message (so not an empty ring slot)
     if (e->wl.msg
         && e->wl.token_len == token_len
         && memcmp(e->wl.token, token, token_len) == 0)
@@ -348,6 +357,9 @@ oc_message_t* oc_oscore_echo_get_retained_plaintext(const uint8_t* token, uint8_
   3 after scan
     a) no send-proof -> UNKNOWN, / never sent, reject
     b) send-proof    -> NEW responder, write seen-responder slot and accept
+
+  Note, at this point pkt->kid_ctx_len is ALWAYS 10, since inbound echo responses with != 10 byte are rejected
+  before reaching THIS echo ring check.
 */
 bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
 {
@@ -358,23 +370,17 @@ bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
 
   for (const oc_echo_entry_t* e = g_echo_ring; e < g_echo_ring + OC_ECHO_RING_SIZE; e++)
   {
-
-    const uint8_t len1 = e->wl.kid_len;
-    
     // check for anchor
-    if (len1 > 0
-        && e->wl.ssn == ssn
-        && len1 == pkt->kid_len
-        && memcmp(e->wl.kid, pkt->kid, len1) == 0)
+    if (e->wl.kid_len > 0
+        && e->wl.ssn == ssn 
+        && e->wl.kid_len == pkt->kid_len 
+        && memcmp(e->wl.kid, pkt->kid, e->wl.kid_len) == 0)
     {
       // 2
       anchor_found = true;
-      const uint8_t len2 = e->bl.kid_ctx_len;
 
-      // check for triple match (anchor + kid context)
-      if (len2 > 0 
-          && len2 == pkt->kid_ctx_len 
-          && memcmp(e->bl.kid_ctx, pkt->kid_ctx, len2) == 0)
+      // check for triple match (anchor + kid context) -> see note above
+      if (memcmp(e->bl.kid_ctx, pkt->kid_ctx, OC_ECHO_KID_CTX_LEN_GOOD_ENOUGH) == 0)
         {
           // 1
           return false;
@@ -403,12 +409,9 @@ bool oc_oscore_echo_check_and_consume(const coap_packet_t* pkt)
     b->wl.kid_len = pkt->kid_len;
   }
 
-  // copy is 0-safe, 0 cannot be here since  
-  if (pkt->kid_ctx_len <= OC_ECHO_KID_CTX_LEN)
-  {
-    memcpy(b->bl.kid_ctx, pkt->kid_ctx, pkt->kid_ctx_len);
-    b->bl.kid_ctx_len = pkt->kid_ctx_len; 
-  }
+  // pkt->kid_ctx_len is 10 -> see note above
+  memcpy(b->bl.kid_ctx, pkt->kid_ctx, OC_ECHO_KID_CTX_LEN_GOOD_ENOUGH);
+  b->bl.kid_ctx_len = OC_ECHO_KID_CTX_LEN_GOOD_ENOUGH; 
 
   return true;
 }
@@ -692,7 +695,7 @@ static int oc_oscore_receive_message(oc_message_t* msg)
           .ssn = inbound_ssn,
           .id_context = (const uint8_t*)coap_pkt->kid_ctx,
           .id_context_size = coap_pkt->kid_ctx_len,
-          .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'oc_core_find_at_entry_by_osc_id'
+          .auth_at = at_entry,            // at entry cannot be out of range because of the check in 'core_find_at_entry_by_osc_id'
           .read_ssn_from_storage = false  // NO offset is added to SSN
         };
         oscore_ctx = oc_oscore_add_recipient_context(&oscore_params);
