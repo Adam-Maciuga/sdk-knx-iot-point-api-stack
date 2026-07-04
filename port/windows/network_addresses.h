@@ -28,7 +28,7 @@ typedef struct ifaddr_t {
 extern "C" {
 #endif
 
-ifaddr_t *get_network_addresses();
+ifaddr_t *get_network_addresses(void);
 void free_network_addresses(ifaddr_t *ifaddr);
 
 #ifdef __cplusplus

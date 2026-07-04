@@ -162,7 +162,7 @@ void oc_network_event_handler_mutex_destroy(void) {
   WSACleanup();
 }
 
-ip_context_t *get_ip_context_for_device() {
+ip_context_t *get_ip_context_for_device(void) {
   ip_context_t *dev = oc_list_head(ip_contexts);
 
   return dev;

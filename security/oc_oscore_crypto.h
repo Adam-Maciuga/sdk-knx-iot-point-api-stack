@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 int HKDF_SHA256(const uint8_t *salt, uint8_t salt_len, const uint8_t *ikm, uint8_t ikm_len,
-                const uint8_t* info, uint8_t info_len, const uint8_t* okm, uint8_t okm_len);
+                const uint8_t* info, uint8_t info_len, uint8_t* okm, uint8_t okm_len);
 
 void oc_oscore_AEAD_nonce(uint8_t *id, uint8_t id_len, uint8_t *piv, uint8_t piv_len, uint8_t *civ, uint8_t *nonce, uint8_t nonce_len);
 
