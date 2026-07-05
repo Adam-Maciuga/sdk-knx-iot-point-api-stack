@@ -12,12 +12,25 @@ Usage:
     coap_code, payload = ctx.unprotect(oscore_option_value, ciphertext)
 """
 
+import os
 import struct
 
 import cbor2
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+
+# Debug print switch. Off by default so it does not spoil test output.
+# Enable the [oscore] traces with KNX_TEST_DEBUG_OSCORE=1.
+_DEBUG_OSCORE = os.environ.get("KNX_TEST_DEBUG_OSCORE", "0") == "1"
+
+
+def _dbg_oscore(*args, **kwargs):
+    """Print an [oscore] debug line only when KNX_TEST_DEBUG_OSCORE=1."""
+    if _DEBUG_OSCORE:
+        print(*args, **kwargs)
+
 
 # OSCORE constants (AES-CCM-16-64-128)
 KEY_LEN = 16
@@ -86,13 +99,13 @@ class OscoreContext:
         iv_info = _build_info(b"", id_context, AEAD_ALG, "IV", NONCE_LEN)
         self.common_iv = _hkdf_sha256(master_secret, iv_info, NONCE_LEN, salt)
 
-        print(f"[oscore] Context created:"
-              f" sender_id={sender_id.hex()}"
-              f" recipient_id={recipient_id.hex()}"
-              f" ms={master_secret.hex()}")
-        print(f"[oscore]   sender_key={self.sender_key.hex()}")
-        print(f"[oscore]   recipient_key={self.recipient_key.hex()}")
-        print(f"[oscore]   common_iv={self.common_iv.hex()}")
+        _dbg_oscore(f"[oscore] Context created:"
+                    f" sender_id={sender_id.hex()}"
+                    f" recipient_id={recipient_id.hex()}"
+                    f" ms={master_secret.hex()}")
+        _dbg_oscore(f"[oscore]   sender_key={self.sender_key.hex()}")
+        _dbg_oscore(f"[oscore]   recipient_key={self.recipient_key.hex()}")
+        _dbg_oscore(f"[oscore]   common_iv={self.common_iv.hex()}")
 
     def _next_piv(self) -> bytes:
         """Get next Partial IV and increment SSN."""
@@ -300,12 +313,12 @@ class OscoreContext:
         # AAD always uses the request's kid and piv
         aad = self._build_aad(request_kid, request_piv)
 
-        print(f"[oscore] unprotect_response:"
-              f" has_piv={resp_has_own_piv}"
-              f" piv={resp_piv.hex()}"
-              f" nonce={nonce.hex()}"
-              f" key={self.recipient_key.hex()}"
-              f" ct_len={len(ciphertext)}")
+        _dbg_oscore(f"[oscore] unprotect_response:"
+                    f" has_piv={resp_has_own_piv}"
+                    f" piv={resp_piv.hex()}"
+                    f" nonce={nonce.hex()}"
+                    f" key={self.recipient_key.hex()}"
+                    f" ct_len={len(ciphertext)}")
 
         aesccm = AESCCM(self.recipient_key, tag_length=TAG_LEN)
         plaintext = aesccm.decrypt(nonce, ciphertext, aad)
@@ -386,13 +399,13 @@ class OscoreContext:
         nonce = self._build_nonce(self.recipient_id, piv)
         aad = self._build_aad(kid, piv)
 
-        print(f"[oscore] unprotect_request:"
-              f" kid={kid.hex()}"
-              f" piv={piv.hex()}"
-              f" kid_ctx={kid_context.hex() if kid_context else 'none'}"
-              f" nonce={nonce.hex()}"
-              f" key={self.recipient_key.hex()}"
-              f" ct_len={len(ciphertext)}")
+        _dbg_oscore(f"[oscore] unprotect_request:"
+                    f" kid={kid.hex()}"
+                    f" piv={piv.hex()}"
+                    f" kid_ctx={kid_context.hex() if kid_context else 'none'}"
+                    f" nonce={nonce.hex()}"
+                    f" key={self.recipient_key.hex()}"
+                    f" ct_len={len(ciphertext)}")
 
         aesccm = AESCCM(self.recipient_key, tag_length=TAG_LEN)
         plaintext = aesccm.decrypt(nonce, ciphertext, aad)

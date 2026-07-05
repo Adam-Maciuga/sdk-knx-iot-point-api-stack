@@ -43,6 +43,24 @@ KNX_MULTICAST_ADDRESSES = {
 _DEFAULT_MC_SCOPE = int(os.environ.get("KNX_MULTICAST_SCOPE", "5"))
 
 
+# Debug print switches. Off by default so they do not spoil test output.
+# Enable with KNX_TEST_DEBUG_OSCORE=1 and KNX_TEST_DEBUG_COAP=1.
+_DEBUG_OSCORE = os.environ.get("KNX_TEST_DEBUG_OSCORE", "0") == "1"
+_DEBUG_COAP = os.environ.get("KNX_TEST_DEBUG_COAP", "0") == "1"
+
+
+def _dbg_oscore(*args, **kwargs):
+    """Print an [oscore] debug line only when KNX_TEST_DEBUG_OSCORE=1."""
+    if _DEBUG_OSCORE:
+        print(*args, **kwargs)
+
+
+def _dbg_coap(*args, **kwargs):
+    """Print a [coap] debug line only when KNX_TEST_DEBUG_COAP=1."""
+    if _DEBUG_COAP:
+        print(*args, **kwargs)
+
+
 def knx_group_multicast_address(grpid: int, iid: int,
                                 scope: int = _DEFAULT_MC_SCOPE) -> str:
     """Compute the KNX IPv6 multicast address for group communication.
@@ -346,7 +364,7 @@ class CoapClient:
         finally:
             self._sock.settimeout(old_timeout)
         if drained:
-            print(f"[coap] drained {drained} stale message(s)")
+            _dbg_coap(f"[coap] drained {drained} stale message(s)")
 
     def request(self, method: tuple, path: str,
                 payload: bytes = b"",
@@ -421,8 +439,8 @@ class CoapClient:
 
             # Skip messages with wrong token (stale retransmissions)
             if expected_token is not None and token != expected_token:
-                print(f"[coap] skipping stale msg: token={token.hex()}"
-                      f" expected={expected_token.hex()}")
+                _dbg_coap(f"[coap] skipping stale msg: token={token.hex()}"
+                          f" expected={expected_token.hex()}")
                 continue
 
             offset = 4 + tkl
@@ -432,11 +450,11 @@ class CoapClient:
                             if payload_offset < len(data) else b"")
 
             # Debug: show received response
-            print(f"[coap] recv: type={msg_type} code={code_class}.{code_detail:02d}"
-                  f" mid={mid} tkl={tkl}"
-                  f" token={token.hex() if token else 'none'}"
-                  f" opts={sorted(options.keys())}"
-                  f" payload_len={len(payload_data)}")
+            _dbg_coap(f"[coap] recv: type={msg_type} code={code_class}.{code_detail:02d}"
+                      f" mid={mid} tkl={tkl}"
+                      f" token={token.hex() if token else 'none'}"
+                      f" opts={sorted(options.keys())}"
+                      f" payload_len={len(payload_data)}")
 
             # Extract Content-Format from option 12
             ct = None
@@ -587,8 +605,8 @@ class CoapClient:
             if (resp.code_class == 4 and resp.code_detail == 1
                     and 252 in inner_options):
                 echo_value = inner_options[252]
-                print(f"[oscore] Echo challenge received, retrying "
-                      f"(attempt {attempt + 1})")
+                _dbg_oscore(f"[oscore] Echo challenge received, retrying "
+                            f"(attempt {attempt + 1})")
                 continue
 
             return resp
@@ -641,8 +659,8 @@ class CoapClient:
 
             # Skip messages with wrong token (stale DUT retransmissions)
             if expected_token is not None and token != expected_token:
-                print(f"[coap] skipping stale oscore msg: token={token.hex()}"
-                      f" expected={expected_token.hex()}")
+                _dbg_coap(f"[coap] skipping stale oscore msg: token={token.hex()}"
+                          f" expected={expected_token.hex()}")
                 continue
 
             offset = 4 + tkl
@@ -651,12 +669,12 @@ class CoapClient:
             outer_payload = data[payload_offset:] if payload_offset < len(
                 data) else b""
 
-            print(f"[coap] recv msg: type={msg_type} code={code_byte:#04x}"
-                  f" mid={mid} tkl={tkl}"
-                  f" token={token.hex() if token else 'none'}"
-                  f" opts={sorted(options.keys())}"
-                  f" payload_len={len(outer_payload)}")
-            print(f"[coap] raw ({len(data)}B): {data.hex()}")
+            _dbg_coap(f"[coap] recv msg: type={msg_type} code={code_byte:#04x}"
+                      f" mid={mid} tkl={tkl}"
+                      f" token={token.hex() if token else 'none'}"
+                      f" opts={sorted(options.keys())}"
+                      f" payload_len={len(outer_payload)}")
+            _dbg_coap(f"[coap] raw ({len(data)}B): {data.hex()}")
 
             # Check if response has OSCORE option (9)
             if 9 in options:
@@ -1085,8 +1103,8 @@ class CoapClient:
                 try:
                     scope_id = socket.if_nametoindex(iface)
                 except (OSError, AttributeError):
-                    print(f"[coap] Warning: could not resolve interface '{iface}', "
-                          f"using scope_id=0")
+                    _dbg_coap(f"[coap] Warning: could not resolve interface '{iface}', "
+                              f"using scope_id=0")
         # Allow direct scope_id override for interface iteration during
         # discovery (avoids needing a name for each interface)
         if not scope_id:
@@ -1112,8 +1130,8 @@ class CoapClient:
         mcast_sock.settimeout(collect_timeout)
         mcast_sock.bind(("", 0))
 
-        print(f"[coap] multicast {method} -> [{mcast_addr}%{scope_id}]"
-              f":{port}{path}")
+        _dbg_coap(f"[coap] multicast {method} -> [{mcast_addr}%{scope_id}]"
+                  f":{port}{path}")
 
         dest = (mcast_addr, port, 0, scope_id)
         mcast_sock.sendto(msg, dest)
@@ -1166,12 +1184,12 @@ class CoapClient:
                 token=token,
                 source_addr=addr,
             )
-            print(f"[coap] multicast response from {addr[0]}: "
-                  f"{resp.code} payload_len={len(payload_data)}")
+            _dbg_coap(f"[coap] multicast response from {addr[0]}: "
+                      f"{resp.code} payload_len={len(payload_data)}")
             responses.append(resp)
 
         mcast_sock.close()
-        print(f"[coap] multicast: collected {len(responses)} response(s)")
+        _dbg_coap(f"[coap] multicast: collected {len(responses)} response(s)")
         return responses
 
     def multicast_get(self, path: str, scope: int = _DEFAULT_MC_SCOPE,
@@ -1271,8 +1289,8 @@ class CoapClient:
         mcast_sock.settimeout(collect_timeout)
         mcast_sock.bind(("", 0))
 
-        print(f"[coap] oscore multicast POST -> [{mcast_addr}%{scope_id}]"
-              f":{port}{path}")
+        _dbg_coap(f"[coap] oscore multicast POST -> [{mcast_addr}%{scope_id}]"
+                  f":{port}{path}")
 
         dest = (mcast_addr, port, 0, scope_id)
         mcast_sock.sendto(msg, dest)
@@ -1326,13 +1344,13 @@ class CoapClient:
                 options=resp_options,
                 source_addr=addr,
             )
-            print(f"[coap] oscore multicast response from {addr[0]}: "
-                  f"{resp.code} payload_len={len(resp_payload)}")
+            _dbg_coap(f"[coap] oscore multicast response from {addr[0]}: "
+                      f"{resp.code} payload_len={len(resp_payload)}")
             responses.append(resp)
 
         mcast_sock.close()
-        print(f"[coap] oscore multicast: collected {len(responses)} "
-              f"response(s)")
+        _dbg_coap(f"[coap] oscore multicast: collected {len(responses)} "
+                  f"response(s)")
         return responses
 
     # ------------------------------------------------------------------
@@ -1397,7 +1415,7 @@ class CoapClient:
                 try:
                     scope_id = socket.if_nametoindex(iface)
                 except (OSError, AttributeError):
-                    print(f"[coap] Warning: could not resolve '{iface}'")
+                    _dbg_coap(f"[coap] Warning: could not resolve '{iface}'")
 
         sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -1411,7 +1429,7 @@ class CoapClient:
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
         sock.settimeout(timeout)
 
-        print(f"[coap] listening on [{mcast_addr}%{scope_id}]:{port}")
+        _dbg_coap(f"[coap] listening on [{mcast_addr}%{scope_id}]:{port}")
 
         import time
         messages = []
@@ -1429,16 +1447,16 @@ class CoapClient:
                     break
                 msg = self.parse_coap_message(data)
                 if msg:
-                    print(f"[coap] multicast recv from {addr[0]}:{addr[1]}"
-                          f" type={msg['type']}"
-                          f" code={msg['code_class']}.{msg['code_detail']:02d}"
-                          f" opts={sorted(msg['options'].keys())}"
-                          f" payload_len={len(msg['payload'])}")
+                    _dbg_coap(f"[coap] multicast recv from {addr[0]}:{addr[1]}"
+                              f" type={msg['type']}"
+                              f" code={msg['code_class']}.{msg['code_detail']:02d}"
+                              f" opts={sorted(msg['options'].keys())}"
+                              f" payload_len={len(msg['payload'])}")
                     messages.append((msg, addr))
         finally:
             sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_LEAVE_GROUP,
                             mreq)
             sock.close()
 
-        print(f"[coap] multicast listener: captured {len(messages)} message(s)")
+        _dbg_coap(f"[coap] multicast listener: captured {len(messages)} message(s)")
         return messages
