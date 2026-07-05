@@ -80,7 +80,12 @@ static uint16_t g_unicast_port = 0; // 0 -> Let the OS assign an ephemeral port.
 static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
 {
     struct sockaddr_in6 from = {0};
-    uint8_t ctrl[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+    /* The control buffer MUST be zero-initialized. Zephyr's recvmsg finds a
+     * free ancillary slot by scanning for a cmsghdr with cmsg_len == 0, so an
+     * uninitialized buffer makes it fail to attach IPV6_PKTINFO (MSG_CTRUNC),
+     * and the multicast decision then wrongly falls back to the socket default.
+     */
+    uint8_t ctrl[CMSG_SPACE(sizeof(struct in6_pktinfo))] = {0};
     struct iovec iov = {
         .iov_base = message->data,
         .iov_len  = OC_PDU_SIZE,
@@ -115,12 +120,25 @@ static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
      * multicast. That pushes the OSCORE engine onto the s-mode Echo path
      * (ECHO_CAUSED_BY_MC_SRC), whose Echo response the client cannot decrypt.
      * Mirrors the Linux ipadapter IN6_IS_ADDR_MULTICAST() check. */
+    /* DEBUG (temporary): Trace ancillary-data delivery and the multicast
+     * decision. The unicast request was observed mis-tagged MULTICAST, which
+     * routes the OSCORE Echo response onto the s-mode path.
+     */
+    OC_DBG("Recvmsg ancillary: Socket %s, len=%zd, controllen=%zu, flags=0x%x.",
+           is_mcast ? "mcast" : "server", len, (size_t)mhdr.msg_controllen,
+           (unsigned)mhdr.msg_flags);
+
     bool dst_is_mcast = is_mcast;
+    bool found_pktinfo = false;
     for (struct cmsghdr *cm = CMSG_FIRSTHDR(&mhdr); cm != NULL;
          cm = CMSG_NXTHDR(&mhdr, cm)) {
+        OC_DBG("Recvmsg cmsg: Level=%d, type=%d, len=%zu.",
+               cm->cmsg_level, cm->cmsg_type, (size_t)cm->cmsg_len);
+
         if (cm->cmsg_level == IPPROTO_IPV6 && cm->cmsg_type == IPV6_PKTINFO) {
             struct in6_pktinfo *pi =
                 (struct in6_pktinfo *)CMSG_DATA(cm);
+            found_pktinfo = true;
             message->endpoint.interface_index = (int)pi->ipi6_ifindex;
             dst_is_mcast = (pi->ipi6_addr.s6_addr[0] == 0xff);
             if (!dst_is_mcast) {
@@ -139,6 +157,9 @@ static bool recv_one(int fd, oc_message_t *message, bool is_mcast)
             break;
         }
     }
+
+    OC_DBG("Multicast decision: Found_pktinfo=%d, dst_is_mcast=%d, socket_default=%d.",
+           found_pktinfo, dst_is_mcast, is_mcast);
 
     /* Apply the destination-derived multicast decision, overriding the
      * socket-based default the caller set on message->endpoint.flags.
