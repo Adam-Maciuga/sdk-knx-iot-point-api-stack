@@ -150,7 +150,14 @@ FetchContent_Declare(
     PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH_FILE=${PROJECT_SOURCE_DIR}/port/mdns.patch -P "${PROJECT_SOURCE_DIR}/cmake/patch.cmake"
 )
 
-FetchContent_MakeAvailable(mdns)
+# Note:
+# Use FetchContent_Populate (not MakeAvailable) to download only. The mdns
+# library's own CMakeLists.txt builds an example program (mdns.c) that we do
+# not need. We only require the mdns.h header.
+FetchContent_GetProperties(mdns)
+if(NOT mdns_POPULATED)
+    FetchContent_Populate(mdns)
+endif()
 
 target_sources(kis-port PRIVATE
     ${PORT_DIR}/abort.c

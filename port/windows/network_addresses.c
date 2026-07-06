@@ -24,7 +24,7 @@
 // clang-format on
 #undef interface
 
-ifaddr_t * get_network_addresses() {
+ifaddr_t * get_network_addresses(void) {
   ifaddr_t *ifaddr_list = NULL;
   ULONG family = AF_INET6;
   int i, max_retries = 5;

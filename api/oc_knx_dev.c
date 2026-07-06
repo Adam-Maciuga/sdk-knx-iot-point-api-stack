@@ -1223,7 +1223,7 @@ void oc_knx_device_storage_reset(int reset_mode)
     // LSM (first to prevent any runtime messaging in/out)
     oc_knx_set_and_store_lsm(LSM_S_UNLOADED);
 
-    // set the ia to KNX defaults (ports see above)
+    // set the to KNX defaults (ports see above)
     device->pm = false;
 
     // drop multicast memberships before clearing the tables

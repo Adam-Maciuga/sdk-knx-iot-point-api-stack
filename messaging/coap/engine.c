@@ -863,11 +863,13 @@ int coap_receive(oc_message_t* incoming_message)
 
             oc_clock_time_t delta_time = echo_ctx.echo.timestamp - echo.timestamp; 
 
-            OC_DBG("'echo' timestamp difference %" PRIu64", threshold %d", delta_time, OC_ECHO_FRESHNESS_TIME);
+            OC_DBG("'echo' timestamp difference %" PRIu64 ", threshold %" PRIu64,
+                   delta_time, (oc_clock_time_t)OC_ECHO_FRESHNESS_TIME);
 
             if (delta_time > OC_ECHO_FRESHNESS_TIME)
             {
-              OC_ERR("'echo' timestamp difference to large %" PRIu64 ", threshold %d", delta_time, OC_ECHO_FRESHNESS_TIME);
+              OC_ERR("'echo' timestamp difference to large %" PRIu64 ", threshold %" PRIu64,
+                     delta_time, (oc_clock_time_t)OC_ECHO_FRESHNESS_TIME);
 
               // send 4.01 'unicast echo response' with OSCORE options but no s-mode app. payload, echo option + 4.01
               echo_ctx.code = UNAUTHORIZED_4_01;

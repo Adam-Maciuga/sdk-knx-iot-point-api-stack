@@ -1838,7 +1838,15 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     memcpy(spake_data.w0, g_spake_record.w0, sizeof(spake_data.w0));
     memcpy(spake_data.L, g_spake_record.L, sizeof(spake_data.L));
 
+    /* Instrumentation: Measure each SPAKE2+ step 2 elliptic-curve call separately.
+     * Guarded by OC_DEBUG so the timestamps and logs compile out in non-debug builds. */
+#ifdef OC_DEBUG
+    oc_clock_time_t spake_calc_t0 = oc_clock_time();
+#endif
+
     int ret = spake2plus_gen_keypair(spake_data.y, spake_data.pub_y);
+    OC_DBG("SPAKE2+ step 2 gen_keypair time: %" PRIu64 " ms.",
+           (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ ephemeral key pair generation failed with code %d!", ret);
@@ -1846,24 +1854,39 @@ static oc_event_callback_retval_t oc_core_knx_spake_separate_post_handler(void* 
     }
 
     // calculate shareV = pub_y + w0*N (encoded as uncompressed P-256 point)
+#ifdef OC_DEBUG
+    spake_calc_t0 = oc_clock_time();
+#endif
     ret = spake2plus_calc_shareV(g_pase_session.params.shareV, spake_data.pub_y, spake_data.w0);
+    OC_DBG("SPAKE2+ step 2 calc_shareV time: %" PRIu64 " ms.",
+           (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ shareV computation failed with code %d!", ret);
       goto error;
     }
 
+#ifdef OC_DEBUG
+    spake_calc_t0 = oc_clock_time();
+#endif
     ret = spake2plus_calc_transcript_responder(&spake_data, g_pase_session.params.shareP, g_pase_session.params.shareV,
                                                KNX_IOT_SPAKE2PLUS_ID_PROVER,
                                                KNX_IOT_SPAKE2PLUS_ID_VERIFIER,
                                                KNX_IOT_SPAKE2PLUS_CONTEXT);
+    OC_DBG("SPAKE2+ step 2 calc_transcript_responder time: %" PRIu64 " ms.",
+           (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
     if (ret != 0)
     {
       OC_ERR("SPAKE2+ transcript computation failed with code %d!", ret);
       goto error;
     }
 
+#ifdef OC_DEBUG
+    spake_calc_t0 = oc_clock_time();
+#endif
     spake2plus_calc_confirmV(spake_data.K_main, g_pase_session.params.confirmV, g_pase_session.params.shareP);
+    OC_DBG("SPAKE2+ step 2 calc_confirmV time: %" PRIu64 " ms.",
+           (uint64_t)(oc_clock_time() - spake_calc_t0) * 1000U / OC_CLOCK_CONF_TICKS_PER_SECOND);
 
     // return 2.04 changed, frame shareV (11) & confirmV (13)
 

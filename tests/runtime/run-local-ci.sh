@@ -69,4 +69,6 @@ exec env \
   DEVICE_HOST="$DUT_ADDR" \
   DEVICE_IFACE=veth-test \
   RUNTIME_TEST_QUIET=1 \
+  KNX_TEST_DEBUG_OSCORE=0 \
+  KNX_TEST_DEBUG_COAP=0 \
   python3 -m pytest "$@" -v --tb=short

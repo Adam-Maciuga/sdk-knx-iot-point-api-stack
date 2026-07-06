@@ -75,7 +75,7 @@ int oc_oscore_context_derive_param(
         const char *type, 
         const uint8_t *secret, uint8_t secret_len, 
         const uint8_t *salt, uint8_t salt_len, 
-        const uint8_t *param, uint8_t param_len);
+        uint8_t *param, uint8_t param_len);
 
 void oc_oscore_free_context(oc_oscore_context_t *ctx);
 
