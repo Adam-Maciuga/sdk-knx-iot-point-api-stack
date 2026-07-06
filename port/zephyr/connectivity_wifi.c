@@ -57,9 +57,22 @@ static const uint8_t ALL_COAP_NODES_SL[] = { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
 #define RX_THREAD_STACK_SIZE 4096
 #define RX_THREAD_PRIORITY      7   /* lower number = higher priority */
 
+/* Finite rx poll timeout (milliseconds).
+ * The rx thread holds socket_mutex across zsock_poll, so a socket mutator
+ * (close, rebind, multicast (re)join) waits at most this long to acquire it.
+ */
+#define RX_POLL_TIMEOUT_MS    100
+
 K_THREAD_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
 static struct k_thread rx_thread_data;
 K_MUTEX_DEFINE(network_mutex);
+
+/* Serializes the rx thread's zsock_poll against any socket lifecycle or
+ * configuration change (close, rebind, multicast group join/leave). Closing or
+ * reconfiguring a socket while it is registered in another thread's poll
+ * corrupts the poll wait-queue, which faults later in the scheduler.
+ */
+K_MUTEX_DEFINE(socket_mutex);
 
 /* server_sock: Unicast traffic only, also used for all outgoing sends.
  * mcast_sock:  Multicast group subscriptions, receive-only.
@@ -185,17 +198,31 @@ static void rx_thread(void *p1, void *p2, void *p3)
            server_sock, mcast_sock);
 
     while (true) {
-        struct zsock_pollfd fds[2] = {
-            { .fd = server_sock, .events = ZSOCK_POLLIN },
-            { .fd = mcast_sock,  .events = ZSOCK_POLLIN },
-        };
+        struct zsock_pollfd fds[2];
 
-        int r = zsock_poll(fds, 2, -1);
+        /* Snapshot the fds and poll them while holding socket_mutex, so no other
+         * thread can close or reconfigure a socket while it is registered in this
+         * poll (that corrupts the poll wait-queue). The finite timeout lets a
+         * mutator acquire the mutex between polls.
+         */
+        k_mutex_lock(&socket_mutex, K_FOREVER);
+        if (server_sock < 0 && mcast_sock < 0) {
+            /* Both sockets closed — shutdown requested, exit thread. */
+            k_mutex_unlock(&socket_mutex);
+            break;
+        }
+
+        fds[0] = (struct zsock_pollfd){ .fd = server_sock, .events = ZSOCK_POLLIN };
+        fds[1] = (struct zsock_pollfd){ .fd = mcast_sock,  .events = ZSOCK_POLLIN };
+
+        int r = zsock_poll(fds, 2, RX_POLL_TIMEOUT_MS);
+        k_mutex_unlock(&socket_mutex);
+
+        if (r == 0) {
+            continue;  /* timeout, re-poll */
+        }
+
         if (r < 0) {
-            if (server_sock < 0 && mcast_sock < 0) {
-                /* Both sockets closed — shutdown requested, exit thread. */
-                break;
-            }
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 OC_ERR("Failed to wait for incoming CoAP datagrams: %d", errno);
             }
@@ -349,6 +376,9 @@ static void setup_multicast_interface(void)
         return;
     }
 
+    /* Serialize against the rx poll. This reconfigures both sockets. */
+    k_mutex_lock(&socket_mutex, K_FOREVER);
+
     if (zsock_setsockopt(server_sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                          &ifidx, sizeof(ifidx)) < 0) {
         OC_WRN("Failed to pin multicast sends to interface: %d", errno);
@@ -374,6 +404,8 @@ static void setup_multicast_interface(void)
             n_joined++;
         }
     }
+
+    k_mutex_unlock(&socket_mutex);
 
     OC_INF("Joined %d/3 all-CoAP-nodes multicast groups.", n_joined);
 }
@@ -530,6 +562,11 @@ int oc_connectivity_init(void)
 }
 
 int oc_connectivity_get_new_port(void) {
+    /* Serialize against the rx poll so we never close the socket while it is
+     * registered in that poll.
+     */
+    k_mutex_lock(&socket_mutex, K_FOREVER);
+
     int old_fd = server_sock;
     server_sock = -1; /* signal rx_thread to skip this socket while we replace it */
 
@@ -541,6 +578,7 @@ int oc_connectivity_get_new_port(void) {
     int new_fd = open_and_bind_socket(0, "unicast");
     if (new_fd < 0) {
         OC_ERR("Failed to create new unicast CoAP socket!");
+        k_mutex_unlock(&socket_mutex);
         return -1;
     }
 
@@ -552,6 +590,7 @@ int oc_connectivity_get_new_port(void) {
         OC_INF("New CoAP unicast port: %u.", (unsigned)ntohs(sa.sin6_port));
     }
 
+    k_mutex_unlock(&socket_mutex);
     return 0;
 }
 
@@ -795,17 +834,23 @@ oc_endpoint_t *oc_connectivity_get_endpoints(void)
 void oc_connectivity_shutdown(void)
 {
     /* Set both fds to -1 before closing so the rx_thread poll loop detects
-     * shutdown and exits cleanly. */
+     * shutdown and exits cleanly. Serialize against the rx poll so we never
+     * close a socket while it is registered in that poll.
+     */
+    k_mutex_lock(&socket_mutex, K_FOREVER);
     if (server_sock >= 0) {
         int fd = server_sock;
         server_sock = -1;
         zsock_close(fd);
     }
+
     if (mcast_sock >= 0) {
         int fd = mcast_sock;
         mcast_sock = -1;
         zsock_close(fd);
     }
+
+    k_mutex_unlock(&socket_mutex);
 }
 
 /* ── Network event handler mutex ─────────────────────────────────────────── */
