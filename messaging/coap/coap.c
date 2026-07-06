@@ -40,6 +40,8 @@
 #include "oc_ri.h"
 #include "port/oc_random.h"
 
+#include "port/oc_random.h"
+
 #ifdef OC_TCP
 #include "coap_signal.h"
 #include "security/oc_tls.h"
