@@ -54,7 +54,7 @@ static const uint8_t ALL_COAP_NODES_SL[] = { 0xff, 0x05, 0, 0, 0, 0, 0, 0,
                                               0,    0,    0, 0, 0, 0, 0, 0xFD };
 
 /* Receive thread parameters */
-#define RX_THREAD_STACK_SIZE 2048
+#define RX_THREAD_STACK_SIZE 4096
 #define RX_THREAD_PRIORITY      7   /* lower number = higher priority */
 
 K_THREAD_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
