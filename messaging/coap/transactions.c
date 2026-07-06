@@ -1,7 +1,7 @@
 /* 
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2024-2025 KNX Association
- *
+ *            
  * SPDX-License-Identifier: Apache-2.0
  *
  * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
@@ -37,7 +37,6 @@
 #include "api/oc_knx_fp.h"
 #include "observe.h"
 #include "oc_buffer.h"
-#include "port/oc_random.h"
 #include "util/oc_list.h"
 #include <inttypes.h>
 #include <stdlib.h>

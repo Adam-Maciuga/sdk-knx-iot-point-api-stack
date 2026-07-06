@@ -2,13 +2,12 @@
  * Copyright (c) 2016 Intel Corporation
  * Copyright (c) 2021-2023 Cascoda Ltd
  * Copyright (c) 2024-2026 KNX Association
- *
+ *            
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stdlib.h>
 #include "messaging/coap/coap.h"
-#include "port/oc_random.h"
 #include "oc_api.h"
 #include "conf.h"
 #include "port/oc_random.h"
