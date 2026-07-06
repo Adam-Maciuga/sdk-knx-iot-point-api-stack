@@ -197,14 +197,6 @@ static void increment_ssn_in_context(oc_oscore_context_t* ctx)
 #endif
 
 /* 
-   GA flavour of osc:id is at most 4 bytes
-   - inbound messages with more than 4 byte are rejected before reaching this ring 
-     (we do not find an access token for that '> 4 byte GA' in AT table)
-   - outbound messages are strictly uses 32 bit
-*/
-#define OC_ECHO_KID_LEN (4)
-
-/* 
   - outbound echo responses are strictly uses 10 byte but will never be stored in the echo ring
   - inbound echo responses are gated on kid_ctx_len == 10 (spec clause 3.6.4.1.3), with != 10 byte
     a message is rejected before reaching the echo ring
@@ -244,7 +236,7 @@ typedef struct
   {
     oc_message_t* msg;
     uint64_t      ssn;
-    uint8_t       kid[OC_ECHO_KID_LEN];
+    uint8_t       kid[OSCORE_SENDER_ID_LEN];
     uint8_t       token[COAP_TOKEN_LEN];
     uint8_t       token_len;
     uint8_t       kid_len;       // 0 = slot wiped
@@ -303,7 +295,7 @@ void oc_oscore_echo_whitelist_append(uint64_t ssn, const uint8_t* kid, uint8_t k
 
   e->wl.ssn = ssn;
 
-  if (kid && kid_len <= OC_ECHO_KID_LEN)
+  if (kid && kid_len <= OSCORE_SENDER_ID_LEN)
   {
     memcpy(e->wl.kid, kid, kid_len);
     e->wl.kid_len = kid_len;
@@ -404,7 +396,7 @@ bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt)
 
   b->wl.ssn = ssn;
 
-  if (pkt->kid_len <= OC_ECHO_KID_LEN)
+  if (pkt->kid_len <= OSCORE_SENDER_ID_LEN)
   {
     memcpy(b->wl.kid, pkt->kid, pkt->kid_len);
     b->wl.kid_len = pkt->kid_len;

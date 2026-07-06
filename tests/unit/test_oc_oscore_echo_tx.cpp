@@ -27,6 +27,7 @@
 
 extern "C" {
 #include "messaging/coap/oscore.h"
+#include "messaging/coap/oscore_constants.h"
 #include "messaging/coap/coap.h"
 #include "oc_buffer.h"
 }
@@ -34,8 +35,12 @@ extern "C" {
 /* Ring capacity -- must stay a power of two to match the production macro. */
 static const int ECHO_RING_SIZE = 64;
 
-/* Shared kid used for store/consume; kid_len > 0 makes the entry live. */
-static uint8_t g_kid[] = {0x01};
+/*
+ * Shared kid used for store/consume.
+ * Uses the full OSCORE_SENDER_ID_LEN (7 bytes) to exercise the production
+ * gate (kid_len <= OSCORE_SENDER_ID_LEN) with a realistic value.
+ */
+static uint8_t g_kid[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 
 /* Two distinct responder kid_contexts (server-side randoms, 10 bytes on the wire). */
 static uint8_t g_ctx_a[] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9};
@@ -146,7 +151,7 @@ TEST_F(EchoTxRingTest, UnknownSSN_AfterStore_IsDropped)
 TEST_F(EchoTxRingTest, WrongKid_SameSSN_IsDropped)
 {
   store(10);
-  uint8_t other_kid[] = {0x02};
+  uint8_t other_kid[] = {0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA, 0xF9};  /* valid length, wrong content */
   EXPECT_FALSE(consume_full(10, other_kid, sizeof(other_kid), g_ctx_a, sizeof(g_ctx_a)));
   /* genuine kid still accepted */
   EXPECT_TRUE(consume(10));
@@ -464,9 +469,9 @@ TEST_F(EchoTxRingTest, OverflowMixed_EvictedBlSlot_DoesNotFalseReplay)
  * ssn_X_N  = the Nth outbound SSN from sender X
  */
 
-static uint8_t g_kid_x[] = {0x0A};  /* sender X */
-static uint8_t g_kid_y[] = {0x0B};  /* sender Y */
-static uint8_t g_kid_z[] = {0x0C};  /* sender Z */
+static uint8_t g_kid_x[] = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};  /* sender X */
+static uint8_t g_kid_y[] = {0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20};  /* sender Y */
+static uint8_t g_kid_z[] = {0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30};  /* sender Z */
 
 /* store an anchor for (ssn, kid) where kid is the full byte array */
 static void store_kid(uint64_t ssn, const uint8_t* kid, uint8_t kid_len)
