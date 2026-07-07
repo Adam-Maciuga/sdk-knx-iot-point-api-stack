@@ -35,6 +35,7 @@ add_compile_definitions(OC_CLIENT OC_SERVER)
 #   in dependence of such a variable 'value' a specific compile flag is set (see cmake 'target_compile_definitions').
 #   HENCE, 
 #   - stack 'values' that MAY be overwritten by device application don't use FORCE = the stack uses this value as a default 'value'
+#     as long as the device application NOT overwrite it with its own 'value'
 #   - stack 'values' that SHALL NOT be overwritten by device application uses FORCE = fixed stack 'value'
 
 ## Common
@@ -78,8 +79,7 @@ set(KNX_PAYLOAD_SIZE "1024" CACHE STRING "Maximum payload bytes, allocated by st
 set(KNX_UNICAST_PORT "0" CACHE STRING "IPv6 unicast port, used on snd/rcv (uc) stack and s-mode messages")
 
 # IPv6 multicast scope (used for sending and receiving multicast messages).
-# Scope 2 (link-local) is appropriate for isolated single-segment networks
-# or when the router blocks site-local multicast.
+# Scope 2 (link-local) is appropriate for isolated single-segment networks or when the router blocks site-local multicast.
 # Scope 5 (site-local) is the default for routed deployments.
 set(KNX_MULTICAST_SCOPE "5" CACHE STRING "IPv6 multicast scope, used on snd/rcv (mc) stack and s-mode messages")
 

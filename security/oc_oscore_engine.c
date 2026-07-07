@@ -387,7 +387,7 @@ bool oc_oscore_echo_check_and_consume(const struct coap_packet_t* pkt)
     return false;
   }
 
-  // 3b: // power-of-two roll-over, increase anchor before writing 
+  // 3b:, power-of-two roll-over, increase anchor before writing 
   g_echo_idx = (g_echo_idx + 1) & (OC_ECHO_RING_SIZE - 1);
   oc_echo_entry_t* b = &g_echo_ring[g_echo_idx];
 
