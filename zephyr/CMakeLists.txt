@@ -262,6 +262,13 @@ else()
         "Enable CONFIG_NET_L2_OPENTHREAD (Thread), CONFIG_WIFI (Wi-Fi), or CONFIG_NET_L2_ETHERNET (Ethernet).")
 endif()
 
+# Test-control endpoints (/test/*) for the Python runtime conformance suite.
+# Optional. The application enables the /test/* resources by calling
+# oc_test_control_register() under #ifdef KNX_TEST_CONTROL.
+if(CONFIG_KNXIOT_TEST_CONTROL)
+    list(APPEND API_SOURCES ${STACK_ROOT}/api/oc_test_control.c)
+endif()
+
 zephyr_library_named(knx_iot_stack)
 zephyr_library_sources(
     ${API_SOURCES}
@@ -298,6 +305,14 @@ zephyr_compile_definitions(
     $<$<BOOL:${CONFIG_KNXIOT_CLIENT}>:OC_CLIENT>
     $<$<BOOL:${CONFIG_KNXIOT_SERVER}>:OC_SERVER>
     $<$<BOOL:${CONFIG_KNXIOT_PUBLISHER_TABLE}>:OC_PUBLISHER_TABLE>
+)
+
+## Testing
+# KNX_TEST_CONTROL gates the /test/* control endpoints in the application
+# (see api/oc_test_control.c). Propagated to all targets so the app source
+# that calls oc_test_control_register() picks it up.
+zephyr_compile_definitions(
+    $<$<BOOL:${CONFIG_KNXIOT_TEST_CONTROL}>:KNX_TEST_CONTROL>
 )
 
 ## Table sizes

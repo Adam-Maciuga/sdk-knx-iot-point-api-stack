@@ -13,7 +13,7 @@
  * Only the branches that are exercisable in isolation are unit-tested here:
  *   post_test_trigger     — NULL path -> 4.00; over-long path -> g_set_dp_cb
  *                           is invoked then 4.00 (no device / no scheduling)
- *   _deferred_trigger_cb  — no pending trigger -> OC_EVENT_DONE (no network)
+ *   deferred_trigger_cb  — no pending trigger -> OC_EVENT_DONE (no network)
  *
  * Branches requiring an initialised device/core or the network are recorded as
  * integration-level in tests/COVERAGE_LEDGER.md (see NOTE at the bottom).
@@ -156,7 +156,7 @@ TEST_F(TestControlTrigger, OverLongPathWithoutCallbackStillBadRequest)
 TEST_F(TestControlTrigger, DeferredCbWithNoPendingReturnsDone)
 {
   g_trigger_pending = false;
-  EXPECT_EQ(_deferred_trigger_cb(nullptr), OC_EVENT_DONE);
+  EXPECT_EQ(deferred_trigger_cb(nullptr), OC_EVENT_DONE);
   EXPECT_FALSE(g_trigger_pending);
 }
 

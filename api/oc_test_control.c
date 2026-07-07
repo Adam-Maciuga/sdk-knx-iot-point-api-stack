@@ -22,19 +22,64 @@ static oc_test_control_set_dp_fn   g_set_dp_cb;
 static oc_test_control_reset_dp_fn g_reset_dp_cb;
 
 /* ── POST /test/restart ────────────────────────────────────────────────── */
+
+/* deferred_restart_cb
+ * Runs the device restart on the main event loop, not in the CoAP handler.
+ *
+ * Delayed on purpose. oc_knx_device_restart() is a deep call tree: It re-inits
+ * all OSCORE contexts from storage, re-runs datapoint init, re-registers
+ * DNS-SD, and runs the application restart callback. Executing that inline in
+ * the request handler runs it on the CoAP RX thread, whose stack is small
+ * (e.g. 4 KB on Zephyr) and overflows silently with no panic trace.
+ * Deferring hands it to the main thread, whose stack is sized for full
+ * stack init, and lets the CoAP response be sent first.
+ */
+static oc_event_callback_retval_t deferred_restart_cb(void *data)
+{
+  (void)data;
+  oc_knx_device_restart();
+  return OC_EVENT_DONE;
+}
+
 static void post_test_restart(oc_request_t *request,
                               oc_interface_mask_t iface_mask, void *user_data)
 {
   (void)iface_mask;
   (void)user_data;
-  (void)request;
   printf("[test-ctrl] Restart triggered via POST /test/restart\n");
   fflush(stdout);
-  oc_knx_device_restart();
   oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
+
+  /* Defer the restart so the CoAP response is sent first and the heavy
+   * re-init runs on the main thread, not in the limited CoAP RX handler
+   * stack. Mirrors the stack's own /.well-known/knx restart (75 ms).
+   */
+  oc_set_delayed_callback_ms(NULL, deferred_restart_cb, 75);
 }
 
 /* ── POST /test/factory-reset ──────────────────────────────────────────── */
+
+/* deferred_factory_reset_cb
+ * Runs the storage/table erase on the main event loop, not in the CoAP handler.
+ *
+ * Delayed on purpose. oc_knx_device_storage_reset() erases all AT and group
+ * tables and resets the SPAKE state, a deep and NVS-heavy call tree. Executing
+ * it inline in the request handler runs it on the CoAP RX thread, whose stack
+ * is small (e.g. 4 KB on Zephyr) and overflows silently with no panic trace.
+ * Deferring hands it to the main thread, whose stack is sized for
+ * full stack init, and lets the CoAP response be sent first.
+ */
+static oc_event_callback_retval_t deferred_factory_reset_cb(void *data)
+{
+  (void)data;
+  oc_knx_device_storage_reset(2 /* RESET_TO_DEFAULT_STATE */);
+  if (g_reset_dp_cb) {
+    g_reset_dp_cb();
+  }
+
+  return OC_EVENT_DONE;
+}
+
 static void post_test_factory_reset(oc_request_t *request,
                                     oc_interface_mask_t iface_mask,
                                     void *user_data)
@@ -43,11 +88,13 @@ static void post_test_factory_reset(oc_request_t *request,
   (void)user_data;
   printf("[test-ctrl] Factory reset triggered via POST /test/factory-reset\n");
   fflush(stdout);
-  oc_knx_device_storage_reset(2 /* RESET_TO_DEFAULT_STATE */);
-  if (g_reset_dp_cb) {
-    g_reset_dp_cb();
-  }
   oc_prepare_no_format_response_no_payload(request, OC_STATUS_CHANGED);
+
+  /* Defer the storage reset so the CoAP response is sent first and the heavy
+   * table erase runs on the main thread, not in the limited CoAP RX handler
+   * stack. Mirrors the stack's own /.well-known/knx reset (200 ms).
+   */
+  oc_set_delayed_callback_ms(NULL, deferred_factory_reset_cb, 200);
 }
 
 /* ── POST /test/trigger ────────────────────────────────────────────────── */
@@ -60,7 +107,7 @@ static void post_test_factory_reset(oc_request_t *request,
 static char  g_pending_trigger_path[64];
 static bool  g_trigger_pending = false;
 
-static oc_event_callback_retval_t _deferred_trigger_cb(void *data)
+static oc_event_callback_retval_t deferred_trigger_cb(void *data)
 {
   (void)data;
   if (g_trigger_pending) {
@@ -119,7 +166,7 @@ static void post_test_trigger(oc_request_t *request,
   printf("[test-ctrl] Trigger scheduled for '%s'\n", path);
   fflush(stdout);
 
-  oc_set_delayed_callback_ms(NULL, _deferred_trigger_cb, 0);
+  oc_set_delayed_callback_ms(NULL, deferred_trigger_cb, 0);
 
   oc_prepare_cbor_response(request, OC_STATUS_CHANGED);
 }

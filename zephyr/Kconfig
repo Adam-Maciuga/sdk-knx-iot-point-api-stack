@@ -203,6 +203,21 @@ config KNXIOT_TLS_PKI
     help
       Corresponds to CMake: OC_PKI_ENABLED.
 
+# ── Testing ────────────────────────────────────────────────────────────────────
+
+config KNXIOT_TEST_CONTROL
+    bool "Test-control endpoints (/test/restart, /test/factory-reset, /test/trigger)"
+    default n
+    help
+      Compiles api/oc_test_control.c and defines KNX_TEST_CONTROL for all targets.
+      Registers the non-standard /test/* CoAP endpoints used by the Python runtime
+      conformance suite (tests/runtime) to automate operator actions normally done
+      by hand in the EITT GUI: soft restart, factory reset, and sensor trigger.
+      The application must call oc_test_control_register() when this is set (the
+      EITT demo app does so under #ifdef KNX_TEST_CONTROL). Off by default. The
+      EITT demo enables it via CONFIG_KNXIOT_TEST_CONTROL=y in its prj.conf.
+      Leave off for lssb/lsab and any production build.
+
 # ── Timing ─────────────────────────────────────────────────────────────────────
 # OC_CLOCK_CONF_TICKS_PER_SECOND (port/zephyr/oc_config.h) is set to
 # CONFIG_SYS_CLOCK_TICKS_PER_SEC so the KNX-IoT timer arithmetic matches
