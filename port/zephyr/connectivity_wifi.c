@@ -893,12 +893,17 @@ void oc_connectivity_subscribe_mcast_ipv6(oc_endpoint_t *address)
     mreq.ipv6mr_ifindex = wifi_if ? (unsigned int)net_if_get_by_iface(wifi_if) : 0;
 
     OC_DBG("Subscribing to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
+    /* Serialize against the rx thread's zsock_poll, which registers mcast_sock
+     * in its poll set. Mutating the socket without this lock corrupts the poll
+     * wait-queue and faults the scheduler. */
+    k_mutex_lock(&socket_mutex, K_FOREVER);
     if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
                    &mreq, sizeof(mreq)) < 0) {
         OC_ERR("Failed to subscribe to multicast group: %d", errno);
     } else {
         OC_INF("Subscribed to multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     }
+    k_mutex_unlock(&socket_mutex);
 }
 
 void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
@@ -917,12 +922,17 @@ void oc_connectivity_unsubscribe_mcast_ipv6(oc_endpoint_t *address)
     mreq.ipv6mr_ifindex = wifi_if ? (unsigned int)net_if_get_by_iface(wifi_if) : 0;
 
     OC_DBG("Unsubscribing from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
+    /* Serialize against the rx thread's zsock_poll, which registers mcast_sock
+     * in its poll set. Mutating the socket without this lock corrupts the poll
+     * wait-queue and faults the scheduler. */
+    k_mutex_lock(&socket_mutex, K_FOREVER);
     if (zsock_setsockopt(mcast_sock, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
                    &mreq, sizeof(mreq)) < 0) {
         OC_ERR("Failed to unsubscribe from multicast group: %d", errno);
     } else {
         OC_INF("Unsubscribed from multicast group on ifidx=%u.", mreq.ipv6mr_ifindex);
     }
+    k_mutex_unlock(&socket_mutex);
 }
 
 int oc_network_refresh_endpoints(void)
