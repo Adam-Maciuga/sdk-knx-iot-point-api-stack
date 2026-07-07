@@ -774,7 +774,7 @@ Statics reached by compiling the TU into the test (`#include "api/oc_test_contro
 | Function | Status |
 |----------|--------|
 | post_test_trigger (static) | DONE — NULL path→4.00; over-long path (≥64) invokes `g_set_dp_cb` then→4.00 (covered with and without a registered callback). Success path is integration-level (see below). |
-| _deferred_trigger_cb (static) | DONE — no-pending branch→`OC_EVENT_DONE`. Pending branch sends an s-mode multicast (network) — integration-level. |
+| deferred_trigger_cb (static) | DONE — no-pending branch→`OC_EVENT_DONE`. Pending branch sends an s-mode multicast (network) — integration-level. |
 | post_test_restart (static) | UNTESTABLE in isolation — calls `oc_knx_device_restart()`, which dereferences `oc_core_get_device_info()` (NULL without an initialised core device) and re-publishes DNS-SD. Requires a full device fixture. |
 | post_test_factory_reset (static) | UNTESTABLE in isolation — calls `oc_knx_device_storage_reset(2)`, which wipes persistent storage and the device singleton. Destructive; requires a device/storage fixture. |
 | oc_test_control_register (public) | UNTESTABLE in isolation — `oc_new_resource()`/`oc_add_resource()` require an initialised RI/core. Exercised at integration level when a device registers the test endpoints. |
