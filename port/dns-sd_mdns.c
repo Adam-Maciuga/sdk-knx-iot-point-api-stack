@@ -1047,6 +1047,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
   // must have a published service
   if (!current_advertisement.valid)
   {
+    OC_ERR("DNS-SD: Invalid 'current' advertisement found!");
     return 0;
   }
 
@@ -1137,16 +1138,18 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
 
     if (ptr_respond)
     {
-      // Use the queried name as PTR answer name
+      // use the queried name as PTR answer name
       char ptr_name[256];
-      size_t plen = qstr.length;
-      if (plen >= sizeof(ptr_name)) plen = sizeof(ptr_name) - 1;
-      memcpy(ptr_name, qname, plen);
-      ptr_name[plen] = '\0';
-      if (plen > 0 && ptr_name[plen - 1] != '.' && plen + 1 < sizeof(ptr_name))
+      const size_t ptr_len = qstr.length >= sizeof(ptr_name) ? sizeof(ptr_name) - 1 : qstr.length;
+
+      memcpy(ptr_name, qname, ptr_len);
+      ptr_name[ptr_len] = '\0';
+
+      if (ptr_len > 0 && ptr_name[ptr_len - 1] != '.' && ptr_len + 1 < sizeof(ptr_name))
       {
-        ptr_name[plen] = '.';
-        ptr_name[plen + 1] = '\0';
+        // add trailing dot if not present
+        ptr_name[ptr_len] = '.';
+        ptr_name[ptr_len + 1] = '\0';
       }
 
       ret = send_query_response(sock, ptr_name);
@@ -1156,7 +1159,7 @@ static int mdns_query_callback(int sock, const struct sockaddr *from, size_t add
       }
       else
       {
-        OC_INF("DNS-SD: PTR answer sent for %s.", ptr_name);
+        OC_INF("DNS-SD: PTR answer sent for %s", ptr_name);
       }
       return 0;
     }
@@ -1472,12 +1475,14 @@ void knx_dns_sd_clear_advertisement(void)
   if (current_advertisement.valid)
   {
     (void)send_announcement(&current_advertisement, true);
+
+    OC_INF("DNS-SD: current advertisement cleared.");
   }
 
   // wipe the entire record, so the next update_service call starts clean (valid = false, no stale SP, IA, IID, pm, or sn)
   memset(&current_advertisement, 0, sizeof(current_advertisement));
 
-  OC_INF("DNS-SD: advertisement cleared.");
+  
 }
 
 void knx_dns_sd_stop(void)
