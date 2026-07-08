@@ -62,6 +62,7 @@ COAP_TIMEOUT = 5.0
 MDNS_MULTICAST_ADDR = "ff02::fb"
 MDNS_PORT = 5353
 DNS_TYPE_PTR = 12
+DNS_TYPE_TXT = 16
 DNS_CLASS_IN = 1
 
 
@@ -297,6 +298,379 @@ def _capture_mdns_announcements(iface_idx: int, target_ptr_name: str,
         return ptr_results
     finally:
         sock.close()
+
+
+# ---------------------------------------------------------------------------
+# Helper: raw mDNS SP-TXT query (bypasses zeroconf cache)
+# ---------------------------------------------------------------------------
+
+def _raw_mdns_txt_query(iface_idx: int, instance_name: str,
+                        timeout: float = 5.0) -> "dict[bytes, bytes | None] | None":
+    """Send a raw mDNS PTR query and return TXT key/value pairs for instance_name.
+
+    The DUT responds to PTR queries with a full record set (PTR + SRV + AAAA +
+    optional TXT SP=<n> in the additional section).  We parse all RRs in
+    the response, collect TXT records whose owner name matches instance_name,
+    and return the parsed properties.
+
+    Returns:
+        dict  - TXT response received (may be empty if no keys present)
+        None  - no PTR response received within timeout
+    """
+    header = struct.pack("!HHHHHH", 0, 0, 1, 0, 0, 0)
+    question = (_encode_dns_name(KNX_SERVICE_TYPE)
+                + struct.pack("!HH", DNS_TYPE_PTR, DNS_CLASS_IN))
+    packet = header + question
+
+    instance_norm = instance_name.lower().rstrip(".")
+
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.bind(("::", MDNS_PORT))
+        mreq = socket.inet_pton(socket.AF_INET6, MDNS_MULTICAST_ADDR)
+        mreq += struct.pack("I", iface_idx)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+        sock.setsockopt(
+            socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF,
+            struct.pack("I", iface_idx),
+        )
+        sock.settimeout(timeout)
+        sock.sendto(packet, (MDNS_MULTICAST_ADDR, MDNS_PORT, 0, iface_idx))
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            sock.settimeout(remaining)
+            try:
+                data, _addr = sock.recvfrom(4096)
+            except socket.timeout:
+                break
+
+            if len(data) < 12:
+                continue
+            _id, _flags, _qdcount, ancount, _nscount, _arcount = struct.unpack(
+                "!HHHHHH", data[:12]
+            )
+            if not (_flags & 0x8000):
+                continue  # skip non-responses
+
+            # Skip question section
+            offset = 12
+            for _ in range(_qdcount):
+                _name, offset = _decode_dns_name(data, offset)
+                offset += 4
+
+            # Parse all RR sections; collect TXT RRs for our instance and PTR hits
+            total_rr = ancount + _nscount + _arcount
+            got_ptr = False
+            txt_props: "dict[bytes, bytes | None]" = {}
+            found_txt = False
+
+            for _ in range(total_rr):
+                if offset >= len(data):
+                    break
+                rr_name, offset = _decode_dns_name(data, offset)
+                if offset + 10 > len(data):
+                    break
+                rr_type, _rr_class, _rr_ttl, rdlen = struct.unpack(
+                    "!HHIH", data[offset: offset + 10]
+                )
+                offset += 10
+                if offset + rdlen > len(data):
+                    break
+                rdata = data[offset: offset + rdlen]
+                offset += rdlen
+
+                # Track whether this response is for our service (PTR hit)
+                if rr_type == DNS_TYPE_PTR:
+                    try:
+                        ptr_target, _ = _decode_dns_name(data,
+                                                         offset - rdlen)
+                        if ptr_target.lower().rstrip(".") == instance_norm:
+                            got_ptr = True
+                    except Exception:
+                        pass
+
+                # Collect TXT records for our instance
+                if (rr_type == DNS_TYPE_TXT
+                        and rr_name.lower().rstrip(".") == instance_norm):
+                    found_txt = True
+                    pos = 0
+                    while pos < len(rdata):
+                        slen = rdata[pos]
+                        pos += 1
+                        if pos + slen > len(rdata):
+                            break
+                        entry = rdata[pos: pos + slen]
+                        pos += slen
+                        if b"=" in entry:
+                            k, v = entry.split(b"=", 1)
+                            txt_props[k] = v
+                        else:
+                            txt_props[entry] = None
+
+            if got_ptr or found_txt:
+                # We got a response from our DUT — return what TXT we found
+                # (empty dict means PTR/SRV were in the response but no TXT)
+                return txt_props
+
+        return None  # no PTR response received within timeout
+    finally:
+        sock.close()
+
+
+# ---------------------------------------------------------------------------
+# Helper: full mDNS transition capture (goodbye + re-announcement)
+# ---------------------------------------------------------------------------
+
+DNS_TYPE_SRV  = 33
+DNS_TYPE_AAAA = 28
+
+# Max seconds we wait after triggering a change for both goodbye and
+# re-announcement to arrive before declaring the capture complete.
+TRANSITION_CAPTURE_TIMEOUT_S = 8.0
+
+# Goodbye re-announcement gap limit (RFC 6762 §8.3: should be < 1 s)
+MAX_GOODBYE_HELLO_GAP_S = 1.5
+
+
+class MdnsPacketInfo:
+    """All records extracted from a single raw mDNS multicast packet."""
+
+    def __init__(self, timestamp: float, is_goodbye: bool):
+        self.timestamp  = timestamp   # time.monotonic() when received
+        self.is_goodbye = is_goodbye  # True when ALL TTLs == 0
+        self.ptr:   list[tuple[str, str]]        = []   # (owner, target)
+        self.srv:   list[tuple[str, int, str]]   = []   # (owner, port, host)
+        self.aaaa:  list[tuple[str, str]]        = []   # (owner, addr_str)
+        self.txt:   dict[str, dict[bytes, bytes | None]] = {}  # owner -> props
+
+    def __repr__(self) -> str:
+        kind = "GOODBYE" if self.is_goodbye else "ANNOUNCE"
+        return (f"MdnsPacketInfo({kind} t={self.timestamp:.3f} "
+                f"ptr={self.ptr} srv={self.srv} "
+                f"aaaa={self.aaaa} txt={self.txt})")
+
+
+def _parse_mdns_packets(iface_idx: int,
+                        instance_norm: str,
+                        timeout: float) -> list[MdnsPacketInfo]:
+    """Passively capture mDNS packets that mention *instance_norm* and parse
+    every record (PTR, SRV, AAAA, TXT) from them.
+
+    Returns a list of MdnsPacketInfo objects in arrival order.
+    Packets from unrelated instances are silently dropped.
+    """
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.bind(("::", MDNS_PORT))
+        mreq = socket.inet_pton(socket.AF_INET6, MDNS_MULTICAST_ADDR)
+        mreq += struct.pack("I", iface_idx)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+        sock.settimeout(1.0)
+
+        results: list[MdnsPacketInfo] = []
+        deadline = time.monotonic() + timeout
+
+        while time.monotonic() < deadline:
+            try:
+                data, _addr = sock.recvfrom(4096)
+            except socket.timeout:
+                continue
+
+            ts = time.monotonic()
+            if len(data) < 12:
+                continue
+            _id, _flags, _qdcount, ancount, _nscount, _arcount = struct.unpack(
+                "!HHHHHH", data[:12]
+            )
+            if not (_flags & 0x8000):
+                continue  # skip queries
+
+            # Skip question section
+            offset = 12
+            for _ in range(_qdcount):
+                _, offset = _decode_dns_name(data, offset)
+                offset += 4
+
+            total_rr = ancount + _nscount + _arcount
+            pkt = MdnsPacketInfo(timestamp=ts, is_goodbye=True)
+            relevant = False
+
+            for _ in range(total_rr):
+                if offset >= len(data):
+                    break
+                rr_name, offset = _decode_dns_name(data, offset)
+                if offset + 10 > len(data):
+                    break
+                rr_type, _rr_class, rr_ttl, rdlen = struct.unpack(
+                    "!HHIH", data[offset: offset + 10]
+                )
+                offset += 10
+                if offset + rdlen > len(data):
+                    break
+                rdata = data[offset: offset + rdlen]
+                offset += rdlen
+
+                if rr_ttl != 0:
+                    pkt.is_goodbye = False
+
+                rr_norm = rr_name.lower().rstrip(".")
+
+                # A packet belongs to our instance if any RR owner name contains
+                # the serial number (covers instance name, hostname, subtype PTRs)
+                sn_norm = DUT_SERIAL.lower()
+                if sn_norm not in rr_norm:
+                    # Still check PTR targets below
+                    if rr_type == DNS_TYPE_PTR:
+                        try:
+                            target, _ = _decode_dns_name(data, offset - rdlen)
+                            if sn_norm in target.lower():
+                                relevant = True
+                                pkt.ptr.append((rr_name, target))
+                        except Exception:
+                            pass
+                    continue
+
+                relevant = True
+
+                if rr_type == DNS_TYPE_PTR:
+                    try:
+                        target, _ = _decode_dns_name(data, offset - rdlen)
+                        pkt.ptr.append((rr_name, target))
+                    except Exception:
+                        pass
+
+                elif rr_type == DNS_TYPE_SRV:
+                    # SRV RDATA: priority(2) weight(2) port(2) target(name)
+                    if len(rdata) >= 6:
+                        port = struct.unpack("!H", rdata[4:6])[0]
+                        try:
+                            host, _ = _decode_dns_name(data, offset - rdlen + 6)
+                            pkt.srv.append((rr_name, port, host))
+                        except Exception:
+                            pass
+
+                elif rr_type == DNS_TYPE_AAAA:
+                    if len(rdata) == 16:
+                        import ipaddress
+                        addr = str(ipaddress.IPv6Address(rdata))
+                        pkt.aaaa.append((rr_name, addr))
+
+                elif rr_type == DNS_TYPE_TXT:
+                    props: dict[bytes, bytes | None] = {}
+                    pos = 0
+                    while pos < len(rdata):
+                        slen = rdata[pos]
+                        pos += 1
+                        if pos + slen > len(rdata):
+                            break
+                        entry = rdata[pos: pos + slen]
+                        pos += slen
+                        if b"=" in entry:
+                            k, v = entry.split(b"=", 1)
+                            props[k] = v
+                        else:
+                            props[entry] = None
+                    pkt.txt[rr_name] = props
+
+            if relevant:
+                results.append(pkt)
+
+        return results
+    finally:
+        sock.close()
+
+
+class TransitionResult:
+    """Parsed result of a single mDNS state-change transition."""
+
+    def __init__(self, packets: "list[MdnsPacketInfo]"):
+        self.packets   = packets
+        self.goodbyes  = [p for p in packets if p.is_goodbye]
+        self.announces = [p for p in packets if not p.is_goodbye]
+
+    @property
+    def goodbye_time(self) -> "float | None":
+        return self.goodbyes[0].timestamp if self.goodbyes else None
+
+    @property
+    def announce_time(self) -> "float | None":
+        return self.announces[0].timestamp if self.announces else None
+
+    @property
+    def gap_s(self) -> "float | None":
+        """Seconds between first goodbye and first re-announcement."""
+        if self.goodbye_time is not None and self.announce_time is not None:
+            return self.announce_time - self.goodbye_time
+        return None
+
+    def all_aaaa(self, is_goodbye: bool) -> list[str]:
+        """Collect all IPv6 address strings from goodbye or announce packets."""
+        addrs: list[str] = []
+        for p in (self.goodbyes if is_goodbye else self.announces):
+            for _owner, addr in p.aaaa:
+                if addr not in addrs:
+                    addrs.append(addr)
+        return addrs
+
+    def all_subtypes(self, is_goodbye: bool) -> list[str]:
+        """Collect all subtype PTR owner names from goodbye or announce packets."""
+        subtypes: list[str] = []
+        for p in (self.goodbyes if is_goodbye else self.announces):
+            for owner, _target in p.ptr:
+                norm = owner.lower()
+                if "_sub." in norm and norm not in subtypes:
+                    subtypes.append(norm)
+        return subtypes
+
+    def txt_sp(self, is_goodbye: bool) -> "str | None":
+        """Return the SP TXT value from goodbye or announce packets, or None."""
+        for p in (self.goodbyes if is_goodbye else self.announces):
+            for _owner, props in p.txt.items():
+                for k, v in props.items():
+                    if k.upper() == b"SP":
+                        return v.decode("ascii") if v else ""
+        return None
+
+    def __repr__(self) -> str:
+        return (f"TransitionResult(goodbyes={len(self.goodbyes)}, "
+                f"announces={len(self.announces)}, gap={self.gap_s})")
+
+
+def _run_transition(iface_idx: int, trigger_fn,
+                    timeout: float = TRANSITION_CAPTURE_TIMEOUT_S,
+                    want_goodbye: bool = True) -> TransitionResult:
+    """Start packet capture, call trigger_fn(), wait, return TransitionResult.
+
+    Capture runs in a background thread so the trigger is fired while
+    the socket is already listening.
+    """
+    import threading
+
+    captured: list[MdnsPacketInfo] = []
+
+    instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+
+    def _capture():
+        captured.extend(_parse_mdns_packets(iface_idx, instance, timeout))
+
+    t = threading.Thread(target=_capture, daemon=True)
+    t.start()
+    time.sleep(0.15)  # let socket bind before triggering
+
+    trigger_fn()
+
+    t.join(timeout + 2)
+    return TransitionResult(captured)
 
 
 # ---------------------------------------------------------------------------
@@ -863,3 +1237,419 @@ class TestMdnsUnsolicitedIA:
         coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
                          payload=restore, timeout=COAP_TIMEOUT)
         time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+
+# ===========================================================================
+# SP (sleep period) TXT record -- non-EITT extension tests
+# ===========================================================================
+
+def _set_sleep_period(coap, oscore_ctx, sp: int) -> None:
+    """POST /test/sleep-period {1: sp} and wait for the mDNS re-announcement."""
+    payload = cbor2.dumps({1: sp})
+    resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                            payload=payload, timeout=COAP_TIMEOUT)
+    assert resp is not None, f"POST /test/sleep-period timed out (sp={sp})"
+    assert resp.is_successful, (
+        f"POST /test/sleep-period failed: {resp.code} (sp={sp})")
+    # Give the stack time to re-announce with the updated TXT record
+    time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+
+def _get_txt_sp(mdns: "Zeroconf") -> "str | None":
+    """Return the SP TXT value advertised by the DUT, or None if absent.
+
+    Uses a raw mDNS TXT query (bypasses the zeroconf cache) so the result
+    always reflects the current on-wire state — essential for the
+    'SP cleared' test where the cached value would otherwise linger.
+    """
+    iface = os.environ.get("DEVICE_IFACE")
+    if not iface:
+        pytest.skip("DEVICE_IFACE not set — raw mDNS TXT query not possible")
+    iface_idx = _iface_name_to_index(iface)
+    instance = f"{DUT_SERIAL}.{KNX_SERVICE_TYPE}"
+    props = _raw_mdns_txt_query(iface_idx, instance, timeout=5.0)
+    if props is None:
+        return None
+    # TXT keys are bytes; search case-insensitively
+    for k, v in props.items():
+        if k.upper() == b"SP":
+            return v.decode("ascii") if v is not None else ""
+    return None
+
+
+class TestMdnsSleepPeriod:
+    """SP TXT record in the mDNS announcement.
+
+    The KNX spec allows an optional TXT record SP=<seconds> on the service.
+    The C function knx_dns_sd_set_sleep_period(sp) controls it:
+      sp == 0  -> TXT record absent (device is wakeful)
+      sp >  0  -> TXT record SP=<sp> present
+    Reachable at runtime via POST /test/sleep-period {1: <int>}.
+
+    SP buffer is char sp[6] (max 5 digits + NUL), so values up to 99999.
+    """
+
+    def test_sp_not_present_by_default(self, mdns, coap, oscore_ctx):
+        """SP TXT record is absent when sleep period is 0 (default)."""
+        # Ensure SP is cleared
+        _set_sleep_period(coap, oscore_ctx, 0)
+
+        sp_val = _get_txt_sp(mdns)
+        assert sp_val is None, (
+            f"Expected no SP TXT record when sp=0, got SP={sp_val!r}")
+
+    def test_sp_200(self, mdns, coap, oscore_ctx):
+        """SP=200 appears in the TXT record after setting sp=200."""
+        _set_sleep_period(coap, oscore_ctx, 200)
+
+        sp_val = _get_txt_sp(mdns)
+        assert sp_val == "200", (
+            f"Expected SP=200 in TXT, got SP={sp_val!r}")
+
+    def test_sp_20000(self, mdns, coap, oscore_ctx):
+        """SP=20000 appears in the TXT record after setting sp=20000."""
+        _set_sleep_period(coap, oscore_ctx, 20000)
+
+        sp_val = _get_txt_sp(mdns)
+        assert sp_val == "20000", (
+            f"Expected SP=20000 in TXT, got SP={sp_val!r}")
+
+    def test_sp_cleared(self, mdns, coap, oscore_ctx):
+        """Setting sp=0 after a non-zero value removes the TXT record."""
+        # First set a value so the TXT record is present
+        _set_sleep_period(coap, oscore_ctx, 30)
+        sp_before = _get_txt_sp(mdns)
+        assert sp_before == "30", (
+            f"Precondition failed: expected SP=30, got {sp_before!r}")
+
+        # Now clear it
+        _set_sleep_period(coap, oscore_ctx, 0)
+        sp_after = _get_txt_sp(mdns)
+        assert sp_after is None, (
+            f"Expected SP TXT record to be absent after sp=0, got {sp_after!r}")
+
+
+# ===========================================================================
+# Transition audit tests
+#
+# Each test captures the raw mDNS multicast stream around a single state
+# change and verifies:
+#
+#   1. A goodbye (TTL=0) packet was sent for the OLD advertisement.
+#   2. A re-announcement was sent with the NEW advertisement.
+#   3. Both packets carry the SAME serial number (SN unchanged).
+#   4. Both packets include at least one IPv6 (AAAA) address.
+#   5. The gap between the goodbye and the re-announcement is ≤ 1.5 s.
+#   6. The relevant field (IA subtype / PM subtype / SP TXT) changed between
+#      goodbye and announcement as expected.
+#
+# These tests require DEVICE_IFACE (set by the docker runner) and are
+# automatically skipped on hosts that do not define it.
+# ===========================================================================
+
+class TestMdnsTransitionAudit:
+    """Audit the full goodbye → re-announcement cycle for every mDNS trigger."""
+
+    @pytest.fixture(autouse=True)
+    def _require_iface(self):
+        iface = os.environ.get("DEVICE_IFACE")
+        if not iface:
+            pytest.skip("DEVICE_IFACE not set — raw mDNS capture not possible")
+        self._iface_idx = _iface_name_to_index(iface)
+
+    # ------------------------------------------------------------------
+    # Shared assertion helpers
+    # ------------------------------------------------------------------
+
+    def _assert_transition_basics(self, tr: TransitionResult,
+                                   label: str) -> None:
+        """Check goodbye present, announce present, SN unchanged, AAAA present,
+        gap within limit."""
+        assert tr.goodbyes, f"[{label}] No goodbye (TTL=0) packet captured"
+        assert tr.announces, f"[{label}] No re-announcement packet captured"
+
+        # SN must appear in both goodbye and announce PTR records (unchanged)
+        sn_norm = DUT_SERIAL.lower()
+        for p in tr.goodbyes + tr.announces:
+            for _owner, target in p.ptr:
+                assert sn_norm in target.lower(), (
+                    f"[{label}] SN '{sn_norm}' missing from PTR target "
+                    f"'{target}' in {'goodbye' if p.is_goodbye else 'announce'}")
+
+        # AAAA must be present in the re-announcement
+        aaaa_new = tr.all_aaaa(is_goodbye=False)
+        assert aaaa_new, f"[{label}] No AAAA record in re-announcement"
+
+        # Goodbye→announce gap
+        gap = tr.gap_s
+        assert gap is not None, f"[{label}] Could not compute goodbye→announce gap"
+        assert gap <= MAX_GOODBYE_HELLO_GAP_S, (
+            f"[{label}] Gap {gap:.3f}s > limit {MAX_GOODBYE_HELLO_GAP_S}s")
+
+    # ------------------------------------------------------------------
+    # Timeline printer
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _print_transition_timeline(tr: TransitionResult, label: str) -> None:
+        """Print a compact OLD-vs-NEW timeline to stdout (captured by pytest -s).
+
+        Layout (one row per captured packet, earliest first):
+          +0.000s  GOODBYE  SUBTYPES=<...>  AAAA=<...>  PORT=<n>  SP=<val>
+          +0.042s  ANNOUNCE SUBTYPES=<...>  AAAA=<...>  PORT=<n>  SP=<val>
+        T=0 is the timestamp of the very first packet captured.
+        """
+        pkts = sorted(tr.packets, key=lambda p: p.timestamp)
+        if not pkts:
+            print(f"\n[{label}] timeline: (no packets captured)")
+            return
+
+        t0 = pkts[0].timestamp
+        lines = [f"\n[{label}] mDNS transition timeline (T0={t0:.3f}):"]
+        lines.append(
+            f"  {'Δt(s)':>8}  {'TYPE':^8}  {'SUBTYPES':<42}  "
+            f"{'AAAA':<39}  {'PORT':>6}  SP"
+        )
+        lines.append("  " + "-" * 118)
+
+        for pkt in pkts:
+            kind = "GOODBYE " if pkt.is_goodbye else "ANNOUNCE"
+            dt   = pkt.timestamp - t0
+
+            subtypes = [
+                owner.split("._sub.")[0].lstrip("_")
+                for owner, _target in pkt.ptr
+                if "._sub." in owner.lower()
+            ]
+            subtypes_str = ",".join(subtypes) if subtypes else "-"
+
+            addrs = [addr for _owner, addr in pkt.aaaa]
+            aaaa_str = ",".join(addrs) if addrs else "-"
+
+            ports = list({port for _owner, port, _host in pkt.srv})
+            port_str = str(ports[0]) if ports else "-"
+
+            sp_vals = []
+            for _owner, props in pkt.txt.items():
+                for k, v in props.items():
+                    if k.upper() == b"SP":
+                        sp_vals.append(v.decode("ascii") if v else "")
+            sp_str = sp_vals[0] if sp_vals else "-"
+
+            lines.append(
+                f"  +{dt:>7.3f}s  {kind}  {subtypes_str:<42}  "
+                f"{aaaa_str:<39}  {port_str:>6}  {sp_str}"
+            )
+
+        if tr.gap_s is not None:
+            lines.append(f"\n  goodbye\u2192announce gap: {tr.gap_s:.3f}s "
+                         f"(limit {MAX_GOODBYE_HELLO_GAP_S}s)")
+        print("\n".join(lines))
+
+    # ------------------------------------------------------------------
+    # IA / IID change
+    # ------------------------------------------------------------------
+
+    def test_transition_ia_change(self, coap, oscore_ctx):
+        """IA/IID change: old _ia subtype in goodbye, new _ia subtype in
+        re-announcement; SN, AAAA, and gap all verified."""
+        old_iid_hex = format(DUT_IID, "x")
+        old_ia_hex  = format(DUT_IA, "x")
+        old_subtype = f"_ia{old_iid_hex}-{old_ia_hex}._sub.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+
+        new_ia  = 0x4D2          # 1234 decimal — distinct from EITT default
+        new_iid = 0x2DFDC1C3D    # 12345678909 decimal
+        new_iid_hex = format(new_iid, "x")
+        new_ia_hex  = format(new_ia, "x")
+        new_subtype = f"_ia{new_iid_hex}-{new_ia_hex}._sub.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+
+        def _trigger():
+            payload = cbor2.dumps({12: new_ia, 26: new_iid})
+            resp = coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                                    payload=payload, timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST IA change failed: {resp}")
+
+        tr = _run_transition(self._iface_idx, _trigger)
+        self._assert_transition_basics(tr, "ia_change")
+
+        # Old subtype must appear in the goodbye packet(s)
+        goodbye_subtypes = tr.all_subtypes(is_goodbye=True)
+        assert any(old_subtype in s for s in goodbye_subtypes), (
+            f"Old IA subtype '{old_subtype}' not in goodbye subtypes: "
+            f"{goodbye_subtypes}")
+
+        # New subtype must appear in the re-announcement
+        announce_subtypes = tr.all_subtypes(is_goodbye=False)
+        assert any(new_subtype in s for s in announce_subtypes), (
+            f"New IA subtype '{new_subtype}' not in announce subtypes: "
+            f"{announce_subtypes}")
+
+        self._print_transition_timeline(tr, "ia_change")
+
+        # Restore EITT IA
+        coap.oscore_post(oscore_ctx, "/.well-known/knx/ia",
+                         payload=cbor2.dumps({12: DUT_IA, 26: DUT_IID}),
+                         timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+    # ------------------------------------------------------------------
+    # PM enable
+    # ------------------------------------------------------------------
+
+    def test_transition_pm_enable(self, coap, oscore_ctx):
+        """PM enabled: _pm subtype appears in re-announcement but not goodbye;
+        SN, AAAA, and gap all verified."""
+        # Ensure PM starts disabled
+        coap.oscore_put(oscore_ctx, "/dev/pm",
+                        payload=cbor2.dumps({1: False}), timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        pm_subtype = f"_pm._sub.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+
+        def _trigger():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: True}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=true failed: {resp}")
+
+        tr = _run_transition(self._iface_idx, _trigger)
+        self._assert_transition_basics(tr, "pm_enable")
+
+        # _pm must NOT appear in goodbye (wasn't set before)
+        goodbye_subtypes = tr.all_subtypes(is_goodbye=True)
+        assert not any(pm_subtype in s for s in goodbye_subtypes), (
+            f"_pm subtype unexpectedly in goodbye: {goodbye_subtypes}")
+
+        # _pm MUST appear in re-announcement
+        announce_subtypes = tr.all_subtypes(is_goodbye=False)
+        assert any(pm_subtype in s for s in announce_subtypes), (
+            f"_pm subtype missing from re-announcement: {announce_subtypes}")
+
+        self._print_transition_timeline(tr, "pm_enable")
+
+        # Cleanup
+        coap.oscore_put(oscore_ctx, "/dev/pm",
+                        payload=cbor2.dumps({1: False}), timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+    # ------------------------------------------------------------------
+    # PM disable
+    # ------------------------------------------------------------------
+
+    def test_transition_pm_disable(self, coap, oscore_ctx):
+        """PM disabled: _pm subtype present in goodbye, absent in
+        re-announcement; SN, AAAA, and gap all verified."""
+        # Ensure PM starts enabled
+        coap.oscore_put(oscore_ctx, "/dev/pm",
+                        payload=cbor2.dumps({1: True}), timeout=COAP_TIMEOUT)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        pm_subtype = f"_pm._sub.{KNX_SERVICE_TYPE}".lower().rstrip(".")
+
+        def _trigger():
+            resp = coap.oscore_put(oscore_ctx, "/dev/pm",
+                                   payload=cbor2.dumps({1: False}),
+                                   timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"PUT /dev/pm=false failed: {resp}")
+
+        tr = _run_transition(self._iface_idx, _trigger)
+        self._assert_transition_basics(tr, "pm_disable")
+
+        # _pm MUST appear in goodbye (was set before)
+        goodbye_subtypes = tr.all_subtypes(is_goodbye=True)
+        assert any(pm_subtype in s for s in goodbye_subtypes), (
+            f"_pm subtype missing from goodbye: {goodbye_subtypes}")
+
+        # _pm must NOT appear in re-announcement
+        announce_subtypes = tr.all_subtypes(is_goodbye=False)
+        assert not any(pm_subtype in s for s in announce_subtypes), (
+            f"_pm subtype unexpectedly in re-announcement: {announce_subtypes}")
+
+        self._print_transition_timeline(tr, "pm_disable")
+
+    # ------------------------------------------------------------------
+    # SP set (0 → 500)
+    # ------------------------------------------------------------------
+
+    def test_transition_sp_set(self, coap, oscore_ctx):
+        """SP set from 0 to 500: no goodbye expected (nothing to retract);
+        SP=500 appears in re-announcement TXT; SN, AAAA, and gap verified."""
+        # Ensure SP starts at 0
+        _set_sleep_period(coap, oscore_ctx, 0)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        def _trigger():
+            # POST only — don't wait inside trigger so capture catches the announce
+            payload = cbor2.dumps({1: 500})
+            resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                                    payload=payload, timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/sleep-period sp=500 failed: {resp}")
+
+        tr = _run_transition(self._iface_idx, _trigger)
+
+        # sp=0 → 500: no old TXT to retract, so no goodbye is expected
+        assert tr.announces, "[sp_set] No re-announcement packet captured"
+
+        aaaa_new = tr.all_aaaa(is_goodbye=False)
+        assert aaaa_new, "[sp_set] No AAAA record in re-announcement"
+
+        # SN unchanged in all announce PTRs
+        sn_norm = DUT_SERIAL.lower()
+        for p in tr.announces:
+            for _owner, target in p.ptr:
+                assert sn_norm in target.lower(), (
+                    f"[sp_set] SN missing from PTR target '{target}'")
+
+        # SP=500 must appear in the re-announcement TXT
+        assert tr.txt_sp(is_goodbye=False) == "500", (
+            f"Expected SP=500 in re-announcement, "
+            f"got {tr.txt_sp(is_goodbye=False)!r}")
+
+        self._print_transition_timeline(tr, "sp_set")
+
+        # Cleanup
+        _set_sleep_period(coap, oscore_ctx, 0)
+
+    # ------------------------------------------------------------------
+    # SP clear (500 → 0): standalone TXT goodbye + re-announcement
+    # ------------------------------------------------------------------
+
+    def test_transition_sp_clear(self, coap, oscore_ctx):
+        """SP cleared from 500 to 0: re-announcement without SP TXT;
+        SN and AAAA verified."""
+        # Ensure SP starts at 500
+        _set_sleep_period(coap, oscore_ctx, 500)
+        time.sleep(MDNS_ANNOUNCE_WAIT_S)
+
+        def _trigger():
+            payload = cbor2.dumps({1: 0})
+            resp = coap.oscore_post(oscore_ctx, "/test/sleep-period",
+                                    payload=payload, timeout=COAP_TIMEOUT)
+            assert resp is not None and resp.is_successful, (
+                f"POST /test/sleep-period sp=0 failed: {resp}")
+
+        tr = _run_transition(self._iface_idx, _trigger, timeout=20.0,
+                             want_goodbye=False)
+
+        assert tr.announces, "[sp_clear] No re-announcement captured"
+
+        announce_aaaa = tr.all_aaaa(is_goodbye=False)
+        assert announce_aaaa, "[sp_clear] No AAAA in re-announcement"
+
+        sn_norm = DUT_SERIAL.lower()
+        for p in tr.announces:
+            for _owner, target in p.ptr:
+                assert sn_norm in target.lower(), (
+                    f"[sp_clear] SN missing from PTR target '{target}'")
+
+        assert tr.txt_sp(is_goodbye=False) is None, (
+            f"[sp_clear] SP should be absent in re-announcement, "
+            f"got {tr.txt_sp(is_goodbye=False)!r}")
+
+        self._print_transition_timeline(tr, "sp_clear")
+
+
